@@ -1,0 +1,114 @@
+# TAP Project Configuration
+# =============================================================================
+# This file defines the project metadata and dependencies for UV/pip.
+# UV reads this file to create and manage the virtual environment.
+
+[project]
+name = "tap"
+version = "0.1.0"
+description = "The Analogy Platform - a graph-based systems mastery platform"
+readme = "README.md"
+requires-python = ">=3.14"
+
+# -----------------------------------------------------------------------------
+# Dependencies
+# -----------------------------------------------------------------------------
+# Core dependencies needed to run the application.
+# Add new dependencies with: docker compose exec web uv add <package>
+# Remove with: docker compose exec web uv remove <package>
+dependencies = [
+    # Web Framework
+    # Django 6 includes built-in background tasks (django.tasks) and CSP support
+    "django>=6.0",
+
+    # API Framework
+    # Django Ninja provides fast, type-hinted API development with OpenAPI docs
+    # Similar to FastAPI but designed for Django
+    "django-ninja>=1.5",
+
+    # Database
+    # psycopg3 is the modern PostgreSQL adapter (psycopg2 is legacy)
+    "psycopg[binary]>=3.2",
+
+    # Configuration
+    # Parses DATABASE_URL environment variable into Django's DATABASES dict
+    "dj-database-url>=2.2",
+]
+
+# -----------------------------------------------------------------------------
+# Development Dependencies
+# -----------------------------------------------------------------------------
+# Tools used during development but not needed in production.
+# Grouped under [dev] so they can be excluded in production builds.
+[dependency-groups]
+dev = [
+    # Code Formatting
+    # Black is the uncompromising Python formatter - no config debates
+    "black>=24.0",
+
+    # Linting
+    # Ruff is a fast Python linter written in Rust, replaces flake8/isort/etc
+    "ruff>=0.8",
+
+    # Type Checking
+    # Mypy catches type errors before runtime
+    # django-stubs provides type hints for Django's internals
+    "mypy>=1.13",
+    "django-stubs>=5.1",
+
+    # Testing
+    # pytest is the modern Python test framework
+    # pytest-django integrates pytest with Django's test utilities
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+
+    # Test Data Generation
+    # Factory Boy creates test fixtures declaratively (better than raw fixtures)
+    "factory-boy>=3.3",
+]
+
+# -----------------------------------------------------------------------------
+# Tool Configuration
+# -----------------------------------------------------------------------------
+
+[tool.black]
+line-length = 120
+target-version = ["py314"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort (import sorting)
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "DJ",     # flake8-django
+]
+ignore = [
+    "E501",   # line too long (black handles this)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tap", "tap_core", "tap_plugins", "tap_api", "tap_web", "tap_viz", "tap_flip", "tap_ai"]
+
+[tool.mypy]
+python_version = "3.14"
+plugins = ["mypy_django_plugin.main"]
+strict = true
+# Relax some strict settings for pragmatic development
+allow_untyped_decorators = true
+allow_subclassing_any = true
+
+[tool.django-stubs]
+django_settings_module = "tap.settings"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tap.settings"
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-v --tb=short"

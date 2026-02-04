@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# Virtual environment (managed by UV)
+.venv/
+
+# UV lock file is committed (reproducible builds)
+# but the cache is not
+.uv-cache/
+
+# Django
+*.sqlite3
+staticfiles/
+media/
+
+# Environment / secrets
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+# Note: docker-compose.yml IS committed (it's dev config, not secrets)

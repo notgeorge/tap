@@ -1,0 +1,101 @@
+# TAP Development Docker Compose Configuration
+# This file defines all the services needed to run TAP locally
+
+services:
+  # ============================================================================
+  # PostgreSQL Database
+  # ============================================================================
+  db:
+    # Official PostgreSQL 16 image (Alpine variant for smaller size)
+    image: postgres:16-alpine
+
+    # Persist database data between container restarts
+    # Without this, your data disappears when the container stops
+    #
+    # This uses a NAMED VOLUME (postgres_data), not a local directory.
+    # Docker manages where the data actually lives on your Mac.
+    # Named volumes are preferred for databases because:
+    #   - Better I/O performance than bind mounts on Mac
+    #   - Docker handles Linux/Mac filesystem translation
+    #   - Portable across operating systems
+    #
+    # Compare to the 'web' service below which uses a BIND MOUNT (.:/app)
+    # to map your local code directory into the container for hot-reload.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    # Database configuration via environment variables
+    # In production, these would come from secrets management
+    environment:
+      POSTGRES_DB: tap          # Name of the database to create
+      POSTGRES_USER: tap        # Database username
+      POSTGRES_PASSWORD: tap    # Database password (change in production!)
+
+    # Expose PostgreSQL port to the host machine
+    # Useful for connecting with database tools like pgAdmin or DBeaver
+    ports:
+      - "5432:5432"
+
+    # Health check to verify database is ready to accept connections
+    # Other services can wait for this before starting
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tap -d tap"]
+      interval: 5s      # Check every 5 seconds
+      timeout: 5s       # Fail if check takes longer than 5 seconds
+      retries: 5        # Give up after 5 failures
+
+  # ============================================================================
+  # Django Web Application
+  # ============================================================================
+  web:
+    # Build the image using our Dockerfile in the current directory
+    build: .
+
+    # Mount the current directory into the container
+    # This is a BIND MOUNT - your actual Mac directory mapped into the container.
+    # Changes to code on your Mac appear immediately inside the container.
+    # This is what enables hot-reload during development.
+    #
+    # Syntax: ./local/path:/container/path
+    # The dot (.) means "current directory"
+    volumes:
+      - .:/app
+
+    # Map container port 8000 to host port 8000
+    # Access the app at http://localhost:8000
+    ports:
+      - "8000:8000"
+
+    # Environment variables for Django
+    environment:
+      # Database connection string
+      # 'db' is the hostname - Docker networking resolves this to the db container
+      DATABASE_URL: postgres://tap:tap@db:5432/tap
+
+      # Django settings
+      DEBUG: "true"                        # Enable debug mode (never in production!)
+      SECRET_KEY: dev-secret-key-change-me # Django secret key (change in production!)
+      ALLOWED_HOSTS: localhost,127.0.0.1   # Hosts Django will respond to
+
+      # Unique identity for this TAP installation (UUIDv7, immutable)
+      # Generated with: docker compose exec web uv run python manage.py generate_grid_id
+      TAP_GRID_ID: "019c2a9a-cfdb-768e-82c5-7a037556064d"
+
+    # Wait for the database to be healthy before starting Django
+    # Prevents errors from Django trying to connect before PostgreSQL is ready
+    depends_on:
+      db:
+        condition: service_healthy
+
+    # Restart the container if it crashes
+    # Useful during development when code errors might crash the server
+    restart: unless-stopped
+
+# ============================================================================
+# Named Volumes
+# ============================================================================
+# Named volumes persist data and are managed by Docker
+# Docker stores them internally (not in your project folder)
+# Run 'docker volume ls' to see them, 'docker volume rm tap_postgres_data' to delete
+volumes:
+  postgres_data:  # Stores PostgreSQL data files
