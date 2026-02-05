@@ -15,7 +15,7 @@ from tap_core.icon_types import IconReference, IconType
 
 def _get_uuid7():
     """Generate a new UUID v7, with fallback for Python < 3.13.
-    
+
     This function is used as the default factory for Entity.id field.
     """
     if hasattr(uuid, 'uuid7'):
@@ -88,7 +88,7 @@ class EntityType(models.Model):
         help_text="Icon reference. Format: 'type:value' (e.g., 'named:fa-server', 'static:plugin/icon.svg')",
     )
     icon_data = models.JSONField(
-        default=dict,
+        default=dict,  # Django JSONField accepts dict as callable factory
         blank=True,
         help_text="Structured icon data with type, value, and metadata. Preferred over icon CharField.",
     )

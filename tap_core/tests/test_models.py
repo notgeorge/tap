@@ -1,5 +1,7 @@
 """Tests for tap_core models — Entity, Edge, EntityType, BaseModel."""
 
+import uuid
+
 import pytest
 
 from django.apps import apps
@@ -100,7 +102,6 @@ class TestBaseModel:
     def test_concept_inherits_basemodel_fields(self):
         entity = create_entity("concept", display_name="Least Privilege")
         # Create concept with explicit originating_grid_id since TAP_GRID_ID may not be set in tests
-        import uuid
         test_grid_id = uuid.uuid4()
         concept = Concept.objects.create(entity=entity, summary="Minimize access.", originating_grid_id=test_grid_id)
         assert concept.created_at is not None
