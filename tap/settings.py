@@ -75,6 +75,9 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # TAP apps (added as we scaffold each one)
     "tap_core",
+    "tap_plugins",
+    # Test plugin — registers concept/precept types for testing core model
+    "tap_core.tests.test_plugin.apps.TestPluginConfig",
 ]
 
 MIDDLEWARE = [
