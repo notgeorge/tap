@@ -22,6 +22,29 @@ A TAP plugin is a Django app with:
 - Tests
 - Eventually: API routers (registered via tap_api, step 3)
 
+## Icon Support
+
+Plugins can specify icons for entity types in three ways:
+
+1. **Named icons** - Reference to icon libraries (Font Awesome, Material Icons, etc.)
+   ```python
+   entity_types = [
+       {"slug": "server", "display_name": "Server", "icon": "named:fa-server"},
+   ]
+   ```
+
+2. **Static icons** - Plugin-provided icon files in static directory
+   ```python
+   entity_types = [
+       {"slug": "custom", "display_name": "Custom", "icon": "static:my_plugin/icons/custom.svg"},
+   ]
+   ```
+   Plugin should include the icon file in: `my_plugin/static/my_plugin/icons/custom.svg`
+
+3. **Uploaded icons** - User-uploaded files (managed through admin/API, not in plugin declaration)
+
+For backward compatibility, plain strings without a type prefix are treated as named icons.
+
 ## What Lives Here vs Other Apps
 
 - **tap_plugins**: Plugin base class, registration infrastructure

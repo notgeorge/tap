@@ -10,6 +10,8 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from tap_core.icon_types import IconReference, IconType
+
 
 def get_default_grid_id() -> uuid.UUID | None:
     """Return this installation's Grid ID from settings, or None if unset."""
@@ -67,7 +69,17 @@ class EntityType(models.Model):
 
     slug = models.CharField(max_length=255, unique=True)
     display_name = models.CharField(max_length=255)
-    icon = models.CharField(max_length=255, blank=True, default="")
+    icon = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Icon reference. Format: 'type:value' (e.g., 'named:fa-server', 'static:plugin/icon.svg')",
+    )
+    icon_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured icon data with type, value, and metadata. Preferred over icon CharField.",
+    )
     description = models.TextField(blank=True, default="")
     plugin_name = models.CharField(max_length=255, blank=True, default="", db_index=True)
 
@@ -77,6 +89,34 @@ class EntityType(models.Model):
 
     def __str__(self) -> str:
         return self.display_name
+
+    def get_icon_reference(self) -> IconReference | None:
+        """Get the icon as an IconReference object.
+
+        Prefers icon_data (structured) over icon (CharField) for backward compatibility.
+        Returns None if no icon is set.
+        """
+        if self.icon_data:
+            return IconReference.from_dict(self.icon_data)
+        elif self.icon:
+            return IconReference.from_string(self.icon)
+        return None
+
+    def set_icon_reference(self, icon_ref: IconReference) -> None:
+        """Set the icon using an IconReference object.
+
+        Updates both icon_data (structured) and icon (CharField) for compatibility.
+        """
+        self.icon_data = icon_ref.to_dict()
+        self.icon = icon_ref.to_string()
+
+    def get_icon_url(self) -> str:
+        """Get the URL to access this icon.
+
+        Returns empty string if no icon is set.
+        """
+        icon_ref = self.get_icon_reference()
+        return icon_ref.get_url() if icon_ref else ""
 
 
 class BaseModel(models.Model):

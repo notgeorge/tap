@@ -45,24 +45,45 @@ class TapPluginConfig(AppConfig):
         where the table may not exist yet.
         """
         try:
+            from tap_core.icon_types import IconReference
             from tap_core.models import EntityType
 
             for et in self.entity_types:
+                # Parse icon specification
+                icon_str = et.get("icon", "")
+                icon_data = {}
+
+                if icon_str:
+                    # Create IconReference from string specification
+                    icon_ref = IconReference.from_string(icon_str)
+                    icon_data = icon_ref.to_dict()
+
                 EntityType.objects.get_or_create(
                     slug=et["slug"],
                     defaults={
                         "display_name": et.get("display_name", et["slug"]),
-                        "icon": et.get("icon", ""),
+                        "icon": icon_str,
+                        "icon_data": icon_data,
                         "description": et.get("description", ""),
                         "plugin_name": self.name,
                     },
                 )
             for et in self.edge_types:
+                # Parse icon specification
+                icon_str = et.get("icon", "")
+                icon_data = {}
+
+                if icon_str:
+                    # Create IconReference from string specification
+                    icon_ref = IconReference.from_string(icon_str)
+                    icon_data = icon_ref.to_dict()
+
                 EntityType.objects.get_or_create(
                     slug=et["slug"],
                     defaults={
                         "display_name": et.get("display_name", et["slug"]),
-                        "icon": et.get("icon", ""),
+                        "icon": icon_str,
+                        "icon_data": icon_data,
                         "description": et.get("description", ""),
                         "plugin_name": self.name,
                     },

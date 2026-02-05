@@ -158,6 +158,20 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # =============================================================================
+# Media Files (User Uploads)
+# =============================================================================
+# Media files are user-uploaded content (icons, attachments, etc.)
+# Unlike static files, media files are created at runtime and need access control.
+#
+# SECURITY: Media files should be served through Django views that check permissions,
+# not directly from the web server in production. For icons specifically:
+#   - Named icons: No files, just CSS class references
+#   - Static icons: Served via STATIC_URL (plugins bundle them)
+#   - Uploaded icons: Served via MEDIA_URL with permission checks
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# =============================================================================
 # Default Primary Key Type
 # =============================================================================
 # UUIDv7 is TAP's standard for entity IDs, but Django's auto-incrementing

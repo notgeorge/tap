@@ -13,11 +13,13 @@ class TestPluginConfig(TapPluginConfig):
             "slug": "concept",
             "display_name": "Concept",
             "description": "An abstract idea or principle.",
+            "icon": "named:fa-lightbulb",
         },
         {
             "slug": "precept",
             "display_name": "Precept",
             "description": "A rule or instruction derived from a concept.",
+            "icon": "named:fa-list-check",
         },
     ]
 
