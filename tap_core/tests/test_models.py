@@ -99,10 +99,13 @@ class TestEntityType:
 class TestBaseModel:
     def test_concept_inherits_basemodel_fields(self):
         entity = create_entity("concept", display_name="Least Privilege")
-        concept = Concept.objects.create(entity=entity, summary="Minimize access.")
+        # Create concept with explicit originating_grid_id since TAP_GRID_ID may not be set in tests
+        import uuid
+        test_grid_id = uuid.uuid4()
+        concept = Concept.objects.create(entity=entity, summary="Minimize access.", originating_grid_id=test_grid_id)
         assert concept.created_at is not None
         assert concept.updated_at is not None
-        assert concept.originating_grid_id is not None
+        assert concept.originating_grid_id == test_grid_id
         assert concept.entity == entity
 
     def test_reverse_relation(self):

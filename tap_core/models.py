@@ -13,6 +13,18 @@ from django.db import models
 from tap_core.icon_types import IconReference, IconType
 
 
+def _get_uuid7():
+    """Generate a new UUID v7, with fallback for Python < 3.13.
+    
+    This function is used as the default factory for Entity.id field.
+    """
+    if hasattr(uuid, 'uuid7'):
+        return uuid.uuid7()
+    # Fallback to uuid6 package for Python < 3.13
+    from uuid6 import uuid7
+    return uuid7()
+
+
 def get_default_grid_id() -> uuid.UUID | None:
     """Return this installation's Grid ID from settings, or None if unset."""
     grid_id_str: str = getattr(settings, "TAP_GRID_ID", "")
@@ -37,7 +49,7 @@ class Entity(models.Model):
 
     id = models.UUIDField(
         primary_key=True,
-        default=uuid.uuid7,
+        default=_get_uuid7,
         editable=False,
     )
     entity_type = models.CharField(

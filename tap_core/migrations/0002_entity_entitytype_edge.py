@@ -2,7 +2,6 @@
 
 import django.db.models.deletion
 import tap_core.models
-import uuid
 from django.db import migrations, models
 
 
@@ -16,7 +15,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="Entity",
             fields=[
-                ("id", models.UUIDField(default=uuid.uuid7, editable=False, primary_key=True, serialize=False)),
+                ("id", models.UUIDField(default=tap_core.models._get_uuid7, editable=False, primary_key=True, serialize=False)),
                 (
                     "entity_type",
                     models.CharField(

@@ -57,7 +57,9 @@ class TestServeIcon:
         with override_settings(MEDIA_ROOT=str(temp_media_root)):
             response = client_logged_in.get("/media/icons/test.svg")
             assert response.status_code == 200
-            assert b"<svg>" in response.content
+            # FileResponse uses streaming_content instead of content
+            content = b"".join(response.streaming_content)
+            assert b"<svg>" in content
 
     @override_settings(MEDIA_ROOT=None)
     def test_serve_icon_nested_path(self, client_logged_in, temp_media_root):
@@ -65,7 +67,9 @@ class TestServeIcon:
         with override_settings(MEDIA_ROOT=str(temp_media_root)):
             response = client_logged_in.get("/media/icons/subdir/nested.svg")
             assert response.status_code == 200
-            assert b"<rect" in response.content
+            # FileResponse uses streaming_content instead of content
+            content = b"".join(response.streaming_content)
+            assert b"<rect" in content
 
     @override_settings(MEDIA_ROOT=None)
     def test_serve_icon_path_traversal_blocked(self, client_logged_in, temp_media_root):
