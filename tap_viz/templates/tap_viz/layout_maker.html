@@ -1,0 +1,57 @@
+{% extends "tap_web/base.html" %}
+{% load static %}
+
+{% block title %}Layout Maker - TAP{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="text-2xl font-bold text-slate-800">Layout Maker</h1>
+    <p class="mt-1 text-slate-600">Create and save graph layouts. (Coming soon)</p>
+</div>
+
+<div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+    <p class="text-amber-800">
+        The layout editor is not yet implemented. This is a placeholder for v0.
+    </p>
+</div>
+
+<div id="cy" class="mt-4 w-full h-96 border border-slate-300 rounded-lg bg-white"></div>
+
+<script src="{% static 'tap_viz/js/cytoscape.min.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements: [
+            { data: { id: 'a', label: 'Node A' } },
+            { data: { id: 'b', label: 'Node B' } },
+            { data: { id: 'c', label: 'Node C' } },
+            { data: { source: 'a', target: 'b' } },
+            { data: { source: 'b', target: 'c' } }
+        ],
+        style: [
+            {
+                selector: 'node',
+                style: {
+                    'background-color': '#4f46e5',
+                    'label': 'data(label)',
+                    'color': '#1e293b',
+                    'font-size': '12px'
+                }
+            },
+            {
+                selector: 'edge',
+                style: {
+                    'width': 2,
+                    'line-color': '#94a3b8',
+                    'target-arrow-color': '#94a3b8',
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier'
+                }
+            }
+        ],
+        layout: { name: 'grid' }
+    });
+});
+</script>
+{% endblock %}

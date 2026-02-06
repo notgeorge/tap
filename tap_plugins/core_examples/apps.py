@@ -1,12 +1,14 @@
-"""Test plugin — abstract philosophical entities for proving the core model."""
+"""Core examples plugin — abstract philosophical entities for demos and testing."""
+
+from typing import Any
 
 from tap_plugins.base import TapPluginConfig
 
 
-class TestPluginConfig(TapPluginConfig):
-    name = "tap_core.tests.test_plugin"
-    verbose_name = "Test Plugin"
-    label = "test_plugin"
+class CoreExamplesConfig(TapPluginConfig):
+    name = "tap_plugins.core_examples"
+    verbose_name = "Core Examples"
+    label = "core_examples"
 
     entity_types = [
         {
@@ -33,3 +35,8 @@ class TestPluginConfig(TapPluginConfig):
             "description": "General dependency between any entities.",
         },
     ]
+
+    def get_api_router(self) -> Any:
+        from tap_plugins.core_examples.api import router
+
+        return router

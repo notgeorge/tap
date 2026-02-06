@@ -76,8 +76,14 @@ INSTALLED_APPS = [
     # TAP apps (added as we scaffold each one)
     "tap_core",
     "tap_plugins",
-    # Test plugin — registers concept/precept types for testing core model
-    "tap_core.tests.test_plugin.apps.TestPluginConfig",
+    # Core examples plugin — concept/precept types for demos and testing
+    "tap_plugins.core_examples.apps.CoreExamplesConfig",
+    # API layer — last so ready() discovers all plugin routers
+    "tap_api",
+    # Web interface
+    "tap_web",
+    # Visualization
+    "tap_viz",
 ]
 
 MIDDLEWARE = [

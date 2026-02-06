@@ -2,9 +2,9 @@
 
 import pytest
 
-from tap_core.models import Edge, Entity, EntityType
+from tap_core.models import Edge, Entity
 from tap_core.services import create_edge, create_entity, delete_edge, delete_entity, update_entity
-from tap_core.tests.test_plugin.models import Concept, Precept
+from tap_plugins.core_examples.models import Concept
 
 
 @pytest.mark.django_db

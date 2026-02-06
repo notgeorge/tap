@@ -1,12 +1,12 @@
 """Tests for tap_core models — Entity, Edge, EntityType, BaseModel."""
 
 import pytest
-
 from django.apps import apps
 
-from tap_core.models import Entity, EntityType
+from tap_core.models import EntityType
 from tap_core.services import create_entity
-from tap_core.tests.test_plugin.models import Concept, Precept
+from tap_plugins.base import TapPluginConfig
+from tap_plugins.core_examples.models import Concept, Precept
 
 
 @pytest.mark.django_db
@@ -23,10 +23,11 @@ class TestEntityType:
         )
         assert EntityType.objects.filter(slug="concept").count() == 1
 
-    def test_types_registered_by_test_plugin(self):
-        """The test plugin registers concept, precept, applies_to, depends_on."""
+    def test_types_registered_by_core_examples(self):
+        """The core_examples plugin registers concept, precept, applies_to, depends_on."""
         # ready() ran against the real DB; re-register against the test DB
-        app_config = apps.get_app_config("test_plugin")
+        app_config = apps.get_app_config("core_examples")
+        assert isinstance(app_config, TapPluginConfig)
         app_config._register_types()
         slugs = set(EntityType.objects.values_list("slug", flat=True))
         assert {"concept", "precept", "applies_to", "depends_on"}.issubset(slugs)

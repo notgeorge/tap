@@ -105,6 +105,11 @@ strict = true
 allow_untyped_decorators = true
 allow_subclassing_any = true
 
+[[tool.mypy.overrides]]
+module = ["*.tests.*", "conftest"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
 [tool.django-stubs]
 django_settings_module = "tap.settings"
 

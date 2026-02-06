@@ -3,9 +3,11 @@ TapPluginConfig — base class for TAP plugins.
 
 Plugins subclass this instead of Django's AppConfig. Declare entity_types
 and edge_types as class attributes; they're auto-registered on startup.
+Override get_api_router() to expose API endpoints.
 """
 
 import logging
+from typing import Any
 
 from django.apps import AppConfig
 from django.db import OperationalError, ProgrammingError
@@ -37,6 +39,14 @@ class TapPluginConfig(AppConfig):
     def ready(self) -> None:
         self._register_types()
 
+    def get_api_router(self) -> Any:
+        """Return a ninja.Router for this plugin, or None.
+
+        Override to expose endpoints at /api/v1/plugins/<label>/...
+        tap_api discovers and mounts these automatically.
+        """
+        return None
+
     def _register_types(self) -> None:
         """Register entity and edge types into the EntityType table.
 
@@ -67,6 +77,6 @@ class TapPluginConfig(AppConfig):
                         "plugin_name": self.name,
                     },
                 )
-        except (OperationalError, ProgrammingError):
+        except OperationalError, ProgrammingError:
             # Table doesn't exist yet (running migrations for the first time)
             logger.debug("EntityType table not ready; skipping type registration.")

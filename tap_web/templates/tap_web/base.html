@@ -1,0 +1,38 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TAP{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'tap_web/css/tailwind.css' %}">
+    <script src="{% static 'tap_web/js/htmx.min.js' %}" defer></script>
+</head>
+<body class="h-full flex flex-col">
+    <nav class="bg-slate-800 text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="text-xl font-bold">TAP</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/api/v1/docs" class="text-sm text-gray-300 hover:text-white">API Docs</a>
+                    <a href="/admin/" class="text-sm text-gray-300 hover:text-white">Admin</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-1">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <footer class="bg-slate-100 border-t border-slate-200">
+        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+            <p class="text-center text-sm text-slate-500">TAP - The Analogy Platform</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -45,7 +45,10 @@ class Entity(models.Model):
     )
     display_name = models.CharField(max_length=255, blank=True, default="")
     originating_grid_id = models.UUIDField(
-        default=get_default_grid_id, null=True, blank=True, db_index=True,
+        default=get_default_grid_id,
+        null=True,
+        blank=True,
+        db_index=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -92,7 +95,9 @@ class BaseModel(models.Model):
         related_name="%(class)s",
     )
     originating_grid_id = models.UUIDField(
-        default=get_default_grid_id, null=True, blank=True,
+        default=get_default_grid_id,
+        null=True,
+        blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -109,10 +114,14 @@ class Edge(BaseModel):
     """
 
     from_entity = models.ForeignKey(
-        Entity, on_delete=models.CASCADE, related_name="edges_out",
+        Entity,
+        on_delete=models.CASCADE,
+        related_name="edges_out",
     )
     to_entity = models.ForeignKey(
-        Entity, on_delete=models.CASCADE, related_name="edges_in",
+        Entity,
+        on_delete=models.CASCADE,
+        related_name="edges_in",
     )
     edge_type = models.CharField(max_length=255, db_index=True)
     properties = models.JSONField(default=dict, blank=True)

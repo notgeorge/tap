@@ -1,19 +1,24 @@
 """
 TAP URL Configuration
-=============================================================================
-Top-level URL routing for the TAP platform.
 
 URL structure:
-    /admin/         - Django admin interface
-    /api/v1/...     - API endpoints (added when tap_api is scaffolded)
-    /               - Web interface (added when tap_web is scaffolded)
+    /admin/         Django admin interface
+    /api/v1/...     Versioned API (Django Ninja)
+    /api/...        Redirects to /api/v1/... (latest version alias)
+    /               Web interface
 """
 
 from django.contrib import admin
-from django.urls import path
+from django.http import HttpResponseRedirect
+from django.urls import include, path
+
+from tap_api.api import api
 
 urlpatterns = [
-    # Django's built-in admin interface
-    # Provides CRUD for models registered with admin.site.register()
     path("admin/", admin.site.urls),
+    path("api/v1/", api.urls),
+    path("api/<path:resource>", lambda request, resource: HttpResponseRedirect(f"/api/v1/{resource}")),
+    path("api/", lambda request: HttpResponseRedirect("/api/v1/")),
+    path("", include("tap_web.urls")),
+    path("viz/", include("tap_viz.urls")),
 ]

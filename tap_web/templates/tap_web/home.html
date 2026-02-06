@@ -1,0 +1,109 @@
+{% extends "tap_web/base.html" %}
+{% load static %}
+
+{% block title %}TAP - Home{% endblock %}
+
+{% block content %}
+<div class="text-center py-8">
+    <h1 class="text-4xl font-bold text-slate-900 mb-4">The Analogy Platform</h1>
+    <p class="text-lg text-slate-600 mb-6">Graph-based systems mastery</p>
+
+    <div class="flex justify-center space-x-4">
+        <a href="/admin/" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-slate-800 hover:bg-slate-700">
+            Admin
+        </a>
+        <a href="/api/v1/docs" class="inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50">
+            API Docs
+        </a>
+    </div>
+</div>
+
+<div class="mt-6">
+    <h2 class="text-lg font-semibold text-slate-900 mb-3">Entity Graph</h2>
+    <div id="cy" class="w-full border border-slate-300 rounded-lg bg-white" style="height: 30vh; min-height: 200px;"></div>
+    <p id="cy-status" class="mt-2 text-sm text-slate-500"></p>
+</div>
+
+<script src="{% static 'tap_viz/js/cytoscape.min.js' %}"></script>
+<script src="{% static 'tap_viz/js/cytoscape-grid-guide.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    const statusEl = document.getElementById('cy-status');
+
+    try {
+        const [entitiesRes, edgesRes] = await Promise.all([
+            fetch('/api/v1/entities/'),
+            fetch('/api/v1/edges/')
+        ]);
+
+        if (!entitiesRes.ok || !edgesRes.ok) {
+            statusEl.textContent = 'Login required to view graph.';
+            return;
+        }
+
+        const entities = await entitiesRes.json();
+        const edges = await edgesRes.json();
+
+        const nodes = entities.map(e => ({
+            data: {
+                id: e.id,
+                label: e.display_name || e.entity_type
+            }
+        }));
+
+        const edgeElements = edges.map(e => ({
+            data: {
+                source: e.from_entity_id,
+                target: e.to_entity_id,
+                label: e.edge_type
+            }
+        }));
+
+        if (nodes.length === 0) {
+            statusEl.textContent = 'No entities yet. Create some via Admin or API.';
+            return;
+        }
+
+        const cy = cytoscape({
+            container: document.getElementById('cy'),
+            elements: [...nodes, ...edgeElements],
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'background-color': '#4f46e5',
+                        'label': 'data(label)',
+                        'color': '#1e293b',
+                        'font-size': '11px',
+                        'text-valign': 'bottom',
+                        'text-margin-y': '4px'
+                    }
+                },
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 2,
+                        'line-color': '#94a3b8',
+                        'target-arrow-color': '#94a3b8',
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'bezier',
+                        'label': 'data(label)',
+                        'font-size': '9px',
+                        'color': '#64748b'
+                    }
+                }
+            ],
+            layout: { name: 'grid' },
+            userZoomingEnabled: true,
+            userPanningEnabled: true,
+            boxSelectionEnabled: false
+        });
+
+        statusEl.textContent = `${nodes.length} entities, ${edgeElements.length} edges`;
+
+    } catch (err) {
+        statusEl.textContent = 'Error loading graph: ' + err.message;
+    }
+});
+</script>
+{% endblock %}

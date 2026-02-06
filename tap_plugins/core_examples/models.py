@@ -1,4 +1,4 @@
-"""Domain models for the test plugin."""
+"""Domain models for the core examples plugin."""
 
 from django.db import models
 
@@ -11,7 +11,7 @@ class Concept(BaseModel):
     summary = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "test_plugin_concept"
+        db_table = "core_examples_concept"
 
     def __str__(self) -> str:
         return self.entity.display_name
@@ -23,7 +23,7 @@ class Precept(BaseModel):
     statement = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "test_plugin_precept"
+        db_table = "core_examples_precept"
 
     def __str__(self) -> str:
         return self.entity.display_name
