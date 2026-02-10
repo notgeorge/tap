@@ -86,11 +86,14 @@ class BaseModel(models.Model):
     """Abstract base for all domain ORM models (not Entity/EntityType/User).
 
     Enforces the TAP pattern: every domain object has an Entity.
-    When tap_flip is built, realm/environment/provenance fields extend here.
 
     Edge constraints:
         Subclasses can define OUTBOUND_EDGES and INBOUND_EDGES to constrain
         which edge types can connect to which node types. See constraints.py.
+
+    FLIP integration:
+        Subclasses can define FLIP_CONFIG to enable history tracking and
+        other provenance features. See tap_flip.config for defaults.
     """
 
     entity = models.OneToOneField(
@@ -103,6 +106,13 @@ class BaseModel(models.Model):
         null=True,
         blank=True,
     )
+    batch_id = models.CharField(
+        max_length=36,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="UUIDv7 of the batch this change was included in (FLIP Phase 2).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -111,10 +121,8 @@ class BaseModel(models.Model):
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
+
         # Register edge constraints if defined on the subclass
-        # Note: We don't check _meta.abstract here because Django's metaclass
-        # hasn't finished processing when __init_subclass__ runs. Instead,
-        # we rely on the fact that abstract models won't define constraints.
         entity_type = cls.__name__.lower()
         outbound = getattr(cls, "OUTBOUND_EDGES", None)
         inbound = getattr(cls, "INBOUND_EDGES", None)
@@ -123,7 +131,10 @@ class BaseModel(models.Model):
 
             register_constraints(entity_type, outbound, inbound)
 
-            register_constraints(entity_type, outbound, inbound)
+        # FLIP: Cache config in registry (history registration deferred to app ready)
+        from tap_flip.config import get_model_flip_config
+
+        get_model_flip_config(cls)
 
 
 class Edge(BaseModel):

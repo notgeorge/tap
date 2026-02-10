@@ -33,6 +33,10 @@ dependencies = [
     # Configuration
     # Parses DATABASE_URL environment variable into Django's DATABASES dict
     "dj-database-url>=2.2",
+
+    # History Tracking
+    # django-simple-history provides audit trail for model changes
+    "django-simple-history>=3.4",
 ]
 
 # -----------------------------------------------------------------------------
@@ -109,6 +113,10 @@ allow_subclassing_any = true
 module = ["*.tests.*", "conftest"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = ["simple_history", "simple_history.*"]
+ignore_missing_imports = true
 
 [tool.django-stubs]
 django_settings_module = "tap.settings"

@@ -3,12 +3,23 @@
 from typing import Any, ClassVar
 
 from django.db import models
+from simple_history.models import HistoricalRecords
 
 from tap_core.models import BaseModel
+from tap_flip.history.context import get_history_user
 
 
 class Concept(BaseModel):
     """An abstract idea or principle."""
+
+    # FLIP: Enable history and batch tracking for Concept
+    FLIP_CONFIG: ClassVar[dict[str, Any]] = {
+        "history": {"enabled": True},
+        "batch": {"enabled": True},
+    }
+
+    # History tracking via django-simple-history
+    history = HistoricalRecords(get_user=get_history_user)
 
     # Concepts can create APPLIES_TO edges to concepts and precepts
     # Concepts can create DEPENDS_ON edges to other concepts

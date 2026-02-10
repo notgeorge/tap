@@ -86,6 +86,10 @@ INSTALLED_APPS = [
     "tap_web",
     # Visualization
     "tap_viz",
+    # History tracking — must be before tap_flip
+    "simple_history",
+    # FLIP — provenance, history, realms, environments
+    "tap_flip",
 ]
 
 MIDDLEWARE = [

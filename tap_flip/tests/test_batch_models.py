@@ -1,0 +1,192 @@
+"""Tests for Batch and BatchEvent models."""
+
+import pytest
+
+from tap_core.services import create_entity
+from tap_flip.config import is_batch_enabled, is_history_enabled
+from tap_flip.models import Batch, BatchEvent, BatchEventType, BatchStatus
+
+
+@pytest.mark.django_db
+class TestBatchModel:
+    """Tests for Batch model."""
+
+    def test_batch_is_entity(self):
+        """Batch extends BaseModel, has an Entity."""
+        entity = create_entity("batch", display_name="Test Batch")
+        batch = Batch.objects.create(entity=entity)
+
+        assert batch.entity == entity
+        assert batch.entity.entity_type == "batch"
+
+    def test_batch_default_status_is_open(self):
+        """New batches start in OPEN status."""
+        entity = create_entity("batch", display_name="Open Test")
+        batch = Batch.objects.create(entity=entity)
+
+        assert batch.status == BatchStatus.OPEN
+
+    def test_batch_status_transitions(self):
+        """Batch status can be changed."""
+        entity = create_entity("batch", display_name="Status Test")
+        batch = Batch.objects.create(entity=entity)
+
+        batch.status = BatchStatus.CLOSED
+        batch.save()
+        batch.refresh_from_db()
+
+        assert batch.status == BatchStatus.CLOSED
+
+    def test_batch_has_source_field(self):
+        """Batch has source field for tracking origin."""
+        entity = create_entity("batch", display_name="Source Test")
+        batch = Batch.objects.create(entity=entity, source="scanner:aws")
+
+        assert batch.source == "scanner:aws"
+
+    def test_batch_has_metadata_field(self):
+        """Batch has metadata JSONField."""
+        entity = create_entity("batch", display_name="Metadata Test")
+        batch = Batch.objects.create(entity=entity, metadata={"param1": "value1", "count": 42})
+
+        assert batch.metadata == {"param1": "value1", "count": 42}
+
+    def test_batch_has_timestamps(self):
+        """Batch has started_at and closed_at fields."""
+        entity = create_entity("batch", display_name="Timestamp Test")
+        batch = Batch.objects.create(entity=entity)
+
+        assert batch.started_at is not None
+        assert batch.closed_at is None
+
+    def test_batch_str_representation(self):
+        """Batch __str__ includes display name and status."""
+        entity = create_entity("batch", display_name="My Batch")
+        batch = Batch.objects.create(entity=entity)
+
+        assert "My Batch" in str(batch)
+        assert "open" in str(batch)
+
+
+@pytest.mark.django_db
+class TestBatchFlipConfig:
+    """Tests for Batch FLIP_CONFIG."""
+
+    def test_batch_disables_batch_tracking(self):
+        """Batch.FLIP_CONFIG disables batch tracking to prevent self-reference."""
+        assert is_batch_enabled(Batch) is False
+
+    def test_batch_enables_history_tracking(self):
+        """Batch.FLIP_CONFIG enables history tracking."""
+        assert is_history_enabled(Batch) is True
+
+    def test_batch_has_history_manager(self):
+        """Batch has history manager for tracking changes."""
+        assert hasattr(Batch, "history")
+
+
+@pytest.mark.django_db
+class TestBatchEventModel:
+    """Tests for BatchEvent model."""
+
+    def test_batch_event_links_to_batch(self):
+        """BatchEvent belongs to a Batch."""
+        batch_entity = create_entity("batch", display_name="Parent Batch")
+        batch = Batch.objects.create(entity=batch_entity)
+
+        target_entity = create_entity("concept", display_name="Target")
+        event = BatchEvent.objects.create(
+            batch=batch,
+            event_type=BatchEventType.CREATE,
+            entity_id=target_entity.id,
+            entity_type=target_entity.entity_type,
+            model_name="Concept",
+        )
+
+        assert event.batch == batch
+        assert event.batch_id == batch.id
+
+    def test_batch_event_is_not_entity(self):
+        """BatchEvent does not extend BaseModel (standalone)."""
+        # BatchEvent should not have an entity field
+        assert not hasattr(BatchEvent, "entity") or not isinstance(getattr(BatchEvent, "entity", None), property)
+        # Check it's a plain Model, not BaseModel
+        from tap_core.models import BaseModel
+
+        assert not issubclass(BatchEvent, BaseModel)
+
+    def test_batch_event_has_uuid_primary_key(self):
+        """BatchEvent uses UUIDField as primary key."""
+        batch_entity = create_entity("batch", display_name="UUID Test Batch")
+        batch = Batch.objects.create(entity=batch_entity)
+
+        target_entity = create_entity("concept", display_name="Target")
+        event = BatchEvent.objects.create(
+            batch=batch,
+            event_type=BatchEventType.CREATE,
+            entity_id=target_entity.id,
+            entity_type=target_entity.entity_type,
+        )
+
+        assert event.id is not None
+        assert len(str(event.id)) == 36  # UUID format
+
+    def test_batch_event_types(self):
+        """BatchEvent supports all event types."""
+        assert BatchEventType.CREATE.value == "create"
+        assert BatchEventType.UPDATE.value == "update"
+        assert BatchEventType.DELETE.value == "delete"
+        assert BatchEventType.LINK.value == "link"
+        assert BatchEventType.UNLINK.value == "unlink"
+
+    def test_batch_event_has_metadata(self):
+        """BatchEvent has metadata JSONField."""
+        batch_entity = create_entity("batch", display_name="Metadata Batch")
+        batch = Batch.objects.create(entity=batch_entity)
+
+        target_entity = create_entity("concept", display_name="Target")
+        event = BatchEvent.objects.create(
+            batch=batch,
+            event_type=BatchEventType.CREATE,
+            entity_id=target_entity.id,
+            entity_type=target_entity.entity_type,
+            metadata={"custom_key": "custom_value"},
+        )
+
+        assert event.metadata == {"custom_key": "custom_value"}
+
+    def test_batch_event_str_representation(self):
+        """BatchEvent __str__ shows event type and entity info."""
+        batch_entity = create_entity("batch", display_name="Str Batch")
+        batch = Batch.objects.create(entity=batch_entity)
+
+        target_entity = create_entity("concept", display_name="Target")
+        event = BatchEvent.objects.create(
+            batch=batch,
+            event_type=BatchEventType.CREATE,
+            entity_id=target_entity.id,
+            entity_type="concept",
+        )
+
+        assert "create" in str(event)
+        assert "concept" in str(event)
+
+    def test_batch_events_cascade_on_batch_delete(self):
+        """BatchEvents are deleted when their Batch is deleted."""
+        batch_entity = create_entity("batch", display_name="Cascade Test Batch")
+        batch = Batch.objects.create(entity=batch_entity)
+
+        target_entity = create_entity("concept", display_name="Target")
+        event = BatchEvent.objects.create(
+            batch=batch,
+            event_type=BatchEventType.CREATE,
+            entity_id=target_entity.id,
+            entity_type=target_entity.entity_type,
+        )
+        event_id = event.id
+
+        # Delete the batch (via entity cascade)
+        batch_entity.delete()
+
+        # Event should be gone
+        assert not BatchEvent.objects.filter(id=event_id).exists()
