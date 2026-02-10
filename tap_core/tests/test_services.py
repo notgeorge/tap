@@ -48,7 +48,7 @@ class TestDeleteEntity:
     def test_cascades_to_edges(self):
         a = create_entity("concept", display_name="A")
         b = create_entity("precept", display_name="B")
-        edge = create_edge(a, b, "applies_to")
+        edge = create_edge(a, b, "APPLIES_TO")
         delete_entity(a)
         # Edge should be gone (from_entity cascade)
         assert not Edge.objects.filter(pk=edge.pk).exists()
@@ -65,10 +65,10 @@ class TestCreateEdge:
     def test_creates_edge_with_backing_entity(self):
         a = create_entity("concept")
         b = create_entity("precept")
-        edge = create_edge(a, b, "applies_to")
+        edge = create_edge(a, b, "APPLIES_TO")
         assert edge.from_entity == a
         assert edge.to_entity == b
-        assert edge.edge_type == "applies_to"
+        assert edge.edge_type == "APPLIES_TO"
         # Edge has a backing Entity
         assert edge.entity is not None
         assert edge.entity.entity_type == "edge"
@@ -76,14 +76,14 @@ class TestCreateEdge:
     def test_edge_properties(self):
         a = create_entity("concept")
         b = create_entity("concept")
-        edge = create_edge(a, b, "depends_on", properties={"strength": "strong"})
+        edge = create_edge(a, b, "DEPENDS_ON", properties={"strength": "strong"})
         assert edge.properties == {"strength": "strong"}
 
-    def test_depends_on_works_across_types(self):
-        concept = create_entity("concept", display_name="Defense in Depth")
-        precept = create_entity("precept", display_name="Use MFA")
-        edge = create_edge(concept, precept, "depends_on")
-        assert edge.edge_type == "depends_on"
+    def test_depends_on_between_concepts(self):
+        concept_a = create_entity("concept", display_name="Defense in Depth")
+        concept_b = create_entity("concept", display_name="Least Privilege")
+        edge = create_edge(concept_a, concept_b, "DEPENDS_ON")
+        assert edge.edge_type == "DEPENDS_ON"
 
 
 @pytest.mark.django_db
@@ -91,7 +91,7 @@ class TestDeleteEdge:
     def test_deletes_edge_and_backing_entity(self):
         a = create_entity("concept")
         b = create_entity("precept")
-        edge = create_edge(a, b, "applies_to")
+        edge = create_edge(a, b, "APPLIES_TO")
         backing_entity_pk = edge.entity.pk
         delete_edge(edge)
         assert not Edge.objects.filter(pk=edge.pk).exists()
@@ -100,7 +100,7 @@ class TestDeleteEdge:
     def test_source_entities_survive(self):
         a = create_entity("concept")
         b = create_entity("precept")
-        edge = create_edge(a, b, "applies_to")
+        edge = create_edge(a, b, "APPLIES_TO")
         delete_edge(edge)
         # The endpoints should still exist
         assert Entity.objects.filter(pk=a.pk).exists()

@@ -73,7 +73,11 @@ COPY . .
 # This is informational - you still need to map the port in docker-compose
 EXPOSE 8000
 
+# Copy the entrypoint script and make it executable
+# The entrypoint handles: migrations, conditional seed data, then server start
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Default command to run when the container starts
-# Runs Django's development server, bound to all interfaces (0.0.0.0)
-# so it's accessible from outside the container
-CMD ["uv", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
+# The entrypoint script runs migrations, seeds data (if DEBUG), then starts Django
+CMD ["/entrypoint.sh"]

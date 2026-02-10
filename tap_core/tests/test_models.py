@@ -24,13 +24,13 @@ class TestEntityType:
         assert EntityType.objects.filter(slug="concept").count() == 1
 
     def test_types_registered_by_core_examples(self):
-        """The core_examples plugin registers concept, precept, applies_to, depends_on."""
+        """The core_examples plugin registers concept, precept, APPLIES_TO, DEPENDS_ON."""
         # ready() ran against the real DB; re-register against the test DB
         app_config = apps.get_app_config("core_examples")
         assert isinstance(app_config, TapPluginConfig)
         app_config._register_types()
         slugs = set(EntityType.objects.values_list("slug", flat=True))
-        assert {"concept", "precept", "applies_to", "depends_on"}.issubset(slugs)
+        assert {"concept", "precept", "APPLIES_TO", "DEPENDS_ON"}.issubset(slugs)
 
 
 @pytest.mark.django_db

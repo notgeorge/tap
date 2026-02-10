@@ -87,6 +87,10 @@ class BaseModel(models.Model):
 
     Enforces the TAP pattern: every domain object has an Entity.
     When tap_flip is built, realm/environment/provenance fields extend here.
+
+    Edge constraints:
+        Subclasses can define OUTBOUND_EDGES and INBOUND_EDGES to constrain
+        which edge types can connect to which node types. See constraints.py.
     """
 
     entity = models.OneToOneField(
@@ -104,6 +108,22 @@ class BaseModel(models.Model):
 
     class Meta:
         abstract = True
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        # Register edge constraints if defined on the subclass
+        # Note: We don't check _meta.abstract here because Django's metaclass
+        # hasn't finished processing when __init_subclass__ runs. Instead,
+        # we rely on the fact that abstract models won't define constraints.
+        entity_type = cls.__name__.lower()
+        outbound = getattr(cls, "OUTBOUND_EDGES", None)
+        inbound = getattr(cls, "INBOUND_EDGES", None)
+        if outbound is not None or inbound is not None:
+            from tap_core.constraints import register_constraints
+
+            register_constraints(entity_type, outbound, inbound)
+
+            register_constraints(entity_type, outbound, inbound)
 
 
 class Edge(BaseModel):

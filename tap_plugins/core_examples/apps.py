@@ -25,12 +25,12 @@ class CoreExamplesConfig(TapPluginConfig):
 
     edge_types = [
         {
-            "slug": "applies_to",
+            "slug": "APPLIES_TO",
             "display_name": "Applies To",
             "description": "A concept gives rise to a precept.",
         },
         {
-            "slug": "depends_on",
+            "slug": "DEPENDS_ON",
             "display_name": "Depends On",
             "description": "General dependency between any entities.",
         },

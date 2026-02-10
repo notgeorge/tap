@@ -8,6 +8,7 @@ slots in here without changing call sites.
 
 from typing import Any
 
+from tap_core.constraints import validate_edge
 from tap_core.models import Edge, Entity
 
 
@@ -48,7 +49,12 @@ def create_edge(
 
     Callers don't need to manually create the Entity for the edge —
     this function handles it.
+
+    Raises InvalidEdgeError if the edge violates constraints.
     """
+    # Validate against edge constraints before any DB writes
+    validate_edge(from_entity.entity_type, to_entity.entity_type, edge_type)
+
     # Edge inherits BaseModel, which requires a OneToOne to Entity.
     # We auto-create that backing Entity here.
     edge_entity = Entity.objects.create(

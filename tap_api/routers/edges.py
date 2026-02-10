@@ -6,7 +6,8 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router
 
-from tap_api.schemas import EdgeIn, EdgeOut
+from tap_api.schemas import EdgeIn, EdgeOut, ErrorOut
+from tap_core.exceptions import InvalidEdgeError
 from tap_core.models import Edge, Entity
 from tap_core.services import create_edge, delete_edge
 
@@ -37,17 +38,20 @@ def get_edge(request: HttpRequest, edge_id: int) -> Edge:
     return get_object_or_404(Edge.objects.select_related("entity"), pk=edge_id)
 
 
-@router.post("/", response={201: EdgeOut})
-def create_edge_endpoint(request: HttpRequest, payload: EdgeIn) -> tuple[int, Edge]:
+@router.post("/", response={201: EdgeOut, 400: ErrorOut})
+def create_edge_endpoint(request: HttpRequest, payload: EdgeIn) -> tuple[int, Edge | dict[str, str]]:
     from_entity = get_object_or_404(Entity, pk=payload.from_entity_id)
     to_entity = get_object_or_404(Entity, pk=payload.to_entity_id)
-    edge = create_edge(
-        from_entity=from_entity,
-        to_entity=to_entity,
-        edge_type=payload.edge_type,
-        properties=payload.properties,
-        display_name=payload.display_name,
-    )
+    try:
+        edge = create_edge(
+            from_entity=from_entity,
+            to_entity=to_entity,
+            edge_type=payload.edge_type,
+            properties=payload.properties,
+            display_name=payload.display_name,
+        )
+    except InvalidEdgeError as e:
+        return 400, {"detail": str(e)}
     return 201, edge
 
 

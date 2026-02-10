@@ -24,6 +24,75 @@ tap_core defines the foundational data model: Entity, Edge, EntityType, BaseMode
 
 **Realm/Environment deferred.** These are tap_flip concerns (step 6). BaseModel is the extension point.
 
+
+## Edge Constraints
+
+Constraints define which edge types can connect which node types. They are enforced at edge creation with zero database lookups.
+
+### Constraint Definition
+
+Domain models define constraints as class attributes using object syntax for future extensibility:
+
+```python
+from typing import Any, ClassVar
+
+class Concept(BaseModel):
+    OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
+        {
+            "nodes": [{"type": "concept"}, {"type": "precept"}],
+            "edges": [{"type": "APPLIES_TO"}],
+        },
+        {
+            "nodes": [{"type": "concept"}],
+            "edges": [{"type": "DEPENDS_ON"}],
+        },
+    ]
+
+    INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
+        {
+            "nodes": [{"type": "concept"}],
+            "edges": [{"type": "APPLIES_TO"}, {"type": "DEPENDS_ON"}],
+        },
+    ]
+```
+
+**Naming convention:** Edge types use ALL CAPS (`APPLIES_TO`), node types use lowercase (`concept`).
+
+### Constraint Semantics
+
+| Definition | Meaning |
+|------------|---------|
+| No `OUTBOUND_EDGES` attribute | No restrictions — any edge type to any target |
+| `OUTBOUND_EDGES = []` | No outbound edges allowed from this node type |
+| `[{"nodes": [...], "edges": [...]}]` | Only listed edges to listed node types |
+| `[{"edges": [...]}]` (no `nodes` key) | Wildcard — listed edges can connect to any node type |
+
+Same semantics apply to `INBOUND_EDGES` for controlling what can point TO a node.
+
+### Registration
+
+Constraints are auto-registered via `BaseModel.__init_subclass__` when the model class is defined. They're parsed into fast lookup dicts in `tap_core.constraints._REGISTRY`.
+
+### Validation
+
+`create_edge()` in `tap_core.services` calls `validate_edge()` before any DB writes. Violations raise `InvalidEdgeError`, which the API layer catches and returns as 400 Bad Request.
+
+### Object Syntax
+
+The `{"type": "..."}` structure (rather than plain strings) enables future extensions without breaking changes:
+
+```python
+# Future: regex matching, metadata constraints
+"nodes": [{"type": "*.continent", "match": "regex"}]
+"edges": [{"type": "LIVES_ON", "metadata_match": "region_key"}]
+```
+
+
+## Future Features DO NOT IMPLEMENT
+**Compound Nodes** Edges that have a node in between them.
+**Quick-sort for outbound node lookup** Take the outbound object in the model and store it in a quick-lookup data structure like a b-tree that can make identifying which nodes and edges it can form outbound connections too faster than the lookup table I initially proposed.
+
+
 ## What Lives Here vs Other Apps
 
 - **tap_core**: Entity, Edge, EntityType, BaseModel, User, Grid identity

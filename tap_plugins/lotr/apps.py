@@ -1,0 +1,110 @@
+"""Lord of the Rings plugin — Middle-earth entities for constraint testing."""
+
+from tap_plugins.base import TapPluginConfig
+
+
+class LotrConfig(TapPluginConfig):
+    name = "tap_plugins.lotr"
+    verbose_name = "Lord of the Rings"
+    label = "lotr"
+
+    entity_types = [
+        {
+            "slug": "character",
+            "display_name": "Character",
+            "description": "A being in Middle-earth.",
+        },
+        {
+            "slug": "location",
+            "display_name": "Location",
+            "description": "A place in Middle-earth.",
+        },
+        {
+            "slug": "artifact",
+            "display_name": "Artifact",
+            "description": "A significant object of power.",
+        },
+        {
+            "slug": "race",
+            "display_name": "Race",
+            "description": "A race of beings.",
+        },
+        {
+            "slug": "faction",
+            "display_name": "Faction",
+            "description": "A group or alliance.",
+        },
+        {
+            "slug": "sentinel",
+            "display_name": "Sentinel",
+            "description": "A watcher (wildcard test).",
+        },
+        {
+            "slug": "citadel",
+            "display_name": "Citadel",
+            "description": "A fortified place (inbound block test).",
+        },
+        {
+            "slug": "wanderer",
+            "display_name": "Wanderer",
+            "description": "An unconstrained traveler.",
+        },
+    ]
+
+    edge_types = [
+        {
+            "slug": "WIELDS",
+            "display_name": "Wields",
+            "description": "Character wields an artifact.",
+        },
+        {
+            "slug": "LOCATED_IN",
+            "display_name": "Located In",
+            "description": "Entity is located in a place.",
+        },
+        {
+            "slug": "RULES",
+            "display_name": "Rules",
+            "description": "Character rules a location.",
+        },
+        {
+            "slug": "BELONGS_TO",
+            "display_name": "Belongs To",
+            "description": "Character belongs to a race.",
+        },
+        {
+            "slug": "MEMBER_OF",
+            "display_name": "Member Of",
+            "description": "Character is member of a faction.",
+        },
+        {
+            "slug": "ALLIES_WITH",
+            "display_name": "Allies With",
+            "description": "Entities are allied.",
+        },
+        {
+            "slug": "ENEMIES_WITH",
+            "display_name": "Enemies With",
+            "description": "Entities are enemies.",
+        },
+        {
+            "slug": "FORGED_IN",
+            "display_name": "Forged In",
+            "description": "Artifact was forged in a location.",
+        },
+        {
+            "slug": "CONTAINS",
+            "display_name": "Contains",
+            "description": "Location contains another location.",
+        },
+        {
+            "slug": "REFERENCES",
+            "display_name": "References",
+            "description": "Sentinel references anything (wildcard).",
+        },
+        {
+            "slug": "PROTECTS",
+            "display_name": "Protects",
+            "description": "Citadel protects a location.",
+        },
+    ]

@@ -7,6 +7,15 @@ from ninja import ModelSchema, Schema
 
 from tap_core.models import Edge, Entity, EntityType
 
+# --- Common ---
+
+
+class ErrorOut(Schema):
+    """Error response."""
+
+    detail: str
+
+
 # --- Entity ---
 
 
