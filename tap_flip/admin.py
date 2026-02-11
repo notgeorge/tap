@@ -44,14 +44,10 @@ class BatchEventAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         """BatchEvents are append-only via signals."""
         return False
 
-    def has_change_permission(
-        self, request: HttpRequest, obj: BatchEvent | None = None
-    ) -> bool:
+    def has_change_permission(self, request: HttpRequest, obj: BatchEvent | None = None) -> bool:
         """BatchEvents are immutable."""
         return False
 
-    def has_delete_permission(
-        self, request: HttpRequest, obj: BatchEvent | None = None
-    ) -> bool:
+    def has_delete_permission(self, request: HttpRequest, obj: BatchEvent | None = None) -> bool:
         """BatchEvents should not be deleted manually."""
         return False

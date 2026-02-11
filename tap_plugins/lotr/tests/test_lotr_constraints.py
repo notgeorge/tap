@@ -336,16 +336,16 @@ class TestBlockedInbound:
             create_edge(wanderer, citadel, "PROTECTS")
         assert "cannot receive any inbound edges" in str(exc_info.value)
 
-    def test_constrained_source_fails_outbound_first(self, frodo, citadel):
-        """When source has constraints, outbound fails before inbound.
+    def test_constrained_source_fails_at_inbound_block(self, frodo, citadel):
+        """Citadel's explicit inbound block is checked and fails.
 
-        Character's LOCATED_IN only targets 'location', so outbound fails
-        before citadel's inbound block is even checked.
+        Even though edge constraint allows character -> location for LOCATED_IN,
+        citadel's explicit block (INBOUND_EDGES=[]) cannot be overridden.
         """
         with pytest.raises(InvalidEdgeError) as exc_info:
             create_edge(frodo, citadel, "LOCATED_IN")
-        # Outbound constraint fails first
-        assert "cannot create 'LOCATED_IN' edge to citadel" in str(exc_info.value)
+        # Explicit block wins over edge constraint
+        assert "cannot receive any inbound edges" in str(exc_info.value)
 
     def test_citadel_can_still_create_edges(self, citadel, the_shire):
         """Citadel can create outbound edges (PROTECTS) to location."""
@@ -454,10 +454,14 @@ class TestInvalidTargetType:
     """Test that correct edge type to wrong target is blocked."""
 
     def test_character_cannot_wield_location(self, frodo, the_shire):
-        """Character can WIELDS, but not to a location."""
+        """Character can WIELDS, but not to a location.
+
+        Edge constraint allows character as source, but location's inbound
+        doesn't include WIELDS, so target side rejects it.
+        """
         with pytest.raises(InvalidEdgeError) as exc_info:
             create_edge(frodo, the_shire, "WIELDS")
-        assert "cannot create 'WIELDS' edge to location" in str(exc_info.value)
+        assert "cannot receive 'WIELDS' edges" in str(exc_info.value)
 
     def test_character_cannot_belong_to_faction(self, frodo, fellowship):
         """BELONGS_TO only works for race, not faction."""
@@ -466,10 +470,14 @@ class TestInvalidTargetType:
         assert "cannot create 'BELONGS_TO' edge to faction" in str(exc_info.value)
 
     def test_artifact_cannot_forge_in_character(self, one_ring, frodo):
-        """Artifact can be FORGED_IN location, not character."""
+        """Artifact can be FORGED_IN location, not character.
+
+        Edge constraint allows artifact as source, but character's inbound
+        doesn't include FORGED_IN, so target side rejects it.
+        """
         with pytest.raises(InvalidEdgeError) as exc_info:
             create_edge(one_ring, frodo, "FORGED_IN")
-        assert "cannot create 'FORGED_IN' edge to character" in str(exc_info.value)
+        assert "cannot receive 'FORGED_IN' edges" in str(exc_info.value)
 
     def test_faction_cannot_ally_with_character(self, fellowship, frodo):
         """Faction can ALLIES_WITH faction, not character."""

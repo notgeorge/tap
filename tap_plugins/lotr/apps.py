@@ -56,11 +56,17 @@ class LotrConfig(TapPluginConfig):
             "slug": "WIELDS",
             "display_name": "Wields",
             "description": "Character wields an artifact.",
+            # Edge constraint: character -> artifact
+            "sources": [{"type": "character"}],
+            "targets": [{"type": "artifact"}],
         },
         {
             "slug": "LOCATED_IN",
             "display_name": "Located In",
             "description": "Entity is located in a place.",
+            # Edge constraint: character -> location
+            "sources": [{"type": "character"}],
+            "targets": [{"type": "location"}],
         },
         {
             "slug": "RULES",
@@ -91,6 +97,9 @@ class LotrConfig(TapPluginConfig):
             "slug": "FORGED_IN",
             "display_name": "Forged In",
             "description": "Artifact was forged in a location.",
+            # Edge constraint: artifact -> location
+            "sources": [{"type": "artifact"}],
+            "targets": [{"type": "location"}],
         },
         {
             "slug": "CONTAINS",
@@ -106,5 +115,15 @@ class LotrConfig(TapPluginConfig):
             "slug": "PROTECTS",
             "display_name": "Protects",
             "description": "Citadel protects a location.",
+        },
+        # New edge type with constraint - demonstrates plugin extensibility
+        # Character can MENTORS character even though Character's OUTBOUND_EDGES
+        # doesn't list it (edge constraint grants permission)
+        {
+            "slug": "MENTORS",
+            "display_name": "Mentors",
+            "description": "One character mentors another.",
+            "sources": [{"type": "character"}],
+            "targets": [{"type": "character"}],
         },
     ]

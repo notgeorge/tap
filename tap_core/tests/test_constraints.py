@@ -6,7 +6,9 @@ from tap_core.constraints import (
     WILDCARD,
     _parse_constraint_list,
     get_constraints,
+    get_edge_type_constraints,
     register_constraints,
+    register_edge_type_constraints,
     validate_edge,
 )
 from tap_core.exceptions import InvalidEdgeError
@@ -167,3 +169,187 @@ class TestValidateEdge:
     def test_unregistered_types_pass(self) -> None:
         # No constraints = no restrictions
         validate_edge("unregistered_from", "unregistered_to", "ANY_EDGE")
+
+
+class TestRegisterEdgeTypeConstraints:
+    """Test register_edge_type_constraints and get_edge_type_constraints."""
+
+    def test_registers_basic_constraint(self) -> None:
+        register_edge_type_constraints(
+            "TEST_EDGE",
+            sources=[{"type": "source_type"}],
+            targets=[{"type": "target_type"}],
+        )
+        constraints = get_edge_type_constraints("TEST_EDGE")
+        assert constraints is not None
+        assert constraints.sources == {"source_type"}
+        assert constraints.targets == {"target_type"}
+
+    def test_registers_wildcard_source(self) -> None:
+        register_edge_type_constraints(
+            "WILD_SOURCE_EDGE",
+            sources=None,  # Wildcard
+            targets=[{"type": "target"}],
+        )
+        constraints = get_edge_type_constraints("WILD_SOURCE_EDGE")
+        assert constraints is not None
+        assert constraints.sources is WILDCARD
+        assert constraints.targets == {"target"}
+
+    def test_registers_wildcard_target(self) -> None:
+        register_edge_type_constraints(
+            "WILD_TARGET_EDGE",
+            sources=[{"type": "source"}],
+            targets=None,  # Wildcard
+        )
+        constraints = get_edge_type_constraints("WILD_TARGET_EDGE")
+        assert constraints is not None
+        assert constraints.sources == {"source"}
+        assert constraints.targets is WILDCARD
+
+    def test_registers_both_wildcards(self) -> None:
+        register_edge_type_constraints(
+            "FULLY_WILD_EDGE",
+            sources=None,
+            targets=None,
+        )
+        constraints = get_edge_type_constraints("FULLY_WILD_EDGE")
+        assert constraints is not None
+        assert constraints.sources is WILDCARD
+        assert constraints.targets is WILDCARD
+
+    def test_merges_multiple_registrations(self) -> None:
+        register_edge_type_constraints(
+            "MERGE_EDGE",
+            sources=[{"type": "a"}],
+            targets=[{"type": "x"}],
+        )
+        register_edge_type_constraints(
+            "MERGE_EDGE",
+            sources=[{"type": "b"}],
+            targets=[{"type": "y"}],
+        )
+        constraints = get_edge_type_constraints("MERGE_EDGE")
+        assert constraints is not None
+        assert constraints.sources == {"a", "b"}
+        assert constraints.targets == {"x", "y"}
+
+    def test_wildcard_takes_precedence_in_merge(self) -> None:
+        register_edge_type_constraints(
+            "MERGE_WILD_EDGE",
+            sources=[{"type": "a"}],
+            targets=[{"type": "x"}],
+        )
+        register_edge_type_constraints(
+            "MERGE_WILD_EDGE",
+            sources=None,  # Wildcard overrides
+            targets=[{"type": "y"}],
+        )
+        constraints = get_edge_type_constraints("MERGE_WILD_EDGE")
+        assert constraints is not None
+        assert constraints.sources is WILDCARD
+        assert constraints.targets == {"x", "y"}
+
+    def test_returns_none_for_unregistered(self) -> None:
+        assert get_edge_type_constraints("NONEXISTENT_EDGE") is None
+
+
+class TestValidateEdgeWithEdgeConstraints:
+    """Test validate_edge with Permission Union (node OR edge constraints)."""
+
+    @pytest.fixture(autouse=True)
+    def setup_constraints(self) -> None:
+        """Register node and edge constraints for testing."""
+        # Node with specific outbound/inbound constraints
+        register_constraints(
+            "constrained_node",
+            outbound=[{"nodes": [{"type": "allowed_target"}], "edges": [{"type": "NODE_ALLOWED"}]}],
+            inbound=[{"nodes": [{"type": "allowed_source"}], "edges": [{"type": "NODE_ALLOWED"}]}],
+        )
+        # Node with explicit block (empty list)
+        register_constraints(
+            "blocked_outbound_node",
+            outbound=[],
+            inbound=None,
+        )
+        register_constraints(
+            "blocked_inbound_node",
+            outbound=None,
+            inbound=[],
+        )
+        # Unconstrained node (no constraints registered)
+        # (just don't register anything for "unconstrained_node")
+
+        # Edge constraint that grants permission
+        register_edge_type_constraints(
+            "EDGE_ALLOWED",
+            sources=[{"type": "constrained_node"}, {"type": "unconstrained_node"}],
+            targets=[{"type": "constrained_node"}, {"type": "unconstrained_node"}],
+        )
+        # Edge constraint with wildcard source
+        register_edge_type_constraints(
+            "WILD_SOURCE",
+            sources=None,  # Any source
+            targets=[{"type": "specific_target"}],
+        )
+        # Edge constraint with wildcard target
+        register_edge_type_constraints(
+            "WILD_TARGET",
+            sources=[{"type": "specific_source"}],
+            targets=None,  # Any target
+        )
+
+    def test_node_constraint_alone_allows(self) -> None:
+        """Node constraint allows edge, no edge constraint needed."""
+        validate_edge("constrained_node", "allowed_target", "NODE_ALLOWED")
+
+    def test_edge_constraint_alone_allows(self) -> None:
+        """Edge constraint allows edge even when node doesn't list edge type."""
+        # constrained_node doesn't have EDGE_ALLOWED in its OUTBOUND_EDGES
+        # but edge constraint grants permission
+        validate_edge("constrained_node", "unconstrained_node", "EDGE_ALLOWED")
+
+    def test_edge_constraint_allows_unknown_edge_type(self) -> None:
+        """Edge constraint allows edge type that node doesn't know about."""
+        validate_edge("unconstrained_node", "unconstrained_node", "EDGE_ALLOWED")
+
+    def test_node_explicit_block_overrides_edge_constraint(self) -> None:
+        """Node's explicit block (OUTBOUND_EDGES=[]) cannot be overridden."""
+        # Even though EDGE_ALLOWED allows blocked_outbound_node, the block wins
+        with pytest.raises(InvalidEdgeError) as exc_info:
+            validate_edge("blocked_outbound_node", "unconstrained_node", "EDGE_ALLOWED")
+        assert "cannot create any outbound edges" in str(exc_info.value)
+
+    def test_inbound_block_overrides_edge_constraint(self) -> None:
+        """Node's explicit inbound block cannot be overridden."""
+        with pytest.raises(InvalidEdgeError) as exc_info:
+            validate_edge("unconstrained_node", "blocked_inbound_node", "EDGE_ALLOWED")
+        assert "cannot receive any inbound edges" in str(exc_info.value)
+
+    def test_edge_wildcard_source_allows_any_source(self) -> None:
+        """Edge constraint with wildcard source allows any source type."""
+        # specific_target must accept the edge (it's unconstrained)
+        register_constraints("specific_target", outbound=None, inbound=None)
+        validate_edge("random_source_1", "specific_target", "WILD_SOURCE")
+        validate_edge("random_source_2", "specific_target", "WILD_SOURCE")
+
+    def test_edge_wildcard_target_allows_any_target(self) -> None:
+        """Edge constraint with wildcard target allows any target type."""
+        register_constraints("specific_source", outbound=None, inbound=None)
+        validate_edge("specific_source", "random_target_1", "WILD_TARGET")
+        validate_edge("specific_source", "random_target_2", "WILD_TARGET")
+
+    def test_neither_allows_fails(self) -> None:
+        """When neither node nor edge constraints allow, validation fails."""
+        with pytest.raises(InvalidEdgeError):
+            validate_edge("constrained_node", "wrong_target", "UNKNOWN_EDGE")
+
+    def test_permission_union_both_allow(self) -> None:
+        """When both node and edge constraints allow, edge is valid."""
+        # NODE_ALLOWED is allowed by node, and we'll also register edge constraint
+        register_edge_type_constraints(
+            "NODE_ALLOWED",
+            sources=[{"type": "constrained_node"}],
+            targets=[{"type": "allowed_target"}],
+        )
+        validate_edge("constrained_node", "allowed_target", "NODE_ALLOWED")

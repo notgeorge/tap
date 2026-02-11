@@ -28,13 +28,25 @@ class TapPluginConfig(AppConfig):
                 {"slug": "concept", "display_name": "Concept", "icon": "", "description": "An abstract idea"},
             ]
             edge_types = [
-                {"slug": "applies_to", "display_name": "Applies To", "description": "Concept applies to precept"},
+                {
+                    "slug": "applies_to",
+                    "display_name": "Applies To",
+                    "description": "Concept applies to precept",
+                    # Optional: edge constraints (omit for unconstrained)
+                    "sources": [{"type": "concept"}],
+                    "targets": [{"type": "precept"}],
+                },
             ]
+
+    Edge constraints in edge_types:
+        - sources: list of {"type": "..."} dicts for allowed source node types
+        - targets: list of {"type": "..."} dicts for allowed target node types
+        - Omit sources/targets for wildcard (any node type allowed)
     """
 
     # Override in subclasses
-    entity_types: list[dict[str, str]] = []
-    edge_types: list[dict[str, str]] = []
+    entity_types: list[dict[str, Any]] = []
+    edge_types: list[dict[str, Any]] = []
 
     def ready(self) -> None:
         self._register_types()
@@ -50,10 +62,15 @@ class TapPluginConfig(AppConfig):
     def _register_types(self) -> None:
         """Register entity and edge types into the EntityType table.
 
+        Also registers edge constraints from sources/targets in edge_types.
+
         Uses get_or_create for idempotency — safe to call on every startup.
         Catches DB errors gracefully for migrate/makemigrations commands
         where the table may not exist yet.
         """
+        # Register edge constraints (always, even if DB not ready)
+        self._register_edge_constraints()
+
         try:
             from tap_core.models import EntityType
 
@@ -80,3 +97,20 @@ class TapPluginConfig(AppConfig):
         except OperationalError, ProgrammingError:
             # Table doesn't exist yet (running migrations for the first time)
             logger.debug("EntityType table not ready; skipping type registration.")
+
+    def _register_edge_constraints(self) -> None:
+        """Register edge constraints from edge_types into the constraint registry.
+
+        Called before DB registration so constraints are available even during
+        migrations.
+        """
+        from tap_core.constraints import register_edge_type_constraints
+
+        for et in self.edge_types:
+            slug = et["slug"]
+            sources = et.get("sources")  # None if not specified (wildcard)
+            targets = et.get("targets")  # None if not specified (wildcard)
+
+            # Only register if at least one constraint is specified
+            if sources is not None or targets is not None:
+                register_edge_type_constraints(slug, sources, targets)
