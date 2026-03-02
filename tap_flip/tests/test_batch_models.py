@@ -2,7 +2,7 @@
 
 import pytest
 
-from tap_core.services import create_entity
+from tap_grid.services import create_entity
 from tap_flip.config import is_batch_enabled, is_history_enabled
 from tap_flip.models import Batch, BatchEvent, BatchEventType, BatchStatus
 
@@ -111,7 +111,7 @@ class TestBatchEventModel:
         # BatchEvent should not have an entity field
         assert not hasattr(BatchEvent, "entity") or not isinstance(getattr(BatchEvent, "entity", None), property)
         # Check it's a plain Model, not BaseModel
-        from tap_core.models import BaseModel
+        from tap_grid.models import BaseModel
 
         assert not issubclass(BatchEvent, BaseModel)
 

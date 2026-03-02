@@ -8,7 +8,7 @@ import contextvars
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tap_core.models import User
+    from tap_grid.models import User
 
 # ContextVar for the current user making changes.
 # Set by middleware/views before service calls.

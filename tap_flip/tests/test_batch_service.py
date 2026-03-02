@@ -2,8 +2,8 @@
 
 import pytest
 
-from tap_core.models import User
-from tap_core.services import create_entity
+from tap_grid.models import User
+from tap_grid.services import create_entity
 from tap_flip.batch import (
     batch_context,
     close_batch,

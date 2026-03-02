@@ -1,8 +1,8 @@
-# tap_core Design
+# tap_grid Design
 
 ## Purpose
 
-tap_core defines the foundational data model: Entity, Edge, EntityType, BaseModel, and User.
+tap_grid defines the foundational data model: Entity, Edge, EntityType, BaseModel, and User.
 
 ## Key Decisions
 
@@ -71,11 +71,11 @@ Same semantics apply to `INBOUND_EDGES` for controlling what can point TO a node
 
 ### Registration
 
-Constraints are auto-registered via `BaseModel.__init_subclass__` when the model class is defined. They're parsed into fast lookup dicts in `tap_core.constraints._REGISTRY`.
+Constraints are auto-registered via `BaseModel.__init_subclass__` when the model class is defined. They're parsed into fast lookup dicts in `tap_grid.constraints._REGISTRY`.
 
 ### Validation
 
-`create_edge()` in `tap_core.services` calls `validate_edge()` before any DB writes. Violations raise `InvalidEdgeError`, which the API layer catches and returns as 400 Bad Request.
+`create_edge()` in `tap_grid.services` calls `validate_edge()` before any DB writes. Violations raise `InvalidEdgeError`, which the API layer catches and returns as 400 Bad Request.
 
 ### Object Syntax
 
@@ -95,7 +95,7 @@ The `{"type": "..."}` structure (rather than plain strings) enables future exten
 
 ## What Lives Here vs Other Apps
 
-- **tap_core**: Entity, Edge, EntityType, BaseModel, User, Grid identity
+- **tap_grid**: Entity, Edge, EntityType, BaseModel, User, Grid identity
 - **tap_plugins**: Type registration, plugin discovery, plugin-defined domain models
 - **tap_api**: API routing, versioning, auth middleware
 - **tap_web**: Templates, static assets, dashboards

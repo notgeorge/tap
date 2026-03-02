@@ -2,7 +2,7 @@
 
 import pytest
 
-from tap_core.models import User
+from tap_grid.models import User
 
 
 @pytest.fixture

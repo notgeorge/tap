@@ -127,7 +127,7 @@ class BaseModel(models.Model):
         outbound = getattr(cls, "OUTBOUND_EDGES", None)
         inbound = getattr(cls, "INBOUND_EDGES", None)
         if outbound is not None or inbound is not None:
-            from tap_core.constraints import register_constraints
+            from tap_grid.constraints import register_constraints
 
             register_constraints(entity_type, outbound, inbound)
 

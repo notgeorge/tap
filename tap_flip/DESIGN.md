@@ -177,7 +177,7 @@ Expected direction:
 
 ## App Boundaries
 
-1. `tap_core`: Entity, Edge, BaseModel, core graph structure.
+1. `tap_grid`: Entity, Edge, BaseModel, core graph structure.
 2. `tap_flip`: FLIP configuration, history integration, batch lineage, future agreement.
 3. `tap_plugins`: domain models extending `BaseModel`.
 4. `tap_api`: API surface exposing FLIP capabilities.

@@ -2,7 +2,7 @@
 
 import pytest
 
-from tap_core.models import EntityType
+from tap_grid.models import EntityType
 
 
 @pytest.mark.django_db

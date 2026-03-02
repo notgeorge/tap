@@ -31,7 +31,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("core_examples", "0001_initial"),
-        ("tap_core", "0002_entity_entitytype_edge"),
+        ("tap_grid", "0002_entity_entitytype_edge"),
     ]
 
     operations = [

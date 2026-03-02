@@ -72,7 +72,7 @@ class TapPluginConfig(AppConfig):
         self._register_edge_constraints()
 
         try:
-            from tap_core.models import EntityType
+            from tap_grid.models import EntityType
 
             for et in self.entity_types:
                 EntityType.objects.get_or_create(
@@ -104,7 +104,7 @@ class TapPluginConfig(AppConfig):
         Called before DB registration so constraints are available even during
         migrations.
         """
-        from tap_core.constraints import register_edge_type_constraints
+        from tap_grid.constraints import register_edge_type_constraints
 
         for et in self.edge_types:
             slug = et["slug"]

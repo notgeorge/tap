@@ -7,8 +7,8 @@ import pytest
 
 # Import models to trigger constraint registration via __init_subclass__
 import tap_plugins.core_examples.models  # noqa: F401
-from tap_core.models import Edge
-from tap_core.services import create_edge, create_entity
+from tap_grid.models import Edge
+from tap_grid.services import create_edge, create_entity
 
 
 @pytest.fixture

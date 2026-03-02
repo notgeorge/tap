@@ -99,7 +99,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["tap", "tap_core", "tap_plugins", "tap_api", "tap_web", "tap_viz", "tap_flip", "tap_ai"]
+known-first-party = ["tap", "tap_grid", "tap_plugins", "tap_api", "tap_web", "tap_viz", "tap_flip", "tap_ai"]
 
 [tool.mypy]
 python_version = "3.14"

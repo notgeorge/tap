@@ -2,7 +2,7 @@
 
 import pytest
 
-from tap_core.models import Entity
+from tap_grid.models import Entity
 from tap_viz.models import Layout
 
 

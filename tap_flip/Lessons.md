@@ -57,7 +57,7 @@ tap_flip/
 
 - `pyproject.toml` - Added django-simple-history dependency
 - `tap/settings.py` - Added simple_history to INSTALLED_APPS
-- `tap_core/models.py` - Added batch_id field to BaseModel
+- `tap_grid/models.py` - Added batch_id field to BaseModel
 - `tap_plugins/core_examples/models.py` - Added FLIP_CONFIG and HistoricalRecords to Concept
 
 ### Files Created (Phase 2)

@@ -13,7 +13,7 @@ from typing import Any, ClassVar
 
 from django.db import models
 
-from tap_core.models import BaseModel
+from tap_grid.models import BaseModel
 
 
 class Character(BaseModel):

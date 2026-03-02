@@ -1,4 +1,4 @@
-"""Edge CRUD (no update in v0). All mutations delegate to tap_core.services."""
+"""Edge CRUD (no update in v0). All mutations delegate to tap_grid.services."""
 
 import uuid
 
@@ -7,9 +7,9 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 
 from tap_api.schemas import EdgeIn, EdgeOut, ErrorOut
-from tap_core.exceptions import InvalidEdgeError
-from tap_core.models import Edge, Entity
-from tap_core.services import create_edge, delete_edge
+from tap_grid.exceptions import InvalidEdgeError
+from tap_grid.models import Edge, Entity
+from tap_grid.services import create_edge, delete_edge
 
 router = Router()
 

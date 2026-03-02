@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("tap_core", "0003_edge_batch_id"),
+        ("tap_grid", "0003_edge_batch_id"),
     ]
 
     operations = [

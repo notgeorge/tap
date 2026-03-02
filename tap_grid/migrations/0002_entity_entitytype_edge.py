@@ -5,13 +5,13 @@ import uuid
 import django.db.models.deletion
 from django.db import migrations, models
 
-import tap_core.models
+import tap_grid.models
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("tap_core", "0001_initial"),
+        ("tap_grid", "0001_initial"),
     ]
 
     operations = [
@@ -30,7 +30,7 @@ class Migration(migrations.Migration):
                 ("display_name", models.CharField(blank=True, default="", max_length=255)),
                 (
                     "originating_grid_id",
-                    models.UUIDField(blank=True, db_index=True, default=tap_core.models.get_default_grid_id, null=True),
+                    models.UUIDField(blank=True, db_index=True, default=tap_grid.models.get_default_grid_id, null=True),
                 ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
@@ -62,7 +62,7 @@ class Migration(migrations.Migration):
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 (
                     "originating_grid_id",
-                    models.UUIDField(blank=True, default=tap_core.models.get_default_grid_id, null=True),
+                    models.UUIDField(blank=True, default=tap_grid.models.get_default_grid_id, null=True),
                 ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
@@ -71,19 +71,19 @@ class Migration(migrations.Migration):
                 (
                     "entity",
                     models.OneToOneField(
-                        on_delete=django.db.models.deletion.CASCADE, related_name="%(class)s", to="tap_core.entity"
+                        on_delete=django.db.models.deletion.CASCADE, related_name="%(class)s", to="tap_grid.entity"
                     ),
                 ),
                 (
                     "from_entity",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, related_name="edges_out", to="tap_core.entity"
+                        on_delete=django.db.models.deletion.CASCADE, related_name="edges_out", to="tap_grid.entity"
                     ),
                 ),
                 (
                     "to_entity",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, related_name="edges_in", to="tap_core.entity"
+                        on_delete=django.db.models.deletion.CASCADE, related_name="edges_in", to="tap_grid.entity"
                     ),
                 ),
             ],

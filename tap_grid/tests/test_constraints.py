@@ -2,7 +2,7 @@
 
 import pytest
 
-from tap_core.constraints import (
+from tap_grid.constraints import (
     WILDCARD,
     _parse_constraint_list,
     get_constraints,
@@ -11,7 +11,7 @@ from tap_core.constraints import (
     register_edge_type_constraints,
     validate_edge,
 )
-from tap_core.exceptions import InvalidEdgeError
+from tap_grid.exceptions import InvalidEdgeError
 
 
 class TestParseConstraintList:

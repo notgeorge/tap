@@ -18,11 +18,11 @@ tap_api owns the Django Ninja API instance, core CRUD endpoints, plugin router d
 
 **Session auth for v0.** Global `django_auth` on the NinjaAPI instance. Log in via `/admin/`, session cookie carries to API. `tap_api/auth.py` is the single evolution point when token auth is needed.
 
-**All mutations go through `tap_core.services`.** The API layer handles validation, HTTP concerns, and response formatting. When FLIP is built, provenance recording slots into the service layer without changing API code.
+**All mutations go through `tap_grid.services`.** The API layer handles validation, HTTP concerns, and response formatting. When FLIP is built, provenance recording slots into the service layer without changing API code.
 
 ## What Lives Here vs Other Apps
 
 - **tap_api**: NinjaAPI instance, schemas, routers, auth, plugin router discovery
-- **tap_core**: Models, service layer (mutation logic), EntityType registry
+- **tap_grid**: Models, service layer (mutation logic), EntityType registry
 - **tap_plugins**: `TapPluginConfig` base class with `get_api_router()` hook
 - **Plugins**: Override `get_api_router()` to expose domain-specific endpoints

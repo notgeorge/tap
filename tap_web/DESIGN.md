@@ -40,7 +40,7 @@ tap_web provides the web interface for TAP. Templates, static assets, and views 
 ## What Lives Here vs Other Apps
 
 - **tap_web**: Base templates, layout shell, home page, static assets
-- **tap_core**: Models and services (no templates)
+- **tap_grid**: Models and services (no templates)
 - **tap_api**: API endpoints (no templates)
 - **tap_viz**: Visualization pages (extends base.html)
 - **Plugins**: Domain-specific pages (extend base.html)

@@ -1,4 +1,4 @@
-"""Entity CRUD. All mutations delegate to tap_core.services."""
+"""Entity CRUD. All mutations delegate to tap_grid.services."""
 
 import uuid
 from typing import Any
@@ -8,8 +8,8 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 
 from tap_api.schemas import EntityIn, EntityOut, EntityUpdate
-from tap_core.models import Entity
-from tap_core.services import create_entity, delete_entity, update_entity
+from tap_grid.models import Entity
+from tap_grid.services import create_entity, delete_entity, update_entity
 
 router = Router()
 

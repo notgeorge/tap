@@ -5,7 +5,7 @@ from typing import Any
 
 from ninja import ModelSchema, Schema
 
-from tap_core.models import Edge, Entity, EntityType
+from tap_grid.models import Edge, Entity, EntityType
 
 # --- Common ---
 

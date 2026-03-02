@@ -5,7 +5,7 @@ from typing import Any, ClassVar
 from django.db import models
 from simple_history.models import HistoricalRecords
 
-from tap_core.models import BaseModel
+from tap_grid.models import BaseModel
 from tap_flip.history.context import get_history_user
 
 

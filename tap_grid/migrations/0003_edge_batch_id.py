@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("tap_core", "0002_entity_entitytype_edge"),
+        ("tap_grid", "0002_entity_entitytype_edge"),
     ]
 
     operations = [

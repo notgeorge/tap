@@ -2,7 +2,7 @@
 
 import pytest
 
-from tap_core.models import User
+from tap_grid.models import User
 from tap_flip.history.context import (
     get_batch_id,
     get_history_user,

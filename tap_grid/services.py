@@ -8,8 +8,8 @@ slots in here without changing call sites.
 
 from typing import Any
 
-from tap_core.constraints import validate_edge
-from tap_core.models import Edge, Entity
+from tap_grid.constraints import validate_edge
+from tap_grid.models import Edge, Entity
 
 
 def create_entity(

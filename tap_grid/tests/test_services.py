@@ -1,9 +1,9 @@
-"""Tests for tap_core.services — the canonical mutation API."""
+"""Tests for tap_grid.services — the canonical mutation API."""
 
 import pytest
 
-from tap_core.models import Edge, Entity
-from tap_core.services import create_edge, create_entity, delete_edge, delete_entity, update_entity
+from tap_grid.models import Edge, Entity
+from tap_grid.services import create_edge, create_entity, delete_edge, delete_entity, update_entity
 from tap_plugins.core_examples.models import Concept
 
 

@@ -30,7 +30,7 @@ Wildcard (any type allowed): omit the "nodes", "sources", or "targets" key.
 from dataclasses import dataclass
 from typing import Any
 
-from tap_core.exceptions import InvalidEdgeError
+from tap_grid.exceptions import InvalidEdgeError
 
 # Sentinel for wildcard (connects to any node type)
 WILDCARD = object()

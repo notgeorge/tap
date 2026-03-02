@@ -2,7 +2,7 @@
 
 import pytest
 
-from tap_core.services import create_entity
+from tap_grid.services import create_entity
 
 
 @pytest.mark.django_db

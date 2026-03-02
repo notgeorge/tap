@@ -3,7 +3,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from tap_core.models import Edge, Entity, EntityType, User
+from tap_grid.models import Edge, Entity, EntityType, User
 
 admin.site.register(User, UserAdmin)
 

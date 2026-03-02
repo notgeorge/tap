@@ -5,14 +5,14 @@ import simple_history.models
 from django.conf import settings
 from django.db import migrations, models
 
-import tap_core.models
+import tap_grid.models
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
         ("core_examples", "0004_alter_concept_batch_id_alter_precept_batch_id"),
-        ("tap_core", "0004_alter_edge_batch_id"),
+        ("tap_grid", "0004_alter_edge_batch_id"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
                 ("id", models.BigIntegerField(auto_created=True, blank=True, db_index=True, verbose_name="ID")),
                 (
                     "originating_grid_id",
-                    models.UUIDField(blank=True, default=tap_core.models.get_default_grid_id, null=True),
+                    models.UUIDField(blank=True, default=tap_grid.models.get_default_grid_id, null=True),
                 ),
                 (
                     "batch_id",
@@ -53,7 +53,7 @@ class Migration(migrations.Migration):
                         null=True,
                         on_delete=django.db.models.deletion.DO_NOTHING,
                         related_name="+",
-                        to="tap_core.entity",
+                        to="tap_grid.entity",
                     ),
                 ),
                 (

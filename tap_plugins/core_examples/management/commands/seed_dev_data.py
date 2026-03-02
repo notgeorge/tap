@@ -11,7 +11,7 @@ Only runs when DEBUG=True. Idempotent — safe to run multiple times.
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from tap_core.models import Edge, Entity
+from tap_grid.models import Edge, Entity
 from tap_plugins.core_examples.models import Concept, Precept
 
 

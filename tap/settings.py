@@ -74,7 +74,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # TAP apps (added as we scaffold each one)
-    "tap_core",
+    "tap_grid",
     "tap_plugins",
     # Core examples plugin — concept/precept types for demos and testing
     "tap_plugins.core_examples.apps.CoreExamplesConfig",
@@ -145,7 +145,7 @@ DATABASES = {
 # This extends AbstractUser so we can add fields later without painful migrations.
 # Changing this after migrations have been created is extremely difficult,
 # which is why we set it up from day one even if the initial model is minimal.
-AUTH_USER_MODEL = "tap_core.User"
+AUTH_USER_MODEL = "tap_grid.User"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

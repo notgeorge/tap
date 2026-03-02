@@ -25,5 +25,5 @@ A TAP plugin is a Django app with:
 ## What Lives Here vs Other Apps
 
 - **tap_plugins**: Plugin base class, registration infrastructure
-- **tap_core**: Entity, Edge, EntityType, BaseModel (the schema plugins build on)
+- **tap_grid**: Entity, Edge, EntityType, BaseModel (the schema plugins build on)
 - **tap_api**: Mounts plugin API routers under namespaced prefixes (step 3)

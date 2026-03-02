@@ -4,7 +4,7 @@ from django.http import HttpRequest
 from ninja import Router
 
 from tap_api.schemas import EntityTypeOut
-from tap_core.models import EntityType
+from tap_grid.models import EntityType
 
 router = Router()
 

@@ -19,8 +19,8 @@ import pytest
 
 # Import models to trigger constraint registration via __init_subclass__
 import tap_plugins.lotr.models  # noqa: F401
-from tap_core.exceptions import InvalidEdgeError
-from tap_core.services import create_edge, create_entity
+from tap_grid.exceptions import InvalidEdgeError
+from tap_grid.services import create_edge, create_entity
 
 # =============================================================================
 # Fixtures

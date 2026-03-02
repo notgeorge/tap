@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from tap_flip.config import is_history_enabled
 
 if TYPE_CHECKING:
-    from tap_core.models import BaseModel
+    from tap_grid.models import BaseModel
 
 
 def get_historical_records(model_instance: BaseModel) -> Any:

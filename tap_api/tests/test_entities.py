@@ -4,8 +4,8 @@ import uuid
 
 import pytest
 
-from tap_core.models import Entity
-from tap_core.services import create_entity
+from tap_grid.models import Entity
+from tap_grid.services import create_entity
 
 
 @pytest.mark.django_db

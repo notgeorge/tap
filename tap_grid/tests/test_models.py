@@ -1,10 +1,10 @@
-"""Tests for tap_core models — Entity, Edge, EntityType, BaseModel."""
+"""Tests for tap_grid models — Entity, Edge, EntityType, BaseModel."""
 
 import pytest
 from django.apps import apps
 
-from tap_core.models import EntityType
-from tap_core.services import create_entity
+from tap_grid.models import EntityType
+from tap_grid.services import create_entity
 from tap_plugins.base import TapPluginConfig
 from tap_plugins.core_examples.models import Concept, Precept
 

@@ -14,7 +14,7 @@ Signals are no-ops when:
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
-from tap_core.models import BaseModel
+from tap_grid.models import BaseModel
 from tap_flip.config import is_batch_enabled
 from tap_flip.history.context import get_batch_id, get_history_user
 
