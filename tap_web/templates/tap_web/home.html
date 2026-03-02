@@ -20,15 +20,170 @@
 
 <div class="mt-6">
     <h2 class="text-lg font-semibold text-slate-900 mb-3">Entity Graph</h2>
-    <div id="cy" class="w-full border border-slate-300 rounded-lg bg-white" style="height: 30vh; min-height: 200px;"></div>
+    <div id="cy-container" class="relative w-full border border-slate-300 rounded-lg bg-white overflow-hidden" style="height: 30vh; min-height: 200px;">
+        <div id="cy" class="w-full h-full"></div>
+    </div>
     <p id="cy-status" class="mt-2 text-sm text-slate-500"></p>
 </div>
+
+<style>
+/* Fullscreen styles */
+#cy-container:fullscreen {
+    background: #0f172a;
+    border: none;
+    border-radius: 0;
+}
+#cy-container:fullscreen #cy {
+    height: 100%;
+}
+/* Toolbar styling in fullscreen */
+#cy-container:fullscreen .cy-toolbar {
+    background: rgba(30, 41, 59, 0.9);
+    border-color: #475569;
+}
+#cy-container:fullscreen .cy-toolbar button {
+    color: #e2e8f0;
+}
+#cy-container:fullscreen .cy-toolbar button:hover {
+    background: #334155;
+}
+/* Custom toolbar positioning and styling */
+.cy-toolbar {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.cy-toolbar button {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: #475569;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.15s, color 0.15s;
+}
+.cy-toolbar button:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+.cy-toolbar button svg {
+    width: 16px;
+    height: 16px;
+}
+.cy-toolbar .separator {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 2px 0;
+}
+/* Ensure hidden class works for icon toggle */
+.cy-toolbar .icon-hidden {
+    display: none !important;
+}
+</style>
 
 <script src="{% static 'tap_viz/js/cytoscape.min.js' %}"></script>
 <script src="{% static 'tap_viz/js/cytoscape-grid-guide.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async function() {
     const statusEl = document.getElementById('cy-status');
+    const container = document.getElementById('cy-container');
+    let cy = null;
+    let isFullscreen = false;
+
+    // Create toolbar
+    function createToolbar() {
+        const toolbar = document.createElement('div');
+        toolbar.className = 'cy-toolbar';
+        toolbar.innerHTML = `
+            <button id="tb-zoom-in" title="Zoom in">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="11" y1="8" x2="11" y2="14"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                </svg>
+            </button>
+            <button id="tb-zoom-out" title="Zoom out">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                </svg>
+            </button>
+            <button id="tb-fit" title="Fit to view">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                </svg>
+            </button>
+            <div class="separator"></div>
+            <button id="tb-fullscreen" title="Toggle fullscreen">
+                <svg id="tb-expand-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <polyline points="9 21 3 21 3 15"></polyline>
+                    <line x1="21" y1="3" x2="14" y2="10"></line>
+                    <line x1="3" y1="21" x2="10" y2="14"></line>
+                </svg>
+                <svg id="tb-compress-icon" class="icon-hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="4 14 10 14 10 20"></polyline>
+                    <polyline points="20 10 14 10 14 4"></polyline>
+                    <line x1="14" y1="10" x2="21" y2="3"></line>
+                    <line x1="3" y1="21" x2="10" y2="14"></line>
+                </svg>
+            </button>
+        `;
+        container.appendChild(toolbar);
+
+        // Toolbar button handlers
+        document.getElementById('tb-zoom-in').addEventListener('click', () => {
+            if (cy) cy.zoom(cy.zoom() * 1.2);
+        });
+        document.getElementById('tb-zoom-out').addEventListener('click', () => {
+            if (cy) cy.zoom(cy.zoom() / 1.2);
+        });
+        document.getElementById('tb-fit').addEventListener('click', () => {
+            if (cy) cy.fit();
+        });
+        document.getElementById('tb-fullscreen').addEventListener('click', async () => {
+            if (!document.fullscreenElement) {
+                await container.requestFullscreen();
+            } else {
+                await document.exitFullscreen();
+            }
+        });
+    }
+
+    // Handle fullscreen change
+    document.addEventListener('fullscreenchange', () => {
+        isFullscreen = !!document.fullscreenElement;
+        const expandIcon = document.getElementById('tb-expand-icon');
+        const compressIcon = document.getElementById('tb-compress-icon');
+        if (expandIcon && compressIcon) {
+            expandIcon.classList.toggle('icon-hidden', isFullscreen);
+            compressIcon.classList.toggle('icon-hidden', !isFullscreen);
+        }
+        if (cy) {
+            setTimeout(() => {
+                cy.resize();
+                cy.fit();
+            }, 100);
+        }
+    });
+
+    // Create toolbar immediately
+    createToolbar();
 
     try {
         const [entitiesRes, edgesRes] = await Promise.all([
@@ -44,17 +199,19 @@ document.addEventListener('DOMContentLoaded', async function() {
         const entities = await entitiesRes.json();
         const edges = await edgesRes.json();
 
-        const nodes = entities.map(e => ({
-            data: {
-                id: e.id,
-                label: e.display_name || e.entity_type
-            }
-        }));
+        const nodes = entities
+            .filter(e => e.entity_type !== 'edge')
+            .map(e => ({
+                data: {
+                    id: e.id,
+                    label: e.display_name || e.entity_type
+                }
+            }));
 
         const edgeElements = edges.map(e => ({
             data: {
-                source: e.from_entity_id,
-                target: e.to_entity_id,
+                source: e.from_entity,
+                target: e.to_entity,
                 label: e.edge_type
             }
         }));
@@ -64,7 +221,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             return;
         }
 
-        const cy = cytoscape({
+        cy = cytoscape({
             container: document.getElementById('cy'),
             elements: [...nodes, ...edgeElements],
             style: [
@@ -93,10 +250,46 @@ document.addEventListener('DOMContentLoaded', async function() {
                     }
                 }
             ],
-            layout: { name: 'grid' },
+            layout: {
+                name: 'cose',
+                idealEdgeLength: 100,
+                nodeOverlap: 20,
+                refresh: 20,
+                fit: true,
+                padding: 30,
+                randomize: false,
+                componentSpacing: 100,
+                nodeRepulsion: 400000,
+                edgeElasticity: 100,
+                nestingFactor: 5,
+                gravity: 80,
+                numIter: 1000,
+                initialTemp: 200,
+                coolingFactor: 0.95,
+                minTemp: 1.0
+            },
             userZoomingEnabled: true,
             userPanningEnabled: true,
             boxSelectionEnabled: false
+        });
+
+        // Initialize grid-guide extension
+        cy.gridGuide({
+            drawGrid: true,
+            gridSpacing: 40,
+            gridColor: '#94a3b8',
+            lineWidth: 1.0,
+            gridStackOrder: -1,
+            snapToGridOnRelease: false,
+            snapToGridDuringDrag: false,
+            snapToAlignmentLocationOnRelease: false,
+            snapToAlignmentLocationDuringDrag: false,
+            distributionGuidelines: false,
+            geometricGuideline: false,
+            resize: false,
+            parentPadding: false,
+            zoomDash: true,
+            panGrid: true
         });
 
         statusEl.textContent = `${nodes.length} entities, ${edgeElements.length} edges`;

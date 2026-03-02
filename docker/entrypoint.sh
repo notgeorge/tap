@@ -14,8 +14,8 @@ uv run python manage.py migrate --noinput
 
 # Seed development data if DEBUG mode is enabled
 if [ "$DEBUG" = "true" ]; then
-    echo "==> Seeding development data (DEBUG=true)..."
-    uv run python manage.py seed_dev_data
+    echo "==> Seeding LOTR demo data (DEBUG=true)..."
+    uv run python manage.py seed_lotr_data
 else
     echo "==> Skipping seed data (DEBUG=$DEBUG)"
 fi
