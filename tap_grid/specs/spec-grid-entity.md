@@ -2,70 +2,44 @@
 
 ## Philosophy
 
-Entities are the base node of the grid / graph and the place where data about a thing is defined and resides.  Each entity type has its own table in the database for the base entity which is extended via a specific column for inheritance / extensions / specialized types.
+Entities are the base node of the grid / graph and the canonical place where data about a thing is defined and resides. This specification captures structural decisions about the entity model itself so those decisions can be reviewed, implemented, and later reconstructed from code without relying on historical context.
 
 ## Goals
 
-|    |                    |                                                                                           |
-| :---: | ---             | ---                                                                                       |
-| 1. |  Consistent        | Entities present a standard format for placement on the entity spine                      |
-| 2. |  Multi-Dimensional | Entities can exist in multiple dimensions and contain the metadata to explain how / where |
-| 3. |  Extensible        | Can be extended ala OOP concepts to create sub-types, without creating new tables         |
+|    |              |                                                                                 |
+| :---: | ---       | ---                                                                             |
+| 1. | Canonical    | Entity remains the canonical system-of-record node for grid data                |
+| 2. | Coherent     | Entity model decisions are documented in one place and can evolve intentionally |
+| 3. | Recoverable  | Core entity architecture can be reconstructed from specs and code together      |
 
 ## Requirements
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-|  |  |  |  |
+| req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Proposed | Converts `EntityType` into a first-class entity model |
 
-### Dimensionality Baked In
+### Entities Are Entities
 ----
-RID: `req-grid-entity-dim`
+RID: `req-grid-entity-ee`  
 Status: `Proposed`
 
-#### They Why
-The concept of dimensionality is essential to the grid data model - the ability to formally establish a dimension for an entity and for that entity to occpuy multiple dimensions simultaneously is what opens up a huge amount of optionalitity while maintaining coherence.  If we're being honest here we're just re-discovering namespaces and calling them something else because it sounds cooler and fits with the grid backronym of a "graphical representation of interesting dimensions".
-
-#### Background
-My first inclination was to have this be a simple database column with the dimension as a standard, user-defined value which could possibly be extended through naming conventions ala env-staging-xyz (where the idea of an environment was meant to support teams running a single TAP instance to cover dev / stage / prod).  At the same time, there's the fundamental concept of design -> config -> operation, which is another dimension, and there are other dimensions that data may itself operate in such as employees in the human dimension, machines in the computer, and the collection of humans as teams maaging fleets of computers.
-
-The alternative to a column would be to have a dimension be a node and edges between nodes used to define which nodes point to which dimension.  That would be leaning in super hard to the entity - edge paradigm, but it doesn't quite feel right.  It would result in a ton of edges, which would choke up the database (not really a concern and could be placed in their own table if i cared that much) and it also moves the concept of dimension out of the node itself - and that distance feels wrong somehow vs having dimnesion directly encoded as a concept that exists sub / super the graph model itself.
-
-
 #### Status Details
+This is a significant structural change to the grid model and should be treated as a distinct architecture change rather than bundled with dimension work.
 
 #### Implementation
-I propose that we include dimension as a jsonb column on the Entity Model, then we can create conventions as needed to distinguish elements as needed.  This feels like it walks a line between configuration vs convention which would allow both approaches to co-exist.
-
-The use of JSONb and extensibility makes the concept of dimensions truly multi-dimensional.
-
-Specific constraints of the JSON dimension information:
-1. Use a flat JSON object, not nested namespace objects.
-2. Use namespaced keys separated by '.'
-3. Allow values to be string | number | boolean | array[string].
-
-
-First pass will require several adjustments throughout the codebase to the core entity model, test cases, and test data.  Good to take it on now.
-
-Defining dimensions is done through dimension nodes which define a name and description entity with the `tap_meta: dimension`.  This is an optional step and is intended as a convenience for people to define what the hell they mean by a given dimension.  Entities can create their own dimensions as they see fit, so this also seems to be implying more of a tagging situation but at this point I'm inclined towards flexibility over mandated consistency.
-
-Requiring and applying dimensions is another consideration.  In the initial implementation we'll default to an empty object if there is no dimension information and allow the specific application implementation / plugin / whatever to define appropriate dimension information.  Entities should register the dimensions that they occupy by default during registration and those will be automatically applied to the nodes of that type when they are created.
+Convert the existing `EntityType` definition into a full-fledged `Entity` object and adjust all previously defined entities to suit.
 
 #### Development
-
+This spec is intentionally narrow so it can serve as the landing place for the later project that extracts pre-spec architectural decisions from the current codebase.
 
 #### Acceptance Criteria
 
-| Status | Action | Status | Implementation | ACID | Notes | 
-| -- | -- | -- | -- | -- | -- |
-| `Proposed`    |   Dimension on Entity Model | Add a dimnesions column to the Entity Model to store JSONb data, the default is an empty object, this field is not nullable.     | req-grid-entity-dim-i-bm | |
-| `Propsed`     |  Dimension Check          | Entities that define default dimensions should validate that enties still have that dimension applied when they are being saved (other dimension information may be present).  If it is missing the dimension then it will throw an error | req-grid-entity-dim-i-dc | | 
-| `Proposed`    | Entities are Entities     | Convert the existing EntityType definition into a full-fledged Entity object and adjust all previously defined entities to suit   | req-grid-entity-dim-i-ee | | 
-| `Proposed`    | Default Entity Dimensions | Define appropriate dimension information defaults for existing entities.  entity definitions are in the `tap_meta: entity` dimension. | req-grid-entity-dim-i-de | | 
-| `Proposed`    | Dimension Node    | Create a dimension node type which we'll use to describe a dimension, state it's dimension data as `tap_meta: dimension` | req-grid-entity-dim-i-dn | | 
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-entity-ee-1 | Entity Types Are First-Class | Proposed | Entity type definitions are represented as entity records rather than only registry rows. | |
+| req-grid-entity-ee-2 | Existing Definitions Migrated | Proposed | Existing entity type definitions are updated to the new representation without losing their current identifying information. | This likely needs a dedicated migration plan. |
 
 #### Future
-* How are dimensions and projects related? - Dimension, project, grid?
 
 ## Status Vocabulary
 
