@@ -19,11 +19,12 @@ between relaxation and alertness
 
 Pathfinding
 -----------
-We're a pathfinding specias
-Food, water, shelter
-Finding paths is how we survive
-Following paths is how we thrive
-Remembering forwards and backwards
+We are pathfinders
+Water, food, shelter
+Found paths = survive
+Followed paths = thrive
+Forwards, branching, backwards
+
 
 
 Dimensionality
@@ -39,7 +40,7 @@ A mind is a terrible thing to waste
 ...on tracking changes
 ...on storing complexity
 
-We aren't built to think
+We're built to think
 
 We're meant to act
 
@@ -206,15 +207,15 @@ Noun your verbs.
 
 ---Apocrypha--
 
-Profit
-------
+Sufficiency
+-----------
 Commander Vimes once said
-Past a certain point, money is just another way to keep score
+Past a certain point, money is just a way of keeping score.
 -
-Money can serve as a proxy to measure your localized reversal of entropy
+It can serve as a proxy to measure your localized reversal of entropy
 But mind the disorder outside your borders
 It has a tendency to creep back in
 -
-Consider the variables used to in score
+Consider the variables used to keep score
 And the algorithms used in your calculations
 Bonus points will be awarded for sharing your work with the class
