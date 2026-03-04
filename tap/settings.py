@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.postgres",
     # TAP apps (added as we scaffold each one)
     "tap_grid",
     "tap_plugins",

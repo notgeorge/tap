@@ -17,9 +17,9 @@ This specification captures the current architectural intent for the entity laye
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-grid-entity-spine | [Entity Spine Mapping](#entity-spine-mapping) | Implemented | `Entity` is the canonical node instance for nodes and edges |
-| req-grid-entity-type | [Entity Type Declaration](#entity-type-declaration) | Approved for Development | BaseModel subclasses declare `ENTITY_TYPE`; registered in the model registry |
-| req-grid-entity-base | [BaseModel Auto-Creates Entity](#basemodel-auto-creates-entity) | Approved for Development | `BaseModel.save()` auto-creates its Entity atomically when none is set |
-| req-grid-entity-resolve | [Entity Resolution](#entity-resolution) | Approved for Development | `Entity.resolve()` uses the model registry to return the concrete typed object |
+| req-grid-entity-type | [Entity Type Declaration](#entity-type-declaration) | Implemented | BaseModel subclasses declare `ENTITY_TYPE`; registered in the model registry |
+| req-grid-entity-base | [BaseModel Auto-Creates Entity](#basemodel-auto-creates-entity) | Implemented | `BaseModel.save()` auto-creates its Entity atomically when none is set |
+| req-grid-entity-resolve | [Entity Resolution](#entity-resolution) | Implemented | `Entity.resolve()` uses the model registry to return the concrete typed object |
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
 
 
@@ -39,7 +39,7 @@ RID: `req-grid-entity-spine`
 Status: `Implemented`
 
 #### Status Details
-This is being worked out retroactively following creation of the entity spine since we didn't fully spec it out and were just shooting from the hip.
+Implemented and verified. The entity spine mapping was the original architecture; the auto-creation and confirmation behavior was added in the session that produced `req-grid-entity-base`.
 
 #### Implementation
 The mapping is:
@@ -49,10 +49,10 @@ The mapping is:
 | `Entity` | Canonical concrete reference for every BaseModel instance containing cross-cutting metadata |
 | `BaseModel` subclass | Typed one-to-one implementation of an instance that references the Entity Id|
 
-BaseModel creates a new Entity and applies the necessary default values when a new BaseModel subclass instance is saved without an existing entity. On save it stores the appropriate Entity and typed class into its particular table. See `req-grid-entity-base` for the full auto-creation behavior.
+`BaseModel.save()` creates a new Entity automatically when a new instance is saved without an existing entity. On save it stores the appropriate Entity and typed class into its particular table. See `req-grid-entity-base` for the full auto-creation behavior.
 
 #### Development
-The initial implementation didn't actually automatically tie the Entity and BaseModel creation together. Implementing this spec is intended to fix that so that Entity creation happens at the same time as a typed model is created.
+The initial implementation didn't automatically tie Entity and BaseModel creation together. `req-grid-entity-base` closes that gap. The `entity` OneToOneField is non-nullable at the schema level; the `save()` override ensures the field is populated before Django's insert, so no schema change was required.
 
 #### Acceptance Criteria
 
@@ -60,8 +60,8 @@ The initial implementation didn't actually automatically tie the Entity and Base
 | --- | --- | :---: | --- | --- |
 | req-grid-entity-spine-1 | Entity Is Canonical Instance | Implemented | `Entity` is treated as the canonical concrete base instance stored in the entity spine. | |
 | req-grid-entity-spine-2 | One-to-One Extension | Implemented | Each typed entity model extending `BaseModel` maps to exactly one `Entity` through a one-to-one relationship. | |
-| req-grid-entity-spine-3 | BaseModel Creates Entity | Approved for Development | When saving a new BaseModel instance without an entity set, an `Entity` is automatically created using the subclass's `ENTITY_TYPE` and `get_display_name()`. See `req-grid-entity-base`. | |
-| req-grid-entity-spine-4 | BaseModel Confirms Entity | Approved for Development | When saving a BaseModel instance that already has an entity set, it confirms the Entity exists on the spine and that its `entity_type` matches the subclass's `ENTITY_TYPE`. Raises `ValueError` otherwise. | |
+| req-grid-entity-spine-3 | BaseModel Creates Entity | Implemented | When saving a new BaseModel instance without an entity set, an `Entity` is automatically created using the subclass's `ENTITY_TYPE` and `get_display_name()`. See `req-grid-entity-base`. | |
+| req-grid-entity-spine-4 | BaseModel Confirms Entity | Implemented | When saving a BaseModel instance that already has an entity set, it confirms the Entity exists on the spine and that its `entity_type` matches the subclass's `ENTITY_TYPE`. Raises `ValueError` otherwise. | |
 
 #### Future
 
@@ -71,49 +71,46 @@ The initial implementation didn't actually automatically tie the Entity and Base
 ### Entity Type Declaration
 ----
 RID: `req-grid-entity-type`
-Status: `Approved for Development`
+Status: `Implemented`
 
 #### Status Details
-Needed to support auto-Entity creation (`req-grid-entity-base`) and model registry lookup (`req-grid-entity-resolve`). Every BaseModel subclass must declare what entity type it represents.
+Implemented and verified. All concrete BaseModel subclasses across `tap_grid`, `tap_flip`, `tap_viz`, and all plugins now declare `ENTITY_TYPE`.
 
 #### Implementation
-Each non-abstract BaseModel subclass declares a `ENTITY_TYPE` class variable:
+Each non-abstract BaseModel subclass declares `ENTITY_TYPE` in its class body:
 
 ```python
 class Concept(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "concept"
 ```
 
-During `__init_subclass__` (which already fires for FLIP config and edge constraint registration), the subclass is registered in the model registry:
+During `__init_subclass__`, any subclass that declares `ENTITY_TYPE` in its own `__dict__` (not inherited) is registered in the model registry in `tap_grid/registry.py`:
 
 ```python
-# tap_grid/registry.py
-_ENTITY_MODEL_REGISTRY: dict[str, type[BaseModel]] = {}
+_ENTITY_MODEL_REGISTRY: dict[str, type] = {}
 
 def register_entity_type(entity_type: str, model_cls: type) -> None:
-    _ENTITY_MODEL_REGISTRY[entity_type] = model_cls
+    ...  # raises ImproperlyConfigured on duplicate slug registered to a different class
 
 def get_model_class(entity_type: str) -> type:
-    ...
+    ...  # raises KeyError with descriptive message if not found
 ```
 
-`Edge` is a BaseModel subclass and declares `ENTITY_TYPE = "edge"`. All existing plugin models (`Concept`, `Precept`, `Character`, etc.) must be updated to add their `ENTITY_TYPE`.
+`__init_subclass__` also switches edge constraint registration to use `ENTITY_TYPE` as the key (previously used `cls.__name__.lower()`), with a fallback for abstract intermediaries that define edge shapes without declaring a concrete type.
 
-Abstract BaseModel subclasses (i.e., those that don't map to their own table) must not be registered and should not declare `ENTITY_TYPE`.
+Registered types as of implementation: `edge`, `concept`, `precept`, `batch`, `layout`, `dimension`, `character`, `location`, `artifact`, `race`, `faction`, `sentinel`, `citadel`, `wanderer`.
 
 #### Development
-`__init_subclass__` already handles FLIP config and edge constraint registration. Adding the model registry there keeps all class-level setup in one place and avoids the need for a separate `AppConfig.ready()` import dance.
-
-The `entity_type` string on `Entity` becomes authoritative only if it matches what's in the registry. This is enforced at save time (`req-grid-entity-spine-4`).
+`__init_subclass__` already handled FLIP config and edge constraint registration. Adding the model registry there keeps all class-level setup in one place and avoids a separate `AppConfig.ready()` import dance. Using `cls.__dict__.get("ENTITY_TYPE")` (not `getattr`) ensures only classes that explicitly declare the attribute are registered — inherited values from abstract parents do not accidentally trigger registration.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-entity-type-1 | ENTITY_TYPE Required | Approved for Development | Every concrete BaseModel subclass declares `ENTITY_TYPE: ClassVar[str]`. Attempting to save a subclass without it raises `ImproperlyConfigured`. | |
-| req-grid-entity-type-2 | Registry Population | Approved for Development | `__init_subclass__` registers the subclass in `_ENTITY_MODEL_REGISTRY` keyed by `ENTITY_TYPE`. | |
-| req-grid-entity-type-3 | No Duplicate Types | Approved for Development | Registering a duplicate `ENTITY_TYPE` raises `ImproperlyConfigured` at class definition time. | |
-| req-grid-entity-type-4 | Abstract Subclasses Excluded | Approved for Development | Abstract BaseModel subclasses (Meta.abstract = True) are not registered and do not require `ENTITY_TYPE`. | |
+| req-grid-entity-type-1 | ENTITY_TYPE Required | Implemented | Every concrete BaseModel subclass declares `ENTITY_TYPE: ClassVar[str]`. Attempting to save a subclass without it raises `ImproperlyConfigured`. | |
+| req-grid-entity-type-2 | Registry Population | Implemented | `__init_subclass__` registers the subclass in `_ENTITY_MODEL_REGISTRY` keyed by `ENTITY_TYPE`. | |
+| req-grid-entity-type-3 | No Duplicate Types | Implemented | Registering a duplicate `ENTITY_TYPE` raises `ImproperlyConfigured` at class definition time. | |
+| req-grid-entity-type-4 | Abstract Subclasses Excluded | Implemented | Abstract BaseModel subclasses omit `ENTITY_TYPE` and are not registered. | |
 
 #### Future
 Consider a management command or system check that validates all registered entity types against the current entity spine contents to surface data integrity issues at startup.
@@ -123,58 +120,68 @@ Consider a management command or system check that validates all registered enti
 ### BaseModel Auto-Creates Entity
 ----
 RID: `req-grid-entity-base`
-Status: `Approved for Development`
+Status: `Implemented`
 
 #### Status Details
-This is the core gap in the current implementation. Entity creation is currently a manual two-step: call `create_entity()` then pass `entity=...` to the BaseModel subclass constructor. This requirement closes that gap by making Entity creation automatic and atomic.
+Implemented and verified. All 265 tests pass including the new auto-creation, entity confirmation, and edge endpoint validation tests.
 
 #### Implementation
 `BaseModel.save()` is overridden to handle Entity auto-creation:
 
 ```python
 def save(self, *args, **kwargs):
+    entity_type = getattr(self.__class__, "ENTITY_TYPE", None)
+    if entity_type is None:
+        raise ImproperlyConfigured(...)
+
     if self.entity_id is None:
         with transaction.atomic():
-            entity = Entity.objects.create(
-                entity_type=self.ENTITY_TYPE,
+            base_dims = dict(getattr(self.__class__, "DEFAULT_DIMENSIONS", {}))
+            caller_dims = getattr(self, "_initial_dimensions", {})
+            self.entity = Entity.objects.create(
+                entity_type=entity_type,
                 display_name=self.get_display_name(),
                 originating_grid_id=self.originating_grid_id,
+                dimensions={**base_dims, **caller_dims},
             )
-            self.entity = entity
             super().save(*args, **kwargs)
     else:
-        # Entity already set — confirm it (spine-4)
         self._confirm_entity()
         super().save(*args, **kwargs)
 ```
 
-`get_display_name()` is an overridable method on BaseModel that returns `""` by default. Subclasses may override it to provide a meaningful default:
+`get_display_name()` returns `""` by default; subclasses override it to provide a meaningful label. `Edge` overrides it to produce `"<from_id> --[<type>]--> <to_id>"`.
 
-```python
-def get_display_name(self) -> str:
-    return ""
-```
+`_confirm_entity()` validates that the entity exists and its `entity_type` matches `self.ENTITY_TYPE`. Raises `ValueError` if either check fails.
 
-`_confirm_entity()` validates that the entity exists and that its `entity_type` matches `self.ENTITY_TYPE`. Raises `ValueError` if either check fails.
+`DEFAULT_DIMENSIONS` (optional `ClassVar[dict[str, str]]` on BaseModel subclasses) seeds the `dimensions` field on the auto-created Entity. Caller-supplied `_initial_dimensions` are merged on top. See `spec-grid-dimension.md` for full dimension semantics.
 
-The `create_edge()` service function in `tap_grid/services.py` must be refactored to remove its manual Entity pre-creation and instead rely on this mechanism. The service call becomes `Edge.objects.create(from_entity=..., to_entity=..., edge_type=...)`.
+`Edge` overrides `save()` to add endpoint validation before delegating to `BaseModel.save()`:
+- Confirms `from_entity` exists on the spine; raises `ValueError` if not.
+- Confirms `to_entity` exists on the spine; raises `ValueError` if not.
+- Inherits `DEFAULT_DIMENSIONS` from the source node's model class.
+This check runs before any write, so a failed validation leaves no orphaned Entity row.
+
+`create_edge()` in `tap_grid/services.py` was refactored to rely on `Edge.save()` auto-creation rather than manually pre-creating the backing Entity.
 
 #### Development
-The `entity` OneToOneField is currently non-nullable, which means it is required at the database level. The `save()` override intercepts before the DB write, so the field is populated before Django's insert. No schema change is needed.
+`transaction.atomic()` ensures the Entity row and the domain model row are either both committed or both rolled back. Without this, a failure between the two creates an orphaned Entity row on the spine.
 
 Passing an explicit `entity=` on construction remains valid for migration compatibility and testing. The `_confirm_entity()` path handles that case and enforces consistency rather than silently accepting whatever is passed.
 
-`transaction.atomic()` ensures the Entity row and the domain model row are either both committed or both rolled back. Without this, a failure between the two creates an orphaned Entity row on the spine.
+The dimensions integration was added concurrently with the dimension spec work; the Entity `dimensions` JSONField and the `DEFAULT_DIMENSIONS` class variable on BaseModel were introduced as part of `spec-grid-dimension.md`.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-entity-base-1 | Auto-Creation on Save | Approved for Development | Saving a new BaseModel subclass instance without `entity` set automatically creates an `Entity` row with the correct `entity_type` and `display_name`. | |
-| req-grid-entity-base-2 | Atomic Transaction | Approved for Development | Entity creation and BaseModel row insertion are wrapped in `transaction.atomic()`. A failure in either rolls back both. | |
-| req-grid-entity-base-3 | Overridable Display Name | Approved for Development | `get_display_name()` returns `""` by default; subclasses may override to provide a meaningful name without requiring callers to set it. | |
-| req-grid-entity-base-4 | Explicit Entity Still Valid | Approved for Development | Passing an explicit `entity=` remains valid; the save path skips auto-creation and instead confirms the entity (spine-4). | |
-| req-grid-entity-base-5 | create_edge Refactored | Approved for Development | `tap_grid/services.py create_edge()` no longer manually creates its backing Entity; it relies on `Edge.save()` auto-creation instead. | |
+| req-grid-entity-base-1 | Auto-Creation on Save | Implemented | Saving a new BaseModel subclass instance without `entity` set automatically creates an `Entity` row with the correct `entity_type` and `display_name`. | |
+| req-grid-entity-base-2 | Atomic Transaction | Implemented | Entity creation and BaseModel row insertion are wrapped in `transaction.atomic()`. A failure in either rolls back both. | |
+| req-grid-entity-base-3 | Overridable Display Name | Implemented | `get_display_name()` returns `""` by default; subclasses may override to provide a meaningful name without requiring callers to set it. | |
+| req-grid-entity-base-4 | Explicit Entity Still Valid | Implemented | Passing an explicit `entity=` remains valid; the save path skips auto-creation and instead confirms the entity (spine-4). | |
+| req-grid-entity-base-5 | create_edge Refactored | Implemented | `tap_grid/services.py create_edge()` no longer manually creates its backing Entity; it relies on `Edge.save()` auto-creation instead. | |
+| req-grid-entity-base-6 | Edge Endpoint Validation | Implemented | `Edge.save()` confirms both `from_entity` and `to_entity` exist on the spine before any write. Raises `ValueError` with a clear message identifying which endpoint is missing. | |
+| req-grid-entity-base-7 | No Orphan on Failed Validation | Implemented | A failed endpoint check in `Edge.save()` leaves no orphaned Entity row on the spine. | |
 
 #### Future
 Once FLIP is fully active, Entity creation through this path should be recorded as a provenance event. In v0 this is deferred; the mechanism should be hookable so FLIP can be wired in without changing this code.
@@ -184,23 +191,22 @@ Once FLIP is fully active, Entity creation through this path should be recorded 
 ### Entity Resolution
 ----
 RID: `req-grid-entity-resolve`
-Status: `Approved for Development`
+Status: `Implemented`
 
 #### Status Details
-Given an Entity instance (or entity_id), there is currently no clean way to get back to the concrete typed object without knowing its type in advance. This requirement adds that capability via the model registry populated by `req-grid-entity-type`.
+Implemented and verified. `entity.resolve()` and `resolve_entity()` are live and tested for `Concept`, `Precept`, and `Edge`.
 
 #### Implementation
-`Entity` gains a `resolve()` instance method:
+`Entity` has a `resolve()` instance method:
 
 ```python
 def resolve(self) -> "BaseModel":
-    """Return the concrete typed object for this Entity."""
     from tap_grid.registry import get_model_class
     model_cls = get_model_class(self.entity_type)
     return model_cls.objects.get(entity_id=self.pk)
 ```
 
-A module-level helper function in `tap_grid/registry.py` provides the same capability from an entity_id alone:
+`tap_grid/registry.py` provides a module-level helper for resolving from a UUID alone:
 
 ```python
 def resolve_entity(entity_id: UUID) -> "BaseModel":
@@ -208,21 +214,21 @@ def resolve_entity(entity_id: UUID) -> "BaseModel":
     return entity.resolve()
 ```
 
-Two DB hits total: one for the Entity row, one for the concrete table. If the Entity is already in hand the second hit is skipped. Future optimization via a JOIN is possible if performance requires it.
+Two DB hits total: one for the Entity row (to get `entity_type`), one for the concrete table. If the Entity is already in hand, `entity.resolve()` skips the first hit.
 
 #### Development
-Django's `related_name="%(class)s"` on the OneToOneField already creates reverse accessors (`entity.concept`, `entity.edge`, etc.) but using them requires knowing the type in advance. `resolve()` replaces the need to try accessors speculatively. It also provides a single stable API surface that does not change as new entity types are added.
+Django's `related_name="%(class)s"` on the OneToOneField creates reverse accessors (`entity.concept`, `entity.edge`, etc.) but using them requires knowing the type in advance. `resolve()` replaces the need to try accessors speculatively and provides a stable API surface that does not change as new entity types are added.
 
-The model registry is populated at class definition time via `__init_subclass__`, so it is always fully populated before any request or task can call `resolve()`.
+The model registry is always fully populated before any request or task can call `resolve()` because `__init_subclass__` fires at class definition time during app startup.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-entity-resolve-1 | Resolve Returns Typed Object | Approved for Development | `entity.resolve()` returns the concrete BaseModel subclass instance corresponding to that Entity. | |
-| req-grid-entity-resolve-2 | resolve_entity Helper | Approved for Development | `resolve_entity(entity_id)` in `tap_grid/registry.py` resolves from a UUID without requiring a pre-fetched Entity instance. | |
-| req-grid-entity-resolve-3 | Unregistered Type Raises Error | Approved for Development | Resolving an entity whose `entity_type` is not in the registry raises a clear `KeyError` or custom exception with a descriptive message. | |
-| req-grid-entity-resolve-4 | Edge Resolves Correctly | Approved for Development | `entity.resolve()` works for entities whose type is `"edge"`, returning the `Edge` instance. | |
+| req-grid-entity-resolve-1 | Resolve Returns Typed Object | Implemented | `entity.resolve()` returns the concrete BaseModel subclass instance corresponding to that Entity. | |
+| req-grid-entity-resolve-2 | resolve_entity Helper | Implemented | `resolve_entity(entity_id)` in `tap_grid/registry.py` resolves from a UUID without requiring a pre-fetched Entity instance. | |
+| req-grid-entity-resolve-3 | Unregistered Type Raises Error | Implemented | Resolving an entity whose `entity_type` is not in the registry raises `KeyError` with a descriptive message listing registered types. | |
+| req-grid-entity-resolve-4 | Edge Resolves Correctly | Implemented | `entity.resolve()` works for entities whose type is `"edge"`, returning the `Edge` instance. | |
 
 #### Future
 Consider caching the resolved object on the Entity instance (e.g., `_resolved`) to avoid repeat DB hits when resolve() is called multiple times in the same request. A `select_related` variant that pre-fetches the typed object in a single JOIN query would be a further optimization if graph traversal volume warrants it.

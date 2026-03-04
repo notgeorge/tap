@@ -194,6 +194,40 @@ class TestModelRegistry:
 
 
 @pytest.mark.django_db
+class TestEdgeEndpointValidation:
+    """req-grid-edge-endpoints: Edge.save() validates both endpoints before any DB write."""
+
+    def test_missing_from_entity_raises(self):
+        """Edge with a non-existent from_entity_id raises ValueError (endpoints-1)."""
+        import uuid
+
+        to_entity = create_entity("concept")
+        edge = Edge(from_entity_id=uuid.uuid7(), to_entity=to_entity, edge_type="TEST")
+        with pytest.raises(ValueError, match="from_entity"):
+            edge.save()
+
+    def test_missing_to_entity_raises(self):
+        """Edge with a non-existent to_entity_id raises ValueError (endpoints-2)."""
+        import uuid
+
+        from_entity = create_entity("concept")
+        edge = Edge(from_entity=from_entity, to_entity_id=uuid.uuid7(), edge_type="TEST")
+        with pytest.raises(ValueError, match="to_entity"):
+            edge.save()
+
+    def test_validation_precedes_write_no_orphan(self):
+        """A failed endpoint check leaves no orphaned Entity row on the spine (endpoints-3)."""
+        import uuid
+
+        to_entity = create_entity("concept")
+        count_before = Entity.objects.count()
+        edge = Edge(from_entity_id=uuid.uuid7(), to_entity=to_entity, edge_type="TEST")
+        with pytest.raises(ValueError):
+            edge.save()
+        assert Entity.objects.count() == count_before
+
+
+@pytest.mark.django_db
 class TestEntityStr:
     def test_with_display_name(self):
         entity = create_entity("concept", display_name="Separation of Concerns")

@@ -9,6 +9,7 @@ from typing import Any, ClassVar
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
+from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models, transaction
 
@@ -46,6 +47,10 @@ class Entity(models.Model):
         help_text="Type slug (e.g. 'server', 'control'). Validated at service layer.",
     )
     display_name = models.CharField(max_length=255, blank=True, default="")
+    dimensions = models.JSONField(
+        default=dict,
+        help_text="Flat namespace dict for partitioning/scoping (e.g. {'tap.graph': 'web'}).",
+    )
     originating_grid_id = models.UUIDField(
         default=get_default_grid_id,
         null=True,
@@ -59,6 +64,9 @@ class Entity(models.Model):
         db_table = "tap_entity"
         verbose_name_plural = "Entities"
         ordering = ["-created_at"]
+        indexes = [
+            GinIndex(fields=["dimensions"], name="idx_entity_dimensions_gin"),
+        ]
 
     def __str__(self) -> str:
         if self.display_name:
@@ -117,6 +125,7 @@ class BaseModel(models.Model):
     """
 
     ENTITY_TYPE: ClassVar[str]
+    DEFAULT_DIMENSIONS: ClassVar[dict[str, str]]
 
     entity = models.OneToOneField(
         Entity,
@@ -203,10 +212,13 @@ class BaseModel(models.Model):
 
         if self.entity_id is None:
             with transaction.atomic():
+                base_dims = dict(getattr(self.__class__, "DEFAULT_DIMENSIONS", {}))
+                caller_dims: dict[str, str] = getattr(self, "_initial_dimensions", {})
                 self.entity = Entity.objects.create(
                     entity_type=entity_type,
                     display_name=self.get_display_name(),
                     originating_grid_id=self.originating_grid_id,
+                    dimensions={**base_dims, **caller_dims},
                 )
                 super().save(*args, **kwargs)
         else:
@@ -247,6 +259,64 @@ class Edge(BaseModel):
     def __str__(self) -> str:
         return f"{self.from_entity_id} --[{self.edge_type}]--> {self.to_entity_id}"
 
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Validate endpoints and inherit dimensions before delegating to BaseModel.save().
+
+        On the auto-creation path (entity_id is None):
+        - Confirms both endpoints reference existing Entity rows.
+        - Resolves the source node's DEFAULT_DIMENSIONS and sets _initial_dimensions
+          so BaseModel.save() applies them to the backing Entity (req-grid-dimension-dc-4).
+        Raises ValueError if either endpoint is missing.
+        """
+        if self.entity_id is None:
+            # Validate from_entity exists; fetch entity_type for dimension inheritance
+            from_row = Entity.objects.filter(pk=self.from_entity_id).values("entity_type").first()
+            if from_row is None:
+                raise ValueError(
+                    f"Edge.from_entity {self.from_entity_id} does not exist on the spine."
+                )
+            if not Entity.objects.filter(pk=self.to_entity_id).exists():
+                raise ValueError(
+                    f"Edge.to_entity {self.to_entity_id} does not exist on the spine."
+                )
+
+            # Inherit DEFAULT_DIMENSIONS from source node's model class
+            from tap_grid.registry import get_model_class
+
+            try:
+                source_cls = get_model_class(from_row["entity_type"])
+                source_defaults = dict(getattr(source_cls, "DEFAULT_DIMENSIONS", {}))
+            except KeyError:
+                source_defaults = {}
+
+            if source_defaults:
+                caller_dims: dict[str, str] = getattr(self, "_initial_dimensions", {})
+                self._initial_dimensions = {**source_defaults, **caller_dims}
+
+        super().save(*args, **kwargs)
+
     def get_display_name(self) -> str:
         """Generate a readable label from the edge's endpoints and type."""
         return f"{self.from_entity_id} --[{self.edge_type}]--> {self.to_entity_id}"
+
+
+class Dimension(BaseModel):
+    """First-class graph node representing a named dimension.
+
+    Dimension nodes allow dimensions to participate in the graph — they can
+    be referenced by entity ID, queried, and connected to other entities via
+    edges. Every Dimension instance is tagged with {"tap.meta": "dimension"}
+    so it is always self-identifying regardless of which dimension it describes.
+    """
+
+    ENTITY_TYPE: ClassVar[str] = "dimension"
+    DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.meta": "dimension"}
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+
+    class Meta(BaseModel.Meta):
+        db_table = "tap_dimension"
+
+    def __str__(self) -> str:
+        return self.name

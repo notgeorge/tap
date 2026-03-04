@@ -17,9 +17,9 @@ Entities are the base node of the grid / graph and the place where data about a 
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-grid-dimension-em | [Dimensions on Entity Model](#dimensions-on-entity-model) | Approved for Development | Adds the dimensions field to the canonical entity record |
-| req-grid-dimension-dc | [Default Dimension Application](#default-dimension-application) | Approved for Development | Applies declared default dimensions when an entity is created |
-| req-grid-dimension-dn | [Dimension Node](#dimension-node) | Approved for Development | Introduces a first-class node for dimension definitions |
+| req-grid-dimension-em | [Dimensions on Entity Model](#dimensions-on-entity-model) | Implemented | Adds the dimensions field to the canonical entity record |
+| req-grid-dimension-dc | [Default Dimension Application](#default-dimension-application) | Implemented | Applies declared default dimensions when an entity is created |
+| req-grid-dimension-dn | [Dimension Node](#dimension-node) | Implemented | Introduces a first-class node for dimension definitions |
 
 
 ## Explanation
@@ -42,7 +42,9 @@ Dimensions should generally be closer to fixed and broadly shared. Edges should 
 **Rule of thumb**: If representing a collection would require a bajillion edges applied across a large portion of the dataset and most / all entity types, it is probably a dimension instead of an edge. Dimensions exist in part because that kind of broad, repeated scoping metadata is simpler and more coherent to represent directly than as an enormous set of repeated edges.
 
 #### Edges have Dimensions Too
-Since edges are entities they can have dimensions applied to them as well. This will be useful in situations where a `page-LEVERAGES_PANEL->panel` relationship uses a `LEVERAGES_PANEL` edge with the `tap.graph: web` dimension applied automatically to keep these entities in the same namespace.  Edge dimensions live on the backing Entity, and the DEFAULT_DIMENSIONS mechanism handles this automatically.
+Since edges are entities they can have dimensions applied to them as well. This will be useful in situations where a `page-LEVERAGES_PANEL->panel` relationship uses a `LEVERAGES_PANEL` edge with the `tap.graph: web` dimension applied automatically to keep these entities in the same namespace. Edge dimensions live on the backing Entity.
+
+`Edge` does not declare `DEFAULT_DIMENSIONS` directly. Instead it inherits the `DEFAULT_DIMENSIONS` of its source node (`from_entity`). When an Edge is saved, `Edge.save()` resolves the source node's model class via the registry and applies that class's defaults to the Edge's backing Entity. This means a `LEVERAGES_PANEL` edge originating from a `Page` automatically lands in the `tap.graph: web` dimension without any extra configuration. See `req-grid-dimension-dc` for the full merge semantics.
 
 #### Background
 My first inclination was to have this be a simple database column with the dimension as a standard, user-defined value which could possibly be extended through naming conventions ala `env.staging.xyz` where the idea of an environment was meant to support teams running a single TAP instance to cover dev / stage / prod. At the same time, there's the fundamental concept of design -> config -> operation, which is another dimension, and there are other dimensions that data may itself operate in such as employees in the human dimension, machines in the computer dimension, and the collection of humans as teams managing fleets of computers, and layout / search / panels / page entities which I want to manage as nodes and edges but don't want them to get in the way of the actual data.
@@ -59,13 +61,16 @@ Projects / grid installs that make dimension nodes expected (or list a subset of
 
 ### Dimensions on Entity Model
 ----
-RID: `req-grid-dimension-em`  
-Status: `Approved for Development`
+RID: `req-grid-dimension-em`
+Status: `Implemented`
 
 #### Status Details
+Implemented in `tap_grid/models.py` as a `JSONField` on `Entity` with a `GinIndex`. Tests in `tap_grid/tests/test_dimensions.py` under `TestEntityDimensionsField`.
 
 #### Implementation
-Add a `dimensions` column to the `Entity` model using Django `models.JSONField`. In Postgres this is stored as JSONField. The default value is an empty object and the field is not nullable.
+Add a `dimensions` column to the `Entity` model using Django `models.JSONField`. In Postgres this is stored as JSONB. The default value is an empty object and the field is not nullable.
+
+A GIN index is added on the `dimensions` field to support JSONB containment queries (`@>`) without full table scans. This is required to meet the Accessible goal.
 
 If defined, the JSON shape follows these constraints:
 
@@ -76,8 +81,6 @@ If defined, the JSON shape follows these constraints:
 | Lower Case | Always use lower case |
 | Value Types | Allow values to be `string` |
 
-In the current implementation the dimenions are not validated beyond ensuring lower-case and string values.
-
 
 #### Development
 
@@ -85,20 +88,21 @@ In the current implementation the dimenions are not validated beyond ensuring lo
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-dimension-em-1 | Dimensions Column Exists | Approved for Development | `Entity` includes a `dimensions` JSON field with a default empty object. | |
-| req-grid-dimension-em-2 | Dimensions Column Required | Approved for Development | The `dimensions` field is non-nullable at the model and database layer. | |
+| req-grid-dimension-em-1 | Dimensions Column Exists | Implemented | `Entity` includes a `dimensions` JSON field with a default empty object. | |
+| req-grid-dimension-em-2 | Dimensions Column Required | Implemented | The `dimensions` field is non-nullable at the model and database layer. | |
+| req-grid-dimension-em-3 | GIN Index Exists | Implemented | A GIN index is defined on the `dimensions` field in `Entity.Meta.indexes`. | Required for performant containment queries. |
 
 
 #### Future
 Consider reserved dimensions or the ability for plugins / apps to reserve them.
-Dimension validation options - can be applied 
+Dimension validation options - can be applied at the model or service layer once use cases are understood.
 
 
 
 ### Default Dimension Application
 ----
-RID: `req-grid-dimension-dc`  
-Status: `Approved for Development`
+RID: `req-grid-dimension-dc`
+Status: `Implemented`
 
 There will be entities that will always want to set a default dimension. The example driving the initial implementation is pages and panels on a web interface. Each will be entities so we can leverage nodes and edges, but I don't want them mucking up the data they're being used to describe.
 
@@ -107,9 +111,24 @@ Having pages in a separate dimension is helpful because that distinction meets o
 In order to simplify / standardize that we'll define a `DEFAULT_DIMENSIONS` field that will be applied whenever an entity is created.
 
 #### Status Details
+Implemented in `tap_grid/models.py`. `BaseModel.save()` merges `DEFAULT_DIMENSIONS` with `_initial_dimensions` on the auto-creation path. `Edge.save()` resolves the source node's class via the registry and sets `_initial_dimensions` before delegating. Tests in `tap_grid/tests/test_dimensions.py` under `TestDefaultDimensions` and `TestEdgeDimensionInheritance`.
 
 #### Implementation
-Entities whose `BaseModel` subclass defines `DEFAULT_DIMENSIONS` should apply those dimensions when the backing `Entity` instance is created. These defaults are a convenience and are not mandatory after creation. Additional dimension information may be present on the instance, and default dimensions may be changed or removed later without causing a validation error.
+`DEFAULT_DIMENSIONS` is a `ClassVar[dict[str, str]]` declared on a `BaseModel` subclass. It is applied during the auto-Entity creation path inside `BaseModel.save()` — the branch that fires when `entity_id` is `None`.
+
+Merge semantics: `DEFAULT_DIMENSIONS` provides the base. Any dimensions passed explicitly by the caller are merged on top. Explicit keys win over defaults for any shared key.
+
+```python
+# Pseudocode inside BaseModel.save() auto-creation path
+base = dict(getattr(self.__class__, "DEFAULT_DIMENSIONS", {}))
+caller_supplied = getattr(self, "_initial_dimensions", {})
+dimensions = {**base, **caller_supplied}
+Entity.objects.create(..., dimensions=dimensions)
+```
+
+**Edge dimension inheritance**: `Edge` does not declare `DEFAULT_DIMENSIONS` directly. Instead, `Edge.save()` resolves the model class of the `from_entity` via the registry and reads that class's `DEFAULT_DIMENSIONS`. Those become the base dimensions for the Edge's backing Entity, with any caller-supplied dimensions merged on top using the same explicit-wins rule.
+
+Default dimensions applied at creation are not enforced after that point. They may be changed or removed without a validation error.
 
 #### Development
 
@@ -117,8 +136,10 @@ Entities whose `BaseModel` subclass defines `DEFAULT_DIMENSIONS` should apply th
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-dimension-dc-1 | Defaults Applied On Create | Approved for Development | Creating an entity whose model defines `DEFAULT_DIMENSIONS` applies those defaults to the new `Entity` instance. | |
-| req-grid-dimension-dc-2 | Defaults Are Not Mandatory | Approved for Development | After creation, default dimensions may be changed or removed without causing a validation error. | |
+| req-grid-dimension-dc-1 | Defaults Applied On Create | Implemented | Creating a BaseModel instance whose class defines `DEFAULT_DIMENSIONS` populates those dimensions on the new `Entity`. | |
+| req-grid-dimension-dc-2 | Defaults Are Not Mandatory | Implemented | After creation, default dimensions may be changed or removed without causing a validation error. | |
+| req-grid-dimension-dc-3 | Explicit Wins on Merge | Implemented | When a caller supplies dimensions at create time, explicit keys override matching keys from `DEFAULT_DIMENSIONS`. Non-overlapping keys from both are present in the result. | |
+| req-grid-dimension-dc-4 | Edge Inherits Source Dimensions | Implemented | Creating an `Edge` applies the `DEFAULT_DIMENSIONS` of the `from_entity`'s model class to the Edge's backing Entity, with the same merge semantics. | |
 
 
 #### Future
@@ -126,13 +147,14 @@ Entities whose `BaseModel` subclass defines `DEFAULT_DIMENSIONS` should apply th
 
 ### Dimension Node
 ----
-RID: `req-grid-dimension-dn`  
-Status: `Approved for Development`
+RID: `req-grid-dimension-dn`
+Status: `Implemented`
 
 #### Status Details
+Implemented in `tap_grid/models.py` as `class Dimension(BaseModel)`. Tests in `tap_grid/tests/test_dimensions.py` under `TestDimensionNode`.
 
 #### Implementation
-Create a dimension node as an entity derived from `BaseModel` that is used to describe a dimension. It contains a name and description, and its `DEFAULT_DIMENSIONS` includes `"tap.meta": "dimension"`.
+`Dimension` is declared in `tap_grid/models.py` alongside `Edge` as a fundamental graph concept. It is a concrete `BaseModel` subclass with `ENTITY_TYPE = "dimension"`, a `name` field, a `description` field, and `DEFAULT_DIMENSIONS = {"tap.meta": "dimension"}`.
 
 #### Development
 
@@ -140,9 +162,9 @@ Create a dimension node as an entity derived from `BaseModel` that is used to de
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-dimension-dn-1 | Dimension Node Exists | Approved for Development | A simple `Entity` with the type `dimension` exists for describing dimensions as first-class entities. Its model is declared along with nodes and edges. | |
-| req-grid-dimension-dn-2 | Dimension Nodes Tagged | Approved for Development | Dimension node definitions include `"tap.meta": "dimension"` in their `DEFAULT_DIMENSIONS`. | |
-| req-grid-dimension-dn-3 | Dimension Node Carries Core Fields | Approved for Development | A dimension node includes a name and description. | |
+| req-grid-dimension-dn-1 | Dimension Node Exists | Implemented | A `Dimension` model is declared in `tap_grid/models.py` as a `BaseModel` subclass with `ENTITY_TYPE = "dimension"`. | |
+| req-grid-dimension-dn-2 | Dimension Nodes Tagged | Implemented | `Dimension` declares `DEFAULT_DIMENSIONS = {"tap.meta": "dimension"}`. | |
+| req-grid-dimension-dn-3 | Dimension Node Carries Core Fields | Implemented | `Dimension` includes `name` and `description` fields. | |
 
 #### Future
 Confirm that dimension nodes should remain optional in the initial implementation.  
