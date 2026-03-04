@@ -12,6 +12,8 @@ from tap_flip.history.context import get_history_user
 class Concept(BaseModel):
     """An abstract idea or principle."""
 
+    ENTITY_TYPE: ClassVar[str] = "concept"
+
     # FLIP: Enable history and batch tracking for Concept
     FLIP_CONFIG: ClassVar[dict[str, Any]] = {
         "history": {"enabled": True},
@@ -53,6 +55,8 @@ class Concept(BaseModel):
 
 class Precept(BaseModel):
     """A rule or instruction derived from a concept."""
+
+    ENTITY_TYPE: ClassVar[str] = "precept"
 
     # Precepts can create DEPENDS_ON edges to concepts
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [

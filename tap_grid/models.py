@@ -5,10 +5,12 @@ Design philosophy: See DESIGN.md in this directory.
 """
 
 import uuid
+from typing import Any, ClassVar
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
-from django.db import models
+from django.core.exceptions import ImproperlyConfigured
+from django.db import models, transaction
 
 
 def get_default_grid_id() -> uuid.UUID | None:
@@ -63,6 +65,17 @@ class Entity(models.Model):
             return f"{self.display_name} ({self.entity_type})"
         return f"{self.entity_type}:{self.id}"
 
+    def resolve(self) -> "BaseModel":
+        """Return the concrete typed model instance for this Entity.
+
+        Uses the model registry populated at class-definition time.
+        Raises KeyError if the entity_type is not registered.
+        """
+        from tap_grid.registry import get_model_class
+
+        model_cls = get_model_class(self.entity_type)
+        return model_cls.objects.get(entity_id=self.pk)
+
 
 class EntityType(models.Model):
     """Registry of entity types. Plugins populate this; Entity.entity_type
@@ -85,7 +98,14 @@ class EntityType(models.Model):
 class BaseModel(models.Model):
     """Abstract base for all domain ORM models (not Entity/EntityType/User).
 
-    Enforces the TAP pattern: every domain object has an Entity.
+    Enforces the TAP pattern: every domain object has a corresponding Entity
+    on the Entity Spine. Concrete subclasses must declare:
+
+        ENTITY_TYPE: ClassVar[str] = "<slug>"
+
+    This drives auto-Entity creation on save, model registry lookup, and
+    entity-type validation. Saving a concrete subclass that omits ENTITY_TYPE
+    raises ImproperlyConfigured.
 
     Edge constraints:
         Subclasses can define OUTBOUND_EDGES and INBOUND_EDGES to constrain
@@ -95,6 +115,8 @@ class BaseModel(models.Model):
         Subclasses can define FLIP_CONFIG to enable history tracking and
         other provenance features. See tap_flip.config for defaults.
     """
+
+    ENTITY_TYPE: ClassVar[str]
 
     entity = models.OneToOneField(
         Entity,
@@ -122,19 +144,74 @@ class BaseModel(models.Model):
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
 
-        # Register edge constraints if defined on the subclass
-        entity_type = cls.__name__.lower()
+        # Register in the entity model registry if this subclass declares ENTITY_TYPE
+        # in its own class body (not inherited). Abstract subclasses omit ENTITY_TYPE.
+        entity_type = cls.__dict__.get("ENTITY_TYPE")
+        if entity_type is not None:
+            from tap_grid.registry import register_entity_type
+
+            register_entity_type(entity_type, cls)
+
+        # Register edge constraints. Use ENTITY_TYPE when declared; fall back to
+        # class name for abstract intermediaries that define edge shapes.
+        constraint_type = entity_type or cls.__name__.lower()
         outbound = getattr(cls, "OUTBOUND_EDGES", None)
         inbound = getattr(cls, "INBOUND_EDGES", None)
         if outbound is not None or inbound is not None:
             from tap_grid.constraints import register_constraints
 
-            register_constraints(entity_type, outbound, inbound)
+            register_constraints(constraint_type, outbound, inbound)
 
         # FLIP: Cache config in registry (history registration deferred to app ready)
         from tap_flip.config import get_model_flip_config
 
         get_model_flip_config(cls)
+
+    def get_display_name(self) -> str:
+        """Return the display name for the auto-created Entity.
+
+        Defaults to empty string. Subclasses may override to provide a
+        meaningful label without requiring callers to set it explicitly.
+        """
+        return ""
+
+    def _confirm_entity(self) -> None:
+        """Validate that the attached Entity exists and has the correct entity_type.
+
+        Called on save when entity_id is already set (explicit-entity path).
+        Raises ValueError if the entity is missing or its type doesn't match.
+        """
+        entity_type = self.ENTITY_TYPE
+        if not Entity.objects.filter(pk=self.entity_id, entity_type=entity_type).exists():
+            raise ValueError(
+                f"Entity {self.entity_id} does not exist on the spine or its "
+                f"entity_type does not match '{entity_type}' "
+                f"(required by {self.__class__.__name__})."
+            )
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Save the model, auto-creating its Entity if one is not already set.
+
+        - No entity set: creates Entity atomically with this save (transaction.atomic).
+        - Entity already set: confirms it exists and has the correct entity_type.
+        """
+        entity_type = getattr(self.__class__, "ENTITY_TYPE", None)
+        if entity_type is None:
+            raise ImproperlyConfigured(
+                f"{self.__class__.__name__} must declare ENTITY_TYPE: ClassVar[str]."
+            )
+
+        if self.entity_id is None:
+            with transaction.atomic():
+                self.entity = Entity.objects.create(
+                    entity_type=entity_type,
+                    display_name=self.get_display_name(),
+                    originating_grid_id=self.originating_grid_id,
+                )
+                super().save(*args, **kwargs)
+        else:
+            self._confirm_entity()
+            super().save(*args, **kwargs)
 
 
 class Edge(BaseModel):
@@ -143,6 +220,8 @@ class Edge(BaseModel):
     Edges ARE entities (inherit BaseModel → OneToOne to Entity).
     "No edges between edges" is a service-layer rule, not a schema constraint.
     """
+
+    ENTITY_TYPE: ClassVar[str] = "edge"
 
     from_entity = models.ForeignKey(
         Entity,
@@ -166,4 +245,8 @@ class Edge(BaseModel):
         ]
 
     def __str__(self) -> str:
+        return f"{self.from_entity_id} --[{self.edge_type}]--> {self.to_entity_id}"
+
+    def get_display_name(self) -> str:
+        """Generate a readable label from the edge's endpoints and type."""
         return f"{self.from_entity_id} --[{self.edge_type}]--> {self.to_entity_id}"

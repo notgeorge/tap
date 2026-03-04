@@ -87,6 +87,7 @@ Use these values consistently in the Requirements table and each requirement's `
 | Status States |  |
 | --- | --- |
 | Proposed | Hey everyone, here's an idea. |
+| Approved for Development | Requirement is accepted and ready to be implemented. |
 | In Development | Actively being worked on, see the Development section for more details. |
 | Implemented | Has been written, see the Implementation section for how. |
 | Verified | Has met the acceptance criteria as defined in that section. |
@@ -115,5 +116,5 @@ Requirements can reference other requirements, designs, and should align with go
 | Status Details | Explanation for the current status state. |
 | Implementation | How the feature is implemented in code, database, and operationally. This should be sufficient to inform re-implementation in the future and be kept up to date as the implementation evolves. |
 | Development | Notes, lessons learned, and useful context identified during the development of the feature. Helps inform why the implementation is the way it is. |
-| Acceptance Criteria | Table containing a uniquely identified list of acceptance criteria based on the RID followed by a `-` and a number. This is used for associating with test cases. Acceptance criteria status follows the same status model as the requirements section. |
+| Acceptance Criteria | Table containing a uniquely identified list of acceptance criteria based on the RID followed by a `-` and a number. Tests are linked to criteria using `@pytest.mark.spec("acid-id")`. Acceptance criteria status follows the same status model as the requirements section. |
 | Future | Notes on future ideas, concepts, and things to consider when doing further work on this feature. |

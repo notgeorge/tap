@@ -45,29 +45,27 @@ def create_edge(
     properties: dict[str, Any] | None = None,
     display_name: str = "",
 ) -> Edge:
-    """Create an Edge with its backing Entity auto-created.
+    """Create an Edge between two entities.
 
-    Callers don't need to manually create the Entity for the edge —
-    this function handles it.
+    The backing Entity for the Edge is auto-created by Edge.save().
+    An optional display_name overrides the auto-generated label on that Entity.
 
     Raises InvalidEdgeError if the edge violates constraints.
     """
-    # Validate against edge constraints before any DB writes
     validate_edge(from_entity.entity_type, to_entity.entity_type, edge_type)
 
-    # Edge inherits BaseModel, which requires a OneToOne to Entity.
-    # We auto-create that backing Entity here.
-    edge_entity = Entity.objects.create(
-        entity_type="edge",
-        display_name=display_name or f"{from_entity.id} --[{edge_type}]--> {to_entity.id}",
-    )
-    return Edge.objects.create(
-        entity=edge_entity,
+    edge = Edge.objects.create(
         from_entity=from_entity,
         to_entity=to_entity,
         edge_type=edge_type,
         properties=properties or {},
     )
+
+    if display_name:
+        edge.entity.display_name = display_name
+        edge.entity.save(update_fields=["display_name", "updated_at"])
+
+    return edge
 
 
 def delete_edge(edge: Edge) -> None:

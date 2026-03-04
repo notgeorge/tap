@@ -1,5 +1,7 @@
 """tap_viz models — Layout storage for Cytoscape.js visualizations."""
 
+from typing import ClassVar
+
 from django.db import models
 
 from tap_grid.models import BaseModel
@@ -12,6 +14,8 @@ class Layout(BaseModel):
     stores the full layout in Cytoscape-ingestible format: nodes, edges,
     positions, style, and layout algorithm settings.
     """
+
+    ENTITY_TYPE: ClassVar[str] = "layout"
 
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")

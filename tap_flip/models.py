@@ -33,6 +33,8 @@ class Batch(BaseModel):
     recursion (a Batch cannot belong to another Batch).
     """
 
+    ENTITY_TYPE: ClassVar[str] = "batch"
+
     # FLIP: Batch enables history but disables batch tracking (prevents self-reference)
     FLIP_CONFIG: ClassVar[dict[str, Any]] = {
         "history": {"enabled": True},

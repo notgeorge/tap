@@ -19,6 +19,8 @@ from tap_grid.models import BaseModel
 class Character(BaseModel):
     """A being in Middle-earth (Frodo, Gandalf, Sauron, etc.)."""
 
+    ENTITY_TYPE: ClassVar[str] = "character"
+
     # Characters can form many types of edges to various targets
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {
@@ -64,6 +66,8 @@ class Character(BaseModel):
 class Location(BaseModel):
     """A place in Middle-earth (Shire, Mordor, Rivendell, etc.)."""
 
+    ENTITY_TYPE: ClassVar[str] = "location"
+
     # Locations can contain other locations (Shire contains Bag End)
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {
@@ -105,6 +109,8 @@ class Location(BaseModel):
 class Artifact(BaseModel):
     """A significant object (The One Ring, Sting, Andúril, etc.)."""
 
+    ENTITY_TYPE: ClassVar[str] = "artifact"
+
     # Artifacts can only be forged in locations
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {
@@ -134,6 +140,8 @@ class Artifact(BaseModel):
 class Race(BaseModel):
     """A race of beings (Hobbit, Elf, Dwarf, Human, Wizard, etc.)."""
 
+    ENTITY_TYPE: ClassVar[str] = "race"
+
     # Races cannot create any outbound edges (empty list = block all)
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = []
 
@@ -157,6 +165,8 @@ class Race(BaseModel):
 
 class Faction(BaseModel):
     """A group or alliance (Fellowship, Mordor, Rohan, etc.)."""
+
+    ENTITY_TYPE: ClassVar[str] = "faction"
 
     # Factions can ally or be enemies with other factions
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
@@ -190,6 +200,8 @@ class Faction(BaseModel):
 class Sentinel(BaseModel):
     """A watcher that can reference anything (wildcard test case)."""
 
+    ENTITY_TYPE: ClassVar[str] = "sentinel"
+
     # Sentinel uses wildcard: REFERENCES can point to ANY node type
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {
@@ -218,6 +230,8 @@ class Sentinel(BaseModel):
 class Citadel(BaseModel):
     """A fortified place that accepts no incoming edges (inbound block test)."""
 
+    ENTITY_TYPE: ClassVar[str] = "citadel"
+
     # Citadels can PROTECTS locations
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {
@@ -244,6 +258,8 @@ class Wanderer(BaseModel):
     Since neither constraint is defined, a Wanderer can form or receive
     any edge type to/from any node type.
     """
+
+    ENTITY_TYPE: ClassVar[str] = "wanderer"
 
     # No OUTBOUND_EDGES defined = no restrictions
     # No INBOUND_EDGES defined = no restrictions

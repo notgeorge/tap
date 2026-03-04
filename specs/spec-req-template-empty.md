@@ -40,6 +40,7 @@ Status: `Proposed`
 | Status States |  |
 | --- | --- |
 | Proposed |  |
+| Approved for Development |  |
 | In Development |  |
 | Implemented |  |
 | Verified |  |
