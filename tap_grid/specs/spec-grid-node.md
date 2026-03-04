@@ -51,10 +51,9 @@ Implemented in `tap_grid/models.py` as `class BaseModel(models.Model)`. Retroact
 | Field | Type | Notes |
 | --- | --- | --- |
 | `entity` | OneToOneField → Entity, CASCADE | The backing spine record. Auto-created on first save if not set. |
-| `originating_grid_id` | UUIDField, nullable | Grid installation that created this node. |
 | `batch_id` | CharField(36, db_index=True) | UUIDv7 of the FLIP batch this change was part of (Phase 2). |
-| `created_at` | DateTimeField(auto_now_add=True) | Creation timestamp. |
-| `updated_at` | DateTimeField(auto_now=True) | Last-updated timestamp. |
+
+`originating_grid_id`, `created_at`, and `updated_at` live on `Entity` — the authoritative source of record. `BaseModel.save()` touches `entity.updated_at` on every typed-model save so the Entity timestamp stays current.
 
 `BaseModel.Meta` sets `abstract = True` — no `tap_basemodel` table is created.
 
@@ -91,13 +90,14 @@ concept = Concept.objects.create(summary="Separation of Concerns")
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-grid-node-model-1 | BaseModel Is Abstract | Implemented | `BaseModel` sets `Meta.abstract = True`; no `tap_basemodel` table exists in the schema. | |
-| req-grid-node-model-2 | Common Fields Present | Implemented | Every concrete `BaseModel` subclass inherits `entity`, `originating_grid_id`, `batch_id`, `created_at`, and `updated_at`. | |
+| req-grid-node-model-2 | Common Fields Present | Implemented | Every concrete `BaseModel` subclass inherits `entity` and `batch_id`. Timestamps and grid ID live on the backing Entity. | |
 | req-grid-node-model-3 | Registry Hook | Implemented | `__init_subclass__` registers the subclass in `_ENTITY_MODEL_REGISTRY` when `ENTITY_TYPE` is declared in the subclass's own `__dict__`. Abstract subclasses that omit `ENTITY_TYPE` are not registered. | |
 | req-grid-node-model-4 | Constraint Hook | Implemented | `__init_subclass__` calls `register_constraints()` when `OUTBOUND_EDGES` or `INBOUND_EDGES` is present on the subclass. | |
 | req-grid-node-model-5 | FLIP Hook | Implemented | `__init_subclass__` calls `get_model_flip_config()` to cache FLIP config for the subclass at class-definition time. | |
 
 #### Future
 Consider a Django system check that validates all registered `ENTITY_TYPE` values against the `EntityType` table at startup to surface misconfigured plugins early.
+Consider revisiting whether `batch_id` should move to `Entity` or be handled differently once FLIP matures — the tight entity-node coupling may change how FLIP tracks provenance.
 
 
 ### Node Display Name

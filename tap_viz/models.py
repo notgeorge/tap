@@ -27,7 +27,7 @@ class Layout(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "tap_layout"
-        ordering = ["-created_at"]
+        ordering = ["-entity__created_at"]
 
     def __str__(self) -> str:
         return self.name

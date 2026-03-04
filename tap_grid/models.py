@@ -12,6 +12,7 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models, transaction
+from django.utils import timezone
 
 
 def get_default_grid_id() -> uuid.UUID | None:
@@ -132,11 +133,6 @@ class BaseModel(models.Model):
         on_delete=models.CASCADE,
         related_name="%(class)s",
     )
-    originating_grid_id = models.UUIDField(
-        default=get_default_grid_id,
-        null=True,
-        blank=True,
-    )
     batch_id = models.CharField(
         max_length=36,
         blank=True,
@@ -144,8 +140,6 @@ class BaseModel(models.Model):
         db_index=True,
         help_text="UUIDv7 of the batch this change was included in (FLIP Phase 2).",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         abstract = True
@@ -217,13 +211,13 @@ class BaseModel(models.Model):
                 self.entity = Entity.objects.create(
                     entity_type=entity_type,
                     display_name=self.get_display_name(),
-                    originating_grid_id=self.originating_grid_id,
                     dimensions={**base_dims, **caller_dims},
                 )
                 super().save(*args, **kwargs)
         else:
             self._confirm_entity()
             super().save(*args, **kwargs)
+            Entity.objects.filter(pk=self.entity_id).update(updated_at=timezone.now())
 
 
 class Edge(BaseModel):
@@ -250,7 +244,7 @@ class Edge(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "tap_edge"
-        ordering = ["-created_at"]
+        ordering = ["-entity__created_at"]
         indexes = [
             models.Index(fields=["from_entity", "edge_type"], name="idx_edge_from_type"),
             models.Index(fields=["to_entity", "edge_type"], name="idx_edge_to_type"),

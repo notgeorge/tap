@@ -26,8 +26,8 @@ class EntityTypeAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
 @admin.register(Edge)
 class EdgeAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
-    list_display = ["id", "from_entity", "edge_type", "to_entity", "created_at"]
-    list_filter = ["edge_type", "created_at"]
+    list_display = ["id", "from_entity", "edge_type", "to_entity"]
+    list_filter = ["edge_type"]
     search_fields = ["edge_type"]
-    readonly_fields = ["id", "created_at", "updated_at", "originating_grid_id"]
+    readonly_fields = ["id"]
     raw_id_fields = ["entity", "from_entity", "to_entity"]

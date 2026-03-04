@@ -10,9 +10,9 @@ from tap_plugins.core_examples.models import Concept, Precept
 class ConceptAdmin(SimpleHistoryAdmin):
     """Admin for Concept with history timeline."""
 
-    list_display = ["entity", "created_at", "updated_at"]
+    list_display = ["entity"]
     search_fields = ["entity__display_name", "summary"]
-    readonly_fields = ["entity", "created_at", "updated_at", "batch_id"]
+    readonly_fields = ["entity", "batch_id"]
     history_list_display = ["history_user", "history_date", "history_type"]
 
 
@@ -20,6 +20,6 @@ class ConceptAdmin(SimpleHistoryAdmin):
 class PreceptAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     """Admin for Precept (no history tracking)."""
 
-    list_display = ["entity", "created_at", "updated_at"]
+    list_display = ["entity"]
     search_fields = ["entity__display_name", "statement"]
-    readonly_fields = ["entity", "created_at", "updated_at", "batch_id"]
+    readonly_fields = ["entity", "batch_id"]

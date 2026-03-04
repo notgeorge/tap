@@ -93,7 +93,7 @@ def close_batch(batch: Batch) -> Batch:
 
     batch.status = BatchStatus.CLOSED
     batch.closed_at = timezone.now()
-    batch.save(update_fields=["status", "closed_at", "updated_at"])
+    batch.save(update_fields=["status", "closed_at"])
     return batch
 
 
@@ -118,7 +118,7 @@ def fail_batch(batch: Batch, error_message: str = "") -> Batch:
     batch.status = BatchStatus.FAILED
     batch.closed_at = timezone.now()
     batch.error_message = error_message
-    batch.save(update_fields=["status", "closed_at", "error_message", "updated_at"])
+    batch.save(update_fields=["status", "closed_at", "error_message"])
     return batch
 
 

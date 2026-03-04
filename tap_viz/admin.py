@@ -9,6 +9,6 @@ from tap_viz.models import Layout
 class LayoutAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     """Admin interface for Layout model."""
 
-    list_display = ["name", "entity_id", "created_at", "updated_at"]
+    list_display = ["name", "entity_id"]
     search_fields = ["name", "description"]
-    readonly_fields = ["entity", "created_at", "updated_at"]
+    readonly_fields = ["entity"]

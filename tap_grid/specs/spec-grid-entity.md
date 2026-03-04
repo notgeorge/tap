@@ -141,13 +141,13 @@ def save(self, *args, **kwargs):
             self.entity = Entity.objects.create(
                 entity_type=entity_type,
                 display_name=self.get_display_name(),
-                originating_grid_id=self.originating_grid_id,
                 dimensions={**base_dims, **caller_dims},
             )
             super().save(*args, **kwargs)
     else:
         self._confirm_entity()
         super().save(*args, **kwargs)
+        Entity.objects.filter(pk=self.entity_id).update(updated_at=timezone.now())
 ```
 
 `get_display_name()` returns `""` by default; subclasses override it to provide a meaningful label. `Edge` overrides it to produce `"<from_id> --[<type>]--> <to_id>"`.

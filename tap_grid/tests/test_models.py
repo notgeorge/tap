@@ -42,9 +42,6 @@ class TestBaseModel:
     def test_concept_inherits_basemodel_fields(self):
         entity = create_entity("concept", display_name="Least Privilege")
         concept = Concept.objects.create(entity=entity, summary="Minimize access.")
-        assert concept.created_at is not None
-        assert concept.updated_at is not None
-        assert concept.originating_grid_id is not None
         assert concept.entity == entity
 
     def test_reverse_relation(self):
@@ -90,10 +87,10 @@ class TestBaseModelAutoCreation:
         concept.save()
         assert concept.entity.display_name == "Concept: Least Privilege"
 
-    def test_originating_grid_id_propagated_to_entity(self):
-        """The auto-created Entity gets the same originating_grid_id as the domain model."""
+    def test_entity_gets_originating_grid_id(self):
+        """The auto-created Entity gets originating_grid_id from its own default."""
         concept = Concept.objects.create(summary="Grid propagation check.")
-        assert concept.entity.originating_grid_id == concept.originating_grid_id
+        assert concept.entity.originating_grid_id is not None
 
     def test_edge_auto_creates_entity_with_display_name(self):
         """Edge.get_display_name() generates a label from its endpoints and type."""

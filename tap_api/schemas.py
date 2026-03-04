@@ -57,7 +57,7 @@ class EdgeOut(ModelSchema):
 
     class Meta:
         model = Edge
-        fields = ["id", "from_entity", "to_entity", "edge_type", "properties", "created_at", "updated_at"]
+        fields = ["id", "from_entity", "to_entity", "edge_type", "properties"]
 
 
 # --- EntityType ---
