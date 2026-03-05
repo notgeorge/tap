@@ -79,6 +79,10 @@ _EDGE_TYPE_REGISTRY: dict[str, EdgeTypeConstraints] = {}
 # One schema per edge type. Duplicate registration is a configuration error.
 _EDGE_PROPERTY_SCHEMA_REGISTRY: dict[str, dict[str, Any]] = {}
 
+# Edge default dimensions registry: edge_type -> dimensions dict
+# Declared via default_dimensions in TapPluginConfig.edge_types entries.
+_EDGE_DEFAULT_DIMENSIONS_REGISTRY: dict[str, dict[str, str]] = {}
+
 # Backwards compatibility alias
 EdgeConstraints = NodeConstraints
 _REGISTRY = _NODE_REGISTRY
@@ -225,6 +229,32 @@ def register_edge_property_schema(edge_type: str, schema: dict[str, Any]) -> Non
 def get_edge_property_schema(edge_type: str) -> dict[str, Any] | None:
     """Return the registered JSON Schema for an edge type, or None if not defined."""
     return _EDGE_PROPERTY_SCHEMA_REGISTRY.get(edge_type)
+
+
+def register_edge_default_dimensions(edge_type: str, dimensions: dict[str, str]) -> None:
+    """Register default dimensions for an edge type.
+
+    Called by TapPluginConfig._register_edge_constraints() when a plugin declares
+    default_dimensions on an edge_types entry.
+
+    Raises ValueError if dimensions are already registered for this edge_type.
+    No merge behavior: default dimension declarations must be unique per edge type.
+
+    Args:
+        edge_type: The edge type slug (e.g., "USES_PANEL").
+        dimensions: A dict of dimension key/value pairs to apply to the edge's backing Entity.
+    """
+    if edge_type in _EDGE_DEFAULT_DIMENSIONS_REGISTRY:
+        raise ValueError(
+            f"Default dimensions are already registered for edge type '{edge_type}'. "
+            "Each edge type may have at most one default_dimensions declaration."
+        )
+    _EDGE_DEFAULT_DIMENSIONS_REGISTRY[edge_type] = dict(dimensions)
+
+
+def get_edge_default_dimensions(edge_type: str) -> dict[str, str]:
+    """Return the registered default dimensions for an edge type, or {} if not defined."""
+    return dict(_EDGE_DEFAULT_DIMENSIONS_REGISTRY.get(edge_type, {}))
 
 
 def validate_edge_properties(edge_type: str, properties: Any) -> None:

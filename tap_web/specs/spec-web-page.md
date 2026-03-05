@@ -24,7 +24,7 @@ Future:
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-web-page-dim | [Web Dimension](#web-dimension) | Proposed | Canonical web dimension for TAP Web nodes and web-origin edges |
+| req-web-page-dim | [Web Dimension](#web-dimension) | Implemented | Canonical web dimension for TAP Web nodes and web-origin edges |
 | req-web-page-obj | [Page Objects](#page-objects) | Proposed | Canonical page model with slug, nested layout schema, and routing constraints |
 | req-web-page-slug-sanitize-sec | [Page Slug Sanitization](#page-slug-sanitization) | Proposed | Security-focused slug normalization and validation for page routing |
 | req-web-page-layout-sanitize-sec | [Page Layout Sanitization](#page-layout-sanitization) | Proposed | Security-focused layout schema validation and safe render sanitization |
@@ -40,35 +40,31 @@ Page slugs are unique
 ### Web Dimension
 ----
 RID: `req-web-page-dim`
-Status: `Proposed`
+Status: `Implemented`
 
 All TAP Web artifacts must carry the canonical web dimension marker:
 `{"tap.graph": "web"}`.
 
 
 #### Status Details
-Requirement clarified with explicit key/value and application convention for TAP Web-owned types.
+Implemented in `tap_web/models.py` (`Page`, `Panel`, `LandingPage` each declare `DEFAULT_DIMENSIONS = {"tap.graph": "web"}`) and `tap_web/apps.py` (`TapWebConfig.ready()` registers `USES_PANEL` and `USES_LANDING_PAGE` with `default_dimensions` into `_EDGE_DEFAULT_DIMENSIONS_REGISTRY`). Tests in `tap_web/tests/test_web_dim.py`.
 
 #### Implementation
-- Every node type defined/registered by `tap_web` declares:
-  `DEFAULT_DIMENSIONS = {"tap.graph": "web"}`.
-- On create, dimensions are merged from model defaults and caller-provided values.
-- Caller-provided dimensions may add keys; web defaults remain present.
-- Web-related edges must also carry `tap.graph=web`.
-- In the current model pattern, edges inherit source-node defaults during edge creation, so web-origin edges receive the web marker.
+- Every node type in `tap_web/models.py` declares `DEFAULT_DIMENSIONS = {"tap.graph": "web"}`.
+- On create, `BaseModel.save()` merges `DEFAULT_DIMENSIONS` with any caller-supplied `_initial_dimensions`. Caller keys win on conflict; web default remains present for non-overlapping keys.
+- Web edge types (`USES_PANEL`, `USES_LANDING_PAGE`) are registered with `default_dimensions: {"tap.graph": "web"}` in `TapWebConfig._register_web_edge_constraints()`. The registry lookup in `Edge.save()` applies the dimension on the backing Entity at creation.
 
 #### Development
-This phase relies on node-definition convention (`DEFAULT_DIMENSIONS`) for `tap_web` types and existing `BaseModel` merge behavior.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-page-dim-1 | Canonical Web Dimension | Proposed | Canonical marker is exactly `{"tap.graph": "web"}`. | |
-| req-web-page-dim-2 | Applied on tap_web Nodes | Proposed | Each node type defined/registered by `tap_web` declares `DEFAULT_DIMENSIONS` including `tap.graph=web`. | Convention in this phase. |
-| req-web-page-dim-3 | Merge Preserves Default | Proposed | On create, default and caller dimensions are merged so web defaults remain present alongside additional caller keys. | |
-| req-web-page-dim-4 | No Subtype Dimension Key | Proposed | No additional subtype dimension key is required. | |
-| req-web-page-dim-5 | Web Edges Carry Web Dimension | Proposed | Web-feature edges carry `tap.graph=web` through source-node default inheritance. | |
+| req-web-page-dim-1 | Canonical Web Dimension | Implemented | Canonical marker is exactly `{"tap.graph": "web"}`. | |
+| req-web-page-dim-2 | Applied on tap_web Nodes | Implemented | `Page`, `Panel`, and `LandingPage` each declare `DEFAULT_DIMENSIONS = {"tap.graph": "web"}`. | |
+| req-web-page-dim-3 | Merge Preserves Default | Implemented | On create, default and caller dimensions are merged so web defaults remain present alongside additional caller keys. | |
+| req-web-page-dim-4 | No Subtype Dimension Key | Implemented | No additional subtype dimension key is required. | |
+| req-web-page-dim-5 | Web Edges Carry Web Dimension | Implemented | `USES_PANEL` and `USES_LANDING_PAGE` carry `tap.graph=web` via `default_dimensions` declared in `TapWebConfig._register_web_edge_constraints()` and loaded into `_EDGE_DEFAULT_DIMENSIONS_REGISTRY`. | |
 
 
 ### Page Objects

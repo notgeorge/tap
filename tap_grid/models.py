@@ -254,12 +254,12 @@ class Edge(BaseModel):
         return f"{self.from_entity_id} --[{self.edge_type}]--> {self.to_entity_id}"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        """Validate endpoints, properties, and inherit dimensions before delegating to BaseModel.save().
+        """Validate endpoints, apply edge default dimensions, and validate properties.
 
         On the auto-creation path (entity_id is None):
         - Confirms both endpoints reference existing Entity rows.
-        - Resolves the source node's DEFAULT_DIMENSIONS and sets _initial_dimensions
-          so BaseModel.save() applies them to the backing Entity (req-grid-dimension-dc-4).
+        - Applies the edge type's registered default_dimensions to the backing Entity,
+          merged with any caller-supplied _initial_dimensions (caller wins on conflict).
         Raises ValueError if either endpoint is missing.
 
         On every save:
@@ -267,9 +267,7 @@ class Edge(BaseModel):
           if one exists. Raises EdgePropertyValidationError on failure.
         """
         if self.entity_id is None:
-            # Validate from_entity exists; fetch entity_type for dimension inheritance
-            from_row = Entity.objects.filter(pk=self.from_entity_id).values("entity_type").first()
-            if from_row is None:
+            if not Entity.objects.filter(pk=self.from_entity_id).exists():
                 raise ValueError(
                     f"Edge.from_entity {self.from_entity_id} does not exist on the spine."
                 )
@@ -278,18 +276,14 @@ class Edge(BaseModel):
                     f"Edge.to_entity {self.to_entity_id} does not exist on the spine."
                 )
 
-            # Inherit DEFAULT_DIMENSIONS from source node's model class
-            from tap_grid.registry import get_model_class
+            # Apply edge type's own default dimensions (req-grid-dimension-dc-4)
+            from tap_grid.constraints import get_edge_default_dimensions
 
-            try:
-                source_cls = get_model_class(from_row["entity_type"])
-                source_defaults = dict(getattr(source_cls, "DEFAULT_DIMENSIONS", {}))
-            except KeyError:
-                source_defaults = {}
-
-            if source_defaults:
-                caller_dims: dict[str, str] = getattr(self, "_initial_dimensions", {})
-                self._initial_dimensions = {**source_defaults, **caller_dims}
+            edge_defaults = get_edge_default_dimensions(self.edge_type)
+            caller_dims: dict[str, str] = getattr(self, "_initial_dimensions", {})
+            merged = {**edge_defaults, **caller_dims}
+            if merged:
+                self._initial_dimensions = merged
 
         # Validate properties on every save (create and update)
         from tap_grid.constraints import validate_edge_properties

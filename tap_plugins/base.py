@@ -104,7 +104,7 @@ class TapPluginConfig(AppConfig):
         Called before DB registration so constraints are available even during
         migrations.
         """
-        from tap_grid.constraints import register_edge_property_schema, register_edge_type_constraints
+        from tap_grid.constraints import register_edge_default_dimensions, register_edge_property_schema, register_edge_type_constraints
 
         for et in self.edge_types:
             slug = et["slug"]
@@ -118,3 +118,7 @@ class TapPluginConfig(AppConfig):
             # Register property schema if declared
             if "property_schema" in et:
                 register_edge_property_schema(slug, et["property_schema"])
+
+            # Register default dimensions if declared
+            if "default_dimensions" in et:
+                register_edge_default_dimensions(slug, et["default_dimensions"])

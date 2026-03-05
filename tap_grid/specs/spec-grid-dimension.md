@@ -42,9 +42,11 @@ Dimensions should generally be closer to fixed and broadly shared. Edges should 
 **Rule of thumb**: If representing a collection would require a bajillion edges applied across a large portion of the dataset and most / all entity types, it is probably a dimension instead of an edge. Dimensions exist in part because that kind of broad, repeated scoping metadata is simpler and more coherent to represent directly than as an enormous set of repeated edges.
 
 #### Edges have Dimensions Too
-Since edges are entities they can have dimensions applied to them as well. This will be useful in situations where a `page-LEVERAGES_PANEL->panel` relationship uses a `LEVERAGES_PANEL` edge with the `tap.graph: web` dimension applied automatically to keep these entities in the same namespace. Edge dimensions live on the backing Entity.
+Since edges are entities they can have dimensions applied to them as well. This will be useful in situations where a `page-USES_PANEL->panel` relationship uses a `USES_PANEL` edge with the `tap.graph: web` dimension applied automatically to keep these entities in the same namespace. Edge dimensions live on the backing Entity.
 
-`Edge` does not declare `DEFAULT_DIMENSIONS` directly. Instead it inherits the `DEFAULT_DIMENSIONS` of its source node (`from_entity`). When an Edge is saved, `Edge.save()` resolves the source node's model class via the registry and applies that class's defaults to the Edge's backing Entity. This means a `LEVERAGES_PANEL` edge originating from a `Page` automatically lands in the `tap.graph: web` dimension without any extra configuration. See `req-grid-dimension-dc` for the full merge semantics.
+Edge types declare their own `default_dimensions` in `TapPluginConfig.edge_types` entries — the same place that `property_schema` and topology constraints are declared. At app startup these are loaded into the `_EDGE_DEFAULT_DIMENSIONS_REGISTRY` in `tap_grid/constraints.py`. When an Edge is saved, `Edge.save()` looks up the edge type in that registry and applies the declared dimensions as the base for the Edge's backing Entity. Caller-supplied `_initial_dimensions` are merged on top using the same explicit-wins rule as node types.
+
+This means a `USES_PANEL` edge carries `tap.graph: web` because the `USES_PANEL` edge type declares it — not because of anything about its source node. See `req-grid-dimension-dc` for the full merge semantics.
 
 #### Background
 My first inclination was to have this be a simple database column with the dimension as a standard, user-defined value which could possibly be extended through naming conventions ala `env.staging.xyz` where the idea of an environment was meant to support teams running a single TAP instance to cover dev / stage / prod. At the same time, there's the fundamental concept of design -> config -> operation, which is another dimension, and there are other dimensions that data may itself operate in such as employees in the human dimension, machines in the computer dimension, and the collection of humans as teams managing fleets of computers, and layout / search / panels / page entities which I want to manage as nodes and edges but don't want them to get in the way of the actual data.
@@ -111,7 +113,7 @@ Having pages in a separate dimension is helpful because that distinction meets o
 In order to simplify / standardize that we'll define a `DEFAULT_DIMENSIONS` field that will be applied whenever an entity is created.
 
 #### Status Details
-Implemented in `tap_grid/models.py`. `BaseModel.save()` merges `DEFAULT_DIMENSIONS` with `_initial_dimensions` on the auto-creation path. `Edge.save()` resolves the source node's class via the registry and sets `_initial_dimensions` before delegating. Tests in `tap_grid/tests/test_dimensions.py` under `TestDefaultDimensions` and `TestEdgeDimensionInheritance`.
+Implemented in `tap_grid/models.py`. `BaseModel.save()` merges `DEFAULT_DIMENSIONS` with `_initial_dimensions` on the auto-creation path. `Edge.save()` looks up the edge type in `_EDGE_DEFAULT_DIMENSIONS_REGISTRY` and applies those dimensions before delegating. Tests in `tap_grid/tests/test_dimensions.py` under `TestDefaultDimensions` and `TestEdgeDefaultDimensions`.
 
 #### Implementation
 `DEFAULT_DIMENSIONS` is a `ClassVar[dict[str, str]]` declared on a `BaseModel` subclass. It is applied during the auto-Entity creation path inside `BaseModel.save()` — the branch that fires when `entity_id` is `None`.
@@ -126,7 +128,7 @@ dimensions = {**base, **caller_supplied}
 Entity.objects.create(..., dimensions=dimensions)
 ```
 
-**Edge dimension inheritance**: `Edge` does not declare `DEFAULT_DIMENSIONS` directly. Instead, `Edge.save()` resolves the model class of the `from_entity` via the registry and reads that class's `DEFAULT_DIMENSIONS`. Those become the base dimensions for the Edge's backing Entity, with any caller-supplied dimensions merged on top using the same explicit-wins rule.
+**Edge default dimensions**: Edge types declare `default_dimensions` in `TapPluginConfig.edge_types`. At startup, `TapPluginConfig._register_edge_constraints()` loads these into `_EDGE_DEFAULT_DIMENSIONS_REGISTRY` in `tap_grid/constraints.py`. When an Edge is created, `Edge.save()` calls `get_edge_default_dimensions(edge_type)` and merges the result with any caller-supplied `_initial_dimensions` using the same explicit-wins rule.
 
 Default dimensions applied at creation are not enforced after that point. They may be changed or removed without a validation error.
 
@@ -139,7 +141,7 @@ Default dimensions applied at creation are not enforced after that point. They m
 | req-grid-dimension-dc-1 | Defaults Applied On Create | Implemented | Creating a BaseModel instance whose class defines `DEFAULT_DIMENSIONS` populates those dimensions on the new `Entity`. | |
 | req-grid-dimension-dc-2 | Defaults Are Not Mandatory | Implemented | After creation, default dimensions may be changed or removed without causing a validation error. | |
 | req-grid-dimension-dc-3 | Explicit Wins on Merge | Implemented | When a caller supplies dimensions at create time, explicit keys override matching keys from `DEFAULT_DIMENSIONS`. Non-overlapping keys from both are present in the result. | |
-| req-grid-dimension-dc-4 | Edge Inherits Source Dimensions | Implemented | Creating an `Edge` applies the `DEFAULT_DIMENSIONS` of the `from_entity`'s model class to the Edge's backing Entity, with the same merge semantics. | |
+| req-grid-dimension-dc-4 | Edge Default Dimensions | Implemented | Creating an `Edge` applies the `default_dimensions` registered for its edge type in `_EDGE_DEFAULT_DIMENSIONS_REGISTRY`, with the same merge semantics. Edge types declare `default_dimensions` in `TapPluginConfig.edge_types`. | |
 
 
 #### Future

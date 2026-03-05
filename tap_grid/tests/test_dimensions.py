@@ -2,12 +2,13 @@
 
 Covers:
   req-grid-dimension-em  — dimensions field on Entity
-  req-grid-dimension-dc  — DEFAULT_DIMENSIONS applied at creation; Edge inherits source
+  req-grid-dimension-dc  — DEFAULT_DIMENSIONS applied at creation; edge default_dimensions
   req-grid-dimension-dn  — Dimension node model
 """
 
 import pytest
 
+from tap_grid.constraints import _EDGE_DEFAULT_DIMENSIONS_REGISTRY, register_edge_default_dimensions
 from tap_grid.models import Dimension, Edge, Entity
 from tap_grid.services import create_entity
 from tap_plugins.core_examples.models import Concept, Precept
@@ -93,44 +94,32 @@ class TestDefaultDimensions:
 
 
 @pytest.mark.django_db
-class TestEdgeDimensionInheritance:
-    """req-grid-dimension-dc-4: Edge inherits DEFAULT_DIMENSIONS from its source node."""
+class TestEdgeDefaultDimensions:
+    """req-grid-dimension-dc-4: Edge gets dimensions from its registered default_dimensions."""
 
-    def test_edge_inherits_source_dimensions(self):
-        """Edge backing Entity gets source node's DEFAULT_DIMENSIONS (dc-4)."""
-        # Dimension node has DEFAULT_DIMENSIONS = {"tap.meta": "dimension"}
-        source_dim = Dimension.objects.create(name="source-dim")
-        target = Concept.objects.create(summary="target")
+    @pytest.fixture(autouse=True)
+    def isolate_registry(self) -> None:
+        saved = dict(_EDGE_DEFAULT_DIMENSIONS_REGISTRY)
+        _EDGE_DEFAULT_DIMENSIONS_REGISTRY.clear()
+        yield
+        _EDGE_DEFAULT_DIMENSIONS_REGISTRY.clear()
+        _EDGE_DEFAULT_DIMENSIONS_REGISTRY.update(saved)
+
+    def test_edge_with_registered_defaults_gets_them(self):
+        """Edge backing Entity gets dimensions from the edge type's registered defaults (dc-4)."""
+        register_edge_default_dimensions("WEB_EDGE", {"tap.graph": "web"})
+        source = Concept.objects.create(summary="source")
+        target = Precept.objects.create(statement="target")
 
         edge = Edge.objects.create(
-            from_entity=source_dim.entity,
+            from_entity=source.entity,
             to_entity=target.entity,
-            edge_type="TEST",
+            edge_type="WEB_EDGE",
         )
-        assert edge.entity.dimensions == {"tap.meta": "dimension"}
+        assert edge.entity.dimensions == {"tap.graph": "web"}
 
-    def test_edge_caller_dims_override_source(self):
-        """Caller-supplied _initial_dimensions on Edge override source defaults (dc-4)."""
-        source_dim = Dimension.objects.create(name="source-dim2")
-        target = Concept.objects.create(summary="target2")
-
-        edge = Edge(from_entity=source_dim.entity, to_entity=target.entity, edge_type="TEST")
-        edge._initial_dimensions = {"tap.meta": "override"}
-        edge.save()
-        assert edge.entity.dimensions == {"tap.meta": "override"}
-
-    def test_edge_caller_adds_non_overlapping_key(self):
-        """Caller key that doesn't overlap with source defaults is also present (dc-4)."""
-        source_dim = Dimension.objects.create(name="source-dim3")
-        target = Concept.objects.create(summary="target3")
-
-        edge = Edge(from_entity=source_dim.entity, to_entity=target.entity, edge_type="TEST")
-        edge._initial_dimensions = {"env": "staging"}
-        edge.save()
-        assert edge.entity.dimensions == {"tap.meta": "dimension", "env": "staging"}
-
-    def test_edge_from_undimensioned_source_gets_empty(self):
-        """Edge from a source with no DEFAULT_DIMENSIONS gets dimensions={} (dc-4)."""
+    def test_edge_without_registered_defaults_gets_empty(self):
+        """Edge with no registered default_dimensions gets dimensions={} (dc-4)."""
         source = Concept.objects.create(summary="no dims source")
         target = Precept.objects.create(statement="target")
         edge = Edge.objects.create(
@@ -139,6 +128,34 @@ class TestEdgeDimensionInheritance:
             edge_type="APPLIES_TO",
         )
         assert edge.entity.dimensions == {}
+
+    def test_caller_dims_override_edge_defaults(self):
+        """Caller-supplied _initial_dimensions override edge default_dimensions (dc-4)."""
+        register_edge_default_dimensions("WEB_EDGE2", {"tap.graph": "web"})
+        source = Concept.objects.create(summary="source")
+        target = Precept.objects.create(statement="target")
+
+        edge = Edge(from_entity=source.entity, to_entity=target.entity, edge_type="WEB_EDGE2")
+        edge._initial_dimensions = {"tap.graph": "override"}
+        edge.save()
+        assert edge.entity.dimensions == {"tap.graph": "override"}
+
+    def test_caller_adds_non_overlapping_key(self):
+        """Non-overlapping caller key is merged alongside edge defaults (dc-4)."""
+        register_edge_default_dimensions("WEB_EDGE3", {"tap.graph": "web"})
+        source = Concept.objects.create(summary="source")
+        target = Precept.objects.create(statement="target")
+
+        edge = Edge(from_entity=source.entity, to_entity=target.entity, edge_type="WEB_EDGE3")
+        edge._initial_dimensions = {"env": "staging"}
+        edge.save()
+        assert edge.entity.dimensions == {"tap.graph": "web", "env": "staging"}
+
+    def test_duplicate_registration_raises(self):
+        """Registering default_dimensions twice for the same edge type raises ValueError."""
+        register_edge_default_dimensions("DUP_EDGE", {"tap.graph": "web"})
+        with pytest.raises(ValueError, match="already registered"):
+            register_edge_default_dimensions("DUP_EDGE", {"tap.graph": "other"})
 
 
 # ---------------------------------------------------------------------------
