@@ -4,14 +4,18 @@ import pytest
 
 from tap_grid.constraints import (
     WILDCARD,
+    _EDGE_PROPERTY_SCHEMA_REGISTRY,
     _parse_constraint_list,
     get_constraints,
+    get_edge_property_schema,
     get_edge_type_constraints,
     register_constraints,
+    register_edge_property_schema,
     register_edge_type_constraints,
     validate_edge,
+    validate_edge_properties,
 )
-from tap_grid.exceptions import InvalidEdgeError
+from tap_grid.exceptions import EdgePropertyValidationError, InvalidEdgeError
 
 
 class TestParseConstraintList:
@@ -353,3 +357,116 @@ class TestValidateEdgeWithEdgeConstraints:
             targets=[{"type": "allowed_target"}],
         )
         validate_edge("constrained_node", "allowed_target", "NODE_ALLOWED")
+
+
+class TestEdgePropertySchemaRegistry:
+    """req-grid-edge-properties: in-memory schema registry."""
+
+    @pytest.fixture(autouse=True)
+    def isolate_registry(self) -> None:
+        """Snapshot and restore the property schema registry around each test."""
+        saved = dict(_EDGE_PROPERTY_SCHEMA_REGISTRY)
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        yield
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.update(saved)
+
+    def test_register_and_retrieve(self) -> None:
+        """Registered schema is returned by get_edge_property_schema (properties-2)."""
+        schema = {"type": "object", "properties": {"id": {"type": "string"}}}
+        register_edge_property_schema("HAS_CONFIG", schema)
+        assert get_edge_property_schema("HAS_CONFIG") == schema
+
+    def test_missing_returns_none(self) -> None:
+        """get_edge_property_schema returns None for unregistered edge type (properties-6)."""
+        assert get_edge_property_schema("UNKNOWN_TYPE") is None
+
+    def test_duplicate_registration_raises(self) -> None:
+        """Registering a second schema for the same edge type raises ValueError (properties-3)."""
+        schema = {"type": "object"}
+        register_edge_property_schema("DOUBLE_REG", schema)
+        with pytest.raises(ValueError, match="already registered"):
+            register_edge_property_schema("DOUBLE_REG", {"type": "string"})
+
+    def test_different_slugs_are_independent(self) -> None:
+        """Each slug maintains its own schema."""
+        schema_a = {"type": "object", "properties": {"a": {"type": "string"}}}
+        schema_b = {"type": "object", "properties": {"b": {"type": "integer"}}}
+        register_edge_property_schema("EDGE_A", schema_a)
+        register_edge_property_schema("EDGE_B", schema_b)
+        assert get_edge_property_schema("EDGE_A") == schema_a
+        assert get_edge_property_schema("EDGE_B") == schema_b
+
+
+class TestValidateEdgeProperties:
+    """req-grid-edge-properties: validate_edge_properties behavior."""
+
+    @pytest.fixture(autouse=True)
+    def isolate_registry(self) -> None:
+        """Snapshot and restore the property schema registry around each test."""
+        saved = dict(_EDGE_PROPERTY_SCHEMA_REGISTRY)
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        yield
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.update(saved)
+
+    def test_valid_properties_pass(self) -> None:
+        """Properties matching the schema do not raise (properties-4)."""
+        register_edge_property_schema(
+            "TYPED_EDGE",
+            {
+                "type": "object",
+                "required": ["label"],
+                "properties": {"label": {"type": "string"}},
+            },
+        )
+        validate_edge_properties("TYPED_EDGE", {"label": "hello"})
+
+    def test_invalid_properties_raise(self) -> None:
+        """Properties violating the schema raise EdgePropertyValidationError (properties-8)."""
+        register_edge_property_schema(
+            "STRICT_EDGE",
+            {
+                "type": "object",
+                "required": ["count"],
+                "properties": {"count": {"type": "integer"}},
+            },
+        )
+        with pytest.raises(EdgePropertyValidationError):
+            validate_edge_properties("STRICT_EDGE", {"count": "not-an-int"})
+
+    def test_missing_required_field_raises(self) -> None:
+        """Missing required field raises EdgePropertyValidationError."""
+        register_edge_property_schema(
+            "REQ_EDGE",
+            {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}}},
+        )
+        with pytest.raises(EdgePropertyValidationError):
+            validate_edge_properties("REQ_EDGE", {})
+
+    def test_no_schema_skips_validation(self) -> None:
+        """Any payload is accepted when no schema is registered (properties-6, properties-7)."""
+        # Should not raise even with unusual values
+        validate_edge_properties("UNREGISTERED", {"anything": [1, None, True]})
+
+    def test_schema_author_controls_strictness(self) -> None:
+        """Without additionalProperties:false, extra fields are accepted (properties-9)."""
+        register_edge_property_schema(
+            "LENIENT_EDGE",
+            {"type": "object", "properties": {"known": {"type": "string"}}},
+        )
+        # Extra field allowed because schema doesn't declare additionalProperties: false
+        validate_edge_properties("LENIENT_EDGE", {"known": "hi", "extra": 42})
+
+    def test_additional_properties_false_rejects_extra(self) -> None:
+        """Schema with additionalProperties:false rejects extra fields (properties-9)."""
+        register_edge_property_schema(
+            "STRICT_EXTRA_EDGE",
+            {
+                "type": "object",
+                "properties": {"known": {"type": "string"}},
+                "additionalProperties": False,
+            },
+        )
+        with pytest.raises(EdgePropertyValidationError):
+            validate_edge_properties("STRICT_EXTRA_EDGE", {"known": "hi", "extra": 42})

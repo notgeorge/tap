@@ -22,7 +22,8 @@ Edges are the connective tissue of the grid. They model directed, typed relation
 | req-grid-edge-model | [Edge Model Declaration](#edge-model-declaration) | Implemented | `Edge` model fields, indexes, and entity spine integration |
 | req-grid-edge-constraints | [Edge Constraint Validation](#edge-constraint-validation) | Implemented | Permission Union model for node and edge-type constraints |
 | req-grid-edge-service | [Edge Service Layer](#edge-service-layer) | Implemented | `create_edge()` as the canonical mutation path for edge creation |
-| req-grid-edge-nono | [No Edges Between Edges](#no-edges-between-edges) | Proposed | Service-layer rule prohibiting edges whose endpoints are themselves edges |
+| req-grid-edge-nono | [No Edges Between Edges](#no-edges-between-edges) | Implemented | Service-layer rule prohibiting edges whose endpoints are themselves edges |
+| req-grid-edge-properties | [Edge Property Validation](#edge-property-validation) | Implemented | Optional JSON Schema validation backed by an in-memory edge property schema registry |
 
 
 ## Explanation
@@ -95,7 +96,7 @@ Fields:
 | `from_entity` | ForeignKey → Entity, CASCADE | Source of the directed relationship. Reverse accessor: `edges_out` |
 | `to_entity` | ForeignKey → Entity, CASCADE | Target of the directed relationship. Reverse accessor: `edges_in` |
 | `edge_type` | CharField(max_length=255, db_index=True) | Type slug (e.g. `MENTORS`, `APPLIES_TO`). No FK — decoupled for speed |
-| `properties` | JSONField(default=dict, blank=True) | Arbitrary structured metadata for this edge instance |
+| `properties` | JSONField(default=dict, blank=True) | JSON payload for this edge instance; may be any valid JSON unless constrained by `property_schema` |
 
 Inherited from `BaseModel`: `entity` (OneToOneField to spine), `originating_grid_id`, `batch_id`, `created_at`, `updated_at`.
 
@@ -146,7 +147,7 @@ OUTBOUND_EDGES = [
 - `OUTBOUND_EDGES = []` or `INBOUND_EDGES = []` = explicit block-all — no edge-type constraint can override it
 - Registered in `_NODE_REGISTRY` at class-definition time via `BaseModel.__init_subclass__`
 
-**Edge type constraints** (declared in `TapPluginConfig.edge_types`):
+**Edge type constraints** (declared in registered app `edge_types` definitions, including core apps and plugins):
 
 ```python
 edge_types = [
@@ -157,20 +158,20 @@ edge_types = [
 - `sources` — which source node types this edge type can connect from
 - `targets` — which target node types this edge type can connect to
 - Omitting `sources` or `targets` = wildcard for that side
-- Multiple plugins can register the same edge type; sets are unioned
+- Multiple apps can register the same edge type; sets are unioned
 - Registered in `_EDGE_TYPE_REGISTRY` via `register_edge_type_constraints()`
 
 **Permission Union**: `validate_edge(from_type, to_type, edge_type)` in `tap_grid/constraints.py` applies the union logic and raises `InvalidEdgeError` with a descriptive message if the edge is not permitted. `create_edge()` calls `validate_edge()` before any DB write.
 
 #### Development
-The two-system model gives plugins flexibility. A plugin can declare what edges its node type supports (node constraints) or what nodes an edge type can connect (edge type constraints) — either is sufficient to permit an edge. Explicit blocks are intentionally stronger than permission grants so a node that declares itself fully closed cannot be bypassed by a permissive edge type.
+The two-system model gives app authors flexibility. A model can declare what edges its node type supports (node constraints) or an edge type declaration can define what nodes it can connect — either is sufficient to permit an edge. Explicit blocks are intentionally stronger than permission grants so a node that declares itself fully closed cannot be bypassed by a permissive edge type.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-grid-edge-constraints-1 | Node Constraint Registration | Implemented | `OUTBOUND_EDGES` and `INBOUND_EDGES` on a `BaseModel` subclass are parsed and registered in `_NODE_REGISTRY` at class-definition time via `__init_subclass__`. | |
-| req-grid-edge-constraints-2 | Edge Type Constraint Registration | Implemented | Plugin `edge_types` entries with `sources`/`targets` are registered in `_EDGE_TYPE_REGISTRY` via `register_edge_type_constraints()`. | |
+| req-grid-edge-constraints-2 | Edge Type Constraint Registration | Implemented | Registered app `edge_types` entries with `sources`/`targets` are registered in `_EDGE_TYPE_REGISTRY` via `register_edge_type_constraints()`. | |
 | req-grid-edge-constraints-3 | Permission Union | Implemented | An edge is allowed if node constraints permit it OR edge-type constraints permit it. Either is sufficient. | |
 | req-grid-edge-constraints-4 | Explicit Block Wins | Implemented | `OUTBOUND_EDGES = []` or `INBOUND_EDGES = []` blocks all edges unconditionally; edge-type constraints cannot override an explicit block. | |
 | req-grid-edge-constraints-5 | InvalidEdgeError Raised | Implemented | `validate_edge()` raises `InvalidEdgeError` with a descriptive message when constraints are violated. | |
@@ -221,12 +222,12 @@ Consider an `update_edge_properties()` service function for mutating edge proper
 ### No Edges Between Edges
 ----
 RID: `req-grid-edge-nono`
-Status: `Proposed`
+Status: `Implemented`
 
 Edges model relationships between things, not between relationships. Allowing edges whose endpoints are themselves edges collapses the model into a hypergraph with significantly higher traversal complexity. This rule keeps the graph semantically flat.
 
 #### Status Details
-Documented as a design intent in the `Edge` model docstring. Not currently enforced at the service layer. This requirement captures the intent and defines the acceptance criteria for enforcement.
+Implemented in `tap_grid/services.py` as a guard at the top of `create_edge()`. Tests in `tap_grid/tests/test_services.py` under `TestNoEdgesBetweenEdges`.
 
 #### Implementation
 `create_edge()` in `tap_grid/services.py` raises `InvalidEdgeError` if either endpoint's `entity_type` is `"edge"`. This check runs before constraint validation.
@@ -247,13 +248,100 @@ This is a service-layer rule only. The database schema does not enforce it — `
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-edge-nono-1 | Source Cannot Be Edge | Proposed | `create_edge()` raises `InvalidEdgeError` if `from_entity.entity_type == "edge"`. | |
-| req-grid-edge-nono-2 | Target Cannot Be Edge | Proposed | `create_edge()` raises `InvalidEdgeError` if `to_entity.entity_type == "edge"`. | |
-| req-grid-edge-nono-3 | Check Precedes Constraint Validation | Proposed | The entity type checks fire before `validate_edge()` is called. | |
-| req-grid-edge-nono-4 | Schema Does Not Enforce | Proposed | The database schema does not constrain this; enforcement is service-layer only. | Intentional. |
+| req-grid-edge-nono-1 | Source Cannot Be Edge | Implemented | `create_edge()` raises `InvalidEdgeError` if `from_entity.entity_type == "edge"`. | |
+| req-grid-edge-nono-2 | Target Cannot Be Edge | Implemented | `create_edge()` raises `InvalidEdgeError` if `to_entity.entity_type == "edge"`. | |
+| req-grid-edge-nono-3 | Check Precedes Constraint Validation | Implemented | The entity type checks fire before `validate_edge()` is called. | |
+| req-grid-edge-nono-4 | Schema Does Not Enforce | Implemented | The database schema does not constrain this; enforcement is service-layer only. | Intentional. |
 
 #### Future
 If graph query patterns ever require edges-on-edges (e.g., for annotation or provenance edges on graph structure itself), revisit this rule before lifting it — the traversal implications are significant.
+
+
+### Edge Property Validation
+----
+RID: `req-grid-edge-properties`
+Status: `Implemented`
+
+Edge types may define a `property_schema` JSON Schema in registered app `edge_types` declarations (including core apps and plugins). When defined, this schema is used every time edge properties are created or updated. If no `property_schema` is defined for an edge type, no property validation is performed.
+
+This schema lives in registered `edge_types` declarations and is not sourced from `EntityType` storage.
+
+#### Status Details
+Implemented in `tap_grid/constraints.py` (`_EDGE_PROPERTY_SCHEMA_REGISTRY`, `register_edge_property_schema`, `get_edge_property_schema`, `validate_edge_properties`), `tap_grid/models.py` (`Edge.save()`), `tap_grid/services.py` (`update_edge_properties()`), and `tap_plugins/base.py` (`_register_edge_constraints()`). Tests in `tap_grid/tests/test_constraints.py` under `TestEdgePropertySchemaRegistry` and `TestValidateEdgeProperties`, `tap_grid/tests/test_models.py` under `TestEdgePropertyValidation`, and `tap_grid/tests/test_services.py` under `TestUpdateEdgeProperties`.
+
+#### Implementation
+**Schema declaration source**
+- `property_schema` is declared on edge type definitions in registered app `edge_types`.
+- At app startup, declared schemas are loaded into an in-memory registry in `tap_grid/constraints.py`, patterned after `_EDGE_TYPE_REGISTRY`.
+
+**In-memory registry design**
+- Registry name: `_EDGE_PROPERTY_SCHEMA_REGISTRY`.
+- Key: `edge_type` slug (`str`).
+- Value: JSON Schema object (`dict[str, Any]`) used to validate `Edge.properties`.
+- Accessors:
+  - `register_edge_property_schema(edge_type, property_schema)` for startup registration.
+  - `get_edge_property_schema(edge_type)` for runtime lookup during create/update.
+- Lifecycle:
+  - Populated during app registration from all registered app `edge_types` declarations (core apps and plugins).
+  - Read-only during request handling; writes happen only during startup/registration.
+- Conflict policy:
+  - If a schema is already registered for an `edge_type`, any additional schema registration for that same `edge_type` raises a configuration error.
+  - No merge behavior is allowed for property schemas (unlike constraint union), to prevent silent drift/overwrite.
+
+Example:
+
+```python
+edge_types = [
+    {
+        "slug": "USES_PANEL",
+        "sources": [{"type": "page"}],
+        "targets": [{"type": "panel"}],
+        "property_schema": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+                "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            },
+        },
+    },
+]
+```
+
+**Validation scope**
+- Validation runs on every edge creation.
+- Validation runs on every edge property update.
+- This includes any canonical service-layer mutation path and direct model save paths that change `properties`.
+
+**Validation behavior**
+- Runtime validation resolves schema via `get_edge_property_schema(edge_type)`.
+- If schema exists, validate `properties` against that schema.
+- If schema is missing, skip property validation entirely.
+- When schema is missing, any JSON value is accepted for `properties`.
+- Schema strictness (including `additionalProperties`) is fully controlled by schema authors.
+
+**Error behavior**
+- Property schema validation failures raise a dedicated error type: `EdgePropertyValidationError`.
+- Validation failure blocks persistence of invalid properties.
+
+#### Development
+Property validation should be implemented as a standalone validation step that composes with existing edge constraint checks (`validate_edge`) but remains logically separate from topology permission checks.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-edge-properties-1 | Schema Defined in edge_types | Implemented | `property_schema` may be declared on registered app `edge_types` entries and is used as the runtime source for property validation. | Not sourced from `EntityType`. |
+| req-grid-edge-properties-2 | In-Memory Registry Stores Schemas | Implemented | Startup registration loads declared schemas into `_EDGE_PROPERTY_SCHEMA_REGISTRY`, keyed by edge type slug. | Patterned after constraints registries. |
+| req-grid-edge-properties-3 | Registry Duplicate Is Error | Implemented | Registering a second schema for an already-registered edge type raises a configuration error. | No merge or overwrite behavior. |
+| req-grid-edge-properties-4 | Validate on Create | Implemented | Edge property payloads are validated against registry-provided schema on every edge creation when a schema is defined for the edge type. | |
+| req-grid-edge-properties-5 | Validate on Update | Implemented | Edge property payloads are validated against registry-provided schema on every edge property update when a schema is defined for the edge type. | |
+| req-grid-edge-properties-6 | Missing Schema Skips Validation | Implemented | If an edge type has no registered schema, property validation is not executed. | |
+| req-grid-edge-properties-7 | Any JSON Allowed Without Schema | Implemented | When no schema is registered for an edge type, `properties` may be any valid JSON value. | |
+| req-grid-edge-properties-8 | Dedicated Validation Error | Implemented | Schema validation failures raise `EdgePropertyValidationError` rather than `InvalidEdgeError`. | |
+| req-grid-edge-properties-9 | Schema Author Controls Strictness | Implemented | The system does not impose default `additionalProperties`; strictness is determined by each schema definition. | |
+
+#### Future
+Define a shared helper for schema lookup and validation so create/update paths cannot drift and all property mutations enforce identical behavior.
 
 
 ## Status Vocabulary

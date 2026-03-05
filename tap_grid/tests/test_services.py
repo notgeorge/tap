@@ -2,8 +2,10 @@
 
 import pytest
 
+from tap_grid.constraints import _EDGE_PROPERTY_SCHEMA_REGISTRY, register_edge_property_schema
+from tap_grid.exceptions import EdgePropertyValidationError, InvalidEdgeError
 from tap_grid.models import Edge, Entity
-from tap_grid.services import create_edge, create_entity, delete_edge, delete_entity, update_entity
+from tap_grid.services import create_edge, create_entity, delete_edge, delete_entity, update_edge_properties, update_entity
 from tap_plugins.core_examples.models import Concept
 
 
@@ -105,3 +107,100 @@ class TestDeleteEdge:
         # The endpoints should still exist
         assert Entity.objects.filter(pk=a.pk).exists()
         assert Entity.objects.filter(pk=b.pk).exists()
+
+
+@pytest.mark.django_db
+class TestNoEdgesBetweenEdges:
+    """req-grid-edge-nono: create_edge() rejects edges whose endpoints are themselves edges."""
+
+    def test_edge_as_from_entity_raises(self):
+        """create_edge() raises InvalidEdgeError when from_entity is an edge (nono-1)."""
+        a = create_entity("concept")
+        b = create_entity("precept")
+        edge = create_edge(a, b, "APPLIES_TO")
+        c = create_entity("concept")
+        with pytest.raises(InvalidEdgeError, match="from_entity is an edge"):
+            create_edge(edge.entity, c, "DEPENDS_ON")
+
+    def test_edge_as_to_entity_raises(self):
+        """create_edge() raises InvalidEdgeError when to_entity is an edge (nono-2)."""
+        a = create_entity("concept")
+        b = create_entity("precept")
+        edge = create_edge(a, b, "APPLIES_TO")
+        c = create_entity("concept")
+        with pytest.raises(InvalidEdgeError, match="to_entity is an edge"):
+            create_edge(c, edge.entity, "DEPENDS_ON")
+
+    def test_nono_check_precedes_constraint_validation(self):
+        """The entity-type check fires before validate_edge() (nono-3)."""
+        a = create_entity("concept")
+        b = create_entity("precept")
+        edge = create_edge(a, b, "APPLIES_TO")
+        # Even an edge type that would otherwise be blocked by constraint validation
+        # should raise InvalidEdgeError for the nono reason, not a constraint reason.
+        c = create_entity("concept")
+        with pytest.raises(InvalidEdgeError, match="from_entity is an edge"):
+            create_edge(edge.entity, c, "TOTALLY_UNKNOWN_TYPE")
+
+    def test_normal_entities_are_not_affected(self):
+        """Non-edge entities can still be connected (regression guard)."""
+        a = create_entity("concept")
+        b = create_entity("concept")
+        edge = create_edge(a, b, "DEPENDS_ON")
+        assert edge.pk is not None
+
+
+@pytest.mark.django_db
+class TestUpdateEdgeProperties:
+    """req-grid-edge-properties: update_edge_properties() service function."""
+
+    @pytest.fixture(autouse=True)
+    def isolate_registry(self) -> None:
+        saved = dict(_EDGE_PROPERTY_SCHEMA_REGISTRY)
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        yield
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.update(saved)
+
+    def test_updates_properties_and_persists(self):
+        """update_edge_properties() saves the new payload to the database (properties-5)."""
+        a = create_entity("concept")
+        b = create_entity("concept")
+        edge = create_edge(a, b, "DEPENDS_ON")
+        updated = update_edge_properties(edge, {"strength": "weak"})
+        updated.refresh_from_db()
+        assert updated.properties == {"strength": "weak"}
+
+    def test_returns_updated_edge(self):
+        """update_edge_properties() returns the updated Edge instance."""
+        a = create_entity("concept")
+        b = create_entity("concept")
+        edge = create_edge(a, b, "DEPENDS_ON")
+        result = update_edge_properties(edge, {"note": "hi"})
+        assert result.pk == edge.pk
+        assert result.properties == {"note": "hi"}
+
+    def test_valid_properties_pass_schema(self):
+        """update_edge_properties() succeeds when properties match the schema (properties-5)."""
+        register_edge_property_schema(
+            "SCHEMA_EDGE",
+            {"type": "object", "properties": {"score": {"type": "integer"}}},
+        )
+        a = create_entity("concept")
+        b = create_entity("concept")
+        edge = Edge.objects.create(from_entity=a, to_entity=b, edge_type="SCHEMA_EDGE", properties={})
+        update_edge_properties(edge, {"score": 10})
+        edge.refresh_from_db()
+        assert edge.properties == {"score": 10}
+
+    def test_invalid_properties_raise(self):
+        """update_edge_properties() raises EdgePropertyValidationError for schema violations (properties-5, properties-8)."""
+        register_edge_property_schema(
+            "SCHEMA_EDGE_FAIL",
+            {"type": "object", "properties": {"score": {"type": "integer"}}},
+        )
+        a = create_entity("concept")
+        b = create_entity("concept")
+        edge = Edge.objects.create(from_entity=a, to_entity=b, edge_type="SCHEMA_EDGE_FAIL", properties={})
+        with pytest.raises(EdgePropertyValidationError):
+            update_edge_properties(edge, {"score": "not-a-number"})

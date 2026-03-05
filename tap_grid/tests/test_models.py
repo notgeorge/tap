@@ -4,6 +4,8 @@ import pytest
 from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured
 
+from tap_grid.constraints import _EDGE_PROPERTY_SCHEMA_REGISTRY, register_edge_property_schema
+from tap_grid.exceptions import EdgePropertyValidationError
 from tap_grid.models import Edge, Entity, EntityType
 from tap_grid.registry import _ENTITY_MODEL_REGISTRY, get_model_class, register_entity_type, resolve_entity
 from tap_grid.services import create_edge, create_entity
@@ -233,3 +235,91 @@ class TestEntityStr:
     def test_without_display_name(self):
         entity = create_entity("concept")
         assert str(entity) == f"concept:{entity.pk}"
+
+
+@pytest.mark.django_db
+class TestEdgePropertyValidation:
+    """req-grid-edge-properties: Edge.save() enforces property schema on create and update."""
+
+    @pytest.fixture(autouse=True)
+    def isolate_registry(self) -> None:
+        saved = dict(_EDGE_PROPERTY_SCHEMA_REGISTRY)
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        yield
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        _EDGE_PROPERTY_SCHEMA_REGISTRY.update(saved)
+
+    def test_valid_properties_on_create_pass(self):
+        """Edge creation succeeds when properties match the registered schema (properties-4)."""
+        register_edge_property_schema(
+            "PROP_EDGE",
+            {"type": "object", "required": ["label"], "properties": {"label": {"type": "string"}}},
+        )
+        a = create_entity("concept")
+        b = create_entity("concept")
+        edge = Edge(from_entity=a, to_entity=b, edge_type="PROP_EDGE", properties={"label": "ok"})
+        edge.save()
+        assert edge.pk is not None
+
+    def test_invalid_properties_on_create_raise(self):
+        """Edge creation fails when properties violate the registered schema (properties-4, properties-8)."""
+        register_edge_property_schema(
+            "PROP_EDGE_STRICT",
+            {"type": "object", "required": ["count"], "properties": {"count": {"type": "integer"}}},
+        )
+        a = create_entity("concept")
+        b = create_entity("concept")
+        edge = Edge(from_entity=a, to_entity=b, edge_type="PROP_EDGE_STRICT", properties={"count": "bad"})
+        with pytest.raises(EdgePropertyValidationError):
+            edge.save()
+
+    def test_no_orphan_entity_on_invalid_properties(self):
+        """A failed property check leaves no orphaned Entity row on the spine."""
+        register_edge_property_schema(
+            "PROP_EDGE_ORPHAN",
+            {"type": "object", "required": ["x"], "properties": {"x": {"type": "integer"}}},
+        )
+        a = create_entity("concept")
+        b = create_entity("concept")
+        count_before = Entity.objects.count()
+        edge = Edge(from_entity=a, to_entity=b, edge_type="PROP_EDGE_ORPHAN", properties={})
+        with pytest.raises(EdgePropertyValidationError):
+            edge.save()
+        assert Entity.objects.count() == count_before
+
+    def test_valid_properties_on_update_pass(self):
+        """Edge.save() on an existing edge accepts valid updated properties (properties-5)."""
+        register_edge_property_schema(
+            "PROP_EDGE_UPDATE",
+            {"type": "object", "properties": {"note": {"type": "string"}}},
+        )
+        a = create_entity("concept")
+        b = create_entity("concept")
+        edge = Edge.objects.create(from_entity=a, to_entity=b, edge_type="PROP_EDGE_UPDATE", properties={})
+        edge.properties = {"note": "updated"}
+        edge.save(update_fields=["properties"])
+        edge.refresh_from_db()
+        assert edge.properties == {"note": "updated"}
+
+    def test_invalid_properties_on_update_raise(self):
+        """Edge.save() on an existing edge rejects invalid updated properties (properties-5, properties-8)."""
+        register_edge_property_schema(
+            "PROP_EDGE_UPDATE_FAIL",
+            {"type": "object", "properties": {"note": {"type": "string"}}},
+        )
+        a = create_entity("concept")
+        b = create_entity("concept")
+        edge = Edge.objects.create(
+            from_entity=a, to_entity=b, edge_type="PROP_EDGE_UPDATE_FAIL", properties={"note": "ok"}
+        )
+        edge.properties = {"note": 999}  # wrong type
+        with pytest.raises(EdgePropertyValidationError):
+            edge.save(update_fields=["properties"])
+
+    def test_no_schema_allows_any_properties(self):
+        """When no schema is registered, any properties are accepted (properties-6, properties-7)."""
+        a = create_entity("concept")
+        b = create_entity("concept")
+        edge = Edge(from_entity=a, to_entity=b, edge_type="NO_SCHEMA_EDGE", properties={"anything": [1, None]})
+        edge.save()
+        assert edge.pk is not None

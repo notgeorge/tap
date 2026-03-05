@@ -30,7 +30,9 @@ Wildcard (any type allowed): omit the "nodes", "sources", or "targets" key.
 from dataclasses import dataclass
 from typing import Any
 
-from tap_grid.exceptions import InvalidEdgeError
+import jsonschema
+
+from tap_grid.exceptions import EdgePropertyValidationError, InvalidEdgeError
 
 # Sentinel for wildcard (connects to any node type)
 WILDCARD = object()
@@ -72,6 +74,10 @@ _NODE_REGISTRY: dict[str, NodeConstraints] = {}
 
 # Edge type constraint registry: edge_type -> EdgeTypeConstraints
 _EDGE_TYPE_REGISTRY: dict[str, EdgeTypeConstraints] = {}
+
+# Edge property schema registry: edge_type -> JSON Schema dict
+# One schema per edge type. Duplicate registration is a configuration error.
+_EDGE_PROPERTY_SCHEMA_REGISTRY: dict[str, dict[str, Any]] = {}
 
 # Backwards compatibility alias
 EdgeConstraints = NodeConstraints
@@ -192,6 +198,56 @@ def get_constraints(entity_type: str) -> NodeConstraints | None:
 def get_edge_type_constraints(edge_type: str) -> EdgeTypeConstraints | None:
     """Get constraints for an edge type, if registered."""
     return _EDGE_TYPE_REGISTRY.get(edge_type)
+
+
+def register_edge_property_schema(edge_type: str, schema: dict[str, Any]) -> None:
+    """Register a JSON Schema for an edge type's properties.
+
+    Called by TapPluginConfig._register_edge_constraints() when a plugin defines
+    property_schema on an edge_types entry.
+
+    Raises ValueError if a schema is already registered for this edge_type.
+    No merge behavior: property schemas must be unique per edge type to prevent
+    silent drift between plugins that share an edge type slug.
+
+    Args:
+        edge_type: The edge type slug (e.g., "USES_PANEL").
+        schema: A JSON Schema dict used to validate Edge.properties.
+    """
+    if edge_type in _EDGE_PROPERTY_SCHEMA_REGISTRY:
+        raise ValueError(
+            f"A property_schema is already registered for edge type '{edge_type}'. "
+            "Each edge type may have at most one property schema."
+        )
+    _EDGE_PROPERTY_SCHEMA_REGISTRY[edge_type] = schema
+
+
+def get_edge_property_schema(edge_type: str) -> dict[str, Any] | None:
+    """Return the registered JSON Schema for an edge type, or None if not defined."""
+    return _EDGE_PROPERTY_SCHEMA_REGISTRY.get(edge_type)
+
+
+def validate_edge_properties(edge_type: str, properties: Any) -> None:
+    """Validate edge properties against the registered schema for an edge type.
+
+    No-ops when no schema is registered for the edge type. Schema strictness
+    (e.g., additionalProperties) is fully controlled by the schema author.
+
+    Raises EdgePropertyValidationError if properties fail schema validation.
+
+    Args:
+        edge_type: The edge type slug.
+        properties: The Edge.properties value to validate.
+    """
+    schema = _EDGE_PROPERTY_SCHEMA_REGISTRY.get(edge_type)
+    if schema is None:
+        return
+    try:
+        jsonschema.validate(instance=properties, schema=schema)
+    except jsonschema.ValidationError as exc:
+        raise EdgePropertyValidationError(
+            f"Edge properties for '{edge_type}' failed schema validation: {exc.message}"
+        ) from exc
 
 
 def _is_explicitly_blocked_outbound(node_type: str) -> bool:

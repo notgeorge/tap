@@ -99,18 +99,22 @@ class TapPluginConfig(AppConfig):
             logger.debug("EntityType table not ready; skipping type registration.")
 
     def _register_edge_constraints(self) -> None:
-        """Register edge constraints from edge_types into the constraint registry.
+        """Register edge constraints and property schemas from edge_types.
 
         Called before DB registration so constraints are available even during
         migrations.
         """
-        from tap_grid.constraints import register_edge_type_constraints
+        from tap_grid.constraints import register_edge_property_schema, register_edge_type_constraints
 
         for et in self.edge_types:
             slug = et["slug"]
             sources = et.get("sources")  # None if not specified (wildcard)
             targets = et.get("targets")  # None if not specified (wildcard)
 
-            # Only register if at least one constraint is specified
+            # Only register topology constraints if at least one side is specified
             if sources is not None or targets is not None:
                 register_edge_type_constraints(slug, sources, targets)
+
+            # Register property schema if declared
+            if "property_schema" in et:
+                register_edge_property_schema(slug, et["property_schema"])

@@ -9,6 +9,7 @@ slots in here without changing call sites.
 from typing import Any
 
 from tap_grid.constraints import validate_edge
+from tap_grid.exceptions import InvalidEdgeError
 from tap_grid.models import Edge, Entity
 
 
@@ -50,8 +51,17 @@ def create_edge(
     The backing Entity for the Edge is auto-created by Edge.save().
     An optional display_name overrides the auto-generated label on that Entity.
 
-    Raises InvalidEdgeError if the edge violates constraints.
+    Raises InvalidEdgeError if either endpoint is itself an edge, or if the
+    edge violates topology constraints.
+    Raises EdgePropertyValidationError (via Edge.save()) if properties fail
+    the registered schema for this edge type.
     """
+    # Edges cannot connect to other edges (req-grid-edge-nono)
+    if from_entity.entity_type == "edge":
+        raise InvalidEdgeError("Edges cannot have other edges as endpoints (from_entity is an edge).")
+    if to_entity.entity_type == "edge":
+        raise InvalidEdgeError("Edges cannot have other edges as endpoints (to_entity is an edge).")
+
     validate_edge(from_entity.entity_type, to_entity.entity_type, edge_type)
 
     edge = Edge.objects.create(
@@ -65,6 +75,25 @@ def create_edge(
         edge.entity.display_name = display_name
         edge.entity.save(update_fields=["display_name", "updated_at"])
 
+    return edge
+
+
+def update_edge_properties(edge: Edge, properties: dict[str, Any]) -> Edge:
+    """Update an Edge's properties payload.
+
+    Validates the new properties against the registered schema for the edge
+    type (via Edge.save()) before persisting. Raises EdgePropertyValidationError
+    if the payload is invalid.
+
+    Args:
+        edge: The Edge instance to update.
+        properties: The new properties dict to assign.
+
+    Returns:
+        The updated Edge instance.
+    """
+    edge.properties = properties
+    edge.save(update_fields=["properties"])
     return edge
 
 

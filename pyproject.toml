@@ -20,23 +20,20 @@ dependencies = [
     # Web Framework
     # Django 6 includes built-in background tasks (django.tasks) and CSP support
     "django>=6.0",
-
     # API Framework
     # Django Ninja provides fast, type-hinted API development with OpenAPI docs
     # Similar to FastAPI but designed for Django
     "django-ninja>=1.5",
-
     # Database
     # psycopg3 is the modern PostgreSQL adapter (psycopg2 is legacy)
     "psycopg[binary]>=3.2",
-
     # Configuration
     # Parses DATABASE_URL environment variable into Django's DATABASES dict
     "dj-database-url>=2.2",
-
     # History Tracking
     # django-simple-history provides audit trail for model changes
     "django-simple-history>=3.4",
+    "jsonschema>=4.26.0",
 ]
 
 # -----------------------------------------------------------------------------

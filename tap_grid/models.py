@@ -254,13 +254,17 @@ class Edge(BaseModel):
         return f"{self.from_entity_id} --[{self.edge_type}]--> {self.to_entity_id}"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        """Validate endpoints and inherit dimensions before delegating to BaseModel.save().
+        """Validate endpoints, properties, and inherit dimensions before delegating to BaseModel.save().
 
         On the auto-creation path (entity_id is None):
         - Confirms both endpoints reference existing Entity rows.
         - Resolves the source node's DEFAULT_DIMENSIONS and sets _initial_dimensions
           so BaseModel.save() applies them to the backing Entity (req-grid-dimension-dc-4).
         Raises ValueError if either endpoint is missing.
+
+        On every save:
+        - Validates properties against the registered JSON Schema for this edge type,
+          if one exists. Raises EdgePropertyValidationError on failure.
         """
         if self.entity_id is None:
             # Validate from_entity exists; fetch entity_type for dimension inheritance
@@ -286,6 +290,11 @@ class Edge(BaseModel):
             if source_defaults:
                 caller_dims: dict[str, str] = getattr(self, "_initial_dimensions", {})
                 self._initial_dimensions = {**source_defaults, **caller_dims}
+
+        # Validate properties on every save (create and update)
+        from tap_grid.constraints import validate_edge_properties
+
+        validate_edge_properties(self.edge_type, self.properties)
 
         super().save(*args, **kwargs)
 

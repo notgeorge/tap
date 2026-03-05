@@ -59,6 +59,16 @@ class LotrConfig(TapPluginConfig):
             # Edge constraint: character -> artifact
             "sources": [{"type": "character"}],
             "targets": [{"type": "artifact"}],
+            "property_schema": {
+                "type": "object",
+                "properties": {
+                    "proficiency": {
+                        "type": "string",
+                        "enum": ["novice", "apprentice", "master"],
+                    },
+                    "primary": {"type": "boolean"},
+                },
+            },
         },
         {
             "slug": "LOCATED_IN",
@@ -125,5 +135,14 @@ class LotrConfig(TapPluginConfig):
             "description": "One character mentors another.",
             "sources": [{"type": "character"}],
             "targets": [{"type": "character"}],
+            "property_schema": {
+                "type": "object",
+                "required": ["discipline"],
+                "properties": {
+                    "discipline": {"type": "string"},
+                    "duration_years": {"type": "integer", "minimum": 0},
+                },
+                "additionalProperties": False,
+            },
         },
     ]

@@ -96,7 +96,7 @@ concept = Concept.objects.create(summary="Separation of Concerns")
 | req-grid-node-model-5 | FLIP Hook | Implemented | `__init_subclass__` calls `get_model_flip_config()` to cache FLIP config for the subclass at class-definition time. | |
 
 #### Future
-Consider a Django system check that validates all registered `ENTITY_TYPE` values against the `EntityType` table at startup to surface misconfigured plugins early.
+Consider a Django system check that validates all registered `ENTITY_TYPE` values against the `EntityType` table at startup to surface misconfigured plugins early or a more clever way to automagically assign names that won't risk namespace pollution.  
 Consider revisiting whether `batch_id` should move to `Entity` or be handled differently once FLIP matures — the tight entity-node coupling may change how FLIP tracks provenance.
 
 

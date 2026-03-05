@@ -19,8 +19,8 @@ import pytest
 
 # Import models to trigger constraint registration via __init_subclass__
 import tap_plugins.lotr.models  # noqa: F401
-from tap_grid.exceptions import InvalidEdgeError
-from tap_grid.services import create_edge, create_entity
+from tap_grid.exceptions import EdgePropertyValidationError, InvalidEdgeError
+from tap_grid.services import create_edge, create_entity, update_edge_properties
 
 # =============================================================================
 # Fixtures
@@ -615,3 +615,81 @@ class TestConstraintStrictness:
         # This should succeed
         edge = create_edge(frodo, sting, "WIELDS")
         assert edge.edge_type == "WIELDS"
+
+
+# =============================================================================
+# Edge Property Validation Tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+class TestEdgePropertyValidation:
+    """Test edge property schema validation for WIELDS and MENTORS.
+
+    WIELDS: optional properties — proficiency (enum) and primary (bool).
+    MENTORS: required discipline (string), optional duration_years (int >= 0),
+             additionalProperties: False.
+    """
+
+    def test_wields_no_properties_accepted(self, frodo, sting):
+        """WIELDS with empty properties is valid — no required fields."""
+        edge = create_edge(frodo, sting, "WIELDS")
+        assert edge.properties == {}
+
+    def test_wields_valid_proficiency(self, frodo, sting):
+        """WIELDS with a valid enum value for proficiency."""
+        edge = create_edge(frodo, sting, "WIELDS", properties={"proficiency": "master"})
+        assert edge.properties["proficiency"] == "master"
+
+    def test_wields_valid_all_fields(self, frodo, sting):
+        """WIELDS with both proficiency and primary set."""
+        edge = create_edge(frodo, sting, "WIELDS", properties={"proficiency": "apprentice", "primary": True})
+        assert edge.properties == {"proficiency": "apprentice", "primary": True}
+
+    def test_wields_invalid_proficiency_enum(self, frodo, sting):
+        """WIELDS rejects proficiency values outside the allowed enum."""
+        with pytest.raises(EdgePropertyValidationError):
+            create_edge(frodo, sting, "WIELDS", properties={"proficiency": "expert"})
+
+    def test_wields_invalid_primary_type(self, frodo, sting):
+        """WIELDS rejects a non-boolean primary field."""
+        with pytest.raises(EdgePropertyValidationError):
+            create_edge(frodo, sting, "WIELDS", properties={"primary": "yes"})
+
+    def test_wields_update_to_valid_properties(self, frodo, sting):
+        """update_edge_properties() accepts valid WIELDS properties."""
+        edge = create_edge(frodo, sting, "WIELDS")
+        updated = update_edge_properties(edge, {"proficiency": "novice", "primary": False})
+        updated.refresh_from_db()
+        assert updated.properties == {"proficiency": "novice", "primary": False}
+
+    def test_wields_update_to_invalid_properties(self, frodo, sting):
+        """update_edge_properties() rejects invalid WIELDS properties."""
+        edge = create_edge(frodo, sting, "WIELDS")
+        with pytest.raises(EdgePropertyValidationError):
+            update_edge_properties(edge, {"proficiency": "legendary"})
+
+    def test_mentors_requires_discipline(self, gandalf, frodo):
+        """MENTORS requires the discipline field."""
+        with pytest.raises(EdgePropertyValidationError):
+            create_edge(gandalf, frodo, "MENTORS", properties={})
+
+    def test_mentors_valid_required_only(self, gandalf, frodo):
+        """MENTORS succeeds with just the required discipline field."""
+        edge = create_edge(gandalf, frodo, "MENTORS", properties={"discipline": "wizardry"})
+        assert edge.properties["discipline"] == "wizardry"
+
+    def test_mentors_valid_all_fields(self, gandalf, frodo):
+        """MENTORS succeeds with discipline and duration_years."""
+        edge = create_edge(gandalf, frodo, "MENTORS", properties={"discipline": "courage", "duration_years": 17})
+        assert edge.properties == {"discipline": "courage", "duration_years": 17}
+
+    def test_mentors_rejects_negative_duration(self, gandalf, frodo):
+        """MENTORS rejects a negative duration_years value."""
+        with pytest.raises(EdgePropertyValidationError):
+            create_edge(gandalf, frodo, "MENTORS", properties={"discipline": "lore", "duration_years": -1})
+
+    def test_mentors_rejects_additional_properties(self, gandalf, frodo):
+        """MENTORS rejects unknown fields (additionalProperties: False)."""
+        with pytest.raises(EdgePropertyValidationError):
+            create_edge(gandalf, frodo, "MENTORS", properties={"discipline": "magic", "secret_technique": "fireball"})
