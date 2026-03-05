@@ -15,6 +15,30 @@ from django.db import OperationalError, ProgrammingError
 logger = logging.getLogger(__name__)
 
 
+def register_edge_types_from_list(edge_types: list[dict[str, Any]]) -> None:
+    """Register edge constraints, property schemas, and default dimensions.
+
+    Processes a list of edge type dicts in the same format used by
+    TapPluginConfig.edge_types. Call this from any AppConfig.ready() that
+    needs to register web or core edge types without subclassing TapPluginConfig.
+    """
+    from tap_grid.constraints import register_edge_default_dimensions, register_edge_property_schema, register_edge_type_constraints
+
+    for et in edge_types:
+        slug = et["slug"]
+        sources = et.get("sources")
+        targets = et.get("targets")
+
+        if sources is not None or targets is not None:
+            register_edge_type_constraints(slug, sources, targets)
+
+        if "property_schema" in et:
+            register_edge_property_schema(slug, et["property_schema"])
+
+        if "default_dimensions" in et:
+            register_edge_default_dimensions(slug, et["default_dimensions"])
+
+
 class TapPluginConfig(AppConfig):
     """Base AppConfig for TAP plugins.
 
@@ -99,26 +123,5 @@ class TapPluginConfig(AppConfig):
             logger.debug("EntityType table not ready; skipping type registration.")
 
     def _register_edge_constraints(self) -> None:
-        """Register edge constraints and property schemas from edge_types.
-
-        Called before DB registration so constraints are available even during
-        migrations.
-        """
-        from tap_grid.constraints import register_edge_default_dimensions, register_edge_property_schema, register_edge_type_constraints
-
-        for et in self.edge_types:
-            slug = et["slug"]
-            sources = et.get("sources")  # None if not specified (wildcard)
-            targets = et.get("targets")  # None if not specified (wildcard)
-
-            # Only register topology constraints if at least one side is specified
-            if sources is not None or targets is not None:
-                register_edge_type_constraints(slug, sources, targets)
-
-            # Register property schema if declared
-            if "property_schema" in et:
-                register_edge_property_schema(slug, et["property_schema"])
-
-            # Register default dimensions if declared
-            if "default_dimensions" in et:
-                register_edge_default_dimensions(slug, et["default_dimensions"])
+        """Register edge constraints and property schemas from edge_types."""
+        register_edge_types_from_list(self.edge_types)
