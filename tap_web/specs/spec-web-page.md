@@ -24,7 +24,13 @@ Future:
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-|  |  |  |  |
+| req-web-page-dim | [Web Dimension](#web-dimension) | Proposed | Canonical web dimension for TAP Web nodes and web-origin edges |
+| req-web-page-obj | [Page Objects](#page-objects) | Proposed | Canonical page model with slug, nested layout schema, and routing constraints |
+| req-web-page-slug-sanitize-sec | [Page Slug Sanitization](#page-slug-sanitization) | Proposed | Security-focused slug normalization and validation for page routing |
+| req-web-page-layout-sanitize-sec | [Page Layout Sanitization](#page-layout-sanitization) | Proposed | Security-focused layout schema validation and safe render sanitization |
+| req-web-page-sanitize-sec | [Page Object Sanitization](#page-object-sanitization) | Proposed | Schema-first input hardening plus safe HTML output escaping |
+| req-web-page-plink | [Page to Panel Links](#page-to-panel-links) | Proposed | `USES_PANEL` links bind `panel-id` slots to panel nodes |
+| req-web-page-landing | [Landing Pages](#landing-pages) | Proposed | Landing-page indirection for root URL |
 
 
 ## Invariants
@@ -36,7 +42,33 @@ Page slugs are unique
 RID: `req-web-page-dim`
 Status: `Proposed`
 
-Web artifacts will exist in a `tap.graph: web` dimension with subsections for all web types like panel, page, etc using the DEFAULT_DIMENSION setting.
+All TAP Web artifacts must carry the canonical web dimension marker:
+`{"tap.graph": "web"}`.
+
+
+#### Status Details
+Requirement clarified with explicit key/value and application convention for TAP Web-owned types.
+
+#### Implementation
+- Every node type defined/registered by `tap_web` declares:
+  `DEFAULT_DIMENSIONS = {"tap.graph": "web"}`.
+- On create, dimensions are merged from model defaults and caller-provided values.
+- Caller-provided dimensions may add keys; web defaults remain present.
+- Web-related edges must also carry `tap.graph=web`.
+- In the current model pattern, edges inherit source-node defaults during edge creation, so web-origin edges receive the web marker.
+
+#### Development
+This phase relies on node-definition convention (`DEFAULT_DIMENSIONS`) for `tap_web` types and existing `BaseModel` merge behavior.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-dim-1 | Canonical Web Dimension | Proposed | Canonical marker is exactly `{"tap.graph": "web"}`. | |
+| req-web-page-dim-2 | Applied on tap_web Nodes | Proposed | Each node type defined/registered by `tap_web` declares `DEFAULT_DIMENSIONS` including `tap.graph=web`. | Convention in this phase. |
+| req-web-page-dim-3 | Merge Preserves Default | Proposed | On create, default and caller dimensions are merged so web defaults remain present alongside additional caller keys. | |
+| req-web-page-dim-4 | No Subtype Dimension Key | Proposed | No additional subtype dimension key is required. | |
+| req-web-page-dim-5 | Web Edges Carry Web Dimension | Proposed | Web-feature edges carry `tap.graph=web` through source-node default inheritance. | |
 
 
 ### Page Objects
@@ -44,98 +76,381 @@ Web artifacts will exist in a `tap.graph: web` dimension with subsections for al
 RID: `req-web-page-obj`
 Status: `Proposed`
 
-A page object describes the layout of a web page based on having a:  
-* title:  Page title will be shown in browser tabs and in navigation links
-* description:  what this is for, will be used when looking at pages but isn't necessarily printed on the page itself
-* slug:  Path slug used in urls limited to web-safe characters and allowing / for people to create nested pages.
-* layout:  a columnar CSS grid layout where we'll indicate which panels are going to fill them inused
+A Page object defines a routable web page with metadata and a deterministic nested grid layout.
 
-Once a page object has been created it will be accessible at the slug from the main web root as /<slug>.
+Required fields:
+- `title`
+- `slug`
+- `layout`
 
-This raises an immediate, obvious uniqueness consideration for how to deal with overlapping slugs, which introduces the need for applying inter-entity constraints.  For now we'll implement that as a UNIQUE constraint on the column for the `slug` field and the model should contain logic to detect that a slug already exists and raise an appropriate error for the user.
-
-The next question is how to address nested structures in the url /directory/page/.  My inclination at first is to not over-build this and allow page authors to sort it out amongst themselves for now.  So the `slug` can contain the full path used in the URL to simplify the uniqueness logic, but opening up the potential for people to inject pages into other subdirectories.  
-
-The TapWebConfig contains a list of not-allowed slug paths to prevent overloading things like django admin at /admin.
-
-The layout storage will be a json object describing the columns, widths, rows, and the associated panel-ids.  We'll fill in the details as we interactively build out the spec.
-
-When rendering a page if a USES_PANEL link is missing that location in the page will be filled with the text "Panel Link Missing".
-
-#### Questions
-How to build out the layout object to allow sufficient flexibility
+Optional fields:
+- `description`
 
 #### Status Details
+Stub expanded with canonical slug rules, reserved-path handling, nested layout schema, and deterministic render behavior.
 
 #### Implementation
+**Page field semantics**
+- `title`: required; shown in browser title and navigation UI.
+- `description`: optional metadata.
+- `slug`: required canonical route path.
+- `layout`: required JSON object describing page layout.
+
+**Slug constraints**
+- Slug security and normalization rules are specified in `req-web-page-slug-sanitize-sec`.
+- `req-web-page-obj` only requires that `slug` is present, unique, and routable according to the sanitization / formatting enforcement.
+
+**Layout structure**
+- Layout structure and sanitization rules are specified in `req-web-page-layout-sanitize-sec`.
+- `req-web-page-obj` only requires that `layout` is present and properly formatted according to the schema defined in the sanitization req.
 
 #### Development
+Keep `req-web-page-obj` focused on object-level semantics and route participation. Layout-specific security and structure rules live in `req-web-page-layout-sanitize-sec`.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-|  |  |  |  |
+| req-web-page-obj-1 | Required Page Fields | Proposed | `title`, `slug`, and `layout` are required; `description` is optional. | |
+| req-web-page-obj-2 | Slug Requirement Delegated | Proposed | `slug` presence is required; normalization/security rules are enforced by `req-web-page-slug-sanitize-sec`. | |
+| req-web-page-obj-3 | Layout Requirement Delegated | Proposed | `layout` presence is required; validation/sanitization rules are enforced by `req-web-page-layout-sanitize-sec`. | |
 
 
-#### Future
-Is a more complicated nested pages / directories something we need to overbuild / specific / manage - or is a list of "restricted" slugs in the web_app config sufficient?
+### Page Slug Sanitization
+----
+RID: `req-web-page-slug-sanitize-sec`  
+Status: `Proposed`  
+Tags: `Security`
+
+Page slugs are routing inputs and must be treated as a security-sensitive surface. Slug normalization and validation are specified as a dedicated security requirement.
+
+#### Status Details
+Slug handling extracted from `req-web-page-obj` into a standalone security-tagged requirement.
+
+#### Implementation
+- Slug must start with `/`.
+- Slug format requirements:
+  - lowercase
+  - no repeated slashes allowed
+  - no trailing slashes allowed
+  - no `/./` or `/../` allowed
+- Page slug `/` is invalid for Page objects.
+- Canonical slug is globally unique across Page objects.
+- Reserved path list from `TapWebConfig` is prefix-blocked:
+  - if `/admin` is reserved, `/admin` and `/admin/...` are rejected.
+- Violations raise `PageSlugValidationError`.
+
+#### Development
+Canonicalization and validation should run on every create and update path that accepts user-provided slug input.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-slug-sanitize-1 | Leading Slash Required | Proposed | `slug` must begin with `/`. | |
+| req-web-page-slug-sanitize-2 | Slug Format Rules Enforced | Proposed | Slugs enforce lowercase-only format, disallow repeated slashes, and disallow trailing slash. | |
+| req-web-page-slug-sanitize-3 | Root Slug Disallowed | Proposed | `slug="/"` is invalid for Page objects. | |
+| req-web-page-slug-sanitize-4 | Global Slug Uniqueness | Proposed | Canonical slug is globally unique across Page objects. | |
+| req-web-page-slug-sanitize-5 | Reserved Prefix Blocking | Proposed | Reserved slug entries are prefix-blocked on create/update. | |
+| req-web-page-slug-sanitize-6 | Dedicated Slug Validation Error | Proposed | Slug validation failures raise `PageSlugValidationError`. | |
+| req-web-page-slug-sanitize-7 | Dot Segment Rejection | Proposed | Slugs containing path dot-segments (`/./` or `/../`) are rejected. | Security hardening. |
+| req-web-page-slug-sanitize-8 | Bare Dot Segment Rejection | Proposed | Slugs containing `.` or `..` as standalone path segments are rejected regardless of position (start, middle, or end). | Security hardening. |
+
+
+### Page Layout Sanitization
+----
+RID: `req-web-page-layout-sanitize-sec`  
+Status: `Proposed`  
+Tags: `Security`
+
+Page layout data is security-sensitive because it directly influences generated HTML structure and attributes. Layout handling combines strict schema validation on input with safe output sanitization at render time.
+
+#### Status Details
+Layout validation and output-safety requirements extracted from `req-web-page-obj` and security-tagged.
+
+#### Implementation
+- Schema-first input hardening:
+  - Page `layout` is validated against JSON Schema on every create/update.
+  - Schema validation failures raise `PageLayoutValidationError`.
+  - `<kebab-name>` means only string characters, numbers and a - allowed
+- Layout structure constraints:
+  - Top-level `layout` is an object with required `columns`.
+  - `columns` is an object keyed by:
+    - `col-<n>`
+    - `col-<n>-<kebab-name>`
+  - Each column contains:
+    - `width` (required)
+    - `tags` (optional object map with kebab-case keys/values)
+    - `rows` (required object)
+  - `rows` keys:
+    - `row-<n>`
+    - `row-<n>-<kebab-name>`
+  - Each row contains:
+    - `panel-id` (required, kebab-case)
+    - `row_span` (optional integer >= 1, default 1)
+    - `col_span` (optional integer >= 1, default 1)
+    - `tags` (optional object map with kebab-case keys/values)
+- Ordering and identity semantics:
+  - Ordering is implied by numeric key prefix in `col-<n>` and `row-<n>`.
+  - No explicit `order` field is allowed.
+  - Numeric indexes are unique per sibling level, 1-based, and may contain gaps.
+  - Full key names are preserved for HTML identity generation.
+  - Renderer emits a computed CSS `order` value for layout elements based on parsed numeric prefixes.
+- Injection-resistant constraints:
+  - `width` is restricted to a schema allowlist (no free-form CSS).
+  - `tags` are restricted to kebab-case key/value strings.
+  - `panel-id` is restricted to kebab-case.
+- Render-time output safety:
+  - Layout-derived user strings are escaped before output to HTML attribute/text contexts.
+  - Unresolved `panel-id` link renders literal `Panel Link Missing`.
+
+#### Development
+Use schema validation as the first gate for structural and value constraints; apply output escaping as defense-in-depth at render boundaries.
+
+#### Layout JSON Schema (Draft)
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["columns"],
+  "properties": {
+    "columns": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^col-[1-9][0-9]*(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["width", "rows"],
+        "properties": {
+          "width": {
+            "type": "string",
+            "enum": ["auto", "1fr", "2fr", "3fr", "4fr", "5fr", "6fr", "7fr", "8fr", "9fr", "10fr", "11fr", "12fr"]
+          },
+          "tags": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            }
+          },
+          "rows": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {
+              "pattern": "^row-[1-9][0-9]*(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["panel-id"],
+              "properties": {
+                "panel-id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "row_span": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1
+                },
+                "col_span": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1
+                },
+                "tags": {
+                  "type": "object",
+                  "propertyNames": {
+                    "pattern": "^[a-z][a-z0-9-]*$"
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-layout-sanitize-1 | Layout Schema Validation Always Runs | Proposed | Page `layout` is validated against JSON Schema on every create/update. | |
+| req-web-page-layout-sanitize-2 | Layout Validation Error Type | Proposed | Schema failures raise `PageLayoutValidationError`. | |
+| req-web-page-layout-sanitize-3 | Nested Key Format Enforced | Proposed | Column/row keys must follow `col-<n>[-name]` and `row-<n>[-name]` patterns. | |
+| req-web-page-layout-sanitize-4 | Key-Implied Ordering Enforced | Proposed | Render order is derived from numeric key prefixes; explicit input `order` fields are disallowed. | |
+| req-web-page-layout-sanitize-5 | Numeric Index Rules Enforced | Proposed | Prefix indexes are unique per level, 1-based, and may contain gaps. | |
+| req-web-page-layout-sanitize-6 | Full Key Preserved for HTML | Proposed | Full key names are preserved and used when generating HTML identity attributes. | |
+| req-web-page-layout-sanitize-7 | Width Allowlist Enforced | Proposed | `width` is constrained to schema allowlist values only. | |
+| req-web-page-layout-sanitize-8 | Tag Pattern Enforcement | Proposed | `tags` keys and values are constrained to kebab-case strings. | |
+| req-web-page-layout-sanitize-9 | panel-id Pattern Enforcement | Proposed | `panel-id` is constrained to kebab-case string format. | |
+| req-web-page-layout-sanitize-10 | Escape-On-Render for Layout Fields | Proposed | Layout-derived user strings are HTML-escaped at render output boundaries. | |
+| req-web-page-layout-sanitize-11 | Missing Panel Fallback | Proposed | Unresolved slot panel renders literal `Panel Link Missing`. | |
+| req-web-page-layout-sanitize-12 | Computed CSS Order Emitted | Proposed | Renderer emits CSS `order` for row/column elements using parsed numeric prefixes from key names. | |
+
+
+### Page Object Sanitization
+----
+RID: `req-web-page-sanitize-sec`  
+Status: `Proposed`  
+Tags: `Security`
+
+Page objects are rendered into HTML from user-authored data. Security is enforced with schema-first input validation and safe output encoding.
+
+#### Status Details
+New requirement added for rendering safety aligned with strict layout schema constraints.
+
+#### Implementation
+- Input hardening:
+  - Non-layout field validation for Page objects occurs on create/update.
+  - Layout-specific schema hardening is handled by `req-web-page-layout-sanitize-sec`.
+- Output safety:
+  - Escape user-provided Page metadata text (e.g., `title`, `description`) on render by default.
+  - Do not treat page object fields as trusted HTML.
+- Policy:
+  - Schema validation at write-time + escaping at render-time ("belt and suspenders").
+
+#### Development
+Given current requirements, no user-authored HTML is supported; escaping is required at output boundaries even when schema validation passes.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-sanitize-1 | Metadata Input Hardening | Proposed | Non-layout Page fields are validated on create/update; layout fields are governed by `req-web-page-layout-sanitize-sec`. | |
+| req-web-page-sanitize-2 | Metadata Escape-On-Render | Proposed | Page metadata string content is HTML-escaped at render output boundaries. | |
+| req-web-page-sanitize-3 | No Trusted User HTML | Proposed | Page object fields are not interpreted as raw HTML. | |
 
 
 ### Page to Panel Links
 ----
-RID: `req-web-page-plink`
+RID: `req-web-page-plink`  
 Status: `Proposed`
 
-A page will contain one or more panels which will go inside the columns / rows of the layout.  Locations where panels will go will be identified by a unique panel-id for each panel on that that page. 
-
-The panel that goes in that place will be referenced by an edge named USES_PANEL where the panel-id is set as a property on the edge's properties field as `id: <panel-id>`.
-
-The USES_PANEL edge should have constraints that allow it to only connect to a Panel object.
+A Page binds layout slots to Panel nodes via `USES_PANEL` edges. This requirement defines the canonical link contract now; generalized node->edge integrity systems and render guards are deferred to Future.
 
 #### Status Details
+Requirement expanded from stub to define canonical page-to-panel link semantics and edge property contract.
 
 #### Implementation
+**Edge model and property contract**
+- `USES_PANEL` source is `Page`; destination is `Panel`.
+- Canonical property key is `panel-id` (not `id`).
+- `panel-id` pattern: `^[a-z][a-z0-9-]*$`.
+- `USES_PANEL` property schema requires `panel-id`.
+- `panel-id` on `USES_PANEL` is expected to reference a declared layout slot id for that Page.
 
 #### Development
+Keep the base requirement minimal and stable. Defer write-time enforcement and runtime guard mechanics to a generalized node->edge relationship system.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-|  |  |  |  |
+| req-web-page-plink-1 | Source/Target Constraint | Proposed | `USES_PANEL` only connects `Page -> Panel`. | |
+| req-web-page-plink-2 | Canonical Property Key | Proposed | `USES_PANEL` uses `panel-id` as the canonical slot binding key. | |
+| req-web-page-plink-3 | Property Format Validation | Proposed | `panel-id` must be kebab-case and pass `^[a-z][a-z0-9-]*$`. | |
+| req-web-page-plink-4 | Slot Mapping Contract | Proposed | `USES_PANEL.panel-id` values map to declared layout slot ids for the owning Page. | |
+| req-web-page-plink-5 | Panel Reuse Allowed | Proposed | The same Panel node may be linked to multiple distinct `panel-id` slots on the same Page. | |
+
 
 #### Future
+Node to edge validation logic is going to be needed, and this is probably a great use case.
+**Cardinality and integrity**
+- For each `panel-id` referenced in a Page layout, exactly one `USES_PANEL` edge from that Page should exist with the same `panel-id` but this does not block node creation.
+- Duplicate links for the same Page + `panel-id` are invalid, raise a warning at console log but duplicates are ignored.
+- Panel reuse is allowed: one Panel node may be linked by multiple distinct `panel-id` values on the same Page.
+
+**Enforcement timing**
+- Integrity checks run on write:
+  - page layout updates
+  - page/panel link mutations (`USES_PANEL` create/update/delete)
+- Runtime guard remains active to tolerate drift.
+
+**Runtime drift behavior**
+- Missing edge for a layout `panel-id`: warn and render `Panel Link Missing`.
+- Extra `USES_PANEL` edge whose `panel-id` is not present in the layout: warn (non-fatal) and ignore at render.
+
+**Error behavior**
+- Write-time page-panel link integrity failures raise `PagePanelLinkValidationError`.
+
+| Future ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-plink-6 | Duplicate Slot Link Handling | Proposed | Duplicate links for the same Page + `panel-id` are invalid; warn and ignore duplicates. | Deferred until generalized validation system. |
+| req-web-page-plink-7 | Missing Slot Link Runtime Guard | Proposed | Missing link warns and renders `Panel Link Missing`. | Non-fatal render behavior. |
+| req-web-page-plink-8 | Extra Edge Runtime Guard | Proposed | Edge with `panel-id` not present in layout warns and is ignored at render. | Non-fatal render behavior. |
+| req-web-page-plink-9 | Dedicated Integrity Error | Proposed | Write-time integrity failures raise `PagePanelLinkValidationError`. | |
+| req-web-page-plink-10 | Validation Timing | Proposed | Integrity checks run on write; renderer applies warning/fallback guard for runtime drift. | |
 
 ### Landing Pages
-req-web-page-landing
+----
+RID: `req-web-page-landing`
+Status: `Proposed`
 
-The Landing Page will be an object that points to the first page that is shown when a user opens the top level url for the site.  It is a simple placeholder that points to a page, it does not contain page markup.
+Landing Page provides root-route indirection for TAP Web. It is a lightweight pointer object that selects which Page is rendered when users open the site root URL.
 
-The Landing Page object will have a name and description and an outbound edge named USES_LANDING_PAGE which can originate only from a Landing Page object and point to a Page object.
+#### Status Details
+Section upgraded from prose to requirement-grade behavior with deterministic selection and misconfiguration handling.
 
-When the main page of the site loads it will search for a Landing Page node and use that page as the first page that is presented.  In the event that there are more than one landing page objects it'll pick the first one.  When presenting the landing page the main url will not be changed to the page's slug, but the page will still be able to utilize url parameters.
+#### Implementation
+**Model and edge contract**
+- `LandingPage` is its own node object with title and description.
+- `USES_LANDING_PAGE` edges connect `LandingPage -> Page`.
+- A `LandingPage` may have multiple outbound `USES_LANDING_PAGE` edges.
+
+
+
+#### Development
+Keep landing logic deterministic and minimal. `LandingPage` is a routing indirection object, not a page-layout container.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-landing-1 | Landing Object Exists as Node | Proposed | `LandingPage` is modeled as a distinct node object with title and description. | |
+| req-web-page-landing-2 | Edge Direction | Proposed | `USES_LANDING_PAGE` edges connect only `LandingPage -> Page`. | |
+
 
 
 #### Future
 Handle multiple landing pages more efficiently - maybe with some sort of constraints on types of nodes (which could be useful elsewhere but hard, or something simple)
 
+**Root route behavior**
+- On root route load (`/`), renderer resolves a `LandingPage` object.
+- If multiple `LandingPage` objects exist, select the earliest created `LandingPage`.
+- For the selected `LandingPage`:
+  - if multiple `USES_LANDING_PAGE` edges exist, select the earliest created edge.
+  - resolve that edge target Page and render it.
+- Root URL remains `/` while rendering landing target content.
+- Root query params are passed through unchanged to rendered page context.
+
+**Misconfiguration behavior**
+- If no `LandingPage` object exists, render setup placeholder.
+- If selected `LandingPage` exists but target Page is missing/invalid, render setup placeholder.
+
+| Future ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-landing-3 | Root Uses Landing Indirection | Proposed | Root route resolves `LandingPage` then renders target Page content. | |
+| req-web-page-landing-4 | Landing Selection Deterministic | Proposed | If multiple `LandingPage` nodes exist, earliest created node is selected. | |
+| req-web-page-landing-5 | Multi-Edge Selection Deterministic | Proposed | If selected `LandingPage` has multiple `USES_LANDING_PAGE` edges, earliest created edge is selected. | |
+| req-web-page-landing-6 | Root URL Preserved | Proposed | Rendering landing target does not change URL from `/`. | |
+| req-web-page-landing-7 | Root Query Params Preserved | Proposed | Query params on root URL are passed through unchanged to page render context. | |
+| req-web-page-landing-8 | Missing Landing Placeholder | Proposed | If no `LandingPage` exists, root route renders setup placeholder. | |
+| req-web-page-landing-9 | Invalid Target Placeholder | Proposed | If selected landing target is missing/invalid, root route renders setup placeholder. | |
+
 ### Navigation Bar
-req-web-page-nav
-
-The navigation bar is the classic web-based hamburger menu system of pages and sub-pages that exist on all sites because we haven't found a better navigation paradigm.
-
-The Navigation will be it's own Node object with title and description.
-
-NAV_PAGE edges will point from the Landing Page object to to the pages that are in the top-level list of navigable sites with ordering placed in the edge properties as `order: #` enforced in the property schema as a numeric decimal value.  
-
-The NAV_PAGE edge restricts source to Navigation and destination to Page.  
-
-Pages will be ordered in the Nav starting with the smallest number and proceeding to the largest with whole numbers represented as either integers or floating values.
-
-Sub pages are represented as the decimals after the whole number, so the second sub-page in the navigation will be 2.2.
-
-On page load, the navigation logic in the main page template will collect all the NAV_PAGE pages and order them appropriately, and display them in a menu where clicking on each link will take you to that page.
-
-#### Future
-Allow Nav to also point to other Nav objects
+Navigation requirements moved to `tap_web/specs/spec-web-navigation.md` under `req-web-navigation-base`.
