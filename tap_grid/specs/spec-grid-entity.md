@@ -115,6 +115,8 @@ Registered types as of implementation: `edge`, `concept`, `precept`, `batch`, `l
 #### Future
 Consider a management command or system check that validates all registered entity types against the current entity spine contents to surface data integrity issues at startup.
 
+The `entity_types` list in `TapPluginConfig` (and equivalent `apps.py` declarations) is a separate layer from the in-memory model registry: the model registry (`_ENTITY_MODEL_REGISTRY`) is populated automatically at class-definition time and is sufficient for all functional operations. The `EntityType` DB table exists solely to serve the API's type catalogue with display metadata (`display_name`, `icon`, `description`, `plugin_name`). This creates duplication — the same type is declared once in the model and again in `apps.py`. The natural resolution is to add `DISPLAY_NAME`, `DESCRIPTION`, `ICON` as class vars on `BaseModel` subclasses and have `__init_subclass__` (or a `ready()`-time sweep of the model registry) populate `EntityType` automatically, eliminating the `entity_types` list entirely.
+
 ---
 
 ### BaseModel Auto-Creates Entity
