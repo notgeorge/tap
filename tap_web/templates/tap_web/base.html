@@ -7,6 +7,7 @@
     <title>{% block title %}TAP{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'tap_web/css/tailwind.css' %}">
     <script src="{% static 'tap_web/js/htmx.min.js' %}" defer></script>
+    {% block head_extras %}{% endblock %}
 </head>
 <body class="h-full flex flex-col">
     <nav class="bg-slate-800 text-white">
@@ -34,5 +35,6 @@
             <p class="text-center text-sm text-slate-500">TAP - The Analogy Platform</p>
         </div>
     </footer>
+    {% block body_extras %}{% endblock %}
 </body>
 </html>
