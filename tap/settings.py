@@ -139,6 +139,16 @@ DATABASES = {
     ),
 }
 
+# search_readonly: same DB, PostgreSQL read-only session parameter set at connection
+# time. Prevents writes at the database level for all search execution (req-grid-search-readonly.sec).
+DATABASES["search_readonly"] = {
+    **DATABASES["default"],
+    "OPTIONS": {
+        **DATABASES["default"].get("OPTIONS", {}),
+        "options": "-c default_transaction_read_only=on",
+    },
+}
+
 # =============================================================================
 # Authentication
 # =============================================================================

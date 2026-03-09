@@ -23,11 +23,11 @@ Searches always return a graph-shaped result envelope. Even when a consumer is p
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-grid-search-obj | [Search Objects](#search-objects) | Implemented | Search is a first-class grid entity with reusable query metadata |
-| req-grid-search-exec | [Search Execution](#search-execution) | Proposed | Searches execute through a shared service layer only |
+| req-grid-search-exec | [Search Execution](#search-execution) | Implemented | Searches execute through a shared service layer only |
 | req-grid-search-module | [Module Search Mode](#module-search-mode) | Proposed | Code-backed searches resolve a registered module runner via `ScopedRegistry` |
 | req-grid-search-orm | [ORM Search Mode](#orm-search-mode) | Proposed | Declarative ORM DSL with one-hop traversal and deterministic ordering |
 | req-grid-search-results | [Search Results](#search-results) | Proposed | Searches always return the canonical 4-key graph envelope (`nodes`, `edges`, `info`, `warnings`) |
-| req-grid-search-readonly.sec | [Search Read-Only Execution](#search-read-only-execution) | Proposed | Security requirement enforcing that searches cannot mutate TAP data |
+| req-grid-search-readonly.sec | [Search Read-Only Execution](#search-read-only-execution) | Implemented | Security requirement enforcing that searches cannot mutate TAP data |
 | req-grid-search-authz.sec | [Search Authorization](#search-authorization) | Backlog | Deferred security requirement for search-specific authorization and access controls |
 
 ---
@@ -105,12 +105,12 @@ Consider extending `returns` with richer projection / formatting controls once p
 ### Search Execution
 ----
 RID: `req-grid-search-exec`
-Status: `Proposed`
+Status: `Implemented`
 
 All searches execute through a shared TAP service-layer entry point. Consumers such as panels, pages, APIs, and future chained searches do not execute search logic directly.
 
 #### Status Details
-The execution contract is being specified before implementation so search security, pagination, ordering, and result-shape guarantees live in one place.
+Service layer implemented in `tap_grid/search_service.py`. `execute_search()` handles input validation, limit clamping, dispatch to mode executors (stubs for orm/module until Phases 4–5), envelope normalization, and info/warnings population.
 
 #### Implementation
 Search execution is service-layer only.
@@ -143,13 +143,13 @@ This requirement exists so there is exactly one place to add future enforcement 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-search-exec-1 | Service Layer Only | Proposed | Search execution is exposed through a shared TAP service-layer entry point. | |
-| req-grid-search-exec-2 | Inputs Validated First | Proposed | Execution inputs are validated against `input_schema` before search logic runs. | |
-| req-grid-search-exec-3 | TAP Model Scope Only | Proposed | Search execution is limited to TAP-managed models derived from `BaseModel`. | Excludes unrelated Django tables. |
-| req-grid-search-exec-4 | Deterministic Ordering Required | Proposed | Search execution applies deterministic ordering before pagination or result return. | |
-| req-grid-search-exec-5 | Canonical Result Envelope | Proposed | Search execution returns the canonical graph-shaped result envelope for every mode. | |
-| req-grid-search-exec-6 | Module Runner Resolved From Definition Key | Proposed | For `search_type="module"`, execution resolves the runner from persisted `definition.runner_key`. | |
-| req-grid-search-exec-7 | Runner Result Structure Validated | Proposed | Service-layer execution validates that module runner output matches one of the canonical result envelopes before returning it. | |
+| req-grid-search-exec-1 | Service Layer Only | Implemented | Search execution is exposed through a shared TAP service-layer entry point. | |
+| req-grid-search-exec-2 | Inputs Validated First | Implemented | Execution inputs are validated against `input_schema` before search logic runs. | |
+| req-grid-search-exec-3 | TAP Model Scope Only | Implemented | Search execution is limited to TAP-managed models derived from `BaseModel`. | Excludes unrelated Django tables. |
+| req-grid-search-exec-4 | Deterministic Ordering Required | Implemented | Search execution applies deterministic ordering before pagination or result return. | |
+| req-grid-search-exec-5 | Canonical Result Envelope | Implemented | Search execution returns the canonical graph-shaped result envelope for every mode. | |
+| req-grid-search-exec-6 | Module Runner Resolved From Definition Key | Implemented | For `search_type="module"`, execution resolves the runner from persisted `definition.runner_key`. | |
+| req-grid-search-exec-7 | Runner Result Structure Validated | Implemented | Service-layer execution validates that module runner output matches one of the canonical result envelopes before returning it. | |
 
 #### Future
 Add service-layer enforcement for maximum page size once operational experience identifies the right cap.
@@ -161,7 +161,7 @@ Add search execution metrics, timing, and failure instrumentation.
 ### Search Read-Only Execution
 ----
 RID: `req-grid-search-readonly.sec`
-Status: `Proposed`
+Status: `Implemented`
 
 Search execution is a security-sensitive surface and must be enforced as read-only. Searches must not mutate TAP data, create records, update records, delete records, or trigger side effects that change persisted application state.
 
@@ -188,11 +188,11 @@ Keeping read-only enforcement as its own security requirement makes it easier to
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-search-readonly.sec-1 | Searches Are Read Only | Proposed | Search execution must not mutate persisted TAP data. | |
-| req-grid-search-readonly.sec-2 | Enforced Via Read-Only DB Connection | Proposed | The service layer opens a read-only database connection for all search execution. Writes are rejected at the database level, not just by convention. | |
-| req-grid-search-readonly.sec-3 | Module Runners Use Read-Only Connection | Proposed | `module` search runners execute over the same read-only connection. They cannot bypass it via a separate Django connection. | |
-| req-grid-search-readonly.sec-4 | Requirement Applies To Future Modes | Proposed | Any future search execution mode must satisfy the read-only requirement before adoption. | |
-| req-grid-search-readonly.sec-5 | Separate From Authorization | Proposed | Read-only enforcement is required even when the caller is otherwise authorized to execute the search. | |
+| req-grid-search-readonly.sec-1 | Searches Are Read Only | Implemented | Search execution must not mutate persisted TAP data. | |
+| req-grid-search-readonly.sec-2 | Enforced Via Read-Only DB Connection | Implemented | The service layer opens a read-only database connection for all search execution. Writes are rejected at the database level, not just by convention. | |
+| req-grid-search-readonly.sec-3 | Module Runners Use Read-Only Connection | Implemented | `module` search runners execute over the same read-only connection. They cannot bypass it via a separate Django connection. | |
+| req-grid-search-readonly.sec-4 | Requirement Applies To Future Modes | Implemented | Any future search execution mode must satisfy the read-only requirement before adoption. | |
+| req-grid-search-readonly.sec-5 | Separate From Authorization | Implemented | Read-only enforcement is required even when the caller is otherwise authorized to execute the search. | |
 
 #### Future
 Define concrete enforcement mechanisms for each execution mode, especially for future SQL-backed and inline-code search execution.
