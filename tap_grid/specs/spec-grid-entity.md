@@ -21,6 +21,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-base | [BaseModel Auto-Creates Entity](#basemodel-auto-creates-entity) | Implemented | `BaseModel.save()` auto-creates its Entity atomically when none is set |
 | req-grid-entity-resolve | [Entity Resolution](#entity-resolution) | Implemented | `Entity.resolve()` uses the model registry to return the concrete typed object |
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
+| req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Proposed | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
 
 
 ## Explanation
@@ -236,6 +237,106 @@ The model registry is always fully populated before any request or task can call
 Consider caching the resolved object on the Entity instance (e.g., `_resolved`) to avoid repeat DB hits when resolve() is called multiple times in the same request. A `select_related` variant that pre-fetches the typed object in a single JOIN query would be a further optimization if graph traversal volume warrants it.
 
 ---
+
+### BaseModel Field Validation
+----
+RID: `req-grid-entity-validation`
+Status: `Proposed`
+
+Allows any `BaseModel` subclass (node or edge) to declare enhanced validation rules on top of Django's built-in field type coercion. The validation concerns **fields defined on the derived model** (e.g. `Concept.summary`, `Precept.statement`), not the BaseModel infrastructure fields (`entity_id`, `ENTITY_TYPE`, etc.), which BaseModel already guards internally.
+
+Three validation layers are supported, all optional and composable:
+
+#### Layer 1 — JSON Schema (field-level)
+
+Declare `FIELD_SCHEMAS: ClassVar[dict[str, dict]]` on the model class. Each key is a field name; each value is a JSON Schema dict validated against that field's current value via `jsonschema.validate()`.
+
+```python
+class Concept(BaseModel):
+    ENTITY_TYPE: ClassVar[str] = "concept"
+    summary = models.TextField()
+    tags = models.JSONField(default=list)
+
+    FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "summary": {"type": "string", "minLength": 1, "maxLength": 5000},
+        "tags": {"type": "array", "items": {"type": "string"}, "maxItems": 20},
+    }
+```
+
+The default is `{}` (no schema validation). Schema authors control nullability via `{"type": ["string", "null"]}` or `anyOf`; no special-casing of `None` values is performed by the framework.
+
+#### Layer 2 — Per-field function validators
+
+Define instance methods named `validate_<fieldname>(self) -> None`. The method reads `self.<fieldname>` directly and raises `django.core.exceptions.ValidationError` on failure. The framework calls these for any field whose name matches a declared method; unknown field names are not an error.
+
+```python
+class Concept(BaseModel):
+    def validate_summary(self) -> None:
+        if len(self.summary) > 0 and self.summary[0].islower():
+            raise ValidationError({"summary": "Summary must begin with an uppercase letter."})
+```
+
+#### Layer 3 — Whole-record hook
+
+Override `validate(self) -> None` for cross-field or business-rule validation. The base implementation is a no-op. Raise `ValidationError` with a dict for field-keyed errors or a plain message for non-field (`__all__`) errors.
+
+```python
+class DateRangeNode(BaseModel):
+    def validate(self) -> None:
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValidationError({"start_date": ["Must be before end_date."]})
+```
+
+#### Orchestration — `full_validate()`
+
+`BaseModel.full_validate(self) -> None` runs all three layers and collects every error before raising:
+
+1. Evaluate `FIELD_SCHEMAS` for each declared field; collect `jsonschema.ValidationError` messages keyed by field name.
+2. Call each `validate_<field>(self)` method; merge any raised `ValidationError` messages into the same dict.
+3. Call `validate(self)`; merge its errors.
+4. If any errors were collected, raise `ValidationError(collected_dict)`.
+
+All errors are gathered before raising — callers receive the complete picture in a single exception, not just the first failure.
+
+#### Integration with `save()`
+
+`BaseModel.save()` calls `full_validate()` at the top of its execution, before entity auto-creation or any DB write. An escape hatch parameter `skip_validation=True` bypasses validation entirely (needed for data migrations, test fixtures, and admin bulk operations).
+
+```python
+# Validation runs (default)
+concept.save()
+
+# Validation skipped
+concept.save(skip_validation=True)
+```
+
+#### Edge compatibility
+
+`Edge` extends `BaseModel`, so all three layers apply to Edge fields as well. `FIELD_SCHEMAS`, `validate_<field>`, and `validate()` declared on a custom Edge subclass (if one is ever defined) work identically. The existing edge property schema registry (`_edge_property_schema_registry`) continues to operate as a separate mechanism for validating the `Edge.properties` JSONField and is unaffected by this requirement.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-entity-validation-1 | FIELD_SCHEMAS Declaration | Proposed | A BaseModel subclass may declare `FIELD_SCHEMAS: ClassVar[dict[str, dict]]`; default is `{}`. | |
+| req-grid-entity-validation-2 | JSON Schema Per Field | Proposed | `full_validate()` calls `jsonschema.validate(field_value, schema)` for each entry in `FIELD_SCHEMAS`. A schema violation adds a message keyed by field name to the error dict. | |
+| req-grid-entity-validation-3 | Per-Field Method Validators | Proposed | `full_validate()` calls `validate_<fieldname>(self)` for any field name that has a matching method. The method raises `ValidationError` to signal failure; the error is merged into the collection. | |
+| req-grid-entity-validation-4 | Whole-Record Hook | Proposed | `full_validate()` calls `self.validate()` after per-field checks. Base implementation is a no-op. Raised errors are merged into the collection. | |
+| req-grid-entity-validation-5 | Error Collection | Proposed | `full_validate()` collects all errors from all three layers before raising. The final `ValidationError` is in Django dict form `{field: [messages]}`. | |
+| req-grid-entity-validation-6 | full_validate Standalone | Proposed | `full_validate()` can be called without saving. Returns normally if all layers pass; raises `ValidationError` if any fail. | |
+| req-grid-entity-validation-7 | save() Integration | Proposed | `BaseModel.save()` calls `full_validate()` before any DB write or entity auto-creation. | |
+| req-grid-entity-validation-8 | skip_validation Escape Hatch | Proposed | `save(skip_validation=True)` bypasses `full_validate()` entirely. No error is raised regardless of field state. | |
+| req-grid-entity-validation-9 | Applies to Edge | Proposed | `Edge`, which extends `BaseModel`, inherits all three validation layers. The existing edge property schema registry is unaffected. | |
+| req-grid-entity-validation-10 | No Interference with BaseModel Fields | Proposed | `FIELD_SCHEMAS` entries and `validate_<field>` methods are only invoked for fields the derived class declares. BaseModel infrastructure fields (`entity_id`, etc.) are not affected. | |
+
+#### Future
+
+Consider a `@validates("field_name")` decorator as an alternative to the `validate_<field>` naming convention — more explicit and IDE-discoverable, comparable to SQLAlchemy's pattern.
+
+Consider exposing `full_validate()` as a Ninja API endpoint so frontends can perform round-trip validation on partial data (e.g. as a user fills in a form field-by-field) without triggering a save.
+
+---
+
 
 ### Entities Are Entities
 ----
