@@ -7,12 +7,97 @@ Design philosophy: See DESIGN.md in this directory.
 import uuid
 from typing import Any, ClassVar
 
+import jsonschema
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.contrib.postgres.indexes import GinIndex
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models, transaction
 from django.utils import timezone
+
+
+def dangerously_ignore_validator(fn: Any) -> Any:
+    """Mark a validate_<field>() method as intentionally excluded from FIELD_SCHEMAS.
+
+    Suppresses the startup invariant check that would otherwise raise
+    ImproperlyConfigured when a validate_<field>() method exists but the field
+    is not listed in FIELD_SCHEMAS. Use this to pre-stage validation logic
+    without fully activating it.
+
+    The name is deliberately alarming — a validator that exists but never runs
+    is an unusual and potentially risky state.
+    """
+    fn._dangerously_ignore_validator = True
+    return fn
+
+
+# Django model methods that start with "validate_" but are not field validators.
+# Overriding these in a subclass should not trigger the FIELD_SCHEMAS check.
+_DJANGO_VALIDATE_METHODS: frozenset[str] = frozenset({"validate_unique", "validate_constraints"})
+
+
+def _check_field_schemas(cls: type) -> None:
+    """Enforce FIELD_SCHEMAS startup invariants at class definition time.
+
+    Checks performed (matching req-grid-entity-validation ACIDs 2–5):
+      2. Every entry has "validation": "jsonschema" or "function".
+      3. "jsonschema" entries include a "schema" key.
+      4. "function" entries have a matching validate_<field>() method.
+      5. No validate_<field>() method in cls.__dict__ is missing from FIELD_SCHEMAS
+         (unless decorated with @dangerously_ignore_validator).
+
+    Note: ACID-6 ("keys are real fields") is deferred to full_validate() because
+    Django's metaclass moves field declarations out of cls.__dict__ before
+    __init_subclass__ is called, making field lookup unavailable at this point.
+
+    Raises ImproperlyConfigured immediately on any violation.
+    """
+    schemas: dict[str, dict] = cls.__dict__.get("FIELD_SCHEMAS", {})
+
+    for field_name, entry in schemas.items():
+        # ACID-2: valid "validation" key
+        validation = entry.get("validation")
+        if validation not in ("jsonschema", "function"):
+            raise ImproperlyConfigured(
+                f"{cls.__name__}.FIELD_SCHEMAS['{field_name}']: "
+                f'"validation" must be "jsonschema" or "function", got {validation!r}.'
+            )
+
+        # ACID-3: jsonschema entries must include "schema"
+        if validation == "jsonschema" and "schema" not in entry:
+            raise ImproperlyConfigured(
+                f"{cls.__name__}.FIELD_SCHEMAS['{field_name}']: "
+                f'"jsonschema" entry is missing required "schema" key.'
+            )
+
+        # ACID-4: function entries must have a matching validate_<field>() method
+        if validation == "function":
+            method = getattr(cls, f"validate_{field_name}", None)
+            if not callable(method):
+                raise ImproperlyConfigured(
+                    f"{cls.__name__}.FIELD_SCHEMAS['{field_name}']: "
+                    f'"function" validation requires a validate_{field_name}() method on the class.'
+                )
+
+    # ACID-5: every validate_<field>() defined directly on this class must be in FIELD_SCHEMAS
+    for attr_name in cls.__dict__:
+        if not attr_name.startswith("validate_"):
+            continue
+        if attr_name in _DJANGO_VALIDATE_METHODS:
+            continue
+        field_name = attr_name[len("validate_"):]
+        if not field_name:
+            continue
+        method = getattr(cls, attr_name, None)
+        if not callable(method):
+            continue
+        if getattr(method, "_dangerously_ignore_validator", False):
+            continue
+        if field_name not in schemas:
+            raise ImproperlyConfigured(
+                f"{cls.__name__}.{attr_name}() is defined but '{field_name}' is not in "
+                f"FIELD_SCHEMAS. Add it to FIELD_SCHEMAS or use @dangerously_ignore_validator."
+            )
 
 
 def get_default_grid_id() -> uuid.UUID | None:
@@ -127,6 +212,7 @@ class BaseModel(models.Model):
 
     ENTITY_TYPE: ClassVar[str]
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]]
+    FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {}
 
     entity = models.OneToOneField(
         Entity,
@@ -146,6 +232,10 @@ class BaseModel(models.Model):
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
+
+        # FIELD_SCHEMAS invariants run first — before any registry side effects.
+        # If these raise, nothing has been registered and the failure is clean.
+        _check_field_schemas(cls)
 
         # Register in the entity model registry if this subclass declares ENTITY_TYPE
         # in its own class body (not inherited). Abstract subclasses omit ENTITY_TYPE.
@@ -192,12 +282,79 @@ class BaseModel(models.Model):
                 f"(required by {self.__class__.__name__})."
             )
 
+    def validate(self) -> None:
+        """Whole-record validation hook. Override for cross-field business rules.
+
+        Called by full_validate() after per-field checks. Base implementation is
+        a no-op. Raise ValidationError with a field-keyed dict for field errors,
+        or a plain message for non-field (__all__) errors.
+        """
+
+    def full_validate(self) -> None:
+        """Run all declared FIELD_SCHEMAS validators and the whole-record hook.
+
+        Collects every error before raising so callers see the complete picture.
+        Can be called without saving (req-grid-entity-validation-11).
+
+        Raises ValidationError({field: [messages]}) if any checks fail.
+        """
+        errors: dict[str, list[str]] = {}
+        schemas: dict[str, dict] = self.__class__.FIELD_SCHEMAS
+
+        for field_name, entry in schemas.items():
+            # ACID-6 (deferred): verify the key is actually an attribute on this instance.
+            # Full field-vs-model-field distinction isn't possible at __init_subclass__ time
+            # due to Django metaclass ordering; we catch it here instead.
+            if not hasattr(self, field_name):
+                raise ImproperlyConfigured(
+                    f"{self.__class__.__name__}.FIELD_SCHEMAS: '{field_name}' is not an "
+                    f"attribute of this model."
+                )
+
+            validation = entry["validation"]
+            field_value = getattr(self, field_name)
+
+            if validation == "jsonschema":
+                try:
+                    jsonschema.validate(instance=field_value, schema=entry["schema"])
+                except jsonschema.ValidationError as exc:
+                    errors.setdefault(field_name, []).append(exc.message)
+
+            elif validation == "function":
+                method = getattr(self, f"validate_{field_name}")
+                try:
+                    method()
+                except ValidationError as exc:
+                    try:
+                        for key, msgs in exc.message_dict.items():
+                            errors.setdefault(key, []).extend(str(m) for m in msgs)
+                    except AttributeError:
+                        errors.setdefault(field_name, []).extend(exc.messages)
+
+        # Whole-record hook
+        try:
+            self.validate()
+        except ValidationError as exc:
+            try:
+                for key, msgs in exc.message_dict.items():
+                    errors.setdefault(key, []).extend(str(m) for m in msgs)
+            except AttributeError:
+                errors.setdefault("__all__", []).extend(exc.messages)
+
+        if errors:
+            raise ValidationError(errors)
+
     def save(self, *args: Any, **kwargs: Any) -> None:
         """Save the model, auto-creating its Entity if one is not already set.
 
         - No entity set: creates Entity atomically with this save (transaction.atomic).
         - Entity already set: confirms it exists and has the correct entity_type.
+        - skip_validation=True: bypasses full_validate() (for migrations / fixtures).
         """
+        skip_validation: bool = kwargs.pop("skip_validation", False)
+        if not skip_validation:
+            self.full_validate()
+
         entity_type = getattr(self.__class__, "ENTITY_TYPE", None)
         if entity_type is None:
             raise ImproperlyConfigured(

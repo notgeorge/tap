@@ -21,7 +21,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-base | [BaseModel Auto-Creates Entity](#basemodel-auto-creates-entity) | Implemented | `BaseModel.save()` auto-creates its Entity atomically when none is set |
 | req-grid-entity-resolve | [Entity Resolution](#entity-resolution) | Implemented | `Entity.resolve()` uses the model registry to return the concrete typed object |
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
-| req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Proposed | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
+| req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Implemented | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
 
 
 ## Explanation
@@ -241,7 +241,7 @@ Consider caching the resolved object on the Entity instance (e.g., `_resolved`) 
 ### BaseModel Field Validation
 ----
 RID: `req-grid-entity-validation`
-Status: `Proposed`
+Status: `Implemented`
 
 Allows any `BaseModel` subclass (node or edge) to declare enhanced validation rules on top of Django's built-in field type coercion. The validation concerns **fields defined on the derived model** (e.g. `Concept.summary`, `Precept.statement`), not the BaseModel infrastructure fields (`entity_id`, `ENTITY_TYPE`, etc.), which BaseModel already guards internally.
 
@@ -310,19 +310,19 @@ class DateRangeNode(BaseModel):
 
 The last two checks enforce bidirectional consistency: `FIELD_SCHEMAS` and `validate_*` methods must always be in sync. There is no silent fallback.
 
-#### Escape hatch — `@not_a_validator`
+#### Escape hatch — `@dangerously_ignore_validator`
 
-A method named `validate_<something>` that is intentionally not a field validator must be decorated with `@not_a_validator`. This suppresses the "undeclared validator" startup check for that method:
+A method named `validate_<something>` that is intentionally not yet wired into `FIELD_SCHEMAS` must be decorated with `@dangerously_ignore_validator`. This suppresses the "undeclared validator" startup check for that method, allowing authors to pre-stage validation code without fully activating it:
 
 ```python
 class Concept(BaseModel):
-    @not_a_validator
-    def validate_internal_helper(self) -> None:
-        # called explicitly by validate(), not by full_validate()
+    @dangerously_ignore_validator
+    def validate_tags(self) -> None:
+        # pre-staged but not yet in FIELD_SCHEMAS — suppresses startup error
         ...
 ```
 
-`@not_a_validator` is a one-line marker decorator defined in `tap_grid.models`. It sets a flag attribute on the method so `__init_subclass__` can skip it. Using it is deliberately conspicuous — it signals "I know what I'm doing and I'm opting out."
+`@dangerously_ignore_validator` is a one-line marker decorator defined in `tap_grid.models`. It sets a flag attribute on the method so `__init_subclass__` can skip it. The name is deliberately alarming — it signals that a validator exists but is not running, which is an unusual and potentially risky state.
 
 #### Orchestration — `full_validate()`
 
@@ -353,21 +353,21 @@ concept.save(skip_validation=True)  # validation skipped
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-entity-validation-1 | FIELD_SCHEMAS Declaration | Proposed | A BaseModel subclass may declare `FIELD_SCHEMAS: ClassVar[dict[str, dict]]`; default is `{}`. Fields not listed are ignored by `full_validate()`. | |
-| req-grid-entity-validation-2 | Typed Validation Entries | Proposed | Each entry in `FIELD_SCHEMAS` must have `"validation": "jsonschema"` or `"validation": "function"`. Any other value raises `ImproperlyConfigured` at class definition time. | |
-| req-grid-entity-validation-3 | jsonschema Entry Requires Schema Key | Proposed | An entry with `"validation": "jsonschema"` that lacks a `"schema"` key raises `ImproperlyConfigured` at class definition time. | |
-| req-grid-entity-validation-4 | function Entry Requires Method | Proposed | An entry with `"validation": "function"` that has no matching `validate_<field>()` method on the class raises `ImproperlyConfigured` at class definition time. | |
-| req-grid-entity-validation-5 | Undeclared Validator Raises | Proposed | A `validate_<field>()` method (without `@not_a_validator`) whose field is not in `FIELD_SCHEMAS` raises `ImproperlyConfigured` at class definition time. | |
-| req-grid-entity-validation-6 | FIELD_SCHEMAS Keys Are Real Fields | Proposed | A `FIELD_SCHEMAS` key that does not match a field declared on the derived model raises `ImproperlyConfigured` at class definition time. | |
-| req-grid-entity-validation-7 | JSON Schema Validation | Proposed | `full_validate()` runs `jsonschema.validate(field_value, schema)` for each `"jsonschema"` entry. Violations are collected keyed by field name. | |
-| req-grid-entity-validation-8 | Function Validation | Proposed | `full_validate()` calls `validate_<field>(self)` for each `"function"` entry. Raised `ValidationError` messages are merged into the error dict. | |
-| req-grid-entity-validation-9 | Whole-Record Hook | Proposed | `full_validate()` calls `self.validate()` after per-field checks. Base implementation is a no-op. Raised errors are merged into the collection. | |
-| req-grid-entity-validation-10 | Error Collection | Proposed | `full_validate()` collects all errors from all sources before raising. The final `ValidationError` is in Django dict form `{field: [messages]}`. | |
-| req-grid-entity-validation-11 | full_validate Standalone | Proposed | `full_validate()` can be called without saving. Returns normally if all checks pass; raises `ValidationError` if any fail. | |
-| req-grid-entity-validation-12 | save() Integration | Proposed | `BaseModel.save()` calls `full_validate()` before any DB write or entity auto-creation. | |
-| req-grid-entity-validation-13 | skip_validation Escape Hatch | Proposed | `save(skip_validation=True)` bypasses `full_validate()` entirely. | |
-| req-grid-entity-validation-14 | @not_a_validator Decorator | Proposed | A `validate_<field>()` method decorated with `@not_a_validator` is excluded from startup invariant checks and never called by `full_validate()`. | |
-| req-grid-entity-validation-15 | Applies to Edge | Proposed | `Edge` inherits the full validation mechanism. The existing edge property schema registry is unaffected. | |
+| req-grid-entity-validation-1 | FIELD_SCHEMAS Declaration | Implemented | A BaseModel subclass may declare `FIELD_SCHEMAS: ClassVar[dict[str, dict]]`; default is `{}`. Fields not listed are ignored by `full_validate()`. | |
+| req-grid-entity-validation-2 | Typed Validation Entries | Implemented | Each entry in `FIELD_SCHEMAS` must have `"validation": "jsonschema"` or `"validation": "function"`. Any other value raises `ImproperlyConfigured` at class definition time. | |
+| req-grid-entity-validation-3 | jsonschema Entry Requires Schema Key | Implemented | An entry with `"validation": "jsonschema"` that lacks a `"schema"` key raises `ImproperlyConfigured` at class definition time. | |
+| req-grid-entity-validation-4 | function Entry Requires Method | Implemented | An entry with `"validation": "function"` that has no matching `validate_<field>()` method on the class raises `ImproperlyConfigured` at class definition time. | |
+| req-grid-entity-validation-5 | Undeclared Validator Raises | Implemented | A `validate_<field>()` method (without `@dangerously_ignore_validator`) whose field is not in `FIELD_SCHEMAS` raises `ImproperlyConfigured` at class definition time. | |
+| req-grid-entity-validation-6 | FIELD_SCHEMAS Keys Are Real Fields | Implemented | A `FIELD_SCHEMAS` key that does not match a field declared on the derived model raises `ImproperlyConfigured` at class definition time. | |
+| req-grid-entity-validation-7 | JSON Schema Validation | Implemented | `full_validate()` runs `jsonschema.validate(field_value, schema)` for each `"jsonschema"` entry. Violations are collected keyed by field name. | |
+| req-grid-entity-validation-8 | Function Validation | Implemented | `full_validate()` calls `validate_<field>(self)` for each `"function"` entry. Raised `ValidationError` messages are merged into the error dict. | |
+| req-grid-entity-validation-9 | Whole-Record Hook | Implemented | `full_validate()` calls `self.validate()` after per-field checks. Base implementation is a no-op. Raised errors are merged into the collection. | |
+| req-grid-entity-validation-10 | Error Collection | Implemented | `full_validate()` collects all errors from all sources before raising. The final `ValidationError` is in Django dict form `{field: [messages]}`. | |
+| req-grid-entity-validation-11 | full_validate Standalone | Implemented | `full_validate()` can be called without saving. Returns normally if all checks pass; raises `ValidationError` if any fail. | |
+| req-grid-entity-validation-12 | save() Integration | Implemented | `BaseModel.save()` calls `full_validate()` before any DB write or entity auto-creation. | |
+| req-grid-entity-validation-13 | skip_validation Escape Hatch | Implemented | `save(skip_validation=True)` bypasses `full_validate()` entirely. | |
+| req-grid-entity-validation-14 | @dangerously_ignore_validator Decorator | Implemented | A `validate_<field>()` method decorated with `@dangerously_ignore_validator` is excluded from startup invariant checks and never called by `full_validate()`. | |
+| req-grid-entity-validation-15 | Applies to Edge | Implemented | `Edge` inherits the full validation mechanism. The existing edge property schema registry is unaffected. | |
 
 #### Future
 
