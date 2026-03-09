@@ -11,7 +11,7 @@ Only runs when DEBUG=True. Idempotent - safe to run multiple times.
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from tap_grid.models import Edge, Entity
+from tap_grid.models import Edge, Entity, Search
 from tap_plugins.lotr.models import Artifact, Character, Faction, Location, Race
 
 
@@ -210,3 +210,118 @@ class Command(BaseCommand):
                 edge_count += 1
 
         self.stdout.write(self.style.SUCCESS(f"LOTR seed complete: {len(entities)} entities, {edge_count} new edges."))
+
+        # Create Search objects
+        search_count = self._seed_searches()
+        self.stdout.write(self.style.SUCCESS(f"  + {search_count} new searches seeded."))
+
+    def _seed_searches(self) -> int:
+        """Create reusable Search objects for LOTR data exploration. Idempotent."""
+        searches = [
+            # --- ORM searches (declarative, no runner needed) ---
+            {
+                "title": "All LOTR Characters",
+                "description": "Every character in Middle-earth.",
+                "search_type": "orm",
+                "root": "node",
+                "definition": {
+                    "filters": {"entity_type": "character"},
+                    "order_by": ["display_name"],
+                },
+            },
+            {
+                "title": "All LOTR Locations",
+                "description": "Every location in Middle-earth.",
+                "search_type": "orm",
+                "root": "node",
+                "definition": {
+                    "filters": {"entity_type": "location"},
+                    "order_by": ["display_name"],
+                },
+            },
+            {
+                "title": "All LOTR Artifacts",
+                "description": "Every significant artifact.",
+                "search_type": "orm",
+                "root": "node",
+                "definition": {
+                    "filters": {"entity_type": "artifact"},
+                    "order_by": ["display_name"],
+                },
+            },
+            {
+                "title": "Characters and Their Artifacts",
+                "description": "Characters with the artifacts they wield (one-hop graph).",
+                "search_type": "orm",
+                "root": "node",
+                "definition": {
+                    "filters": {"entity_type": "character"},
+                    "hops": [
+                        {
+                            "direction": "out",
+                            "edge_type": "WIELDS",
+                            "target_filters": {"entity_type": "artifact"},
+                        }
+                    ],
+                    "order_by": ["display_name"],
+                },
+            },
+            {
+                "title": "Characters and Their Locations",
+                "description": "Characters with where they are located (one-hop graph).",
+                "search_type": "orm",
+                "root": "node",
+                "definition": {
+                    "filters": {"entity_type": "character"},
+                    "hops": [
+                        {
+                            "direction": "out",
+                            "edge_type": "LOCATED_IN",
+                            "target_filters": {"entity_type": "location"},
+                        }
+                    ],
+                    "order_by": ["display_name"],
+                },
+            },
+            {
+                "title": "Character Alliances",
+                "description": "Characters and who they are allied with.",
+                "search_type": "orm",
+                "root": "node",
+                "definition": {
+                    "filters": {"entity_type": "character"},
+                    "hops": [{"direction": "out", "edge_type": "ALLIES_WITH"}],
+                    "order_by": ["display_name"],
+                },
+            },
+            {
+                "title": "All Fellowship Edges",
+                "description": "All relationship edges in the Middle-earth graph.",
+                "search_type": "orm",
+                "root": "edge",
+                "definition": {"filters": {}, "order_by": ["entity_id"]},
+            },
+            # --- Module search (runner-backed, includes typed model fields) ---
+            {
+                "title": "Characters with Bio",
+                "description": "All characters with title and bio from the typed model.",
+                "search_type": "module",
+                "root": "node",
+                "definition": {
+                    "runner_key": "tap_plugins.lotr.searches:list-characters-with-bio"
+                },
+            },
+        ]
+
+        count = 0
+        for spec in searches:
+            title = spec.pop("title")
+            _, created = Search.objects.get_or_create(
+                title=title,
+                search_type=spec["search_type"],
+                defaults={"title": title, **spec},
+            )
+            if created:
+                self.stdout.write(f"  + Search: {title}")
+                count += 1
+        return count

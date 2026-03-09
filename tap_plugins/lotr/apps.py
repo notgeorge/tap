@@ -146,3 +146,10 @@ class LotrConfig(TapPluginConfig):
             },
         },
     ]
+
+    def ready(self) -> None:
+        super().ready()
+        from tap_grid.registry import register_search_runner
+        from tap_plugins.lotr.searches import list_characters_with_bio
+
+        register_search_runner("list-characters-with-bio", list_characters_with_bio)
