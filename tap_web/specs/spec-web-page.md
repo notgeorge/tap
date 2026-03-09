@@ -32,6 +32,8 @@ Future:
 | req-web-page-sanitize.sec | [Page Object Sanitization](#page-object-sanitization) | Proposed | Schema-first input hardening plus safe HTML output escaping |
 | req-web-page-plink | [Page to Panel Links](#page-to-panel-links) | Proposed | `USES_PANEL` links bind `panel-id` slots to panel nodes |
 | req-web-page-landing | [Landing Pages](#landing-pages) | Proposed | Landing-page indirection for root URL |
+| req-web-page-params | [Page URL Params](#page-url-params) | Proposed | URL parameters carry page-level variables for shareable, reproducible views |
+| req-web-page-local | [Page Shared Local State](#page-shared-local-state) | Backburner | Shared localStorage state for inter-panel coordination |
 
 
 ## Invariants

@@ -12,9 +12,10 @@ Because panels are first-class entities on the grid, they can be shared across p
 |    |                  |                                                                                                      |
 | :---: | ---           | ---                                                                                                  |
 | 1. |   Self-Contained  | A panel renders with only its declared inputs; no hidden ambient state                              |
-| 2. |   Composable      | Multiple panels fit into a page layout and can be wired together through page-level variables       |
-| 3. |   Pluggable       | Plugin authors can register new panel types without modifying tap_web core                          |
-| 4. |   Grid-Native     | Panels are entities — they can be linked, traversed, and queried like any other node                |
+| 2. |   Pluggable       | Plugin authors can register new panel types without modifying tap_web core                          |
+| 3. |   Grid-Native     | Panels are entities — they can be linked, traversed, and queried like any other node, stored in the web dimension                |
+| 4. |   Edit Included   | Panels come with a built-in way for users to edit the construction / configuration of that panel instance | 
+| 5. |   Smart           | Panels are backed by code that can implement whatever complex processing is required to get to the right visualization and edit capabilities. | 
 
 
 ## Requirements
@@ -31,12 +32,13 @@ Sanitized - Are sanitized using Django's built-in rendering functions, no unsafe
 
 ---
 
-### Panel Objects
+
+### Panel Object
 ----
 RID: `req-web-panel-obj`
 Status: `Implemented`
 
-A Panel object is the backing entity for a data-display component. It declares its renderer, static assets, and display metadata.
+A Panel object is the backing entity for a data-display component. It declares its panel renderer, static assets, and display metadata.
 
 #### Fields
 
@@ -82,6 +84,13 @@ The `slug` portion is the Panel's `slug` field value. The UUID is the Panel's `e
 
 #### Future
 
+
+### Panel Registry
+----
+RID: `req-web-panel-registry`
+Status: `Proposed`
+
+Panels are registered at load time in a run-time registry similar to the node's registry.
 
 ### Panel Static Assets
 ----
