@@ -11,9 +11,9 @@ the database level (req-grid-search-readonly.sec).
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-import jsonschema
+import jsonschema  # type: ignore[import-untyped]
 from django.core.exceptions import ValidationError
 
 from tap_grid.exceptions import SearchExecutionError
@@ -190,7 +190,7 @@ def _execute_module_search(
             f"Runner '{runner_key}' raised an exception: {exc}"
         ) from exc
 
-    return result
+    return cast(dict[str, Any], result)
 
 
 def _execute_orm_search(

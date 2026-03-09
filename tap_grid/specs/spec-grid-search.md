@@ -26,7 +26,7 @@ Searches always return a graph-shaped result envelope. Even when a consumer is p
 | req-grid-search-exec | [Search Execution](#search-execution) | Implemented | Searches execute through a shared service layer only |
 | req-grid-search-module | [Module Search Mode](#module-search-mode) | Implemented | Code-backed searches resolve a registered module runner via `ScopedRegistry` |
 | req-grid-search-orm | [ORM Search Mode](#orm-search-mode) | Implemented | Declarative ORM DSL with one-hop traversal and deterministic ordering |
-| req-grid-search-results | [Search Results](#search-results) | Proposed | Searches always return the canonical 4-key graph envelope (`nodes`, `edges`, `info`, `warnings`) |
+| req-grid-search-results | [Search Results](#search-results) | Implemented | Searches always return the canonical 4-key graph envelope (`nodes`, `edges`, `info`, `warnings`) |
 | req-grid-search-readonly.sec | [Search Read-Only Execution](#search-read-only-execution) | Implemented | Security requirement enforcing that searches cannot mutate TAP data |
 | req-grid-search-authz.sec | [Search Authorization](#search-authorization) | Backlog | Deferred security requirement for search-specific authorization and access controls |
 
@@ -392,7 +392,7 @@ Consider supporting SQL-backed searches as a separate mode if a narrow, read-onl
 ### Search Results
 ----
 RID: `req-grid-search-results`
-Status: `Proposed`
+Status: `Implemented`
 
 Searches always return the canonical 4-key graph envelope. Every execution mode returns the same shape. Hard failures raise a `SearchExecutionError` (not an envelope-level error key) so callers can unambiguously distinguish "search ran and produced warnings" from "search failed to execute at all."
 
@@ -447,15 +447,15 @@ The 4-key envelope is a deliberate constraint. `info` and `warnings` as first-cl
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-search-results-1 | 4-Key Envelope | Proposed | All search results return a JSON object with exactly `nodes`, `edges`, `info`, and `warnings` keys. | |
-| req-grid-search-results-2 | Paginated Wrapper | Proposed | Paginated results wrap the 4-key envelope in `count`, `limit`, `offset`, and `results`. | |
-| req-grid-search-results-3 | Hard Failures Raise | Proposed | Hard execution failures raise `SearchExecutionError` and are never silently placed in the envelope. | |
-| req-grid-search-results-4 | info Contains Execution Metadata | Proposed | `info` contains execution metadata (applied limit/offset, count, timing). Structure TBD at implementation time. | |
-| req-grid-search-results-5 | warnings Contains Non-Fatal Issues | Proposed | `warnings` is a dict keyed by warning code. Non-fatal issues (deprecated fields, max_limit clamping) are placed here, not in `info`. | |
-| req-grid-search-results-6 | JSON Serialized Members | Proposed | Node and edge members in search results are serialized as JSON objects. | |
-| req-grid-search-results-7 | Returns Does Not Replace Envelope | Proposed | `returns` may shape inclusion and projection but does not change the top-level 4-key envelope shape. | |
-| req-grid-search-results-8 | Pagination Applies To Primary Side | Proposed | `limit`, `offset`, and `count` apply to the `primary` side declared by `returns.primary`, not to the total number of graph members in the full envelope. | |
-| req-grid-search-results-9 | max_limit Clamping Recorded | Proposed | When the service layer clamps caller-provided `limit` to `max_limit`, the clamping is recorded in `warnings`. | |
+| req-grid-search-results-1 | 4-Key Envelope | Implemented | All search results return a JSON object with exactly `nodes`, `edges`, `info`, and `warnings` keys. | |
+| req-grid-search-results-2 | Paginated Wrapper | Implemented | Paginated results wrap the 4-key envelope in `count`, `limit`, `offset`, and `results`. | |
+| req-grid-search-results-3 | Hard Failures Raise | Implemented | Hard execution failures raise `SearchExecutionError` and are never silently placed in the envelope. | |
+| req-grid-search-results-4 | info Contains Execution Metadata | Implemented | `info` contains execution metadata (applied limit/offset, count, timing). Structure TBD at implementation time. | |
+| req-grid-search-results-5 | warnings Contains Non-Fatal Issues | Implemented | `warnings` is a dict keyed by warning code. Non-fatal issues (deprecated fields, max_limit clamping) are placed here, not in `info`. | |
+| req-grid-search-results-6 | JSON Serialized Members | Implemented | Node and edge members in search results are serialized as JSON objects. | |
+| req-grid-search-results-7 | Returns Does Not Replace Envelope | Implemented | `returns` may shape inclusion and projection but does not change the top-level 4-key envelope shape. | |
+| req-grid-search-results-8 | Pagination Applies To Primary Side | Implemented | `limit`, `offset`, and `count` apply to the `primary` side declared by `returns.primary`, not to the total number of graph members in the full envelope. | |
+| req-grid-search-results-9 | max_limit Clamping Recorded | Implemented | When the service layer clamps caller-provided `limit` to `max_limit`, the clamping is recorded in `warnings`. | |
 
 #### Future
 Consider defining standard result projection helpers for common consumers such as table panels, graph views, and form pickers.
