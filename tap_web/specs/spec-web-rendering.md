@@ -23,6 +23,7 @@ We haven't fully defined the panel structure yet, likely going to do that next.
 | req-web-rendering-slashpage | [Pages Start With /](#pages-start-with-) | Implemented | Dynamic pages rooted at `/`, not `/pages/...` |
 | req-web-render-process | [Page Rendering Process](#page-rendering-process) | Implemented | Multi-step pipeline: URL → page view → page service → page template → panel HTMX calls |
 | req-web-render-panel | [Panel Rendering Process](#panel-rendering-process) | Implemented | Panels rendered via HTMX; generic view renders panel's declared template |
+| req-web-render-panel-edit | [Panel Edit Rendering](#panel-edit-rendering) | Proposed | Panel edit pages render standard preview-plus-editor layout at `/panel/<slug>--<uuid>/edit/` |
 | req-web-render-missingpan | [Missing / Broken Panels](#missing--broken-panels) | Implemented | Missing panels show "Panel Error" in their layout slot |
 | req-web-render-landing | [Landing Page Owns /](#landing-page-owns-) | Proposed | Root `/` delegates to LandingPage-linked Page without client-side redirect |
 | req-web-rendering-pagesan.sec | [Page Rendering Sanitization](#page-rendering-sanitization-security) | Implemented | Base template + HTMX + static asset manifest ensure safe page output |
@@ -121,6 +122,47 @@ The slug is decorative (for readability). The UUID is used to look up the Panel.
 | req-web-render-panel-1 | HTMX Fragment Endpoint | Implemented | Panel endpoint at `/panel/<slug>--<uuid>/` renders the Panel's declared template and returns an HTML fragment. | |
 | req-web-render-panel-2 | Generic View | Implemented | A single generic panel view handler calls `render(request, panel.view)` regardless of panel type or plugin origin. | |
 | req-web-render-panel-3 | UUID Lookup | Implemented | UUID portion of the URL slug is parsed to look up the Panel by `entity_id`. | |
+
+
+### Panel Edit Rendering
+RID: `req-web-render-panel-edit`
+Status: `Proposed`
+
+Panel edit mode renders a standard editor page at the panel level. The editor page has two fixed regions: preview on top and editor below.
+
+#### Implementation
+Editor route:
+
+```
+/panel/<slug>--<entity-uuid>/edit/
+```
+
+Behavior:
+- route resolves the Panel by UUID using the same decorative-slug pattern as normal panel rendering
+- top region renders the current saved panel using the normal panel view path
+- bottom region renders the panel's declared `editor_view`
+- editor page emits deduped editor CSS and JS using `editor_css` and `editor_js`
+- preview and save are separate actions
+- preview renders the current saved panel configuration; live preview while typing is not required in v1
+- edit submissions post back to the panel edit endpoint
+
+This editor page structure is standard and is not panel-defined. Panels supply the editor content; rendering owns the editor page layout.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-render-panel-edit-1 | Edit Route Exists | Proposed | Panel edit mode is routed at `/panel/<slug>--<uuid>/edit/`. | |
+| req-web-render-panel-edit-2 | UUID Lookup | Proposed | Edit route resolves the panel by UUID using the decorative slug pattern. | |
+| req-web-render-panel-edit-3 | Standard Two Region Layout | Proposed | Editor page renders preview on top and editor below. | |
+| req-web-render-panel-edit-4 | Preview Uses Normal Panel View | Proposed | Preview region renders the saved panel using the normal panel view contract. | |
+| req-web-render-panel-edit-5 | Editor Uses Declared Template | Proposed | Editor region renders the panel's declared `editor_view`. | |
+| req-web-render-panel-edit-6 | Editor Assets Emitted | Proposed | Editor page emits `editor_css` in the head and `editor_js` at the end of the body. | |
+| req-web-render-panel-edit-7 | Preview Separate From Save | Proposed | Edit page exposes preview and save as separate actions. | |
+| req-web-render-panel-edit-8 | Edit Posts To Edit Endpoint | Proposed | Edit submissions target the panel edit endpoint rather than the normal view endpoint. | |
+
+#### Future
+Consider adding an unsaved-changes indicator and editor lifecycle hooks if panel editing becomes more interactive.
 
 
 ### Missing / Broken Panels

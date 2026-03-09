@@ -32,8 +32,9 @@ Future:
 | req-web-page-sanitize.sec | [Page Object Sanitization](#page-object-sanitization) | Proposed | Schema-first input hardening plus safe HTML output escaping |
 | req-web-page-plink | [Page to Panel Links](#page-to-panel-links) | Proposed | `USES_PANEL` links bind `panel-id` slots to panel nodes |
 | req-web-page-landing | [Landing Pages](#landing-pages) | Proposed | Landing-page indirection for root URL |
-| req-web-page-params | [Page URL Params](#page-url-params) | Proposed | URL parameters carry page-level variables for shareable, reproducible views |
-| req-web-page-local | [Page Shared Local State](#page-shared-local-state) | Backburner | Shared localStorage state for inter-panel coordination |
+| req-web-page-params | [Page Variables](#page-variables) | Proposed | URL-backed `tap_page_vars` provide canonical shared page state |
+| req-web-page-local | [Page Persistent Variables](#page-persistent-variables) | Proposed | In-memory `tap_page_persistent_vars` allow panels to reuse derived data and results |
+| req-web-page-coord | [Page Variable Coordinator](#page-variable-coordinator) | Proposed | Small page-level JavaScript coordinator resolves variable mappings and dispatches panel input updates |
 
 
 ## Invariants
@@ -373,7 +374,14 @@ Requirement expanded from stub to define canonical page-to-panel link semantics 
 - `USES_PANEL` source is `Page`; destination is `Panel`.
 - Canonical property key is `panel-id` (not `id`) as defined by `req-web-page-panel-id`.
 - `USES_PANEL` property schema requires `panel-id`.
+- `USES_PANEL` may also define `variable_map` for panel input mapping.
+- `variable_map` lives alongside `panel-id` in `USES_PANEL.properties`.
+- `variable_map` contains two mapping objects:
+  - `tap_page_vars`
+  - `tap_page_persistent_vars`
+- In each mapping object, keys are panel-local input names and values are page-level variable names.
 - `panel-id` on `USES_PANEL` should reference a declared layout slot id for that Page.
+- Mapping entries that reference panel input names not declared by the panel should emit a browser console warning.
 
 #### Development
 Keep the base requirement minimal and stable. 
@@ -386,11 +394,15 @@ Keep the base requirement minimal and stable.
 | req-web-page-plink-2 | Canonical Property Key | Proposed | `USES_PANEL` uses `panel-id` as the canonical page-slot binding key. | |
 | req-web-page-plink-3 | Property Format Validation | Proposed | `USES_PANEL.panel-id` must comply with `req-web-page-panel-id`. | |
 | req-web-page-plink-4 | Slot Mapping Contract | Proposed | `USES_PANEL.panel-id` values should map to declared layout slot ids for the owning Page. | Errors are generated later if links and layout drift. |
-| req-web-page-plink-5 | Panel Reuse Allowed | Proposed | The same Panel node may be linked to multiple distinct `panel-id` slots on the same Page. | |
+| req-web-page-plink-5 | Variable Map Stored On Uses Panel | Proposed | `USES_PANEL.properties` may include `variable_map` containing `tap_page_vars` and `tap_page_persistent_vars` mapping objects. | |
+| req-web-page-plink-6 | Variable Map Keys Are Panel Inputs | Proposed | Within each `variable_map` object, keys are panel-local input names and values are page-level variable names. | |
+| req-web-page-plink-7 | Undeclared Panel Inputs Warn | Proposed | Mapping entries that target panel input names not declared by the panel should emit a browser console warning. | |
+| req-web-page-plink-8 | Panel Reuse Allowed | Proposed | The same Panel node may be linked to multiple distinct `panel-id` slots on the same Page. | |
 
 
 #### Future
 Node to edge validation logic is going to be needed, and this is probably a great use case.
+Consider adding a dedicated JSON Schema requirement for `USES_PANEL.variable_map` once the page/panel variable system is implemented.
 **Cardinality and integrity**
 - For each `panel-id` referenced in a Page layout, exactly one `USES_PANEL` edge from that Page should exist with the same `panel-id` but this does not block node creation.
 - Duplicate links for the same Page + `panel-id` are invalid, raise a warning at console log but duplicates are ignored.
@@ -411,11 +423,11 @@ Node to edge validation logic is going to be needed, and this is probably a grea
 
 | Future ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-page-plink-6 | Duplicate Slot Link Handling | Proposed | Duplicate links for the same Page + `panel-id` are invalid; warn and ignore duplicates. | Deferred until generalized validation system. |
-| req-web-page-plink-7 | Missing Slot Link Runtime Guard | Proposed | Missing link warns and renders `Panel Link Missing`. | Non-fatal render behavior. |
-| req-web-page-plink-8 | Extra Edge Runtime Guard | Proposed | Edge with `panel-id` not present in layout warns and is ignored at render. | Non-fatal render behavior. |
-| req-web-page-plink-9 | Dedicated Integrity Error | Proposed | Write-time integrity failures raise `PagePanelLinkValidationError`. | |
-| req-web-page-plink-10 | Validation Timing | Proposed | Integrity checks run on write; renderer applies warning/fallback guard for runtime drift. | |
+| req-web-page-plink-9 | Duplicate Slot Link Handling | Proposed | Duplicate links for the same Page + `panel-id` are invalid; warn and ignore duplicates. | Deferred until generalized validation system. |
+| req-web-page-plink-10 | Missing Slot Link Runtime Guard | Proposed | Missing link warns and renders `Panel Link Missing`. | Non-fatal render behavior. |
+| req-web-page-plink-11 | Extra Edge Runtime Guard | Proposed | Edge with `panel-id` not present in layout warns and is ignored at render. | Non-fatal render behavior. |
+| req-web-page-plink-12 | Dedicated Integrity Error | Proposed | Write-time integrity failures raise `PagePanelLinkValidationError`. | |
+| req-web-page-plink-13 | Validation Timing | Proposed | Integrity checks run on write; renderer applies warning/fallback guard for runtime drift. | |
 
 ### Landing Pages
 ----
@@ -476,21 +488,177 @@ Handle multiple landing pages more efficiently - maybe with some sort of constra
 | req-web-page-landing-9 | Invalid Target Placeholder | Proposed | If selected landing target is missing/invalid, root route renders setup placeholder. | |
 
 
-### Page URL Params
+### Page Variables
 ----
 RID: `req-web-page-params`  
 Status: `Proposed`
 
-URL parameters are used for page-level variables and are updated by panels based on inputs from the user.  This is how we ensure that page url contents can be copy/pasted between users and maintain accuracy.
+Pages define canonical shared variables in `tap_page_vars`. `tap_page_vars` are URL-backed page state used for shareable, reproducible views and for browser-side coordination between panels.
+
+#### Status Details
+This requirement replaces the earlier loose URL-param note with an explicit page variable model and panel mapping contract.
+
+#### Implementation
+- `tap_page_vars` are the canonical page-level variable namespace.
+- `tap_page_vars` are backed by URL query parameters.
+- `tap_page_vars` are intended for small, serializable control values such as filters, selected ids, date ranges, and other shareable page state.
+- The Page-to-Panel binding owns the mapping between page variables and panel-level input names.
+- Panels do not need to know page-level variable names or mapping rules.
+
+**Panel input mapping**
+- A Page defines a panel input mapping layer that maps:
+  - `tap_page_vars` names
+  - `tap_page_persistent_vars` names
+  - to panel-specific input names
+- The mapping is page-owned and page-local and is stored on the `USES_PANEL` binding for the slot.
+- Mapping resolution happens in the browser at the page level.
+- `variable_map` is split into two mapping objects:
+  - `tap_page_vars`
+  - `tap_page_persistent_vars`
+- In each mapping object, keys are panel-local input names and values are page-level variable names.
+
+**Dispatch behavior**
+- When a panel writes to `tap_page_vars`, the browser-side page coordinator updates the canonical URL-backed page state.
+- After any `tap_page_vars` change, the page coordinator recomputes resolved input objects for affected panels only.
+- The page coordinator dispatches browser custom events for panel refresh using resolved panel inputs, not raw page variable changes.
+
+**Panel update event**
+- Event name: `tap:panel-inputs-changed`
+- Event payload contains:
+  - page identity
+  - `panel-id`
+  - full resolved input object for that panel
+  - optional source `panel-id`
+- Panels receive only their resolved input names and values.
+- Panels remain transparent to page-level mapping rules.
+
+#### Development
+Use URL params as the canonical page-state surface because they are visible, shareable, and compatible with HTMX/server-rendered pages. Keep panels insulated from page variable naming so pages can compose heterogeneous panels without leaking mapping logic into panel code.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-params-1 | Page Vars Are Canonical Page State | Proposed | Pages define canonical shared variables in `tap_page_vars`. | |
+| req-web-page-params-2 | Page Vars Are URL Backed | Proposed | `tap_page_vars` are stored in URL query params so page state is shareable and reproducible. | |
+| req-web-page-params-3 | Page Owns Panel Input Mapping | Proposed | The `USES_PANEL` binding for a slot stores `variable_map` that maps page-owned variables to panel-specific input names. | |
+| req-web-page-params-4 | Panels Are Mapping-Transparent | Proposed | Panels receive resolved inputs and do not need to know page-level variable names or mapping rules. | |
+| req-web-page-params-5 | Panel Updates Use Browser Custom Events | Proposed | Panel refresh notifications are dispatched as browser custom events. | |
+| req-web-page-params-6 | Panel Event Uses Full Resolved Inputs | Proposed | `tap:panel-inputs-changed` carries the full resolved input object for the target panel. | |
+| req-web-page-params-7 | Page Vars Support Panel Writes | Proposed | Panels may update `tap_page_vars` through the page coordinator contract. | |
 
 
-### Page Shared Local State
+### Page Persistent Variables
 ----
 RID: `req-web-page-local`  
-Status: `Backburner`
+Status: `Proposed`
 
-Pages will implement a shared state system which allows queries to be done once, data to be gathered, then consumed by panels as necessary.
+Pages define `tap_page_persistent_vars` as page-scoped shared browser state for derived data, cached results, and other reusable panel data that should not be forced into the URL.
 
-Proposal is to use localstorage and then panels can lookup those variables.
+#### Status Details
+This requirement replaces the earlier localStorage concept with a narrower page-scoped in-memory state model.
 
-We will need to define a way for the panel on a particular page to know that the variables it wants to consume from storage are called on that page so different panels can perform queries and then they're values are mapped in.
+#### Implementation
+- `tap_page_persistent_vars` are page-scoped only.
+- `tap_page_persistent_vars` are in-memory browser state in v1.
+- `tap_page_persistent_vars` are intended for shared derived data such as search results, lookup payloads, or other reusable result sets that multiple panels consume.
+- Panels may write to `tap_page_persistent_vars` through the page coordinator contract.
+- `USES_PANEL.variable_map.tap_page_persistent_vars` maps persistent page variable names into panel-specific input names.
+
+**Dispatch behavior**
+- When a panel writes to `tap_page_persistent_vars`, the page coordinator updates page-scoped in-memory state.
+- The page coordinator recomputes resolved input objects for affected panels only.
+- The page coordinator dispatches `tap:panel-inputs-changed` with the full resolved input object for each affected panel.
+
+**Usage pattern**
+- One panel may execute a search or other expensive operation once.
+- The resulting dataset is written to a named `tap_page_persistent_vars` entry.
+- Multiple downstream panels consume that shared dataset through page-owned mappings without rerunning the source query.
+
+#### Development
+Keep `tap_page_persistent_vars` page-scoped and in-memory in v1. This is a better fit for large or transient derived datasets than URL params and avoids premature commitment to browser persistence semantics.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-local-1 | Page Persistent Vars Are Page Scoped | Proposed | `tap_page_persistent_vars` are scoped to a single Page instance and are not shared across pages. | |
+| req-web-page-local-2 | In Memory In V1 | Proposed | `tap_page_persistent_vars` use page-scoped in-memory browser state in v1. | |
+| req-web-page-local-3 | Shared Derived Data Supported | Proposed | `tap_page_persistent_vars` may hold shared derived data or cached results for reuse by multiple panels. | |
+| req-web-page-local-4 | Panels May Write Page Persistent Vars | Proposed | Panels may update `tap_page_persistent_vars` through the page coordinator contract. | |
+| req-web-page-local-5 | Page Mapping Applies To Persistent Vars | Proposed | `USES_PANEL.variable_map.tap_page_persistent_vars` may map persistent page variable names to panel-specific input names. | |
+| req-web-page-local-6 | Persistent Var Changes Trigger Panel Input Events | Proposed | Changes to `tap_page_persistent_vars` trigger recomputation and `tap:panel-inputs-changed` dispatch for affected panels. | |
+
+#### Future
+Consider supporting optional persistence to `sessionStorage` or `localStorage` for selected variables once concrete durability needs are understood.
+
+### Page Variable Coordinator
+----
+RID: `req-web-page-coord`  
+Status: `Proposed`
+
+Pages require a small page-level browser coordinator to resolve page-owned variables into panel inputs and notify affected panels when their resolved inputs change. This coordinator is the browser-side execution layer for `tap_page_vars`, `tap_page_persistent_vars`, and `USES_PANEL.variable_map`.
+
+#### Status Details
+This requirement formalizes the minimal page-level JavaScript needed to support browser-side variable mapping and inter-panel coordination without introducing a frontend framework or heavy client-side state library.
+
+#### Implementation
+The page coordinator is a page-scoped browser-side component loaded by the page shell.
+
+Its responsibilities are:
+- initialize `tap_page_vars` from URL query parameters
+- initialize empty page-scoped in-memory `tap_page_persistent_vars`
+- load `USES_PANEL.variable_map` metadata for the current page
+- build dependency indexes showing which panels depend on which `tap_page_vars` and `tap_page_persistent_vars`
+- expose page-scoped write operations for panels to update:
+  - `tap_page_vars`
+  - `tap_page_persistent_vars`
+- recompute resolved input objects for affected panels only
+- dispatch browser custom events to notify target panels of input changes
+
+**Resolution behavior**
+- Coordinator resolves panel inputs from `USES_PANEL.properties.variable_map`.
+- `variable_map.tap_page_vars` maps URL-backed page variable names into panel-local input names.
+- `variable_map.tap_page_persistent_vars` maps in-memory page persistent variable names into panel-local input names.
+- Missing page-side variables result in omitted panel inputs, not an error.
+- Mapping entries that reference undeclared panel input names emit a browser console warning.
+
+**Dispatch behavior**
+- Coordinator dispatches `tap:panel-inputs-changed`.
+- Event payload contains:
+  - page identity
+  - `panel-id`
+  - full resolved input object for the target panel
+  - optional source `panel-id`
+- Panels receive only their resolved input object and do not participate in mapping resolution.
+
+**Write behavior**
+- Panel-originated writes go through the page coordinator contract.
+- Updates to `tap_page_vars` also update the URL query string.
+- Updates to `tap_page_persistent_vars` update page-scoped in-memory state only.
+- After a write, only affected panels are recomputed and notified.
+
+#### Development
+Keep this coordinator small and framework-free. Its job is state coordination and event dispatch, not UI rendering. The coordinator exists because mapping and dependency resolution are browser-side runtime concerns, but the architecture does not justify a heavier client-side framework.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-coord-1 | Page Scoped Coordinator Exists | Proposed | A page-scoped browser coordinator is defined as the runtime layer for page variable mapping and dispatch. | |
+| req-web-page-coord-2 | URL Vars Initialized | Proposed | Coordinator initializes `tap_page_vars` from the page URL query parameters. | |
+| req-web-page-coord-3 | Persistent Vars Initialized In Memory | Proposed | Coordinator initializes `tap_page_persistent_vars` as page-scoped in-memory browser state. | |
+| req-web-page-coord-4 | Variable Map Loaded | Proposed | Coordinator loads `USES_PANEL.variable_map` metadata for the current page. | |
+| req-web-page-coord-5 | Dependency Index Built | Proposed | Coordinator builds dependency indexes so only affected panels are recomputed after writes. | |
+| req-web-page-coord-6 | Panel Writes Go Through Coordinator | Proposed | Panels update `tap_page_vars` and `tap_page_persistent_vars` through the coordinator contract. | |
+| req-web-page-coord-7 | URL Updated On Page Var Write | Proposed | Writes to `tap_page_vars` update the URL query string. | |
+| req-web-page-coord-8 | Persistent Writes Stay In Memory | Proposed | Writes to `tap_page_persistent_vars` update page-scoped in-memory state only. | |
+| req-web-page-coord-9 | Affected Panels Only | Proposed | After a variable write, coordinator recomputes and notifies affected panels only. | |
+| req-web-page-coord-10 | Full Input Event Dispatch | Proposed | Coordinator dispatches `tap:panel-inputs-changed` with the full resolved input object for the target panel. | |
+| req-web-page-coord-11 | Missing Variables Omit Inputs | Proposed | Missing page-side variables result in omitted panel inputs rather than hard failure. | |
+| req-web-page-coord-12 | Undeclared Inputs Warn | Proposed | Mappings that target undeclared panel input names emit a browser console warning. | |
+
+#### Future
+Consider defining a small public browser API for panel code (`setPageVar`, `setPersistentVar`, `getResolvedInputs`) once panel implementation patterns settle.
+Consider adding coordinator lifecycle hooks for page initialization and teardown if dynamic page replacement becomes common.
+

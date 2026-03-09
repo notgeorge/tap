@@ -22,8 +22,11 @@ Because panels are first-class entities on the grid, they can be shared across p
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-web-panel-obj | [Panel Objects](#panel-objects) | Implemented | Panel model with slug, view template path, and asset lists |
+| req-web-panel-obj | [Panel Objects](#panel-objects) | Refactoring | Panel model with slug, config, view/edit template paths, asset lists, and declared input variables |
+| req-web-panel-inputs | [Panel Inputs](#panel-inputs) | Proposed | Panels declare expected input variable names and consume resolved inputs from the page |
+| req-web-panel-edit | [Panel Edit Mode](#panel-edit-mode) | Proposed | Panels may declare editor templates and editor assets for panel-only configuration editing |
 | req-web-panel-static | [Panel Static Assets](#panel-static-assets) | Proposed | Static assets live in Django static paths; no external URLs allowed |
+| req-web-panel-edit-authz.sec | [Panel Edit Authorization](#panel-edit-authorization) | Backlog | Permission model for panel editor access is deferred |
 
 
 ## Invariants
@@ -36,9 +39,9 @@ Sanitized - Are sanitized using Django's built-in rendering functions, no unsafe
 ### Panel Object
 ----
 RID: `req-web-panel-obj`
-Status: `Implemented`
+Status: `Refactoring`
 
-A Panel object is the backing entity for a data-display component. It declares its panel renderer, static assets, and display metadata.
+A Panel object is the backing entity for a data-display component. It declares its view renderer, optional editor renderer, configuration object, static assets, and display metadata.
 
 #### Fields
 
@@ -47,9 +50,14 @@ A Panel object is the backing entity for a data-display component. It declares i
 | `slug` | CharField (kebab-case) | Yes | Human-readable label used in the panel HTMX URL alongside the entity UUID. No uniqueness constraint — the UUID disambiguates. |
 | `title` | CharField | Yes | Display name shown in UI |
 | `description` | TextField | No | What the panel is for |
-| `view` | CharField | Yes | Template path string (e.g. `"tap_plugins/lotr/templates/character_list.html"`). The panel view handler renders this template. |
-| `js` | JSONField (list) | No | Flat list of static-relative JS paths (e.g. `["js/cytoscape.js"]`). Default: `[]`. |
-| `css` | JSONField (list) | No | Flat list of static-relative CSS paths (e.g. `["css/panel.css"]`). Default: `[]`. |
+| `view` | CharField | Yes | Template path string for normal panel rendering. |
+| `editor_view` | CharField | No | Template path string for the panel editor UI. Optional until a panel supports editing. |
+| `config` | JSONField (object) | Yes | Panel-specific configuration object. Default: `{}`. |
+| `js` | JSONField (list) | No | Flat list of static-relative JS paths used by normal panel rendering. Default: `[]`. |
+| `css` | JSONField (list) | No | Flat list of static-relative CSS paths used by normal panel rendering. Default: `[]`. |
+| `editor_js` | JSONField (list) | No | Flat list of static-relative JS paths used by panel edit mode. Default: `[]`. |
+| `editor_css` | JSONField (list) | No | Flat list of static-relative CSS paths used by panel edit mode. Default: `[]`. |
+| `input_vars` | JSONField (list) | No | Declared panel input variable names expected by the panel at runtime. Default: `[]`. |
 
 Panels do not define or own `panel-id`. `panel-id` is a page-local slot identity defined in the page spec and used by page layout, page-panel links, and rendering.
 
@@ -67,7 +75,7 @@ The `slug` portion is the Panel's `slug` field value. The UUID is the Panel's `e
 
 #### Implementation
 
-`Panel` model in `tap_web/models.py` declares the fields above. The generic panel view handler in `tap_web/views.py` receives a request, looks up the Panel by entity UUID extracted from the URL, and calls `django.shortcuts.render(request, panel.view)` to render the panel's declared template. The panel error fragment is returned on any exception so the HTMX swap completes and the slot shows "Panel Error" rather than leaving the page broken.
+`Panel` model in `tap_web/models.py` declares the fields above. The generic panel view handler in `tap_web/views.py` receives a request, looks up the Panel by entity UUID extracted from the URL, and calls `django.shortcuts.render(request, panel.view)` to render the panel's declared template. Panel edit mode uses `editor_view` plus `editor_js` and `editor_css` when the panel supports editing. `config` stores panel-specific configuration with default `{}`. The panel error fragment is returned on any exception so the HTMX swap completes and the slot shows "Panel Error" rather than leaving the page broken.
 
 #### Development
 
@@ -75,14 +83,121 @@ The `slug` portion is the Panel's `slug` field value. The UUID is the Panel's `e
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-obj-1 | Panel Fields | Implemented | Panel declares `slug`, `title`, `description`, `view`, `js`, `css` as described above. | |
+| req-web-panel-obj-1 | Panel Fields | Refactoring | Panel declares `slug`, `title`, `description`, `view`, `editor_view`, `config`, `js`, `css`, `editor_js`, `editor_css`, and `input_vars` as described above. | Edit-mode fields and `config` are not yet implemented. |
 | req-web-panel-obj-2 | View Is Template Path | Implemented | `view` stores a template path string. The generic panel view handler renders it with `render(request, panel.view)`. | |
-| req-web-panel-obj-3 | Asset Lists Default Empty | Implemented | `js` and `css` default to `[]` when not set. | |
+| req-web-panel-obj-3 | Asset Lists Default Empty | Refactoring | `js`, `css`, `editor_js`, and `editor_css` default to `[]` when not set. | `editor_js` and `editor_css` are newly specified. |
 | req-web-panel-obj-4 | Panel URL Format | Implemented | Panel HTMX endpoint is `/panel/<slug>--<entity-uuid>/`. UUID is used for lookup; slug is decorative. | |
 | req-web-panel-obj-5 | Panel Error Fragment | Implemented | If the panel view raises any exception, the endpoint returns an HTML error fragment (HTTP 200) so HTMX swap completes with a "Panel Error" slot. | |
 | req-web-panel-obj-6 | Web Dimension | Implemented | Panel carries `DEFAULT_DIMENSIONS = {"tap.graph": "web"}` (already implemented). | |
+| req-web-panel-obj-7 | Config Defaults Empty Object | Proposed | `config` is required and defaults to `{}`. | |
+| req-web-panel-obj-8 | Editor View Optional | Proposed | `editor_view` is optional and only required when a panel supports edit mode. | |
 
 #### Future
+
+
+### Panel Inputs
+----
+RID: `req-web-panel-inputs`
+Status: `Proposed`
+
+Panels declare the input variable names they expect and consume resolved panel inputs provided by the owning Page. Panels do not define page-level variable names or mapping rules.
+
+#### Status Details
+This requirement formalizes the boundary between page-level coordination and panel-level input consumption.
+
+#### Implementation
+- Panels may declare expected input variable names in `input_vars`.
+- `input_vars` names are panel-local input names.
+- The owning Page maps `tap_page_vars` and `tap_page_persistent_vars` into these panel-local names.
+- Panels receive resolved input objects from the page coordinator.
+- Panels do not need to know whether an input originated from URL-backed page state or page-scoped persistent state.
+- Panels update in response to browser custom events dispatched by the page coordinator.
+- The canonical panel refresh event is `tap:panel-inputs-changed`.
+- Event payload includes the full resolved input object for the target panel.
+
+#### Development
+Keep panels self-contained by letting them declare what inputs they need while keeping all cross-panel and page-level naming logic in the page spec. This preserves panel portability across different pages.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-panel-inputs-1 | Panels Declare Expected Input Names | Proposed | Panels may declare expected runtime input names in `input_vars`. | |
+| req-web-panel-inputs-2 | Input Names Are Panel Local | Proposed | Declared panel input names are local to the panel and are not required to match page-level variable names. | |
+| req-web-panel-inputs-3 | Page Owns Mapping | Proposed | Pages map `tap_page_vars` and `tap_page_persistent_vars` into panel-local input names through `USES_PANEL.variable_map`. | Cross-references `req-web-page-params`, `req-web-page-local`, and `req-web-page-plink`. |
+| req-web-panel-inputs-4 | Panels Consume Resolved Inputs | Proposed | Panels receive only resolved input objects and do not implement page-level mapping logic. | |
+| req-web-panel-inputs-5 | Refresh Event Contract | Proposed | Panels update in response to `tap:panel-inputs-changed` and receive the full resolved input object for the target panel. | |
+
+#### Future
+Consider adding input schemas for panel-level input validation once a stable panel editing and configuration model exists.
+
+
+### Panel Edit Mode
+----
+RID: `req-web-panel-edit`
+Status: `Proposed`
+
+Panels may support a separate edit mode used to configure the panel instance. Edit mode is panel-only: it edits the Panel object itself rather than any page-specific slot binding.
+
+#### Status Details
+This requirement formalizes the panel-side portion of edit mode. Rendering structure for the editor page is defined in `spec-web-rendering.md`.
+
+#### Implementation
+- Normal panel rendering uses `view` plus `js` and `css`.
+- Panel edit mode uses optional `editor_view` plus `editor_js` and `editor_css`.
+- Edit mode operates on panel metadata and panel configuration:
+  - `title`
+  - `description`
+  - `config`
+- Panels without `editor_view` do not support custom edit mode in v1.
+- Edit submissions target the panel edit endpoint under `/panel/<slug>--<entity-uuid>/edit/`.
+- Edit mode supports a separate `Preview` action and `Save` action.
+- Preview shows the current saved panel output; live preview while typing is not required in v1.
+
+#### Development
+Keep edit mode lightweight. `config` is the generic extension surface for panel-specific configuration so plugin authors can build richer panel editors without forcing every panel type into its own concrete Django model.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-panel-edit-1 | Separate Edit Mode Exists | Proposed | Panels may support a separate edit mode in addition to normal view rendering. | |
+| req-web-panel-edit-2 | Editor Template Declared | Proposed | Panels that support custom editing declare `editor_view`. | |
+| req-web-panel-edit-3 | Separate Editor Assets | Proposed | Panels may declare `editor_js` and `editor_css` separately from normal `js` and `css`. | |
+| req-web-panel-edit-4 | Edit Mode Targets Panel Object | Proposed | Panel edit mode edits the Panel object itself, not page-specific bindings. | |
+| req-web-panel-edit-5 | Edit Scope | Proposed | Edit mode covers `title`, `description`, and `config`. | |
+| req-web-panel-edit-6 | Preview Separate From Save | Proposed | Edit mode provides a separate preview action and save action. | |
+| req-web-panel-edit-7 | No Live Preview Required | Proposed | V1 edit mode does not require live preview while editing. | |
+
+#### Future
+Consider defining a lightweight panel config DSL or schema system so edit mode can validate and describe `config` more formally.
+
+
+### Panel Edit Authorization
+----
+RID: `req-web-panel-edit-authz.sec`
+Status: `Backlog`
+
+Panel edit mode requires an explicit permission model, but that authorization behavior is deferred.
+
+#### Status Details
+Backlog security requirement created so editor access does not silently inherit undefined permissions.
+
+#### Implementation
+Future work must define:
+- who may access panel edit pages
+- who may preview panel edits
+- who may save panel changes
+- how panel edit permissions interact with page edit permissions and broader user security models
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-panel-edit-authz.sec-1 | Security Requirement Exists | Backlog | Panel edit authorization is tracked as a dedicated security requirement. | |
+
+#### Future
+Define panel edit access, preview access, and save permissions once the user security model is in place.
 
 
 ### Panel Registry

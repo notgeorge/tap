@@ -22,6 +22,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-resolve | [Entity Resolution](#entity-resolution) | Implemented | `Entity.resolve()` uses the model registry to return the concrete typed object |
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
 | req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Implemented | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
+| req-grid-entity-cascade | [Edge-Directed Cascade Deletion](#edge-directed-cascade-deletion) | Backlog | When an entity is deleted, cascades should be expressible in terms of edge relationships, not just Django's raw FK CASCADE |
 
 
 ## Explanation
@@ -408,6 +409,30 @@ Forcing entities themselves to be entities collapses abstraction layers in a way
 | req-grid-entity-ee-2 | Preserve Context Only | Deprecated | This spec is retained only as historical context, not as an active implementation target. | |
 
 #### Future
+
+---
+
+### Edge-Directed Cascade Deletion
+----
+RID: `req-grid-entity-cascade`
+Status: `Backlog`
+
+When an entity is deleted, the graph may have opinions about what else should go. Today, deletion cascades are handled entirely by Django's `on_delete=CASCADE` on the FK between a typed model and its `Entity` spine row — which is correct for keeping the spine consistent, but knows nothing about the graph. Edge relationships can encode richer semantics: deleting a `Concept` that `DEPENDS_ON` another should perhaps propagate that deletion forward; deleting a `Precept` that `APPLIES_TO` many concepts probably should not.
+
+This requirement is the foundation for making deletion a graph-aware, policy-driven operation rather than a raw relational cascade.
+
+#### Future
+
+Questions to resolve when this is picked up:
+
+- **Where do cascade policies live?** Candidates: `OUTBOUND_EDGES` / `INBOUND_EDGES` entries on the model, a separate `CASCADE_POLICY` class variable, or a service-layer policy registry.
+- **Directionality**: should deletion cascade along outbound edges (things this entity points to), inbound edges (things pointing at this entity), or both, depending on policy?
+- **Cycles**: the graph may contain cycles; cascade logic must guard against infinite loops.
+- **Transactionality**: multi-hop cascades should be atomic; partial deletes are worse than no delete.
+- **Interaction with FLIP**: every deletion — including cascade-triggered ones — must be recorded as a provenance event. Cascade chains may need a shared batch ID so the audit trail shows the full causal chain.
+- **Soft delete**: edge-directed cascade is a natural hook point for introducing soft-delete semantics (mark deleted rather than destroy rows), which would make the whole thing reversible.
+
+---
 
 ## Status Vocabulary
 
