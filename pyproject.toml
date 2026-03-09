@@ -122,3 +122,6 @@ django_settings_module = "tap.settings"
 DJANGO_SETTINGS_MODULE = "tap.settings"
 python_files = ["test_*.py", "*_test.py"]
 addopts = "-v --tb=short"
+markers = [
+    "no_registry_isolation: opt out of search runner registry isolation between tests",
+]

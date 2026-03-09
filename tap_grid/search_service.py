@@ -169,8 +169,28 @@ def _execute_module_search(
     validated_inputs: dict[str, Any],
     db_alias: str,
 ) -> dict[str, Any]:
-    """Resolve and invoke a module search runner (Phase 4)."""
-    raise SearchExecutionError("Module search execution is not yet implemented.")
+    """Resolve and invoke a module search runner.
+
+    Looks up the runner via search_runner_registry. Raises SearchRunnerNotFoundError
+    if the key is not registered. Raises SearchExecutionError if the runner raises
+    or returns a malformed result.
+    """
+    from tap_grid.registry import get_search_runner
+
+    runner_key: str = search.definition.get("runner_key", "")
+    if not runner_key:
+        raise SearchExecutionError("Module search definition is missing 'runner_key'.")
+
+    runner = get_search_runner(runner_key)  # raises SearchRunnerNotFoundError on miss
+
+    try:
+        result = runner(search, validated_inputs, db_alias=db_alias)
+    except Exception as exc:
+        raise SearchExecutionError(
+            f"Runner '{runner_key}' raised an exception: {exc}"
+        ) from exc
+
+    return result
 
 
 def _execute_orm_search(

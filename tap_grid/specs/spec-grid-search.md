@@ -24,7 +24,7 @@ Searches always return a graph-shaped result envelope. Even when a consumer is p
 | --- | --- | :---: | --- |
 | req-grid-search-obj | [Search Objects](#search-objects) | Implemented | Search is a first-class grid entity with reusable query metadata |
 | req-grid-search-exec | [Search Execution](#search-execution) | Implemented | Searches execute through a shared service layer only |
-| req-grid-search-module | [Module Search Mode](#module-search-mode) | Proposed | Code-backed searches resolve a registered module runner via `ScopedRegistry` |
+| req-grid-search-module | [Module Search Mode](#module-search-mode) | Implemented | Code-backed searches resolve a registered module runner via `ScopedRegistry` |
 | req-grid-search-orm | [ORM Search Mode](#orm-search-mode) | Proposed | Declarative ORM DSL with one-hop traversal and deterministic ordering |
 | req-grid-search-results | [Search Results](#search-results) | Proposed | Searches always return the canonical 4-key graph envelope (`nodes`, `edges`, `info`, `warnings`) |
 | req-grid-search-readonly.sec | [Search Read-Only Execution](#search-read-only-execution) | Implemented | Security requirement enforcing that searches cannot mutate TAP data |
@@ -202,7 +202,7 @@ Define concrete enforcement mechanisms for each execution mode, especially for f
 ### Module Search Mode
 ----
 RID: `req-grid-search-module`
-Status: `Proposed`
+Status: `Implemented`
 
 `module` search mode resolves a registered search runner and delegates execution to that runner through a TAP registry-backed abstraction.
 
@@ -293,13 +293,13 @@ Module mode is the intentionally flexible option for searches that do not fit th
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-search-module-1 | Runner Key Required | Proposed | `module` searches require `definition.runner_key`. | |
-| req-grid-search-module-2 | Runner Key Fully Qualified | Proposed | Stored `runner_key` values must use fully-qualified `scope:key` format. | |
-| req-grid-search-module-3 | Scoped Registry Resolution | Proposed | Module search runners are resolved through a `ScopedRegistry`. | |
-| req-grid-search-module-4 | Duplicate Scoped Key Fails | Proposed | Duplicate registration of the same scoped runner key is a configuration error. | |
-| req-grid-search-module-5 | Runner Receives Search And Inputs | Proposed | In v1, module runners are plain callables that receive the Search object and validated execution inputs. | |
-| req-grid-search-module-6 | Runner Returns Canonical Result Envelope | Proposed | Module runners return one of the canonical full or paginated graph result envelopes. | |
-| req-grid-search-module-7 | No Extra Definition Fields In V1 | Proposed | V1 `module` definitions support only `runner_key` and reject additional module-specific fields. | |
+| req-grid-search-module-1 | Runner Key Required | Implemented | `module` searches require `definition.runner_key`. | |
+| req-grid-search-module-2 | Runner Key Fully Qualified | Implemented | Stored `runner_key` values must use fully-qualified `scope:key` format. | |
+| req-grid-search-module-3 | Scoped Registry Resolution | Implemented | Module search runners are resolved through a `ScopedRegistry`. | |
+| req-grid-search-module-4 | Duplicate Scoped Key Fails | Implemented | Duplicate registration of the same scoped runner key is a configuration error. | |
+| req-grid-search-module-5 | Runner Receives Search And Inputs | Implemented | In v1, module runners are plain callables that receive the Search object and validated execution inputs. | |
+| req-grid-search-module-6 | Runner Returns Canonical Result Envelope | Implemented | Module runners return one of the canonical full or paginated graph result envelopes. | |
+| req-grid-search-module-7 | No Extra Definition Fields In V1 | Implemented | V1 `module` definitions support only `runner_key` and reject additional module-specific fields. | |
 
 #### Future
 Consider adding registry inspection and health checks for registered search runners.

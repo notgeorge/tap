@@ -141,12 +141,15 @@ DATABASES = {
 
 # search_readonly: same DB, PostgreSQL read-only session parameter set at connection
 # time. Prevents writes at the database level for all search execution (req-grid-search-readonly.sec).
+# TEST.MIRROR tells Django's test runner this alias shares the same physical DB as
+# "default" so it skips creating/flushing a separate test database for it.
 DATABASES["search_readonly"] = {
     **DATABASES["default"],
     "OPTIONS": {
         **DATABASES["default"].get("OPTIONS", {}),
         "options": "-c default_transaction_read_only=on",
     },
+    "TEST": {"MIRROR": "default"},
 }
 
 # =============================================================================

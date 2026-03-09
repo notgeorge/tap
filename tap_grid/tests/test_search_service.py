@@ -187,15 +187,17 @@ class TestExecuteSearchDispatch:
         with pytest.raises(SearchExecutionError, match="not yet implemented"):
             execute_search(s)
 
-    def test_module_mode_raises_not_implemented_stub(self):
-        """Module execution stub raises SearchExecutionError until Phase 4."""
+    def test_module_mode_unregistered_runner_raises(self):
+        """Module execution raises SearchRunnerNotFoundError for unknown runner_key."""
+        from tap_grid.exceptions import SearchRunnerNotFoundError
+
         s = Search.objects.create(
             search_type="module",
             root="node",
-            title="Module Stub",
-            definition={"runner_key": "scope:key"},
+            title="Module Unregistered",
+            definition={"runner_key": "no.such:runner"},
         )
-        with pytest.raises(SearchExecutionError, match="not yet implemented"):
+        with pytest.raises(SearchRunnerNotFoundError):
             execute_search(s)
 
     def test_input_validation_fires_before_dispatch(self):
