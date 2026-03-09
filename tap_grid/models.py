@@ -474,3 +474,94 @@ class Dimension(BaseModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class Search(BaseModel):
+    """Reusable query definition stored as a first-class grid entity.
+
+    A Search encapsulates everything needed to execute a repeatable TAP query:
+    execution mode, root type, query definition, parameter schema, return
+    preferences, and pagination configuration. Panels and other consumers
+    reference Search objects rather than embedding ad hoc query logic.
+
+    Two execution modes in v1:
+        - module: delegates to a registered callable via ScopedRegistry
+        - orm: compiles a declarative JSON DSL to a read-only ORM queryset
+    """
+
+    ENTITY_TYPE: ClassVar[str] = "search"
+
+    FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "title": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "minLength": 1},
+        },
+        "search_type": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "enum": ["module", "orm"]},
+        },
+        "root": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "enum": ["node", "edge"]},
+        },
+        "definition": {
+            "validation": "jsonschema",
+            "schema": {"type": "object"},
+        },
+    }
+
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    search_type = models.CharField(max_length=50)
+    root = models.CharField(max_length=50)
+    definition = models.JSONField(default=dict)
+    input_schema = models.JSONField(null=True, blank=True)
+    returns = models.JSONField(null=True, blank=True)
+    default_limit = models.IntegerField(null=True, blank=True)
+    max_limit = models.IntegerField(null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "tap_search"
+
+    def __str__(self) -> str:
+        return self.title
+
+    def validate(self) -> None:
+        """Cross-field invariants between search_type and definition."""
+        if not isinstance(self.definition, dict):
+            # FIELD_SCHEMAS already flagged the type error; skip cross-field checks.
+            return
+
+        if self.search_type == "module":
+            allowed_keys = {"runner_key"}
+            extra = set(self.definition.keys()) - allowed_keys
+            if extra:
+                raise ValidationError(
+                    {"definition": [f"Module definition only allows 'runner_key'; unexpected keys: {sorted(extra)}."]}
+                )
+            runner_key = self.definition.get("runner_key")
+            if not isinstance(runner_key, str) or not runner_key:
+                raise ValidationError(
+                    {"definition": ["Module definition requires 'runner_key' as a non-empty string."]}
+                )
+
+        elif self.search_type == "orm":
+            filters = self.definition.get("filters")
+            if not isinstance(filters, dict):
+                raise ValidationError({"definition": ["ORM definition requires 'filters' as a dict."]})
+            hops = self.definition.get("hops")
+            if hops is not None:
+                if not isinstance(hops, list):
+                    raise ValidationError({"definition": ["ORM 'hops' must be a list."]})
+                if len(hops) > 1:
+                    raise ValidationError({"definition": ["ORM definition supports at most one hop."]})
+                for hop in hops:
+                    if not isinstance(hop, dict):
+                        raise ValidationError({"definition": ["Each hop must be a dict."]})
+                    if hop.get("direction") not in ("in", "out"):
+                        raise ValidationError({"definition": ["Hop 'direction' must be 'in' or 'out'."]})
+                    if not isinstance(hop.get("edge_type"), str) or not hop.get("edge_type"):
+                        raise ValidationError({"definition": ["Hop 'edge_type' must be a non-empty string."]})
+            order_by = self.definition.get("order_by")
+            if order_by is not None and not isinstance(order_by, list):
+                raise ValidationError({"definition": ["ORM 'order_by' must be a list."]})
