@@ -33,6 +33,7 @@ from typing import Any
 import jsonschema
 
 from tap_grid.exceptions import EdgePropertyValidationError, InvalidEdgeError
+from tap_grid.registry import Registry
 
 # Sentinel for wildcard (connects to any node type)
 WILDCARD = object()
@@ -69,23 +70,47 @@ class EdgeTypeConstraints:
     targets: set[str] | object | None = None
 
 
-# Node constraint registry: entity_type -> NodeConstraints
-_NODE_REGISTRY: dict[str, NodeConstraints] = {}
-
-# Edge type constraint registry: edge_type -> EdgeTypeConstraints
-_EDGE_TYPE_REGISTRY: dict[str, EdgeTypeConstraints] = {}
-
-# Edge property schema registry: edge_type -> JSON Schema dict
-# One schema per edge type. Duplicate registration is a configuration error.
-_EDGE_PROPERTY_SCHEMA_REGISTRY: dict[str, dict[str, Any]] = {}
-
-# Edge default dimensions registry: edge_type -> dimensions dict
-# Declared via default_dimensions in TapPluginConfig.edge_types entries.
-_EDGE_DEFAULT_DIMENSIONS_REGISTRY: dict[str, dict[str, str]] = {}
-
 # Backwards compatibility alias
 EdgeConstraints = NodeConstraints
-_REGISTRY = _NODE_REGISTRY
+
+
+def _merge_edge_type_constraints(
+    existing: EdgeTypeConstraints,
+    new: EdgeTypeConstraints,
+) -> EdgeTypeConstraints:
+    """Merge two EdgeTypeConstraints. Used by _edge_type_registry as merge_fn.
+
+    Called when multiple plugins register constraints for the same edge type slug.
+    Wildcard takes precedence over any set; sets are unioned.
+    """
+    return EdgeTypeConstraints(
+        sources=_merge_constraint_sets(existing.sources, new.sources),
+        targets=_merge_constraint_sets(existing.targets, new.targets),
+    )
+
+
+# Node constraint registry: entity_type -> NodeConstraints
+_node_registry: Registry[NodeConstraints] = Registry("node_constraints")
+
+# Edge type constraint registry: edge_type -> EdgeTypeConstraints
+# merge_fn allows multiple plugins to cooperatively extend the same edge type.
+_edge_type_registry: Registry[EdgeTypeConstraints] = Registry(
+    "edge_constraints",
+    merge_fn=_merge_edge_type_constraints,
+)
+
+# Edge property schema registry: edge_type -> JSON Schema dict
+_edge_property_schema_registry: Registry[dict[str, Any]] = Registry("edge_property_schemas")
+
+# Edge default dimensions registry: edge_type -> dimensions dict
+_edge_default_dimensions_registry: Registry[dict[str, str]] = Registry("edge_default_dimensions")
+
+# Backward compatibility aliases (legacy names still importable)
+_NODE_REGISTRY = _node_registry
+_EDGE_TYPE_REGISTRY = _edge_type_registry
+_EDGE_PROPERTY_SCHEMA_REGISTRY = _edge_property_schema_registry
+_EDGE_DEFAULT_DIMENSIONS_REGISTRY = _edge_default_dimensions_registry
+_REGISTRY = _node_registry
 
 
 def _parse_constraint_list(constraint_list: ConstraintList) -> ParsedConstraints:
@@ -129,9 +154,12 @@ def register_constraints(
     Called automatically by BaseModel.__init_subclass__ when a domain model
     defines OUTBOUND_EDGES or INBOUND_EDGES.
     """
-    _NODE_REGISTRY[entity_type] = NodeConstraints(
-        outbound=_parse_constraint_list(outbound) if outbound is not None else None,
-        inbound=_parse_constraint_list(inbound) if inbound is not None else None,
+    _node_registry.register(
+        entity_type,
+        NodeConstraints(
+            outbound=_parse_constraint_list(outbound) if outbound is not None else None,
+            inbound=_parse_constraint_list(inbound) if inbound is not None else None,
+        ),
     )
 
 
@@ -144,6 +172,9 @@ def register_edge_type_constraints(
 
     Called by TapPluginConfig._register_types() when a plugin defines
     sources/targets in its edge_types.
+
+    Multiple plugins may register constraints for the same edge type — the
+    registry's merge_fn unions the sources/targets sets automatically.
 
     Args:
         edge_type: The edge type slug (e.g., "MENTORS")
@@ -166,15 +197,10 @@ def register_edge_type_constraints(
     else:
         parsed_targets = {t["type"] for t in targets}
 
-    # Merge if already registered (multiple plugins may define same edge type)
-    if edge_type in _EDGE_TYPE_REGISTRY:
-        existing = _EDGE_TYPE_REGISTRY[edge_type]
-        parsed_sources = _merge_constraint_sets(existing.sources, parsed_sources)
-        parsed_targets = _merge_constraint_sets(existing.targets, parsed_targets)
-
-    _EDGE_TYPE_REGISTRY[edge_type] = EdgeTypeConstraints(
-        sources=parsed_sources,
-        targets=parsed_targets,
+    # Registry handles merging via merge_fn when edge_type is already registered.
+    _edge_type_registry.register(
+        edge_type,
+        EdgeTypeConstraints(sources=parsed_sources, targets=parsed_targets),
     )
 
 
@@ -196,12 +222,12 @@ def _merge_constraint_sets(
 
 def get_constraints(entity_type: str) -> NodeConstraints | None:
     """Get node constraints for an entity type, if registered."""
-    return _NODE_REGISTRY.get(entity_type)
+    return _node_registry.get_optional(entity_type)
 
 
 def get_edge_type_constraints(edge_type: str) -> EdgeTypeConstraints | None:
     """Get constraints for an edge type, if registered."""
-    return _EDGE_TYPE_REGISTRY.get(edge_type)
+    return _edge_type_registry.get_optional(edge_type)
 
 
 def register_edge_property_schema(edge_type: str, schema: dict[str, Any]) -> None:
@@ -210,7 +236,7 @@ def register_edge_property_schema(edge_type: str, schema: dict[str, Any]) -> Non
     Called by TapPluginConfig._register_edge_constraints() when a plugin defines
     property_schema on an edge_types entry.
 
-    Raises ValueError if a schema is already registered for this edge_type.
+    Raises ImproperlyConfigured if a schema is already registered for this edge_type.
     No merge behavior: property schemas must be unique per edge type to prevent
     silent drift between plugins that share an edge type slug.
 
@@ -218,17 +244,12 @@ def register_edge_property_schema(edge_type: str, schema: dict[str, Any]) -> Non
         edge_type: The edge type slug (e.g., "USES_PANEL").
         schema: A JSON Schema dict used to validate Edge.properties.
     """
-    if edge_type in _EDGE_PROPERTY_SCHEMA_REGISTRY:
-        raise ValueError(
-            f"A property_schema is already registered for edge type '{edge_type}'. "
-            "Each edge type may have at most one property schema."
-        )
-    _EDGE_PROPERTY_SCHEMA_REGISTRY[edge_type] = schema
+    _edge_property_schema_registry.register(edge_type, schema)
 
 
 def get_edge_property_schema(edge_type: str) -> dict[str, Any] | None:
     """Return the registered JSON Schema for an edge type, or None if not defined."""
-    return _EDGE_PROPERTY_SCHEMA_REGISTRY.get(edge_type)
+    return _edge_property_schema_registry.get_optional(edge_type)
 
 
 def register_edge_default_dimensions(edge_type: str, dimensions: dict[str, str]) -> None:
@@ -237,24 +258,20 @@ def register_edge_default_dimensions(edge_type: str, dimensions: dict[str, str])
     Called by TapPluginConfig._register_edge_constraints() when a plugin declares
     default_dimensions on an edge_types entry.
 
-    Raises ValueError if dimensions are already registered for this edge_type.
+    Raises ImproperlyConfigured if dimensions are already registered for this edge_type.
     No merge behavior: default dimension declarations must be unique per edge type.
 
     Args:
         edge_type: The edge type slug (e.g., "USES_PANEL").
         dimensions: A dict of dimension key/value pairs to apply to the edge's backing Entity.
     """
-    if edge_type in _EDGE_DEFAULT_DIMENSIONS_REGISTRY:
-        raise ValueError(
-            f"Default dimensions are already registered for edge type '{edge_type}'. "
-            "Each edge type may have at most one default_dimensions declaration."
-        )
-    _EDGE_DEFAULT_DIMENSIONS_REGISTRY[edge_type] = dict(dimensions)
+    _edge_default_dimensions_registry.register(edge_type, dict(dimensions))
 
 
 def get_edge_default_dimensions(edge_type: str) -> dict[str, str]:
     """Return the registered default dimensions for an edge type, or {} if not defined."""
-    return dict(_EDGE_DEFAULT_DIMENSIONS_REGISTRY.get(edge_type, {}))
+    result = _edge_default_dimensions_registry.get_optional(edge_type)
+    return dict(result) if result is not None else {}
 
 
 def validate_edge_properties(edge_type: str, properties: Any) -> None:
@@ -269,7 +286,7 @@ def validate_edge_properties(edge_type: str, properties: Any) -> None:
         edge_type: The edge type slug.
         properties: The Edge.properties value to validate.
     """
-    schema = _EDGE_PROPERTY_SCHEMA_REGISTRY.get(edge_type)
+    schema = _edge_property_schema_registry.get_optional(edge_type)
     if schema is None:
         return
     try:
@@ -282,17 +299,17 @@ def validate_edge_properties(edge_type: str, properties: Any) -> None:
 
 def _is_explicitly_blocked_outbound(node_type: str) -> bool:
     """Check if node has OUTBOUND_EDGES = [] (explicit block all)."""
-    if node_type not in _NODE_REGISTRY:
+    constraints = _node_registry.get_optional(node_type)
+    if constraints is None:
         return False
-    constraints = _NODE_REGISTRY[node_type]
     return constraints.outbound is not None and constraints.outbound == {}
 
 
 def _is_explicitly_blocked_inbound(node_type: str) -> bool:
     """Check if node has INBOUND_EDGES = [] (explicit block all)."""
-    if node_type not in _NODE_REGISTRY:
+    constraints = _node_registry.get_optional(node_type)
+    if constraints is None:
         return False
-    constraints = _NODE_REGISTRY[node_type]
     return constraints.inbound is not None and constraints.inbound == {}
 
 
@@ -304,10 +321,10 @@ def _node_allows_outbound(from_type: str, to_type: str, edge_type: str) -> bool:
     - Node's constraints allow this edge_type to this to_type
     - Node's constraints have wildcard for this edge_type
     """
-    if from_type not in _NODE_REGISTRY:
+    constraints = _node_registry.get_optional(from_type)
+    if constraints is None:
         return True  # Unconstrained node allows everything
 
-    constraints = _NODE_REGISTRY[from_type]
     if constraints.outbound is None:
         return True  # No outbound constraints = allow all
 
@@ -327,10 +344,10 @@ def _node_allows_outbound(from_type: str, to_type: str, edge_type: str) -> bool:
 
 def _node_allows_inbound(to_type: str, from_type: str, edge_type: str) -> bool:
     """Check if node's INBOUND_EDGES allows this edge."""
-    if to_type not in _NODE_REGISTRY:
+    constraints = _node_registry.get_optional(to_type)
+    if constraints is None:
         return True  # Unconstrained node allows everything
 
-    constraints = _NODE_REGISTRY[to_type]
     if constraints.inbound is None:
         return True
 
@@ -350,10 +367,10 @@ def _node_allows_inbound(to_type: str, from_type: str, edge_type: str) -> bool:
 
 def _edge_allows_source(from_type: str, edge_type: str) -> bool:
     """Check if edge type constraint allows this source node type."""
-    if edge_type not in _EDGE_TYPE_REGISTRY:
+    constraints = _edge_type_registry.get_optional(edge_type)
+    if constraints is None:
         return False  # No edge constraint = no additional permission
 
-    constraints = _EDGE_TYPE_REGISTRY[edge_type]
     if constraints.sources is None:
         return False  # None = not defined, no permission granted
 
@@ -366,10 +383,10 @@ def _edge_allows_source(from_type: str, edge_type: str) -> bool:
 
 def _edge_allows_target(to_type: str, edge_type: str) -> bool:
     """Check if edge type constraint allows this target node type."""
-    if edge_type not in _EDGE_TYPE_REGISTRY:
+    constraints = _edge_type_registry.get_optional(edge_type)
+    if constraints is None:
         return False
 
-    constraints = _EDGE_TYPE_REGISTRY[edge_type]
     if constraints.targets is None:
         return False
 
@@ -400,16 +417,18 @@ def validate_edge(from_type: str, to_type: str, edge_type: str) -> None:
 
     if not (source_allowed_by_node or source_allowed_by_edge):
         # Build helpful error message
-        if from_type in _NODE_REGISTRY:
-            constraints = _NODE_REGISTRY[from_type]
+        constraints = _node_registry.get_optional(from_type)
+        if constraints is not None:
             if constraints.outbound and edge_type in constraints.outbound:
                 allowed_targets = constraints.outbound[edge_type]
                 raise InvalidEdgeError(
-                    f"{from_type} cannot create '{edge_type}' edge to {to_type}. " f"Allowed targets: {allowed_targets}"
+                    f"{from_type} cannot create '{edge_type}' edge to {to_type}. "
+                    f"Allowed targets: {allowed_targets}"
                 )
             elif constraints.outbound:
                 raise InvalidEdgeError(
-                    f"{from_type} cannot create '{edge_type}' edges. " f"Allowed: {set(constraints.outbound.keys())}"
+                    f"{from_type} cannot create '{edge_type}' edges. "
+                    f"Allowed: {set(constraints.outbound.keys())}"
                 )
         raise InvalidEdgeError(f"{from_type} cannot create '{edge_type}' edge to {to_type}")
 
@@ -419,8 +438,8 @@ def validate_edge(from_type: str, to_type: str, edge_type: str) -> None:
 
     if not (target_allowed_by_node or target_allowed_by_edge):
         # Build helpful error message
-        if to_type in _NODE_REGISTRY:
-            constraints = _NODE_REGISTRY[to_type]
+        constraints = _node_registry.get_optional(to_type)
+        if constraints is not None:
             if constraints.inbound and edge_type in constraints.inbound:
                 allowed_sources = constraints.inbound[edge_type]
                 raise InvalidEdgeError(
@@ -429,6 +448,7 @@ def validate_edge(from_type: str, to_type: str, edge_type: str) -> None:
                 )
             elif constraints.inbound:
                 raise InvalidEdgeError(
-                    f"{to_type} cannot receive '{edge_type}' edges. " f"Allowed: {set(constraints.inbound.keys())}"
+                    f"{to_type} cannot receive '{edge_type}' edges. "
+                    f"Allowed: {set(constraints.inbound.keys())}"
                 )
         raise InvalidEdgeError(f"{to_type} cannot receive '{edge_type}' edge from {from_type}")

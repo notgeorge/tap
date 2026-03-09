@@ -1,10 +1,14 @@
 """Tests for edge constraint validation."""
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 
 from tap_grid.constraints import (
     WILDCARD,
     _EDGE_PROPERTY_SCHEMA_REGISTRY,
+    _edge_property_schema_registry,
+    _edge_type_registry,
+    _node_registry,
     _parse_constraint_list,
     get_constraints,
     get_edge_property_schema,
@@ -115,7 +119,8 @@ class TestValidateEdge:
 
     @pytest.fixture(autouse=True)
     def setup_constraints(self) -> None:
-        """Register test constraints."""
+        """Register test constraints, restoring registry state after each test."""
+        saved = _node_registry.all()
         # source_node: can only create VALID_EDGE to target_node
         register_constraints(
             "source_node",
@@ -140,6 +145,8 @@ class TestValidateEdge:
             outbound=[{"edges": [{"type": "WILD_EDGE"}]}],
             inbound=None,
         )
+        yield
+        _node_registry._reset_for_testing(saved)
 
     def test_valid_edge_passes(self) -> None:
         # Should not raise
@@ -263,7 +270,9 @@ class TestValidateEdgeWithEdgeConstraints:
 
     @pytest.fixture(autouse=True)
     def setup_constraints(self) -> None:
-        """Register node and edge constraints for testing."""
+        """Register node and edge constraints for testing, restoring state after each test."""
+        saved_nodes = _node_registry.all()
+        saved_edges = _edge_type_registry.all()
         # Node with specific outbound/inbound constraints
         register_constraints(
             "constrained_node",
@@ -302,6 +311,9 @@ class TestValidateEdgeWithEdgeConstraints:
             sources=[{"type": "specific_source"}],
             targets=None,  # Any target
         )
+        yield
+        _node_registry._reset_for_testing(saved_nodes)
+        _edge_type_registry._reset_for_testing(saved_edges)
 
     def test_node_constraint_alone_allows(self) -> None:
         """Node constraint allows edge, no edge constraint needed."""
@@ -365,11 +377,10 @@ class TestEdgePropertySchemaRegistry:
     @pytest.fixture(autouse=True)
     def isolate_registry(self) -> None:
         """Snapshot and restore the property schema registry around each test."""
-        saved = dict(_EDGE_PROPERTY_SCHEMA_REGISTRY)
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        saved = _edge_property_schema_registry.all()
+        _edge_property_schema_registry._reset_for_testing()
         yield
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.update(saved)
+        _edge_property_schema_registry._reset_for_testing(saved)
 
     def test_register_and_retrieve(self) -> None:
         """Registered schema is returned by get_edge_property_schema (properties-2)."""
@@ -382,10 +393,10 @@ class TestEdgePropertySchemaRegistry:
         assert get_edge_property_schema("UNKNOWN_TYPE") is None
 
     def test_duplicate_registration_raises(self) -> None:
-        """Registering a second schema for the same edge type raises ValueError (properties-3)."""
+        """Registering a second schema for the same edge type raises ImproperlyConfigured (properties-3)."""
         schema = {"type": "object"}
         register_edge_property_schema("DOUBLE_REG", schema)
-        with pytest.raises(ValueError, match="already registered"):
+        with pytest.raises(ImproperlyConfigured, match="already registered"):
             register_edge_property_schema("DOUBLE_REG", {"type": "string"})
 
     def test_different_slugs_are_independent(self) -> None:
@@ -404,11 +415,10 @@ class TestValidateEdgeProperties:
     @pytest.fixture(autouse=True)
     def isolate_registry(self) -> None:
         """Snapshot and restore the property schema registry around each test."""
-        saved = dict(_EDGE_PROPERTY_SCHEMA_REGISTRY)
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        saved = _edge_property_schema_registry.all()
+        _edge_property_schema_registry._reset_for_testing()
         yield
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.update(saved)
+        _edge_property_schema_registry._reset_for_testing(saved)
 
     def test_valid_properties_pass(self) -> None:
         """Properties matching the schema do not raise (properties-4)."""

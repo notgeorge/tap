@@ -2,7 +2,7 @@
 
 import pytest
 
-from tap_grid.constraints import _EDGE_PROPERTY_SCHEMA_REGISTRY, register_edge_property_schema
+from tap_grid.constraints import _EDGE_PROPERTY_SCHEMA_REGISTRY, _edge_property_schema_registry, register_edge_property_schema
 from tap_grid.exceptions import EdgePropertyValidationError, InvalidEdgeError
 from tap_grid.models import Edge, Entity
 from tap_grid.services import create_edge, create_entity, delete_edge, delete_entity, update_edge_properties, update_entity
@@ -156,11 +156,10 @@ class TestUpdateEdgeProperties:
 
     @pytest.fixture(autouse=True)
     def isolate_registry(self) -> None:
-        saved = dict(_EDGE_PROPERTY_SCHEMA_REGISTRY)
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        saved = _edge_property_schema_registry.all()
+        _edge_property_schema_registry._reset_for_testing()
         yield
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.update(saved)
+        _edge_property_schema_registry._reset_for_testing(saved)
 
     def test_updates_properties_and_persists(self):
         """update_edge_properties() saves the new payload to the database (properties-5)."""

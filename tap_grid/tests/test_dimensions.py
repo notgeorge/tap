@@ -8,7 +8,8 @@ Covers:
 
 import pytest
 
-from tap_grid.constraints import _EDGE_DEFAULT_DIMENSIONS_REGISTRY, register_edge_default_dimensions
+from tap_grid.constraints import _EDGE_DEFAULT_DIMENSIONS_REGISTRY, _edge_default_dimensions_registry, register_edge_default_dimensions
+from django.core.exceptions import ImproperlyConfigured
 from tap_grid.models import Dimension, Edge, Entity
 from tap_grid.services import create_entity
 from tap_plugins.core_examples.models import Concept, Precept
@@ -99,11 +100,10 @@ class TestEdgeDefaultDimensions:
 
     @pytest.fixture(autouse=True)
     def isolate_registry(self) -> None:
-        saved = dict(_EDGE_DEFAULT_DIMENSIONS_REGISTRY)
-        _EDGE_DEFAULT_DIMENSIONS_REGISTRY.clear()
+        saved = _edge_default_dimensions_registry.all()
+        _edge_default_dimensions_registry._reset_for_testing()
         yield
-        _EDGE_DEFAULT_DIMENSIONS_REGISTRY.clear()
-        _EDGE_DEFAULT_DIMENSIONS_REGISTRY.update(saved)
+        _edge_default_dimensions_registry._reset_for_testing(saved)
 
     def test_edge_with_registered_defaults_gets_them(self):
         """Edge backing Entity gets dimensions from the edge type's registered defaults (dc-4)."""
@@ -152,9 +152,9 @@ class TestEdgeDefaultDimensions:
         assert edge.entity.dimensions == {"tap.graph": "web", "env": "staging"}
 
     def test_duplicate_registration_raises(self):
-        """Registering default_dimensions twice for the same edge type raises ValueError."""
+        """Registering default_dimensions twice for the same edge type raises ImproperlyConfigured."""
         register_edge_default_dimensions("DUP_EDGE", {"tap.graph": "web"})
-        with pytest.raises(ValueError, match="already registered"):
+        with pytest.raises(ImproperlyConfigured, match="already registered"):
             register_edge_default_dimensions("DUP_EDGE", {"tap.graph": "other"})
 
 

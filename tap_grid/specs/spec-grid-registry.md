@@ -30,10 +30,10 @@ Both shapes share the same fail-fast duplicate guard, descriptive miss errors, a
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-grid-registry | [Registry Class](#registry-class) | Proposed | Generic runtime key → value registry with named instance, duplicate guard, and descriptive miss |
-| req-grid-registry-scope | [Scoped Registry](#scoped-registry) | Proposed | `ScopedRegistry[T]` auto-infers key namespace from value's module; supports unambiguous short-key lookup |
-| req-grid-registry-meta | [Meta-Registry](#meta-registry) | Proposed | Module-level `meta_registry` enumerates all named `Registry` instances |
-| req-grid-registry-entity | [Entity Model Registry Migration](#entity-model-registry-migration) | Proposed | Refactor `tap_grid/registry.py` to back the existing entity model registry with a `Registry` instance |
+| req-grid-registry | [Registry Class](#registry-class) | Implemented | Generic runtime key → value registry with named instance, duplicate guard, and descriptive miss |
+| req-grid-registry-scope | [Scoped Registry](#scoped-registry) | Implemented | `ScopedRegistry[T]` auto-infers key namespace from value's module; supports unambiguous short-key lookup |
+| req-grid-registry-meta | [Meta-Registry](#meta-registry) | Implemented | Module-level `meta_registry` enumerates all named `Registry` instances |
+| req-grid-registry-entity | [Entity Model Registry Migration](#entity-model-registry-migration) | Implemented | Refactor `tap_grid/registry.py` to back the existing entity model registry with a `Registry` instance |
 
 
 ---
@@ -42,7 +42,7 @@ Both shapes share the same fail-fast duplicate guard, descriptive miss errors, a
 ### Registry Class
 ----
 RID: `req-grid-registry`
-Status: `Proposed`
+Status: `Implemented`
 
 A `Registry[T]` class that provides a named, typed, fail-fast runtime key → value mapping with a globally-unique key space.
 
@@ -105,17 +105,17 @@ On `__init__`, the registry registers itself with `meta_registry` (see `req-grid
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-registry-1 | Generic Type Parameter | Proposed | `Registry[T]` is a generic class; instantiation with a type argument (`Registry[type[Foo]]`) provides full mypy and IDE support. | |
-| req-grid-registry-2 | Named Instance | Proposed | Each `Registry` is constructed with a `name: str` used in error messages. | |
-| req-grid-registry-3 | register — Raises on Duplicate (no merge_fn) | Proposed | When `merge_fn` is not set, calling `register(key, value)` for an already-registered key raises `ImproperlyConfigured`. The error message includes the registry name and the duplicate key. | |
-| req-grid-registry-3b | register — Merges on Duplicate (merge_fn set) | Proposed | When `merge_fn` is set, calling `register(key, value)` for an already-registered key calls `merge_fn(existing, new)` and stores the return value. No error is raised. | |
-| req-grid-registry-4 | get — Returns Value | Proposed | `get(key)` returns the registered value for an existing key. | |
-| req-grid-registry-5 | get — Descriptive Miss | Proposed | `get(key)` raises `KeyError` for an unknown key; the message includes the registry name, the missing key, and a sorted list of all registered keys. | |
-| req-grid-registry-6 | keys() | Proposed | `keys()` returns a sorted list of all registered key strings. | |
-| req-grid-registry-7 | all() | Proposed | `all()` returns a shallow copy of the internal `dict[str, T]`. | |
-| req-grid-registry-8 | __contains__ | Proposed | `key in registry` returns `True` if the key is registered, `False` otherwise. | |
-| req-grid-registry-9 | No ORM Dependency | Proposed | `Registry` imports no Django models. It may import `django.core.exceptions.ImproperlyConfigured`. | |
-| req-grid-registry-10 | Auto-registers with Meta-registry | Proposed | `Registry.__init__` registers itself with `meta_registry` by name. Raises `ImproperlyConfigured` if the name is already taken. | |
+| req-grid-registry-1 | Generic Type Parameter | Implemented | `Registry[T]` is a generic class; instantiation with a type argument (`Registry[type[Foo]]`) provides full mypy and IDE support. | |
+| req-grid-registry-2 | Named Instance | Implemented | Each `Registry` is constructed with a `name: str` used in error messages. | |
+| req-grid-registry-3 | register — Raises on Duplicate (no merge_fn) | Implemented | When `merge_fn` is not set, calling `register(key, value)` for an already-registered key raises `ImproperlyConfigured`. The error message includes the registry name and the duplicate key. | |
+| req-grid-registry-3b | register — Merges on Duplicate (merge_fn set) | Implemented | When `merge_fn` is set, calling `register(key, value)` for an already-registered key calls `merge_fn(existing, new)` and stores the return value. No error is raised. | |
+| req-grid-registry-4 | get — Returns Value | Implemented | `get(key)` returns the registered value for an existing key. | |
+| req-grid-registry-5 | get — Descriptive Miss | Implemented | `get(key)` raises `KeyError` for an unknown key; the message includes the registry name, the missing key, and a sorted list of all registered keys. | |
+| req-grid-registry-6 | keys() | Implemented | `keys()` returns a sorted list of all registered key strings. | |
+| req-grid-registry-7 | all() | Implemented | `all()` returns a shallow copy of the internal `dict[str, T]`. | |
+| req-grid-registry-8 | __contains__ | Implemented | `key in registry` returns `True` if the key is registered, `False` otherwise. | |
+| req-grid-registry-9 | No ORM Dependency | Implemented | `Registry` imports no Django models. It may import `django.core.exceptions.ImproperlyConfigured`. | |
+| req-grid-registry-10 | Auto-registers with Meta-registry | Implemented | `Registry.__init__` registers itself with `meta_registry` by name. Raises `ImproperlyConfigured` if the name is already taken. | |
 
 #### Future
 
@@ -130,7 +130,7 @@ Consider adding a Django system check that warns when a registry is empty at sta
 ### Scoped Registry
 ----
 RID: `req-grid-registry-scope`
-Status: `Proposed`
+Status: `Implemented`
 
 `ScopedRegistry[T]` extends `Registry[T]` with a two-level key space: `scope → key → value`. It prevents cross-plugin key collisions without requiring plugin authors to manually namespace their registration keys.
 
@@ -189,16 +189,16 @@ Duplicate is defined at the `(scope, key)` level. `ScopedRegistry` inherits the 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-registry-scope-1 | Scope Inferred from __module__ | Proposed | `register(key, value)` sets scope = `value.__module__`. No stack inspection is performed. | |
-| req-grid-registry-scope-2 | Explicit Scope Override | Proposed | `register(key, value, scope="explicit.scope")` uses the provided scope string instead of inference. | |
-| req-grid-registry-scope-3 | Duplicate at (scope, key) | Proposed | Re-registering the same `(scope, key)` pair raises `ImproperlyConfigured` with the fully-qualified key in the message. | |
-| req-grid-registry-scope-4 | Cross-scope Coexistence | Proposed | Two values with the same short key but different scopes coexist without error. | |
-| req-grid-registry-scope-5 | get — Fully-qualified Key | Proposed | `get("scope:key")` returns the value for that exact scoped entry, or raises `KeyError` if not found. | |
-| req-grid-registry-scope-6 | get — Scope Kwarg | Proposed | `get(key, scope="scope.string")` is equivalent to `get("scope.string:key")`. | |
-| req-grid-registry-scope-7 | get — Unambiguous Short Key | Proposed | `get(key)` (no scope) returns the single value when exactly one scope has that key. | |
-| req-grid-registry-scope-8 | get — Ambiguous Short Key Raises | Proposed | `get(key)` raises `KeyError` when multiple scopes have that key; the message lists all matching fully-qualified keys. | |
-| req-grid-registry-scope-9 | get_all | Proposed | `get_all(key)` returns a `dict[scope, value]` of all matches across all scopes for the given short key. Returns an empty dict if none. | |
-| req-grid-registry-scope-10 | scopes() | Proposed | `scopes()` returns a sorted list of all scope strings that have at least one registered key. | |
+| req-grid-registry-scope-1 | Scope Inferred from __module__ | Implemented | `register(key, value)` sets scope = `value.__module__`. No stack inspection is performed. | |
+| req-grid-registry-scope-2 | Explicit Scope Override | Implemented | `register(key, value, scope="explicit.scope")` uses the provided scope string instead of inference. | |
+| req-grid-registry-scope-3 | Duplicate at (scope, key) | Implemented | Re-registering the same `(scope, key)` pair raises `ImproperlyConfigured` with the fully-qualified key in the message. | |
+| req-grid-registry-scope-4 | Cross-scope Coexistence | Implemented | Two values with the same short key but different scopes coexist without error. | |
+| req-grid-registry-scope-5 | get — Fully-qualified Key | Implemented | `get("scope:key")` returns the value for that exact scoped entry, or raises `KeyError` if not found. | |
+| req-grid-registry-scope-6 | get — Scope Kwarg | Implemented | `get(key, scope="scope.string")` is equivalent to `get("scope.string:key")`. | |
+| req-grid-registry-scope-7 | get — Unambiguous Short Key | Implemented | `get(key)` (no scope) returns the single value when exactly one scope has that key. | |
+| req-grid-registry-scope-8 | get — Ambiguous Short Key Raises | Implemented | `get(key)` raises `KeyError` when multiple scopes have that key; the message lists all matching fully-qualified keys. | |
+| req-grid-registry-scope-9 | get_all | Implemented | `get_all(key)` returns a `dict[scope, value]` of all matches across all scopes for the given short key. Returns an empty dict if none. | |
+| req-grid-registry-scope-10 | scopes() | Implemented | `scopes()` returns a sorted list of all scope strings that have at least one registered key. | |
 
 
 ---
@@ -207,7 +207,7 @@ Duplicate is defined at the `(scope, key)` level. `ScopedRegistry` inherits the 
 ### Meta-Registry
 ----
 RID: `req-grid-registry-meta`
-Status: `Proposed`
+Status: `Implemented`
 
 `tap_grid/registry.py` exports a module-level `meta_registry` — a plain `Registry[Registry]` instance whose keys are registry names and values are the `Registry` instances themselves.
 
@@ -239,11 +239,11 @@ meta_registry.get("panel").all()
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-registry-meta-1 | Module-level Singleton | Proposed | `meta_registry` is a module-level instance in `tap_grid/registry.py`, instantiated before any other registry. | |
-| req-grid-registry-meta-2 | Auto-registration on Construction | Proposed | `Registry.__init__` calls `meta_registry.register(self.name, self)` so every new registry appears in the meta-registry automatically. | |
-| req-grid-registry-meta-3 | Duplicate Name Raises | Proposed | Creating two `Registry` instances with the same name raises `ImproperlyConfigured` (enforced by the meta-registry's own duplicate guard). | |
-| req-grid-registry-meta-4 | meta_registry Not Self-registered | Proposed | `meta_registry` does not appear as an entry in itself. | |
-| req-grid-registry-meta-5 | Enumeration | Proposed | `meta_registry.all()` returns a dict of all registered registries keyed by name. The result includes both `Registry` and `ScopedRegistry` instances. | |
+| req-grid-registry-meta-1 | Module-level Singleton | Implemented | `meta_registry` is a module-level instance in `tap_grid/registry.py`, instantiated before any other registry. | |
+| req-grid-registry-meta-2 | Auto-registration on Construction | Implemented | `Registry.__init__` calls `meta_registry.register(self.name, self)` so every new registry appears in the meta-registry automatically. | |
+| req-grid-registry-meta-3 | Duplicate Name Raises | Implemented | Creating two `Registry` instances with the same name raises `ImproperlyConfigured` (enforced by the meta-registry's own duplicate guard). | |
+| req-grid-registry-meta-4 | meta_registry Not Self-registered | Implemented | `meta_registry` does not appear as an entry in itself. | |
+| req-grid-registry-meta-5 | Enumeration | Implemented | `meta_registry.all()` returns a dict of all registered registries keyed by name. The result includes both `Registry` and `ScopedRegistry` instances. | |
 
 
 ---
@@ -252,7 +252,7 @@ meta_registry.get("panel").all()
 ### Entity Model Registry Migration
 ----
 RID: `req-grid-registry-entity`
-Status: `Proposed`
+Status: `Implemented`
 
 The existing entity model registry in `tap_grid/registry.py` was written before the generic `Registry` class existed. It implements the same duplicate-guard and descriptive-miss pattern but as a standalone module-level dict with free functions. This requirement covers refactoring it to use a `Registry` instance.
 
@@ -264,10 +264,10 @@ The public API (`register_entity_type`, `get_model_class`, `resolve_entity`) mus
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-registry-entity-1 | Backed by Registry Instance | Proposed | `_ENTITY_MODEL_REGISTRY` in `tap_grid/registry.py` is replaced by a `Registry[type[BaseModel]]` instance. | |
-| req-grid-registry-entity-2 | Public API Unchanged | Proposed | `register_entity_type()`, `get_model_class()`, and `resolve_entity()` signatures and behavior are identical to before. | |
-| req-grid-registry-entity-3 | No Broken Tests | Proposed | All existing `tap_grid` tests pass without modification after the refactor. | |
-| req-grid-registry-entity-4 | Visible in Meta-registry | Proposed | After migration, `meta_registry.get("entity_model")` returns the entity model registry instance. | |
+| req-grid-registry-entity-1 | Backed by Registry Instance | Implemented | `_ENTITY_MODEL_REGISTRY` in `tap_grid/registry.py` is replaced by a `Registry[type[BaseModel]]` instance. | |
+| req-grid-registry-entity-2 | Public API Unchanged | Implemented | `register_entity_type()`, `get_model_class()`, and `resolve_entity()` signatures and behavior are identical to before. | |
+| req-grid-registry-entity-3 | No Broken Tests | Implemented | All existing `tap_grid` tests pass without modification after the refactor. | |
+| req-grid-registry-entity-4 | Visible in Meta-registry | Implemented | After migration, `meta_registry.get("entity_model")` returns the entity model registry instance. | |
 
 
 ---

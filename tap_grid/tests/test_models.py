@@ -4,7 +4,7 @@ import pytest
 from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured
 
-from tap_grid.constraints import _EDGE_PROPERTY_SCHEMA_REGISTRY, register_edge_property_schema
+from tap_grid.constraints import _EDGE_PROPERTY_SCHEMA_REGISTRY, _edge_property_schema_registry, register_edge_property_schema
 from tap_grid.exceptions import EdgePropertyValidationError
 from tap_grid.models import Edge, Entity, EntityType
 from tap_grid.registry import _ENTITY_MODEL_REGISTRY, get_model_class, register_entity_type, resolve_entity
@@ -243,11 +243,10 @@ class TestEdgePropertyValidation:
 
     @pytest.fixture(autouse=True)
     def isolate_registry(self) -> None:
-        saved = dict(_EDGE_PROPERTY_SCHEMA_REGISTRY)
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
+        saved = _edge_property_schema_registry.all()
+        _edge_property_schema_registry._reset_for_testing()
         yield
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.clear()
-        _EDGE_PROPERTY_SCHEMA_REGISTRY.update(saved)
+        _edge_property_schema_registry._reset_for_testing(saved)
 
     def test_valid_properties_on_create_pass(self):
         """Edge creation succeeds when properties match the registered schema (properties-4)."""
