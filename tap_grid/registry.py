@@ -284,3 +284,40 @@ def resolve_entity(entity_id: UUID) -> "BaseModel":
 
     entity: Entity = Entity.objects.get(pk=entity_id)
     return entity.resolve()
+
+
+# ---------------------------------------------------------------------------
+# Search runner registry — maps scoped keys to module search runner callables.
+# Populated at AppConfig.ready() time by plugins that provide module runners.
+# ---------------------------------------------------------------------------
+
+search_runner_registry: ScopedRegistry[Callable[..., Any]] = ScopedRegistry("search_runner")
+
+
+def register_search_runner(
+    key: str,
+    runner: Callable[..., Any],
+    scope: str | None = None,
+) -> None:
+    """Register a search runner callable under a scoped key.
+
+    Scope is auto-inferred from runner.__module__ if not provided.
+    Duplicate registration of the same (scope, key) pair raises ImproperlyConfigured.
+    """
+    search_runner_registry.register(key, runner, scope=scope)
+
+
+def get_search_runner(runner_key: str) -> Callable[..., Any]:
+    """Return the runner callable for a fully-qualified 'scope:key' runner_key.
+
+    Raises SearchRunnerNotFoundError with a descriptive message if not found.
+    """
+    from tap_grid.exceptions import SearchRunnerNotFoundError
+
+    try:
+        return search_runner_registry.get(runner_key)
+    except KeyError:
+        raise SearchRunnerNotFoundError(
+            f"No search runner registered for key '{runner_key}'. "
+            f"Registered runners: {search_runner_registry.keys()}"
+        ) from None
