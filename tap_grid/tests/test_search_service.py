@@ -162,7 +162,7 @@ class TestNormalizeEnvelope:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
 class TestExecuteSearchDispatch:
     def test_unknown_search_type_raises_execution_error(self):
         """Unknown search_type raises SearchExecutionError (not AttributeError)."""
@@ -176,16 +176,17 @@ class TestExecuteSearchDispatch:
         with pytest.raises(SearchExecutionError, match="Unknown search_type"):
             execute_search(s)
 
-    def test_orm_mode_raises_not_implemented_stub(self):
-        """ORM execution stub raises SearchExecutionError until Phase 5."""
+    def test_orm_mode_executes_and_returns_envelope(self):
+        """ORM execution returns canonical envelope for a simple filter search."""
         s = Search.objects.create(
             search_type="orm",
             root="node",
-            title="Stub Test",
+            title="ORM Dispatch",
             definition={"filters": {"entity_type": "concept"}},
         )
-        with pytest.raises(SearchExecutionError, match="not yet implemented"):
-            execute_search(s)
+        result = execute_search(s)
+        assert "nodes" in result
+        assert "edges" in result
 
     def test_module_mode_unregistered_runner_raises(self):
         """Module execution raises SearchRunnerNotFoundError for unknown runner_key."""

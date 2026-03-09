@@ -200,5 +200,10 @@ def _execute_orm_search(
     limit: int | None,
     offset: int,
 ) -> dict[str, Any]:
-    """Compile and execute an ORM DSL search (Phase 5)."""
-    raise SearchExecutionError("ORM search execution is not yet implemented.")
+    """Compile and execute an ORM DSL search."""
+    from tap_grid.orm_compiler import compile_orm_query
+
+    try:
+        return compile_orm_query(search, db_alias, limit=limit, offset=offset)
+    except Exception as exc:
+        raise SearchExecutionError(f"ORM search execution failed: {exc}") from exc

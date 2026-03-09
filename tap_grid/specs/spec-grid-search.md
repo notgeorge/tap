@@ -25,7 +25,7 @@ Searches always return a graph-shaped result envelope. Even when a consumer is p
 | req-grid-search-obj | [Search Objects](#search-objects) | Implemented | Search is a first-class grid entity with reusable query metadata |
 | req-grid-search-exec | [Search Execution](#search-execution) | Implemented | Searches execute through a shared service layer only |
 | req-grid-search-module | [Module Search Mode](#module-search-mode) | Implemented | Code-backed searches resolve a registered module runner via `ScopedRegistry` |
-| req-grid-search-orm | [ORM Search Mode](#orm-search-mode) | Proposed | Declarative ORM DSL with one-hop traversal and deterministic ordering |
+| req-grid-search-orm | [ORM Search Mode](#orm-search-mode) | Implemented | Declarative ORM DSL with one-hop traversal and deterministic ordering |
 | req-grid-search-results | [Search Results](#search-results) | Proposed | Searches always return the canonical 4-key graph envelope (`nodes`, `edges`, `info`, `warnings`) |
 | req-grid-search-readonly.sec | [Search Read-Only Execution](#search-read-only-execution) | Implemented | Security requirement enforcing that searches cannot mutate TAP data |
 | req-grid-search-authz.sec | [Search Authorization](#search-authorization) | Backlog | Deferred security requirement for search-specific authorization and access controls |
@@ -309,7 +309,7 @@ Consider adding registry inspection and health checks for registered search runn
 ### ORM Search Mode
 ----
 RID: `req-grid-search-orm`
-Status: `Proposed`
+Status: `Implemented`
 
 `orm` search mode uses a declarative JSON DSL that compiles to read-only TAP ORM queries. The v1 DSL is intentionally narrow: root selection, conjunctive filters, deterministic ordering, optional pagination, and at most one graph hop.
 
@@ -370,15 +370,15 @@ Keep the ORM DSL graph-native and small. If future requirements demand traversal
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-search-orm-1 | Definition Stored as JSON DSL | Proposed | `orm` searches store query structure in `definition` as JSON. | |
-| req-grid-search-orm-2 | Root Chosen by Search Root Field | Proposed | ORM execution begins from the Search object's `root` value (`node` or `edge`). | |
-| req-grid-search-orm-3 | Conjunctive Filters Supported | Proposed | V1 ORM search supports conjunctive filters on the selected root set. | |
-| req-grid-search-orm-4 | One Hop Maximum | Proposed | V1 ORM search supports at most one graph hop from the root set. | |
-| req-grid-search-orm-5 | Hop Direction Explicit | Proposed | A hop explicitly declares `in` or `out` direction. | |
-| req-grid-search-orm-6 | Hop Edge Type Explicit | Proposed | A hop may constrain traversal by `edge_type`. | |
-| req-grid-search-orm-7 | Endpoint Filters Supported | Proposed | A hop may apply endpoint filters to the connected node set. | |
-| req-grid-search-orm-8 | Non-TAP Models Excluded | Proposed | ORM search definitions cannot target models outside TAP-managed `BaseModel` descendants. | |
-| req-grid-search-orm-9 | Deterministic Ordering | Proposed | ORM execution applies explicit or default deterministic ordering before pagination. | |
+| req-grid-search-orm-1 | Definition Stored as JSON DSL | Implemented | `orm` searches store query structure in `definition` as JSON. | |
+| req-grid-search-orm-2 | Root Chosen by Search Root Field | Implemented | ORM execution begins from the Search object's `root` value (`node` or `edge`). | |
+| req-grid-search-orm-3 | Conjunctive Filters Supported | Implemented | V1 ORM search supports conjunctive filters on the selected root set. | |
+| req-grid-search-orm-4 | One Hop Maximum | Implemented | V1 ORM search supports at most one graph hop from the root set. | |
+| req-grid-search-orm-5 | Hop Direction Explicit | Implemented | A hop explicitly declares `in` or `out` direction. | |
+| req-grid-search-orm-6 | Hop Edge Type Explicit | Implemented | A hop may constrain traversal by `edge_type`. | |
+| req-grid-search-orm-7 | Endpoint Filters Supported | Implemented | A hop may apply endpoint filters to the connected node set. | |
+| req-grid-search-orm-8 | Non-TAP Models Excluded | Implemented | ORM search definitions cannot target models outside TAP-managed `BaseModel` descendants. | |
+| req-grid-search-orm-9 | Deterministic Ordering | Implemented | ORM execution applies explicit or default deterministic ordering before pagination. | |
 
 #### Future
 Consider supporting boolean composition (`OR`, `NOT`, nested logical expressions`) once real searches demonstrate the need.
