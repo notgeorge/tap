@@ -13,6 +13,8 @@ Two distinct registry shapes are needed:
 
 Both shapes share the same fail-fast duplicate guard, descriptive miss errors, and inspection interface. `tap_grid` also maintains a **meta-registry** — a `Registry` of all `Registry` instances — so the full system state can be enumerated from one place for debugging, admin tooling, and health checks.
 
+Every registry is **self-describing**: each instance carries a `title`, `description`, and `creator` in addition to its `name`. These fields are set at construction time and are consumed by admin tooling to present registries in a human-readable surface without requiring shell access.
+
 ## Goals
 
 |    |               |                                                                                                            |
@@ -33,7 +35,7 @@ Both shapes share the same fail-fast duplicate guard, descriptive miss errors, a
 | req-grid-registry | [Registry Class](#registry-class) | Implemented | Generic runtime key → value registry with named instance, duplicate guard, and descriptive miss |
 | req-grid-registry-scope | [Scoped Registry](#scoped-registry) | Implemented | `ScopedRegistry[T]` auto-infers key namespace from value's module; supports unambiguous short-key lookup |
 | req-grid-registry-meta | [Meta-Registry](#meta-registry) | Implemented | Module-level `meta_registry` enumerates all named `Registry` instances |
-| req-grid-registry-admin | [Meta-Registry Admin View](#meta-registry-admin-view) | Proposed | Read-only Django admin view for live registry and meta-registry inspection |
+| req-grid-registry-admin | [Meta-Registry Admin View](#meta-registry-admin-view) | Implemented | Read-only Django admin view for live registry and meta-registry inspection |
 | req-grid-registry-entity | [Entity Model Registry Migration](#entity-model-registry-migration) | Implemented | Refactor `tap_grid/registry.py` to back the existing entity model registry with a `Registry` instance |
 
 
@@ -117,6 +119,9 @@ On `__init__`, the registry registers itself with `meta_registry` (see `req-grid
 | req-grid-registry-8 | __contains__ | Implemented | `key in registry` returns `True` if the key is registered, `False` otherwise. | |
 | req-grid-registry-9 | No ORM Dependency | Implemented | `Registry` imports no Django models. It may import `django.core.exceptions.ImproperlyConfigured`. | |
 | req-grid-registry-10 | Auto-registers with Meta-registry | Implemented | `Registry.__init__` registers itself with `meta_registry` by name. Raises `ImproperlyConfigured` if the name is already taken. | |
+| req-grid-registry-11 | Title Field | Implemented | `Registry` stores a `title: str` attribute. If not provided at construction, defaults to `name.replace("_", " ").title()`. | |
+| req-grid-registry-12 | Description Field | Implemented | `Registry` stores a `description: str` attribute (default `""`). | |
+| req-grid-registry-13 | Creator Field | Implemented | `Registry` stores a `creator: str` attribute set to the calling module's `__name__`. May be provided explicitly; auto-inferred via `inspect.stack()` if omitted. | |
 
 #### Future
 
@@ -200,6 +205,9 @@ Duplicate is defined at the `(scope, key)` level. `ScopedRegistry` inherits the 
 | req-grid-registry-scope-8 | get — Ambiguous Short Key Raises | Implemented | `get(key)` raises `KeyError` when multiple scopes have that key; the message lists all matching fully-qualified keys. | |
 | req-grid-registry-scope-9 | get_all | Implemented | `get_all(key)` returns a `dict[scope, value]` of all matches across all scopes for the given short key. Returns an empty dict if none. | |
 | req-grid-registry-scope-10 | scopes() | Implemented | `scopes()` returns a sorted list of all scope strings that have at least one registered key. | |
+| req-grid-registry-scope-11 | Title Field | Implemented | `ScopedRegistry` stores a `title: str` attribute. If not provided at construction, defaults to `name.replace("_", " ").title()`. | |
+| req-grid-registry-scope-12 | Description Field | Implemented | `ScopedRegistry` stores a `description: str` attribute (default `""`). | |
+| req-grid-registry-scope-13 | Creator Field | Implemented | `ScopedRegistry` stores a `creator: str` attribute set to the calling module's `__name__`. May be provided explicitly; auto-inferred via `inspect.stack()` if omitted. | |
 
 
 ---
@@ -253,12 +261,12 @@ meta_registry.get("panel").all()
 ### Meta-Registry Admin View
 ----
 RID: `req-grid-registry-admin`
-Status: `Proposed`
+Status: `Implemented`
 
 TAP exposes a read-only Django admin surface for inspecting live runtime registry state. This view is operational/debug tooling rather than persisted model admin.
 
-#### Status Details
-New requirement added to make the meta-registry and individual registries visible through Django admin without requiring shell access.
+#### Implementation
+Implemented as an unmanaged proxy model (`RegistryProxy`, `managed=False`) registered via `RegistryProxyAdmin` in `tap_grid/admin.py`. The `changelist_view` is overridden to render the live registry index; a custom URL added via `get_urls()` serves the per-registry detail view. Templates extend `admin/base_site.html` and include a `<meta http-equiv="refresh" content="1">` for auto-refresh. No database table is created.
 
 #### Implementation
 A read-only Django admin page named `Meta Registry` is added under the Django admin interface.
@@ -307,16 +315,16 @@ Including `meta_registry` as an explicit synthetic row avoids changing current r
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-registry-admin-1 | Read-only Admin Surface | Proposed | A read-only Django admin page named `Meta Registry` is defined for runtime registry inspection. | |
-| req-grid-registry-admin-2 | Live Runtime Read | Proposed | The admin page reads registry contents live at request time rather than from a cached snapshot. | |
-| req-grid-registry-admin-3 | Index Lists Registries | Proposed | The index page lists all live registries with registry name, registry class, entry count, and curated summary information. | |
-| req-grid-registry-admin-4 | Scoped Registry Metadata | Proposed | Scoped registries display scope count in the index view. | |
-| req-grid-registry-admin-5 | Totals Displayed | Proposed | The index page displays total registry count and total registered key/value pair count. | |
-| req-grid-registry-admin-6 | meta_registry Included Explicitly | Proposed | The admin index includes `meta_registry` as a synthetic row even though it is not self-registered. | |
-| req-grid-registry-admin-7 | Detail Page Exists | Proposed | Clicking a registry row opens a read-only detail page for that registry. | |
-| req-grid-registry-admin-8 | Registry Detail Table | Proposed | Detail page renders registry contents in table form with columns appropriate to `Registry` or `ScopedRegistry`. | |
-| req-grid-registry-admin-9 | Curated Value Summary Only | Proposed | Registry values are shown using curated summaries rather than unrestricted deep object inspection. | |
-| req-grid-registry-admin-10 | Auto Refresh | Proposed | The admin view refreshes automatically every 1 second. | |
+| req-grid-registry-admin-1 | Read-only Admin Surface | Implemented | A read-only Django admin page named `Meta Registry` is defined for runtime registry inspection. | |
+| req-grid-registry-admin-2 | Live Runtime Read | Implemented | The admin page reads registry contents live at request time rather than from a cached snapshot. | |
+| req-grid-registry-admin-3 | Index Lists Registries | Implemented | The index page lists all live registries with registry name, registry class, entry count, and curated summary information. | |
+| req-grid-registry-admin-4 | Scoped Registry Metadata | Implemented | Scoped registries display scope count in the index view. | |
+| req-grid-registry-admin-5 | Totals Displayed | Implemented | The index page displays total registry count and total registered key/value pair count. | |
+| req-grid-registry-admin-6 | meta_registry Included Explicitly | Implemented | The admin index includes `meta_registry` as a synthetic row even though it is not self-registered. | |
+| req-grid-registry-admin-7 | Detail Page Exists | Implemented | Clicking a registry row opens a read-only detail page for that registry. | |
+| req-grid-registry-admin-8 | Registry Detail Table | Implemented | Detail page renders registry contents in table form with columns appropriate to `Registry` or `ScopedRegistry`. | |
+| req-grid-registry-admin-9 | Curated Value Summary Only | Implemented | Registry values are shown using curated summaries rather than unrestricted deep object inspection. | |
+| req-grid-registry-admin-10 | Auto Refresh | Implemented | The admin view refreshes automatically every 1 second via `<meta http-equiv="refresh" content="1">`. | |
 
 #### Future
 Consider adding filter controls for empty registries, scoped-only registries, and duplicate-prone merge registries.

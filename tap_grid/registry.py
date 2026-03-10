@@ -12,7 +12,9 @@ full system state is visible from one place for debugging and admin tooling.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Generic, TYPE_CHECKING, TypeVar
+import inspect
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 from uuid import UUID
 
 from django.core.exceptions import ImproperlyConfigured
@@ -36,13 +38,19 @@ class Registry(Generic[T]):
         name: str,
         merge_fn: Callable[[T, T], T] | None = None,
         *,
+        title: str = "",
+        description: str = "",
+        creator: str = "",
         _skip_meta: bool = False,
     ) -> None:
         self._name = name
         self._merge_fn = merge_fn
         self._data: dict[str, T] = {}
+        self.title = title or name.replace("_", " ").title()
+        self.description = description
+        self.creator = creator or inspect.stack()[1].frame.f_globals.get("__name__", "")
         if not _skip_meta:
-            meta_registry.register(name, self)  # type: ignore[arg-type]
+            meta_registry.register(name, self)
 
     def register(self, key: str, value: T) -> None:
         """Register key → value.
@@ -106,16 +114,23 @@ class ScopedRegistry(Generic[T]):
         self,
         name: str,
         merge_fn: Callable[[T, T], T] | None = None,
+        *,
+        title: str = "",
+        description: str = "",
+        creator: str = "",
     ) -> None:
         self._name = name
         self._merge_fn = merge_fn
         self._data: dict[str, dict[str, T]] = {}  # scope → key → value
-        meta_registry.register(name, self)  # type: ignore[arg-type]
+        self.title = title or name.replace("_", " ").title()
+        self.description = description
+        self.creator = creator or inspect.stack()[1].frame.f_globals.get("__name__", "")
+        meta_registry.register(name, self)
 
     def _infer_scope(self, value: T, scope: str | None) -> str:
         if scope is not None:
             return scope
-        module = getattr(value, "__module__", None)
+        module: str | None = getattr(value, "__module__", None)
         if not module:
             raise ValueError(
                 f"ScopedRegistry '{self._name}': cannot infer scope for {value!r}. "
@@ -219,7 +234,12 @@ class ScopedRegistry(Generic[T]):
 # Instantiated before all other registries; does not self-register.
 # ---------------------------------------------------------------------------
 
-meta_registry: Registry[Any] = Registry("__meta__", _skip_meta=True)
+meta_registry: Registry[Any] = Registry(
+    "__meta__",
+    title="Meta Registry",
+    description="Bootstrap registry that tracks all other registries.",
+    _skip_meta=True,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +247,11 @@ meta_registry: Registry[Any] = Registry("__meta__", _skip_meta=True)
 # Populated at class-definition time via BaseModel.__init_subclass__.
 # ---------------------------------------------------------------------------
 
-_entity_model_registry: Registry[type] = Registry("entity_model")
+_entity_model_registry: Registry[type] = Registry(
+    "entity_model",
+    title="Entity Model Registry",
+    description="Maps entity type slugs to their Django ORM model classes.",
+)
 
 # Backward compatibility: some callers import _ENTITY_MODEL_REGISTRY directly.
 _ENTITY_MODEL_REGISTRY = _entity_model_registry
@@ -273,7 +297,7 @@ def get_model_class(entity_type: str) -> type:
         ) from None
 
 
-def resolve_entity(entity_id: UUID) -> "BaseModel":
+def resolve_entity(entity_id: UUID) -> BaseModel:
     """Resolve an entity_id to its concrete typed model instance.
 
     Performs two DB queries: one to fetch the Entity (to get entity_type),
@@ -291,7 +315,11 @@ def resolve_entity(entity_id: UUID) -> "BaseModel":
 # Populated at AppConfig.ready() time by plugins that provide module runners.
 # ---------------------------------------------------------------------------
 
-search_runner_registry: ScopedRegistry[Callable[..., Any]] = ScopedRegistry("search_runner")
+search_runner_registry: ScopedRegistry[Callable[..., Any]] = ScopedRegistry(
+    "search_runner",
+    title="Search Runner Registry",
+    description="Scoped registry of callable search runners keyed by runner ID.",
+)
 
 
 def register_search_runner(

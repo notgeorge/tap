@@ -15,6 +15,7 @@ from django.urls import path
 from tap_web import views
 
 urlpatterns = [
+    path("panel/<str:panel_url_id>/edit/", views.panel_edit_view, name="panel-edit"),
     path("panel/<str:panel_url_id>/", views.panel_view, name="panel"),
     path("", views.landing_view, name="landing"),
     path("<path:page_slug>", views.page_view, name="page"),

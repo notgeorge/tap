@@ -215,6 +215,69 @@ class Command(BaseCommand):
         search_count = self._seed_searches()
         self.stdout.write(self.style.SUCCESS(f"  + {search_count} new searches seeded."))
 
+        # Create web page
+        self._seed_web_page()
+
+    def _seed_web_page(self) -> None:
+        """Create a Middle-earth welcome Page with a single Text Panel. Idempotent."""
+        from tap_grid.models import Edge, Entity
+        from tap_web.models import Panel, Page
+        from tap_web.panels.text_panel import TextPanelType
+
+        # Panel
+        panel, panel_created = Panel.objects.get_or_create(
+            slug="middle-earth-welcome",
+            defaults={
+                "title": "Welcome to Middle-earth",
+                "view": TextPanelType.view,
+                "editor_view": TextPanelType.editor_view,
+                "config": {"text": "hello middle earth"},
+            },
+        )
+        if panel_created:
+            self.stdout.write("  + Panel: Welcome to Middle-earth")
+
+        # Page
+        layout = {
+            "columns": {
+                "col-1": {
+                    "width": "1fr",
+                    "rows": {
+                        "row-1": {"panel-id": "main"},
+                    },
+                }
+            }
+        }
+        page, page_created = Page.objects.get_or_create(
+            slug="/middle-earth",
+            defaults={
+                "title": "Middle-earth",
+                "layout": layout,
+            },
+        )
+        if page_created:
+            self.stdout.write("  + Page: /middle-earth")
+
+        # USES_PANEL edge linking page → panel with panel-id "main"
+        edge_exists = Edge.objects.filter(
+            from_entity=page.entity,
+            to_entity=panel.entity,
+            edge_type="USES_PANEL",
+        ).exists()
+        if not edge_exists:
+            edge_entity = Entity.objects.create(
+                entity_type="edge",
+                display_name="USES_PANEL",
+            )
+            Edge.objects.create(
+                entity=edge_entity,
+                from_entity=page.entity,
+                to_entity=panel.entity,
+                edge_type="USES_PANEL",
+                properties={"panel-id": "main"},
+            )
+            self.stdout.write("  + Edge: /middle-earth --USES_PANEL[main]--> welcome panel")
+
     def _seed_searches(self) -> int:
         """Create reusable Search objects for LOTR data exploration. Idempotent."""
         searches = [

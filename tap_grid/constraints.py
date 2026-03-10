@@ -90,20 +90,34 @@ def _merge_edge_type_constraints(
 
 
 # Node constraint registry: entity_type -> NodeConstraints
-_node_registry: Registry[NodeConstraints] = Registry("node_constraints")
+_node_registry: Registry[NodeConstraints] = Registry(
+    "node_constraints",
+    title="Node Constraints",
+    description="Per-entity-type constraints for valid node edge configurations.",
+)
 
 # Edge type constraint registry: edge_type -> EdgeTypeConstraints
 # merge_fn allows multiple plugins to cooperatively extend the same edge type.
 _edge_type_registry: Registry[EdgeTypeConstraints] = Registry(
     "edge_constraints",
     merge_fn=_merge_edge_type_constraints,
+    title="Edge Type Constraints",
+    description="Allowed source/target combinations per edge type, merged across plugins.",
 )
 
 # Edge property schema registry: edge_type -> JSON Schema dict
-_edge_property_schema_registry: Registry[dict[str, Any]] = Registry("edge_property_schemas")
+_edge_property_schema_registry: Registry[dict[str, Any]] = Registry(
+    "edge_property_schemas",
+    title="Edge Property Schemas",
+    description="JSON schemas for validating edge properties per edge type.",
+)
 
 # Edge default dimensions registry: edge_type -> dimensions dict
-_edge_default_dimensions_registry: Registry[dict[str, str]] = Registry("edge_default_dimensions")
+_edge_default_dimensions_registry: Registry[dict[str, str]] = Registry(
+    "edge_default_dimensions",
+    title="Edge Default Dimensions",
+    description="Default visual dimension values per edge type.",
+)
 
 # Backward compatibility aliases (legacy names still importable)
 _NODE_REGISTRY = _node_registry

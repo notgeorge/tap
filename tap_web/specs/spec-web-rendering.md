@@ -23,7 +23,7 @@ We haven't fully defined the panel structure yet, likely going to do that next.
 | req-web-rendering-slashpage | [Pages Start With /](#pages-start-with-) | Implemented | Dynamic pages rooted at `/`, not `/pages/...` |
 | req-web-render-process | [Page Rendering Process](#page-rendering-process) | Implemented | Multi-step pipeline: URL → page view → page service → page template → panel HTMX calls |
 | req-web-render-panel | [Panel Rendering Process](#panel-rendering-process) | Implemented | Panels rendered via HTMX; generic view renders panel's declared template |
-| req-web-render-panel-edit | [Panel Edit Rendering](#panel-edit-rendering) | Proposed | Panel edit pages render standard preview-plus-editor layout at `/panel/<slug>--<uuid>/edit/` |
+| req-web-render-panel-edit | [Panel Edit Rendering](#panel-edit-rendering) | Implemented | Panel edit pages render standard preview-plus-editor layout at `/panel/<slug>--<uuid>/edit/` |
 | req-web-render-missingpan | [Missing / Broken Panels](#missing--broken-panels) | Implemented | Missing panels show "Panel Error" in their layout slot |
 | req-web-render-landing | [Landing Page Owns /](#landing-page-owns-) | Proposed | Root `/` delegates to LandingPage-linked Page without client-side redirect |
 | req-web-rendering-pagesan.sec | [Page Rendering Sanitization](#page-rendering-sanitization-security) | Implemented | Base template + HTMX + static asset manifest ensure safe page output |
@@ -126,7 +126,7 @@ The slug is decorative (for readability). The UUID is used to look up the Panel.
 
 ### Panel Edit Rendering
 RID: `req-web-render-panel-edit`
-Status: `Proposed`
+Status: `Implemented`
 
 Panel edit mode renders a standard editor page at the panel level. The editor page has two fixed regions: preview on top and editor below.
 
@@ -152,14 +152,14 @@ This editor page structure is standard and is not panel-defined. Panels supply t
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-render-panel-edit-1 | Edit Route Exists | Proposed | Panel edit mode is routed at `/panel/<slug>--<uuid>/edit/`. | |
-| req-web-render-panel-edit-2 | UUID Lookup | Proposed | Edit route resolves the panel by UUID using the decorative slug pattern. | |
-| req-web-render-panel-edit-3 | Standard Two Region Layout | Proposed | Editor page renders preview on top and editor below. | |
-| req-web-render-panel-edit-4 | Preview Uses Normal Panel View | Proposed | Preview region renders the saved panel using the normal panel view contract. | |
-| req-web-render-panel-edit-5 | Editor Uses Declared Template | Proposed | Editor region renders the panel's declared `editor_view`. | |
-| req-web-render-panel-edit-6 | Editor Assets Emitted | Proposed | Editor page emits `editor_css` in the head and `editor_js` at the end of the body. | |
-| req-web-render-panel-edit-7 | Preview Separate From Save | Proposed | Edit page exposes preview and save as separate actions. | |
-| req-web-render-panel-edit-8 | Edit Posts To Edit Endpoint | Proposed | Edit submissions target the panel edit endpoint rather than the normal view endpoint. | |
+| req-web-render-panel-edit-1 | Edit Route Exists | Implemented | Panel edit mode is routed at `/panel/<slug>--<uuid>/edit/`. | |
+| req-web-render-panel-edit-2 | UUID Lookup | Implemented | Edit route resolves the panel by UUID using the decorative slug pattern. | |
+| req-web-render-panel-edit-3 | Standard Two Region Layout | Implemented | Editor page renders preview on top and editor below. | |
+| req-web-render-panel-edit-4 | Preview Uses Normal Panel View | Implemented | Preview region renders the saved panel using the normal panel view contract. | |
+| req-web-render-panel-edit-5 | Editor Uses Declared Template | Implemented | Editor region renders the panel's declared `editor_view`. | |
+| req-web-render-panel-edit-6 | Editor Assets Emitted | Implemented | Editor page emits `editor_css` in the head and `editor_js` at the end of the body. | |
+| req-web-render-panel-edit-7 | Preview Separate From Save | Implemented | Edit page exposes preview and save as separate actions. | |
+| req-web-render-panel-edit-8 | Edit Posts To Edit Endpoint | Implemented | Edit submissions target the panel edit endpoint rather than the normal view endpoint. | |
 
 #### Future
 Consider adding an unsaved-changes indicator and editor lifecycle hooks if panel editing becomes more interactive.
@@ -212,7 +212,7 @@ Note: `created_at` lives on `Entity`, not on `BaseModel` (which no longer carrie
 | req-web-render-landing-1 | No Client-Side Redirect | Implemented | `/` renders the landing-page-referenced Page directly; no HTTP redirect is issued. | |
 | req-web-render-landing-2 | Query Params Passed Through | Implemented | Query parameters from the root request are available in the page rendering context. | |
 | req-web-render-landing-3 | Earliest LandingPage Selected | Implemented | If multiple LandingPage nodes exist, the one with the earliest `entity__created_at` is used. | |
-| req-web-render-landing-4 | No LandingPage Returns 404 | Proposed | If no LandingPage exists, `/` returns a 404. | Currently falls back to the legacy home view instead. |
+| req-web-render-landing-4 | No LandingPage Returns 404 | Implemented | If no LandingPage exists, `/` returns a 404. | Currently falls back to the legacy home view instead. |
 
 
 ### Page Rendering Sanitization Security

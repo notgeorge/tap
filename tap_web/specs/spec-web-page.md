@@ -26,11 +26,11 @@ Future:
 | --- | --- | :---: | --- |
 | req-web-page-dim | [Web Dimension](#web-dimension) | Implemented | Canonical web dimension for TAP Web nodes and web-origin edges |
 | req-web-page-obj | [Page Objects](#page-objects) | Implemented | Canonical page model with slug, nested layout schema, and routing constraints |
-| req-web-page-panel-id | [Page Slot Identities](#page-slot-identities) | Proposed | Defines `panel-id` as the page-local slot identity used by layout and panel links |
-| req-web-page-slug-sanitize.sec | [Page Slug Sanitization](#page-slug-sanitization) | Proposed | Security-focused slug normalization and validation for page routing |
-| req-web-page-layout-sanitize.sec | [Page Layout Sanitization](#page-layout-sanitization) | Proposed | Security-focused layout schema validation for page layout input |
-| req-web-page-sanitize.sec | [Page Object Sanitization](#page-object-sanitization) | Proposed | Schema-first input hardening plus safe HTML output escaping |
-| req-web-page-plink | [Page to Panel Links](#page-to-panel-links) | Proposed | `USES_PANEL` links bind `panel-id` slots to panel nodes |
+| req-web-page-panel-id | [Page Slot Identities](#page-slot-identities) | Implemented | Defines `panel-id` as the page-local slot identity used by layout and panel links |
+| req-web-page-slug-sanitize.sec | [Page Slug Sanitization](#page-slug-sanitization) | Implemented | Security-focused slug normalization and validation for page routing |
+| req-web-page-layout-sanitize.sec | [Page Layout Sanitization](#page-layout-sanitization) | Implemented | Security-focused layout schema validation for page layout input |
+| req-web-page-sanitize.sec | [Page Object Sanitization](#page-object-sanitization) | Implemented | Schema-first input hardening plus safe HTML output escaping |
+| req-web-page-plink | [Page to Panel Links](#page-to-panel-links) | Implemented | `USES_PANEL` links bind `panel-id` slots to panel nodes |
 | req-web-page-landing | [Landing Pages](#landing-pages) | Proposed | Landing-page indirection for root URL |
 | req-web-page-params | [Page Variables](#page-variables) | Proposed | URL-backed `tap_page_vars` provide canonical shared page state |
 | req-web-page-local | [Page Persistent Variables](#page-persistent-variables) | Proposed | In-memory `tap_page_persistent_vars` allow panels to reuse derived data and results |
@@ -118,7 +118,7 @@ Keep `req-web-page-obj` focused on object-level semantics and route participatio
 ### Page Slot Identities
 ----
 RID: `req-web-page-panel-id`
-Status: `Proposed`
+Status: `Implemented`
 
 `panel-id` is the page-local slot identity used to bind page layout rows to `USES_PANEL` edges and to derive render-time DOM identity when needed.
 
@@ -139,16 +139,16 @@ Keep `panel-id` ownership in the page spec. Panels are independent of slot ident
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-page-panel-id-1 | Page Local Identity | Proposed | `panel-id` is a page-local slot identifier with no global meaning outside the owning Page. | |
-| req-web-page-panel-id-2 | Layout Declares panel-id | Proposed | `panel-id` values are declared by Page layout rows. | |
-| req-web-page-panel-id-3 | Kebab Case Format | Proposed | `panel-id` must match `^[a-z][a-z0-9-]*$`. | |
-| req-web-page-panel-id-4 | Unique Within Page | Proposed | `panel-id` values are unique within a single Page layout. | |
+| req-web-page-panel-id-1 | Page Local Identity | Implemented | `panel-id` is a page-local slot identifier with no global meaning outside the owning Page. | |
+| req-web-page-panel-id-2 | Layout Declares panel-id | Implemented | `panel-id` values are declared by Page layout rows. | |
+| req-web-page-panel-id-3 | Kebab Case Format | Implemented | `panel-id` must match `^[a-z][a-z0-9-]*$`. | |
+| req-web-page-panel-id-4 | Unique Within Page | Implemented | `panel-id` values are unique within a single Page layout. | |
 
 
 ### Page Slug Sanitization
 ----
-RID: `req-web-page-slug-sanitize.sec`  
-Status: `Proposed`  
+RID: `req-web-page-slug-sanitize.sec`
+Status: `Implemented`
 Tags: `Security`
 
 Page slugs are routing inputs and must be treated as a security-sensitive surface. Slug normalization and validation are specified as a dedicated security requirement.
@@ -176,20 +176,20 @@ Canonicalization and validation should run on every create and update path that 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-page-slug-sanitize.sec-1 | Leading Slash Required | Proposed | `slug` must begin with `/`. | |
-| req-web-page-slug-sanitize.sec-2 | Slug Format Rules Enforced | Proposed | Slugs enforce lowercase-only format, disallow repeated slashes, and disallow trailing slash. | |
-| req-web-page-slug-sanitize.sec-3 | Root Slug Disallowed | Proposed | `slug="/"` is invalid for Page objects. | |
-| req-web-page-slug-sanitize.sec-4 | Global Slug Uniqueness | Proposed | Canonical slug is globally unique across Page objects. | |
-| req-web-page-slug-sanitize.sec-5 | Reserved Prefix Blocking | Proposed | Reserved slug entries are prefix-blocked on create/update. | |
-| req-web-page-slug-sanitize.sec-6 | Dedicated Slug Validation Error | Proposed | Slug validation failures raise `PageSlugValidationError`. | |
-| req-web-page-slug-sanitize.sec-7 | Dot Segment Rejection | Proposed | Slugs containing path dot-segments (`/./` or `/../`) are rejected. | Security hardening. |
-| req-web-page-slug-sanitize.sec-8 | Bare Dot Segment Rejection | Proposed | Slugs containing `.` or `..` as standalone path segments are rejected regardless of position (start, middle, or end). | Security hardening. |
+| req-web-page-slug-sanitize.sec-1 | Leading Slash Required | Implemented | `slug` must begin with `/`. | |
+| req-web-page-slug-sanitize.sec-2 | Slug Format Rules Enforced | Implemented | Slugs enforce lowercase-only format, disallow repeated slashes, and disallow trailing slash. | |
+| req-web-page-slug-sanitize.sec-3 | Root Slug Disallowed | Implemented | `slug="/"` is invalid for Page objects. | |
+| req-web-page-slug-sanitize.sec-4 | Global Slug Uniqueness | Implemented | Canonical slug is globally unique across Page objects. | |
+| req-web-page-slug-sanitize.sec-5 | Reserved Prefix Blocking | Implemented | Reserved slug entries are prefix-blocked on create/update. | |
+| req-web-page-slug-sanitize.sec-6 | Dedicated Slug Validation Error | Implemented | Slug validation failures raise `PageSlugValidationError`. | |
+| req-web-page-slug-sanitize.sec-7 | Dot Segment Rejection | Implemented | Slugs containing path dot-segments (`/./` or `/../`) are rejected. | Security hardening. |
+| req-web-page-slug-sanitize.sec-8 | Bare Dot Segment Rejection | Implemented | Slugs containing `.` or `..` as standalone path segments are rejected regardless of position (start, middle, or end). | Security hardening. |
 
 
 ### Page Layout Sanitization
 ----
-RID: `req-web-page-layout-sanitize.sec`  
-Status: `Proposed`  
+RID: `req-web-page-layout-sanitize.sec`
+Status: `Implemented`
 Tags: `Security`
 
 Page layout data is security-sensitive because it directly influences generated HTML structure and attributes. Layout handling combines strict schema validation on input with safe output sanitization at render time.
@@ -316,20 +316,20 @@ Layout rendering uses **CSS Grid**. Column and row key numeric prefixes (`col-1`
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-page-layout-sanitize.sec-1 | Layout Schema Validation Always Runs | Proposed | Page `layout` is validated against JSON Schema on every create/update. | |
-| req-web-page-layout-sanitize.sec-2 | Layout Validation Error Type | Proposed | Schema failures raise `PageLayoutValidationError`. | |
-| req-web-page-layout-sanitize.sec-3 | Nested Key Format Enforced | Proposed | Column/row keys must follow `col-<n>[-name]` and `row-<n>[-name]` patterns. | |
-| req-web-page-layout-sanitize.sec-4 | Key-Implied Ordering Input Enforced | Proposed | Layout input uses numeric key prefixes and disallows explicit `order` fields. | |
-| req-web-page-layout-sanitize.sec-5 | Numeric Index Rules Enforced | Proposed | Prefix indexes are unique per level, 1-based, and may contain gaps. | |
-| req-web-page-layout-sanitize.sec-6 | Width Allowlist Enforced | Proposed | `width` is constrained to schema allowlist values only. | |
-| req-web-page-layout-sanitize.sec-7 | Tag Pattern Enforcement | Proposed | `tags` keys and values are constrained to kebab-case strings. | |
-| req-web-page-layout-sanitize.sec-8 | panel-id Format Delegated | Proposed | `panel-id` values in layout must comply with `req-web-page-panel-id`. | |
+| req-web-page-layout-sanitize.sec-1 | Layout Schema Validation Always Runs | Implemented | Page `layout` is validated against JSON Schema on every create/update. | |
+| req-web-page-layout-sanitize.sec-2 | Layout Validation Error Type | Implemented | Schema failures raise `PageLayoutValidationError`. | |
+| req-web-page-layout-sanitize.sec-3 | Nested Key Format Enforced | Implemented | Column/row keys must follow `col-<n>[-name]` and `row-<n>[-name]` patterns. | |
+| req-web-page-layout-sanitize.sec-4 | Key-Implied Ordering Input Enforced | Implemented | Layout input uses numeric key prefixes and disallows explicit `order` fields. | |
+| req-web-page-layout-sanitize.sec-5 | Numeric Index Rules Enforced | Implemented | Prefix indexes are unique per level, 1-based, and may contain gaps. | |
+| req-web-page-layout-sanitize.sec-6 | Width Allowlist Enforced | Implemented | `width` is constrained to schema allowlist values only. | |
+| req-web-page-layout-sanitize.sec-7 | Tag Pattern Enforcement | Implemented | `tags` keys and values are constrained to kebab-case strings. | |
+| req-web-page-layout-sanitize.sec-8 | panel-id Format Delegated | Implemented | `panel-id` values in layout must comply with `req-web-page-panel-id`. | |
 
 
 ### Page Object Sanitization
 ----
-RID: `req-web-page-sanitize.sec`  
-Status: `Proposed`  
+RID: `req-web-page-sanitize.sec`
+Status: `Implemented`
 Tags: `Security`
 
 Page objects are rendered into HTML from user-authored data. Security is enforced with schema-first input validation and safe output encoding.
@@ -354,15 +354,15 @@ Given current requirements, no user-authored HTML is supported; escaping is requ
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-page-sanitize.sec-1 | Metadata Input Hardening | Proposed | Non-layout Page fields are validated on create/update; layout fields are governed by `req-web-page-layout-sanitize.sec`. | |
-| req-web-page-sanitize.sec-2 | Metadata Escape-On-Render | Proposed | Page metadata string content is HTML-escaped at render output boundaries. | |
-| req-web-page-sanitize.sec-3 | No Trusted User HTML | Proposed | Page object fields are not interpreted as raw HTML. | |
+| req-web-page-sanitize.sec-1 | Metadata Input Hardening | Implemented | Non-layout Page fields are validated on create/update; layout fields are governed by `req-web-page-layout-sanitize.sec`. | |
+| req-web-page-sanitize.sec-2 | Metadata Escape-On-Render | Implemented | Page metadata string content is HTML-escaped at render output boundaries. | |
+| req-web-page-sanitize.sec-3 | No Trusted User HTML | Implemented | Page object fields are not interpreted as raw HTML. | |
 
 
 ### Page to Panel Links
 ----
-RID: `req-web-page-plink`  
-Status: `Proposed`
+RID: `req-web-page-plink`
+Status: `Implemented`
 
 A Page binds layout slots to Panel nodes via `USES_PANEL` edges. This requirement defines the canonical link contract now; generalized node->edge integrity systems and render guards are deferred to Future.
 
@@ -390,14 +390,14 @@ Keep the base requirement minimal and stable.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-page-plink-1 | Source/Target Constraint | Proposed | `USES_PANEL` only connects `Page -> Panel`. | |
-| req-web-page-plink-2 | Canonical Property Key | Proposed | `USES_PANEL` uses `panel-id` as the canonical page-slot binding key. | |
-| req-web-page-plink-3 | Property Format Validation | Proposed | `USES_PANEL.panel-id` must comply with `req-web-page-panel-id`. | |
-| req-web-page-plink-4 | Slot Mapping Contract | Proposed | `USES_PANEL.panel-id` values should map to declared layout slot ids for the owning Page. | Errors are generated later if links and layout drift. |
-| req-web-page-plink-5 | Variable Map Stored On Uses Panel | Proposed | `USES_PANEL.properties` may include `variable_map` containing `tap_page_vars` and `tap_page_persistent_vars` mapping objects. | |
-| req-web-page-plink-6 | Variable Map Keys Are Panel Inputs | Proposed | Within each `variable_map` object, keys are panel-local input names and values are page-level variable names. | |
-| req-web-page-plink-7 | Undeclared Panel Inputs Warn | Proposed | Mapping entries that target panel input names not declared by the panel should emit a browser console warning. | |
-| req-web-page-plink-8 | Panel Reuse Allowed | Proposed | The same Panel node may be linked to multiple distinct `panel-id` slots on the same Page. | |
+| req-web-page-plink-1 | Source/Target Constraint | Implemented | `USES_PANEL` only connects `Page -> Panel`. | |
+| req-web-page-plink-2 | Canonical Property Key | Implemented | `USES_PANEL` uses `panel-id` as the canonical page-slot binding key. | |
+| req-web-page-plink-3 | Property Format Validation | Implemented | `USES_PANEL.panel-id` must comply with `req-web-page-panel-id`. | |
+| req-web-page-plink-4 | Slot Mapping Contract | Implemented | `USES_PANEL.panel-id` values should map to declared layout slot ids for the owning Page. | Errors are generated later if links and layout drift. |
+| req-web-page-plink-5 | Variable Map Stored On Uses Panel | Implemented | `USES_PANEL.properties` may include `variable_map` containing `tap_page_vars` and `tap_page_persistent_vars` mapping objects. | |
+| req-web-page-plink-6 | Variable Map Keys Are Panel Inputs | Implemented | Within each `variable_map` object, keys are panel-local input names and values are page-level variable names. | |
+| req-web-page-plink-7 | Undeclared Panel Inputs Warn | Implemented | Mapping entries that target panel input names not declared by the panel should emit a browser console warning. | |
+| req-web-page-plink-8 | Panel Reuse Allowed | Implemented | The same Panel node may be linked to multiple distinct `panel-id` slots on the same Page. | |
 
 
 #### Future

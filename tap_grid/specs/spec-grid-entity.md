@@ -22,6 +22,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-resolve | [Entity Resolution](#entity-resolution) | Implemented | `Entity.resolve()` uses the model registry to return the concrete typed object |
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
 | req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Implemented | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
+| req-grid-entity-display | [Display Metadata](#display-metadata) | Backlog | `BaseModel`-level display metadata supports icons, label resolution, and future presentation hints |
 | req-grid-entity-cascade | [Edge-Directed Cascade Deletion](#edge-directed-cascade-deletion) | Backlog | When an entity is deleted, cascades should be expressible in terms of edge relationships, not just Django's raw FK CASCADE |
 
 
@@ -189,6 +190,58 @@ The dimensions integration was added concurrently with the dimension spec work; 
 
 #### Future
 Once FLIP is fully active, Entity creation through this path should be recorded as a provenance event. In v0 this is deferred; the mechanism should be hookable so FLIP can be wired in without changing this code.
+
+---
+
+### Display Metadata
+----
+RID: `req-grid-entity-display`
+Status: `Backlog`
+
+TAP-managed objects need a lightweight way to carry presentation-oriented metadata such as icons, label resolution hints, and future visualization/display guidance. This metadata belongs on `BaseModel` for now and is distinct from core domain data.
+
+#### Status Details
+Backlog requirement created to capture a growing set of display concerns without prematurely turning them into dedicated database columns or web-only features.
+
+#### Implementation
+Proposed direction:
+- `display` is an optional JSON field on `BaseModel`
+- `display` defaults to `{}`
+- `display` stores instance-level display overrides
+- model/type definitions may declare `DEFAULT_DISPLAY` for type-wide display defaults
+- consumers resolve effective display metadata from model defaults plus instance overrides
+
+This metadata is intended for presentation concerns such as:
+- icon paths
+- label / name resolution strategy
+- future Cytoscape or graph visualization hints
+- future hierarchy or representation hints used by clients
+
+`display` is not intended to replace core domain fields or graph relationships.
+
+Current direction keeps `display` on `BaseModel`. If TAP later introduces a broader generic metadata mechanism, storage may be revisited at the `Entity` level.
+
+#### Development
+Use `display` as a presentation-specific bucket rather than a general metadata junk drawer. The field exists to support multiple consumers (`web`, `viz`, admin, and future interfaces) with one consistent mechanism.
+
+Keep the first version lightweight: capture the concept, the storage location, and the separation between defaults and overrides before defining detailed schema or merge semantics.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-entity-display-1 | Display Lives On BaseModel | Backlog | Proposed direction is that `display` lives on `BaseModel` rather than `Entity`. | May be revisited if a broader metadata system emerges. |
+| req-grid-entity-display-2 | Display Defaults Empty | Backlog | Proposed direction is that instance `display` defaults to `{}`. | |
+| req-grid-entity-display-3 | Model Defaults Supported | Backlog | Proposed direction is that model/type definitions may declare `DEFAULT_DISPLAY`. | |
+| req-grid-entity-display-4 | Instance Overrides Supported | Backlog | Proposed direction is that instance `display` may override model/type display defaults. | |
+| req-grid-entity-display-5 | Presentation Concerns Only | Backlog | `display` is intended for presentation concerns such as icons, label resolution, and visualization hints rather than core domain data. | |
+
+#### Future
+Define concrete merge semantics for `DEFAULT_DISPLAY` plus instance `display`.
+
+Define the initial standardized keys under `display`, starting with icon metadata, label/name resolution, and visualization hints.
+
+If TAP later introduces a broader metadata object, revisit whether `display` should remain on `BaseModel` or move to `Entity`.
 
 ---
 

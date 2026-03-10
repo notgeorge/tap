@@ -22,10 +22,11 @@ Because panels are first-class entities on the grid, they can be shared across p
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-web-panel-obj | [Panel Objects](#panel-objects) | Refactoring | Panel model with slug, config, view/edit template paths, asset lists, and declared input variables |
+| req-web-panel-obj | [Panel Objects](#panel-objects) | Implemented | Panel model with slug, config, view/edit template paths, asset lists, and declared input variables |
 | req-web-panel-inputs | [Panel Inputs](#panel-inputs) | Proposed | Panels declare expected input variable names and consume resolved inputs from the page |
-| req-web-panel-edit | [Panel Edit Mode](#panel-edit-mode) | Proposed | Panels may declare editor templates and editor assets for panel-only configuration editing |
-| req-web-panel-static | [Panel Static Assets](#panel-static-assets) | Proposed | Static assets live in Django static paths; no external URLs allowed |
+| req-web-panel-edit | [Panel Edit Mode](#panel-edit-mode) | Implemented | Panels may declare editor templates and editor assets for panel-only configuration editing |
+| req-web-panel-static | [Panel Static Assets](#panel-static-assets) | Implemented | Static assets live in Django static paths; no external URLs allowed |
+| req-web-panel-registry | [Panel Registry](#panel-registry) | Implemented | Panels are registered at load time in a run-time registry |
 | req-web-panel-edit-authz.sec | [Panel Edit Authorization](#panel-edit-authorization) | Backlog | Permission model for panel editor access is deferred |
 
 
@@ -39,7 +40,7 @@ Sanitized - Are sanitized using Django's built-in rendering functions, no unsafe
 ### Panel Object
 ----
 RID: `req-web-panel-obj`
-Status: `Refactoring`
+Status: `Implemented`
 
 A Panel object is the backing entity for a data-display component. It declares its view renderer, optional editor renderer, configuration object, static assets, and display metadata.
 
@@ -83,14 +84,14 @@ The `slug` portion is the Panel's `slug` field value. The UUID is the Panel's `e
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-obj-1 | Panel Fields | Refactoring | Panel declares `slug`, `title`, `description`, `view`, `editor_view`, `config`, `js`, `css`, `editor_js`, `editor_css`, and `input_vars` as described above. | Edit-mode fields and `config` are not yet implemented. |
+| req-web-panel-obj-1 | Panel Fields | Implemented | Panel declares `slug`, `title`, `description`, `view`, `editor_view`, `config`, `js`, `css`, `editor_js`, `editor_css`, and `input_vars` as described above. | Edit-mode fields and `config` are not yet implemented. |
 | req-web-panel-obj-2 | View Is Template Path | Implemented | `view` stores a template path string. The generic panel view handler renders it with `render(request, panel.view)`. | |
-| req-web-panel-obj-3 | Asset Lists Default Empty | Refactoring | `js`, `css`, `editor_js`, and `editor_css` default to `[]` when not set. | `editor_js` and `editor_css` are newly specified. |
+| req-web-panel-obj-3 | Asset Lists Default Empty | Implemented | `js`, `css`, `editor_js`, and `editor_css` default to `[]` when not set. | `editor_js` and `editor_css` are newly specified. |
 | req-web-panel-obj-4 | Panel URL Format | Implemented | Panel HTMX endpoint is `/panel/<slug>--<entity-uuid>/`. UUID is used for lookup; slug is decorative. | |
 | req-web-panel-obj-5 | Panel Error Fragment | Implemented | If the panel view raises any exception, the endpoint returns an HTML error fragment (HTTP 200) so HTMX swap completes with a "Panel Error" slot. | |
 | req-web-panel-obj-6 | Web Dimension | Implemented | Panel carries `DEFAULT_DIMENSIONS = {"tap.graph": "web"}` (already implemented). | |
-| req-web-panel-obj-7 | Config Defaults Empty Object | Proposed | `config` is required and defaults to `{}`. | |
-| req-web-panel-obj-8 | Editor View Optional | Proposed | `editor_view` is optional and only required when a panel supports edit mode. | |
+| req-web-panel-obj-7 | Config Defaults Empty Object | Implemented | `config` is required and defaults to `{}`. | |
+| req-web-panel-obj-8 | Editor View Optional | Implemented | `editor_view` is optional and only required when a panel supports edit mode. | |
 
 #### Future
 
@@ -135,7 +136,7 @@ Consider adding input schemas for panel-level input validation once a stable pan
 ### Panel Edit Mode
 ----
 RID: `req-web-panel-edit`
-Status: `Proposed`
+Status: `Implemented`
 
 Panels may support a separate edit mode used to configure the panel instance. Edit mode is panel-only: it edits the Panel object itself rather than any page-specific slot binding.
 
@@ -161,13 +162,13 @@ Keep edit mode lightweight. `config` is the generic extension surface for panel-
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-edit-1 | Separate Edit Mode Exists | Proposed | Panels may support a separate edit mode in addition to normal view rendering. | |
-| req-web-panel-edit-2 | Editor Template Declared | Proposed | Panels that support custom editing declare `editor_view`. | |
-| req-web-panel-edit-3 | Separate Editor Assets | Proposed | Panels may declare `editor_js` and `editor_css` separately from normal `js` and `css`. | |
-| req-web-panel-edit-4 | Edit Mode Targets Panel Object | Proposed | Panel edit mode edits the Panel object itself, not page-specific bindings. | |
-| req-web-panel-edit-5 | Edit Scope | Proposed | Edit mode covers `title`, `description`, and `config`. | |
-| req-web-panel-edit-6 | Preview Separate From Save | Proposed | Edit mode provides a separate preview action and save action. | |
-| req-web-panel-edit-7 | No Live Preview Required | Proposed | V1 edit mode does not require live preview while editing. | |
+| req-web-panel-edit-1 | Separate Edit Mode Exists | Implemented | Panels may support a separate edit mode in addition to normal view rendering. | |
+| req-web-panel-edit-2 | Editor Template Declared | Implemented | Panels that support custom editing declare `editor_view`. | |
+| req-web-panel-edit-3 | Separate Editor Assets | Implemented | Panels may declare `editor_js` and `editor_css` separately from normal `js` and `css`. | |
+| req-web-panel-edit-4 | Edit Mode Targets Panel Object | Implemented | Panel edit mode edits the Panel object itself, not page-specific bindings. | |
+| req-web-panel-edit-5 | Edit Scope | Implemented | Edit mode covers `title`, `description`, and `config`. | |
+| req-web-panel-edit-6 | Preview Separate From Save | Implemented | Edit mode provides a separate preview action and save action. | |
+| req-web-panel-edit-7 | No Live Preview Required | Implemented | V1 edit mode does not require live preview while editing. | |
 
 #### Future
 Consider defining a lightweight panel config DSL or schema system so edit mode can validate and describe `config` more formally.
@@ -203,14 +204,14 @@ Define panel edit access, preview access, and save permissions once the user sec
 ### Panel Registry
 ----
 RID: `req-web-panel-registry`
-Status: `Proposed`
+Status: `Implemented`
 
 Panels are registered at load time in a run-time registry similar to the node's registry.
 
 ### Panel Static Assets
 ----
 RID: `req-web-panel-static`
-Status: `Proposed`
+Status: `Implemented`
 
 Panel static objects live in a django-standard static asset path which will make them accessible using standard static lookups.
 

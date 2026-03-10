@@ -1,0 +1,116 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}{{ reg_title }} | {{ site_title|default:"Django site admin" }}{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script>
+    setInterval(function () {
+      fetch(window.location.href)
+        .then(function (r) { return r.text(); })
+        .then(function (html) {
+          var doc = new DOMParser().parseFromString(html, "text/html");
+          var next = doc.getElementById("content-main");
+          var current = document.getElementById("content-main");
+          if (next && current) { current.innerHTML = next.innerHTML; }
+        })
+        .catch(function () {}); // silently ignore fetch errors
+    }, 1000);
+  </script>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans "Home" %}</a>
+  &rsaquo; <a href="{{ index_url }}">Registries</a>
+  &rsaquo; {{ reg_title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <div class="module aligned" style="margin-bottom: 1em;">
+    <table>
+      <tr>
+        <th scope="row" style="width: 120px;">Name</th>
+        <td><code>{{ reg_name }}</code></td>
+      </tr>
+      <tr>
+        <th scope="row">Class</th>
+        <td><code>{{ registry_class }}</code></td>
+      </tr>
+      <tr>
+        <th scope="row">Creator</th>
+        <td><code>{{ reg_creator }}</code></td>
+      </tr>
+      {% if reg_description %}
+      <tr>
+        <th scope="row">Description</th>
+        <td>{{ reg_description }}</td>
+      </tr>
+      {% endif %}
+      <tr>
+        <th scope="row">Entries</th>
+        <td>{{ entry_count }}</td>
+      </tr>
+      {% if is_scoped %}
+      <tr>
+        <th scope="row">Scopes</th>
+        <td>{{ scope_count }}</td>
+      </tr>
+      {% endif %}
+    </table>
+  </div>
+
+  <div class="results">
+    {% if is_scoped %}
+    <table id="result_list">
+      <thead>
+        <tr>
+          <th scope="col"><div class="text"><span>Scope</span></div></th>
+          <th scope="col"><div class="text"><span>Short Key</span></div></th>
+          <th scope="col"><div class="text"><span>Fully-Qualified Key</span></div></th>
+          <th scope="col"><div class="text"><span>Value Summary</span></div></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in entry_rows %}
+        <tr class="{% cycle 'row1' 'row2' %}">
+          <td><code>{{ row.scope }}</code></td>
+          <td><code>{{ row.short_key }}</code></td>
+          <td><code>{{ row.fq_key }}</code></td>
+          <td><small>{{ row.value_summary }}</small></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">No entries registered.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <table id="result_list">
+      <thead>
+        <tr>
+          <th scope="col"><div class="text"><span>Key</span></div></th>
+          <th scope="col"><div class="text"><span>Value Summary</span></div></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in entry_rows %}
+        <tr class="{% cycle 'row1' 'row2' %}">
+          <td><code>{{ row.key }}</code></td>
+          <td><small>{{ row.value_summary }}</small></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="2">No entries registered.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  <p style="margin-top: 1em;">
+    <a href="{{ index_url }}">&laquo; Back to Registries</a>
+  </p>
+</div>
+{% endblock %}
