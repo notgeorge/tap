@@ -58,7 +58,9 @@ Keep built-in panel types small and obvious. They should prove the architecture,
 | req-web-stdpanel-base-3 | Standard Panels Are Reference Implementations | Implemented | Standard panels are intended to serve as readable examples of panel rendering and editing patterns. | `TextPanelType` + `TextPanelEditForm` in `tap_web/panels/text_panel/`. |
 
 #### Future
-Add additional built-in panel types such as table panels and entity viewers once the text panel is proven.
+Add additional built-in panel types as separate standards once the text panel pattern is proven.
+
+The Table Panel has been split into its own draft standard at `tap_web/specs/spec-web-standard-panels-table.md` so search binding, mixed-result handling, and pagination can evolve without overloading this catalog spec.
 
 ### Text Panel
 ----

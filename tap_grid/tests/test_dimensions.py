@@ -7,13 +7,15 @@ Covers:
 """
 
 import pytest
-
-from tap_grid.constraints import _EDGE_DEFAULT_DIMENSIONS_REGISTRY, _edge_default_dimensions_registry, register_edge_default_dimensions
 from django.core.exceptions import ImproperlyConfigured
+
+from tap_grid.constraints import (
+    _edge_default_dimensions_registry,
+    register_edge_default_dimensions,
+)
 from tap_grid.models import Dimension, Edge, Entity
 from tap_grid.services import create_entity
 from tap_plugins.core_examples.models import Concept, Precept
-
 
 # ---------------------------------------------------------------------------
 # req-grid-dimension-em: Dimensions on Entity Model

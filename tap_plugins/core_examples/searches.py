@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from tap_grid.models import Search
 
 
-def list_concepts(search: "Search", inputs: dict[str, Any], *, db_alias: str) -> dict[str, Any]:
+def list_concepts(search: Search, inputs: dict[str, Any], *, db_alias: str) -> dict[str, Any]:
     """Return all concept entities as a flat node list.
 
     Registered as: tap_plugins.core_examples.searches:list-concepts

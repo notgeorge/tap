@@ -5,7 +5,7 @@ Provides lookup functions used by page, panel, and landing views.
 
 import logging
 
-from tap_grid.models import Edge, Entity
+from tap_grid.models import Edge
 from tap_web.models import LandingPage, Page, Panel
 
 logger = logging.getLogger(__name__)

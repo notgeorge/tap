@@ -78,6 +78,12 @@ The `slug` portion is the Panel's `slug` field value. The UUID is the Panel's `e
 
 `Panel` model in `tap_web/models.py` declares the fields above. The generic panel view handler in `tap_web/views.py` receives a request, looks up the Panel by entity UUID extracted from the URL, and calls `django.shortcuts.render(request, panel.view)` to render the panel's declared template. Panel edit mode uses `editor_view` plus `editor_js` and `editor_css` when the panel supports editing. `config` stores panel-specific configuration with default `{}`. The panel error fragment is returned on any exception so the HTMX swap completes and the slot shows "Panel Error" rather than leaving the page broken.
 
+Asset list semantics:
+- `js`, `css`, `editor_js`, and `editor_css` contain static-relative asset paths, not code blobs.
+- Panel-specific client behavior should live in shipped static files such as `js/panel-*.js`.
+- Third-party libraries vendored into TAP should also be served as static files, for example under `js/lib/`.
+- Inline JavaScript embedded directly into panel HTML is not part of the panel contract.
+
 #### Development
 
 #### Acceptance Criteria
@@ -221,6 +227,8 @@ Directory structure will be standardized as
 
 A panel is allowed to reference assets from other plugins.
 A panel is NOT ALLOWED to reference assets from the Internet at this time.
+
+`js` and related asset lists store static-relative file paths only. They do not store inline script text, bundled code blobs, or remote URLs.
 
 ---
 

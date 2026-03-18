@@ -31,12 +31,12 @@ from typing import TYPE_CHECKING, Any
 
 from django.utils import timezone
 
-from tap_grid.services import create_entity
 from tap_flip.history.context import get_batch_id, get_history_user, set_batch_id
+from tap_grid.services import create_entity
 
 if TYPE_CHECKING:
-    from tap_grid.models import Entity, User
     from tap_flip.models import Batch, BatchEvent
+    from tap_grid.models import Entity, User
 
 
 def create_batch(

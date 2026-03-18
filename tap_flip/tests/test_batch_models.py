@@ -2,9 +2,9 @@
 
 import pytest
 
-from tap_grid.services import create_entity
 from tap_flip.config import is_batch_enabled, is_history_enabled
 from tap_flip.models import Batch, BatchEvent, BatchEventType, BatchStatus
+from tap_grid.services import create_entity
 
 
 @pytest.mark.django_db

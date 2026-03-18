@@ -12,7 +12,6 @@ from tap_grid.exceptions import (
 )
 from tap_grid.registry import get_search_runner, register_search_runner, search_runner_registry
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

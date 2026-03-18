@@ -14,7 +14,6 @@ from django.test import Client
 from tap_web.models import Panel
 from tap_web.panels.text_panel import TextPanelEditForm, TextPanelType
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

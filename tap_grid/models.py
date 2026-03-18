@@ -159,7 +159,7 @@ class Entity(models.Model):
             return f"{self.display_name} ({self.entity_type})"
         return f"{self.entity_type}:{self.id}"
 
-    def resolve(self) -> "BaseModel":
+    def resolve(self) -> BaseModel:
         """Return the concrete typed model instance for this Entity.
 
         Uses the model registry populated at class-definition time.

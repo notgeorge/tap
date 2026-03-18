@@ -2,8 +2,6 @@
 
 import pytest
 
-from tap_grid.models import User
-from tap_grid.services import create_entity
 from tap_flip.batch import (
     batch_context,
     close_batch,
@@ -16,6 +14,8 @@ from tap_flip.batch import (
 )
 from tap_flip.history.context import get_batch_id, set_batch_id, set_history_user
 from tap_flip.models import BatchEventType, BatchStatus
+from tap_grid.models import User
+from tap_grid.services import create_entity
 
 
 @pytest.mark.django_db

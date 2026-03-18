@@ -2,11 +2,11 @@
 
 import pytest
 
-from tap_grid.models import User
-from tap_grid.services import create_entity
 from tap_flip.config import is_history_enabled
 from tap_flip.history.context import set_history_user
 from tap_flip.history.service import get_historical_records, get_history_timeline
+from tap_grid.models import User
+from tap_grid.services import create_entity
 from tap_plugins.core_examples.models import Concept, Precept
 
 

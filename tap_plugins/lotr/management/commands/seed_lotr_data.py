@@ -221,7 +221,7 @@ class Command(BaseCommand):
     def _seed_web_page(self) -> None:
         """Create a Middle-earth welcome Page with a single Text Panel. Idempotent."""
         from tap_grid.models import Edge, Entity
-        from tap_web.models import Panel, Page
+        from tap_web.models import Page, Panel
         from tap_web.panels.text_panel import TextPanelType
 
         # Panel

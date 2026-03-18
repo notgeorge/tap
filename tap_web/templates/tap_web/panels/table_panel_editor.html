@@ -1,0 +1,86 @@
+{# Table Panel editor fields — included inside the outer <form> in panel_edit.html #}
+
+<div>
+    <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ form.title.id_for_label }}">
+        Title
+    </label>
+    {% if form.title.errors %}
+    <ul class="text-red-600 text-xs mb-1 list-none p-0">
+        {% for error in form.title.errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <input id="{{ form.title.id_for_label }}"
+           name="{{ form.title.html_name }}"
+           type="text"
+           value="{{ form.title.value|default:'' }}"
+           maxlength="255"
+           class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 {% if form.title.errors %}border-red-400{% else %}border-slate-300{% endif %}">
+</div>
+
+<div>
+    <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ form.description.id_for_label }}">
+        Description <span class="text-slate-400 font-normal">(admin metadata, not displayed)</span>
+    </label>
+    <textarea id="{{ form.description.id_for_label }}"
+              name="{{ form.description.html_name }}"
+              rows="2"
+              class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">{{ form.description.value|default:'' }}</textarea>
+</div>
+
+<div>
+    <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ form.search_uuid.id_for_label }}">
+        Linked Search
+    </label>
+    <p class="text-xs text-slate-500 mb-1">
+        The panel executes this Search when rendering. Search logic is not duplicated in panel config.
+    </p>
+    {% if form.search_uuid.errors %}
+    <ul class="text-red-600 text-xs mb-1 list-none p-0">
+        {% for error in form.search_uuid.errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <select id="{{ form.search_uuid.id_for_label }}"
+            name="{{ form.search_uuid.html_name }}"
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+        {% for value, label in form.search_uuid.field.choices %}
+        <option value="{{ value }}" {% if form.search_uuid.value == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<div>
+    <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ form.column_mode.id_for_label }}">
+        Column Mode
+    </label>
+    {% if form.column_mode.errors %}
+    <ul class="text-red-600 text-xs mb-1 list-none p-0">
+        {% for error in form.column_mode.errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <select id="{{ form.column_mode.id_for_label }}"
+            name="{{ form.column_mode.html_name }}"
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+        {% for value, label in form.column_mode.field.choices %}
+        <option value="{{ value }}" {% if form.column_mode.value == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<div>
+    <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ form.default_limit.id_for_label }}">
+        Default Rows Per Page
+    </label>
+    <p class="text-xs text-slate-500 mb-1">{{ form.default_limit.help_text }}</p>
+    {% if form.default_limit.errors %}
+    <ul class="text-red-600 text-xs mb-1 list-none p-0">
+        {% for error in form.default_limit.errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <input id="{{ form.default_limit.id_for_label }}"
+           name="{{ form.default_limit.html_name }}"
+           type="number"
+           value="{{ form.default_limit.value|default:25 }}"
+           min="1"
+           max="500"
+           class="w-32 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 {% if form.default_limit.errors %}border-red-400{% else %}border-slate-300{% endif %}">
+</div>

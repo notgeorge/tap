@@ -49,6 +49,14 @@ class TapWebConfig(AppConfig):
             },
         },
         {
+            "slug": "USES_SEARCH",
+            "display_name": "Uses Search",
+            "description": "Panel references a Search object as its data source (req-web-stdpanel-table-search).",
+            "sources": [{"type": "panel"}],
+            "targets": [{"type": "search"}],
+            "default_dimensions": {"tap.graph": "web"},
+        },
+        {
             "slug": "USES_LANDING_PAGE",
             "display_name": "Uses Landing Page",
             "description": "Landing page designates a target page for the root URL.",
@@ -60,8 +68,10 @@ class TapWebConfig(AppConfig):
 
     def ready(self) -> None:
         from tap_plugins.base import register_edge_types_from_list
+        from tap_web.panels.table_panel import TablePanelType
         from tap_web.panels.text_panel import TextPanelType
         from tap_web.registry import panel_type_registry
 
         register_edge_types_from_list(self.edge_types)
         panel_type_registry.register("text", TextPanelType)
+        panel_type_registry.register("table", TablePanelType)

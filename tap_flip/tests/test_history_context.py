@@ -2,13 +2,13 @@
 
 import pytest
 
-from tap_grid.models import User
 from tap_flip.history.context import (
     get_batch_id,
     get_history_user,
     set_batch_id,
     set_history_user,
 )
+from tap_grid.models import User
 
 
 class TestHistoryUserContext:

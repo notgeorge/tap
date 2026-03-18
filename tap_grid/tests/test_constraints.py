@@ -5,7 +5,6 @@ from django.core.exceptions import ImproperlyConfigured
 
 from tap_grid.constraints import (
     WILDCARD,
-    _EDGE_PROPERTY_SCHEMA_REGISTRY,
     _edge_property_schema_registry,
     _edge_type_registry,
     _node_registry,

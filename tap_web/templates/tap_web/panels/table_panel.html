@@ -1,0 +1,52 @@
+<div class="tap-panel tap-panel--table">
+    {% if panel.title %}
+    <h2 class="text-lg font-semibold text-slate-800 mb-3">{{ panel.title }}</h2>
+    {% endif %}
+
+    {% if table_error %}
+    <div class="tap-panel-error rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ table_error }}
+    </div>
+    {% else %}
+
+    {# Tabulator mount point. data-tap-table-panel-id links to the JSON data block below. #}
+    <div data-tap-table-mount
+         data-tap-table-panel-id="{{ panel.entity_id }}"
+         id="tap-table-mount-{{ panel.entity_id }}"
+         class="tap-table-container"></div>
+
+    {# Embedded search result payload (req-web-stdpanel-table-render-3). #}
+    {# type="application/json" is non-executable. table_nodes_json is pre-escaped #}
+    {# via _safe_json() in get_view_context so |safe is safe here. #}
+    <script type="application/json" id="tap-table-data-{{ panel.entity_id }}">{{ table_nodes_json|safe }}</script>
+
+    {# Server-backed pagination controls (req-web-stdpanel-table-pagination-6/7/8). #}
+    {# Bar renders whenever meta is present; Prev/Next are disabled (not hidden) at boundaries. #}
+    {% if table_meta %}
+    <div class="tap-table-pagination flex items-center gap-3 mt-3 text-sm text-slate-600">
+        <button class="tap-table-pagination__btn rounded border border-slate-300 bg-white px-3 py-1 {% if table_meta.has_prev %}hover:bg-slate-50{% else %}opacity-40 cursor-not-allowed{% endif %}"
+                {% if table_meta.has_prev %}
+                hx-get="/panel/{{ panel.slug }}--{{ panel.entity_id }}/?offset={{ table_meta.prev_offset }}&limit={{ table_meta.limit }}"
+                hx-target="closest .tap-panel--table"
+                hx-swap="outerHTML"
+                {% else %}disabled{% endif %}>
+            &larr; Prev
+        </button>
+
+        <span class="tap-table-pagination__info">
+            {{ table_meta.offset|add:1 }}&ndash;{{ table_meta.display_end }} of {{ table_meta.count }}
+        </span>
+
+        <button class="tap-table-pagination__btn rounded border border-slate-300 bg-white px-3 py-1 {% if table_meta.has_next %}hover:bg-slate-50{% else %}opacity-40 cursor-not-allowed{% endif %}"
+                {% if table_meta.has_next %}
+                hx-get="/panel/{{ panel.slug }}--{{ panel.entity_id }}/?offset={{ table_meta.next_offset }}&limit={{ table_meta.limit }}"
+                hx-target="closest .tap-panel--table"
+                hx-swap="outerHTML"
+                {% else %}disabled{% endif %}>
+            Next &rarr;
+        </button>
+    </div>
+    {% endif %}
+
+    {% endif %}{# end not table_error #}
+</div>

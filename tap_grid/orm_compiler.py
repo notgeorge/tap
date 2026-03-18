@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 def compile_orm_query(
-    search: "Search",
+    search: Search,
     db_alias: str,
     limit: int | None = None,
     offset: int = 0,

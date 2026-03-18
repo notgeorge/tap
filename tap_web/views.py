@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+from typing import Any
 
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
@@ -25,11 +26,11 @@ def landing_view(request: HttpRequest) -> HttpResponse:
     renders that Page inline without issuing a redirect. Query params from the
     root request are passed through unchanged to the page rendering context.
 
-    Renders a setup placeholder when no LandingPage is configured.
+    Renders a live all-nodes table when no LandingPage is configured.
     """
     page = get_landing_page()
     if page is None:
-        return render(request, "tap_web/setup_placeholder.html")
+        return _render_grid_placeholder(request)
 
     return _render_page(request, page)
 
@@ -69,7 +70,11 @@ def panel_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
         return _panel_error(request, f"Panel '{entity_uuid}' not found.")
 
     try:
-        return render(request, panel.view, {"panel": panel})
+        panel_type = _get_panel_type_for_panel(panel)
+        extra_ctx: dict = {}
+        if panel_type and hasattr(panel_type, "get_view_context"):
+            extra_ctx = panel_type.get_view_context(panel, request) or {}
+        return render(request, panel.view, {"panel": panel, **extra_ctx})
     except Exception as exc:  # noqa: BLE001
         logger.exception("Error rendering panel %s (view=%s)", entity_uuid, panel.view)
         return _panel_error(request, str(exc))
@@ -107,8 +112,11 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
         if form_class is not None:
             form = form_class(request.POST)
             if form.is_valid():
-                _apply_form_to_panel(form, panel)
-                panel.save()
+                if panel_type and hasattr(panel_type, "handle_save"):
+                    panel_type.handle_save(form, panel, request)
+                else:
+                    _apply_form_to_panel(form, panel)
+                    panel.save()
                 return redirect("panel-edit", panel_url_id=panel_url_id)
             return render(
                 request,
@@ -134,11 +142,11 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
     # GET
     form = None
     if form_class is not None:
-        form = form_class(initial={
-            "title": panel.title,
-            "description": panel.description,
-            **panel.config,
-        })
+        if panel_type and hasattr(panel_type, "get_editor_initial"):
+            initial = panel_type.get_editor_initial(panel)
+        else:
+            initial = {"title": panel.title, "description": panel.description, **panel.config}
+        form = form_class(initial=initial)
     return render(request, "tap_web/panel_edit.html", _panel_edit_context(panel_url_id, panel, form=form))
 
 
@@ -189,8 +197,8 @@ def _panel_edit_context(
     from tap_web.models import Panel
 
     assert isinstance(panel, Panel)
-    editor_css: dict[str, None] = {path: None for path in (panel.editor_css or [])}
-    editor_js: dict[str, None] = {path: None for path in (panel.editor_js or [])}
+    editor_css: dict[str, None] = dict.fromkeys(panel.editor_css or [])
+    editor_js: dict[str, None] = dict.fromkeys(panel.editor_js or [])
     return {
         "panel": panel,
         "panel_url_id": panel_url_id,
@@ -291,3 +299,120 @@ def _process_layout(layout: dict, panels_by_id: dict[str, str]) -> list[dict]:
 def _panel_error(request: HttpRequest, message: str) -> HttpResponse:
     """Return a panel error HTML fragment so HTMX swap completes."""
     return render(request, "tap_web/panel_error.html", {"message": message})
+
+
+def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
+    """Render a live all-nodes + all-edges view when no LandingPage is configured.
+
+    Uses transient (unsaved) Search instances — execute_search reads only model
+    fields, never queries by PK, so no DB writes occur.
+    """
+    from tap_grid.models import Entity as _Entity
+    from tap_grid.models import Search
+    from tap_grid.search_service import execute_search
+    from tap_web.panels.table_panel import _safe_int, _safe_json
+
+    _SEARCH_DB = "search_readonly"
+
+    node_limit = _safe_int(request.GET.get("limit"), 25)
+    node_offset = _safe_int(request.GET.get("offset"), 0)
+    edge_limit = _safe_int(request.GET.get("edge_limit"), 50)
+    edge_offset = _safe_int(request.GET.get("edge_offset"), 0)
+
+    node_search = Search(
+        search_type="orm",
+        root="node",
+        definition={"filters": {}, "order_by": ["display_name"]},
+        default_limit=25,
+        max_limit=200,
+    )
+    edge_search = Search(
+        search_type="orm",
+        root="edge",
+        definition={"filters": {}, "order_by": ["edge_type"]},
+        default_limit=50,
+        max_limit=500,
+    )
+
+    _empty_ctx: dict[str, Any] = {
+        "nodes_json": _safe_json([]),
+        "meta": {},
+        "edges_json": _safe_json([]),
+        "edges_meta": {},
+        "table_error": None,
+    }
+
+    try:
+        node_result = execute_search(node_search, limit=node_limit, offset=node_offset)
+        edge_result = execute_search(edge_search, limit=edge_limit, offset=edge_offset)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Grid placeholder search failed")
+        return render(
+            request,
+            "tap_web/setup_placeholder.html",
+            {**_empty_ctx, "table_error": str(exc)},
+        )
+
+    # --- Nodes ---
+    if "results" in node_result:
+        nodes: list[dict[str, Any]] = node_result["results"].get("nodes", [])
+        n_lim: int = node_result["limit"]
+        n_off: int = node_result["offset"]
+        n_count: int = node_result["count"]
+        meta: dict[str, Any] = {
+            "count": n_count,
+            "limit": n_lim,
+            "offset": n_off,
+            "has_prev": n_off > 0,
+            "has_next": n_off + n_lim < n_count,
+            "prev_offset": max(0, n_off - n_lim),
+            "next_offset": n_off + n_lim,
+            "display_end": min(n_off + n_lim, n_count),
+        }
+    else:
+        nodes = node_result.get("nodes", [])
+        meta = {}
+
+    # --- Edges ---
+    # result["count"] for root="edge" = len(current page), not total.
+    # Use info["total_count"] from the ORM compiler for correct pagination.
+    if "results" in edge_result:
+        edges: list[dict[str, Any]] = edge_result["results"].get("edges", [])
+        e_lim: int = edge_result["limit"]
+        e_off: int = edge_result["offset"]
+        e_count: int = edge_result["results"]["info"].get("total_count", len(edges))
+        edges_meta: dict[str, Any] = {
+            "count": e_count,
+            "limit": e_lim,
+            "offset": e_off,
+            "has_prev": e_off > 0,
+            "has_next": e_off + e_lim < e_count,
+            "prev_offset": max(0, e_off - e_lim),
+            "next_offset": e_off + e_lim,
+            "display_end": min(e_off + e_lim, e_count),
+        }
+    else:
+        edges = edge_result.get("edges", [])
+        edges_meta = {}
+
+    # Enrich edges with from/to display names via bulk lookup.
+    if edges:
+        all_ids = {e["from_entity_id"] for e in edges} | {e["to_entity_id"] for e in edges}
+        names: dict[str, str] = dict(
+            _Entity.objects.using(_SEARCH_DB).filter(id__in=all_ids).values_list("id", "display_name")
+        )
+        for edge in edges:
+            edge["from_display_name"] = names.get(edge["from_entity_id"]) or edge["from_entity_id"][-8:]
+            edge["to_display_name"] = names.get(edge["to_entity_id"]) or edge["to_entity_id"][-8:]
+
+    return render(
+        request,
+        "tap_web/setup_placeholder.html",
+        {
+            "nodes_json": _safe_json(nodes),
+            "meta": meta,
+            "edges_json": _safe_json(edges),
+            "edges_meta": edges_meta,
+            "table_error": None,
+        },
+    )

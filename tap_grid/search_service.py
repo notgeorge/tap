@@ -30,7 +30,7 @@ _ENVELOPE_KEYS = frozenset({"nodes", "edges"})
 
 
 def execute_search(
-    search: "Search",
+    search: Search,
     inputs: dict[str, Any] | None = None,
     *,
     limit: int | None = None,
@@ -103,7 +103,7 @@ def execute_search(
 # ---------------------------------------------------------------------------
 
 
-def _validate_inputs(search: "Search", inputs: dict[str, Any]) -> dict[str, Any]:
+def _validate_inputs(search: Search, inputs: dict[str, Any]) -> dict[str, Any]:
     """Validate execution inputs against search.input_schema.
 
     Returns the inputs unchanged if validation passes or no schema is set.
@@ -119,7 +119,7 @@ def _validate_inputs(search: "Search", inputs: dict[str, Any]) -> dict[str, Any]
 
 
 def _resolve_limit(
-    search: "Search", caller_limit: int | None
+    search: Search, caller_limit: int | None
 ) -> tuple[int | None, dict[str, Any]]:
     """Apply pagination rules and return (effective_limit, warnings).
 
@@ -165,7 +165,7 @@ def _normalize_envelope(raw: Any) -> dict[str, Any]:
 
 
 def _execute_module_search(
-    search: "Search",
+    search: Search,
     validated_inputs: dict[str, Any],
     db_alias: str,
 ) -> dict[str, Any]:
@@ -194,7 +194,7 @@ def _execute_module_search(
 
 
 def _execute_orm_search(
-    search: "Search",
+    search: Search,
     validated_inputs: dict[str, Any],
     db_alias: str,
     limit: int | None,

@@ -2,8 +2,9 @@
 
 import django.contrib.postgres.indexes
 import django.db.models.deletion
-import tap_grid.models
 from django.db import migrations, models
+
+import tap_grid.models
 
 
 class Migration(migrations.Migration):

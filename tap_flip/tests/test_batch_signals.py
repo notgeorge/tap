@@ -2,11 +2,11 @@
 
 import pytest
 
-from tap_grid.models import User
-from tap_grid.services import create_entity
 from tap_flip.batch import batch_context, create_batch, get_batch_events
 from tap_flip.history.context import get_batch_id, set_batch_id, set_history_user
 from tap_flip.models import BatchEventType
+from tap_grid.models import User
+from tap_grid.services import create_entity
 from tap_plugins.core_examples.models import Concept, Precept
 
 

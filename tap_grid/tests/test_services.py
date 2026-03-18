@@ -2,10 +2,20 @@
 
 import pytest
 
-from tap_grid.constraints import _EDGE_PROPERTY_SCHEMA_REGISTRY, _edge_property_schema_registry, register_edge_property_schema
+from tap_grid.constraints import (
+    _edge_property_schema_registry,
+    register_edge_property_schema,
+)
 from tap_grid.exceptions import EdgePropertyValidationError, InvalidEdgeError
 from tap_grid.models import Edge, Entity
-from tap_grid.services import create_edge, create_entity, delete_edge, delete_entity, update_edge_properties, update_entity
+from tap_grid.services import (
+    create_edge,
+    create_entity,
+    delete_edge,
+    delete_entity,
+    update_edge_properties,
+    update_entity,
+)
 from tap_plugins.core_examples.models import Concept
 
 

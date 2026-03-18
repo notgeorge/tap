@@ -1,0 +1,15 @@
+[[component]]
+name = "cytoscape"
+version = "3.30.4"
+files = ["tap_viz/static/tap_viz/js/cytoscape.min.js"]
+source_url = "https://github.com/cytoscape/cytoscape.js/releases/tag/v3.30.4"
+license = "MIT"
+checksum_sha256 = "1bb5340e549511e111b31e5684872c949ad33d40ea5dba0ad8e7d90c62c7b3b9"
+
+[[component]]
+name = "cytoscape-grid-guide"
+version = "unknown"
+files = ["tap_viz/static/tap_viz/js/cytoscape-grid-guide.js"]
+source_url = "https://github.com/iVis-at-Bilkent/cytoscape.js-grid-guide"
+license = "MIT"
+checksum_sha256 = "3dce3472142cbb8bda80879b38f104dfa87e6384ef64e6ca86efc4d8e75d3643"

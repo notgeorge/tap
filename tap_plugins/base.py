@@ -22,7 +22,11 @@ def register_edge_types_from_list(edge_types: list[dict[str, Any]]) -> None:
     TapPluginConfig.edge_types. Call this from any AppConfig.ready() that
     needs to register web or core edge types without subclassing TapPluginConfig.
     """
-    from tap_grid.constraints import register_edge_default_dimensions, register_edge_property_schema, register_edge_type_constraints
+    from tap_grid.constraints import (
+        register_edge_default_dimensions,
+        register_edge_property_schema,
+        register_edge_type_constraints,
+    )
 
     for et in edge_types:
         slug = et["slug"]

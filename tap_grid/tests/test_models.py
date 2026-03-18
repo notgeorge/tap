@@ -4,11 +4,14 @@ import pytest
 from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured
 
-from tap_grid.constraints import _EDGE_PROPERTY_SCHEMA_REGISTRY, _edge_property_schema_registry, register_edge_property_schema
+from tap_grid.constraints import (
+    _edge_property_schema_registry,
+    register_edge_property_schema,
+)
 from tap_grid.exceptions import EdgePropertyValidationError
 from tap_grid.models import Edge, Entity, EntityType
-from tap_grid.registry import _ENTITY_MODEL_REGISTRY, get_model_class, register_entity_type, resolve_entity
-from tap_grid.services import create_edge, create_entity
+from tap_grid.registry import get_model_class, register_entity_type, resolve_entity
+from tap_grid.services import create_entity
 from tap_plugins.base import TapPluginConfig
 from tap_plugins.core_examples.models import Concept, Precept
 
