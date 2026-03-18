@@ -22,7 +22,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-resolve | [Entity Resolution](#entity-resolution) | Implemented | `Entity.resolve()` uses the model registry to return the concrete typed object |
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
 | req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Implemented | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
-| req-grid-entity-metadata | [Canonical Entity Metadata](#canonical-entity-metadata) | Proposed | Platform-level canonical metadata contract for entity instances: `name`, `description`, `description_json` |
+| req-grid-entity-metadata | [Canonical Entity Metadata](#canonical-entity-metadata) | In Development | Platform-level canonical metadata contract for entity instances: `name`, `description`, `description_json`. `name` is fully implemented; `description` and `description_json` are pending. |
 | req-grid-entity-display | [Display Metadata](#display-metadata) | Backlog | `BaseModel`-level display metadata supports label resolution and future presentation hints; canonical icon behavior is defined separately in `spec-grid-icon.md` |
 | req-grid-entity-cascade | [Edge-Directed Cascade Deletion](#edge-directed-cascade-deletion) | Backlog | When an entity is deleted, cascades should be expressible in terms of edge relationships, not just Django's raw FK CASCADE |
 
@@ -37,7 +37,7 @@ This specification distinguishes three related but different concerns:
 - presentation/display hints
 
 Canonical entity instance metadata is governed by `req-grid-entity-metadata`.
-That requirement is about the standard metadata contract for a concrete entity instance and does not by itself redefine type-catalog fields such as `EntityType.display_name`, does not define rendering behavior, and does not require immediate implementation changes.
+That requirement is about the standard metadata contract for a concrete entity instance. `EntityType.name` was aligned as part of the same refactor that introduced this contract.
 
 ### Background
 The Entity Spine is what makes traversal across Entity types consistent without having to duplicate the metadata fields on every BaseModel derived table.  Honestly I could have gone that route but for reasons even I'm not clear on we're going with the spine approach first.
@@ -72,7 +72,7 @@ The initial implementation didn't automatically tie Entity and BaseModel creatio
 | --- | --- | :---: | --- | --- |
 | req-grid-entity-spine-1 | Entity Is Canonical Instance | Implemented | `Entity` is treated as the canonical concrete base instance stored in the entity spine. | |
 | req-grid-entity-spine-2 | One-to-One Extension | Implemented | Each typed entity model extending `BaseModel` maps to exactly one `Entity` through a one-to-one relationship. | |
-| req-grid-entity-spine-3 | BaseModel Creates Entity | Implemented | When saving a new BaseModel instance without an entity set, an `Entity` is automatically created using the subclass's `ENTITY_TYPE` and `get_display_name()`. See `req-grid-entity-base`. | |
+| req-grid-entity-spine-3 | BaseModel Creates Entity | Implemented | When saving a new BaseModel instance without an entity set, an `Entity` is automatically created using the subclass's `ENTITY_TYPE` and `get_name()`. See `req-grid-entity-base`. | |
 | req-grid-entity-spine-4 | BaseModel Confirms Entity | Implemented | When saving a BaseModel instance that already has an entity set, it confirms the Entity exists on the spine and that its `entity_type` matches the subclass's `ENTITY_TYPE`. Raises `ValueError` otherwise. | |
 
 #### Future
@@ -127,7 +127,7 @@ Registered types as of implementation: `edge`, `concept`, `precept`, `batch`, `l
 #### Future
 Consider a management command or system check that validates all registered entity types against the current entity spine contents to surface data integrity issues at startup.
 
-The `entity_types` list in `TapPluginConfig` (and equivalent `apps.py` declarations) is a separate layer from the in-memory model registry: the model registry (`_ENTITY_MODEL_REGISTRY`) is populated automatically at class-definition time and is sufficient for all functional operations. The `EntityType` DB table exists solely to serve the API's type catalogue with display metadata (`display_name`, `icon`, `description`, `plugin_name`). This creates duplication — the same type is declared once in the model and again in `apps.py`. The natural resolution is to add `DISPLAY_NAME`, `DESCRIPTION`, `ICON` as class vars on `BaseModel` subclasses and have `__init_subclass__` (or a `ready()`-time sweep of the model registry) populate `EntityType` automatically, eliminating the `entity_types` list entirely.
+The `entity_types` list in `TapPluginConfig` (and equivalent `apps.py` declarations) is a separate layer from the in-memory model registry: the model registry (`_ENTITY_MODEL_REGISTRY`) is populated automatically at class-definition time and is sufficient for all functional operations. The `EntityType` DB table exists solely to serve the API's type catalogue with display metadata (`name`, `icon`, `description`, `plugin_name`). This creates duplication — the same type is declared once in the model and again in `apps.py`. The natural resolution is to add `DISPLAY_NAME`, `DESCRIPTION`, `ICON` as class vars on `BaseModel` subclasses and have `__init_subclass__` (or a `ready()`-time sweep of the model registry) populate `EntityType` automatically, eliminating the `entity_types` list entirely.
 
 ---
 
@@ -154,7 +154,7 @@ def save(self, *args, **kwargs):
             caller_dims = getattr(self, "_initial_dimensions", {})
             self.entity = Entity.objects.create(
                 entity_type=entity_type,
-                display_name=self.get_display_name(),
+                name=self.get_name(),
                 dimensions={**base_dims, **caller_dims},
             )
             super().save(*args, **kwargs)
@@ -164,7 +164,7 @@ def save(self, *args, **kwargs):
         Entity.objects.filter(pk=self.entity_id).update(updated_at=timezone.now())
 ```
 
-`get_display_name()` returns `""` by default; subclasses override it to provide a meaningful label. `Edge` overrides it to produce `"<from_id> --[<type>]--> <to_id>"`.
+`get_name()` returns `""` by default; subclasses override it to provide a meaningful label. `Edge` overrides it to produce `"<from_id> --[<type>]--> <to_id>"`.
 
 `_confirm_entity()` validates that the entity exists and its `entity_type` matches `self.ENTITY_TYPE`. Raises `ValueError` if either check fails.
 
@@ -189,9 +189,9 @@ The dimensions integration was added concurrently with the dimension spec work; 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-entity-base-1 | Auto-Creation on Save | Implemented | Saving a new BaseModel subclass instance without `entity` set automatically creates an `Entity` row with the correct `entity_type` and `display_name`. | |
+| req-grid-entity-base-1 | Auto-Creation on Save | Implemented | Saving a new BaseModel subclass instance without `entity` set automatically creates an `Entity` row with the correct `entity_type` and `name`. | |
 | req-grid-entity-base-2 | Atomic Transaction | Implemented | Entity creation and BaseModel row insertion are wrapped in `transaction.atomic()`. A failure in either rolls back both. | |
-| req-grid-entity-base-3 | Overridable Display Name | Implemented | `get_display_name()` returns `""` by default; subclasses may override to provide a meaningful name without requiring callers to set it. | |
+| req-grid-entity-base-3 | Overridable Name | Implemented | `get_name()` returns `""` by default; subclasses may override to provide a meaningful name without requiring callers to set it. | |
 | req-grid-entity-base-4 | Explicit Entity Still Valid | Implemented | Passing an explicit `entity=` remains valid; the save path skips auto-creation and instead confirms the entity (spine-4). | |
 | req-grid-entity-base-5 | create_edge Refactored | Implemented | `tap_grid/services.py create_edge()` no longer manually creates its backing Entity; it relies on `Edge.save()` auto-creation instead. | |
 | req-grid-entity-base-6 | Edge Endpoint Validation | Implemented | `Edge.save()` confirms both `from_entity` and `to_entity` exist on the spine before any write. Raises `ValueError` with a clear message identifying which endpoint is missing. | |
@@ -205,7 +205,7 @@ Once FLIP is fully active, Entity creation through this path should be recorded 
 ### Canonical Entity Metadata
 ----
 RID: `req-grid-entity-metadata`
-Status: `Proposed`
+Status: `In Development`
 
 TAP needs one canonical metadata contract for entity instances so higher-level capabilities can rely on stable terms and do not each invent their own naming surface. The standard metadata contract for a TAP entity instance is:
 - `name`
@@ -213,7 +213,7 @@ TAP needs one canonical metadata contract for entity instances so higher-level c
 - `description_json`
 
 #### Status Details
-New platform-level requirement proposed to standardize entity instance metadata terminology across grid, web, viz, and plugin specifications. This requirement is normative at the specification layer and does not claim the current implementation is already fully aligned.
+`name` is fully implemented across the codebase: `Entity.name`, `EntityType.name`, `Search.name`, `Page.name`, `Panel.name`, `LandingPage.name`, and all API schemas, serializers, seed data, and tests are aligned. `description` and `description_json` are not yet implemented.
 
 #### Implementation
 The canonical entity instance metadata contract is:
@@ -231,26 +231,23 @@ Cross-spec terminology rule:
 - `display_name` should only be used when referring to legacy implementation terminology or non-instance registry/type metadata
 
 This requirement is about canonical entity instance metadata only.
-It does not by itself:
-- redefine `EntityType.display_name` or other type-catalog metadata
-- define rendering behavior
-- prescribe migrations, storage layout, or API compatibility behavior
+`description` and `description_json` are pending implementation.
 
 #### Development
-Current TAP specifications and implementations still contain legacy/current-state terms such as `title` and `display_name`. Those terms should be treated as non-canonical for entity instance metadata and gradually aligned in future implementation work.
+`name` is the only implemented field from this contract. All uses of `title` and `display_name` as entity instance metadata terms have been removed from the codebase and replaced with `name`.
 
-Higher-level specifications should reference this requirement rather than present `title` or `display_name` as the ideal long-term instance metadata shape.
+Higher-level specifications should reference this requirement and use `name`, `description`, and `description_json` as the canonical terms for entity instance metadata.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-entity-metadata-1 | Canonical Metadata Contract Exists | Proposed | TAP entity instances have a canonical metadata contract consisting of `name`, `description`, and `description_json` at the specification level. | |
-| req-grid-entity-metadata-2 | Name Is Canonical Required Identifier | Proposed | `name` is the required canonical human-readable identifier for an entity instance. | |
+| req-grid-entity-metadata-1 | Canonical Metadata Contract Exists | Implemented | TAP entity instances have a canonical metadata contract consisting of `name`, `description`, and `description_json` at the specification level. | |
+| req-grid-entity-metadata-2 | Name Is Canonical Required Identifier | Implemented | `name` is the required canonical human-readable identifier for an entity instance. | |
 | req-grid-entity-metadata-3 | Description Is Canonical Plain Text Field | Proposed | `description` is the canonical optional plain-text descriptive field for an entity instance. | |
 | req-grid-entity-metadata-4 | Description Json Is Canonical Structured Field | Proposed | `description_json` is the canonical optional structured descriptive field for an entity instance. | |
-| req-grid-entity-metadata-5 | Higher-Level Specs Align | Proposed | Higher-level TAP specifications align their entity instance metadata terminology to this contract. | |
-| req-grid-entity-metadata-6 | Legacy Terms Are Non-Canonical | Proposed | Legacy/current-state spec terms such as `title` and `display_name` are non-canonical for entity instance metadata once this requirement is adopted. | |
+| req-grid-entity-metadata-5 | Higher-Level Specs Align | Implemented | Higher-level TAP specifications align their entity instance metadata terminology to this contract. | |
+| req-grid-entity-metadata-6 | Legacy Terms Are Non-Canonical | Implemented | `title` and `display_name` have been removed as entity instance metadata terms from all models, APIs, serializers, templates, seed data, and tests. | |
 
 #### Future
 Define the implementation and migration strategy for aligning models, APIs, and storage with this metadata contract.
