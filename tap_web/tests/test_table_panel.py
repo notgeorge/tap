@@ -34,7 +34,7 @@ from tap_web.panels.table_panel import (
 def _create_table_panel(**kwargs) -> Panel:
     defaults = {
         "slug": "table-panel",
-        "title": "Test Table",
+        "name": "Test Table",
         "view": TablePanelType.view,
         "editor_view": TablePanelType.editor_view,
         "config": {"column_mode": "common_metadata", "default_limit": 25},
@@ -49,7 +49,7 @@ def _create_search(**kwargs):
     from tap_grid.models import Search
 
     defaults = {
-        "title": "Test Search",
+        "name": "Test Search",
         "search_type": "orm",
         "root": "node",
         "definition": {"filters": {}},
@@ -227,8 +227,8 @@ class TestTablePanelViewContext:
             "offset": 0,
             "results": {
                 "nodes": [
-                    {"entity_id": "abc", "entity_type": "concept", "display_name": "A", "dimensions": {}, "created_at": None, "updated_at": None},
-                    {"entity_id": "def", "entity_type": "concept", "display_name": "B", "dimensions": {}, "created_at": None, "updated_at": None},
+                    {"entity_id": "abc", "entity_type": "concept", "name": "A", "dimensions": {}, "created_at": None, "updated_at": None},
+                    {"entity_id": "def", "entity_type": "concept", "name": "B", "dimensions": {}, "created_at": None, "updated_at": None},
                 ],
                 "edges": [],
                 "info": {},
@@ -423,10 +423,10 @@ class TestTablePanelViewEndpoint:
 class TestTablePanelEditorInitial:
     """get_editor_initial pre-populates the form with current panel state."""
 
-    def test_returns_title_and_description(self):
-        panel = _create_table_panel(title="My Table", description="Note")
+    def test_returns_name_and_description(self):
+        panel = _create_table_panel(name="My Table", description="Note")
         initial = TablePanelType.get_editor_initial(panel)
-        assert initial["title"] == "My Table"
+        assert initial["name"] == "My Table"
         assert initial["description"] == "Note"
 
     def test_returns_empty_search_uuid_when_no_search(self):
@@ -457,7 +457,7 @@ class TestTablePanelHandleSave:
         # Refresh choices at form time.
         search_uuid = str(search.entity_id) if search else ""
         data = {
-            "title": panel.title,
+            "name": panel.name,
             "description": panel.description,
             "search_uuid": search_uuid,
             "column_mode": "common_metadata",
@@ -466,16 +466,16 @@ class TestTablePanelHandleSave:
         data.update(overrides)
         return TablePanelEditForm(data)
 
-    def test_save_updates_title(self):
-        panel = _create_table_panel(title="Old")
-        form = self._make_form(panel, title="New Title")
+    def test_save_updates_name(self):
+        panel = _create_table_panel(name="Old")
+        form = self._make_form(panel, name="New Title")
         assert form.is_valid(), form.errors
         from django.test import RequestFactory
 
         request = RequestFactory().post(_edit_url(panel))
         TablePanelType.handle_save(form, panel, request)
         panel.refresh_from_db()
-        assert panel.title == "New Title"
+        assert panel.name == "New Title"
 
     def test_save_updates_config(self):
         panel = _create_table_panel()
@@ -505,10 +505,10 @@ class TestTablePanelHandleSave:
         from tap_grid.models import Edge
 
         panel = _create_table_panel()
-        old_search = _create_search(title="Old Search")
+        old_search = _create_search(name="Old Search")
         _link_search(panel, old_search)
 
-        new_search = _create_search(title="New Search")
+        new_search = _create_search(name="New Search")
         form = self._make_form(panel, search=new_search)
         assert form.is_valid(), form.errors
         from django.test import RequestFactory
@@ -563,7 +563,7 @@ class TestTablePanelEditView:
         response = Client().post(
             _edit_url(panel),
             {
-                "title": "Updated",
+                "name": "Updated",
                 "description": "",
                 "search_uuid": str(search.entity_id),
                 "column_mode": "common_metadata",
@@ -572,12 +572,12 @@ class TestTablePanelEditView:
         )
         assert response.status_code == 302
 
-    def test_post_empty_title_rerenders_with_errors(self):
+    def test_post_empty_name_rerenders_with_errors(self):
         panel = _create_table_panel()
         response = Client().post(
             _edit_url(panel),
             {
-                "title": "",
+                "name": "",
                 "description": "",
                 "search_uuid": "",
                 "column_mode": "common_metadata",
@@ -597,7 +597,7 @@ class TestTablePanelEditForm:
     def test_valid_minimal_form_passes(self):
         form = TablePanelEditForm(
             {
-                "title": "A Table",
+                "name": "A Table",
                 "description": "",
                 "search_uuid": "",
                 "column_mode": "common_metadata",
@@ -606,10 +606,10 @@ class TestTablePanelEditForm:
         )
         assert form.is_valid(), form.errors
 
-    def test_missing_title_fails(self):
+    def test_missing_name_fails(self):
         form = TablePanelEditForm(
             {
-                "title": "",
+                "name": "",
                 "description": "",
                 "search_uuid": "",
                 "column_mode": "common_metadata",
@@ -617,12 +617,12 @@ class TestTablePanelEditForm:
             }
         )
         assert not form.is_valid()
-        assert "title" in form.errors
+        assert "name" in form.errors
 
     def test_invalid_column_mode_fails(self):
         form = TablePanelEditForm(
             {
-                "title": "T",
+                "name": "T",
                 "description": "",
                 "search_uuid": "",
                 "column_mode": "bad_mode",
@@ -635,7 +635,7 @@ class TestTablePanelEditForm:
     def test_default_limit_below_min_fails(self):
         form = TablePanelEditForm(
             {
-                "title": "T",
+                "name": "T",
                 "description": "",
                 "search_uuid": "",
                 "column_mode": "common_metadata",
@@ -646,10 +646,10 @@ class TestTablePanelEditForm:
         assert "default_limit" in form.errors
 
     def test_search_choices_populated(self):
-        search = _create_search(title="My Search")
+        search = _create_search(name="My Search")
         form = TablePanelEditForm(
             {
-                "title": "T",
+                "name": "T",
                 "description": "",
                 "search_uuid": str(search.entity_id),
                 "column_mode": "common_metadata",

@@ -128,7 +128,7 @@ class Command(BaseCommand):
         for char in self.CHARACTERS:
             entity, created = Entity.objects.get_or_create(
                 entity_type="character",
-                display_name=char["name"],
+                name=char["name"],
             )
             if created:
                 Character.objects.create(entity=entity, title=char["title"], bio=char["bio"])
@@ -139,7 +139,7 @@ class Command(BaseCommand):
         for loc in self.LOCATIONS:
             entity, created = Entity.objects.get_or_create(
                 entity_type="location",
-                display_name=loc["name"],
+                name=loc["name"],
             )
             if created:
                 Location.objects.create(entity=entity, realm=loc["realm"], description=loc["description"])
@@ -150,7 +150,7 @@ class Command(BaseCommand):
         for art in self.ARTIFACTS:
             entity, created = Entity.objects.get_or_create(
                 entity_type="artifact",
-                display_name=art["name"],
+                name=art["name"],
             )
             if created:
                 Artifact.objects.create(entity=entity, power=art["power"], origin=art["origin"])
@@ -161,7 +161,7 @@ class Command(BaseCommand):
         for race in self.RACES:
             entity, created = Entity.objects.get_or_create(
                 entity_type="race",
-                display_name=race["name"],
+                name=race["name"],
             )
             if created:
                 Race.objects.create(entity=entity, homeland=race["homeland"], traits=race["traits"])
@@ -172,7 +172,7 @@ class Command(BaseCommand):
         for faction in self.FACTIONS:
             entity, created = Entity.objects.get_or_create(
                 entity_type="faction",
-                display_name=faction["name"],
+                name=faction["name"],
             )
             if created:
                 Faction.objects.create(entity=entity, purpose=faction["purpose"])
@@ -198,7 +198,7 @@ class Command(BaseCommand):
             if not edge_exists:
                 edge_entity = Entity.objects.create(
                     entity_type="edge",
-                    display_name=edge_type,
+                    name=edge_type,
                 )
                 Edge.objects.create(
                     entity=edge_entity,
@@ -228,7 +228,7 @@ class Command(BaseCommand):
         panel, panel_created = Panel.objects.get_or_create(
             slug="middle-earth-welcome",
             defaults={
-                "title": "Welcome to Middle-earth",
+                "name": "Welcome to Middle-earth",
                 "view": TextPanelType.view,
                 "editor_view": TextPanelType.editor_view,
                 "config": {"text": "hello middle earth"},
@@ -251,7 +251,7 @@ class Command(BaseCommand):
         page, page_created = Page.objects.get_or_create(
             slug="/middle-earth",
             defaults={
-                "title": "Middle-earth",
+                "name": "Middle-earth",
                 "layout": layout,
             },
         )
@@ -267,7 +267,7 @@ class Command(BaseCommand):
         if not edge_exists:
             edge_entity = Entity.objects.create(
                 entity_type="edge",
-                display_name="USES_PANEL",
+                name="USES_PANEL",
             )
             Edge.objects.create(
                 entity=edge_entity,
@@ -283,37 +283,37 @@ class Command(BaseCommand):
         searches = [
             # --- ORM searches (declarative, no runner needed) ---
             {
-                "title": "All LOTR Characters",
+                "name": "All LOTR Characters",
                 "description": "Every character in Middle-earth.",
                 "search_type": "orm",
                 "root": "node",
                 "definition": {
                     "filters": {"entity_type": "character"},
-                    "order_by": ["display_name"],
+                    "order_by": ["name"],
                 },
             },
             {
-                "title": "All LOTR Locations",
+                "name": "All LOTR Locations",
                 "description": "Every location in Middle-earth.",
                 "search_type": "orm",
                 "root": "node",
                 "definition": {
                     "filters": {"entity_type": "location"},
-                    "order_by": ["display_name"],
+                    "order_by": ["name"],
                 },
             },
             {
-                "title": "All LOTR Artifacts",
+                "name": "All LOTR Artifacts",
                 "description": "Every significant artifact.",
                 "search_type": "orm",
                 "root": "node",
                 "definition": {
                     "filters": {"entity_type": "artifact"},
-                    "order_by": ["display_name"],
+                    "order_by": ["name"],
                 },
             },
             {
-                "title": "Characters and Their Artifacts",
+                "name": "Characters and Their Artifacts",
                 "description": "Characters with the artifacts they wield (one-hop graph).",
                 "search_type": "orm",
                 "root": "node",
@@ -326,11 +326,11 @@ class Command(BaseCommand):
                             "target_filters": {"entity_type": "artifact"},
                         }
                     ],
-                    "order_by": ["display_name"],
+                    "order_by": ["name"],
                 },
             },
             {
-                "title": "Characters and Their Locations",
+                "name": "Characters and Their Locations",
                 "description": "Characters with where they are located (one-hop graph).",
                 "search_type": "orm",
                 "root": "node",
@@ -343,22 +343,22 @@ class Command(BaseCommand):
                             "target_filters": {"entity_type": "location"},
                         }
                     ],
-                    "order_by": ["display_name"],
+                    "order_by": ["name"],
                 },
             },
             {
-                "title": "Character Alliances",
+                "name": "Character Alliances",
                 "description": "Characters and who they are allied with.",
                 "search_type": "orm",
                 "root": "node",
                 "definition": {
                     "filters": {"entity_type": "character"},
                     "hops": [{"direction": "out", "edge_type": "ALLIES_WITH"}],
-                    "order_by": ["display_name"],
+                    "order_by": ["name"],
                 },
             },
             {
-                "title": "All Fellowship Edges",
+                "name": "All Fellowship Edges",
                 "description": "All relationship edges in the Middle-earth graph.",
                 "search_type": "orm",
                 "root": "edge",
@@ -366,7 +366,7 @@ class Command(BaseCommand):
             },
             # --- Module search (runner-backed, includes typed model fields) ---
             {
-                "title": "Characters with Bio",
+                "name": "Characters with Bio",
                 "description": "All characters with title and bio from the typed model.",
                 "search_type": "module",
                 "root": "node",
@@ -378,13 +378,13 @@ class Command(BaseCommand):
 
         count = 0
         for spec in searches:
-            title = spec.pop("title")
+            name = spec.pop("name")
             _, created = Search.objects.get_or_create(
-                title=title,
+                name=name,
                 search_type=spec["search_type"],
-                defaults={"title": title, **spec},
+                defaults={"name": name, **spec},
             )
             if created:
-                self.stdout.write(f"  + Search: {title}")
+                self.stdout.write(f"  + Search: {name}")
                 count += 1
         return count

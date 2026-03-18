@@ -124,7 +124,7 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
                 _panel_edit_context(panel_url_id, panel, form=form),
             )
         # Generic fallback — no registered PanelType; raw JSON config editing.
-        panel.title = request.POST.get("title", panel.title)
+        panel.name = request.POST.get("name", panel.name)
         panel.description = request.POST.get("description", panel.description)
         raw_config = request.POST.get("config", "")
         if raw_config:
@@ -145,14 +145,14 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
         if panel_type and hasattr(panel_type, "get_editor_initial"):
             initial = panel_type.get_editor_initial(panel)
         else:
-            initial = {"title": panel.title, "description": panel.description, **panel.config}
+            initial = {"name": panel.name, "description": panel.description, **panel.config}
         form = form_class(initial=initial)
     return render(request, "tap_web/panel_edit.html", _panel_edit_context(panel_url_id, panel, form=form))
 
 
 # Standard Panel fields that map directly to Panel model attributes.
 # All other form cleaned_data keys are merged into panel.config.
-_STANDARD_PANEL_FIELDS = frozenset({"title", "description"})
+_STANDARD_PANEL_FIELDS = frozenset({"name", "description"})
 
 
 def _apply_form_to_panel(form: object, panel: object) -> None:
@@ -168,7 +168,7 @@ def _apply_form_to_panel(form: object, panel: object) -> None:
     assert isinstance(form, BaseForm)
     assert isinstance(panel, Panel)
     cleaned = form.cleaned_data
-    panel.title = cleaned["title"]
+    panel.name = cleaned["name"]
     panel.description = cleaned.get("description", panel.description)
     config_updates = {k: v for k, v in cleaned.items() if k not in _STANDARD_PANEL_FIELDS}
     if config_updates:
@@ -322,7 +322,7 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
     node_search = Search(
         search_type="orm",
         root="node",
-        definition={"filters": {}, "order_by": ["display_name"]},
+        definition={"filters": {}, "order_by": ["name"]},
         default_limit=25,
         max_limit=200,
     )
@@ -399,11 +399,11 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
     if edges:
         all_ids = {e["from_entity_id"] for e in edges} | {e["to_entity_id"] for e in edges}
         names: dict[str, str] = dict(
-            _Entity.objects.using(_SEARCH_DB).filter(id__in=all_ids).values_list("id", "display_name")
+            _Entity.objects.using(_SEARCH_DB).filter(id__in=all_ids).values_list("id", "name")
         )
         for edge in edges:
-            edge["from_display_name"] = names.get(edge["from_entity_id"]) or edge["from_entity_id"][-8:]
-            edge["to_display_name"] = names.get(edge["to_entity_id"]) or edge["to_entity_id"][-8:]
+            edge["from_name"] = names.get(edge["from_entity_id"]) or edge["from_entity_id"][-8:]
+            edge["to_name"] = names.get(edge["to_entity_id"]) or edge["to_entity_id"][-8:]
 
     return render(
         request,

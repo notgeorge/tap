@@ -9,7 +9,7 @@ from tap_grid.models import Search
 def _minimal_orm(**kwargs):
     """Return a minimal valid ORM Search kwargs dict, overridable via kwargs."""
     base = {
-        "title": "Test Search",
+        "name": "Test Search",
         "search_type": "orm",
         "root": "node",
         "definition": {"filters": {"entity_type": "concept"}},
@@ -21,7 +21,7 @@ def _minimal_orm(**kwargs):
 def _minimal_module(**kwargs):
     """Return a minimal valid module Search kwargs dict."""
     base = {
-        "title": "Test Module Search",
+        "name": "Test Module Search",
         "search_type": "module",
         "root": "node",
         "definition": {"runner_key": "tap_plugins.tests:example"},
@@ -46,7 +46,7 @@ class TestSearchIsEntity:
         from tap_grid.models import Entity
 
         before = Entity.objects.filter(entity_type="search").count()
-        Search.objects.create(**_minimal_orm(title="S1"))
+        Search.objects.create(**_minimal_orm(name="S1"))
         after = Entity.objects.filter(entity_type="search").count()
         assert after == before + 1
 
@@ -262,7 +262,7 @@ class TestCrossFieldValidation:
     def test_invalid_search_type_does_not_crash_validate(self):
         """validate() skips cross-field checks when search_type is invalid."""
         s = Search(
-            title="Bad",
+            name="Bad",
             search_type="sql",
             root="node",
             definition={"filters": {}},
@@ -273,7 +273,7 @@ class TestCrossFieldValidation:
         assert "search_type" in exc_info.value.message_dict
 
     def test_title_required(self):
-        s = Search(**_minimal_orm(title=""))
+        s = Search(**_minimal_orm(name=""))
         with pytest.raises(ValidationError) as exc_info:
             s.full_validate()
-        assert "title" in exc_info.value.message_dict
+        assert "name" in exc_info.value.message_dict

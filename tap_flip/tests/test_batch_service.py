@@ -59,11 +59,11 @@ class TestCreateBatch:
         finally:
             set_history_user(None)
 
-    def test_batch_has_display_name(self):
-        """create_batch sets display_name on entity."""
-        batch = create_batch(display_name="My Test Batch")
+    def test_batch_has_name(self):
+        """create_batch sets name on entity."""
+        batch = create_batch(name="My Test Batch")
 
-        assert batch.entity.display_name == "My Test Batch"
+        assert batch.entity.name == "My Test Batch"
 
     def test_batch_has_metadata(self):
         """create_batch sets metadata."""
@@ -221,7 +221,7 @@ class TestRecordBatchEvent:
         set_batch_id(str(batch.entity.id))
 
         try:
-            entity = create_entity("concept", display_name="Test")
+            entity = create_entity("concept", name="Test")
             event = record_batch_event(
                 entity=entity,
                 event_type=BatchEventType.CREATE,
@@ -238,7 +238,7 @@ class TestRecordBatchEvent:
 
     def test_returns_none_without_context(self):
         """No event recorded when no batch context."""
-        entity = create_entity("concept", display_name="Test")
+        entity = create_entity("concept", name="Test")
 
         event = record_batch_event(
             entity=entity,
@@ -249,13 +249,13 @@ class TestRecordBatchEvent:
 
     def test_explicit_batch_id_overrides_context(self):
         """Explicit batch_id parameter overrides context."""
-        batch1 = create_batch(display_name="Batch 1")
-        batch2 = create_batch(display_name="Batch 2")
+        batch1 = create_batch(name="Batch 1")
+        batch2 = create_batch(name="Batch 2")
 
         set_batch_id(str(batch1.entity.id))
 
         try:
-            entity = create_entity("concept", display_name="Test")
+            entity = create_entity("concept", name="Test")
             event = record_batch_event(
                 entity=entity,
                 event_type=BatchEventType.CREATE,
@@ -274,7 +274,7 @@ class TestGetBatch:
 
     def test_retrieves_batch_by_entity_id(self):
         """get_batch retrieves batch by entity ID."""
-        batch = create_batch(display_name="Get Test")
+        batch = create_batch(name="Get Test")
         batch_id = str(batch.entity.id)
 
         result = get_batch(batch_id)
@@ -300,8 +300,8 @@ class TestGetBatchEvents:
         set_batch_id(batch_id)
 
         try:
-            entity1 = create_entity("concept", display_name="Test 1")
-            entity2 = create_entity("concept", display_name="Test 2")
+            entity1 = create_entity("concept", name="Test 1")
+            entity2 = create_entity("concept", name="Test 2")
 
             record_batch_event(entity1, BatchEventType.CREATE, "Concept")
             record_batch_event(entity2, BatchEventType.CREATE, "Concept")
@@ -329,7 +329,7 @@ class TestGetEntityBatches:
         set_batch_id(str(batch.entity.id))
 
         try:
-            entity = create_entity("concept", display_name="Test")
+            entity = create_entity("concept", name="Test")
             record_batch_event(entity, BatchEventType.CREATE, "Concept")
 
             batches = get_entity_batches(entity.id)
@@ -341,7 +341,7 @@ class TestGetEntityBatches:
 
     def test_returns_empty_for_untracked_entity(self):
         """get_entity_batches returns empty list for entity not in any batch."""
-        entity = create_entity("concept", display_name="Untracked")
+        entity = create_entity("concept", name="Untracked")
 
         batches = get_entity_batches(entity.id)
 

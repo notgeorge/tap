@@ -1,7 +1,7 @@
 """Text Panel — built-in panel type for plain text content.
 
-Stores title and body text in the standard Panel object:
-  - Panel.title          — display title
+Stores name and body text in the standard Panel object:
+  - Panel.name           — display name
   - Panel.description    — backend/admin metadata (not rendered)
   - Panel.config["text"] — body text, rendered as plain text
 
@@ -20,7 +20,7 @@ class TextPanelEditForm(forms.Form):
     independently of any browser-side checks (req-web-panel-edit-form.sec).
     """
 
-    title = forms.CharField(max_length=255, strip=True)
+    name = forms.CharField(max_length=255, strip=True)
     description = forms.CharField(required=False, strip=True, widget=forms.Textarea)
     text = forms.CharField(required=False, strip=True, widget=forms.Textarea, label="Body Text")
 

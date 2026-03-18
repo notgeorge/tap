@@ -18,13 +18,13 @@ def list_characters_with_bio(
     from tap_plugins.lotr.models import Character
 
     characters = (
-        Character.objects.using(db_alias).select_related("entity").order_by("entity__display_name")
+        Character.objects.using(db_alias).select_related("entity").order_by("entity__name")
     )
     nodes = [
         {
             "entity_id": str(c.entity_id),
             "entity_type": "character",
-            "display_name": c.entity.display_name,
+            "name": c.entity.name,
             "dimensions": c.entity.dimensions,
             "title": c.title,
             "bio": c.bio,

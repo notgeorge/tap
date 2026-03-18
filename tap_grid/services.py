@@ -15,13 +15,13 @@ from tap_grid.models import Edge, Entity
 
 def create_entity(
     entity_type: str,
-    display_name: str = "",
+    name: str = "",
     **kwargs: Any,
 ) -> Entity:
     """Create a new Entity."""
     return Entity.objects.create(
         entity_type=entity_type,
-        display_name=display_name,
+        name=name,
         **kwargs,
     )
 
@@ -44,12 +44,12 @@ def create_edge(
     to_entity: Entity,
     edge_type: str,
     properties: dict[str, Any] | None = None,
-    display_name: str = "",
+    name: str = "",
 ) -> Edge:
     """Create an Edge between two entities.
 
     The backing Entity for the Edge is auto-created by Edge.save().
-    An optional display_name overrides the auto-generated label on that Entity.
+    An optional name overrides the auto-generated label on that Entity.
 
     Raises InvalidEdgeError if either endpoint is itself an edge, or if the
     edge violates topology constraints.
@@ -71,9 +71,9 @@ def create_edge(
         properties=properties or {},
     )
 
-    if display_name:
-        edge.entity.display_name = display_name
-        edge.entity.save(update_fields=["display_name", "updated_at"])
+    if name:
+        edge.entity.name = name
+        edge.entity.save(update_fields=["name", "updated_at"])
 
     return edge
 

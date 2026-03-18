@@ -23,20 +23,20 @@ class EntityIn(Schema):
     """Create an entity."""
 
     entity_type: str
-    display_name: str = ""
+    name: str = ""
 
 
 class EntityUpdate(Schema):
     """Partial update. All fields optional."""
 
-    display_name: str | None = None
+    name: str | None = None
     entity_type: str | None = None
 
 
 class EntityOut(ModelSchema):
     class Meta:
         model = Entity
-        fields = ["id", "entity_type", "display_name", "originating_grid_id", "created_at", "updated_at"]
+        fields = ["id", "entity_type", "name", "originating_grid_id", "created_at", "updated_at"]
 
 
 # --- Edge ---
@@ -48,7 +48,7 @@ class EdgeIn(Schema):
     from_entity_id: uuid.UUID
     to_entity_id: uuid.UUID
     edge_type: str
-    display_name: str = ""
+    name: str = ""
     properties: dict[str, Any] = {}
 
 
@@ -66,4 +66,4 @@ class EdgeOut(ModelSchema):
 class EntityTypeOut(ModelSchema):
     class Meta:
         model = EntityType
-        fields = ["id", "slug", "display_name", "icon", "description", "plugin_name"]
+        fields = ["id", "slug", "name", "icon", "description", "plugin_name"]

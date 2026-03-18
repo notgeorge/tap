@@ -15,7 +15,7 @@ from tap_grid.search_service import (
 
 def _orm_search(**kwargs):
     defaults = {
-        "title": "Test",
+        "name": "Test",
         "search_type": "orm",
         "root": "node",
         "definition": {"filters": {"entity_type": "concept"}},
@@ -26,7 +26,7 @@ def _orm_search(**kwargs):
 
 def _module_search(**kwargs):
     defaults = {
-        "title": "Module Test",
+        "name": "Module Test",
         "search_type": "module",
         "root": "node",
         "definition": {"runner_key": "tap_plugins.tests:example"},
@@ -170,7 +170,7 @@ class TestExecuteSearchDispatch:
         s = Search(
             search_type="sql",
             root="node",
-            title="Bad",
+            name="Bad",
             definition={"filters": {}},
         )
         with pytest.raises(SearchExecutionError, match="Unknown search_type"):
@@ -181,7 +181,7 @@ class TestExecuteSearchDispatch:
         s = Search.objects.create(
             search_type="orm",
             root="node",
-            title="ORM Dispatch",
+            name="ORM Dispatch",
             definition={"filters": {"entity_type": "concept"}},
         )
         result = execute_search(s)
@@ -195,7 +195,7 @@ class TestExecuteSearchDispatch:
         s = Search.objects.create(
             search_type="module",
             root="node",
-            title="Module Unregistered",
+            name="Module Unregistered",
             definition={"runner_key": "no.such:runner"},
         )
         with pytest.raises(SearchRunnerNotFoundError):
@@ -206,7 +206,7 @@ class TestExecuteSearchDispatch:
         s = Search.objects.create(
             search_type="orm",
             root="node",
-            title="Validated",
+            name="Validated",
             definition={"filters": {}},
             input_schema={"type": "object", "required": ["must_have"]},
         )
@@ -219,7 +219,7 @@ class TestExecuteSearchDispatch:
         s = Search.objects.create(
             search_type="orm",
             root="node",
-            title="Limit Test",
+            name="Limit Test",
             definition={"filters": {}},
             max_limit=10,
         )

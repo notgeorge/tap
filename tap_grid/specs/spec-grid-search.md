@@ -39,11 +39,14 @@ Status: `Implemented`
 
 A Search object is the backing entity for a reusable TAP query. It stores the query definition, parameter schema, return preferences, and pagination configuration needed for execution through the TAP service layer.
 
+Canonical entity instance metadata terminology is governed by `req-grid-entity-metadata` in `spec-grid-entity.md`.
+Current Search implementation still uses `title` as a field name, but that should be read here as current implementation terminology rather than the preferred long-term canonical instance metadata term.
+
 #### Fields
 
 | Field | Type | Required | Notes |
 | --- | --- | :---: | --- |
-| `title` | CharField | Yes | Human-readable search name |
+| `title` | CharField | Yes | Current implementation field for the search's human-readable name. Canonical entity metadata terminology is `name` per `req-grid-entity-metadata`. |
 | `description` | TextField | No | What the search is intended to retrieve |
 | `search_type` | CharField | Yes | Execution mode. In v1: `module` or `orm` |
 | `root` | CharField | Yes | Search root. In v1: `node` or `edge` |
@@ -80,6 +83,8 @@ Cross-field invariants on `search_type`, `root`, and `definition` are enforced v
 
 #### Development
 Keep the object surface small. Mode-specific complexity belongs inside `definition`, not in a large set of top-level fields that only apply to one execution mode.
+
+Do not treat `title` as the preferred long-term metadata term for entity instances. Search currently uses `title` in implementation, but higher-level and future specs should align to the canonical metadata terminology defined in `req-grid-entity-metadata`.
 
 #### Acceptance Criteria
 

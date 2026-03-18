@@ -21,6 +21,8 @@ The first requirement in this specification addresses third-party vendored compo
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-grid-thirdparty-manifest.sec | [Third-Party Vendored Component Manifest](#third-party-vendored-component-manifest) | Proposed | Platform-level contract for tracking vendored third-party code and assets included in TAP source |
+| req-grid-icon-static-svg.sec | [Static Svg Icon Security](#static-svg-icon-security) | Proposed | Security contract for shipped app/plugin SVG icons |
+| req-grid-icon-upload-svg.sec | [Uploaded Svg Icon Security](#uploaded-svg-icon-security) | Backlog | Future security contract for user-uploaded SVG icons |
 
 ---
 
@@ -107,6 +109,85 @@ Keep the manifest intentionally small and hand-maintainable. It should be realis
 - Add tooling to validate that vendored files and manifest entries stay in sync.
 - Consider SBOM export generation in SPDX and/or CycloneDX format.
 - Consider attaching vulnerability scanning and license-policy enforcement to manifest entries.
+
+---
+
+### Static Svg Icon Security
+----
+RID: `req-grid-icon-static-svg.sec`
+Status: `Proposed`
+Tags: `Security`
+
+Shipped TAP SVG icons are safer than arbitrary user-supplied SVG content, but they still require a clear security contract because SVG is an XML-based format that can carry active or unsafe constructs. Static SVG icons must be constrained to trusted app/plugin assets and rendered through a narrow image-oriented path.
+
+#### Status Details
+New cross-cutting security requirement proposed to support the grid icon specification while keeping the threat model explicit.
+
+#### Implementation
+- This requirement applies to shipped static SVG icons owned by TAP apps and plugins.
+- Static SVG icons must resolve only from validated app/plugin static icon directories defined by the icon specification.
+- Static SVG icons must not be loaded from remote URLs.
+- V1 static SVG icons should be rendered as image assets rather than inline executable markup.
+- Static icon consumers must not require arbitrary raw SVG markup injection to render an icon.
+- Validation must reject icon path traversal outside the owning app/plugin icon directory.
+
+This requirement exists because SVG can carry:
+- script elements
+- event handler attributes
+- embedded foreign content
+- external references
+- unexpectedly expensive rendering payloads
+
+Keeping shipped icons as trusted static assets referenced through constrained image-style rendering significantly narrows the risk surface.
+
+#### Development
+This requirement does not claim that every shipped SVG has been sanitized. Its purpose is to constrain lookup, source, and rendering behavior so TAP does not accidentally widen the SVG attack surface by treating icons as arbitrary markup.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-icon-static-svg.sec-1 | Trusted Static Source Only | Proposed | Shipped SVG icons resolve only from validated app/plugin static icon directories. | |
+| req-grid-icon-static-svg.sec-2 | No Remote Icon Sources | Proposed | Static SVG icon resolution rejects remote URLs and other non-local sources. | |
+| req-grid-icon-static-svg.sec-3 | Constrained Rendering Path | Proposed | V1 static SVG icons are rendered as image assets rather than inline arbitrary SVG markup. | |
+| req-grid-icon-static-svg.sec-4 | Path Traversal Rejected | Proposed | Icon path validation rejects traversal outside the owning app/plugin icon directory. | |
+
+#### Future
+If TAP later allows richer SVG rendering modes, define separate hardening rules for those modes rather than silently broadening this requirement.
+
+---
+
+### Uploaded Svg Icon Security
+----
+RID: `req-grid-icon-upload-svg.sec`
+Status: `Backlog`
+Tags: `Security`
+
+User-uploaded SVG icons are a distinct security surface and require stricter controls than shipped static app/plugin icons. Even if early rendering uses only image-style embedding, TAP should not accept arbitrary uploaded SVGs without a dedicated sanitization and publication contract.
+
+#### Status Details
+Backlog security requirement created now so future user-uploaded icon support does not silently inherit the looser trust assumptions used for shipped static icons.
+
+#### Implementation
+Future work must define:
+- sanitization of uploaded SVG content before storage or publication
+- stripping or rejecting active content such as scripts, event handlers, `foreignObject`, unsafe CSS, and external references
+- behavior when sanitization fails
+- storage and serving rules for uploaded SVGs
+- approved rendering modes for uploaded SVGs
+- file size and complexity limits to reduce denial-of-service or rendering abuse risks
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-icon-upload-svg.sec-1 | Uploaded Svg Security Requirement Exists | Backlog | TAP tracks a dedicated security requirement for user-uploaded SVG icons. | |
+| req-grid-icon-upload-svg.sec-2 | Sanitization Required Before Publication | Backlog | Future uploaded SVG support must sanitize or reject unsafe SVG content before publication. | |
+| req-grid-icon-upload-svg.sec-3 | External References Controlled | Backlog | Future uploaded SVG support must strip or reject remote references and other unsafe linked resources. | |
+| req-grid-icon-upload-svg.sec-4 | Rendering Contract Explicit | Backlog | Future uploaded SVG support must define and constrain allowed rendering modes explicitly. | |
+
+#### Future
+Define the upload pipeline, sanitization toolchain, and storage/publication model once user-uploaded icons become an active product feature.
 
 ## Status Vocabulary
 

@@ -10,7 +10,7 @@ from tap_viz.models import Layout
 @pytest.mark.django_db
 class TestGraphView:
     def test_graph_view_returns_200_for_valid_layout(self, client: Client):
-        entity = Entity.objects.create(entity_type="layout", display_name="Test Layout")
+        entity = Entity.objects.create(entity_type="layout", name="Test Layout")
         Layout.objects.create(
             entity=entity,
             name="Test Layout",
@@ -24,7 +24,7 @@ class TestGraphView:
         assert response.status_code == 404
 
     def test_graph_view_uses_correct_template(self, client: Client):
-        entity = Entity.objects.create(entity_type="layout", display_name="Test Layout")
+        entity = Entity.objects.create(entity_type="layout", name="Test Layout")
         Layout.objects.create(entity=entity, name="Test Layout")
         response = client.get(f"/viz/graph/{entity.id}/")
         assert "tap_viz/graph.html" in [t.name for t in response.templates]

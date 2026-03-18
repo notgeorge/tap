@@ -8,7 +8,7 @@ This module provides the API for:
 Usage:
     # Context manager for automatic batch lifecycle
     with batch_context(source="scanner:aws", actor=user) as batch_id:
-        create_entity("server", display_name="prod-web-01")
+        create_entity("server", name="prod-web-01")
         # batch_id automatically populated on models via signals
 
     # Or explicit API for more control
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 def create_batch(
     source: str = "",
     actor: User | None = None,
-    display_name: str = "",
+    name: str = "",
     metadata: dict[str, Any] | None = None,
 ) -> Batch:
     """Create a new batch.
@@ -50,7 +50,7 @@ def create_batch(
     Args:
         source: Source identifier (e.g., 'scanner:aws').
         actor: User initiating the batch (falls back to context user).
-        display_name: Optional human-readable name.
+        name: Optional human-readable name.
         metadata: Additional context for the batch.
 
     Returns:
@@ -63,7 +63,7 @@ def create_batch(
     # Create backing Entity for the Batch
     entity = create_entity(
         entity_type="batch",
-        display_name=display_name or f"Batch {datetime.now().isoformat()}",
+        name=name or f"Batch {datetime.now().isoformat()}",
     )
 
     return Batch.objects.create(
@@ -176,7 +176,7 @@ def record_batch_event(
 def batch_context(
     source: str = "",
     actor: User | None = None,
-    display_name: str = "",
+    name: str = "",
     metadata: dict[str, Any] | None = None,
 ) -> Generator[str]:
     """Context manager for batch operations.
@@ -194,7 +194,7 @@ def batch_context(
     batch = create_batch(
         source=source,
         actor=actor,
-        display_name=display_name,
+        name=name,
         metadata=metadata,
     )
     batch_id_str = str(batch.entity.id)

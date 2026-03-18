@@ -18,7 +18,7 @@ class TapWebConfig(AppConfig):
     edge_types: list[dict[str, Any]] = [
         {
             "slug": "USES_PANEL",
-            "display_name": "Uses Panel",
+            "name": "Uses Panel",
             "description": "Page embeds a panel.",
             "sources": [{"type": "page"}],
             "targets": [{"type": "panel"}],
@@ -50,7 +50,7 @@ class TapWebConfig(AppConfig):
         },
         {
             "slug": "USES_SEARCH",
-            "display_name": "Uses Search",
+            "name": "Uses Search",
             "description": "Panel references a Search object as its data source (req-web-stdpanel-table-search).",
             "sources": [{"type": "panel"}],
             "targets": [{"type": "search"}],
@@ -58,7 +58,7 @@ class TapWebConfig(AppConfig):
         },
         {
             "slug": "USES_LANDING_PAGE",
-            "display_name": "Uses Landing Page",
+            "name": "Uses Landing Page",
             "description": "Landing page designates a target page for the root URL.",
             "sources": [{"type": "landing_page"}],
             "targets": [{"type": "page"}],

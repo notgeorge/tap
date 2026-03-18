@@ -34,7 +34,7 @@ def get_entity(request: HttpRequest, entity_id: uuid.UUID) -> Entity:
 
 @router.post("/", response={201: EntityOut})
 def create_entity_endpoint(request: HttpRequest, payload: EntityIn) -> tuple[int, Entity]:
-    entity = create_entity(entity_type=payload.entity_type, display_name=payload.display_name)
+    entity = create_entity(entity_type=payload.entity_type, name=payload.name)
     return 201, entity
 
 

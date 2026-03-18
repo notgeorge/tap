@@ -132,7 +132,7 @@ class Entity(models.Model):
         db_index=True,
         help_text="Type slug (e.g. 'server', 'control'). Validated at service layer.",
     )
-    display_name = models.CharField(max_length=255, blank=True, default="")
+    name = models.CharField(max_length=255, blank=True, default="")
     dimensions = models.JSONField(
         default=dict,
         help_text="Flat namespace dict for partitioning/scoping (e.g. {'tap.graph': 'web'}).",
@@ -155,8 +155,8 @@ class Entity(models.Model):
         ]
 
     def __str__(self) -> str:
-        if self.display_name:
-            return f"{self.display_name} ({self.entity_type})"
+        if self.name:
+            return f"{self.name} ({self.entity_type})"
         return f"{self.entity_type}:{self.id}"
 
     def resolve(self) -> BaseModel:
@@ -176,7 +176,7 @@ class EntityType(models.Model):
     stores the slug as a plain string (not an FK) for decoupling and speed."""
 
     slug = models.CharField(max_length=255, unique=True)
-    display_name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255)
     icon = models.CharField(max_length=255, blank=True, default="")
     description = models.TextField(blank=True, default="")
     plugin_name = models.CharField(max_length=255, blank=True, default="", db_index=True)
@@ -186,7 +186,7 @@ class EntityType(models.Model):
         ordering = ["slug"]
 
     def __str__(self) -> str:
-        return self.display_name
+        return self.name
 
 
 class BaseModel(models.Model):
@@ -260,11 +260,13 @@ class BaseModel(models.Model):
 
         get_model_flip_config(cls)
 
-    def get_display_name(self) -> str:
-        """Return the display name for the auto-created Entity.
+    def get_name(self) -> str:
+        """Return the name for the auto-created Entity.
 
         Defaults to empty string. Subclasses may override to provide a
         meaningful label without requiring callers to set it explicitly.
+        The returned value is stored as Entity.name (a materialized projection
+        for cross-type query efficiency).
         """
         return ""
 
@@ -367,7 +369,7 @@ class BaseModel(models.Model):
                 caller_dims: dict[str, str] = getattr(self, "_initial_dimensions", {})
                 self.entity = Entity.objects.create(
                     entity_type=entity_type,
-                    display_name=self.get_display_name(),
+                    name=self.get_name(),
                     dimensions={**base_dims, **caller_dims},
                 )
                 super().save(*args, **kwargs)
@@ -449,7 +451,7 @@ class Edge(BaseModel):
 
         super().save(*args, **kwargs)
 
-    def get_display_name(self) -> str:
+    def get_name(self) -> str:
         """Generate a readable label from the edge's endpoints and type."""
         return f"{self.from_entity_id} --[{self.edge_type}]--> {self.to_entity_id}"
 
@@ -492,7 +494,7 @@ class Search(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "search"
 
     FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
-        "title": {
+        "name": {
             "validation": "jsonschema",
             "schema": {"type": "string", "minLength": 1},
         },
@@ -510,7 +512,7 @@ class Search(BaseModel):
         },
     }
 
-    title = models.CharField(max_length=255)
+    name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     search_type = models.CharField(max_length=50)
     root = models.CharField(max_length=50)
@@ -524,7 +526,7 @@ class Search(BaseModel):
         db_table = "tap_search"
 
     def __str__(self) -> str:
-        return self.title
+        return self.name
 
     def validate(self) -> None:
         """Cross-field invariants between search_type and definition."""

@@ -48,7 +48,7 @@ def create_edge_endpoint(request: HttpRequest, payload: EdgeIn) -> tuple[int, Ed
             to_entity=to_entity,
             edge_type=payload.edge_type,
             properties=payload.properties,
-            display_name=payload.display_name,
+            name=payload.name,
         )
     except InvalidEdgeError as e:
         return 400, {"detail": str(e)}

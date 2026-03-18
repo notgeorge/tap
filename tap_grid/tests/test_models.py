@@ -22,11 +22,11 @@ class TestEntityType:
         """TapPluginConfig.ready() uses get_or_create, so duplicates are safe."""
         EntityType.objects.get_or_create(
             slug="concept",
-            defaults={"display_name": "Concept", "plugin_name": "test"},
+            defaults={"name": "Concept", "plugin_name": "test"},
         )
         EntityType.objects.get_or_create(
             slug="concept",
-            defaults={"display_name": "Concept Changed", "plugin_name": "test"},
+            defaults={"name": "Concept Changed", "plugin_name": "test"},
         )
         assert EntityType.objects.filter(slug="concept").count() == 1
 
@@ -45,18 +45,18 @@ class TestBaseModel:
     """Existing tests — verify the explicit-entity path still works (req-grid-entity-base-4)."""
 
     def test_concept_inherits_basemodel_fields(self):
-        entity = create_entity("concept", display_name="Least Privilege")
+        entity = create_entity("concept", name="Least Privilege")
         concept = Concept.objects.create(entity=entity, summary="Minimize access.")
         assert concept.entity == entity
 
     def test_reverse_relation(self):
         """entity.concept gives the Concept for that entity."""
-        entity = create_entity("concept", display_name="Defense in Depth")
+        entity = create_entity("concept", name="Defense in Depth")
         concept = Concept.objects.create(entity=entity, summary="Layer defenses.")
         assert entity.concept == concept
 
     def test_precept_works_the_same(self):
-        entity = create_entity("precept", display_name="Use MFA")
+        entity = create_entity("precept", name="Use MFA")
         precept = Precept.objects.create(entity=entity, statement="Require multi-factor auth.")
         assert entity.precept == precept
 
@@ -80,31 +80,31 @@ class TestBaseModelAutoCreation:
         precept = Precept.objects.create(statement="Always verify.")
         assert precept.entity.entity_type == "precept"
 
-    def test_get_display_name_default_is_empty(self):
-        """Default get_display_name() produces an empty display_name on the Entity."""
+    def test_get_name_default_is_empty(self):
+        """Default get_name() produces an empty name on the Entity."""
         concept = Concept.objects.create(summary="No display name.")
-        assert concept.entity.display_name == ""
+        assert concept.entity.name == ""
 
-    def test_get_display_name_override(self):
-        """get_display_name() is called during save; overrides on the instance are respected."""
+    def test_get_name_override(self):
+        """get_name() is called during save; overrides on the instance are respected."""
         concept = Concept(summary="Least Privilege")
-        concept.get_display_name = lambda: f"Concept: {concept.summary}"  # type: ignore[method-assign]
+        concept.get_name = lambda: f"Concept: {concept.summary}"  # type: ignore[method-assign]
         concept.save()
-        assert concept.entity.display_name == "Concept: Least Privilege"
+        assert concept.entity.name == "Concept: Least Privilege"
 
     def test_entity_gets_originating_grid_id(self):
         """The auto-created Entity gets originating_grid_id from its own default."""
         concept = Concept.objects.create(summary="Grid propagation check.")
         assert concept.entity.originating_grid_id is not None
 
-    def test_edge_auto_creates_entity_with_display_name(self):
-        """Edge.get_display_name() generates a label from its endpoints and type."""
+    def test_edge_auto_creates_entity_with_name(self):
+        """Edge.get_name() generates a label from its endpoints and type."""
         a = create_entity("concept")
         b = create_entity("precept")
         edge = Edge.objects.create(from_entity=a, to_entity=b, edge_type="APPLIES_TO")
         assert edge.entity.entity_type == "edge"
-        assert str(a.pk) in edge.entity.display_name
-        assert "APPLIES_TO" in edge.entity.display_name
+        assert str(a.pk) in edge.entity.name
+        assert "APPLIES_TO" in edge.entity.name
 
 
 @pytest.mark.django_db
@@ -113,13 +113,13 @@ class TestBaseModelEntityConfirmation:
 
     def test_explicit_entity_with_correct_type_is_accepted(self):
         """Passing an entity with the right entity_type saves cleanly."""
-        entity = create_entity("concept", display_name="Explicit")
+        entity = create_entity("concept", name="Explicit")
         concept = Concept.objects.create(entity=entity, summary="Explicit entity path.")
         assert concept.entity == entity
 
     def test_explicit_entity_with_wrong_type_raises(self):
         """Passing an entity whose entity_type doesn't match raises ValueError."""
-        wrong_entity = create_entity("precept", display_name="Wrong type")
+        wrong_entity = create_entity("precept", name="Wrong type")
         with pytest.raises(ValueError, match="entity_type does not match"):
             Concept.objects.create(entity=wrong_entity, summary="Should fail.")
 
@@ -231,11 +231,11 @@ class TestEdgeEndpointValidation:
 
 @pytest.mark.django_db
 class TestEntityStr:
-    def test_with_display_name(self):
-        entity = create_entity("concept", display_name="Separation of Concerns")
+    def test_with_name(self):
+        entity = create_entity("concept", name="Separation of Concerns")
         assert str(entity) == "Separation of Concerns (concept)"
 
-    def test_without_display_name(self):
+    def test_without_name(self):
         entity = create_entity("concept")
         assert str(entity) == f"concept:{entity.pk}"
 

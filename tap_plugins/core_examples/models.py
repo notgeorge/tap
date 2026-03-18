@@ -50,7 +50,7 @@ class Concept(BaseModel):
         db_table = "core_examples_concept"
 
     def __str__(self) -> str:
-        return self.entity.display_name
+        return self.entity.name
 
 
 class Precept(BaseModel):
@@ -80,4 +80,4 @@ class Precept(BaseModel):
         db_table = "core_examples_precept"
 
     def __str__(self) -> str:
-        return self.entity.display_name
+        return self.entity.name

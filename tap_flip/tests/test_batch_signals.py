@@ -20,7 +20,7 @@ class TestPopulateBatchIdSignal:
         set_batch_id(str(batch.entity.id))
 
         try:
-            entity = create_entity("concept", display_name="Signal Test")
+            entity = create_entity("concept", name="Signal Test")
             concept = Concept.objects.create(entity=entity, summary="Test")
 
             assert concept.batch_id == str(batch.entity.id)
@@ -33,7 +33,7 @@ class TestPopulateBatchIdSignal:
         set_batch_id(str(batch.entity.id))
 
         try:
-            entity = create_entity("concept", display_name="Existing ID Test")
+            entity = create_entity("concept", name="Existing ID Test")
             concept = Concept(entity=entity, summary="Test")
             concept.batch_id = "existing-batch-id"
             concept.save()
@@ -44,7 +44,7 @@ class TestPopulateBatchIdSignal:
 
     def test_no_batch_id_without_context(self):
         """batch_id remains empty without batch context."""
-        entity = create_entity("concept", display_name="No Context Test")
+        entity = create_entity("concept", name="No Context Test")
         concept = Concept.objects.create(entity=entity, summary="Test")
 
         assert concept.batch_id == ""
@@ -56,7 +56,7 @@ class TestPopulateBatchIdSignal:
         set_batch_id(str(batch.entity.id))
 
         try:
-            entity = create_entity("precept", display_name="Disabled Test")
+            entity = create_entity("precept", name="Disabled Test")
             precept = Precept.objects.create(entity=entity, statement="Test")
 
             # Precept inherits batch_id field but signal doesn't populate it
@@ -77,7 +77,7 @@ class TestRecordSaveEventSignal:
         set_batch_id(batch_id)
 
         try:
-            entity = create_entity("concept", display_name="Create Event Test")
+            entity = create_entity("concept", name="Create Event Test")
             Concept.objects.create(entity=entity, summary="Test")
 
             events = get_batch_events(batch_id)
@@ -97,7 +97,7 @@ class TestRecordSaveEventSignal:
         batch_id = str(batch.entity.id)
 
         # Create outside batch context
-        entity = create_entity("concept", display_name="Update Event Test")
+        entity = create_entity("concept", name="Update Event Test")
         concept = Concept.objects.create(entity=entity, summary="Original")
 
         # Update inside batch context
@@ -116,7 +116,7 @@ class TestRecordSaveEventSignal:
 
     def test_no_event_without_context(self):
         """No BatchEvent recorded without batch context."""
-        entity = create_entity("concept", display_name="No Event Test")
+        entity = create_entity("concept", name="No Event Test")
         Concept.objects.create(entity=entity, summary="Test")
 
         # No batch context, so no events to query
@@ -133,7 +133,7 @@ class TestRecordDeleteEventSignal:
         batch_id = str(batch.entity.id)
 
         # Create outside batch context
-        entity = create_entity("concept", display_name="Delete Event Test")
+        entity = create_entity("concept", name="Delete Event Test")
         Concept.objects.create(entity=entity, summary="To Delete")
         entity_id = entity.id
 
@@ -166,7 +166,7 @@ class TestSignalActorAttribution:
         set_batch_id(batch_id)
 
         try:
-            entity = create_entity("concept", display_name="Actor Test")
+            entity = create_entity("concept", name="Actor Test")
             Concept.objects.create(entity=entity, summary="Test")
 
             events = get_batch_events(batch_id)
@@ -186,7 +186,7 @@ class TestBatchContextIntegration:
     def test_full_flow_with_context_manager(self):
         """Full flow: batch_context -> create models -> events recorded."""
         with batch_context(source="integration:test") as batch_id:
-            entity = create_entity("concept", display_name="Integration Test")
+            entity = create_entity("concept", name="Integration Test")
             concept = Concept.objects.create(entity=entity, summary="Test")
 
             # batch_id should be populated on model
@@ -203,7 +203,7 @@ class TestBatchContextIntegration:
         """Multiple models created in same batch all get tracked."""
         with batch_context(source="multi:test") as batch_id:
             for i in range(3):
-                entity = create_entity("concept", display_name=f"Concept {i}")
+                entity = create_entity("concept", name=f"Concept {i}")
                 Concept.objects.create(entity=entity, summary=f"Summary {i}")
 
         events = get_batch_events(batch_id)

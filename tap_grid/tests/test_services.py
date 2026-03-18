@@ -22,9 +22,9 @@ from tap_plugins.core_examples.models import Concept
 @pytest.mark.django_db
 class TestCreateEntity:
     def test_creates_with_type_and_name(self):
-        entity = create_entity("concept", display_name="Least Privilege")
+        entity = create_entity("concept", name="Least Privilege")
         assert entity.entity_type == "concept"
-        assert entity.display_name == "Least Privilege"
+        assert entity.name == "Least Privilege"
         assert entity.pk is not None
 
     def test_auto_generates_uuid7(self):
@@ -42,11 +42,11 @@ class TestCreateEntity:
 @pytest.mark.django_db
 class TestUpdateEntity:
     def test_updates_fields(self):
-        entity = create_entity("concept", display_name="Old Name")
-        updated = update_entity(entity, display_name="New Name")
-        assert updated.display_name == "New Name"
+        entity = create_entity("concept", name="Old Name")
+        updated = update_entity(entity, name="New Name")
+        assert updated.name == "New Name"
         entity.refresh_from_db()
-        assert entity.display_name == "New Name"
+        assert entity.name == "New Name"
 
 
 @pytest.mark.django_db
@@ -58,15 +58,15 @@ class TestDeleteEntity:
         assert not Entity.objects.filter(pk=pk).exists()
 
     def test_cascades_to_edges(self):
-        a = create_entity("concept", display_name="A")
-        b = create_entity("precept", display_name="B")
+        a = create_entity("concept", name="A")
+        b = create_entity("precept", name="B")
         edge = create_edge(a, b, "APPLIES_TO")
         delete_entity(a)
         # Edge should be gone (from_entity cascade)
         assert not Edge.objects.filter(pk=edge.pk).exists()
 
     def test_cascades_to_domain_model(self):
-        entity = create_entity("concept", display_name="Separation of Concerns")
+        entity = create_entity("concept", name="Separation of Concerns")
         Concept.objects.create(entity=entity, summary="Keep things separate.")
         delete_entity(entity)
         assert not Concept.objects.filter(entity_id=entity.pk).exists()
@@ -92,8 +92,8 @@ class TestCreateEdge:
         assert edge.properties == {"strength": "strong"}
 
     def test_depends_on_between_concepts(self):
-        concept_a = create_entity("concept", display_name="Defense in Depth")
-        concept_b = create_entity("concept", display_name="Least Privilege")
+        concept_a = create_entity("concept", name="Defense in Depth")
+        concept_b = create_entity("concept", name="Least Privilege")
         edge = create_edge(concept_a, concept_b, "DEPENDS_ON")
         assert edge.edge_type == "DEPENDS_ON"
 

@@ -8,14 +8,14 @@ from tap_grid.services import create_entity
 @pytest.mark.django_db
 class TestPluginRouter:
     def test_concepts_endpoint(self, logged_in_client):
-        entity = create_entity("concept", display_name="Least Privilege")
-        create_entity("precept", display_name="Not a concept")
+        entity = create_entity("concept", name="Least Privilege")
+        create_entity("precept", name="Not a concept")
         response = logged_in_client.get("/api/v1/plugins/core_examples/concepts/")
         assert response.status_code == 200
         data = response.json()
         found = [e for e in data if e["id"] == str(entity.pk)]
         assert len(found) == 1
-        assert found[0]["display_name"] == "Least Privilege"
+        assert found[0]["name"] == "Least Privilege"
 
 
 @pytest.mark.django_db

@@ -33,7 +33,7 @@ class TestGetHistoricalRecords:
 
     def test_new_concept_has_creation_record(self):
         """New Concept instance has at least one history record (creation)."""
-        entity = create_entity("concept", display_name="Test Concept")
+        entity = create_entity("concept", name="Test Concept")
         concept = Concept.objects.create(entity=entity, summary="Initial summary")
 
         records = get_historical_records(concept)
@@ -41,7 +41,7 @@ class TestGetHistoricalRecords:
 
     def test_update_creates_new_record(self):
         """Updating a Concept creates a new history record."""
-        entity = create_entity("concept", display_name="Update Test")
+        entity = create_entity("concept", name="Update Test")
         concept = Concept.objects.create(entity=entity, summary="Original")
         initial_count = concept.history.count()
 
@@ -53,7 +53,7 @@ class TestGetHistoricalRecords:
 
     def test_history_disabled_returns_empty(self):
         """get_historical_records returns empty for disabled models."""
-        entity = create_entity("precept", display_name="Test Precept")
+        entity = create_entity("precept", name="Test Precept")
         precept = Precept.objects.create(entity=entity, statement="Some statement")
 
         records = get_historical_records(precept)
@@ -67,7 +67,7 @@ class TestGetHistoryTimeline:
 
     def test_timeline_has_required_fields(self):
         """Timeline entries have timestamp, change_type, actor, record_id."""
-        entity = create_entity("concept", display_name="Timeline Test")
+        entity = create_entity("concept", name="Timeline Test")
         concept = Concept.objects.create(entity=entity, summary="Test")
 
         timeline = get_history_timeline(concept)
@@ -81,7 +81,7 @@ class TestGetHistoryTimeline:
 
     def test_timeline_records_change_types(self):
         """Timeline shows different change types for create/update."""
-        entity = create_entity("concept", display_name="Change Type Test")
+        entity = create_entity("concept", name="Change Type Test")
         concept = Concept.objects.create(entity=entity, summary="Original")
 
         concept.summary = "Updated"
@@ -102,7 +102,7 @@ class TestHistoryUserAttribution:
         user = User.objects.create_user(username="historian", password="test")
         set_history_user(user)
 
-        entity = create_entity("concept", display_name="User Test")
+        entity = create_entity("concept", name="User Test")
         concept = Concept.objects.create(entity=entity, summary="Test")
 
         # Check that the user was recorded
@@ -116,7 +116,7 @@ class TestHistoryUserAttribution:
         """History works even without user in context (None)."""
         set_history_user(None)
 
-        entity = create_entity("concept", display_name="No User Test")
+        entity = create_entity("concept", name="No User Test")
         concept = Concept.objects.create(entity=entity, summary="Test")
 
         # Should not error, user will be None

@@ -17,18 +17,18 @@ admin.site.register(User, UserAdmin)
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
-    list_display = ["id", "entity_type", "display_name", "created_at"]
+    list_display = ["id", "entity_type", "name", "created_at"]
     list_filter = ["entity_type", "created_at"]
-    search_fields = ["display_name", "entity_type"]
+    search_fields = ["name", "entity_type"]
     readonly_fields = ["id", "created_at", "updated_at", "originating_grid_id"]
     ordering = ["-created_at"]
 
 
 @admin.register(EntityType)
 class EntityTypeAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
-    list_display = ["slug", "display_name", "icon", "plugin_name"]
+    list_display = ["slug", "name", "icon", "plugin_name"]
     list_filter = ["plugin_name"]
-    search_fields = ["slug", "display_name"]
+    search_fields = ["slug", "name"]
 
 
 @admin.register(Edge)

@@ -37,7 +37,7 @@ class Command(BaseCommand):
         # Create or get concept
         concept_entity, concept_created = Entity.objects.get_or_create(
             entity_type="concept",
-            display_name=self.CONCEPT_NAME,
+            name=self.CONCEPT_NAME,
         )
         if concept_created:
             Concept.objects.create(entity=concept_entity, summary=self.CONCEPT_SUMMARY)
@@ -49,7 +49,7 @@ class Command(BaseCommand):
         # Create or get precept
         precept_entity, precept_created = Entity.objects.get_or_create(
             entity_type="precept",
-            display_name=self.PRECEPT_NAME,
+            name=self.PRECEPT_NAME,
         )
         if precept_created:
             Precept.objects.create(entity=precept_entity, statement=self.PRECEPT_STATEMENT)
@@ -68,7 +68,7 @@ class Command(BaseCommand):
         if not edge_exists:
             edge_entity = Entity.objects.create(
                 entity_type="edge",
-                display_name="APPLIES_TO",
+                name="APPLIES_TO",
             )
             Edge.objects.create(
                 entity=edge_entity,

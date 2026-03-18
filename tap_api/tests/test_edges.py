@@ -14,16 +14,16 @@ from tap_grid.services import create_edge, create_entity
 @pytest.fixture
 def two_entities():
     """Create concept and precept entities for testing valid edges."""
-    a = create_entity("concept", display_name="A")
-    b = create_entity("precept", display_name="B")
+    a = create_entity("concept", name="A")
+    b = create_entity("precept", name="B")
     return a, b
 
 
 @pytest.fixture
 def unconstrained_entities():
     """Create entities without constraint definitions for testing."""
-    a = create_entity("unconstrained_a", display_name="A")
-    b = create_entity("unconstrained_b", display_name="B")
+    a = create_entity("unconstrained_a", name="A")
+    b = create_entity("unconstrained_b", name="B")
     return a, b
 
 

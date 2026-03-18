@@ -81,7 +81,7 @@ class TablePanelEditForm(forms.Form):
     any browser-side checks.
     """
 
-    title = forms.CharField(max_length=255, strip=True)
+    name = forms.CharField(max_length=255, strip=True)
     description = forms.CharField(required=False, strip=True, widget=forms.Textarea)
     search_uuid = forms.ChoiceField(required=False, label="Linked Search")
     column_mode = forms.ChoiceField(
@@ -104,8 +104,8 @@ class TablePanelEditForm(forms.Form):
         from tap_grid.models import Search
 
         choices = [("", "— No search linked —")]
-        for s in Search.objects.select_related("entity").order_by("title"):
-            choices.append((str(s.entity_id), s.title or str(s.entity_id)))
+        for s in Search.objects.select_related("entity").order_by("name"):
+            choices.append((str(s.entity_id), s.name or str(s.entity_id)))
         self.fields["search_uuid"].choices = choices  # type: ignore[attr-defined]
 
 
@@ -210,7 +210,7 @@ class TablePanelType:
         search: Search | None = get_panel_search(panel)
         config = panel.config or {}
         return {
-            "title": panel.title,
+            "name": panel.name,
             "description": panel.description,
             "search_uuid": str(search.entity_id) if search else "",
             "column_mode": config.get("column_mode", _DEFAULT_COLUMN_MODE),
@@ -234,7 +234,7 @@ class TablePanelType:
 
         cleaned = form.cleaned_data
 
-        panel.title = cleaned["title"]
+        panel.name = cleaned["name"]
         panel.description = cleaned.get("description", "")
 
         new_config: dict[str, Any] = {

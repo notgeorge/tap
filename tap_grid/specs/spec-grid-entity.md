@@ -22,13 +22,22 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-resolve | [Entity Resolution](#entity-resolution) | Implemented | `Entity.resolve()` uses the model registry to return the concrete typed object |
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
 | req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Implemented | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
-| req-grid-entity-display | [Display Metadata](#display-metadata) | Backlog | `BaseModel`-level display metadata supports icons, label resolution, and future presentation hints |
+| req-grid-entity-metadata | [Canonical Entity Metadata](#canonical-entity-metadata) | Proposed | Platform-level canonical metadata contract for entity instances: `name`, `description`, `description_json` |
+| req-grid-entity-display | [Display Metadata](#display-metadata) | Backlog | `BaseModel`-level display metadata supports label resolution and future presentation hints; canonical icon behavior is defined separately in `spec-grid-icon.md` |
 | req-grid-entity-cascade | [Edge-Directed Cascade Deletion](#edge-directed-cascade-deletion) | Backlog | When an entity is deleted, cascades should be expressible in terms of edge relationships, not just Django's raw FK CASCADE |
 
 
 ## Explanation
 
 An `Entity` entry on the Entity Table (also called the Entity Spine) represents a single canonical concrete typed (BaseModel) instance. Every typed model instance built on `BaseModel` will corresponds to exactly one `Entity` through a one-to-one mapping. This keeps the cross-cutting metadata on the spine while allowing typed tables such as `Character` to hold type-specific fields and allows edges to be defined as having a source Entity ID and a destination Entity ID.
+
+This specification distinguishes three related but different concerns:
+- canonical entity instance metadata
+- type registry/catalog metadata
+- presentation/display hints
+
+Canonical entity instance metadata is governed by `req-grid-entity-metadata`.
+That requirement is about the standard metadata contract for a concrete entity instance and does not by itself redefine type-catalog fields such as `EntityType.display_name`, does not define rendering behavior, and does not require immediate implementation changes.
 
 ### Background
 The Entity Spine is what makes traversal across Entity types consistent without having to duplicate the metadata fields on every BaseModel derived table.  Honestly I could have gone that route but for reasons even I'm not clear on we're going with the spine approach first.
@@ -193,12 +202,69 @@ Once FLIP is fully active, Entity creation through this path should be recorded 
 
 ---
 
+### Canonical Entity Metadata
+----
+RID: `req-grid-entity-metadata`
+Status: `Proposed`
+
+TAP needs one canonical metadata contract for entity instances so higher-level capabilities can rely on stable terms and do not each invent their own naming surface. The standard metadata contract for a TAP entity instance is:
+- `name`
+- `description`
+- `description_json`
+
+#### Status Details
+New platform-level requirement proposed to standardize entity instance metadata terminology across grid, web, viz, and plugin specifications. This requirement is normative at the specification layer and does not claim the current implementation is already fully aligned.
+
+#### Implementation
+The canonical entity instance metadata contract is:
+- `name`: required text string; the canonical human-readable identifier for the instance
+- `description`: optional text string; the canonical plain-text descriptive field
+- `description_json`: optional JSON blob; the canonical structured descriptive field
+
+This requirement applies conceptually to TAP entity instances backed by `BaseModel`.
+
+Cross-spec terminology rule:
+- `name` is the canonical spec term for entity instance identity text
+- `description` is the canonical spec term for plain-text descriptive content
+- `description_json` is the canonical spec term for structured descriptive content
+- `title` should only be used when a spec is describing a current implementation detail that has not yet been aligned
+- `display_name` should only be used when referring to legacy implementation terminology or non-instance registry/type metadata
+
+This requirement is about canonical entity instance metadata only.
+It does not by itself:
+- redefine `EntityType.display_name` or other type-catalog metadata
+- define rendering behavior
+- prescribe migrations, storage layout, or API compatibility behavior
+
+#### Development
+Current TAP specifications and implementations still contain legacy/current-state terms such as `title` and `display_name`. Those terms should be treated as non-canonical for entity instance metadata and gradually aligned in future implementation work.
+
+Higher-level specifications should reference this requirement rather than present `title` or `display_name` as the ideal long-term instance metadata shape.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-entity-metadata-1 | Canonical Metadata Contract Exists | Proposed | TAP entity instances have a canonical metadata contract consisting of `name`, `description`, and `description_json` at the specification level. | |
+| req-grid-entity-metadata-2 | Name Is Canonical Required Identifier | Proposed | `name` is the required canonical human-readable identifier for an entity instance. | |
+| req-grid-entity-metadata-3 | Description Is Canonical Plain Text Field | Proposed | `description` is the canonical optional plain-text descriptive field for an entity instance. | |
+| req-grid-entity-metadata-4 | Description Json Is Canonical Structured Field | Proposed | `description_json` is the canonical optional structured descriptive field for an entity instance. | |
+| req-grid-entity-metadata-5 | Higher-Level Specs Align | Proposed | Higher-level TAP specifications align their entity instance metadata terminology to this contract. | |
+| req-grid-entity-metadata-6 | Legacy Terms Are Non-Canonical | Proposed | Legacy/current-state spec terms such as `title` and `display_name` are non-canonical for entity instance metadata once this requirement is adopted. | |
+
+#### Future
+Define the implementation and migration strategy for aligning models, APIs, and storage with this metadata contract.
+
+Define how the canonical metadata contract should map onto concrete storage fields, API schemas, and generic serialization layers.
+
+---
+
 ### Display Metadata
 ----
 RID: `req-grid-entity-display`
 Status: `Backlog`
 
-TAP-managed objects need a lightweight way to carry presentation-oriented metadata such as icons, label resolution hints, and future visualization/display guidance. This metadata belongs on `BaseModel` for now and is distinct from core domain data.
+TAP-managed objects need a lightweight way to carry presentation-oriented metadata such as label resolution hints and future visualization/display guidance. This metadata belongs on `BaseModel` for now and is distinct from core domain data. Canonical icon behavior is defined separately in `spec-grid-icon.md`.
 
 #### Status Details
 Backlog requirement created to capture a growing set of display concerns without prematurely turning them into dedicated database columns or web-only features.
@@ -212,7 +278,6 @@ Proposed direction:
 - consumers resolve effective display metadata from model defaults plus instance overrides
 
 This metadata is intended for presentation concerns such as:
-- icon paths
 - label / name resolution strategy
 - future Cytoscape or graph visualization hints
 - future hierarchy or representation hints used by clients
@@ -234,12 +299,12 @@ Keep the first version lightweight: capture the concept, the storage location, a
 | req-grid-entity-display-2 | Display Defaults Empty | Backlog | Proposed direction is that instance `display` defaults to `{}`. | |
 | req-grid-entity-display-3 | Model Defaults Supported | Backlog | Proposed direction is that model/type definitions may declare `DEFAULT_DISPLAY`. | |
 | req-grid-entity-display-4 | Instance Overrides Supported | Backlog | Proposed direction is that instance `display` may override model/type display defaults. | |
-| req-grid-entity-display-5 | Presentation Concerns Only | Backlog | `display` is intended for presentation concerns such as icons, label resolution, and visualization hints rather than core domain data. | |
+| req-grid-entity-display-5 | Presentation Concerns Only | Backlog | `display` is intended for presentation concerns such as label resolution and visualization hints rather than core domain data. | Canonical icon behavior is defined separately in `spec-grid-icon.md`. |
 
 #### Future
 Define concrete merge semantics for `DEFAULT_DISPLAY` plus instance `display`.
 
-Define the initial standardized keys under `display`, starting with icon metadata, label/name resolution, and visualization hints.
+Define the initial standardized keys under `display`, starting with label/name resolution and visualization hints. Canonical icon behavior is defined separately in `spec-grid-icon.md`.
 
 If TAP later introduces a broader metadata object, revisit whether `display` should remain on `BaseModel` or move to `Entity`.
 

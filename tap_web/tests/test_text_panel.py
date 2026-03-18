@@ -22,7 +22,7 @@ from tap_web.panels.text_panel import TextPanelEditForm, TextPanelType
 def _create_text_panel(**kwargs) -> Panel:
     defaults = {
         "slug": "text-panel",
-        "title": "Test Panel",
+        "name": "Test Panel",
         "view": TextPanelType.view,
         "editor_view": TextPanelType.editor_view,
         "config": {"text": "Hello world"},
@@ -81,7 +81,7 @@ class TestTextPanelView:
         assert response.status_code == 200
 
     def test_panel_view_renders_title(self):
-        panel = _create_text_panel(title="My Heading")
+        panel = _create_text_panel(name="My Heading")
         response = Client().get(_panel_url(panel))
         assert b"My Heading" in response.content
 
@@ -103,7 +103,7 @@ class TestTextPanelView:
         assert b"&lt;script&gt;" in response.content
 
     def test_angle_brackets_in_title_escaped(self):
-        panel = _create_text_panel(title="<b>Bold</b>")
+        panel = _create_text_panel(name="<b>Bold</b>")
         response = Client().get(_panel_url(panel))
         assert b"<b>Bold</b>" not in response.content
         assert b"&lt;b&gt;" in response.content
@@ -140,45 +140,45 @@ class TestTextPanelEditView:
         assert b"Current content." in response.content
 
     def test_post_saves_title(self):
-        panel = _create_text_panel(title="Old")
-        Client().post(_edit_url(panel), {"title": "New Title", "description": "", "text": "body"})
+        panel = _create_text_panel(name="Old")
+        Client().post(_edit_url(panel), {"name": "New Title", "description": "", "text": "body"})
         panel.refresh_from_db()
-        assert panel.title == "New Title"
+        assert panel.name == "New Title"
 
     def test_post_saves_description(self):
         panel = _create_text_panel()
-        Client().post(_edit_url(panel), {"title": panel.title, "description": "Meta note.", "text": "body"})
+        Client().post(_edit_url(panel), {"name": panel.name, "description": "Meta note.", "text": "body"})
         panel.refresh_from_db()
         assert panel.description == "Meta note."
 
     def test_post_saves_text_to_config(self):
         panel = _create_text_panel(config={"text": "old"})
-        Client().post(_edit_url(panel), {"title": panel.title, "description": "", "text": "Updated body."})
+        Client().post(_edit_url(panel), {"name": panel.name, "description": "", "text": "Updated body."})
         panel.refresh_from_db()
         assert panel.config["text"] == "Updated body."
 
     # req-web-panel-edit-form.sec-2 — server-side sanitization via Django Form strip
     def test_post_strips_whitespace_from_title(self):
         panel = _create_text_panel()
-        Client().post(_edit_url(panel), {"title": "  Trimmed  ", "description": "", "text": "body"})
+        Client().post(_edit_url(panel), {"name": "  Trimmed  ", "description": "", "text": "body"})
         panel.refresh_from_db()
-        assert panel.title == "Trimmed"
+        assert panel.name == "Trimmed"
 
     def test_post_strips_whitespace_from_text(self):
         panel = _create_text_panel()
-        Client().post(_edit_url(panel), {"title": panel.title, "description": "", "text": "  content  "})
+        Client().post(_edit_url(panel), {"name": panel.name, "description": "", "text": "  content  "})
         panel.refresh_from_db()
         assert panel.config["text"] == "content"
 
     def test_post_empty_title_rerenders_with_errors(self):
         panel = _create_text_panel()
-        response = Client().post(_edit_url(panel), {"title": "", "description": "", "text": "body"})
+        response = Client().post(_edit_url(panel), {"name": "", "description": "", "text": "body"})
         assert response.status_code == 200
         assert b"tap_web/panel_edit.html" in bytes(str([t.name for t in response.templates]), "utf-8")
 
     def test_post_redirects_to_edit_page_on_success(self):
         panel = _create_text_panel()
-        response = Client().post(_edit_url(panel), {"title": "Title", "description": "", "text": "body"})
+        response = Client().post(_edit_url(panel), {"name": "Title", "description": "", "text": "body"})
         assert response.status_code == 302
         assert response["Location"] == _edit_url(panel)
 
@@ -196,29 +196,29 @@ class TestTextPanelEditView:
 
 class TestTextPanelEditForm:
     def test_valid_data_passes(self):
-        form = TextPanelEditForm({"title": "A title", "description": "", "text": "body"})
+        form = TextPanelEditForm({"name": "A title", "description": "", "text": "body"})
         assert form.is_valid()
 
     def test_missing_title_fails(self):
-        form = TextPanelEditForm({"title": "", "description": "", "text": "body"})
+        form = TextPanelEditForm({"name": "", "description": "", "text": "body"})
         assert not form.is_valid()
-        assert "title" in form.errors
+        assert "name" in form.errors
 
     def test_title_max_length_enforced(self):
-        form = TextPanelEditForm({"title": "x" * 256, "description": "", "text": ""})
+        form = TextPanelEditForm({"name": "x" * 256, "description": "", "text": ""})
         assert not form.is_valid()
-        assert "title" in form.errors
+        assert "name" in form.errors
 
     def test_title_stripped(self):
-        form = TextPanelEditForm({"title": "  hi  ", "description": "", "text": ""})
+        form = TextPanelEditForm({"name": "  hi  ", "description": "", "text": ""})
         assert form.is_valid()
-        assert form.cleaned_data["title"] == "hi"
+        assert form.cleaned_data["name"] == "hi"
 
     def test_text_optional(self):
-        form = TextPanelEditForm({"title": "Title", "description": "", "text": ""})
+        form = TextPanelEditForm({"name": "Title", "description": "", "text": ""})
         assert form.is_valid()
 
     def test_text_stripped(self):
-        form = TextPanelEditForm({"title": "Title", "description": "", "text": "  body  "})
+        form = TextPanelEditForm({"name": "Title", "description": "", "text": "  body  "})
         assert form.is_valid()
         assert form.cleaned_data["text"] == "body"

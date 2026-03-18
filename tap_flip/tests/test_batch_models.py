@@ -13,7 +13,7 @@ class TestBatchModel:
 
     def test_batch_is_entity(self):
         """Batch extends BaseModel, has an Entity."""
-        entity = create_entity("batch", display_name="Test Batch")
+        entity = create_entity("batch", name="Test Batch")
         batch = Batch.objects.create(entity=entity)
 
         assert batch.entity == entity
@@ -21,14 +21,14 @@ class TestBatchModel:
 
     def test_batch_default_status_is_open(self):
         """New batches start in OPEN status."""
-        entity = create_entity("batch", display_name="Open Test")
+        entity = create_entity("batch", name="Open Test")
         batch = Batch.objects.create(entity=entity)
 
         assert batch.status == BatchStatus.OPEN
 
     def test_batch_status_transitions(self):
         """Batch status can be changed."""
-        entity = create_entity("batch", display_name="Status Test")
+        entity = create_entity("batch", name="Status Test")
         batch = Batch.objects.create(entity=entity)
 
         batch.status = BatchStatus.CLOSED
@@ -39,29 +39,29 @@ class TestBatchModel:
 
     def test_batch_has_source_field(self):
         """Batch has source field for tracking origin."""
-        entity = create_entity("batch", display_name="Source Test")
+        entity = create_entity("batch", name="Source Test")
         batch = Batch.objects.create(entity=entity, source="scanner:aws")
 
         assert batch.source == "scanner:aws"
 
     def test_batch_has_metadata_field(self):
         """Batch has metadata JSONField."""
-        entity = create_entity("batch", display_name="Metadata Test")
+        entity = create_entity("batch", name="Metadata Test")
         batch = Batch.objects.create(entity=entity, metadata={"param1": "value1", "count": 42})
 
         assert batch.metadata == {"param1": "value1", "count": 42}
 
     def test_batch_has_timestamps(self):
         """Batch has started_at and closed_at fields."""
-        entity = create_entity("batch", display_name="Timestamp Test")
+        entity = create_entity("batch", name="Timestamp Test")
         batch = Batch.objects.create(entity=entity)
 
         assert batch.started_at is not None
         assert batch.closed_at is None
 
     def test_batch_str_representation(self):
-        """Batch __str__ includes display name and status."""
-        entity = create_entity("batch", display_name="My Batch")
+        """Batch __str__ includes name and status."""
+        entity = create_entity("batch", name="My Batch")
         batch = Batch.objects.create(entity=entity)
 
         assert "My Batch" in str(batch)
@@ -91,10 +91,10 @@ class TestBatchEventModel:
 
     def test_batch_event_links_to_batch(self):
         """BatchEvent belongs to a Batch."""
-        batch_entity = create_entity("batch", display_name="Parent Batch")
+        batch_entity = create_entity("batch", name="Parent Batch")
         batch = Batch.objects.create(entity=batch_entity)
 
-        target_entity = create_entity("concept", display_name="Target")
+        target_entity = create_entity("concept", name="Target")
         event = BatchEvent.objects.create(
             batch=batch,
             event_type=BatchEventType.CREATE,
@@ -117,10 +117,10 @@ class TestBatchEventModel:
 
     def test_batch_event_has_uuid_primary_key(self):
         """BatchEvent uses UUIDField as primary key."""
-        batch_entity = create_entity("batch", display_name="UUID Test Batch")
+        batch_entity = create_entity("batch", name="UUID Test Batch")
         batch = Batch.objects.create(entity=batch_entity)
 
-        target_entity = create_entity("concept", display_name="Target")
+        target_entity = create_entity("concept", name="Target")
         event = BatchEvent.objects.create(
             batch=batch,
             event_type=BatchEventType.CREATE,
@@ -141,10 +141,10 @@ class TestBatchEventModel:
 
     def test_batch_event_has_metadata(self):
         """BatchEvent has metadata JSONField."""
-        batch_entity = create_entity("batch", display_name="Metadata Batch")
+        batch_entity = create_entity("batch", name="Metadata Batch")
         batch = Batch.objects.create(entity=batch_entity)
 
-        target_entity = create_entity("concept", display_name="Target")
+        target_entity = create_entity("concept", name="Target")
         event = BatchEvent.objects.create(
             batch=batch,
             event_type=BatchEventType.CREATE,
@@ -157,10 +157,10 @@ class TestBatchEventModel:
 
     def test_batch_event_str_representation(self):
         """BatchEvent __str__ shows event type and entity info."""
-        batch_entity = create_entity("batch", display_name="Str Batch")
+        batch_entity = create_entity("batch", name="Str Batch")
         batch = Batch.objects.create(entity=batch_entity)
 
-        target_entity = create_entity("concept", display_name="Target")
+        target_entity = create_entity("concept", name="Target")
         event = BatchEvent.objects.create(
             batch=batch,
             event_type=BatchEventType.CREATE,
@@ -173,10 +173,10 @@ class TestBatchEventModel:
 
     def test_batch_events_cascade_on_batch_delete(self):
         """BatchEvents are deleted when their Batch is deleted."""
-        batch_entity = create_entity("batch", display_name="Cascade Test Batch")
+        batch_entity = create_entity("batch", name="Cascade Test Batch")
         batch = Batch.objects.create(entity=batch_entity)
 
-        target_entity = create_entity("concept", display_name="Target")
+        target_entity = create_entity("concept", name="Target")
         event = BatchEvent.objects.create(
             batch=batch,
             event_type=BatchEventType.CREATE,

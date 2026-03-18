@@ -11,42 +11,42 @@ class LotrConfig(TapPluginConfig):
     entity_types = [
         {
             "slug": "character",
-            "display_name": "Character",
+            "name": "Character",
             "description": "A being in Middle-earth.",
         },
         {
             "slug": "location",
-            "display_name": "Location",
+            "name": "Location",
             "description": "A place in Middle-earth.",
         },
         {
             "slug": "artifact",
-            "display_name": "Artifact",
+            "name": "Artifact",
             "description": "A significant object of power.",
         },
         {
             "slug": "race",
-            "display_name": "Race",
+            "name": "Race",
             "description": "A race of beings.",
         },
         {
             "slug": "faction",
-            "display_name": "Faction",
+            "name": "Faction",
             "description": "A group or alliance.",
         },
         {
             "slug": "sentinel",
-            "display_name": "Sentinel",
+            "name": "Sentinel",
             "description": "A watcher (wildcard test).",
         },
         {
             "slug": "citadel",
-            "display_name": "Citadel",
+            "name": "Citadel",
             "description": "A fortified place (inbound block test).",
         },
         {
             "slug": "wanderer",
-            "display_name": "Wanderer",
+            "name": "Wanderer",
             "description": "An unconstrained traveler.",
         },
     ]
@@ -54,7 +54,7 @@ class LotrConfig(TapPluginConfig):
     edge_types = [
         {
             "slug": "WIELDS",
-            "display_name": "Wields",
+            "name": "Wields",
             "description": "Character wields an artifact.",
             # Edge constraint: character -> artifact
             "sources": [{"type": "character"}],
@@ -72,7 +72,7 @@ class LotrConfig(TapPluginConfig):
         },
         {
             "slug": "LOCATED_IN",
-            "display_name": "Located In",
+            "name": "Located In",
             "description": "Entity is located in a place.",
             # Edge constraint: character -> location
             "sources": [{"type": "character"}],
@@ -80,32 +80,32 @@ class LotrConfig(TapPluginConfig):
         },
         {
             "slug": "RULES",
-            "display_name": "Rules",
+            "name": "Rules",
             "description": "Character rules a location.",
         },
         {
             "slug": "BELONGS_TO",
-            "display_name": "Belongs To",
+            "name": "Belongs To",
             "description": "Character belongs to a race.",
         },
         {
             "slug": "MEMBER_OF",
-            "display_name": "Member Of",
+            "name": "Member Of",
             "description": "Character is member of a faction.",
         },
         {
             "slug": "ALLIES_WITH",
-            "display_name": "Allies With",
+            "name": "Allies With",
             "description": "Entities are allied.",
         },
         {
             "slug": "ENEMIES_WITH",
-            "display_name": "Enemies With",
+            "name": "Enemies With",
             "description": "Entities are enemies.",
         },
         {
             "slug": "FORGED_IN",
-            "display_name": "Forged In",
+            "name": "Forged In",
             "description": "Artifact was forged in a location.",
             # Edge constraint: artifact -> location
             "sources": [{"type": "artifact"}],
@@ -113,17 +113,17 @@ class LotrConfig(TapPluginConfig):
         },
         {
             "slug": "CONTAINS",
-            "display_name": "Contains",
+            "name": "Contains",
             "description": "Location contains another location.",
         },
         {
             "slug": "REFERENCES",
-            "display_name": "References",
+            "name": "References",
             "description": "Sentinel references anything (wildcard).",
         },
         {
             "slug": "PROTECTS",
-            "display_name": "Protects",
+            "name": "Protects",
             "description": "Citadel protects a location.",
         },
         # New edge type with constraint - demonstrates plugin extensibility
@@ -131,7 +131,7 @@ class LotrConfig(TapPluginConfig):
         # doesn't list it (edge constraint grants permission)
         {
             "slug": "MENTORS",
-            "display_name": "Mentors",
+            "name": "Mentors",
             "description": "One character mentors another.",
             "sources": [{"type": "character"}],
             "targets": [{"type": "character"}],

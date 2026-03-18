@@ -10,7 +10,7 @@ from tap_grid.search_service import execute_search
 
 def _orm_search(**kwargs):
     defaults = {
-        "title": "ORM Test",
+        "name": "ORM Test",
         "search_type": "orm",
         "root": "node",
         "definition": {"filters": {"entity_type": "concept"}},
@@ -51,7 +51,7 @@ class TestRootSelection:
         concept = _make_concept()
         # Edge entities have entity_type="edge" — should be excluded from node root
         s = Search.objects.create(
-            title="Node Root",
+            name="Node Root",
             search_type="orm",
             root="node",
             definition={"filters": {}},
@@ -67,7 +67,7 @@ class TestRootSelection:
         c2 = _make_concept("B")
         _make_edge(c1.entity, c2.entity, edge_type="LINKS_TO")
         s = Search.objects.create(
-            title="Edge Root",
+            name="Edge Root",
             search_type="orm",
             root="edge",
             definition={"filters": {"edge_type": "LINKS_TO"}},
@@ -89,7 +89,7 @@ class TestConjunctiveFilters:
         """Filter by entity_type returns only matching entities."""
         concept = _make_concept()
         s = Search.objects.create(
-            title="Filter Test",
+            name="Filter Test",
             search_type="orm",
             root="node",
             definition={"filters": {"entity_type": "concept"}},
@@ -102,7 +102,7 @@ class TestConjunctiveFilters:
         """Empty filters dict returns all non-edge entities."""
         _make_concept()
         s = Search.objects.create(
-            title="No Filter",
+            name="No Filter",
             search_type="orm",
             root="node",
             definition={"filters": {}},
@@ -113,7 +113,7 @@ class TestConjunctiveFilters:
     def test_filter_with_no_matching_results_returns_empty(self):
         """Filter that matches nothing returns empty nodes list."""
         s = Search.objects.create(
-            title="Empty Filter",
+            name="Empty Filter",
             search_type="orm",
             root="node",
             definition={"filters": {"entity_type": "nonexistent_type_xyz"}},
@@ -128,13 +128,13 @@ class TestConjunctiveFilters:
         Concept.objects.create(summary="alpha")
         Concept.objects.create(summary="beta")
         s = Search.objects.create(
-            title="Multi Filter",
+            name="Multi Filter",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "concept", "display_name": ""}},
+            definition={"filters": {"entity_type": "concept", "name": ""}},
         )
         result = execute_search(s)
-        # All concepts have blank display_name — both should be returned
+        # All concepts have blank name — both should be returned
         assert all(n["entity_type"] == "concept" for n in result["nodes"])
 
 
@@ -152,7 +152,7 @@ class TestHopTraversal:
         edge = _make_edge(c1.entity, c2.entity, edge_type="CONNECTS_TO")
 
         s = Search.objects.create(
-            title="Out Hop",
+            name="Out Hop",
             search_type="orm",
             root="node",
             definition={
@@ -174,7 +174,7 @@ class TestHopTraversal:
         edge = _make_edge(c1.entity, c2.entity, edge_type="POINTS_TO")
 
         s = Search.objects.create(
-            title="In Hop",
+            name="In Hop",
             search_type="orm",
             root="node",
             definition={
@@ -195,7 +195,7 @@ class TestHopTraversal:
         _make_edge(c1.entity, c2.entity, edge_type="LINKS_TO")
 
         s = Search.objects.create(
-            title="Hop Target Filter",
+            name="Hop Target Filter",
             search_type="orm",
             root="node",
             definition={
@@ -218,7 +218,7 @@ class TestHopTraversal:
         """Search without hops always returns empty edges list for node root."""
         _make_concept()
         s = Search.objects.create(
-            title="No Hop",
+            name="No Hop",
             search_type="orm",
             root="node",
             definition={"filters": {"entity_type": "concept"}},
@@ -241,7 +241,7 @@ class TestOrdering:
         Concept.objects.create(summary="first")
         Concept.objects.create(summary="second")
         s = Search.objects.create(
-            title="Default Order",
+            name="Default Order",
             search_type="orm",
             root="node",
             definition={"filters": {"entity_type": "concept"}},
@@ -259,7 +259,7 @@ class TestOrdering:
         Concept.objects.create(summary="z_concept")
         Concept.objects.create(summary="a_concept")
         s = Search.objects.create(
-            title="Ordered",
+            name="Ordered",
             search_type="orm",
             root="node",
             definition={"filters": {"entity_type": "concept"}, "order_by": ["id"]},
@@ -280,7 +280,7 @@ class TestNonTapModelsExcluded:
         """Node root queries Entity model — only TAP-managed entities are returned."""
         _make_concept()
         s = Search.objects.create(
-            title="Entity Spine",
+            name="Entity Spine",
             search_type="orm",
             root="node",
             definition={"filters": {}},
@@ -302,7 +302,7 @@ class TestOrmResultEnvelope:
     def test_result_has_canonical_4_keys(self):
         """ORM search result has nodes, edges, info, warnings."""
         s = Search.objects.create(
-            title="Envelope",
+            name="Envelope",
             search_type="orm",
             root="node",
             definition={"filters": {"entity_type": "concept"}},
@@ -317,7 +317,7 @@ class TestOrmResultEnvelope:
         """info dict contains total_count from compiler."""
         _make_concept()
         s = Search.objects.create(
-            title="Info Count",
+            name="Info Count",
             search_type="orm",
             root="node",
             definition={"filters": {"entity_type": "concept"}},
@@ -332,7 +332,7 @@ class TestOrmResultEnvelope:
         _make_concept("p2")
         _make_concept("p3")
         s = Search.objects.create(
-            title="Paginated",
+            name="Paginated",
             search_type="orm",
             root="node",
             definition={"filters": {"entity_type": "concept"}},
@@ -349,7 +349,7 @@ class TestOrmResultEnvelope:
         _make_concept("q1")
         _make_concept("q2")
         s = Search.objects.create(
-            title="Offset",
+            name="Offset",
             search_type="orm",
             root="node",
             definition={"filters": {"entity_type": "concept"}, "order_by": ["id"]},

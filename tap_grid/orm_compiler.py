@@ -191,7 +191,7 @@ def _serialize_entity(entity: Any) -> dict[str, Any]:
     return {
         "entity_id": str(entity.id),
         "entity_type": entity.entity_type,
-        "display_name": entity.display_name,
+        "name": entity.name,
         "dimensions": entity.dimensions,
         "created_at": entity.created_at.isoformat() if entity.created_at else None,
         "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,

@@ -25,7 +25,7 @@ def list_concepts(search: Search, inputs: dict[str, Any], *, db_alias: str) -> d
         {
             "entity_id": str(e.id),
             "entity_type": e.entity_type,
-            "display_name": e.display_name,
+            "name": e.name,
             "dimensions": e.dimensions,
             "created_at": e.created_at.isoformat() if e.created_at else None,
             "updated_at": e.updated_at.isoformat() if e.updated_at else None,

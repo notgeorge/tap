@@ -34,7 +34,7 @@
     },
     {
       title: "Name",
-      field: "display_name",
+      field: "name",
       widthGrow: 2,
     },
     {
@@ -72,7 +72,7 @@
   var EDGE_COLUMNS = [
     {
       title: "From",
-      field: "from_display_name",
+      field: "from_name",
       widthGrow: 2,
     },
     {
@@ -82,7 +82,7 @@
     },
     {
       title: "To",
-      field: "to_display_name",
+      field: "to_name",
       widthGrow: 2,
     },
     {

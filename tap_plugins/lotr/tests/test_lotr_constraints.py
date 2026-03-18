@@ -30,97 +30,97 @@ from tap_grid.services import create_edge, create_entity, update_edge_properties
 @pytest.fixture
 def frodo():
     """Create a character entity (Frodo)."""
-    return create_entity("character", display_name="Frodo Baggins")
+    return create_entity("character", name="Frodo Baggins")
 
 
 @pytest.fixture
 def gandalf():
     """Create another character entity (Gandalf)."""
-    return create_entity("character", display_name="Gandalf the Grey")
+    return create_entity("character", name="Gandalf the Grey")
 
 
 @pytest.fixture
 def sauron():
     """Create an antagonist character (Sauron)."""
-    return create_entity("character", display_name="Sauron")
+    return create_entity("character", name="Sauron")
 
 
 @pytest.fixture
 def the_shire():
     """Create a location entity (The Shire)."""
-    return create_entity("location", display_name="The Shire")
+    return create_entity("location", name="The Shire")
 
 
 @pytest.fixture
 def mordor():
     """Create another location entity (Mordor)."""
-    return create_entity("location", display_name="Mordor")
+    return create_entity("location", name="Mordor")
 
 
 @pytest.fixture
 def bag_end():
     """Create a sub-location entity (Bag End)."""
-    return create_entity("location", display_name="Bag End")
+    return create_entity("location", name="Bag End")
 
 
 @pytest.fixture
 def one_ring():
     """Create an artifact entity (The One Ring)."""
-    return create_entity("artifact", display_name="The One Ring")
+    return create_entity("artifact", name="The One Ring")
 
 
 @pytest.fixture
 def sting():
     """Create another artifact entity (Sting)."""
-    return create_entity("artifact", display_name="Sting")
+    return create_entity("artifact", name="Sting")
 
 
 @pytest.fixture
 def hobbit():
     """Create a race entity (Hobbit)."""
-    return create_entity("race", display_name="Hobbit")
+    return create_entity("race", name="Hobbit")
 
 
 @pytest.fixture
 def elf():
     """Create another race entity (Elf)."""
-    return create_entity("race", display_name="Elf")
+    return create_entity("race", name="Elf")
 
 
 @pytest.fixture
 def fellowship():
     """Create a faction entity (The Fellowship)."""
-    return create_entity("faction", display_name="The Fellowship of the Ring")
+    return create_entity("faction", name="The Fellowship of the Ring")
 
 
 @pytest.fixture
 def mordor_forces():
     """Create another faction entity (Mordor Forces)."""
-    return create_entity("faction", display_name="Forces of Mordor")
+    return create_entity("faction", name="Forces of Mordor")
 
 
 @pytest.fixture
 def rohan():
     """Create another faction entity (Rohan)."""
-    return create_entity("faction", display_name="Riders of Rohan")
+    return create_entity("faction", name="Riders of Rohan")
 
 
 @pytest.fixture
 def sentinel():
     """Create a sentinel entity (for wildcard tests)."""
-    return create_entity("sentinel", display_name="The Watcher")
+    return create_entity("sentinel", name="The Watcher")
 
 
 @pytest.fixture
 def citadel():
     """Create a citadel entity (for blocked inbound tests)."""
-    return create_entity("citadel", display_name="Minas Tirith Citadel")
+    return create_entity("citadel", name="Minas Tirith Citadel")
 
 
 @pytest.fixture
 def wanderer():
     """Create a wanderer entity (unconstrained)."""
-    return create_entity("wanderer", display_name="Tom Bombadil")
+    return create_entity("wanderer", name="Tom Bombadil")
 
 
 # =============================================================================
@@ -185,7 +185,7 @@ class TestSelfReferentialEdges:
         """Multiple CONTAINS edges from one location."""
         edge1 = create_edge(the_shire, bag_end, "CONTAINS")
         # Mordor can also contain things
-        mount_doom = create_entity("location", display_name="Mount Doom")
+        mount_doom = create_entity("location", name="Mount Doom")
         edge2 = create_edge(mordor, mount_doom, "CONTAINS")
         assert edge1.edge_type == "CONTAINS"
         assert edge2.edge_type == "CONTAINS"
@@ -243,7 +243,7 @@ class TestWildcardEdges:
 
     def test_sentinel_references_another_sentinel(self, sentinel):
         """Sentinel -> sentinel works (both have matching constraints)."""
-        other_sentinel = create_entity("sentinel", display_name="Palantir")
+        other_sentinel = create_entity("sentinel", name="Palantir")
         edge = create_edge(sentinel, other_sentinel, "REFERENCES")
         assert edge.edge_type == "REFERENCES"
 
@@ -372,14 +372,14 @@ class TestUnconstrainedEntity:
 
     def test_wanderer_to_wanderer_any_edge(self, wanderer):
         """Wanderer -> wanderer works with any edge type."""
-        goldberry = create_entity("wanderer", display_name="Goldberry")
+        goldberry = create_entity("wanderer", name="Goldberry")
         edge = create_edge(wanderer, goldberry, "LOVES")
         assert edge.edge_type == "LOVES"
 
     def test_wanderer_receives_edge_from_another_wanderer(self, wanderer):
         """Unconstrained source can send any edge to unconstrained target."""
         tom = wanderer
-        goldberry = create_entity("wanderer", display_name="Goldberry")
+        goldberry = create_entity("wanderer", name="Goldberry")
         edge = create_edge(goldberry, tom, "ADMIRES")
         assert edge.edge_type == "ADMIRES"
 
@@ -406,7 +406,7 @@ class TestUnconstrainedEntity:
 
     def test_wanderer_multiple_edges_to_other_wanderer(self, wanderer):
         """Wanderer can form multiple different edge types."""
-        goldberry = create_entity("wanderer", display_name="Goldberry")
+        goldberry = create_entity("wanderer", name="Goldberry")
         edge1 = create_edge(wanderer, goldberry, "LOVES")
         edge2 = create_edge(wanderer, goldberry, "PROTECTS")
         edge3 = create_edge(wanderer, goldberry, "TEACHES")

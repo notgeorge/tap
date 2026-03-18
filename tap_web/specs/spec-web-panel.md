@@ -44,12 +44,14 @@ Status: `Implemented`
 
 A Panel object is the backing entity for a data-display component. It declares its view renderer, optional editor renderer, configuration object, static assets, and display metadata.
 
+Canonical entity instance metadata terminology is defined by `req-grid-entity-metadata` in `spec-grid-entity.md`. Current `Panel` implementation still uses `title`; that should be read in this spec as current implementation terminology rather than the preferred long-term canonical metadata term.
+
 #### Fields
 
 | Field | Type | Required | Notes |
 | --- | --- | :---: | --- |
 | `slug` | CharField (kebab-case) | Yes | Human-readable label used in the panel HTMX URL alongside the entity UUID. No uniqueness constraint — the UUID disambiguates. |
-| `title` | CharField | Yes | Display name shown in UI |
+| `title` | CharField | Yes | Current implementation field for the panel's human-readable name shown in UI. Canonical entity metadata terminology is `name`. |
 | `description` | TextField | No | What the panel is for |
 | `view` | CharField | Yes | Template path string for normal panel rendering. |
 | `editor_view` | CharField | No | Template path string for the panel editor UI. Optional until a panel supports editing. |
@@ -85,6 +87,8 @@ Asset list semantics:
 - Inline JavaScript embedded directly into panel HTML is not part of the panel contract.
 
 #### Development
+
+At the specification layer, `title` is legacy/current-state terminology for panel instance metadata. Future alignment should follow the canonical entity metadata contract defined in `req-grid-entity-metadata`.
 
 #### Acceptance Criteria
 
@@ -153,7 +157,7 @@ This requirement formalizes the panel-side portion of edit mode. Rendering struc
 - Normal panel rendering uses `view` plus `js` and `css`.
 - Panel edit mode uses optional `editor_view` plus `editor_js` and `editor_css`.
 - Edit mode operates on panel metadata and panel configuration:
-  - `title`
+  - `title` (current implementation field for the panel's canonical name)
   - `description`
   - `config`
 - Panels without `editor_view` do not support custom edit mode in v1.

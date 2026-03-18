@@ -69,17 +69,19 @@ Status: `Implemented`
 
 The Text Panel is the simplest standard built-in panel type. It renders a title and body text using the generic Panel object plus a small `config` payload. `description` remains backend/admin metadata rather than rendered body content.
 
+Canonical entity instance metadata terminology is defined by `req-grid-entity-metadata` in `spec-grid-entity.md`. In this document, `title` refers to the current `Panel` implementation field and should not be read as the preferred long-term canonical metadata term.
+
 #### Status Details
 Implemented as `TextPanelType` in `tap_web/panels/text_panel/`. View template at `tap_web/panels/text_panel.html`.
 
 #### Implementation
 Text Panel data is stored as:
-- `Panel.title`
+- `Panel.title` (current implementation field for the panel's canonical name)
 - `Panel.description`
 - `Panel.config.text`
 
 Text Panel behavior:
-- normal panel rendering displays `title` and `config.text`
+- normal panel rendering displays the panel's current implementation `title` field and `config.text`
 - `description` is backend/admin metadata and is not part of the rendered panel body
 - body text is plain text content, not trusted HTML
 - Text Panel uses a normal `view` template and may omit panel-specific JS/CSS in the first implementation
@@ -93,8 +95,8 @@ Keep the first text panel intentionally boring. The value is in proving panel ob
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-stdpanel-text-1 | Text Stored In Core Fields Plus Config | Implemented | Text Panel uses `title`, `description`, and `config.text` as its stored content model. | `description` is metadata, not rendered body content. |
-| req-web-stdpanel-text-2 | Rendered Content Is Title Plus Text | Implemented | Text Panel renders `title` plus `config.text`, with body text treated as plain text rather than trusted HTML. | `tap_web/panels/text_panel.html`; auto-escaping enforced. |
+| req-web-stdpanel-text-1 | Text Stored In Core Fields Plus Config | Implemented | Text Panel uses the current implementation `title` field, `description`, and `config.text` as its stored content model. | `description` is metadata, not rendered body content. Canonical entity metadata terminology is `name`. |
+| req-web-stdpanel-text-2 | Rendered Content Is Title Plus Text | Implemented | Text Panel renders the current implementation `title` field plus `config.text`, with body text treated as plain text rather than trusted HTML. | `tap_web/panels/text_panel.html`; auto-escaping enforced. |
 | req-web-stdpanel-text-3 | No Inputs Required | Implemented | The initial Text Panel does not require `input_vars`. | `config_defaults = {"text": ""}` only. |
 
 #### Future
@@ -115,7 +117,7 @@ The Text Panel editor:
 - uses the panel edit route and editor-page structure defined in `spec-web-panel.md` and `spec-web-rendering.md`
 - renders a simple HTML form in `editor_view` (`tap_web/panels/text_panel_editor.html`), included inside the outer `panel_edit.html` form when a typed form is present
 - edits:
-  - `title`
+  - `title` (current implementation field for the panel's canonical name)
   - `description`
   - `config.text`
 - preview is live via HTMX (loads on page load; Refresh Preview button triggers manually)
@@ -131,10 +133,10 @@ The first editor looks like normal Django form handling. `TextPanelEditForm` is 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-web-stdpanel-text-edit-1 | Simple Form Editor | Implemented | Text Panel editor uses a simple HTML form (`TextPanelEditForm`) rather than a rich editor UI. | |
-| req-web-stdpanel-text-edit-2 | Editable Fields | Implemented | Text Panel editor edits `title`, `description`, and `config.text`. | |
+| req-web-stdpanel-text-edit-2 | Editable Fields | Implemented | Text Panel editor edits the current implementation `title` field, `description`, and `config.text`. | Canonical entity metadata terminology is `name`. |
 | req-web-stdpanel-text-edit-3 | Preview And Save | Implemented | Preview loads live via HTMX; Save is the explicit POST action. | |
 | req-web-stdpanel-text-edit-4 | Security Delegated | Implemented | Text Panel editor security behavior is governed by `spec-web-panel-security.md` (CSRF, server-side sanitization, auto-escaping). | `req-web-panel-edit-form.sec` + `req-web-panel-render-content.sec` both Implemented. |
-| req-web-stdpanel-text-edit-5 | Editable Fields Persist Safely | Implemented | Text Panel editor persists `title`, `description`, and `config.text` through `form.cleaned_data` via the standard panel edit flow. | |
+| req-web-stdpanel-text-edit-5 | Editable Fields Persist Safely | Implemented | Text Panel editor persists the current implementation `title` field, `description`, and `config.text` through `form.cleaned_data` via the standard panel edit flow. | |
 | req-web-stdpanel-text-edit-6 | Plain Text Saved Content | Implemented | Submitted text is stored and later rendered as plain text via Django auto-escaping. | Verified in `test_text_panel.py`. |
 
 #### Future

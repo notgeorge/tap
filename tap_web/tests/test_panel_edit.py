@@ -20,7 +20,7 @@ class TestPanelEditView:
     def _create_panel(self, **kwargs) -> Panel:
         defaults = {
             "slug": "test-panel",
-            "title": "Test Panel",
+            "name": "Test Panel",
             "description": "A test panel.",
             "view": "tap_web/panel_error.html",
             "config": {"key": "value"},
@@ -44,7 +44,7 @@ class TestPanelEditView:
         assert "tap_web/panel_edit.html" in [t.name for t in response.templates]
 
     def test_get_renders_panel_title(self):
-        panel = self._create_panel(title="My Panel")
+        panel = self._create_panel(name="My Panel")
         client = Client()
         response = client.get(self._edit_url(panel))
         assert b"My Panel" in response.content
@@ -56,16 +56,16 @@ class TestPanelEditView:
         assert b"hx-get" in response.content
 
     def test_post_saves_title(self):
-        panel = self._create_panel(title="Old Title")
+        panel = self._create_panel(name="Old Title")
         client = Client()
-        client.post(self._edit_url(panel), {"title": "New Title", "description": "", "config": "{}"})
+        client.post(self._edit_url(panel), {"name": "New Title", "description": "", "config": "{}"})
         panel.refresh_from_db()
-        assert panel.title == "New Title"
+        assert panel.name == "New Title"
 
     def test_post_saves_description(self):
         panel = self._create_panel()
         client = Client()
-        client.post(self._edit_url(panel), {"title": panel.title, "description": "Updated desc.", "config": "{}"})
+        client.post(self._edit_url(panel), {"name": panel.name, "description": "Updated desc.", "config": "{}"})
         panel.refresh_from_db()
         assert panel.description == "Updated desc."
 
@@ -75,7 +75,7 @@ class TestPanelEditView:
         new_config = {"color": "blue", "size": 42}
         client.post(
             self._edit_url(panel),
-            {"title": panel.title, "description": "", "config": json.dumps(new_config)},
+            {"name": panel.name, "description": "", "config": json.dumps(new_config)},
         )
         panel.refresh_from_db()
         assert panel.config == new_config
@@ -85,7 +85,7 @@ class TestPanelEditView:
         client = Client()
         response = client.post(
             self._edit_url(panel),
-            {"title": panel.title, "description": "", "config": "{}"},
+            {"name": panel.name, "description": "", "config": "{}"},
         )
         assert response.status_code == 302
         assert response["Location"] == self._edit_url(panel)
@@ -95,7 +95,7 @@ class TestPanelEditView:
         client = Client()
         response = client.post(
             self._edit_url(panel),
-            {"title": panel.title, "description": "", "config": "not-json"},
+            {"name": panel.name, "description": "", "config": "not-json"},
         )
         assert response.status_code == 200
         assert b"tap_web/panel_edit.html" in bytes(str([t.name for t in response.templates]), "utf-8")
@@ -121,7 +121,7 @@ class TestPanelEditNoEditorView:
     def test_no_editor_view_shows_fallback_message(self):
         panel = Panel.objects.create(
             slug="plain-panel",
-            title="Plain Panel",
+            name="Plain Panel",
             view="tap_web/panel_error.html",
         )
         client = Client()

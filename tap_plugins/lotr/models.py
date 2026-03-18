@@ -60,7 +60,7 @@ class Character(BaseModel):
         db_table = "lotr_character"
 
     def __str__(self) -> str:
-        return self.entity.display_name
+        return self.entity.name
 
 
 class Location(BaseModel):
@@ -103,7 +103,7 @@ class Location(BaseModel):
         db_table = "lotr_location"
 
     def __str__(self) -> str:
-        return self.entity.display_name
+        return self.entity.name
 
 
 class Artifact(BaseModel):
@@ -134,7 +134,7 @@ class Artifact(BaseModel):
         db_table = "lotr_artifact"
 
     def __str__(self) -> str:
-        return self.entity.display_name
+        return self.entity.name
 
 
 class Race(BaseModel):
@@ -160,7 +160,7 @@ class Race(BaseModel):
         db_table = "lotr_race"
 
     def __str__(self) -> str:
-        return self.entity.display_name
+        return self.entity.name
 
 
 class Faction(BaseModel):
@@ -194,7 +194,7 @@ class Faction(BaseModel):
         db_table = "lotr_faction"
 
     def __str__(self) -> str:
-        return self.entity.display_name
+        return self.entity.name
 
 
 class Sentinel(BaseModel):
@@ -224,7 +224,7 @@ class Sentinel(BaseModel):
         db_table = "lotr_sentinel"
 
     def __str__(self) -> str:
-        return self.entity.display_name
+        return self.entity.name
 
 
 class Citadel(BaseModel):
@@ -249,7 +249,7 @@ class Citadel(BaseModel):
         db_table = "lotr_citadel"
 
     def __str__(self) -> str:
-        return self.entity.display_name
+        return self.entity.name
 
 
 class Wanderer(BaseModel):
@@ -270,4 +270,4 @@ class Wanderer(BaseModel):
         db_table = "lotr_wanderer"
 
     def __str__(self) -> str:
-        return self.entity.display_name
+        return self.entity.name

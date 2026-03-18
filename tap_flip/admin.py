@@ -13,7 +13,7 @@ class BatchAdmin(SimpleHistoryAdmin):
 
     list_display = ["entity", "status", "source", "actor", "started_at", "closed_at"]
     list_filter = ["status", "source"]
-    search_fields = ["entity__display_name", "source", "error_message"]
+    search_fields = ["entity__name", "source", "error_message"]
     readonly_fields = ["entity", "started_at"]
     date_hierarchy = "started_at"
     ordering = ["-started_at"]

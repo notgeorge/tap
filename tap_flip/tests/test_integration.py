@@ -23,7 +23,7 @@ class TestFullHistoryFlow:
         set_history_user(user)
 
         # Create a concept
-        entity = create_entity("concept", display_name="Flow Test Concept")
+        entity = create_entity("concept", name="Flow Test Concept")
         concept = Concept.objects.create(entity=entity, summary="Original summary")
 
         # Update it
@@ -44,7 +44,7 @@ class TestFullHistoryFlow:
 
     def test_history_preserves_old_values(self):
         """History records preserve the state at each point in time."""
-        entity = create_entity("concept", display_name="Preserve Test")
+        entity = create_entity("concept", name="Preserve Test")
         concept = Concept.objects.create(entity=entity, summary="Version 1")
 
         concept.summary = "Version 2"
@@ -69,7 +69,7 @@ class TestBatchIdFieldExists:
 
     def test_batch_id_field_exists_on_concept(self):
         """Concept model has batch_id field."""
-        entity = create_entity("concept", display_name="Batch ID Test")
+        entity = create_entity("concept", name="Batch ID Test")
         concept = Concept.objects.create(entity=entity, summary="Test")
 
         # batch_id should exist and be empty string in Phase 1
@@ -78,7 +78,7 @@ class TestBatchIdFieldExists:
 
     def test_batch_id_can_be_set(self):
         """batch_id field can be set (for Phase 2 preparation)."""
-        entity = create_entity("concept", display_name="Batch Set Test")
+        entity = create_entity("concept", name="Batch Set Test")
         concept = Concept.objects.create(entity=entity, summary="Test")
 
         batch_uuid = "019468b7-1234-7def-8000-000000000001"
@@ -90,7 +90,7 @@ class TestBatchIdFieldExists:
 
     def test_batch_id_field_exists_on_precept(self):
         """Precept model also has batch_id field (inherited from BaseModel)."""
-        entity = create_entity("precept", display_name="Precept Batch Test")
+        entity = create_entity("precept", name="Precept Batch Test")
         precept = Precept.objects.create(entity=entity, statement="Test statement")
 
         assert hasattr(precept, "batch_id")
@@ -114,7 +114,7 @@ class TestHistoryEnabledVsDisabled:
         """Precept does not have history manager (or it returns empty)."""
         # Precept may or may not have the manager depending on implementation
         # but get_historical_records should return empty
-        entity = create_entity("precept", display_name="No History Test")
+        entity = create_entity("precept", name="No History Test")
         precept = Precept.objects.create(entity=entity, statement="Test")
 
         records = get_historical_records(precept)
@@ -122,8 +122,8 @@ class TestHistoryEnabledVsDisabled:
 
     def test_both_have_batch_id(self):
         """Both Concept and Precept have batch_id (BaseModel field)."""
-        concept_entity = create_entity("concept", display_name="C")
-        precept_entity = create_entity("precept", display_name="P")
+        concept_entity = create_entity("concept", name="C")
+        precept_entity = create_entity("precept", name="P")
 
         concept = Concept.objects.create(entity=concept_entity, summary="Test")
         precept = Precept.objects.create(entity=precept_entity, statement="Test")

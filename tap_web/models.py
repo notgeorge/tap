@@ -19,7 +19,7 @@ class Page(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "page"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
 
-    title = models.CharField(max_length=255)
+    name = models.CharField(max_length=255)
     slug = models.CharField(
         max_length=255,
         unique=True,
@@ -40,11 +40,11 @@ class Page(BaseModel):
         validate_page_layout(self.layout or {})
         super().save(*args, **kwargs)
 
-    def get_display_name(self) -> str:
-        return self.title or ""
+    def get_name(self) -> str:
+        return self.name or ""
 
     def __str__(self) -> str:
-        return self.title or self.slug or ""
+        return self.name or self.slug or ""
 
 
 class Panel(BaseModel):
@@ -62,7 +62,7 @@ class Panel(BaseModel):
         max_length=255,
         help_text="Kebab-case label used in the HTMX URL alongside the entity UUID. Not globally unique.",
     )
-    title = models.CharField(max_length=255)
+    name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     view = models.CharField(
         max_length=500,
@@ -106,11 +106,11 @@ class Panel(BaseModel):
         validate_panel_assets(self)
         super().save(*args, **kwargs)
 
-    def get_display_name(self) -> str:
-        return self.title or ""
+    def get_name(self) -> str:
+        return self.name or ""
 
     def __str__(self) -> str:
-        return self.title or self.slug or ""
+        return self.name or self.slug or ""
 
 
 class LandingPage(BaseModel):
@@ -123,17 +123,17 @@ class LandingPage(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "landing_page"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
 
-    title = models.CharField(max_length=255, blank=True, default="")
+    name = models.CharField(max_length=255, blank=True, default="")
     description = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
         db_table = "web_landing_page"
 
-    def get_display_name(self) -> str:
-        return self.title or ""
+    def get_name(self) -> str:
+        return self.name or ""
 
     def __str__(self) -> str:
-        return self.title or "LandingPage"
+        return self.name or "LandingPage"
 
 
 def _get_reserved_slugs() -> list[str]:

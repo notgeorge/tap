@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             .map(e => ({
                 data: {
                     id: e.id,
-                    label: e.display_name || e.entity_type
+                    label: e.name || e.entity_type
                 }
             }));
 

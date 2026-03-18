@@ -77,8 +77,10 @@ Status: `Implemented`
 
 A Page object defines a routable web page with metadata and a deterministic nested grid layout.
 
+Canonical entity instance metadata terminology is defined at the grid layer by `req-grid-entity-metadata` in `spec-grid-entity.md`. Current `Page` implementation still uses `title`; that is current implementation terminology rather than the preferred long-term canonical metadata term.
+
 Required fields:
-- `title`
+- `title` (current implementation field; canonical entity metadata term is `name`)
 - `slug`
 - `layout`
 
@@ -90,7 +92,7 @@ Stub expanded with canonical slug rules, reserved-path handling, nested layout s
 
 #### Implementation
 **Page field semantics**
-- `title`: required; shown in browser title and navigation UI.
+- `title`: required in the current implementation; functionally this is the Page's human-readable name and should be read as legacy/current-state terminology relative to canonical `name`.
 - `description`: optional metadata.
 - `slug`: required canonical route path.
 - `layout`: required JSON object describing page layout.
@@ -105,6 +107,8 @@ Stub expanded with canonical slug rules, reserved-path handling, nested layout s
 
 #### Development
 Keep `req-web-page-obj` focused on object-level semantics and route participation. Layout-specific security and structure rules live in `req-web-page-panel-id` and `req-web-page-layout-sanitize.sec`.
+
+At the specification layer, do not treat `title` as the ideal long-term metadata term for entity instances. Page naming terminology should align over time with `req-grid-entity-metadata`.
 
 #### Acceptance Criteria
 
@@ -661,4 +665,3 @@ Keep this coordinator small and framework-free. Its job is state coordination an
 #### Future
 Consider defining a small public browser API for panel code (`setPageVar`, `setPersistentVar`, `getResolvedInputs`) once panel implementation patterns settle.
 Consider adding coordinator lifecycle hooks for page initialization and teardown if dynamic page replacement becomes common.
-

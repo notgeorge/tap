@@ -11,7 +11,7 @@ class ConceptAdmin(SimpleHistoryAdmin):
     """Admin for Concept with history timeline."""
 
     list_display = ["entity"]
-    search_fields = ["entity__display_name", "summary"]
+    search_fields = ["entity__name", "summary"]
     readonly_fields = ["entity", "batch_id"]
     history_list_display = ["history_user", "history_date", "history_type"]
 
@@ -21,5 +21,5 @@ class PreceptAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     """Admin for Precept (no history tracking)."""
 
     list_display = ["entity"]
-    search_fields = ["entity__display_name", "statement"]
+    search_fields = ["entity__name", "statement"]
     readonly_fields = ["entity", "batch_id"]

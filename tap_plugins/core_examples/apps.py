@@ -13,12 +13,12 @@ class CoreExamplesConfig(TapPluginConfig):
     entity_types = [
         {
             "slug": "concept",
-            "display_name": "Concept",
+            "name": "Concept",
             "description": "An abstract idea or principle.",
         },
         {
             "slug": "precept",
-            "display_name": "Precept",
+            "name": "Precept",
             "description": "A rule or instruction derived from a concept.",
         },
     ]
@@ -26,12 +26,12 @@ class CoreExamplesConfig(TapPluginConfig):
     edge_types = [
         {
             "slug": "APPLIES_TO",
-            "display_name": "Applies To",
+            "name": "Applies To",
             "description": "A concept gives rise to a precept.",
         },
         {
             "slug": "DEPENDS_ON",
-            "display_name": "Depends On",
+            "name": "Depends On",
             "description": "General dependency between any entities.",
         },
     ]

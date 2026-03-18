@@ -71,7 +71,7 @@ New requirement establishing the authoritative config contract for Table Panel i
 ```
 
 `column_mode` options:
-- `common_metadata` — fixed column set derived from entity-spine fields: `entity_id`, `display_name`, `entity_type`, `updated_at`, `dimensions`. This is the only supported mode in V1.
+- `common_metadata` — fixed column set derived from current entity-spine metadata fields. Canonical entity metadata terminology is `name`, not `display_name` or `title`. This is the only supported mode in V1.
 
 #### Development
 Every future Table Panel option (column overrides, page size choices, per-type split mode) must be added to this schema and this section first. The schema is the contract; everything else follows from it.
@@ -181,7 +181,7 @@ This requirement captures the default behavior discussed for mixed node-type sea
 - In `common_metadata` mode, the panel renders a shared column set intended to work across heterogeneous node types.
 - The shared column set should include:
   - node identity
-  - display name/title
+  - name
   - description
   - node type
   - last edited timestamp
@@ -200,7 +200,7 @@ Do not overfit v1 to one plugin's entity schema. The first version needs a stabl
 | req-web-stdpanel-table-columns-1 | Nodes Only In V1 | Proposed | The initial Table Panel standard displays node search results and does not yet define edge-table rendering. | |
 | req-web-stdpanel-table-columns-2 | Common Metadata Default | Proposed | Mixed node-type results default to a shared metadata-oriented column set. | |
 | req-web-stdpanel-table-columns-3 | Single Table Default | Proposed | Mixed node-type results render in one table by default rather than automatically splitting by node type. | |
-| req-web-stdpanel-table-columns-4 | Entity Metadata Included | Proposed | The default common metadata set includes `last edited` and `dimensions` alongside identity, display name/title, description, and node type. | |
+| req-web-stdpanel-table-columns-4 | Entity Metadata Included | Proposed | The default common metadata set includes `last edited` and `dimensions` alongside identity, name, description, and node type. | |
 | req-web-stdpanel-table-columns-5 | Future Split Mode Reserved | Proposed | A future feature variable may allow separate per-type tables without changing the default V1 contract. | |
 
 #### Future

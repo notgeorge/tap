@@ -9,7 +9,7 @@ from tap_viz.models import Layout
 @pytest.mark.django_db
 class TestLayout:
     def test_layout_requires_entity(self):
-        entity = Entity.objects.create(entity_type="layout", display_name="Test")
+        entity = Entity.objects.create(entity_type="layout", name="Test")
         layout = Layout.objects.create(entity=entity, name="Test Layout")
         assert layout.entity == entity
         assert layout.name == "Test Layout"

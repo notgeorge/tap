@@ -53,12 +53,12 @@ class TapPluginConfig(AppConfig):
             verbose_name = "My Plugin"
 
             entity_types = [
-                {"slug": "concept", "display_name": "Concept", "icon": "", "description": "An abstract idea"},
+                {"slug": "concept", "name": "Concept", "icon": "", "description": "An abstract idea"},
             ]
             edge_types = [
                 {
                     "slug": "applies_to",
-                    "display_name": "Applies To",
+                    "name": "Applies To",
                     "description": "Concept applies to precept",
                     # Optional: edge constraints (omit for unconstrained)
                     "sources": [{"type": "concept"}],
@@ -106,7 +106,7 @@ class TapPluginConfig(AppConfig):
                 EntityType.objects.get_or_create(
                     slug=et["slug"],
                     defaults={
-                        "display_name": et.get("display_name", et["slug"]),
+                        "name": et.get("name", et["slug"]),
                         "icon": et.get("icon", ""),
                         "description": et.get("description", ""),
                         "plugin_name": self.name,
@@ -116,13 +116,13 @@ class TapPluginConfig(AppConfig):
                 EntityType.objects.get_or_create(
                     slug=et["slug"],
                     defaults={
-                        "display_name": et.get("display_name", et["slug"]),
+                        "name": et.get("name", et["slug"]),
                         "icon": et.get("icon", ""),
                         "description": et.get("description", ""),
                         "plugin_name": self.name,
                     },
                 )
-        except OperationalError, ProgrammingError:
+        except (OperationalError, ProgrammingError):
             # Table doesn't exist yet (running migrations for the first time)
             logger.debug("EntityType table not ready; skipping type registration.")
 

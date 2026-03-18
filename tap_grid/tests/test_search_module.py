@@ -80,7 +80,7 @@ def _make_bad_result_runner():
 
 def _module_search(**kwargs):
     defaults = {
-        "title": "Module Test",
+        "name": "Module Test",
         "search_type": "module",
         "root": "node",
         "definition": {"runner_key": "fake.scope:my-runner"},
@@ -221,7 +221,7 @@ class TestListConceptsRunner:
 
         Concept.objects.create(summary="Test concept for search")
         s = Search.objects.create(
-            title="List Concepts",
+            name="List Concepts",
             search_type="module",
             root="node",
             definition={"runner_key": "tap_plugins.core_examples.searches:list-concepts"},
@@ -236,7 +236,7 @@ class TestListConceptsRunner:
     def test_list_concepts_uses_read_only_connection(self):
         """Smoke test: execute_search doesn't crash when using search_readonly alias."""
         s = Search.objects.create(
-            title="Readonly Test",
+            name="Readonly Test",
             search_type="module",
             root="node",
             definition={"runner_key": "tap_plugins.core_examples.searches:list-concepts"},

@@ -89,7 +89,7 @@ class Batch(BaseModel):
         ordering = ["-started_at"]
 
     def __str__(self) -> str:
-        display = self.entity.display_name or str(self.entity.id)
+        display = self.entity.name or str(self.entity.id)
         return f"Batch {display} ({self.status})"
 
 
