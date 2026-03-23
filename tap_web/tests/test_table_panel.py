@@ -658,3 +658,95 @@ class TestTablePanelEditForm:
         )
         choice_values = [v for v, _ in form.fields["search_uuid"].choices]
         assert str(search.entity_id) in choice_values
+
+
+# ---------------------------------------------------------------------------
+# Icon enrichment — _enrich_nodes_with_icons and icon_url in view context
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestTablePanelIconEnrichment:
+    """Nodes returned by get_view_context carry icon_url for display."""
+
+    def _lotr_entity_types(self):
+        """Seed LOTR EntityType records without re-registering edge constraints."""
+        from django.apps import apps
+
+        from tap_grid.models import EntityType
+
+        app_config = apps.get_app_config("lotr")
+        for et in app_config.entity_types:
+            EntityType.objects.update_or_create(
+                slug=et["slug"],
+                defaults={
+                    "name": et.get("name", et["slug"]),
+                    "icon": et.get("icon", ""),
+                    "description": et.get("description", ""),
+                    "plugin_name": app_config.name,
+                },
+            )
+
+    def test_icon_url_present_in_every_node(self):
+        """Every node dict has an icon_url key after enrichment."""
+        from tap_web.panels.table_panel import _enrich_nodes_with_icons
+
+        nodes = [
+            {"entity_type": "faction", "name": "Mordor"},
+            {"entity_type": "faction", "name": "Rivendell"},
+        ]
+        _enrich_nodes_with_icons(nodes)
+        for node in nodes:
+            assert "icon_url" in node
+
+    def test_icon_url_non_empty_for_type_with_icon(self):
+        """Nodes with an entity type that has a registered icon get a non-empty icon_url."""
+        from tap_web.panels.table_panel import _enrich_nodes_with_icons
+
+        self._lotr_entity_types()
+        nodes = [{"entity_type": "character", "name": "Frodo"}]
+        _enrich_nodes_with_icons(nodes)
+        assert nodes[0]["icon_url"] != ""
+
+    def test_icon_url_empty_for_type_without_icon(self):
+        """Nodes with an entity type that has no icon get an empty string."""
+        from tap_web.panels.table_panel import _enrich_nodes_with_icons
+
+        self._lotr_entity_types()
+        nodes = [{"entity_type": "faction", "name": "Mordor"}]
+        _enrich_nodes_with_icons(nodes)
+        assert nodes[0]["icon_url"] == ""
+
+    def test_icon_url_empty_for_unknown_entity_type(self):
+        """Nodes with an unregistered entity type get an empty string, not an error."""
+        from tap_web.panels.table_panel import _enrich_nodes_with_icons
+
+        nodes = [{"entity_type": "does-not-exist", "name": "Ghost"}]
+        _enrich_nodes_with_icons(nodes)
+        assert nodes[0]["icon_url"] == ""
+
+    def test_icon_url_in_view_context_nodes(self):
+        """get_view_context includes icon_url in the nodes passed to the template."""
+        from unittest.mock import patch
+
+        from django.test import RequestFactory
+
+        panel = _create_table_panel()
+        search = _create_search()
+        _link_search(panel, search)
+        self._lotr_entity_types()
+
+        fake_envelope = {
+            "nodes": [{"entity_type": "character", "entity_id": "abc", "name": "Frodo", "dimensions": {}, "updated_at": None}],
+            "edges": [],
+            "info": {},
+            "warnings": {},
+        }
+        request = RequestFactory().get(_panel_url(panel))
+        with patch("tap_grid.search_service.execute_search", return_value=fake_envelope):
+            ctx = TablePanelType.get_view_context(panel, request)
+
+        assert ctx["table_error"] is None
+        assert len(ctx["table_nodes"]) == 1
+        assert "icon_url" in ctx["table_nodes"][0]
+        assert ctx["table_nodes"][0]["icon_url"] != ""

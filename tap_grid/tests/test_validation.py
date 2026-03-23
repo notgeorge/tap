@@ -13,7 +13,7 @@ from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models
 
 from tap_grid.models import BaseModel, dangerously_ignore_validator
-from tap_plugins.core_examples.models import Concept
+from plugins.core_examples.models import Concept
 
 # ---------------------------------------------------------------------------
 # Module-level test models — no ENTITY_TYPE, no table (managed=False).

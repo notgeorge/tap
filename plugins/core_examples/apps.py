@@ -6,7 +6,7 @@ from tap_plugins.base import TapPluginConfig
 
 
 class CoreExamplesConfig(TapPluginConfig):
-    name = "tap_plugins.core_examples"
+    name = "plugins.core_examples"
     verbose_name = "Core Examples"
     label = "core_examples"
 
@@ -39,11 +39,11 @@ class CoreExamplesConfig(TapPluginConfig):
     def ready(self) -> None:
         super().ready()
         from tap_grid.registry import register_search_runner
-        from tap_plugins.core_examples.searches import list_concepts
+        from plugins.core_examples.searches import list_concepts
 
         register_search_runner("list-concepts", list_concepts)
 
     def get_api_router(self) -> Any:
-        from tap_plugins.core_examples.api import router
+        from plugins.core_examples.api import router
 
         return router

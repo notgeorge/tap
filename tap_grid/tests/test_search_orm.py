@@ -25,7 +25,7 @@ def _orm_search(**kwargs):
 
 
 def _make_concept(summary="Test"):
-    from tap_plugins.core_examples.models import Concept
+    from plugins.core_examples.models import Concept
 
     return Concept.objects.create(summary=summary)
 
@@ -123,7 +123,7 @@ class TestConjunctiveFilters:
 
     def test_multiple_filters_applied_conjunctively(self):
         """Multiple filters are combined as AND."""
-        from tap_plugins.core_examples.models import Concept
+        from plugins.core_examples.models import Concept
 
         Concept.objects.create(summary="alpha")
         Concept.objects.create(summary="beta")
@@ -236,7 +236,7 @@ class TestHopTraversal:
 class TestOrdering:
     def test_default_ordering_is_deterministic(self):
         """Without order_by, results are ordered by id (deterministic)."""
-        from tap_plugins.core_examples.models import Concept
+        from plugins.core_examples.models import Concept
 
         Concept.objects.create(summary="first")
         Concept.objects.create(summary="second")
@@ -254,7 +254,7 @@ class TestOrdering:
 
     def test_explicit_order_by_applied(self):
         """order_by field is applied to the queryset."""
-        from tap_plugins.core_examples.models import Concept
+        from plugins.core_examples.models import Concept
 
         Concept.objects.create(summary="z_concept")
         Concept.objects.create(summary="a_concept")

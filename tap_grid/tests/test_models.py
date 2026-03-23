@@ -13,7 +13,7 @@ from tap_grid.models import Edge, Entity, EntityType
 from tap_grid.registry import get_model_class, register_entity_type, resolve_entity
 from tap_grid.services import create_entity
 from tap_plugins.base import TapPluginConfig
-from tap_plugins.core_examples.models import Concept, Precept
+from plugins.core_examples.models import Concept, Precept
 
 
 @pytest.mark.django_db

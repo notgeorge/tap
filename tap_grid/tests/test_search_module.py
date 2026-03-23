@@ -213,18 +213,18 @@ class TestListConceptsRunner:
         """list-concepts runner is registered by AppConfig.ready()."""
         from tap_grid.registry import search_runner_registry
 
-        assert "tap_plugins.core_examples.searches:list-concepts" in search_runner_registry
+        assert "plugins.core_examples.searches:list-concepts" in search_runner_registry
 
     def test_list_concepts_returns_envelope(self):
         """list-concepts runner returns valid graph envelope via execute_search."""
-        from tap_plugins.core_examples.models import Concept
+        from plugins.core_examples.models import Concept
 
         Concept.objects.create(summary="Test concept for search")
         s = Search.objects.create(
             name="List Concepts",
             search_type="module",
             root="node",
-            definition={"runner_key": "tap_plugins.core_examples.searches:list-concepts"},
+            definition={"runner_key": "plugins.core_examples.searches:list-concepts"},
         )
         result = execute_search(s)
         assert "nodes" in result
@@ -239,7 +239,7 @@ class TestListConceptsRunner:
             name="Readonly Test",
             search_type="module",
             root="node",
-            definition={"runner_key": "tap_plugins.core_examples.searches:list-concepts"},
+            definition={"runner_key": "plugins.core_examples.searches:list-concepts"},
         )
         result = execute_search(s)
         assert isinstance(result["nodes"], list)

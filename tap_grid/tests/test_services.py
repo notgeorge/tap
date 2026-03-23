@@ -16,7 +16,7 @@ from tap_grid.services import (
     update_edge_properties,
     update_entity,
 )
-from tap_plugins.core_examples.models import Concept
+from plugins.core_examples.models import Concept
 
 
 @pytest.mark.django_db

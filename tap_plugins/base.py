@@ -103,7 +103,7 @@ class TapPluginConfig(AppConfig):
             from tap_grid.models import EntityType
 
             for et in self.entity_types:
-                EntityType.objects.get_or_create(
+                EntityType.objects.update_or_create(
                     slug=et["slug"],
                     defaults={
                         "name": et.get("name", et["slug"]),
@@ -113,7 +113,7 @@ class TapPluginConfig(AppConfig):
                     },
                 )
             for et in self.edge_types:
-                EntityType.objects.get_or_create(
+                EntityType.objects.update_or_create(
                     slug=et["slug"],
                     defaults={
                         "name": et.get("name", et["slug"]),

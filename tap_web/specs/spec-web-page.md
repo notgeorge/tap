@@ -32,6 +32,7 @@ Future:
 | req-web-page-sanitize.sec | [Page Object Sanitization](#page-object-sanitization) | Implemented | Schema-first input hardening plus safe HTML output escaping |
 | req-web-page-plink | [Page to Panel Links](#page-to-panel-links) | Implemented | `USES_PANEL` links bind `panel-id` slots to panel nodes |
 | req-web-page-landing | [Landing Pages](#landing-pages) | Proposed | Landing-page indirection for root URL |
+| req-web-page-ephemeral | [Ephemeral Pages](#ephemeral-pages) | Backlog | On-the-fly page generation from a layout descriptor without persisting Page or Panel objects |
 | req-web-page-params | [Page Variables](#page-variables) | Proposed | URL-backed `tap_page_vars` provide canonical shared page state |
 | req-web-page-local | [Page Persistent Variables](#page-persistent-variables) | Proposed | In-memory `tap_page_persistent_vars` allow panels to reuse derived data and results |
 | req-web-page-coord | [Page Variable Coordinator](#page-variable-coordinator) | Proposed | Small page-level JavaScript coordinator resolves variable mappings and dispatches panel input updates |
@@ -490,6 +491,42 @@ Handle multiple landing pages more efficiently - maybe with some sort of constra
 | req-web-page-landing-7 | Root Query Params Preserved | Proposed | Query params on root URL are passed through unchanged to page render context. | |
 | req-web-page-landing-8 | Missing Landing Placeholder | Proposed | If no `LandingPage` exists, root route renders setup placeholder. | |
 | req-web-page-landing-9 | Invalid Target Placeholder | Proposed | If selected landing target is missing/invalid, root route renders setup placeholder. | |
+
+
+### Ephemeral Pages
+----
+RID: `req-web-page-ephemeral`
+Status: `Backlog`
+
+An ephemeral page is a fully rendered TAP Web page produced from a layout descriptor without creating or persisting any Page, Panel, or LandingPage objects in the grid.
+
+#### Status Details
+Tracked explicitly so the current `_render_grid_placeholder` approach (a separate rendering pipeline in `views.py`) can be replaced with a single, principled ephemeral-page path. Also provides the foundation for AI-generated pages.
+
+#### Implementation
+- An ephemeral page is driven entirely by an in-memory `EphemeralPageDescriptor` — a plain data structure that mirrors the Page layout schema and carries enough panel configuration to render each slot without DB-backed Panel nodes.
+- The descriptor is structurally compatible with the existing layout JSON schema (`req-web-page-layout-sanitize.sec`) so the same rendering logic handles both.
+- Ephemeral pages use transient (unsaved) model instances or plain config dicts in place of Panel objects; no write to the grid occurs.
+- The root-route setup placeholder (`_render_grid_placeholder`) is replaced by an ephemeral page that auto-generates a standard nodes + edges layout.
+- Ephemeral pages are not assigned slugs and are not accessible via `/page/<slug>` routing.
+- An ephemeral page may be "promoted" — saved as real Page and Panel objects — by an explicit save action, but promotion is not required.
+- The AI assistant layer (`tap_ai`) will use ephemeral pages to materialise dynamically generated layouts in response to user requests before offering to promote them.
+
+#### Development
+Design the `EphemeralPageDescriptor` contract before implementation so that `tap_ai` can generate descriptors without knowing rendering internals. Keep the descriptor serializable to JSON so AI-generated pages can round-trip over an API boundary.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-page-ephemeral-1 | Descriptor Contract | Backlog | An `EphemeralPageDescriptor` schema is defined and structurally compatible with the existing layout schema. | |
+| req-web-page-ephemeral-2 | No Grid Writes | Backlog | Rendering an ephemeral page does not create or modify any Page, Panel, or LandingPage node. | |
+| req-web-page-ephemeral-3 | Setup Placeholder Replaced | Backlog | The root-route fallback (`_render_grid_placeholder`) is replaced by an ephemeral page using the standard rendering pipeline. | |
+| req-web-page-ephemeral-4 | Promotion Path | Backlog | An ephemeral page can be promoted to persistent Page and Panel objects via an explicit save action. | |
+| req-web-page-ephemeral-5 | AI Descriptor Generation | Backlog | `tap_ai` can produce an `EphemeralPageDescriptor` that the ephemeral page renderer accepts without modification. | |
+
+#### Future
+Define security constraints for AI-generated descriptors — field allowlists, panel type restrictions, and promotion approval flow before any user-facing save action is permitted.
 
 
 ### Page Variables

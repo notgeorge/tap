@@ -20,10 +20,10 @@ The first version should stay intentionally narrow: type-level icons only, SVG o
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-grid-icon-type | [Type-Level Icon Ownership](#type-level-icon-ownership) | Proposed | Canonical icons belong to entity types in v1 |
-| req-grid-icon-key | [Icon Key And Path Resolution](#icon-key-and-path-resolution) | Proposed | App-scoped icon keys resolve by convention into each app/plugin's static icons directory |
-| req-grid-icon-format | [Icon File Format](#icon-file-format) | Proposed | SVG is the only allowed icon file format in v1 |
-| req-grid-icon-render | [Icon Rendering Contract](#icon-rendering-contract) | Proposed | Icons are decorative visual cues and must not be the sole carrier of meaning |
+| req-grid-icon-type | [Type-Level Icon Ownership](#type-level-icon-ownership) | Implemented | Canonical icons belong to entity types in v1 |
+| req-grid-icon-key | [Icon Key And Path Resolution](#icon-key-and-path-resolution) | Implemented | App-scoped icon keys resolve by convention into each app/plugin's static icons directory |
+| req-grid-icon-format | [Icon File Format](#icon-file-format) | Implemented | SVG is the only allowed icon file format in v1 |
+| req-grid-icon-render | [Icon Rendering Contract](#icon-rendering-contract) | Implemented | Icons are decorative visual cues and must not be the sole carrier of meaning |
 | req-grid-icon-instance | [Instance-Level Icon Overrides](#instance-level-icon-overrides) | Backlog | Future support for per-instance icon overrides |
 
 ---
@@ -31,7 +31,7 @@ The first version should stay intentionally narrow: type-level icons only, SVG o
 ### Type-Level Icon Ownership
 ----
 RID: `req-grid-icon-type`
-Status: `Proposed`
+Status: `Implemented`
 
 In v1, canonical TAP icons belong to entity types rather than individual entity instances.
 
@@ -62,7 +62,7 @@ Allow entity instances to override their type icon without changing the type's c
 ### Icon Key And Path Resolution
 ----
 RID: `req-grid-icon-key`
-Status: `Proposed`
+Status: `Implemented`
 
 Icons are resolved by app/plugin-scoped key convention rather than arbitrary file paths stored in metadata.
 
@@ -106,7 +106,7 @@ If TAP later supports richer icon metadata, keep convention-based resolution as 
 ### Icon File Format
 ----
 RID: `req-grid-icon-format`
-Status: `Proposed`
+Status: `Implemented`
 
 SVG is the only allowed icon file format in v1.
 
@@ -137,7 +137,7 @@ Add optional size-specific variants only if there is a demonstrated need for opt
 ### Icon Rendering Contract
 ----
 RID: `req-grid-icon-render`
-Status: `Proposed`
+Status: `Implemented`
 
 Icons are decorative visual cues and must not be the sole carrier of meaning for a TAP object.
 

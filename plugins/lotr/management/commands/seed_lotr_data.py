@@ -12,7 +12,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from tap_grid.models import Edge, Entity, Search
-from tap_plugins.lotr.models import Artifact, Character, Faction, Location, Race
+from plugins.lotr.models import Artifact, Character, Faction, Location, Race
 
 
 class Command(BaseCommand):
@@ -215,8 +215,9 @@ class Command(BaseCommand):
         search_count = self._seed_searches()
         self.stdout.write(self.style.SUCCESS(f"  + {search_count} new searches seeded."))
 
-        # Create web page
+        # Create web pages
         self._seed_web_page()
+        self._seed_characters_page()
 
     def _seed_web_page(self) -> None:
         """Create a Middle-earth welcome Page with a single Text Panel. Idempotent."""
@@ -277,6 +278,116 @@ class Command(BaseCommand):
                 properties={"panel-id": "main"},
             )
             self.stdout.write("  + Edge: /middle-earth --USES_PANEL[main]--> welcome panel")
+
+    def _seed_characters_page(self) -> None:
+        """Create a /middle-earth/characters Page with a Table Panel of characters. Idempotent.
+
+        Creates:
+          - A Table Panel linked to the 'All LOTR Characters' search via USES_SEARCH.
+          - A Page at /middle-earth/characters with the panel in its layout.
+          - A LandingPage → Page link so the root URL shows the characters table.
+        """
+        from tap_grid.models import Edge, Entity, Search
+        from tap_web.models import LandingPage, Page, Panel
+        from tap_web.panels.table_panel import TablePanelType
+
+        # Table Panel
+        panel, panel_created = Panel.objects.update_or_create(
+            slug="lotr-characters-table",
+            defaults={
+                "name": "LOTR Characters",
+                "view": TablePanelType.view,
+                "editor_view": TablePanelType.editor_view,
+                "css": TablePanelType.css,
+                "js": TablePanelType.js,
+                "config": {
+                    "column_mode": "common_metadata",
+                    "default_limit": 25,
+                },
+            },
+        )
+        if panel_created:
+            self.stdout.write("  + Panel: LOTR Characters (table)")
+
+        # Link panel → search via USES_SEARCH edge (idempotent)
+        try:
+            search = Search.objects.get(name="All LOTR Characters")
+            uses_search_exists = Edge.objects.filter(
+                from_entity=panel.entity,
+                to_entity=search.entity,
+                edge_type="USES_SEARCH",
+            ).exists()
+            if not uses_search_exists:
+                edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
+                Edge.objects.create(
+                    entity=edge_entity,
+                    from_entity=panel.entity,
+                    to_entity=search.entity,
+                    edge_type="USES_SEARCH",
+                )
+                self.stdout.write("  + Edge: lotr-characters-table --USES_SEARCH--> All LOTR Characters")
+        except Search.DoesNotExist:
+            self.stderr.write("  ! Search 'All LOTR Characters' not found; USES_SEARCH edge skipped.")
+
+        # Page
+        layout = {
+            "columns": {
+                "col-1": {
+                    "width": "1fr",
+                    "rows": {
+                        "row-1": {"panel-id": "characters"},
+                    },
+                }
+            }
+        }
+        page, page_created = Page.objects.get_or_create(
+            slug="/middle-earth/characters",
+            defaults={
+                "name": "Middle-earth Characters",
+                "layout": layout,
+            },
+        )
+        if page_created:
+            self.stdout.write("  + Page: /middle-earth/characters")
+
+        # USES_PANEL edge: page → panel with panel-id "characters"
+        uses_panel_exists = Edge.objects.filter(
+            from_entity=page.entity,
+            to_entity=panel.entity,
+            edge_type="USES_PANEL",
+        ).exists()
+        if not uses_panel_exists:
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_PANEL")
+            Edge.objects.create(
+                entity=edge_entity,
+                from_entity=page.entity,
+                to_entity=panel.entity,
+                edge_type="USES_PANEL",
+                properties={"panel-id": "characters"},
+            )
+            self.stdout.write("  + Edge: /middle-earth/characters --USES_PANEL[characters]--> lotr-characters-table")
+
+        # LandingPage → characters page (idempotent)
+        landing, landing_created = LandingPage.objects.get_or_create(
+            name="LOTR Landing",
+        )
+        if landing_created:
+            self.stdout.write("  + LandingPage: lotr-landing")
+
+        uses_landing_exists = Edge.objects.filter(
+            from_entity=landing.entity,
+            to_entity=page.entity,
+            edge_type="USES_LANDING_PAGE",
+        ).exists()
+        if not uses_landing_exists:
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_LANDING_PAGE")
+            Edge.objects.create(
+                entity=edge_entity,
+                from_entity=landing.entity,
+                to_entity=page.entity,
+                edge_type="USES_LANDING_PAGE",
+            )
+            self.stdout.write("  + Edge: lotr-landing --USES_LANDING_PAGE--> /middle-earth/characters")
 
     def _seed_searches(self) -> int:
         """Create reusable Search objects for LOTR data exploration. Idempotent."""
@@ -371,7 +482,7 @@ class Command(BaseCommand):
                 "search_type": "module",
                 "root": "node",
                 "definition": {
-                    "runner_key": "tap_plugins.lotr.searches:list-characters-with-bio"
+                    "runner_key": "plugins.lotr.searches:list-characters-with-bio"
                 },
             },
         ]
@@ -379,7 +490,7 @@ class Command(BaseCommand):
         count = 0
         for spec in searches:
             name = spec.pop("name")
-            _, created = Search.objects.get_or_create(
+            _, created = Search.objects.update_or_create(
                 name=name,
                 search_type=spec["search_type"],
                 defaults={"name": name, **spec},

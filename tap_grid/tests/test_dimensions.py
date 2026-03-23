@@ -15,7 +15,7 @@ from tap_grid.constraints import (
 )
 from tap_grid.models import Dimension, Edge, Entity
 from tap_grid.services import create_entity
-from tap_plugins.core_examples.models import Concept, Precept
+from plugins.core_examples.models import Concept, Precept
 
 # ---------------------------------------------------------------------------
 # req-grid-dimension-em: Dimensions on Entity Model

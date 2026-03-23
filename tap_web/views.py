@@ -395,6 +395,10 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
         edges = edge_result.get("edges", [])
         edges_meta = {}
 
+    # Enrich nodes with icon URLs.
+    from tap_web.panels.table_panel import _enrich_nodes_with_icons
+    _enrich_nodes_with_icons(nodes)
+
     # Enrich edges with from/to display names via bulk lookup.
     if edges:
         all_ids = {e["from_entity_id"] for e in edges} | {e["to_entity_id"] for e in edges}

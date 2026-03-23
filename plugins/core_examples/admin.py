@@ -3,7 +3,7 @@
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 
-from tap_plugins.core_examples.models import Concept, Precept
+from plugins.core_examples.models import Concept, Precept
 
 
 @admin.register(Concept)

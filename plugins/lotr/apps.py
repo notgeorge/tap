@@ -4,7 +4,7 @@ from tap_plugins.base import TapPluginConfig
 
 
 class LotrConfig(TapPluginConfig):
-    name = "tap_plugins.lotr"
+    name = "plugins.lotr"
     verbose_name = "Lord of the Rings"
     label = "lotr"
 
@@ -12,21 +12,25 @@ class LotrConfig(TapPluginConfig):
         {
             "slug": "character",
             "name": "Character",
+            "icon": "character",
             "description": "A being in Middle-earth.",
         },
         {
             "slug": "location",
             "name": "Location",
+            "icon": "location",
             "description": "A place in Middle-earth.",
         },
         {
             "slug": "artifact",
             "name": "Artifact",
+            "icon": "artifact",
             "description": "A significant object of power.",
         },
         {
             "slug": "race",
             "name": "Race",
+            "icon": "race",
             "description": "A race of beings.",
         },
         {
@@ -150,6 +154,6 @@ class LotrConfig(TapPluginConfig):
     def ready(self) -> None:
         super().ready()
         from tap_grid.registry import register_search_runner
-        from tap_plugins.lotr.searches import list_characters_with_bio
+        from plugins.lotr.searches import list_characters_with_bio
 
         register_search_runner("list-characters-with-bio", list_characters_with_bio)

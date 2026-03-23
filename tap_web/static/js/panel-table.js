@@ -20,6 +20,27 @@
   // Columns for common_metadata mode (req-web-stdpanel-table-columns).
   var COMMON_METADATA_COLUMNS = [
     {
+      // Icon column — decorative, no header text, empty when no icon available.
+      title: "",
+      field: "icon_url",
+      width: 36,
+      hozAlign: "center",
+      headerSort: false,
+      formatter: function (cell) {
+        var url = cell.getValue();
+        if (!url) return "";
+        var img = document.createElement("img");
+        img.src = url;
+        img.alt = "";
+        img.setAttribute("aria-hidden", "true");
+        img.style.width = "20px";
+        img.style.height = "20px";
+        img.style.display = "block";
+        img.style.margin = "auto";
+        return img;
+      },
+    },
+    {
       title: "ID",
       field: "entity_id",
       width: 120,

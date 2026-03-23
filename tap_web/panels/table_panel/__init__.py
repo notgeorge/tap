@@ -123,6 +123,8 @@ class TablePanelType:
     label = "Table Panel"
     view = "tap_web/panels/table_panel.html"
     editor_view = "tap_web/panels/table_panel_editor.html"
+    css: list[str] = ["css/lib/tabulator.min.css"]
+    js: list[str] = ["js/lib/tabulator.min.js", "js/panel-table.js"]
     config_defaults: dict[str, Any] = {
         "column_mode": _DEFAULT_COLUMN_MODE,
         "default_limit": _DEFAULT_LIMIT,
@@ -189,6 +191,8 @@ class TablePanelType:
         else:
             nodes = result.get("nodes", [])
             meta = {}
+
+        _enrich_nodes_with_icons(nodes)
 
         return {
             "table_nodes": nodes,
@@ -262,6 +266,32 @@ class TablePanelType:
                     "Table panel editor: search entity %s not found; USES_SEARCH edge not created.",
                     search_uuid_str,
                 )
+
+
+def _enrich_nodes_with_icons(nodes: list[dict[str, Any]]) -> None:
+    """Add icon_url to each node dict in-place.
+
+    Batches the EntityType lookup to avoid N+1 queries. Sets icon_url to an
+    empty string for nodes whose entity type has no icon or cannot be resolved.
+
+    Args:
+        nodes: List of node dicts as returned by the search service.
+    """
+    from tap_grid.icon_service import resolve_icon_url
+    from tap_grid.models import EntityType
+
+    slugs = {n["entity_type"] for n in nodes if n.get("entity_type")}
+    if not slugs:
+        for node in nodes:
+            node["icon_url"] = ""
+        return
+
+    icon_map: dict[str, str] = {
+        et.slug: resolve_icon_url(et) or ""
+        for et in EntityType.objects.filter(slug__in=slugs)
+    }
+    for node in nodes:
+        node["icon_url"] = icon_map.get(node.get("entity_type", ""), "")
 
 
 def _safe_json(value: Any) -> str:

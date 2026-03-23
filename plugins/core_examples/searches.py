@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 def list_concepts(search: Search, inputs: dict[str, Any], *, db_alias: str) -> dict[str, Any]:
     """Return all concept entities as a flat node list.
 
-    Registered as: tap_plugins.core_examples.searches:list-concepts
+    Registered as: plugins.core_examples.searches:list-concepts
     """
     from tap_grid.models import Entity
 
