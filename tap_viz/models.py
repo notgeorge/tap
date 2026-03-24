@@ -1,4 +1,4 @@
-"""tap_viz models — Layout storage for Cytoscape.js visualizations."""
+"""tap_viz models — Viz layout entities."""
 
 from typing import ClassVar
 
@@ -8,21 +8,22 @@ from tap_grid.models import BaseModel
 
 
 class Layout(BaseModel):
-    """A saved Cytoscape.js layout configuration.
+    """A reusable TAP viz layout definition.
 
-    Layouts are Entities (via BaseModel). The cytoscape_config JSONField
-    stores the full layout in Cytoscape-ingestible format: nodes, edges,
-    positions, style, and layout algorithm settings.
+    Layouts are Entities (via BaseModel). The definition JSONField stores
+    the TAP-owned declarative layout payload: inputs, steps, presentation,
+    and interactions. Search retrieval is backed by USES_SEARCH edges from
+    this layout to Search entities.
     """
 
     ENTITY_TYPE: ClassVar[str] = "layout"
 
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
-    cytoscape_config = models.JSONField(
+    definition = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Full Cytoscape.js config: nodes, edges, positions, style.",
+        help_text="TAP-owned declarative layout payload: inputs, steps, presentation, interactions.",
     )
 
     class Meta(BaseModel.Meta):

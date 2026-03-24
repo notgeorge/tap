@@ -19,25 +19,23 @@ class TestLayout:
         layout = Layout.objects.create(entity=entity, name="My Layout")
         assert str(layout) == "My Layout"
 
-    def test_layout_cytoscape_config_default(self):
+    def test_layout_definition_default(self):
         entity = Entity.objects.create(entity_type="layout")
         layout = Layout.objects.create(entity=entity, name="Empty")
-        assert layout.cytoscape_config == {}
+        assert layout.definition == {}
 
-    def test_layout_stores_cytoscape_config(self):
+    def test_layout_stores_definition(self):
         entity = Entity.objects.create(entity_type="layout")
-        config = {
-            "elements": [
-                {"data": {"id": "a", "label": "Node A"}},
-                {"data": {"id": "b", "label": "Node B"}},
-                {"data": {"source": "a", "target": "b"}},
-            ],
-            "layout": {"name": "grid"},
+        definition = {
+            "inputs": [],
+            "steps": [{"type": "search", "search-id": "main"}],
+            "presentation": {"placement": "cytoscape:cose"},
+            "interactions": {},
         }
         layout = Layout.objects.create(
             entity=entity,
-            name="With Config",
-            cytoscape_config=config,
+            name="With Definition",
+            definition=definition,
         )
         layout.refresh_from_db()
-        assert layout.cytoscape_config == config
+        assert layout.definition == definition

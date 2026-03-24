@@ -213,6 +213,8 @@ class BaseModel(models.Model):
     ENTITY_TYPE: ClassVar[str]
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]]
     FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {}
+    HOTLINKS: ClassVar[list[dict]] = []
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {}
 
     entity = models.OneToOneField(
         Entity,
@@ -236,6 +238,11 @@ class BaseModel(models.Model):
         # FIELD_SCHEMAS invariants run first — before any registry side effects.
         # If these raise, nothing has been registered and the failure is clean.
         _check_field_schemas(cls)
+
+        # HOTLINKS invariants — only validate if this class declares HOTLINKS directly.
+        if "HOTLINKS" in cls.__dict__:
+            from tap_grid.hotlink import _check_hotlinks
+            _check_hotlinks(cls)
 
         # Register in the entity model registry if this subclass declares ENTITY_TYPE
         # in its own class body (not inherited). Abstract subclasses omit ENTITY_TYPE.
@@ -332,6 +339,18 @@ class BaseModel(models.Model):
                             errors.setdefault(key, []).extend(str(m) for m in msgs)
                     except AttributeError:
                         errors.setdefault(field_name, []).extend(exc.messages)
+
+        # Hotlink consistency check (skipped on first save when entity_id is None).
+        from tap_grid.hotlink import validate_hotlinks
+
+        try:
+            validate_hotlinks(self)
+        except ValidationError as exc:
+            try:
+                for key, msgs in exc.message_dict.items():
+                    errors.setdefault(key, []).extend(str(m) for m in msgs)
+            except AttributeError:
+                errors.setdefault("__all__", []).extend(exc.messages)
 
         # Whole-record hook
         try:
@@ -524,6 +543,9 @@ class Search(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "tap_search"
+
+    def get_name(self) -> str:
+        return self.name or ""
 
     def __str__(self) -> str:
         return self.name

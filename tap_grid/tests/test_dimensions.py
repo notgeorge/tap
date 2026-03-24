@@ -15,7 +15,7 @@ from tap_grid.constraints import (
 )
 from tap_grid.models import Dimension, Edge, Entity
 from tap_grid.services import create_entity
-from plugins.core_examples.models import Concept, Precept
+from plugins.lotr.models import Character, Wanderer
 
 # ---------------------------------------------------------------------------
 # req-grid-dimension-em: Dimensions on Entity Model
@@ -28,23 +28,23 @@ class TestEntityDimensionsField:
 
     def test_dimensions_defaults_to_empty_dict(self):
         """New Entity gets dimensions={} by default (em-1, em-2)."""
-        entity = create_entity("concept")
+        entity = create_entity("character")
         assert entity.dimensions == {}
 
     def test_dimensions_can_be_set_on_create(self):
         """Entity.objects.create() accepts explicit dimensions (em-1)."""
-        entity = create_entity("concept", dimensions={"env": "staging"})
+        entity = create_entity("character", dimensions={"env": "staging"})
         assert entity.dimensions == {"env": "staging"}
 
     def test_dimensions_persists_after_save(self):
         """Dimensions round-trip correctly through the DB (em-1)."""
-        entity = create_entity("concept", dimensions={"tap.graph": "web", "env": "prod"})
+        entity = create_entity("character", dimensions={"tap.graph": "web", "env": "prod"})
         entity.refresh_from_db()
         assert entity.dimensions == {"tap.graph": "web", "env": "prod"}
 
     def test_dimensions_field_is_non_nullable(self):
         """The dimensions field is non-nullable; the DB stores a dict (em-2)."""
-        entity = create_entity("concept")
+        entity = create_entity("character")
         entity.refresh_from_db()
         assert entity.dimensions is not None
         assert isinstance(entity.dimensions, dict)
@@ -92,8 +92,8 @@ class TestDefaultDimensions:
 
     def test_model_without_defaults_gets_empty_dims(self):
         """Model without DEFAULT_DIMENSIONS gets dimensions={} on the Entity (dc-1)."""
-        concept = Concept.objects.create(summary="no defaults")
-        assert concept.entity.dimensions == {}
+        character = Character.objects.create(bio="no defaults")
+        assert character.entity.dimensions == {}
 
 
 @pytest.mark.django_db
@@ -110,8 +110,8 @@ class TestEdgeDefaultDimensions:
     def test_edge_with_registered_defaults_gets_them(self):
         """Edge backing Entity gets dimensions from the edge type's registered defaults (dc-4)."""
         register_edge_default_dimensions("WEB_EDGE", {"tap.graph": "web"})
-        source = Concept.objects.create(summary="source")
-        target = Precept.objects.create(statement="target")
+        source = Wanderer.objects.create(journey="source")
+        target = Wanderer.objects.create(journey="target")
 
         edge = Edge.objects.create(
             from_entity=source.entity,
@@ -122,8 +122,8 @@ class TestEdgeDefaultDimensions:
 
     def test_edge_without_registered_defaults_gets_empty(self):
         """Edge with no registered default_dimensions gets dimensions={} (dc-4)."""
-        source = Concept.objects.create(summary="no dims source")
-        target = Precept.objects.create(statement="target")
+        source = Wanderer.objects.create(journey="no dims source")
+        target = Wanderer.objects.create(journey="target")
         edge = Edge.objects.create(
             from_entity=source.entity,
             to_entity=target.entity,
@@ -134,8 +134,8 @@ class TestEdgeDefaultDimensions:
     def test_caller_dims_override_edge_defaults(self):
         """Caller-supplied _initial_dimensions override edge default_dimensions (dc-4)."""
         register_edge_default_dimensions("WEB_EDGE2", {"tap.graph": "web"})
-        source = Concept.objects.create(summary="source")
-        target = Precept.objects.create(statement="target")
+        source = Wanderer.objects.create(journey="source")
+        target = Wanderer.objects.create(journey="target")
 
         edge = Edge(from_entity=source.entity, to_entity=target.entity, edge_type="WEB_EDGE2")
         edge._initial_dimensions = {"tap.graph": "override"}
@@ -145,8 +145,8 @@ class TestEdgeDefaultDimensions:
     def test_caller_adds_non_overlapping_key(self):
         """Non-overlapping caller key is merged alongside edge defaults (dc-4)."""
         register_edge_default_dimensions("WEB_EDGE3", {"tap.graph": "web"})
-        source = Concept.objects.create(summary="source")
-        target = Precept.objects.create(statement="target")
+        source = Wanderer.objects.create(journey="source")
+        target = Wanderer.objects.create(journey="target")
 
         edge = Edge(from_entity=source.entity, to_entity=target.entity, edge_type="WEB_EDGE3")
         edge._initial_dimensions = {"env": "staging"}

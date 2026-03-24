@@ -13,7 +13,7 @@ from tap_grid.models import Edge, Entity, EntityType
 from tap_grid.registry import get_model_class, register_entity_type, resolve_entity
 from tap_grid.services import create_entity
 from tap_plugins.base import TapPluginConfig
-from plugins.core_examples.models import Concept, Precept
+from plugins.lotr.models import Character, Location
 
 
 @pytest.mark.django_db
@@ -21,90 +21,91 @@ class TestEntityType:
     def test_registration_is_idempotent(self):
         """TapPluginConfig.ready() uses get_or_create, so duplicates are safe."""
         EntityType.objects.get_or_create(
-            slug="concept",
-            defaults={"name": "Concept", "plugin_name": "test"},
+            slug="character",
+            defaults={"name": "Character", "plugin_name": "test"},
         )
         EntityType.objects.get_or_create(
-            slug="concept",
-            defaults={"name": "Concept Changed", "plugin_name": "test"},
+            slug="character",
+            defaults={"name": "Character Changed", "plugin_name": "test"},
         )
-        assert EntityType.objects.filter(slug="concept").count() == 1
+        assert EntityType.objects.filter(slug="character").count() == 1
 
-    def test_types_registered_by_core_examples(self):
-        """The core_examples plugin registers concept, precept, APPLIES_TO, DEPENDS_ON."""
-        # ready() ran against the real DB; re-register against the test DB
-        app_config = apps.get_app_config("core_examples")
+    def test_types_registered_by_lotr(self):
+        """The lotr plugin registers character, location, artifact, LOCATED_IN, WIELDS, etc."""
+        from tap_grid.registry import get_model_class
+
+        app_config = apps.get_app_config("lotr")
         assert isinstance(app_config, TapPluginConfig)
-        app_config._register_types()
-        slugs = set(EntityType.objects.values_list("slug", flat=True))
-        assert {"concept", "precept", "APPLIES_TO", "DEPENDS_ON"}.issubset(slugs)
+        # Types are registered in the in-memory model registry by ready()
+        for entity_type in ("character", "location", "artifact"):
+            assert get_model_class(entity_type) is not None
 
 
 @pytest.mark.django_db
 class TestBaseModel:
     """Existing tests — verify the explicit-entity path still works (req-grid-entity-base-4)."""
 
-    def test_concept_inherits_basemodel_fields(self):
-        entity = create_entity("concept", name="Least Privilege")
-        concept = Concept.objects.create(entity=entity, summary="Minimize access.")
-        assert concept.entity == entity
+    def test_character_inherits_basemodel_fields(self):
+        entity = create_entity("character", name="Frodo Baggins")
+        character = Character.objects.create(entity=entity, bio="A hobbit from the Shire.")
+        assert character.entity == entity
 
     def test_reverse_relation(self):
-        """entity.concept gives the Concept for that entity."""
-        entity = create_entity("concept", name="Defense in Depth")
-        concept = Concept.objects.create(entity=entity, summary="Layer defenses.")
-        assert entity.concept == concept
+        """entity.character gives the Character for that entity."""
+        entity = create_entity("character", name="Gandalf")
+        character = Character.objects.create(entity=entity, bio="A wizard.")
+        assert entity.character == character
 
-    def test_precept_works_the_same(self):
-        entity = create_entity("precept", name="Use MFA")
-        precept = Precept.objects.create(entity=entity, statement="Require multi-factor auth.")
-        assert entity.precept == precept
+    def test_location_works_the_same(self):
+        entity = create_entity("location", name="The Shire")
+        location = Location.objects.create(entity=entity, description="A peaceful land.")
+        assert entity.location == location
 
 
 @pytest.mark.django_db
 class TestBaseModelAutoCreation:
     """req-grid-entity-base: BaseModel.save() auto-creates its Entity (spine-3 / base-1)."""
 
-    def test_concept_auto_creates_entity(self):
-        """Saving a Concept without an entity creates one automatically."""
-        concept = Concept.objects.create(summary="Auto-created entity test.")
-        assert concept.entity_id is not None
-        assert concept.entity.entity_type == "concept"
+    def test_character_auto_creates_entity(self):
+        """Saving a Character without an entity creates one automatically."""
+        character = Character.objects.create(bio="Auto-created entity test.")
+        assert character.entity_id is not None
+        assert character.entity.entity_type == "character"
 
     def test_auto_created_entity_on_spine(self):
         """The auto-created Entity actually exists in the Entity table."""
-        concept = Concept.objects.create(summary="Check spine.")
-        assert Entity.objects.filter(pk=concept.entity_id).exists()
+        character = Character.objects.create(bio="Check spine.")
+        assert Entity.objects.filter(pk=character.entity_id).exists()
 
-    def test_precept_auto_creates_entity(self):
-        precept = Precept.objects.create(statement="Always verify.")
-        assert precept.entity.entity_type == "precept"
+    def test_location_auto_creates_entity(self):
+        location = Location.objects.create(description="Always verify.")
+        assert location.entity.entity_type == "location"
 
     def test_get_name_default_is_empty(self):
         """Default get_name() produces an empty name on the Entity."""
-        concept = Concept.objects.create(summary="No display name.")
-        assert concept.entity.name == ""
+        character = Character.objects.create(bio="No display name.")
+        assert character.entity.name == ""
 
     def test_get_name_override(self):
         """get_name() is called during save; overrides on the instance are respected."""
-        concept = Concept(summary="Least Privilege")
-        concept.get_name = lambda: f"Concept: {concept.summary}"  # type: ignore[method-assign]
-        concept.save()
-        assert concept.entity.name == "Concept: Least Privilege"
+        character = Character(bio="Fellowship")
+        character.get_name = lambda: f"Character: {character.bio}"  # type: ignore[method-assign]
+        character.save()
+        assert character.entity.name == "Character: Fellowship"
 
     def test_entity_gets_originating_grid_id(self):
         """The auto-created Entity gets originating_grid_id from its own default."""
-        concept = Concept.objects.create(summary="Grid propagation check.")
-        assert concept.entity.originating_grid_id is not None
+        character = Character.objects.create(bio="Grid propagation check.")
+        assert character.entity.originating_grid_id is not None
 
     def test_edge_auto_creates_entity_with_name(self):
         """Edge.get_name() generates a label from its endpoints and type."""
-        a = create_entity("concept")
-        b = create_entity("precept")
-        edge = Edge.objects.create(from_entity=a, to_entity=b, edge_type="APPLIES_TO")
+        a = create_entity("character")
+        b = create_entity("location")
+        edge = Edge.objects.create(from_entity=a, to_entity=b, edge_type="LOCATED_IN")
         assert edge.entity.entity_type == "edge"
         assert str(a.pk) in edge.entity.name
-        assert "APPLIES_TO" in edge.entity.name
+        assert "LOCATED_IN" in edge.entity.name
 
 
 @pytest.mark.django_db
@@ -113,58 +114,58 @@ class TestBaseModelEntityConfirmation:
 
     def test_explicit_entity_with_correct_type_is_accepted(self):
         """Passing an entity with the right entity_type saves cleanly."""
-        entity = create_entity("concept", name="Explicit")
-        concept = Concept.objects.create(entity=entity, summary="Explicit entity path.")
-        assert concept.entity == entity
+        entity = create_entity("character", name="Explicit")
+        character = Character.objects.create(entity=entity, bio="Explicit entity path.")
+        assert character.entity == entity
 
     def test_explicit_entity_with_wrong_type_raises(self):
         """Passing an entity whose entity_type doesn't match raises ValueError."""
-        wrong_entity = create_entity("precept", name="Wrong type")
+        wrong_entity = create_entity("location", name="Wrong type")
         with pytest.raises(ValueError, match="entity_type does not match"):
-            Concept.objects.create(entity=wrong_entity, summary="Should fail.")
+            Character.objects.create(entity=wrong_entity, bio="Should fail.")
 
     def test_nonexistent_entity_id_raises(self):
         """Saving with a non-existent entity_id raises ValueError."""
         import uuid
 
-        concept = Concept(summary="Ghost entity.")
-        concept.entity_id = uuid.uuid7()  # valid UUID but not in DB
+        character = Character(bio="Ghost entity.")
+        character.entity_id = uuid.uuid7()  # valid UUID but not in DB
         with pytest.raises(ValueError, match="does not exist on the spine"):
-            concept.save()
+            character.save()
 
 
 @pytest.mark.django_db
 class TestEntityResolve:
     """req-grid-entity-resolve: Entity.resolve() and resolve_entity()."""
 
-    def test_resolve_returns_concept(self):
-        """entity.resolve() returns the Concept for a concept entity."""
-        concept = Concept.objects.create(summary="Resolve me.")
-        resolved = concept.entity.resolve()
-        assert isinstance(resolved, Concept)
-        assert resolved.pk == concept.pk
+    def test_resolve_returns_character(self):
+        """entity.resolve() returns the Character for a character entity."""
+        character = Character.objects.create(bio="Resolve me.")
+        resolved = character.entity.resolve()
+        assert isinstance(resolved, Character)
+        assert resolved.pk == character.pk
 
-    def test_resolve_returns_precept(self):
-        precept = Precept.objects.create(statement="Resolve precept.")
-        resolved = precept.entity.resolve()
-        assert isinstance(resolved, Precept)
-        assert resolved.pk == precept.pk
+    def test_resolve_returns_location(self):
+        location = Location.objects.create(description="Resolve location.")
+        resolved = location.entity.resolve()
+        assert isinstance(resolved, Location)
+        assert resolved.pk == location.pk
 
     def test_resolve_returns_edge(self):
         """entity.resolve() works for edge entities (req-grid-entity-resolve-4)."""
-        a = create_entity("concept")
-        b = create_entity("precept")
-        edge = Edge.objects.create(from_entity=a, to_entity=b, edge_type="APPLIES_TO")
+        a = create_entity("character")
+        b = create_entity("location")
+        edge = Edge.objects.create(from_entity=a, to_entity=b, edge_type="LOCATED_IN")
         resolved = edge.entity.resolve()
         assert isinstance(resolved, Edge)
         assert resolved.pk == edge.pk
 
     def test_resolve_entity_by_id(self):
         """resolve_entity(uuid) resolves from an entity_id alone (req-grid-entity-resolve-2)."""
-        concept = Concept.objects.create(summary="Resolve by ID.")
-        resolved = resolve_entity(concept.entity_id)
-        assert isinstance(resolved, Concept)
-        assert resolved.pk == concept.pk
+        character = Character.objects.create(bio="Resolve by ID.")
+        resolved = resolve_entity(character.entity_id)
+        assert isinstance(resolved, Character)
+        assert resolved.pk == character.pk
 
     def test_resolve_unregistered_type_raises(self):
         """Resolving an unknown entity_type raises KeyError (req-grid-entity-resolve-3)."""
@@ -176,11 +177,11 @@ class TestEntityResolve:
 class TestModelRegistry:
     """req-grid-entity-type: ENTITY_TYPE registration at class definition time."""
 
-    def test_concept_registered(self):
-        assert get_model_class("concept") is Concept
+    def test_character_registered(self):
+        assert get_model_class("character") is Character
 
-    def test_precept_registered(self):
-        assert get_model_class("precept") is Precept
+    def test_location_registered(self):
+        assert get_model_class("location") is Location
 
     def test_edge_registered(self):
         assert get_model_class("edge") is Edge
@@ -188,11 +189,11 @@ class TestModelRegistry:
     def test_duplicate_type_raises(self):
         """Registering the same entity_type for a different class raises ImproperlyConfigured."""
         with pytest.raises(ImproperlyConfigured, match="already registered"):
-            register_entity_type("concept", Precept)
+            register_entity_type("character", Location)
 
     def test_same_class_re_registration_is_safe(self):
         """Re-registering the same class for the same type is idempotent."""
-        register_entity_type("concept", Concept)  # should not raise
+        register_entity_type("character", Character)  # should not raise
 
 
 @pytest.mark.django_db
@@ -203,7 +204,7 @@ class TestEdgeEndpointValidation:
         """Edge with a non-existent from_entity_id raises ValueError (endpoints-1)."""
         import uuid
 
-        to_entity = create_entity("concept")
+        to_entity = create_entity("character")
         edge = Edge(from_entity_id=uuid.uuid7(), to_entity=to_entity, edge_type="TEST")
         with pytest.raises(ValueError, match="from_entity"):
             edge.save()
@@ -212,7 +213,7 @@ class TestEdgeEndpointValidation:
         """Edge with a non-existent to_entity_id raises ValueError (endpoints-2)."""
         import uuid
 
-        from_entity = create_entity("concept")
+        from_entity = create_entity("character")
         edge = Edge(from_entity=from_entity, to_entity_id=uuid.uuid7(), edge_type="TEST")
         with pytest.raises(ValueError, match="to_entity"):
             edge.save()
@@ -221,7 +222,7 @@ class TestEdgeEndpointValidation:
         """A failed endpoint check leaves no orphaned Entity row on the spine (endpoints-3)."""
         import uuid
 
-        to_entity = create_entity("concept")
+        to_entity = create_entity("character")
         count_before = Entity.objects.count()
         edge = Edge(from_entity_id=uuid.uuid7(), to_entity=to_entity, edge_type="TEST")
         with pytest.raises(ValueError):
@@ -232,17 +233,21 @@ class TestEdgeEndpointValidation:
 @pytest.mark.django_db
 class TestEntityStr:
     def test_with_name(self):
-        entity = create_entity("concept", name="Separation of Concerns")
-        assert str(entity) == "Separation of Concerns (concept)"
+        entity = create_entity("character", name="Frodo Baggins")
+        assert str(entity) == "Frodo Baggins (character)"
 
     def test_without_name(self):
-        entity = create_entity("concept")
-        assert str(entity) == f"concept:{entity.pk}"
+        entity = create_entity("character")
+        assert str(entity) == f"character:{entity.pk}"
 
 
 @pytest.mark.django_db
 class TestEdgePropertyValidation:
-    """req-grid-edge-properties: Edge.save() enforces property schema on create and update."""
+    """req-grid-edge-properties: Edge.save() enforces property schema on create and update.
+
+    Uses wanderer entities — they have no OUTBOUND_EDGES/INBOUND_EDGES constraints,
+    so test-only edge types (PROP_EDGE, etc.) are accepted without constraint errors.
+    """
 
     @pytest.fixture(autouse=True)
     def isolate_registry(self) -> None:
@@ -257,8 +262,8 @@ class TestEdgePropertyValidation:
             "PROP_EDGE",
             {"type": "object", "required": ["label"], "properties": {"label": {"type": "string"}}},
         )
-        a = create_entity("concept")
-        b = create_entity("concept")
+        a = create_entity("wanderer")
+        b = create_entity("wanderer")
         edge = Edge(from_entity=a, to_entity=b, edge_type="PROP_EDGE", properties={"label": "ok"})
         edge.save()
         assert edge.pk is not None
@@ -269,8 +274,8 @@ class TestEdgePropertyValidation:
             "PROP_EDGE_STRICT",
             {"type": "object", "required": ["count"], "properties": {"count": {"type": "integer"}}},
         )
-        a = create_entity("concept")
-        b = create_entity("concept")
+        a = create_entity("wanderer")
+        b = create_entity("wanderer")
         edge = Edge(from_entity=a, to_entity=b, edge_type="PROP_EDGE_STRICT", properties={"count": "bad"})
         with pytest.raises(EdgePropertyValidationError):
             edge.save()
@@ -281,8 +286,8 @@ class TestEdgePropertyValidation:
             "PROP_EDGE_ORPHAN",
             {"type": "object", "required": ["x"], "properties": {"x": {"type": "integer"}}},
         )
-        a = create_entity("concept")
-        b = create_entity("concept")
+        a = create_entity("wanderer")
+        b = create_entity("wanderer")
         count_before = Entity.objects.count()
         edge = Edge(from_entity=a, to_entity=b, edge_type="PROP_EDGE_ORPHAN", properties={})
         with pytest.raises(EdgePropertyValidationError):
@@ -295,8 +300,8 @@ class TestEdgePropertyValidation:
             "PROP_EDGE_UPDATE",
             {"type": "object", "properties": {"note": {"type": "string"}}},
         )
-        a = create_entity("concept")
-        b = create_entity("concept")
+        a = create_entity("wanderer")
+        b = create_entity("wanderer")
         edge = Edge.objects.create(from_entity=a, to_entity=b, edge_type="PROP_EDGE_UPDATE", properties={})
         edge.properties = {"note": "updated"}
         edge.save(update_fields=["properties"])
@@ -309,8 +314,8 @@ class TestEdgePropertyValidation:
             "PROP_EDGE_UPDATE_FAIL",
             {"type": "object", "properties": {"note": {"type": "string"}}},
         )
-        a = create_entity("concept")
-        b = create_entity("concept")
+        a = create_entity("wanderer")
+        b = create_entity("wanderer")
         edge = Edge.objects.create(
             from_entity=a, to_entity=b, edge_type="PROP_EDGE_UPDATE_FAIL", properties={"note": "ok"}
         )
@@ -320,8 +325,8 @@ class TestEdgePropertyValidation:
 
     def test_no_schema_allows_any_properties(self):
         """When no schema is registered, any properties are accepted (properties-6, properties-7)."""
-        a = create_entity("concept")
-        b = create_entity("concept")
+        a = create_entity("wanderer")
+        b = create_entity("wanderer")
         edge = Edge(from_entity=a, to_entity=b, edge_type="NO_SCHEMA_EDGE", properties={"anything": [1, None]})
         edge.save()
         assert edge.pk is not None

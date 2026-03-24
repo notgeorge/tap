@@ -1,5 +1,7 @@
 """Lord of the Rings plugin — Middle-earth entities for constraint testing."""
 
+from typing import Any
+
 from tap_plugins.base import TapPluginConfig
 
 
@@ -157,3 +159,8 @@ class LotrConfig(TapPluginConfig):
         from plugins.lotr.searches import list_characters_with_bio
 
         register_search_runner("list-characters-with-bio", list_characters_with_bio)
+
+    def get_api_router(self) -> Any:
+        from plugins.lotr.api import router
+
+        return router

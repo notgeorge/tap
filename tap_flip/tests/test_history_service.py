@@ -7,56 +7,56 @@ from tap_flip.history.context import set_history_user
 from tap_flip.history.service import get_historical_records, get_history_timeline
 from tap_grid.models import User
 from tap_grid.services import create_entity
-from plugins.core_examples.models import Concept, Precept
+from plugins.lotr.models import Character, Location
 
 
 @pytest.mark.django_db
 class TestHistoryEnabled:
     """Tests for history enablement on models."""
 
-    def test_concept_has_history_enabled(self):
-        """Concept model has history tracking enabled via FLIP_CONFIG."""
-        assert is_history_enabled(Concept) is True
+    def test_character_has_history_enabled(self):
+        """Character model has history tracking enabled via FLIP_CONFIG."""
+        assert is_history_enabled(Character) is True
 
-    def test_precept_has_history_disabled(self):
-        """Precept model has history disabled (default)."""
-        assert is_history_enabled(Precept) is False
+    def test_location_has_history_disabled(self):
+        """Location model has history disabled (default)."""
+        assert is_history_enabled(Location) is False
 
-    def test_concept_has_history_manager(self):
-        """Concept has the history manager from django-simple-history."""
-        assert hasattr(Concept, "history")
+    def test_character_has_history_manager(self):
+        """Character has the history manager from django-simple-history."""
+        assert hasattr(Character, "history")
 
 
 @pytest.mark.django_db
 class TestGetHistoricalRecords:
     """Tests for get_historical_records function."""
 
-    def test_new_concept_has_creation_record(self):
-        """New Concept instance has at least one history record (creation)."""
-        entity = create_entity("concept", name="Test Concept")
-        concept = Concept.objects.create(entity=entity, summary="Initial summary")
+    def test_new_character_has_creation_record(self):
+        """New Character instance has at least one history record (creation)."""
+        entity = create_entity("character", name="Test Character")
+        character = Character.objects.create(entity=entity, bio="Initial bio")
 
-        records = get_historical_records(concept)
+        records = get_historical_records(character)
         assert records.count() >= 1
 
     def test_update_creates_new_record(self):
-        """Updating a Concept creates a new history record."""
-        entity = create_entity("concept", name="Update Test")
-        concept = Concept.objects.create(entity=entity, summary="Original")
-        initial_count = concept.history.count()
+        """Updating a Character creates a new history record."""
+        entity = create_entity("character", name="Update Test")
+        character = Character.objects.create(entity=entity, bio="Original")
+        initial_count = character.history.count()
 
-        concept.summary = "Updated summary"
-        concept.save()
+        character.bio = "Updated bio"
+        character.save()
 
-        records = get_historical_records(concept)
+        records = get_historical_records(character)
         assert records.count() > initial_count
 
     def test_history_disabled_returns_empty(self):
         """get_historical_records returns empty for disabled models."""
-        entity = create_entity("precept", name="Test Precept")
-        precept = Precept.objects.create(entity=entity, statement="Some statement")
+        entity = create_entity("location", name="Test Location")
+        location = Location.objects.create(entity=entity, description="Some place")
 
-        records = get_historical_records(precept)
+        records = get_historical_records(location)
         # Should return empty queryset (not error)
         assert records.count() == 0
 
@@ -67,10 +67,10 @@ class TestGetHistoryTimeline:
 
     def test_timeline_has_required_fields(self):
         """Timeline entries have timestamp, change_type, actor, record_id."""
-        entity = create_entity("concept", name="Timeline Test")
-        concept = Concept.objects.create(entity=entity, summary="Test")
+        entity = create_entity("character", name="Timeline Test")
+        character = Character.objects.create(entity=entity, bio="Test")
 
-        timeline = get_history_timeline(concept)
+        timeline = get_history_timeline(character)
         assert len(timeline) >= 1
 
         entry = timeline[0]
@@ -81,13 +81,13 @@ class TestGetHistoryTimeline:
 
     def test_timeline_records_change_types(self):
         """Timeline shows different change types for create/update."""
-        entity = create_entity("concept", name="Change Type Test")
-        concept = Concept.objects.create(entity=entity, summary="Original")
+        entity = create_entity("character", name="Change Type Test")
+        character = Character.objects.create(entity=entity, bio="Original")
 
-        concept.summary = "Updated"
-        concept.save()
+        character.bio = "Updated"
+        character.save()
 
-        timeline = get_history_timeline(concept)
+        timeline = get_history_timeline(character)
         # Most recent first, so update should be first
         change_types = [e["change_type"] for e in timeline]
         assert "Changed" in change_types or "Created" in change_types
@@ -102,11 +102,11 @@ class TestHistoryUserAttribution:
         user = User.objects.create_user(username="historian", password="test")
         set_history_user(user)
 
-        entity = create_entity("concept", name="User Test")
-        concept = Concept.objects.create(entity=entity, summary="Test")
+        entity = create_entity("character", name="User Test")
+        character = Character.objects.create(entity=entity, bio="Test")
 
         # Check that the user was recorded
-        latest_record = concept.history.latest("history_id")
+        latest_record = character.history.latest("history_id")
         assert latest_record.history_user == user
 
         # Cleanup
@@ -116,9 +116,9 @@ class TestHistoryUserAttribution:
         """History works even without user in context (None)."""
         set_history_user(None)
 
-        entity = create_entity("concept", name="No User Test")
-        concept = Concept.objects.create(entity=entity, summary="Test")
+        entity = create_entity("character", name="No User Test")
+        character = Character.objects.create(entity=entity, bio="Test")
 
         # Should not error, user will be None
-        latest_record = concept.history.latest("history_id")
+        latest_record = character.history.latest("history_id")
         assert latest_record.history_user is None

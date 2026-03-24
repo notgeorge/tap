@@ -7,7 +7,7 @@ from tap_flip.history.context import get_batch_id, set_batch_id, set_history_use
 from tap_flip.models import BatchEventType
 from tap_grid.models import User
 from tap_grid.services import create_entity
-from plugins.core_examples.models import Concept, Precept
+from plugins.lotr.models import Character, Location
 
 
 @pytest.mark.django_db
@@ -20,10 +20,10 @@ class TestPopulateBatchIdSignal:
         set_batch_id(str(batch.entity.id))
 
         try:
-            entity = create_entity("concept", name="Signal Test")
-            concept = Concept.objects.create(entity=entity, summary="Test")
+            entity = create_entity("character", name="Signal Test")
+            character = Character.objects.create(entity=entity, bio="Test")
 
-            assert concept.batch_id == str(batch.entity.id)
+            assert character.batch_id == str(batch.entity.id)
         finally:
             set_batch_id(None)
 
@@ -33,35 +33,35 @@ class TestPopulateBatchIdSignal:
         set_batch_id(str(batch.entity.id))
 
         try:
-            entity = create_entity("concept", name="Existing ID Test")
-            concept = Concept(entity=entity, summary="Test")
-            concept.batch_id = "existing-batch-id"
-            concept.save()
+            entity = create_entity("character", name="Existing ID Test")
+            character = Character(entity=entity, bio="Test")
+            character.batch_id = "existing-batch-id"
+            character.save()
 
-            assert concept.batch_id == "existing-batch-id"
+            assert character.batch_id == "existing-batch-id"
         finally:
             set_batch_id(None)
 
     def test_no_batch_id_without_context(self):
         """batch_id remains empty without batch context."""
-        entity = create_entity("concept", name="No Context Test")
-        concept = Concept.objects.create(entity=entity, summary="Test")
+        entity = create_entity("character", name="No Context Test")
+        character = Character.objects.create(entity=entity, bio="Test")
 
-        assert concept.batch_id == ""
+        assert character.batch_id == ""
 
     def test_batch_id_not_set_for_disabled_model(self):
         """batch_id not populated for models with batch tracking disabled."""
-        # Precept has batch tracking disabled (default FLIP_CONFIG)
+        # Location has no FLIP_CONFIG, so batch tracking is disabled
         batch = create_batch()
         set_batch_id(str(batch.entity.id))
 
         try:
-            entity = create_entity("precept", name="Disabled Test")
-            precept = Precept.objects.create(entity=entity, statement="Test")
+            entity = create_entity("location", name="Disabled Test")
+            location = Location.objects.create(entity=entity, description="Test")
 
-            # Precept inherits batch_id field but signal doesn't populate it
-            # because is_batch_enabled(Precept) is False
-            assert precept.batch_id == ""
+            # Location inherits batch_id field but signal doesn't populate it
+            # because is_batch_enabled(Location) is False
+            assert location.batch_id == ""
         finally:
             set_batch_id(None)
 
@@ -77,17 +77,17 @@ class TestRecordSaveEventSignal:
         set_batch_id(batch_id)
 
         try:
-            entity = create_entity("concept", name="Create Event Test")
-            Concept.objects.create(entity=entity, summary="Test")
+            entity = create_entity("character", name="Create Event Test")
+            Character.objects.create(entity=entity, bio="Test")
 
             events = get_batch_events(batch_id)
             create_events = [e for e in events if e.event_type == BatchEventType.CREATE]
 
             assert len(create_events) >= 1
-            # Find the event for our concept
-            concept_events = [e for e in create_events if e.entity_type == "concept"]
-            assert len(concept_events) == 1
-            assert concept_events[0].model_name == "Concept"
+            # Find the event for our character
+            character_events = [e for e in create_events if e.entity_type == "character"]
+            assert len(character_events) == 1
+            assert character_events[0].model_name == "Character"
         finally:
             set_batch_id(None)
 
@@ -97,14 +97,14 @@ class TestRecordSaveEventSignal:
         batch_id = str(batch.entity.id)
 
         # Create outside batch context
-        entity = create_entity("concept", name="Update Event Test")
-        concept = Concept.objects.create(entity=entity, summary="Original")
+        entity = create_entity("character", name="Update Event Test")
+        character = Character.objects.create(entity=entity, bio="Original")
 
         # Update inside batch context
         set_batch_id(batch_id)
         try:
-            concept.summary = "Updated"
-            concept.save()
+            character.bio = "Updated"
+            character.save()
 
             events = get_batch_events(batch_id)
             update_events = [e for e in events if e.event_type == BatchEventType.UPDATE]
@@ -116,8 +116,8 @@ class TestRecordSaveEventSignal:
 
     def test_no_event_without_context(self):
         """No BatchEvent recorded without batch context."""
-        entity = create_entity("concept", name="No Event Test")
-        Concept.objects.create(entity=entity, summary="Test")
+        entity = create_entity("character", name="No Event Test")
+        Character.objects.create(entity=entity, bio="Test")
 
         # No batch context, so no events to query
         # Just verify no error occurred
@@ -133,14 +133,14 @@ class TestRecordDeleteEventSignal:
         batch_id = str(batch.entity.id)
 
         # Create outside batch context
-        entity = create_entity("concept", name="Delete Event Test")
-        Concept.objects.create(entity=entity, summary="To Delete")
+        entity = create_entity("character", name="Delete Event Test")
+        Character.objects.create(entity=entity, bio="To Delete")
         entity_id = entity.id
 
         # Delete inside batch context
         set_batch_id(batch_id)
         try:
-            # Delete the concept (entity deletion cascades)
+            # Delete the character (entity deletion cascades)
             entity.delete()
 
             events = get_batch_events(batch_id)
@@ -166,14 +166,14 @@ class TestSignalActorAttribution:
         set_batch_id(batch_id)
 
         try:
-            entity = create_entity("concept", name="Actor Test")
-            Concept.objects.create(entity=entity, summary="Test")
+            entity = create_entity("character", name="Actor Test")
+            Character.objects.create(entity=entity, bio="Test")
 
             events = get_batch_events(batch_id)
-            concept_events = [e for e in events if e.entity_type == "concept"]
+            character_events = [e for e in events if e.entity_type == "character"]
 
-            assert len(concept_events) == 1
-            assert concept_events[0].actor == user
+            assert len(character_events) == 1
+            assert character_events[0].actor == user
         finally:
             set_batch_id(None)
             set_history_user(None)
@@ -186,30 +186,30 @@ class TestBatchContextIntegration:
     def test_full_flow_with_context_manager(self):
         """Full flow: batch_context -> create models -> events recorded."""
         with batch_context(source="integration:test") as batch_id:
-            entity = create_entity("concept", name="Integration Test")
-            concept = Concept.objects.create(entity=entity, summary="Test")
+            entity = create_entity("character", name="Integration Test")
+            character = Character.objects.create(entity=entity, bio="Test")
 
             # batch_id should be populated on model
-            assert concept.batch_id == batch_id
+            assert character.batch_id == batch_id
 
         # Events should be recorded
         events = get_batch_events(batch_id)
-        concept_events = [e for e in events if e.entity_type == "concept"]
+        character_events = [e for e in events if e.entity_type == "character"]
 
-        assert len(concept_events) == 1
-        assert concept_events[0].event_type == BatchEventType.CREATE
+        assert len(character_events) == 1
+        assert character_events[0].event_type == BatchEventType.CREATE
 
     def test_multiple_models_in_batch(self):
         """Multiple models created in same batch all get tracked."""
         with batch_context(source="multi:test") as batch_id:
             for i in range(3):
-                entity = create_entity("concept", name=f"Concept {i}")
-                Concept.objects.create(entity=entity, summary=f"Summary {i}")
+                entity = create_entity("character", name=f"Character {i}")
+                Character.objects.create(entity=entity, bio=f"Bio {i}")
 
         events = get_batch_events(batch_id)
-        concept_events = [e for e in events if e.entity_type == "concept"]
+        character_events = [e for e in events if e.entity_type == "character"]
 
-        assert len(concept_events) == 3
+        assert len(character_events) == 3
 
     def test_batch_id_cleared_after_context(self):
         """batch_id context is cleared after context manager exits."""

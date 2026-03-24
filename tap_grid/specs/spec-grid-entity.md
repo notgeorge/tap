@@ -23,7 +23,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
 | req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Implemented | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
 | req-grid-entity-metadata | [Canonical Entity Metadata](#canonical-entity-metadata) | In Development | Platform-level canonical metadata contract for entity instances: `name`, `description`, `description_json`. `name` is fully implemented; `description` and `description_json` are pending. |
-| req-grid-entity-display | [Display Metadata](#display-metadata) | Backlog | `BaseModel`-level display metadata supports label resolution and future presentation hints; canonical icon behavior is defined separately in `spec-grid-icon.md` |
+| req-grid-entity-display | [Display Metadata](#display-metadata) | In Development | `DEFAULT_DISPLAY` class attribute implemented on `BaseModel`; instance-level `display` JSONField deferred |
 | req-grid-entity-cascade | [Edge-Directed Cascade Deletion](#edge-directed-cascade-deletion) | Backlog | When an entity is deleted, cascades should be expressible in terms of edge relationships, not just Django's raw FK CASCADE |
 
 
@@ -259,7 +259,7 @@ Define how the canonical metadata contract should map onto concrete storage fiel
 ### Display Metadata
 ----
 RID: `req-grid-entity-display`
-Status: `Backlog`
+Status: `In Development`
 
 TAP-managed objects need a lightweight way to carry presentation-oriented metadata such as label resolution hints and future visualization/display guidance. This metadata belongs on `BaseModel` for now and is distinct from core domain data. Canonical icon behavior is defined separately in `spec-grid-icon.md`.
 
@@ -294,7 +294,7 @@ Keep the first version lightweight: capture the concept, the storage location, a
 | --- | --- | :---: | --- | --- |
 | req-grid-entity-display-1 | Display Lives On BaseModel | Backlog | Proposed direction is that `display` lives on `BaseModel` rather than `Entity`. | May be revisited if a broader metadata system emerges. |
 | req-grid-entity-display-2 | Display Defaults Empty | Backlog | Proposed direction is that instance `display` defaults to `{}`. | |
-| req-grid-entity-display-3 | Model Defaults Supported | Backlog | Proposed direction is that model/type definitions may declare `DEFAULT_DISPLAY`. | |
+| req-grid-entity-display-3 | Model Defaults Supported | Implemented | `DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {}` added to `BaseModel`; subclasses override per type. | |
 | req-grid-entity-display-4 | Instance Overrides Supported | Backlog | Proposed direction is that instance `display` may override model/type display defaults. | |
 | req-grid-entity-display-5 | Presentation Concerns Only | Backlog | `display` is intended for presentation concerns such as label resolution and visualization hints rather than core domain data. | Canonical icon behavior is defined separately in `spec-grid-icon.md`. |
 

@@ -77,8 +77,6 @@ INSTALLED_APPS = [
     # TAP apps (added as we scaffold each one)
     "tap_grid",
     "tap_plugins",
-    # Core examples plugin — concept/precept types for demos and testing
-    "plugins.core_examples.apps.CoreExamplesConfig",
     # LOTR plugin — Middle-earth entities for constraint testing
     "plugins.lotr.apps.LotrConfig",
     # API layer — last so ready() discovers all plugin routers

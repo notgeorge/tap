@@ -12,7 +12,9 @@ This plugin provides diverse constraint patterns for testing edge validation:
 from typing import Any, ClassVar
 
 from django.db import models
+from simple_history.models import HistoricalRecords
 
+from tap_flip.history.context import get_history_user
 from tap_grid.models import BaseModel
 
 
@@ -20,6 +22,13 @@ class Character(BaseModel):
     """A being in Middle-earth (Frodo, Gandalf, Sauron, etc.)."""
 
     ENTITY_TYPE: ClassVar[str] = "character"
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "ellipse"}}
+    FLIP_CONFIG: ClassVar[dict[str, Any]] = {
+        "history": {"enabled": True},
+        "batch": {"enabled": True},
+    }
+
+    history = HistoricalRecords(get_user=get_history_user)
 
     # Characters can form many types of edges to various targets
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
@@ -67,6 +76,7 @@ class Location(BaseModel):
     """A place in Middle-earth (Shire, Mordor, Rivendell, etc.)."""
 
     ENTITY_TYPE: ClassVar[str] = "location"
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "round-rectangle"}}
 
     # Locations can contain other locations (Shire contains Bag End)
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
@@ -110,6 +120,7 @@ class Artifact(BaseModel):
     """A significant object (The One Ring, Sting, Andúril, etc.)."""
 
     ENTITY_TYPE: ClassVar[str] = "artifact"
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # Artifacts can only be forged in locations
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
@@ -141,6 +152,7 @@ class Race(BaseModel):
     """A race of beings (Hobbit, Elf, Dwarf, Human, Wizard, etc.)."""
 
     ENTITY_TYPE: ClassVar[str] = "race"
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # Races cannot create any outbound edges (empty list = block all)
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = []
@@ -167,6 +179,7 @@ class Faction(BaseModel):
     """A group or alliance (Fellowship, Mordor, Rohan, etc.)."""
 
     ENTITY_TYPE: ClassVar[str] = "faction"
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # Factions can ally or be enemies with other factions
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
@@ -201,6 +214,7 @@ class Sentinel(BaseModel):
     """A watcher that can reference anything (wildcard test case)."""
 
     ENTITY_TYPE: ClassVar[str] = "sentinel"
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # Sentinel uses wildcard: REFERENCES can point to ANY node type
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
@@ -231,6 +245,7 @@ class Citadel(BaseModel):
     """A fortified place that accepts no incoming edges (inbound block test)."""
 
     ENTITY_TYPE: ClassVar[str] = "citadel"
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # Citadels can PROTECTS locations
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
@@ -260,6 +275,7 @@ class Wanderer(BaseModel):
     """
 
     ENTITY_TYPE: ClassVar[str] = "wanderer"
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # No OUTBOUND_EDGES defined = no restrictions
     # No INBOUND_EDGES defined = no restrictions

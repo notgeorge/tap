@@ -208,38 +208,38 @@ class TestModuleResultNormalization:
 
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
 @pytest.mark.no_registry_isolation
-class TestListConceptsRunner:
+class TestListCharactersRunner:
     def test_runner_registered_in_meta(self):
-        """list-concepts runner is registered by AppConfig.ready()."""
+        """list-characters-with-bio runner is registered by AppConfig.ready()."""
         from tap_grid.registry import search_runner_registry
 
-        assert "plugins.core_examples.searches:list-concepts" in search_runner_registry
+        assert "plugins.lotr.searches:list-characters-with-bio" in search_runner_registry
 
-    def test_list_concepts_returns_envelope(self):
-        """list-concepts runner returns valid graph envelope via execute_search."""
-        from plugins.core_examples.models import Concept
+    def test_list_characters_returns_envelope(self):
+        """list-characters-with-bio runner returns valid graph envelope via execute_search."""
+        from plugins.lotr.models import Character
 
-        Concept.objects.create(summary="Test concept for search")
+        Character.objects.create(bio="Test character for search")
         s = Search.objects.create(
-            name="List Concepts",
+            name="List Characters",
             search_type="module",
             root="node",
-            definition={"runner_key": "plugins.core_examples.searches:list-concepts"},
+            definition={"runner_key": "plugins.lotr.searches:list-characters-with-bio"},
         )
         result = execute_search(s)
         assert "nodes" in result
         assert "edges" in result
-        # At least the concept we just created should be present
+        # At least the character we just created should be present
         entity_types = [n["entity_type"] for n in result["nodes"]]
-        assert all(et == "concept" for et in entity_types)
+        assert all(et == "character" for et in entity_types)
 
-    def test_list_concepts_uses_read_only_connection(self):
+    def test_list_characters_uses_read_only_connection(self):
         """Smoke test: execute_search doesn't crash when using search_readonly alias."""
         s = Search.objects.create(
             name="Readonly Test",
             search_type="module",
             root="node",
-            definition={"runner_key": "plugins.core_examples.searches:list-concepts"},
+            definition={"runner_key": "plugins.lotr.searches:list-characters-with-bio"},
         )
         result = execute_search(s)
         assert isinstance(result["nodes"], list)

@@ -9,3 +9,10 @@ class TapVizConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "tap_viz"
     verbose_name = "TAP Visualization"
+
+    def ready(self) -> None:
+        """Register built-in panel types with the tap_web panel type registry."""
+        from tap_viz.panels.graph_panel import GraphPanelType
+        from tap_web.registry import panel_type_registry
+
+        panel_type_registry.register("graph", GraphPanelType)

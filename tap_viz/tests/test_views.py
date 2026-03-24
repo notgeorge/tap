@@ -1,41 +1,72 @@
-"""Tests for tap_viz views."""
+"""Tests for tap_viz panel rendering via the tap_web panel endpoint."""
 
 import pytest
 from django.test import Client
 
-from tap_grid.models import Entity
+from tap_grid.models import Edge, Entity, Search
+from tap_web.models import Panel
 from tap_viz.models import Layout
+from tap_viz.panels.graph_panel import GraphPanelType
 
 
 @pytest.mark.django_db
-class TestGraphView:
-    def test_graph_view_returns_200_for_valid_layout(self, client: Client):
-        entity = Entity.objects.create(entity_type="layout", name="Test Layout")
-        Layout.objects.create(
-            entity=entity,
-            name="Test Layout",
-            cytoscape_config={"elements": []},
+class TestGraphPanelView:
+    def _make_panel_with_layout_and_search(self) -> tuple[Panel, str]:
+        """Create a wired graph panel and return (panel, panel_url_id)."""
+        search = Search.objects.create(
+            name="Test Nodes",
+            search_type="orm",
+            root="node",
+            definition={"filters": {}, "order_by": ["name"]},
         )
-        response = client.get(f"/viz/graph/{entity.id}/")
+        layout_entity = Entity.objects.create(entity_type="layout", name="Test Layout")
+        layout = Layout.objects.create(entity=layout_entity, name="Test Layout")
+
+        edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
+        Edge.objects.create(
+            entity=edge_entity,
+            from_entity=layout.entity,
+            to_entity=search.entity,
+            edge_type="USES_SEARCH",
+            properties={"search-id": "main"},
+        )
+
+        panel = Panel.objects.create(
+            slug="test-graph",
+            name="Test Graph",
+            view=GraphPanelType.view,
+            js=GraphPanelType.js,
+            css=GraphPanelType.css,
+        )
+        edge_entity2 = Entity.objects.create(entity_type="edge", name="USES_LAYOUT")
+        Edge.objects.create(
+            entity=edge_entity2,
+            from_entity=panel.entity,
+            to_entity=layout.entity,
+            edge_type="USES_LAYOUT",
+            properties={"layout-id": "default"},
+        )
+
+        panel_url_id = f"test-graph--{panel.entity_id}"
+        return panel, panel_url_id
+
+    def test_graph_panel_renders_200(self, client: Client):
+        _, panel_url_id = self._make_panel_with_layout_and_search()
+        response = client.get(f"/panel/{panel_url_id}/")
         assert response.status_code == 200
 
-    def test_graph_view_returns_404_for_invalid_layout(self, client: Client):
-        response = client.get("/viz/graph/00000000-0000-0000-0000-000000000000/")
-        assert response.status_code == 404
+    def test_graph_panel_uses_correct_template(self, client: Client):
+        _, panel_url_id = self._make_panel_with_layout_and_search()
+        response = client.get(f"/panel/{panel_url_id}/")
+        assert "tap_viz/panels/graph_panel.html" in [t.name for t in response.templates]
 
-    def test_graph_view_uses_correct_template(self, client: Client):
-        entity = Entity.objects.create(entity_type="layout", name="Test Layout")
-        Layout.objects.create(entity=entity, name="Test Layout")
-        response = client.get(f"/viz/graph/{entity.id}/")
-        assert "tap_viz/graph.html" in [t.name for t in response.templates]
-
-
-@pytest.mark.django_db
-class TestLayoutMaker:
-    def test_layout_maker_returns_200(self, client: Client):
-        response = client.get("/viz/layout-maker/")
+    def test_graph_panel_no_layout_shows_error(self, client: Client):
+        panel = Panel.objects.create(
+            slug="orphan-graph",
+            name="Orphan Graph",
+            view=GraphPanelType.view,
+        )
+        panel_url_id = f"orphan-graph--{panel.entity_id}"
+        response = client.get(f"/panel/{panel_url_id}/")
         assert response.status_code == 200
-
-    def test_layout_maker_uses_correct_template(self, client: Client):
-        response = client.get("/viz/layout-maker/")
-        assert "tap_viz/layout_maker.html" in [t.name for t in response.templates]
+        assert b"USES_LAYOUT" in response.content

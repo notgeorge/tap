@@ -14,11 +14,6 @@ from tap_web.page_service import get_landing_page, get_page_by_slug, get_page_pa
 logger = logging.getLogger(__name__)
 
 
-def home(request: HttpRequest) -> HttpResponse:
-    """TAP home page — Cytoscape graph visualization (legacy/fallback)."""
-    return render(request, "tap_web/home.html")
-
-
 def landing_view(request: HttpRequest) -> HttpResponse:
     """Serve the root URL via LandingPage indirection.
 

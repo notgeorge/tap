@@ -1,0 +1,30 @@
+{% load static %}
+
+{% if graph_error %}
+<div class="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ graph_error }}
+</div>
+{% else %}
+
+<div id="tap-graph-container-{{ panel.entity_id }}"
+     class="relative w-full border border-slate-200 rounded-lg bg-white"
+     style="height: 420px;"
+     data-placement="{{ graph_placement }}">
+    <div id="tap-graph-{{ panel.entity_id }}" class="w-full h-full overflow-hidden rounded-lg"></div>
+</div>
+
+<script type="application/json" id="tap-graph-nodes-{{ panel.entity_id }}">{{ graph_nodes_json|safe }}</script>
+<script type="application/json" id="tap-graph-edges-{{ panel.entity_id }}">{{ graph_edges_json|safe }}</script>
+
+<script>
+(function () {
+    const panelId = "{{ panel.entity_id }}";
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", function () { initGraph(panelId); });
+    } else {
+        initGraph(panelId);
+    }
+})();
+</script>
+
+{% endif %}

@@ -24,7 +24,7 @@ Panels accept, render, and sometimes edit user-provided data. TAP Web needs one 
 RID: `req-web-panel-edit-form.sec`
 Status: `Implemented`
 
-Panel edit mode accepts user input and must use standard Django form security protections. This requirement standardizes the baseline security behavior for panel edit submissions. These are **platform-level** guarantees: they are satisfied once by the framework and apply to all panel editors automatically.
+Panel edit mode accepts user input and must use standard Django form security protections. This requirement standardizes the baseline security behavior for panel edit submissions. These are **platform-level** guarantees: they are satisfied once by the framework and apply to all panel editors automatically. The more general editor-wide contract is being moved to `spec-web-editor.md` under `req-web-editor-form.sec`; this section remains the panel-specific compatibility reference.
 
 #### Status Details
 Implemented by the Text Panel editor (first concrete panel type). The security mechanisms are platform-level and apply to all present and future panel editors that follow the standard panel edit flow.

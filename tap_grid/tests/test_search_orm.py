@@ -13,7 +13,7 @@ def _orm_search(**kwargs):
         "name": "ORM Test",
         "search_type": "orm",
         "root": "node",
-        "definition": {"filters": {"entity_type": "concept"}},
+        "definition": {"filters": {"entity_type": "character"}},
     }
     defaults.update(kwargs)
     return Search(**defaults)
@@ -24,10 +24,17 @@ def _orm_search(**kwargs):
 # ---------------------------------------------------------------------------
 
 
-def _make_concept(summary="Test"):
-    from plugins.core_examples.models import Concept
+def _make_character(bio="Test"):
+    from plugins.lotr.models import Character
 
-    return Concept.objects.create(summary=summary)
+    return Character.objects.create(bio=bio)
+
+
+def _make_wanderer(journey="Test"):
+    """Wanderer has no edge constraints — safe for tests with arbitrary edge types."""
+    from plugins.lotr.models import Wanderer
+
+    return Wanderer.objects.create(journey=journey)
 
 
 def _make_edge(from_entity, to_entity, edge_type="RELATED_TO", properties=None):
@@ -48,7 +55,7 @@ def _make_edge(from_entity, to_entity, edge_type="RELATED_TO", properties=None):
 class TestRootSelection:
     def test_node_root_excludes_edge_entities(self):
         """Node root returns non-edge entities only."""
-        concept = _make_concept()
+        character = _make_character()
         # Edge entities have entity_type="edge" — should be excluded from node root
         s = Search.objects.create(
             name="Node Root",
@@ -59,13 +66,13 @@ class TestRootSelection:
         result = execute_search(s)
         entity_types = {n["entity_type"] for n in result["nodes"]}
         assert "edge" not in entity_types
-        assert any(n["entity_id"] == str(concept.entity_id) for n in result["nodes"])
+        assert any(n["entity_id"] == str(character.entity_id) for n in result["nodes"])
 
     def test_edge_root_returns_edge_entities(self):
         """Edge root queries the Edge model."""
-        c1 = _make_concept("A")
-        c2 = _make_concept("B")
-        _make_edge(c1.entity, c2.entity, edge_type="LINKS_TO")
+        w1 = _make_wanderer("A")
+        w2 = _make_wanderer("B")
+        _make_edge(w1.entity, w2.entity, edge_type="LINKS_TO")
         s = Search.objects.create(
             name="Edge Root",
             search_type="orm",
@@ -87,20 +94,20 @@ class TestRootSelection:
 class TestConjunctiveFilters:
     def test_entity_type_filter(self):
         """Filter by entity_type returns only matching entities."""
-        concept = _make_concept()
+        _make_character()
         s = Search.objects.create(
             name="Filter Test",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "concept"}},
+            definition={"filters": {"entity_type": "character"}},
         )
         result = execute_search(s)
         entity_types = {n["entity_type"] for n in result["nodes"]}
-        assert entity_types == {"concept"}
+        assert entity_types == {"character"}
 
     def test_no_filters_returns_all_non_edge_entities(self):
         """Empty filters dict returns all non-edge entities."""
-        _make_concept()
+        _make_character()
         s = Search.objects.create(
             name="No Filter",
             search_type="orm",
@@ -123,23 +130,24 @@ class TestConjunctiveFilters:
 
     def test_multiple_filters_applied_conjunctively(self):
         """Multiple filters are combined as AND."""
-        from plugins.core_examples.models import Concept
+        from plugins.lotr.models import Character
 
-        Concept.objects.create(summary="alpha")
-        Concept.objects.create(summary="beta")
+        Character.objects.create(bio="alpha")
+        Character.objects.create(bio="beta")
         s = Search.objects.create(
             name="Multi Filter",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "concept", "name": ""}},
+            definition={"filters": {"entity_type": "character", "name": ""}},
         )
         result = execute_search(s)
-        # All concepts have blank name — both should be returned
-        assert all(n["entity_type"] == "concept" for n in result["nodes"])
+        # All characters have blank name — both should be returned
+        assert all(n["entity_type"] == "character" for n in result["nodes"])
 
 
 # ---------------------------------------------------------------------------
 # Hop traversal (req-grid-search-orm-4 through 7)
+# Uses wanderer entities — no edge constraints, any edge type is valid.
 # ---------------------------------------------------------------------------
 
 
@@ -147,59 +155,59 @@ class TestConjunctiveFilters:
 class TestHopTraversal:
     def test_out_hop_includes_target_entities_and_edges(self):
         """Outbound hop includes root nodes, endpoint nodes, and connecting edges."""
-        c1 = _make_concept("Root")
-        c2 = _make_concept("Target")
-        edge = _make_edge(c1.entity, c2.entity, edge_type="CONNECTS_TO")
+        w1 = _make_wanderer("Root")
+        w2 = _make_wanderer("Target")
+        edge = _make_edge(w1.entity, w2.entity, edge_type="CONNECTS_TO")
 
         s = Search.objects.create(
             name="Out Hop",
             search_type="orm",
             root="node",
             definition={
-                "filters": {"entity_type": "concept", "id": str(c1.entity_id)},
+                "filters": {"entity_type": "wanderer", "id": str(w1.entity_id)},
                 "hops": [{"direction": "out", "edge_type": "CONNECTS_TO"}],
             },
         )
         result = execute_search(s)
         node_ids = {n["entity_id"] for n in result["nodes"]}
         edge_ids = {e["entity_id"] for e in result["edges"]}
-        assert str(c1.entity_id) in node_ids
-        assert str(c2.entity_id) in node_ids
+        assert str(w1.entity_id) in node_ids
+        assert str(w2.entity_id) in node_ids
         assert str(edge.entity_id) in edge_ids
 
     def test_in_hop_includes_source_entities_and_edges(self):
         """Inbound hop includes root nodes, source nodes, and connecting edges."""
-        c1 = _make_concept("Source")
-        c2 = _make_concept("Root")
-        edge = _make_edge(c1.entity, c2.entity, edge_type="POINTS_TO")
+        w1 = _make_wanderer("Source")
+        w2 = _make_wanderer("Root")
+        edge = _make_edge(w1.entity, w2.entity, edge_type="POINTS_TO")
 
         s = Search.objects.create(
             name="In Hop",
             search_type="orm",
             root="node",
             definition={
-                "filters": {"entity_type": "concept", "id": str(c2.entity_id)},
+                "filters": {"entity_type": "wanderer", "id": str(w2.entity_id)},
                 "hops": [{"direction": "in", "edge_type": "POINTS_TO"}],
             },
         )
         result = execute_search(s)
         node_ids = {n["entity_id"] for n in result["nodes"]}
-        assert str(c1.entity_id) in node_ids
-        assert str(c2.entity_id) in node_ids
+        assert str(w1.entity_id) in node_ids
+        assert str(w2.entity_id) in node_ids
         assert len(result["edges"]) >= 1
 
     def test_hop_filters_endpoints_with_target_filters(self):
         """target_filters restricts which hop endpoints are included."""
-        c1 = _make_concept("Root")
-        c2 = _make_concept("Target")
-        _make_edge(c1.entity, c2.entity, edge_type="LINKS_TO")
+        w1 = _make_wanderer("Root")
+        w2 = _make_wanderer("Target")
+        _make_edge(w1.entity, w2.entity, edge_type="LINKS_TO")
 
         s = Search.objects.create(
             name="Hop Target Filter",
             search_type="orm",
             root="node",
             definition={
-                "filters": {"id": str(c1.entity_id)},
+                "filters": {"id": str(w1.entity_id)},
                 "hops": [
                     {
                         "direction": "out",
@@ -210,18 +218,18 @@ class TestHopTraversal:
             },
         )
         result = execute_search(s)
-        # Target filter excludes c2; edges connecting to excluded targets are also dropped
-        assert str(c2.entity_id) not in {n["entity_id"] for n in result["nodes"]}
+        # Target filter excludes w2; edges connecting to excluded targets are also dropped
+        assert str(w2.entity_id) not in {n["entity_id"] for n in result["nodes"]}
         assert result["edges"] == []
 
     def test_no_hop_returns_empty_edges(self):
         """Search without hops always returns empty edges list for node root."""
-        _make_concept()
+        _make_character()
         s = Search.objects.create(
             name="No Hop",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "concept"}},
+            definition={"filters": {"entity_type": "character"}},
         )
         result = execute_search(s)
         assert result["edges"] == []
@@ -236,15 +244,15 @@ class TestHopTraversal:
 class TestOrdering:
     def test_default_ordering_is_deterministic(self):
         """Without order_by, results are ordered by id (deterministic)."""
-        from plugins.core_examples.models import Concept
+        from plugins.lotr.models import Character
 
-        Concept.objects.create(summary="first")
-        Concept.objects.create(summary="second")
+        Character.objects.create(bio="first")
+        Character.objects.create(bio="second")
         s = Search.objects.create(
             name="Default Order",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "concept"}},
+            definition={"filters": {"entity_type": "character"}},
         )
         result1 = execute_search(s)
         result2 = execute_search(s)
@@ -254,15 +262,15 @@ class TestOrdering:
 
     def test_explicit_order_by_applied(self):
         """order_by field is applied to the queryset."""
-        from plugins.core_examples.models import Concept
+        from plugins.lotr.models import Character
 
-        Concept.objects.create(summary="z_concept")
-        Concept.objects.create(summary="a_concept")
+        Character.objects.create(bio="z_character")
+        Character.objects.create(bio="a_character")
         s = Search.objects.create(
             name="Ordered",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "concept"}, "order_by": ["id"]},
+            definition={"filters": {"entity_type": "character"}, "order_by": ["id"]},
         )
         result = execute_search(s)
         ids = [n["entity_id"] for n in result["nodes"]]
@@ -278,7 +286,7 @@ class TestOrdering:
 class TestNonTapModelsExcluded:
     def test_node_root_only_returns_entities_from_entity_spine(self):
         """Node root queries Entity model — only TAP-managed entities are returned."""
-        _make_concept()
+        _make_character()
         s = Search.objects.create(
             name="Entity Spine",
             search_type="orm",
@@ -305,7 +313,7 @@ class TestOrmResultEnvelope:
             name="Envelope",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "concept"}},
+            definition={"filters": {"entity_type": "character"}},
         )
         result = execute_search(s)
         assert "nodes" in result
@@ -315,12 +323,12 @@ class TestOrmResultEnvelope:
 
     def test_info_contains_total_count(self):
         """info dict contains total_count from compiler."""
-        _make_concept()
+        _make_character()
         s = Search.objects.create(
             name="Info Count",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "concept"}},
+            definition={"filters": {"entity_type": "character"}},
         )
         result = execute_search(s)
         assert "total_count" in result["info"]
@@ -328,14 +336,14 @@ class TestOrmResultEnvelope:
 
     def test_paginated_result_has_count_limit_offset(self):
         """Paginated ORM search wraps in count/limit/offset/results."""
-        _make_concept("p1")
-        _make_concept("p2")
-        _make_concept("p3")
+        _make_character("p1")
+        _make_character("p2")
+        _make_character("p3")
         s = Search.objects.create(
             name="Paginated",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "concept"}},
+            definition={"filters": {"entity_type": "character"}},
         )
         result = execute_search(s, limit=2)
         assert "count" in result
@@ -346,13 +354,13 @@ class TestOrmResultEnvelope:
 
     def test_offset_pagination(self):
         """Offset skips results."""
-        _make_concept("q1")
-        _make_concept("q2")
+        _make_character("q1")
+        _make_character("q2")
         s = Search.objects.create(
             name="Offset",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "concept"}, "order_by": ["id"]},
+            definition={"filters": {"entity_type": "character"}, "order_by": ["id"]},
         )
         all_result = execute_search(s)
         all_ids = [n["entity_id"] for n in all_result["nodes"]]

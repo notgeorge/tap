@@ -114,13 +114,13 @@ Implemented as `TextPanelEditForm` (Django Form) in `tap_web/panels/text_panel/`
 
 #### Implementation
 The Text Panel editor:
-- uses the panel edit route and editor-page structure defined in `spec-web-panel.md` and `spec-web-rendering.md`
+- uses the generic web editor shell defined in `spec-web-editor.md` and the panel edit route integration defined in `spec-web-rendering.md`
 - renders a simple HTML form in `editor_view` (`tap_web/panels/text_panel_editor.html`), included inside the outer `panel_edit.html` form when a typed form is present
 - edits:
-  - `title` (current implementation field for the panel's canonical name)
+  - `name`
   - `description`
   - `config.text`
-- preview is live via HTMX (loads on page load; Refresh Preview button triggers manually)
+- panel preview behavior follows the shared generic editor preview contract
 - save is the explicit POST action
 
 Security behavior for standard panel editors is defined in `spec-web-panel-security.md`.
@@ -133,14 +133,14 @@ The first editor looks like normal Django form handling. `TextPanelEditForm` is 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-web-stdpanel-text-edit-1 | Simple Form Editor | Implemented | Text Panel editor uses a simple HTML form (`TextPanelEditForm`) rather than a rich editor UI. | |
-| req-web-stdpanel-text-edit-2 | Editable Fields | Implemented | Text Panel editor edits the current implementation `title` field, `description`, and `config.text`. | Canonical entity metadata terminology is `name`. |
-| req-web-stdpanel-text-edit-3 | Preview And Save | Implemented | Preview loads live via HTMX; Save is the explicit POST action. | |
+| req-web-stdpanel-text-edit-2 | Editable Fields | Implemented | Text Panel editor edits `name`, `description`, and `config.text`. | |
+| req-web-stdpanel-text-edit-3 | Preview And Save | Proposed | Text Panel editor participates in the shared preview-without-save and explicit save contract. | Cross-ref `req-web-editor-preview-exec`. |
 | req-web-stdpanel-text-edit-4 | Security Delegated | Implemented | Text Panel editor security behavior is governed by `spec-web-panel-security.md` (CSRF, server-side sanitization, auto-escaping). | `req-web-panel-edit-form.sec` + `req-web-panel-render-content.sec` both Implemented. |
-| req-web-stdpanel-text-edit-5 | Editable Fields Persist Safely | Implemented | Text Panel editor persists the current implementation `title` field, `description`, and `config.text` through `form.cleaned_data` via the standard panel edit flow. | |
+| req-web-stdpanel-text-edit-5 | Editable Fields Persist Safely | Implemented | Text Panel editor persists `name`, `description`, and `config.text` through `form.cleaned_data` via the standard panel edit flow. | |
 | req-web-stdpanel-text-edit-6 | Plain Text Saved Content | Implemented | Submitted text is stored and later rendered as plain text via Django auto-escaping. | Verified in `test_text_panel.py`. |
 
 #### Future
-If common editor patterns emerge across built-in panels, define a reusable editor helper pattern rather than duplicating form structure in every standard panel type.
+If common editor patterns emerge across built-in panels, implement them through the generic editor shell and typed editor descriptor contract rather than duplicating form structure in every panel type.
 
 ## Status Vocabulary
 

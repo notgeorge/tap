@@ -19,6 +19,20 @@ class Page(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "page"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
 
+    # Hotlink contract: panel-id values embedded in layout must exactly match
+    # the hotlink.value on the page's outbound USES_PANEL edges.
+    HOTLINKS: ClassVar[list[dict]] = [
+        {
+            "name": "page-panels",
+            "field": "layout",
+            "selector_type": "simple_path",
+            "selector": "columns.*.rows.*.panel-id",
+            "edge_direction": "outbound",
+            "edge_type": "USES_PANEL",
+            "mode": "exact",
+        }
+    ]
+
     name = models.CharField(max_length=255)
     slug = models.CharField(
         max_length=255,

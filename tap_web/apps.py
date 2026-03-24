@@ -23,14 +23,24 @@ class TapWebConfig(AppConfig):
             "sources": [{"type": "page"}],
             "targets": [{"type": "panel"}],
             "default_dimensions": {"tap.graph": "web"},
-            # req-web-page-plink: panel-id is required; variable_map is optional.
+            # Hotlink participation data (req-grid-hotlink-edge-data).
+            # The 'hotlink' object is required; variable_map is optional.
             "property_schema": {
                 "type": "object",
-                "required": ["panel-id"],
+                "required": ["hotlink"],
                 "properties": {
-                    "panel-id": {
-                        "type": "string",
-                        "pattern": "^[a-z][a-z0-9-]*$",
+                    "hotlink": {
+                        "type": "object",
+                        "required": ["model", "spec", "value"],
+                        "properties": {
+                            "model": {"type": "string"},
+                            "spec": {"type": "string"},
+                            "value": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]*$",
+                            },
+                        },
+                        "additionalProperties": False,
                     },
                     "variable_map": {
                         "type": "object",

@@ -3,7 +3,7 @@
 Covers all 15 ACIDs. Test models defined at module level use managed=False so
 Django registers them but never creates tables — full_validate() is the only
 thing exercised on those models (no saves). save() integration tests monkeypatch
-FIELD_SCHEMAS onto the existing Concept model.
+FIELD_SCHEMAS onto the existing Character model.
 """
 
 from typing import ClassVar
@@ -13,7 +13,7 @@ from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models
 
 from tap_grid.models import BaseModel, dangerously_ignore_validator
-from plugins.core_examples.models import Concept
+from plugins.lotr.models import Character
 
 # ---------------------------------------------------------------------------
 # Module-level test models — no ENTITY_TYPE, no table (managed=False).
@@ -133,7 +133,7 @@ class TestFieldSchemasDeclaration:
 
     def test_default_is_empty(self) -> None:
         """Subclasses without FIELD_SCHEMAS inherit the empty dict default."""
-        assert Concept.FIELD_SCHEMAS == {}
+        assert Character.FIELD_SCHEMAS == {}
 
     def test_declared_schemas_accessible(self) -> None:
         """Models that declare FIELD_SCHEMAS expose it as a class attribute."""
@@ -141,8 +141,8 @@ class TestFieldSchemasDeclaration:
 
     def test_unlisted_fields_ignored_by_full_validate(self) -> None:
         """Fields absent from FIELD_SCHEMAS are not validated."""
-        # Concept.summary is not in FIELD_SCHEMAS, so any value (including empty) passes.
-        c = Concept(summary="")
+        # Character.bio is not in FIELD_SCHEMAS, so any value (including empty) passes.
+        c = Character(bio="")
         c.full_validate()  # must not raise
 
 
@@ -223,8 +223,8 @@ class TestStartupInvariants:
 
     def test_empty_field_schemas_does_not_require_methods(self) -> None:
         """ACID-1: FIELD_SCHEMAS = {} (or omitted) requires no validate_*() methods."""
-        # Concept has no FIELD_SCHEMAS and no validate_*() methods — clean at startup.
-        assert Concept.FIELD_SCHEMAS == {}
+        # Character has no FIELD_SCHEMAS and no validate_*() methods — clean at startup.
+        assert Character.FIELD_SCHEMAS == {}
 
 
 # ---------------------------------------------------------------------------
@@ -386,7 +386,7 @@ class TestWholeRecordHook:
 
     def test_base_validate_is_noop(self) -> None:
         """Base validate() implementation raises nothing."""
-        c = Concept(summary="anything")
+        c = Character(bio="anything")
         c.validate()  # must not raise
 
 
@@ -452,55 +452,55 @@ class TestSaveIntegration:
     def test_save_blocks_on_invalid_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ACID-12: save() raises ValidationError before any DB write."""
         monkeypatch.setattr(
-            Concept,
+            Character,
             "FIELD_SCHEMAS",
-            {"summary": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
+            {"bio": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
         )
         with pytest.raises(ValidationError):
-            Concept.objects.create(summary="")
+            Character.objects.create(bio="")
 
     def test_save_succeeds_with_valid_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ACID-12: save() proceeds normally when validation passes."""
         monkeypatch.setattr(
-            Concept,
+            Character,
             "FIELD_SCHEMAS",
-            {"summary": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
+            {"bio": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
         )
-        c = Concept.objects.create(summary="Non-empty summary")
+        c = Character.objects.create(bio="Non-empty summary")
         assert c.pk is not None
 
     def test_validation_failure_leaves_no_db_row(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ACID-12: validation failure before DB write leaves the table unchanged."""
         monkeypatch.setattr(
-            Concept,
+            Character,
             "FIELD_SCHEMAS",
-            {"summary": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
+            {"bio": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
         )
-        count_before = Concept.objects.count()
+        count_before = Character.objects.count()
         with pytest.raises(ValidationError):
-            Concept.objects.create(summary="")
-        assert Concept.objects.count() == count_before
+            Character.objects.create(bio="")
+        assert Character.objects.count() == count_before
 
     def test_skip_validation_bypasses_full_validate(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ACID-13: save(skip_validation=True) skips full_validate() entirely."""
         monkeypatch.setattr(
-            Concept,
+            Character,
             "FIELD_SCHEMAS",
-            {"summary": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
+            {"bio": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
         )
-        c = Concept(summary="")  # would fail validation
+        c = Character(bio="")  # would fail validation
         c.save(skip_validation=True)
         assert c.pk is not None
 
     def test_skip_validation_false_still_validates(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ACID-13: save(skip_validation=False) is the same as the default."""
         monkeypatch.setattr(
-            Concept,
+            Character,
             "FIELD_SCHEMAS",
-            {"summary": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
+            {"bio": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
         )
         with pytest.raises(ValidationError):
-            Concept(summary="").save(skip_validation=False)
+            Character(bio="").save(skip_validation=False)
 
 
 # ---------------------------------------------------------------------------
@@ -517,9 +517,9 @@ class TestEdgeValidationCompatibility:
         from tap_grid.models import Edge
         from tap_grid.services import create_entity
 
-        a = create_entity("concept")
-        b = create_entity("precept")
-        edge = Edge(from_entity=a, to_entity=b, edge_type="APPLIES_TO", properties={})
+        a = create_entity("wanderer")
+        b = create_entity("wanderer")
+        edge = Edge(from_entity=a, to_entity=b, edge_type="ANY_EDGE", properties={})
         edge.full_validate()  # must not raise
 
     def test_edge_property_schema_still_enforced(self) -> None:
@@ -536,8 +536,8 @@ class TestEdgeValidationCompatibility:
                 "TYPED_COMPAT",
                 {"type": "object", "required": ["x"], "properties": {"x": {"type": "integer"}}},
             )
-            a = create_entity("concept")
-            b = create_entity("precept")
+            a = create_entity("wanderer")
+            b = create_entity("wanderer")
             edge = Edge(from_entity=a, to_entity=b, edge_type="TYPED_COMPAT", properties={})
             with pytest.raises(EdgePropertyValidationError):
                 edge.save()

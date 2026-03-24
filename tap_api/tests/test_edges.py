@@ -6,16 +6,16 @@ import uuid
 import pytest
 
 # Import models to trigger constraint registration via __init_subclass__
-import plugins.core_examples.models  # noqa: F401
+import plugins.lotr.models  # noqa: F401
 from tap_grid.models import Edge
 from tap_grid.services import create_edge, create_entity
 
 
 @pytest.fixture
 def two_entities():
-    """Create concept and precept entities for testing valid edges."""
-    a = create_entity("concept", name="A")
-    b = create_entity("precept", name="B")
+    """Create character and location entities for testing valid edges."""
+    a = create_entity("character", name="Frodo")
+    b = create_entity("location", name="Mordor")
     return a, b
 
 
@@ -61,9 +61,9 @@ class TestListEdges:
 class TestGetEdge:
     def test_found(self, logged_in_client, two_entities):
         a, b = two_entities
-        edge = create_edge(a, b, "APPLIES_TO")
+        edge = create_edge(a, b, "LOCATED_IN")
         data = logged_in_client.get(f"/api/v1/edges/{edge.pk}/").json()
-        assert data["edge_type"] == "APPLIES_TO"
+        assert data["edge_type"] == "LOCATED_IN"
         assert data["entity_id"] == str(edge.entity_id)
 
     def test_not_found(self, logged_in_client):
@@ -81,7 +81,7 @@ class TestCreateEdge:
                 {
                     "from_entity_id": str(a.pk),
                     "to_entity_id": str(b.pk),
-                    "edge_type": "APPLIES_TO",
+                    "edge_type": "LOCATED_IN",
                     "properties": {"weight": 0.9},
                 }
             ),
@@ -89,7 +89,7 @@ class TestCreateEdge:
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["edge_type"] == "APPLIES_TO"
+        assert data["edge_type"] == "LOCATED_IN"
         assert data["properties"] == {"weight": 0.9}
 
     def test_invalid_entity_404(self, logged_in_client):
@@ -99,7 +99,7 @@ class TestCreateEdge:
                 {
                     "from_entity_id": str(uuid.uuid4()),
                     "to_entity_id": str(uuid.uuid4()),
-                    "edge_type": "APPLIES_TO",
+                    "edge_type": "LOCATED_IN",
                 }
             ),
             content_type="application/json",
@@ -107,8 +107,8 @@ class TestCreateEdge:
         assert response.status_code == 404
 
     def test_constraint_violation_returns_400(self, logged_in_client, two_entities):
-        """Invalid edge type for concept -> precept returns 400."""
-        a, b = two_entities  # concept, precept
+        """Invalid edge type for character -> location returns 400."""
+        a, b = two_entities  # character, location
         response = logged_in_client.post(
             "/api/v1/edges/",
             data=json.dumps(
@@ -130,7 +130,7 @@ class TestCreateEdge:
 class TestDeleteEdge:
     def test_delete(self, logged_in_client, two_entities):
         a, b = two_entities
-        edge = create_edge(a, b, "APPLIES_TO")
+        edge = create_edge(a, b, "LOCATED_IN")
         response = logged_in_client.delete(f"/api/v1/edges/{edge.pk}/")
         assert response.status_code == 204
         assert not Edge.objects.filter(pk=edge.pk).exists()

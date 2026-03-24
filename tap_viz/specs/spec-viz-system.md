@@ -24,7 +24,7 @@ The first version of this specification intentionally focuses on runtime behavio
 | req-viz-system-panel-native | [Panel-Native Runtime](#panel-native-runtime) | Proposed | Viz runs through TAP panels rather than a standalone page model |
 | req-viz-system-layout-entity | [Layouts As First-Class Entities](#layouts-as-first-class-entities) | Proposed | Layouts are reusable TAP entities |
 | req-viz-system-search-backed | [Search-Backed Execution](#search-backed-execution) | Proposed | Layout execution is built on TAP Search entities and canonical graph envelopes |
-| req-viz-system-display-hints | [Display Hints](#display-hints) | Proposed | Model display metadata provides the smallest viz-specific default hints for visualization |
+| req-viz-system-display-hints | [Display Hints](#display-hints) | In Development | Shape hints via `DEFAULT_DISPLAY["tap_viz"]["shape"]` implemented; layout overrides deferred |
 | req-viz-system-renderer-adapter | [Renderer Adapter Model](#renderer-adapter-model) | Proposed | Cytoscape is the initial renderer adapter, not the canonical storage format |
 | req-viz-system-readonly-runtime | [Read-Only Runtime](#read-only-runtime) | Proposed | The viz runtime is view-oriented and non-mutating in v1 |
 | req-viz-system-legacy-layout-deprecation | [Legacy Layout Deprecation](#legacy-layout-deprecation) | Proposed | Existing raw Cytoscape layout storage is transitional |
@@ -179,7 +179,7 @@ If layouts later compose searches more richly, that composition should still be 
 ### Display Hints
 ----
 RID: `req-viz-system-display-hints`
-Status: `Proposed`
+Status: `In Development`
 
 Models may expose display hints that provide the smallest viz-specific default visualization guidance for node shape. Icon ownership remains part of TAP's canonical grid icon system. Viz-specific display metadata is namespaced under a `tap_viz` object within the broader model display metadata surface.
 
@@ -203,11 +203,11 @@ This lets a server, interface, or port model carry a stable default node shape w
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-system-display-hints-1 | Shape Hint Is Model-Level | Proposed | The spec assigns the viz-specific default `shape` hint to model metadata rather than to individual panels. | |
-| req-viz-system-display-hints-2 | Viz Hints Are Namespaced | Proposed | Viz-specific display hints live under a namespaced `tap_viz` object within model display metadata. | |
-| req-viz-system-display-hints-3 | Icons Reuse Grid Contract | Proposed | Viz icon rendering uses the canonical grid icon contract rather than redefining icon ownership in viz metadata. | |
-| req-viz-system-display-hints-4 | Layout Overrides Allowed | Proposed | A layout may override display hints for its own rendering context. | |
-| req-viz-system-display-hints-5 | Hints Remain Defaults | Proposed | Display hints provide defaults and do not replace layout pipeline logic. | |
+| req-viz-system-display-hints-1 | Shape Hint Is Model-Level | Implemented | `DEFAULT_DISPLAY["tap_viz"]["shape"]` on `BaseModel` subclasses; graph panel enrichment reads it per node. | |
+| req-viz-system-display-hints-2 | Viz Hints Are Namespaced | Implemented | Viz hints live under the `tap_viz` key in `DEFAULT_DISPLAY`. | |
+| req-viz-system-display-hints-3 | Icons Reuse Grid Contract | Implemented | `_enrich_nodes_with_icons` uses `resolve_icon_url(EntityType)` from `tap_grid.icon_service`. | |
+| req-viz-system-display-hints-4 | Layout Overrides Allowed | Backlog | Deferred; layout-level shape override not yet implemented. | |
+| req-viz-system-display-hints-5 | Hints Remain Defaults | Implemented | Shape defaults to `"ellipse"` when no hint is present; layout pipeline is not replaced. | |
 
 #### Future
 Define the detailed display-hints schema in a dedicated viz sub-spec.

@@ -50,7 +50,8 @@ def get_page_panels(page: Page) -> list[tuple[str, Panel]]:
 
     results: list[tuple[str, Panel]] = []
     for edge in edges:
-        panel_id = (edge.properties or {}).get("panel-id", "")
+        hotlink_data = (edge.properties or {}).get("hotlink", {})
+        panel_id = hotlink_data.get("value", "")
         try:
             panel = Panel.objects.select_related("entity").get(entity=edge.to_entity)
             results.append((panel_id, panel))

@@ -24,7 +24,7 @@ Because panels are first-class entities on the grid, they can be shared across p
 | --- | --- | :---: | --- |
 | req-web-panel-obj | [Panel Objects](#panel-objects) | Implemented | Panel model with slug, config, view/edit template paths, asset lists, and declared input variables |
 | req-web-panel-inputs | [Panel Inputs](#panel-inputs) | Proposed | Panels declare expected input variable names and consume resolved inputs from the page |
-| req-web-panel-edit | [Panel Edit Mode](#panel-edit-mode) | Implemented | Panels may declare editor templates and editor assets for panel-only configuration editing |
+| req-web-panel-edit | [Panel Edit Mode](#panel-edit-mode) | Refactoring | Panels participate in the generic web editor shell for panel-owned configuration editing |
 | req-web-panel-static | [Panel Static Assets](#panel-static-assets) | Implemented | Static assets live in Django static paths; no external URLs allowed |
 | req-web-panel-registry | [Panel Registry](#panel-registry) | Implemented | Panels are registered at load time in a run-time registry |
 | req-web-panel-edit-authz.sec | [Panel Edit Authorization](#panel-edit-authorization) | Backlog | Permission model for panel editor access is deferred |
@@ -146,42 +146,42 @@ Consider adding input schemas for panel-level input validation once a stable pan
 ### Panel Edit Mode
 ----
 RID: `req-web-panel-edit`
-Status: `Implemented`
+Status: `Refactoring`
 
-Panels may support a separate edit mode used to configure the panel instance. Edit mode is panel-only: it edits the Panel object itself rather than any page-specific slot binding.
+Panels may support edit mode through the generic TAP Web editor shell. Panel edit mode is still panel-only: it edits the Panel object itself rather than any page-specific slot binding.
 
 #### Status Details
-This requirement formalizes the panel-side portion of edit mode. Rendering structure for the editor page is defined in `spec-web-rendering.md`.
+This requirement now formalizes only the panel-specific portion of edit mode. Shared editor-shell behavior is defined in `spec-web-editor.md`. Route and panel rendering integration details remain in `spec-web-rendering.md`.
 
 #### Implementation
 - Normal panel rendering uses `view` plus `js` and `css`.
 - Panel edit mode uses optional `editor_view` plus `editor_js` and `editor_css`.
-- Edit mode operates on panel metadata and panel configuration:
-  - `title` (current implementation field for the panel's canonical name)
+- Panel edit mode is hosted inside the shared generic editor shell defined in `spec-web-editor.md`.
+- Panel edit mode operates on panel-owned metadata and configuration:
+  - `name`
   - `description`
   - `config`
-- Panels without `editor_view` do not support custom edit mode in v1.
+- Panels may also provide a panel-specific object preview because panels have a human-facing rendered form.
+- Panels without `editor_view` do not support a custom typed panel editor in v1.
 - Edit submissions target the panel edit endpoint under `/panel/<slug>--<entity-uuid>/edit/`.
-- Edit mode supports a separate `Preview` action and `Save` action.
-- Preview shows the current saved panel output; live preview while typing is not required in v1.
 
 #### Development
-Keep edit mode lightweight. `config` is the generic extension surface for panel-specific configuration so plugin authors can build richer panel editors without forcing every panel type into its own concrete Django model.
+Keep panel edit mode lightweight. `config` remains the generic extension surface for panel-specific configuration so plugin authors can build richer panel editors without forcing every panel type into its own concrete Django model.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-edit-1 | Separate Edit Mode Exists | Implemented | Panels may support a separate edit mode in addition to normal view rendering. | |
-| req-web-panel-edit-2 | Editor Template Declared | Implemented | Panels that support custom editing declare `editor_view`. | |
+| req-web-panel-edit-1 | Panel Uses Generic Editor Shell | Proposed | Panel edit mode is hosted inside the generic web editor shell defined in `spec-web-editor.md`. | |
+| req-web-panel-edit-2 | Editor Template Declared | Implemented | Panels that support custom typed editing declare `editor_view`. | |
 | req-web-panel-edit-3 | Separate Editor Assets | Implemented | Panels may declare `editor_js` and `editor_css` separately from normal `js` and `css`. | |
 | req-web-panel-edit-4 | Edit Mode Targets Panel Object | Implemented | Panel edit mode edits the Panel object itself, not page-specific bindings. | |
-| req-web-panel-edit-5 | Edit Scope | Implemented | Edit mode covers `title`, `description`, and `config`. | |
-| req-web-panel-edit-6 | Preview Separate From Save | Implemented | Edit mode provides a separate preview action and save action. | |
-| req-web-panel-edit-7 | No Live Preview Required | Implemented | V1 edit mode does not require live preview while editing. | |
+| req-web-panel-edit-5 | Panel Edit Scope | Proposed | Panel edit mode covers panel-owned fields such as `name`, `description`, and `config`. | |
+| req-web-panel-edit-6 | Panel May Provide Object Preview | Proposed | Panels may render an object-specific preview showing what the panel looks like. | Cross-ref `req-web-editor-object-preview`. |
+| req-web-panel-edit-7 | Preview And Save Come From Shared Contract | Proposed | Panel preview/save behavior follows the shared generic editor preview contract. | Cross-ref `req-web-editor-preview-exec`. |
 
 #### Future
-Consider defining a lightweight panel config DSL or schema system so edit mode can validate and describe `config` more formally.
+Consider defining a lightweight panel config DSL or schema system so panel edit mode can validate and describe `config` more formally.
 
 
 ### Panel Edit Authorization

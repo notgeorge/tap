@@ -9,7 +9,7 @@ from tap_flip.config import is_history_enabled
 from tap_flip.history import get_historical_records, get_history_timeline, set_history_user
 from tap_grid.models import User
 from tap_grid.services import create_entity
-from plugins.core_examples.models import Concept, Precept
+from plugins.lotr.models import Character, Location
 
 
 @pytest.mark.django_db
@@ -22,17 +22,17 @@ class TestFullHistoryFlow:
         user = User.objects.create_user(username="flowtest", password="test")
         set_history_user(user)
 
-        # Create a concept
-        entity = create_entity("concept", name="Flow Test Concept")
-        concept = Concept.objects.create(entity=entity, summary="Original summary")
+        # Create a character
+        entity = create_entity("character", name="Frodo Baggins")
+        character = Character.objects.create(entity=entity, bio="A hobbit.")
 
         # Update it
-        concept.summary = "Updated summary"
-        concept.save()
+        character.bio = "A brave hobbit of the Shire."
+        character.save()
 
         # Query history
-        records = get_historical_records(concept)
-        timeline = get_history_timeline(concept)
+        records = get_historical_records(character)
+        timeline = get_history_timeline(character)
 
         # Verify
         assert records.count() == 2  # Create + Update
@@ -44,89 +44,87 @@ class TestFullHistoryFlow:
 
     def test_history_preserves_old_values(self):
         """History records preserve the state at each point in time."""
-        entity = create_entity("concept", name="Preserve Test")
-        concept = Concept.objects.create(entity=entity, summary="Version 1")
+        entity = create_entity("character", name="Gandalf")
+        character = Character.objects.create(entity=entity, bio="Version 1")
 
-        concept.summary = "Version 2"
-        concept.save()
+        character.bio = "Version 2"
+        character.save()
 
-        concept.summary = "Version 3"
-        concept.save()
+        character.bio = "Version 3"
+        character.save()
 
         # Get all historical records
-        records = list(concept.history.all().order_by("history_date"))
+        records = list(character.history.all().order_by("history_date"))
 
-        # Should have 3 records with different summaries
+        # Should have 3 records with different bios
         assert len(records) == 3
-        assert records[0].summary == "Version 1"
-        assert records[1].summary == "Version 2"
-        assert records[2].summary == "Version 3"
+        assert records[0].bio == "Version 1"
+        assert records[1].bio == "Version 2"
+        assert records[2].bio == "Version 3"
 
 
 @pytest.mark.django_db
 class TestBatchIdFieldExists:
     """Tests for batch_id field on BaseModel."""
 
-    def test_batch_id_field_exists_on_concept(self):
-        """Concept model has batch_id field."""
-        entity = create_entity("concept", name="Batch ID Test")
-        concept = Concept.objects.create(entity=entity, summary="Test")
+    def test_batch_id_field_exists_on_character(self):
+        """Character model has batch_id field."""
+        entity = create_entity("character", name="Batch ID Test")
+        character = Character.objects.create(entity=entity, bio="Test")
 
         # batch_id should exist and be empty string in Phase 1
-        assert hasattr(concept, "batch_id")
-        assert concept.batch_id == ""
+        assert hasattr(character, "batch_id")
+        assert character.batch_id == ""
 
     def test_batch_id_can_be_set(self):
         """batch_id field can be set (for Phase 2 preparation)."""
-        entity = create_entity("concept", name="Batch Set Test")
-        concept = Concept.objects.create(entity=entity, summary="Test")
+        entity = create_entity("character", name="Batch Set Test")
+        character = Character.objects.create(entity=entity, bio="Test")
 
         batch_uuid = "019468b7-1234-7def-8000-000000000001"
-        concept.batch_id = batch_uuid
-        concept.save()
+        character.batch_id = batch_uuid
+        character.save()
 
-        concept.refresh_from_db()
-        assert concept.batch_id == batch_uuid
+        character.refresh_from_db()
+        assert character.batch_id == batch_uuid
 
-    def test_batch_id_field_exists_on_precept(self):
-        """Precept model also has batch_id field (inherited from BaseModel)."""
-        entity = create_entity("precept", name="Precept Batch Test")
-        precept = Precept.objects.create(entity=entity, statement="Test statement")
+    def test_batch_id_field_exists_on_location(self):
+        """Location model also has batch_id field (inherited from BaseModel)."""
+        entity = create_entity("location", name="Location Batch Test")
+        location = Location.objects.create(entity=entity, description="Test location")
 
-        assert hasattr(precept, "batch_id")
-        assert precept.batch_id == ""
+        assert hasattr(location, "batch_id")
+        assert location.batch_id == ""
 
 
 @pytest.mark.django_db
 class TestHistoryEnabledVsDisabled:
     """Tests contrasting history-enabled vs disabled models."""
 
-    def test_concept_enabled_precept_disabled(self):
-        """Concept has history, Precept does not."""
-        assert is_history_enabled(Concept) is True
-        assert is_history_enabled(Precept) is False
+    def test_character_enabled_location_disabled(self):
+        """Character has history, Location does not."""
+        assert is_history_enabled(Character) is True
+        assert is_history_enabled(Location) is False
 
-    def test_concept_has_history_manager(self):
-        """Concept has the history manager."""
-        assert hasattr(Concept, "history")
+    def test_character_has_history_manager(self):
+        """Character has the history manager."""
+        assert hasattr(Character, "history")
 
-    def test_precept_no_history_manager(self):
-        """Precept does not have history manager (or it returns empty)."""
-        # Precept may or may not have the manager depending on implementation
-        # but get_historical_records should return empty
-        entity = create_entity("precept", name="No History Test")
-        precept = Precept.objects.create(entity=entity, statement="Test")
+    def test_location_no_history_manager(self):
+        """Location does not have history manager; get_historical_records returns empty."""
+        entity = create_entity("location", name="No History Test")
+        location = Location.objects.create(entity=entity, description="Test")
 
-        records = get_historical_records(precept)
+        records = get_historical_records(location)
         assert records.count() == 0
 
     def test_both_have_batch_id(self):
-        """Both Concept and Precept have batch_id (BaseModel field)."""
-        concept_entity = create_entity("concept", name="C")
-        precept_entity = create_entity("precept", name="P")
+        """Both Character and Location have batch_id (BaseModel field)."""
+        character_entity = create_entity("character", name="C")
+        location_entity = create_entity("location", name="L")
 
-        concept = Concept.objects.create(entity=concept_entity, summary="Test")
-        precept = Precept.objects.create(entity=precept_entity, statement="Test")
+        character = Character.objects.create(entity=character_entity, bio="Test")
+        location = Location.objects.create(entity=location_entity, description="Test")
 
-        assert hasattr(concept, "batch_id")
-        assert hasattr(precept, "batch_id")
+        assert hasattr(character, "batch_id")
+        assert hasattr(location, "batch_id")
