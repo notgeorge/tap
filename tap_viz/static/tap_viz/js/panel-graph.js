@@ -121,6 +121,12 @@ function initGraph(panelId) {
         boxSelectionEnabled: true,
     });
 
+    // After layout settles, lock minZoom to the fitted zoom so the graph can
+    // only be zoomed in, never shrunk smaller than the initial fit view.
+    cy.one("layoutstop", function () {
+        cy.minZoom(cy.zoom());
+    });
+
     _attachToolbar(container, cy);
 
     // Node tap → navigate to the object viewer (req-viz-panel-node-nav).
