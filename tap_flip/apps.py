@@ -11,5 +11,8 @@ class TapFlipConfig(AppConfig):
     verbose_name = "TAP FLIP"
 
     def ready(self) -> None:
-        """Connect batch signals when app is ready."""
-        import tap_flip.batch.signals  # noqa: F401
+        """App ready hook — signal-based batch recording has been removed.
+
+        Batch provenance is now driven by CallerContext flowing through the
+        service layer into BaseModel.save(). See req-grid-service-batch-signals.
+        """

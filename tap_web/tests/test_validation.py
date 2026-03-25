@@ -219,3 +219,78 @@ class TestValidatePanelAssets:
         panel = self._make_panel(editor_css=["https://example.com/editor.css"])
         with pytest.raises(PanelStaticAssetValidationError, match="editor_css"):
             validate_panel_assets(panel)
+
+
+# ---------------------------------------------------------------------------
+# Model-level full_validate() hooks (req-web-page-slug-sanitize.sec,
+# req-web-page-layout-sanitize.sec, req-web-panel-static)
+# ---------------------------------------------------------------------------
+
+
+class TestPageFullValidate:
+    """Page.full_validate() enforces slug and layout constraints via validate() hooks."""
+
+    def _make_page(self, **kwargs):
+        from tap_web.models import Page
+
+        defaults = {
+            "name": "Test Page",
+            "slug": "/test-page",
+            "layout": {
+                "columns": {
+                    "col-1": {
+                        "width": "1fr",
+                        "rows": {"row-1": {"panel-id": "main"}},
+                    }
+                }
+            },
+        }
+        defaults.update(kwargs)
+        return Page(**defaults)
+
+    def test_valid_page_passes(self):
+        page = self._make_page()
+        page.full_validate()  # no exception
+
+    def test_invalid_slug_raises_validation_error(self):
+        from django.core.exceptions import ValidationError
+
+        page = self._make_page(slug="no-leading-slash")
+        with pytest.raises(ValidationError) as exc_info:
+            page.full_validate()
+        assert "slug" in exc_info.value.message_dict
+
+    def test_invalid_layout_raises_validation_error(self):
+        from django.core.exceptions import ValidationError
+
+        page = self._make_page(layout={"columns": {}})  # empty columns is invalid
+        with pytest.raises(ValidationError) as exc_info:
+            page.full_validate()
+        assert "layout" in exc_info.value.message_dict
+
+
+class TestPanelFullValidate:
+    """Panel.full_validate() enforces static asset constraints via validate() hook."""
+
+    def _make_panel(self, **kwargs):
+        from tap_web.models import Panel
+
+        defaults = {
+            "slug": "test-panel",
+            "name": "Test Panel",
+            "view": "tap_web/panel_error.html",
+        }
+        defaults.update(kwargs)
+        return Panel(**defaults)
+
+    def test_valid_panel_passes(self):
+        panel = self._make_panel(js=["js/app.js"], css=["css/panel.css"])
+        panel.full_validate()  # no exception
+
+    def test_external_js_url_raises_validation_error(self):
+        from django.core.exceptions import ValidationError
+
+        panel = self._make_panel(js=["https://cdn.example.com/bad.js"])
+        with pytest.raises(ValidationError) as exc_info:
+            panel.full_validate()
+        assert "__all__" in exc_info.value.message_dict

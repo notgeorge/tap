@@ -1,222 +1,117 @@
-"""Tests for batch signal handlers."""
+"""Tests for CallerContext-based provenance recording.
+
+Replaces the old signal-based tests (tap_flip.batch.signals has been removed).
+Provenance is now driven by CallerContext flowing through BaseModel.save().
+See req-grid-service-batch-signals, req-grid-service-batch-infra.
+"""
+
+import uuid
 
 import pytest
 
-from tap_flip.batch import batch_context, create_batch, get_batch_events
-from tap_flip.history.context import get_batch_id, set_batch_id, set_history_user
-from tap_flip.models import BatchEventType
-from tap_grid.models import User
+from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
+from tap_grid.exceptions import NoBatchContextError
 from tap_grid.services import create_entity
 from plugins.lotr.models import Character, Location
 
 
 @pytest.mark.django_db
-class TestPopulateBatchIdSignal:
-    """Tests for pre_save signal that populates batch_id."""
+class TestCallerContextBatchIdPropagation:
+    """CallerContext batch_id is stamped onto model instance and flip_map on save."""
 
-    def test_batch_id_populated_on_create(self):
-        """batch_id is populated from context on model create."""
-        batch = create_batch()
-        set_batch_id(str(batch.entity.id))
-
+    def test_batch_id_populated_from_caller_context(self):
+        """batch_id field on model is set from CallerContext when saving."""
+        batch_id = str(uuid.uuid7())
+        set_caller_context(CallerContext(user=None, batch_id=batch_id))
         try:
-            entity = create_entity("character", name="Signal Test")
+            entity = create_entity("character", name="CallerContext Test")
             character = Character.objects.create(entity=entity, bio="Test")
-
-            assert character.batch_id == str(batch.entity.id)
+            assert character.batch_id == batch_id
         finally:
-            set_batch_id(None)
+            set_caller_context(None)
 
-    def test_batch_id_not_overwritten_if_set(self):
-        """batch_id is not overwritten if already set on instance."""
-        batch = create_batch()
-        set_batch_id(str(batch.entity.id))
+    def test_batch_id_overwrites_previous_on_save(self):
+        """CallerContext batch_id always stamps the model, reflecting the latest write."""
+        first_batch = str(uuid.uuid7())
+        second_batch = str(uuid.uuid7())
 
+        set_caller_context(CallerContext(user=None, batch_id=first_batch))
         try:
-            entity = create_entity("character", name="Existing ID Test")
-            character = Character(entity=entity, bio="Test")
-            character.batch_id = "existing-batch-id"
-            character.save()
-
-            assert character.batch_id == "existing-batch-id"
+            entity = create_entity("character", name="Overwrite Test")
+            character = Character.objects.create(entity=entity, bio="Original")
         finally:
-            set_batch_id(None)
+            set_caller_context(None)
 
-    def test_no_batch_id_without_context(self):
-        """FLIP-enabled models raise NoBatchContextError when saved without batch context."""
-        from tap_grid.exceptions import NoBatchContextError
+        assert character.batch_id == first_batch
 
+        set_caller_context(CallerContext(user=None, batch_id=second_batch))
+        try:
+            character.bio = "Updated"
+            character.save()
+        finally:
+            set_caller_context(None)
+
+        assert character.batch_id == second_batch
+
+    def test_flip_map_updated_from_caller_context(self):
+        """flip_map is populated with batch_id from CallerContext."""
+        batch_id = str(uuid.uuid7())
+        set_caller_context(CallerContext(user=None, batch_id=batch_id))
+        try:
+            entity = create_entity("character", name="FlipMap Test")
+            character = Character.objects.create(entity=entity, bio="Test")
+        finally:
+            set_caller_context(None)
+
+        # Character has FLIP enabled; flip_map should record the batch_id
+        assert character.flip_map != {}
+        for field_batch_id in character.flip_map.values():
+            assert field_batch_id == batch_id
+
+    def test_no_caller_context_raises_for_flip_enabled_model(self):
+        """FLIP-enabled models raise NoBatchContextError when saved without CallerContext."""
+        set_caller_context(None)
         entity = create_entity("character", name="No Context Test")
         with pytest.raises(NoBatchContextError):
             Character.objects.create(entity=entity, bio="Test")
 
-    def test_batch_id_not_set_for_disabled_model(self):
-        """batch_id not populated for models with batch tracking disabled."""
-        # Location has no FLIP_CONFIG, so batch tracking is disabled
-        batch = create_batch()
-        set_batch_id(str(batch.entity.id))
+    def test_no_caller_context_succeeds_for_flip_disabled_model(self):
+        """FLIP-disabled models save successfully without CallerContext."""
+        set_caller_context(None)
+        entity = create_entity("location", name="No Context Location")
+        # Location has no FLIP_CONFIG — should not raise
+        location = Location.objects.create(entity=entity, description="Test")
+        assert location.batch_id == ""
 
+    def test_flip_disabled_model_ignores_caller_context_batch_id(self):
+        """FLIP-disabled model batch_id field is still stamped from CallerContext."""
+        batch_id = str(uuid.uuid7())
+        set_caller_context(CallerContext(user=None, batch_id=batch_id))
         try:
-            entity = create_entity("location", name="Disabled Test")
+            entity = create_entity("location", name="Location Context Test")
             location = Location.objects.create(entity=entity, description="Test")
-
-            # Location inherits batch_id field but signal doesn't populate it
-            # because is_batch_enabled(Location) is False
-            assert location.batch_id == ""
         finally:
-            set_batch_id(None)
+            set_caller_context(None)
 
+        # batch_id is stamped on all BaseModel instances when CallerContext is present
+        assert location.batch_id == batch_id
+        # But flip_map stays empty for FLIP-disabled models
+        assert location.flip_map == {}
 
-@pytest.mark.django_db
-class TestRecordSaveEventSignal:
-    """Tests for post_save signal that records BatchEvent."""
-
-    def test_create_event_recorded(self):
-        """BatchEvent recorded for model creation."""
-        batch = create_batch()
-        batch_id = str(batch.entity.id)
-        set_batch_id(batch_id)
-
+    def test_get_caller_context_round_trips(self):
+        """set_caller_context / get_caller_context are symmetric."""
+        ctx = CallerContext(user=None, batch_id="test-batch-id")
+        set_caller_context(ctx)
         try:
-            entity = create_entity("character", name="Create Event Test")
-            Character.objects.create(entity=entity, bio="Test")
-
-            events = get_batch_events(batch_id)
-            create_events = [e for e in events if e.event_type == BatchEventType.CREATE]
-
-            assert len(create_events) >= 1
-            # Find the event for our character
-            character_events = [e for e in create_events if e.entity_type == "character"]
-            assert len(character_events) == 1
-            assert character_events[0].model_name == "Character"
+            assert get_caller_context() is ctx
         finally:
-            set_batch_id(None)
+            set_caller_context(None)
+        assert get_caller_context() is None
 
-    def test_update_event_recorded(self):
-        """BatchEvent recorded for model update."""
-        batch = create_batch()
-        batch_id = str(batch.entity.id)
+    def test_caller_context_is_frozen(self):
+        """CallerContext is immutable after creation."""
+        from dataclasses import FrozenInstanceError
 
-        # Create inside a setup batch context (FLIP enforcement requires it)
-        with batch_context(source="test:setup"):
-            entity = create_entity("character", name="Update Event Test")
-            character = Character.objects.create(entity=entity, bio="Original")
-
-        # Update inside batch context
-        set_batch_id(batch_id)
-        try:
-            character.bio = "Updated"
-            character.save()
-
-            events = get_batch_events(batch_id)
-            update_events = [e for e in events if e.event_type == BatchEventType.UPDATE]
-
-            assert len(update_events) == 1
-            assert update_events[0].entity_id == entity.id
-        finally:
-            set_batch_id(None)
-
-    def test_no_event_without_context(self):
-        """FLIP-enabled models raise NoBatchContextError instead of silently skipping events."""
-        from tap_grid.exceptions import NoBatchContextError
-
-        entity = create_entity("character", name="No Event Test")
-        with pytest.raises(NoBatchContextError):
-            Character.objects.create(entity=entity, bio="Test")
-
-
-@pytest.mark.django_db
-class TestRecordDeleteEventSignal:
-    """Tests for post_delete signal that records BatchEvent."""
-
-    def test_delete_event_recorded(self):
-        """BatchEvent recorded for model deletion."""
-        batch = create_batch()
-        batch_id = str(batch.entity.id)
-
-        # Create inside a setup batch context (FLIP enforcement requires it)
-        with batch_context(source="test:setup"):
-            entity = create_entity("character", name="Delete Event Test")
-            Character.objects.create(entity=entity, bio="To Delete")
-        entity_id = entity.id
-
-        # Delete inside batch context
-        set_batch_id(batch_id)
-        try:
-            # Delete the character (entity deletion cascades)
-            entity.delete()
-
-            events = get_batch_events(batch_id)
-            delete_events = [e for e in events if e.event_type == BatchEventType.DELETE]
-
-            assert len(delete_events) == 1
-            assert delete_events[0].entity_id == entity_id
-        finally:
-            set_batch_id(None)
-
-
-@pytest.mark.django_db
-class TestSignalActorAttribution:
-    """Tests for actor attribution in signal handlers."""
-
-    def test_actor_from_context(self):
-        """BatchEvent actor comes from history context."""
-        user = User.objects.create_user(username="signalactor", password="test")
-        set_history_user(user)
-
-        batch = create_batch()
-        batch_id = str(batch.entity.id)
-        set_batch_id(batch_id)
-
-        try:
-            entity = create_entity("character", name="Actor Test")
-            Character.objects.create(entity=entity, bio="Test")
-
-            events = get_batch_events(batch_id)
-            character_events = [e for e in events if e.entity_type == "character"]
-
-            assert len(character_events) == 1
-            assert character_events[0].actor == user
-        finally:
-            set_batch_id(None)
-            set_history_user(None)
-
-
-@pytest.mark.django_db
-class TestBatchContextIntegration:
-    """Integration tests for batch_context with signals."""
-
-    def test_full_flow_with_context_manager(self):
-        """Full flow: batch_context -> create models -> events recorded."""
-        with batch_context(source="integration:test") as batch_id:
-            entity = create_entity("character", name="Integration Test")
-            character = Character.objects.create(entity=entity, bio="Test")
-
-            # batch_id should be populated on model
-            assert character.batch_id == batch_id
-
-        # Events should be recorded
-        events = get_batch_events(batch_id)
-        character_events = [e for e in events if e.entity_type == "character"]
-
-        assert len(character_events) == 1
-        assert character_events[0].event_type == BatchEventType.CREATE
-
-    def test_multiple_models_in_batch(self):
-        """Multiple models created in same batch all get tracked."""
-        with batch_context(source="multi:test") as batch_id:
-            for i in range(3):
-                entity = create_entity("character", name=f"Character {i}")
-                Character.objects.create(entity=entity, bio=f"Bio {i}")
-
-        events = get_batch_events(batch_id)
-        character_events = [e for e in events if e.entity_type == "character"]
-
-        assert len(character_events) == 3
-
-    def test_batch_id_cleared_after_context(self):
-        """batch_id context is cleared after context manager exits."""
-        with batch_context() as batch_id:
-            assert get_batch_id() == batch_id
-
-        assert get_batch_id() is None
+        ctx = CallerContext(user=None, batch_id="test")
+        with pytest.raises(FrozenInstanceError):
+            ctx.batch_id = "other"  # type: ignore[misc]

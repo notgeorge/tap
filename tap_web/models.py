@@ -4,12 +4,14 @@ All tap_web node types declare DEFAULT_DIMENSIONS = {"tap.graph": "web"}
 to keep web artifacts in their own named partition of the graph.
 """
 
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from django.apps import apps
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from tap_grid.models import BaseModel
+from tap_web.exceptions import PageLayoutValidationError, PageSlugValidationError, PanelStaticAssetValidationError
 from tap_web.validation import validate_page_layout, validate_page_slug, validate_panel_assets
 
 
@@ -18,6 +20,41 @@ class Page(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "page"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
+
+    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "create": {
+            "type": "object",
+            "required": ["name", "slug"],
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "slug": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "layout": {"type": "object"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "slug": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "layout": {"type": "object"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["name", "slug"],
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "slug": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "layout": {"type": "object"},
+            },
+        },
+    }
 
     # Hotlink contract: panel-id values embedded in layout must exactly match
     # the hotlink.value on the page's outbound USES_PANEL edges.
@@ -33,6 +70,10 @@ class Page(BaseModel):
         }
     ]
 
+    FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "layout": {"validation": "function"},
+    }
+
     name = models.CharField(max_length=255)
     slug = models.CharField(
         max_length=255,
@@ -42,17 +83,25 @@ class Page(BaseModel):
     description = models.TextField(blank=True, default="")
     layout = models.JSONField(
         default=dict,
+        blank=True,
         help_text="Nested grid layout schema (columns → rows → panel-id slots).",
     )
 
     class Meta(BaseModel.Meta):
         db_table = "web_page"
 
-    def save(self, *args: Any, **kwargs: Any) -> None:
+    def validate_layout(self) -> None:
+        try:
+            validate_page_layout(self.layout or {})
+        except PageLayoutValidationError as exc:
+            raise ValidationError({"layout": [str(exc)]}) from exc
+
+    def validate(self) -> None:
         reserved = _get_reserved_slugs()
-        validate_page_slug(self.slug, reserved_prefixes=reserved)
-        validate_page_layout(self.layout or {})
-        super().save(*args, **kwargs)
+        try:
+            validate_page_slug(self.slug, reserved_prefixes=reserved)
+        except PageSlugValidationError as exc:
+            raise ValidationError({"slug": [str(exc)]}) from exc
 
     def get_name(self) -> str:
         return self.name or ""
@@ -72,6 +121,62 @@ class Panel(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "panel"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
 
+    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "create": {
+            "type": "object",
+            "required": ["slug", "name", "view"],
+            "additionalProperties": False,
+            "properties": {
+                "slug": {"type": "string", "minLength": 1},
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "view": {"type": "string", "minLength": 1},
+                "editor_view": {"type": "string"},
+                "config": {"type": "object"},
+                "js": {"type": "array", "items": {"type": "string"}},
+                "css": {"type": "array", "items": {"type": "string"}},
+                "editor_js": {"type": "array", "items": {"type": "string"}},
+                "editor_css": {"type": "array", "items": {"type": "string"}},
+                "input_vars": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "slug": {"type": "string", "minLength": 1},
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "view": {"type": "string", "minLength": 1},
+                "editor_view": {"type": "string"},
+                "config": {"type": "object"},
+                "js": {"type": "array", "items": {"type": "string"}},
+                "css": {"type": "array", "items": {"type": "string"}},
+                "editor_js": {"type": "array", "items": {"type": "string"}},
+                "editor_css": {"type": "array", "items": {"type": "string"}},
+                "input_vars": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["slug", "name", "view"],
+            "additionalProperties": False,
+            "properties": {
+                "slug": {"type": "string", "minLength": 1},
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "view": {"type": "string", "minLength": 1},
+                "editor_view": {"type": "string"},
+                "config": {"type": "object"},
+                "js": {"type": "array", "items": {"type": "string"}},
+                "css": {"type": "array", "items": {"type": "string"}},
+                "editor_js": {"type": "array", "items": {"type": "string"}},
+                "editor_css": {"type": "array", "items": {"type": "string"}},
+                "input_vars": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+    }
+
     slug = models.CharField(
         max_length=255,
         help_text="Kebab-case label used in the HTMX URL alongside the entity UUID. Not globally unique.",
@@ -90,35 +195,43 @@ class Panel(BaseModel):
     )
     config = models.JSONField(
         default=dict,
+        blank=True,
         help_text="Panel-specific configuration object. Default: {}.",
     )
     js = models.JSONField(
         default=list,
+        blank=True,
         help_text="Flat list of static-relative JS paths. Example: ['js/cytoscape.js']",
     )
     css = models.JSONField(
         default=list,
+        blank=True,
         help_text="Flat list of static-relative CSS paths. Example: ['css/panel.css']",
     )
     editor_js = models.JSONField(
         default=list,
+        blank=True,
         help_text="Flat list of static-relative JS paths used in panel edit mode. Default: [].",
     )
     editor_css = models.JSONField(
         default=list,
+        blank=True,
         help_text="Flat list of static-relative CSS paths used in panel edit mode. Default: [].",
     )
     input_vars = models.JSONField(
         default=list,
+        blank=True,
         help_text="Declared panel input variable names expected at runtime. Default: [].",
     )
 
     class Meta(BaseModel.Meta):
         db_table = "web_panel"
 
-    def save(self, *args: Any, **kwargs: Any) -> None:
-        validate_panel_assets(self)
-        super().save(*args, **kwargs)
+    def validate(self) -> None:
+        try:
+            validate_panel_assets(self)
+        except PanelStaticAssetValidationError as exc:
+            raise ValidationError({"__all__": [str(exc)]}) from exc
 
     def get_name(self) -> str:
         return self.name or ""
@@ -136,6 +249,33 @@ class LandingPage(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "landing_page"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
+
+    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+            },
+        },
+    }
 
     name = models.CharField(max_length=255, blank=True, default="")
     description = models.TextField(blank=True, default="")

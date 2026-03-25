@@ -100,6 +100,51 @@ def _check_field_schemas(cls: type) -> None:
             )
 
 
+_ALLOWED_SERVICE_SCHEMA_KEYS: frozenset[str] = frozenset({"create", "patch", "replace", "read"})
+_REQUIRED_SERVICE_SCHEMA_KEYS: frozenset[str] = frozenset({"create", "patch", "replace"})
+
+
+def _check_service_schemas(cls: type) -> None:
+    """Enforce SERVICE_SCHEMAS startup invariants for concrete BaseModel subclasses.
+
+    Skips abstract intermediates (classes without ENTITY_TYPE in their own __dict__).
+    For concrete subclasses raises ImproperlyConfigured if:
+      - SERVICE_SCHEMAS is not declared in cls.__dict__
+      - Any required key ("create", "patch", "replace") is missing
+      - Any key is not in the allowed set {"create", "patch", "replace", "read"}
+      - Any value is not a dict
+    """
+    # Abstract intermediates: no ENTITY_TYPE in own class body → skip
+    if "ENTITY_TYPE" not in cls.__dict__:
+        return
+
+    if "SERVICE_SCHEMAS" not in cls.__dict__:
+        raise ImproperlyConfigured(
+            f"{cls.__name__} declares ENTITY_TYPE but is missing SERVICE_SCHEMAS. "
+            f"All concrete BaseModel subclasses must declare SERVICE_SCHEMAS with "
+            f"keys: {sorted(_REQUIRED_SERVICE_SCHEMA_KEYS)}."
+        )
+
+    schemas: dict = cls.__dict__["SERVICE_SCHEMAS"]
+
+    for key in _REQUIRED_SERVICE_SCHEMA_KEYS:
+        if key not in schemas:
+            raise ImproperlyConfigured(
+                f"{cls.__name__}.SERVICE_SCHEMAS is missing required key '{key}'."
+            )
+
+    for key, value in schemas.items():
+        if key not in _ALLOWED_SERVICE_SCHEMA_KEYS:
+            raise ImproperlyConfigured(
+                f"{cls.__name__}.SERVICE_SCHEMAS has unknown key '{key}'. "
+                f"Allowed keys: {sorted(_ALLOWED_SERVICE_SCHEMA_KEYS)}."
+            )
+        if not isinstance(value, dict):
+            raise ImproperlyConfigured(
+                f"{cls.__name__}.SERVICE_SCHEMAS['{key}'] must be a dict, got {type(value).__name__}."
+            )
+
+
 def get_default_grid_id() -> uuid.UUID | None:
     """Return this installation's Grid ID from settings, or None if unset."""
     grid_id_str: str = getattr(settings, "TAP_GRID_ID", "")
@@ -213,6 +258,7 @@ class BaseModel(models.Model):
     ENTITY_TYPE: ClassVar[str]
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]]
     FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {}
+    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {}
     HOTLINKS: ClassVar[list[dict]] = []
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {}
 
@@ -243,6 +289,9 @@ class BaseModel(models.Model):
         # FIELD_SCHEMAS invariants run first — before any registry side effects.
         # If these raise, nothing has been registered and the failure is clean.
         _check_field_schemas(cls)
+
+        # SERVICE_SCHEMAS invariants — concrete subclasses must declare all required keys.
+        _check_service_schemas(cls)
 
         # HOTLINKS invariants — only validate if this class declares HOTLINKS directly.
         if "HOTLINKS" in cls.__dict__:
@@ -390,13 +439,22 @@ class BaseModel(models.Model):
                 f"{self.__class__.__name__} must declare ENTITY_TYPE: ClassVar[str]."
             )
 
-        # FLIP map update — mutates self.flip_map in memory before the write.
-        from tap_grid.context import get_batch_id
+        # FLIP: propagate batch_id from CallerContext and update flip_map.
+        # Both happen before the DB write so they are atomic with field changes.
+        from tap_grid.caller_context import get_caller_context
         from tap_grid.flip import update_flip_map
+
+        ctx = get_caller_context()
+        active_batch_id = ctx.batch_id if ctx else None
+
+        # Stamp the model's batch_id field with the active batch (replaces the
+        # old pre_save signal that did the same thing).
+        if active_batch_id:
+            self.batch_id = active_batch_id
 
         update_fields = kwargs.get("update_fields")
         changed_fields = list(update_fields) if update_fields is not None else None
-        if update_flip_map(self, changed_fields, get_batch_id()):
+        if update_flip_map(self, changed_fields, active_batch_id):
             if update_fields is not None:
                 kwargs["update_fields"] = list(update_fields) + ["flip_map"]
 
@@ -424,6 +482,32 @@ class Edge(BaseModel):
     """
 
     ENTITY_TYPE: ClassVar[str] = "edge"
+
+    # from_entity, to_entity, and edge_type are dedicated create_edge() parameters,
+    # not payload fields. Replace must not include edge_type (immutable once set).
+    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "properties": {"type": "object"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "properties": {"type": "object"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "properties": {"type": "object"},
+            },
+        },
+    }
 
     from_entity = models.ForeignKey(
         Entity,
@@ -505,6 +589,35 @@ class Dimension(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "dimension"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.meta": "dimension"}
 
+    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "create": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+            },
+        },
+    }
+
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
 
@@ -530,6 +643,56 @@ class Search(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "search"
 
+    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "create": {
+            "type": "object",
+            "required": ["name", "search_type", "root"],
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "search_type": {"type": "string", "enum": ["module", "orm"]},
+                "root": {"type": "string", "enum": ["node", "edge"]},
+                "definition": {"type": "object"},
+                "input_schema": {"type": ["object", "null"]},
+                "returns": {"type": ["object", "null"]},
+                "default_limit": {"type": ["integer", "null"]},
+                "max_limit": {"type": ["integer", "null"]},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "search_type": {"type": "string", "enum": ["module", "orm"]},
+                "root": {"type": "string", "enum": ["node", "edge"]},
+                "definition": {"type": "object"},
+                "input_schema": {"type": ["object", "null"]},
+                "returns": {"type": ["object", "null"]},
+                "default_limit": {"type": ["integer", "null"]},
+                "max_limit": {"type": ["integer", "null"]},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["name", "search_type", "root"],
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "search_type": {"type": "string", "enum": ["module", "orm"]},
+                "root": {"type": "string", "enum": ["node", "edge"]},
+                "definition": {"type": "object"},
+                "input_schema": {"type": ["object", "null"]},
+                "returns": {"type": ["object", "null"]},
+                "default_limit": {"type": ["integer", "null"]},
+                "max_limit": {"type": ["integer", "null"]},
+            },
+        },
+    }
+
     FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
         "name": {
             "validation": "jsonschema",
@@ -553,7 +716,7 @@ class Search(BaseModel):
     description = models.TextField(blank=True, default="")
     search_type = models.CharField(max_length=50)
     root = models.CharField(max_length=50)
-    definition = models.JSONField(default=dict)
+    definition = models.JSONField(default=dict, blank=True)
     input_schema = models.JSONField(null=True, blank=True)
     returns = models.JSONField(null=True, blank=True)
     default_limit = models.IntegerField(null=True, blank=True)

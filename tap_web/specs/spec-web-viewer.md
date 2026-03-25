@@ -25,7 +25,7 @@ The first implementation target is a simple default object viewer for ordinary m
 | req-web-viewer-shell | [Viewer Shell](#viewer-shell) | Implemented | Shared non-editable viewer page structure for TAP objects |
 | req-web-viewer-context | [Context Region](#context-region) | Implemented | Default top region situates the object and may be overridden by richer type-specific context |
 | req-web-viewer-fields | [Default Field Rendering](#default-field-rendering) | Implemented | Generic readable rendering for object fields |
-| req-web-viewer-inspect | [Inspection Region](#inspection-region) | In Development | Viewer may expose collapsible secondary inspection surfaces such as History and FLIP below the main object body |
+| req-web-viewer-inspect | [Inspection Region](#inspection-region) | Implemented | Viewer may expose collapsible secondary inspection surfaces such as History and FLIP below the main object body |
 | req-web-viewer-enhanced | [Enhanced Type-Specific Views](#enhanced-type-specific-views) | Proposed | Object types may provide richer context and body rendering |
 | req-web-viewer-parity | [Viewer Editor Information Parity](#viewer-editor-information-parity) | Implemented | Viewer and editor expose the same core object information model |
 | req-web-viewer-fallback | [Fallback Rendering Strategy](#fallback-rendering-strategy) | Implemented | Disabled-form style rendering may exist as an implementation fallback but is not the preferred UX |
@@ -117,7 +117,7 @@ The default viewer should look like a basic web page, not a disabled admin form,
 ### Inspection Region
 ----
 RID: `req-web-viewer-inspect`
-Status: `In Development`
+Status: `Implemented`
 
 The viewer may expose a secondary inspection region beneath the main object body for capability-oriented supporting views such as History and FLIP. This region should be useful without competing with the primary object content.
 
@@ -144,10 +144,10 @@ This keeps the object's main meaning front and center while still making inspect
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-viewer-inspect-1 | Secondary Inspection Region Allowed | In Development | The shared viewer shell may include a dedicated region below the main body for secondary inspection surfaces. | FLIP section added to `viewer.html` |
-| req-web-viewer-inspect-2 | Collapsed By Default In V1 | In Development | The first inspection surfaces render as collapsed sections by default rather than expanded panes or side drawers. | `<details>` element, closed by default |
-| req-web-viewer-inspect-3 | Lightweight Counts In Labels | In Development | Inspection section headers may include useful counts such as number of history entries or tracked FLIP fields. | `FLIP (N fields)` in summary label |
-| req-web-viewer-inspect-4 | Main Content Remains Primary | In Development | Inspection surfaces are presented as secondary supporting UI and do not displace the main object context and body regions. | Section placed after Details |
+| req-web-viewer-inspect-1 | Secondary Inspection Region Allowed | Implemented | The shared viewer shell may include a dedicated region below the main body for secondary inspection surfaces. | FLIP section added to `viewer.html` |
+| req-web-viewer-inspect-2 | Collapsed By Default In V1 | Implemented | The first inspection surfaces render as collapsed sections by default rather than expanded panes or side drawers. | `<details>` element, closed by default |
+| req-web-viewer-inspect-3 | Lightweight Counts In Labels | Implemented | Inspection section headers may include useful counts such as number of history entries or tracked FLIP fields. | `FLIP (N fields)` in summary label |
+| req-web-viewer-inspect-4 | Main Content Remains Primary | Implemented | Inspection surfaces are presented as secondary supporting UI and do not displace the main object context and body regions. | Section placed after Details |
 
 ### Enhanced Type-Specific Views
 ----

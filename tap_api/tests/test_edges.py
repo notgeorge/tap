@@ -62,12 +62,12 @@ class TestGetEdge:
     def test_found(self, logged_in_client, two_entities):
         a, b = two_entities
         edge = create_edge(a, b, "LOCATED_IN")
-        data = logged_in_client.get(f"/api/v1/edges/{edge.pk}/").json()
+        data = logged_in_client.get(f"/api/v1/edges/{edge.entity_id}/").json()
         assert data["edge_type"] == "LOCATED_IN"
         assert data["entity_id"] == str(edge.entity_id)
 
     def test_not_found(self, logged_in_client):
-        response = logged_in_client.get("/api/v1/edges/99999/")
+        response = logged_in_client.get(f"/api/v1/edges/{uuid.uuid4()}/")
         assert response.status_code == 404
 
 
@@ -131,10 +131,10 @@ class TestDeleteEdge:
     def test_delete(self, logged_in_client, two_entities):
         a, b = two_entities
         edge = create_edge(a, b, "LOCATED_IN")
-        response = logged_in_client.delete(f"/api/v1/edges/{edge.pk}/")
+        response = logged_in_client.delete(f"/api/v1/edges/{edge.entity_id}/")
         assert response.status_code == 204
         assert not Edge.objects.filter(pk=edge.pk).exists()
 
     def test_not_found(self, logged_in_client):
-        response = logged_in_client.delete("/api/v1/edges/99999/")
+        response = logged_in_client.delete(f"/api/v1/edges/{uuid.uuid4()}/")
         assert response.status_code == 404

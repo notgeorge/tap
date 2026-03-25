@@ -1,8 +1,8 @@
 """Context management for history tracking.
 
 Provides the history_user contextvar for django-simple-history integration.
-The batch_id contextvar lives in tap_grid.context (grid-level operational context)
-and is re-exported here for backward compatibility.
+The batch_id helpers delegate to tap_grid.caller_context (via tap_grid.context)
+and are re-exported here for backward compatibility.
 """
 
 import contextvars

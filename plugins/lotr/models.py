@@ -22,6 +22,33 @@ class Character(BaseModel):
     """A being in Middle-earth (Frodo, Gandalf, Sauron, etc.)."""
 
     ENTITY_TYPE: ClassVar[str] = "character"
+    SERVICE_SCHEMAS: ClassVar[dict[str, Any]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "bio": {"type": "string"},
+                "title": {"type": "string"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "bio": {"type": "string"},
+                "title": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["bio", "title"],
+            "additionalProperties": False,
+            "properties": {
+                "bio": {"type": "string"},
+                "title": {"type": "string"},
+            },
+        },
+    }
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "ellipse"}}
     # History is enabled directly via the HistoricalRecords manager below.
     FLIP_CONFIG: ClassVar[dict[str, Any]] = {
@@ -77,6 +104,33 @@ class Location(BaseModel):
     """A place in Middle-earth (Shire, Mordor, Rivendell, etc.)."""
 
     ENTITY_TYPE: ClassVar[str] = "location"
+    SERVICE_SCHEMAS: ClassVar[dict[str, Any]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "description": {"type": "string"},
+                "realm": {"type": "string"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "description": {"type": "string"},
+                "realm": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["description", "realm"],
+            "additionalProperties": False,
+            "properties": {
+                "description": {"type": "string"},
+                "realm": {"type": "string"},
+            },
+        },
+    }
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "round-rectangle"}}
 
     # Locations can contain other locations (Shire contains Bag End)
@@ -121,6 +175,33 @@ class Artifact(BaseModel):
     """A significant object (The One Ring, Sting, Andúril, etc.)."""
 
     ENTITY_TYPE: ClassVar[str] = "artifact"
+    SERVICE_SCHEMAS: ClassVar[dict[str, Any]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "power": {"type": "string"},
+                "origin": {"type": "string"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "power": {"type": "string"},
+                "origin": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["power", "origin"],
+            "additionalProperties": False,
+            "properties": {
+                "power": {"type": "string"},
+                "origin": {"type": "string"},
+            },
+        },
+    }
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # Artifacts can only be forged in locations
@@ -153,6 +234,33 @@ class Race(BaseModel):
     """A race of beings (Hobbit, Elf, Dwarf, Human, Wizard, etc.)."""
 
     ENTITY_TYPE: ClassVar[str] = "race"
+    SERVICE_SCHEMAS: ClassVar[dict[str, Any]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "homeland": {"type": "string"},
+                "traits": {"type": "string"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "homeland": {"type": "string"},
+                "traits": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["homeland", "traits"],
+            "additionalProperties": False,
+            "properties": {
+                "homeland": {"type": "string"},
+                "traits": {"type": "string"},
+            },
+        },
+    }
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # Races cannot create any outbound edges (empty list = block all)
@@ -180,6 +288,30 @@ class Faction(BaseModel):
     """A group or alliance (Fellowship, Mordor, Rohan, etc.)."""
 
     ENTITY_TYPE: ClassVar[str] = "faction"
+    SERVICE_SCHEMAS: ClassVar[dict[str, Any]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "purpose": {"type": "string"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "purpose": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["purpose"],
+            "additionalProperties": False,
+            "properties": {
+                "purpose": {"type": "string"},
+            },
+        },
+    }
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # Factions can ally or be enemies with other factions
@@ -215,6 +347,30 @@ class Sentinel(BaseModel):
     """A watcher that can reference anything (wildcard test case)."""
 
     ENTITY_TYPE: ClassVar[str] = "sentinel"
+    SERVICE_SCHEMAS: ClassVar[dict[str, Any]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "watch_domain": {"type": "string"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "watch_domain": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["watch_domain"],
+            "additionalProperties": False,
+            "properties": {
+                "watch_domain": {"type": "string"},
+            },
+        },
+    }
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # Sentinel uses wildcard: REFERENCES can point to ANY node type
@@ -246,6 +402,30 @@ class Citadel(BaseModel):
     """A fortified place that accepts no incoming edges (inbound block test)."""
 
     ENTITY_TYPE: ClassVar[str] = "citadel"
+    SERVICE_SCHEMAS: ClassVar[dict[str, Any]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "fortification": {"type": "string"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "fortification": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["fortification"],
+            "additionalProperties": False,
+            "properties": {
+                "fortification": {"type": "string"},
+            },
+        },
+    }
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # Citadels can PROTECTS locations
@@ -276,6 +456,30 @@ class Wanderer(BaseModel):
     """
 
     ENTITY_TYPE: ClassVar[str] = "wanderer"
+    SERVICE_SCHEMAS: ClassVar[dict[str, Any]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "journey": {"type": "string"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "journey": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["journey"],
+            "additionalProperties": False,
+            "properties": {
+                "journey": {"type": "string"},
+            },
+        },
+    }
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     # No OUTBOUND_EDGES defined = no restrictions

@@ -18,6 +18,38 @@ class Layout(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "layout"
 
+    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "create": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "definition": {"type": "object"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "definition": {"type": "object"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": False,
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "description": {"type": "string"},
+                "definition": {"type": "object"},
+            },
+        },
+    }
+
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     definition = models.JSONField(

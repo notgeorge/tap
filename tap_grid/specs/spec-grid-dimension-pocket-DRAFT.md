@@ -1,5 +1,7 @@
 # Draft Dimension Specification
 
+Note: this draft should be reconsidered as a broader pocket-dimensions concept. Using pocket dimensions for draft management is one important use case, but likely not the only one.
+
 ## Philosophy
 
 Drafts in TAP should be graph-native. When a user needs to preview or stage changes to a graph-shaped object, TAP should not be forced to rely on purely request-local state or on immediately mutating the canonical graph and then reverting it later.

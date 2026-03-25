@@ -3,7 +3,10 @@
 import json
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from tap_grid.caller_context import CallerContext
 
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
@@ -104,8 +107,13 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
                 if panel_type and hasattr(panel_type, "handle_save"):
                     panel_type.handle_save(form, panel, request)
                 else:
-                    _apply_form_to_panel(form, panel)
-                    panel.save()
+                    from tap_grid.services import patch_node
+
+                    patch_node(
+                        target=panel.entity.pk,
+                        payload=_form_to_patch_payload(form, panel),
+                        caller_context=_build_caller_context(request),
+                    )
                 return redirect("panel-edit", panel_url_id=panel_url_id)
             return render(
                 request,
@@ -113,19 +121,27 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
                 _panel_editor_context(panel_url_id, panel, form=form, editor_template=editor_template),
             )
         # Generic fallback — no registered PanelType; raw JSON config editing.
-        panel.name = request.POST.get("name", panel.name)
-        panel.description = request.POST.get("description", panel.description)
+        payload: dict[str, Any] = {
+            "name": request.POST.get("name", panel.name),
+            "description": request.POST.get("description", panel.description),
+        }
         raw_config = request.POST.get("config", "")
         if raw_config:
             try:
-                panel.config = json.loads(raw_config)
+                payload["config"] = json.loads(raw_config)
             except json.JSONDecodeError as exc:
                 return render(
                     request,
                     "tap_web/editor.html",
                     _panel_editor_context(panel_url_id, panel, config_error=str(exc)),
                 )
-        panel.save()
+        from tap_grid.services import patch_node
+
+        patch_node(
+            target=panel.entity.pk,
+            payload=payload,
+            caller_context=_build_caller_context(request),
+        )
         return redirect("panel-edit", panel_url_id=panel_url_id)
 
     # GET
@@ -350,9 +366,16 @@ def _object_editor_context(
 _STANDARD_PANEL_FIELDS = frozenset({"name", "description"})
 
 
-def _apply_form_to_panel(form: object, panel: object) -> None:
-    """Apply validated form cleaned_data to a Panel. Standard fields go to
-    model attributes; all others are merged into panel.config."""
+def _build_caller_context(request: HttpRequest) -> "CallerContext":
+    """Build a CallerContext from the current HTTP request."""
+    from tap_grid.caller_context import CallerContext
+
+    user = request.user if hasattr(request.user, "pk") and request.user.pk else None
+    return CallerContext(user=user, batch_id=None)
+
+
+def _form_to_patch_payload(form: object, panel: object) -> dict[str, Any]:
+    """Return a patch payload dict from validated form cleaned_data for use with patch_node()."""
     from django.forms import BaseForm
 
     from tap_web.models import Panel
@@ -360,11 +383,13 @@ def _apply_form_to_panel(form: object, panel: object) -> None:
     assert isinstance(form, BaseForm)
     assert isinstance(panel, Panel)
     cleaned = form.cleaned_data
-    panel.name = cleaned["name"]
-    panel.description = cleaned.get("description", panel.description)
+    payload: dict[str, Any] = {"name": cleaned["name"]}
+    if "description" in cleaned:
+        payload["description"] = cleaned["description"]
     config_updates = {k: v for k, v in cleaned.items() if k not in _STANDARD_PANEL_FIELDS}
     if config_updates:
-        panel.config = {**panel.config, **config_updates}
+        payload["config"] = config_updates
+    return payload
 
 
 def _get_panel_type_for_panel(panel: object) -> type | None:

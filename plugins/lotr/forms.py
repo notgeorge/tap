@@ -54,7 +54,10 @@ class CharacterEditorDescriptor(EditorDescriptor):
 
     def handle_save(self, form: forms.Form, obj: Any, request: HttpRequest) -> Any:
         """Persist validated form data to the Character and its Entity."""
-        from tap_flip.batch.service import batch_context
+        import uuid
+
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import User
 
         cleaned = form.cleaned_data
 
@@ -62,9 +65,13 @@ class CharacterEditorDescriptor(EditorDescriptor):
         entity.name = cleaned["name"]
         entity.save(update_fields=["name", "updated_at"])
 
-        with batch_context(source="web:character-editor"):
+        user = request.user if isinstance(request.user, User) else None
+        set_caller_context(CallerContext(user=user, batch_id=str(uuid.uuid7())))
+        try:
             obj.title = cleaned.get("title", "")
             obj.bio = cleaned.get("bio", "")
             obj.save(skip_validation=True)
+        finally:
+            set_caller_context(None)
 
         return obj

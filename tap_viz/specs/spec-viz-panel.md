@@ -20,22 +20,22 @@ The viz panel owns runtime concerns such as loading a layout, receiving resolved
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-viz-panel-hosting | [Panel Hosting](#panel-hosting) | Proposed | Viz panels are hosted by the existing TAP panel framework |
+| req-viz-panel-hosting | [Panel Hosting](#panel-hosting) | Implemented | Viz panels are hosted by the existing TAP panel framework |
 | req-viz-panel-config | [Panel Configuration](#panel-configuration) | Proposed | Panel config covers layout reference and runtime host behavior |
 | req-viz-panel-inputs | [Panel Inputs](#panel-inputs) | Proposed | Viz panels consume resolved page inputs and pass them into layout execution |
 | req-viz-panel-layout-reference | [Layout Reference](#layout-reference) | Proposed | Viz panels reference reusable layout entities |
-| req-viz-panel-runtime-nav | [Runtime Navigation](#runtime-navigation) | Proposed | Pan, zoom, and fit are required runtime behaviors |
-| req-viz-panel-runtime-selection | [Runtime Selection](#runtime-selection) | Proposed | Selection is part of the core runtime contract |
+| req-viz-panel-runtime-nav | [Runtime Navigation](#runtime-navigation) | Implemented | Pan, zoom, and fit are required runtime behaviors |
+| req-viz-panel-runtime-selection | [Runtime Selection](#runtime-selection) | Implemented | Selection is part of the core runtime contract |
 | req-viz-panel-node-nav | [Node Navigation](#node-navigation) | Implemented | Clicking a graph node navigates to the TAP object viewer for that entity |
 | req-viz-panel-runtime-popover | [Runtime Popovers](#runtime-popovers) | Proposed | Popovers are an optional but standardized runtime behavior |
-| req-viz-panel-landing-default | [Landing Page Default](#landing-page-default) | Proposed | Default landing page should host a viz panel showing the graph in grid layout |
-| req-viz-panel-readonly | [Read-Only Runtime](#read-only-runtime) | Proposed | Viz panel runtime is read-only in v1 |
-| req-viz-panel-failure-handling | [Failure Handling](#failure-handling) | Proposed | Viz panels fail safely within the panel shell |
+| req-viz-panel-landing-default | [Landing Page Default](#landing-page-default) | Implemented | Default landing page should host a viz panel showing the graph in grid layout |
+| req-viz-panel-readonly | [Read-Only Runtime](#read-only-runtime) | Implemented | Viz panel runtime is read-only in v1 |
+| req-viz-panel-failure-handling | [Failure Handling](#failure-handling) | Implemented | Viz panels fail safely within the panel shell |
 
 ### Panel Hosting
 ----
 RID: `req-viz-panel-hosting`
-Status: `Proposed`
+Status: `Implemented`
 
 The viz panel is hosted through the normal TAP panel framework and participates in the same page composition rules as other panel types.
 
@@ -58,9 +58,9 @@ The panel shell is the right place to standardize composition, while viz-specifi
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-panel-hosting-1 | Existing Host Framework Used | Proposed | Viz panels render through the existing TAP panel framework rather than a separate host model. | |
-| req-viz-panel-hosting-2 | Page Slot Compatible | Proposed | Viz panels are placeable in normal TAP page slots. | |
-| req-viz-panel-hosting-3 | Generic Panel Error Path Preserved | Proposed | Viz panel failures still resolve through the standard panel error behavior. | |
+| req-viz-panel-hosting-1 | Existing Host Framework Used | Implemented | Viz panels render through the existing TAP panel framework rather than a separate host model. | `GraphPanel` registered via `panel_type_registry` in `tap_viz/apps.py` |
+| req-viz-panel-hosting-2 | Page Slot Compatible | Implemented | Viz panels are placeable in normal TAP page slots. | Grid overview panel on landing page |
+| req-viz-panel-hosting-3 | Generic Panel Error Path Preserved | Implemented | Viz panel failures still resolve through the standard panel error behavior. | Panel error fragment via `tap_web` panel view handler |
 
 #### Future
 If full-screen dedicated viz routes are needed later, define them as alternate hosts for the same panel/runtime contract.
@@ -176,7 +176,7 @@ Later work may define layout switching or adjacent layouts, but that is not part
 ### Runtime Navigation
 ----
 RID: `req-viz-panel-runtime-nav`
-Status: `Proposed`
+Status: `Implemented`
 
 The viz panel supports core graph navigation behavior: pan, zoom, and fit.
 
@@ -196,9 +196,9 @@ This requirement intentionally stops short of drilldown or pivots. Those are lat
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-panel-runtime-nav-1 | Pan Supported | Proposed | The viz panel supports panning the current graph scene. | |
-| req-viz-panel-runtime-nav-2 | Zoom Supported | Proposed | The viz panel supports zooming the current graph scene with panel-level zoom constraints. | |
-| req-viz-panel-runtime-nav-3 | Fit Supported | Proposed | The viz panel provides a fit-to-view behavior for the current graph scene. | |
+| req-viz-panel-runtime-nav-1 | Pan Supported | Implemented | The viz panel supports panning the current graph scene. | `userPanningEnabled: true` in `panel-graph.js` |
+| req-viz-panel-runtime-nav-2 | Zoom Supported | Implemented | The viz panel supports zooming the current graph scene with panel-level zoom constraints. | `userZoomingEnabled: true`; `minZoom` set post-layout via `layoutstop` |
+| req-viz-panel-runtime-nav-3 | Fit Supported | Implemented | The viz panel provides a fit-to-view behavior for the current graph scene. | Fit button in `_attachToolbar`; `cy.fit()` |
 
 #### Future
 If overview maps or saved viewport states become important, specify them separately rather than overloading the base navigation contract.
@@ -207,7 +207,7 @@ If overview maps or saved viewport states become important, specify them separat
 ### Runtime Selection
 ----
 RID: `req-viz-panel-runtime-selection`
-Status: `Proposed`
+Status: `Implemented`
 
 Selection is part of the core runtime contract for nodes and edges shown in a viz panel.
 
@@ -229,9 +229,9 @@ Selection is the minimal stateful interaction that makes inspection possible wit
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-panel-runtime-selection-1 | Node Selection Supported | Proposed | The panel supports selecting visible nodes. | |
-| req-viz-panel-runtime-selection-2 | Edge Selection Supported | Proposed | The panel supports selecting visible edges. | |
-| req-viz-panel-runtime-selection-3 | Selection Affects Presentation | Proposed | Selection changes visible runtime state such as highlighting or inspection context. | |
+| req-viz-panel-runtime-selection-1 | Node Selection Supported | Implemented | The panel supports selecting visible nodes. | Cytoscape `boxSelectionEnabled: true`; `userZoomingEnabled: true` |
+| req-viz-panel-runtime-selection-2 | Edge Selection Supported | Implemented | The panel supports selecting visible edges. | Cytoscape default selection behavior |
+| req-viz-panel-runtime-selection-3 | Selection Affects Presentation | Implemented | Selection changes visible runtime state such as highlighting or inspection context. | `:selected` style rule changes `background-color` and `line-color` |
 
 #### Future
 If multi-select becomes important, define it as a deliberate extension rather than assuming it implicitly.
@@ -298,7 +298,7 @@ Define structured inspection cards, related actions, and deep-linked details in 
 ### Landing Page Default
 ----
 RID: `req-viz-panel-landing-default`
-Status: `Proposed`
+Status: `Implemented`
 
 The default landing page should host a viz panel that shows all visible graph nodes and edges using a grid-style layout.
 
@@ -317,9 +317,9 @@ This requirement is primarily a product target, but it also serves as the refere
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-panel-landing-default-1 | Landing Page Uses Viz Panel | Proposed | The default landing page hosts a viz panel under the normal page/panel system. | |
-| req-viz-panel-landing-default-2 | Full Graph View Used | Proposed | The panel’s referenced default layout renders all visible nodes and edges. | |
-| req-viz-panel-landing-default-3 | Grid Placement Used Initially | Proposed | The default layout uses grid-style placement in the initial implementation target. | |
+| req-viz-panel-landing-default-1 | Landing Page Uses Viz Panel | Implemented | The default landing page hosts a viz panel under the normal page/panel system. | Grid Overview panel on the seeded landing page |
+| req-viz-panel-landing-default-2 | Full Graph View Used | Implemented | The panel’s referenced default layout renders all visible nodes and edges. | `list-concepts` search runner via graph panel |
+| req-viz-panel-landing-default-3 | Grid Placement Used Initially | Implemented | The default layout uses grid-style placement in the initial implementation target. | `cytoscape:cose` layout (default in `_buildLayout`) |
 
 #### Future
 The landing-page layout may later become more curated or contextual, but the panel-native architecture should remain.
@@ -328,7 +328,7 @@ The landing-page layout may later become more curated or contextual, but the pan
 ### Read-Only Runtime
 ----
 RID: `req-viz-panel-readonly`
-Status: `Proposed`
+Status: `Implemented`
 
 The viz panel runtime is read-only in v1.
 
@@ -357,8 +357,8 @@ Any future editing surface should be specified separately and should not implici
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-panel-readonly-1 | Runtime Navigation Allowed | Proposed | The panel permits non-mutating runtime navigation and inspection actions. | |
-| req-viz-panel-readonly-2 | Runtime Mutation Excluded | Proposed | The panel excludes graph and layout mutation from the v1 runtime contract. | |
+| req-viz-panel-readonly-1 | Runtime Navigation Allowed | Implemented | The panel permits non-mutating runtime navigation and inspection actions. | Pan, zoom, fit, select, node tap navigate |
+| req-viz-panel-readonly-2 | Runtime Mutation Excluded | Implemented | The panel excludes graph and layout mutation from the v1 runtime contract. | No write paths in `panel-graph.js` |
 
 #### Future
 If inline editing is later desired, it should be gated behind a separate spec and permission model.
@@ -367,7 +367,7 @@ If inline editing is later desired, it should be gated behind a separate spec an
 ### Failure Handling
 ----
 RID: `req-viz-panel-failure-handling`
-Status: `Proposed`
+Status: `Implemented`
 
 Viz panel failures must fail safely inside the panel shell and surface useful runtime warnings without breaking the hosting page.
 
@@ -386,9 +386,9 @@ Prefer explicit failure or warning surfaces over silent partial behavior that le
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-panel-failure-handling-1 | Host Page Remains Intact | Proposed | Viz panel failure does not break page rendering outside the affected panel. | |
-| req-viz-panel-failure-handling-2 | Warning State Allowed | Proposed | Recoverable layout/runtime warnings may be surfaced without treating the entire render as fatal. | |
-| req-viz-panel-failure-handling-3 | Unsupported Behavior Fails Explicitly | Proposed | Unsupported layout behavior fails explicitly rather than degrading silently. | |
+| req-viz-panel-failure-handling-1 | Host Page Remains Intact | Implemented | Viz panel failure does not break page rendering outside the affected panel. | Panel error fragment from `tap_web` panel view handler; HTMX swap isolates failures |
+| req-viz-panel-failure-handling-2 | Warning State Allowed | Implemented | Recoverable layout/runtime warnings may be surfaced without treating the entire render as fatal. | Empty-nodes early return renders inline message in the panel container |
+| req-viz-panel-failure-handling-3 | Unsupported Behavior Fails Explicitly | Implemented | Unsupported layout behavior fails explicitly rather than degrading silently. | Guard clause in `initGraph` returns without rendering if required elements are missing |
 
 #### Future
 Define richer diagnostics, telemetry, and operator-facing debugging tools once the runtime matures.

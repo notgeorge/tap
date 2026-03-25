@@ -3,7 +3,6 @@
 import pytest
 
 from tap_flip.batch import (
-    batch_context,
     close_batch,
     create_batch,
     fail_batch,
@@ -154,61 +153,6 @@ class TestFailBatch:
 
         with pytest.raises(ValueError, match="Cannot fail batch"):
             fail_batch(batch)
-
-
-@pytest.mark.django_db
-class TestBatchContext:
-    """Tests for batch_context context manager."""
-
-    def test_context_manager_sets_batch_id(self):
-        """batch_context sets batch_id in context."""
-        with batch_context() as batch_id:
-            assert get_batch_id() == batch_id
-            assert len(batch_id) == 36  # UUID format
-
-    def test_context_closes_on_success(self):
-        """Batch is closed when context exits normally."""
-        with batch_context() as batch_id:
-            pass
-
-        batch = get_batch(batch_id)
-        assert batch is not None
-        assert batch.status == BatchStatus.CLOSED
-
-    def test_context_fails_on_exception(self):
-        """Batch is marked failed when exception raised."""
-        batch_id: str = ""
-        try:
-            with batch_context() as batch_id:
-                raise ValueError("Test exception")
-        except ValueError:
-            pass
-
-        assert batch_id != ""
-        batch = get_batch(batch_id)
-        assert batch is not None
-        assert batch.status == BatchStatus.FAILED
-        assert "Exception during batch execution" in batch.error_message
-
-    def test_context_restores_previous_batch_id(self):
-        """Nested contexts restore previous batch_id."""
-        set_batch_id("outer-batch-id")
-
-        try:
-            with batch_context() as inner_id:
-                assert get_batch_id() == inner_id
-
-            # After context, outer should be restored
-            assert get_batch_id() == "outer-batch-id"
-        finally:
-            set_batch_id(None)
-
-    def test_context_with_source(self):
-        """batch_context passes source to batch."""
-        with batch_context(source="test:context") as batch_id:
-            batch = get_batch(batch_id)
-            assert batch is not None
-            assert batch.source == "test:context"
 
 
 @pytest.mark.django_db

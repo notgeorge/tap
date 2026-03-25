@@ -46,7 +46,8 @@ def update_flip_map(instance: "BaseModel", changed_fields: list[str] | None, bat
 
         raise NoBatchContextError(
             f"{instance.__class__.__name__} has FLIP enabled but was saved without an "
-            "active batch context. All FLIP-enabled writes must occur inside a batch_context()."
+            "active CallerContext. All FLIP-enabled writes must flow through the service layer "
+            "with a CallerContext carrying a batch_id."
         )
 
     tracked: set[str] = set(flip_cfg.get("fields", []))

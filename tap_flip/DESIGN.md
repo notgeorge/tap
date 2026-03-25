@@ -175,6 +175,47 @@ Expected direction:
 3. Initial policy likely weighted-source precedence.
 4. Produced output should support "emerged view" per object.
 
+## Revised Architecture: FLIP As BaseModel Helper (Service Layer Integration)
+
+The original FLIP design was written before the TAP service layer contract was fully defined. The batch tracking system in `tap_flip.batch` grew into a standalone orchestration layer — with its own context manager, thread-local batch_id, signals, and Batch entity lifecycle — that predated and partially duplicated what the service layer now owns.
+
+This section supersedes the batch/update layer description above and defines the intended steady-state architecture.
+
+### What FLIP Becomes
+
+FLIP is a BaseModel helper, not a first-order orchestration system. Its responsibilities are:
+
+1. Maintaining `flip_map` on every BaseModel subclass — the per-field batch-id map that records which batch last set each provenance-tracked field.
+2. Consuming a batch_id provided by the service layer and recording it in `flip_map` during `save()`.
+3. Optionally appending a `BatchEvent` audit record after a successful write (called explicitly, not via signal).
+
+FLIP does not:
+- Create batch_id values. The service layer generates these (see `req-grid-service-batch-infra`).
+- Manage batch lifecycle (open, close, fail). That is a service layer concern.
+- Fire or respond to Django signals for provenance recording.
+
+### What Changes
+
+| Before | After |
+| --- | --- |
+| `batch_context()` context manager in `tap_flip.batch.service` owns batch_id lifecycle | Service layer generates batch_id; it flows through CallerContext |
+| `tap_flip.batch.signals` post-save signals record `BatchEvent` rows | `BaseModel.save()` calls provenance helpers directly using batch_id from context |
+| Callers wrap mutations in `with batch_context(...):` to activate provenance | CallerContext is passed explicitly to every service function |
+| `create_batch()` in `tap_flip.batch.service` creates a Batch entity before writes | Batch audit entities are optional post-write artifacts, not prerequisites |
+
+### Legacy Code
+
+The following is considered legacy and should be removed or replaced during the FLIP simplification pass:
+
+- `tap_flip/batch/service.py` — `batch_context()`, `create_batch()`, `close_batch()`, `fail_batch()`, `record_batch_event()` as the primary write-path mechanism. These should be replaced by the service layer's CallerContext + pipeline step 10 (provenance recording).
+- `tap_flip/batch/signals.py` — signal-based `BatchEvent` recording is eliminated per `req-grid-service-batch-signals`.
+
+The `Batch` and `BatchEvent` models themselves may be retained as append-only audit artifacts if batch-level history is still desired. Their creation path changes: they are written by the service layer pipeline as a post-write side effect, not as a prerequisite to writing.
+
+### flip_map Stays In BaseModel.save()
+
+The `update_flip_map()` call inside `BaseModel.save()` is the right location for this logic and does not change. The only difference is the source of `batch_id`: instead of `get_batch_id()` reading from a thread-local set by `batch_context()`, it reads from the CallerContext flowing through the pipeline.
+
 ## App Boundaries
 
 1. `tap_grid`: Entity, Edge, BaseModel, core graph structure.

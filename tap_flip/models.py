@@ -35,6 +35,37 @@ class Batch(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "batch"
 
+    # actor and closed_at are managed by service methods, not user payload.
+    # started_at is auto_now_add; status/error_message managed via close_batch/fail_batch.
+    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "source": {"type": "string"},
+                "metadata": {"type": "object"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "source": {"type": "string"},
+                "metadata": {"type": "object"},
+                "status": {"type": "string", "enum": ["open", "closed", "failed"]},
+                "error_message": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "source": {"type": "string"},
+                "metadata": {"type": "object"},
+            },
+        },
+    }
+
     # Batch disables batch tracking to prevent self-reference.
     # History is enabled directly via the HistoricalRecords manager below.
     FLIP_CONFIG: ClassVar[dict[str, Any]] = {

@@ -7,11 +7,18 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 
 from tap_api.schemas import EdgeIn, EdgeOut, ErrorOut
+from tap_grid.caller_context import CallerContext
 from tap_grid.exceptions import InvalidEdgeError
 from tap_grid.models import Edge, Entity
 from tap_grid.services import create_edge, delete_edge
 
 router = Router()
+
+
+def _caller_ctx(request: HttpRequest) -> CallerContext:
+    """Build a CallerContext from the current HTTP request."""
+    user = request.user if hasattr(request.user, "pk") and request.user.pk else None
+    return CallerContext(user=user, batch_id=None)
 
 
 @router.get("/", response=list[EdgeOut])
@@ -33,9 +40,9 @@ def list_edges(
     return list(qs[offset : offset + limit])
 
 
-@router.get("/{edge_id}/", response=EdgeOut)
-def get_edge(request: HttpRequest, edge_id: int) -> Edge:
-    return get_object_or_404(Edge.objects.select_related("entity"), pk=edge_id)
+@router.get("/{entity_id}/", response=EdgeOut)
+def get_edge(request: HttpRequest, entity_id: uuid.UUID) -> Edge:
+    return get_object_or_404(Edge.objects.select_related("entity"), entity__pk=entity_id)
 
 
 @router.post("/", response={201: EdgeOut, 400: ErrorOut})
@@ -49,14 +56,15 @@ def create_edge_endpoint(request: HttpRequest, payload: EdgeIn) -> tuple[int, Ed
             edge_type=payload.edge_type,
             properties=payload.properties,
             name=payload.name,
+            caller_context=_caller_ctx(request),
         )
     except InvalidEdgeError as e:
         return 400, {"detail": str(e)}
     return 201, edge
 
 
-@router.delete("/{edge_id}/", response={204: None})
-def delete_edge_endpoint(request: HttpRequest, edge_id: int) -> tuple[int, None]:
-    edge = get_object_or_404(Edge, pk=edge_id)
-    delete_edge(edge)
+@router.delete("/{entity_id}/", response={204: None})
+def delete_edge_endpoint(request: HttpRequest, entity_id: uuid.UUID) -> tuple[int, None]:
+    edge = get_object_or_404(Edge.objects.select_related("entity"), entity__pk=entity_id)
+    delete_edge(edge, caller_context=_caller_ctx(request))
     return 204, None

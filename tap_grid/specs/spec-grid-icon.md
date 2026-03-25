@@ -52,9 +52,9 @@ Keep canonical ownership at the type level first. This avoids making every concr
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-icon-type-1 | Type-Level Ownership | Proposed | Canonical icons belong to entity types in v1. | |
-| req-grid-icon-type-2 | Applies Across All Entity Types | Proposed | The icon contract applies to entity types defined by TAP core apps and plugins. | |
-| req-grid-icon-type-3 | Instance Overrides Deferred | Proposed | Per-instance icon override behavior is not part of v1. | Tracked by `req-grid-icon-instance`. |
+| req-grid-icon-type-1 | Type-Level Ownership | Implemented | Canonical icons belong to entity types in v1. | `icon` metadata on entity type registration |
+| req-grid-icon-type-2 | Applies Across All Entity Types | Implemented | The icon contract applies to entity types defined by TAP core apps and plugins. | Used by `tap_grid`, `tap_web`, `tap_viz`, and LOTR plugin |
+| req-grid-icon-type-3 | Instance Overrides Deferred | Implemented | Per-instance icon override behavior is not part of v1. | Tracked by `req-grid-icon-instance`. |
 
 #### Future
 Allow entity instances to override their type icon without changing the type's canonical icon.
@@ -95,10 +95,10 @@ Store only the icon key and derive the path by convention. This keeps metadata s
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-icon-key-1 | Key By Convention | Proposed | Icon metadata uses an icon key rather than an arbitrary path string. | |
-| req-grid-icon-key-2 | App Scoped Resolution | Proposed | Icon resolution is scoped to the app or plugin that owns the entity type. | |
-| req-grid-icon-key-3 | Canonical Static Icons Directory | Proposed | Icons resolve from each app/plugin's `static/.../icons/` directory by convention. | |
-| req-grid-icon-key-4 | Path Validation Required | Proposed | Icon validation rejects invalid keys, invalid resolved paths, missing files, disallowed extensions, and remote paths. | |
+| req-grid-icon-key-1 | Key By Convention | Implemented | Icon metadata uses an icon key rather than an arbitrary path string. | `icon_key` on entity type config |
+| req-grid-icon-key-2 | App Scoped Resolution | Implemented | Icon resolution is scoped to the app or plugin that owns the entity type. | `resolve_icon_url(entity_type)` in `tap_grid/icon_service.py` |
+| req-grid-icon-key-3 | Canonical Static Icons Directory | Implemented | Icons resolve from each app/plugin's `static/.../icons/` directory by convention. | e.g. `tap_web/static/tap_web/icons/page.svg` |
+| req-grid-icon-key-4 | Path Validation Required | Implemented | Icon validation rejects invalid keys, invalid resolved paths, missing files, disallowed extensions, and remote paths. | `icon_service.py` validation logic |
 
 #### Future
 If TAP later supports richer icon metadata, keep convention-based resolution as the default and add explicit path metadata only with strong justification.
@@ -127,9 +127,9 @@ SVG scales cleanly and keeps the first specification small. Do not introduce a l
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-icon-format-1 | Svg Only | Proposed | SVG is the only allowed icon file format in v1. | |
-| req-grid-icon-format-2 | Single Canonical Asset Sufficient | Proposed | A single canonical SVG per icon key is sufficient; multiple size variants are not required. | |
-| req-grid-icon-format-3 | Size Variants Deferred | Proposed | Size-specific icon variants are not part of the initial icon standard. | |
+| req-grid-icon-format-1 | Svg Only | Implemented | SVG is the only allowed icon file format in v1. | `.svg` extension enforced in `icon_service.py` |
+| req-grid-icon-format-2 | Single Canonical Asset Sufficient | Implemented | A single canonical SVG per icon key is sufficient; multiple size variants are not required. | |
+| req-grid-icon-format-3 | Size Variants Deferred | Implemented | Size-specific icon variants are not part of the initial icon standard. | |
 
 #### Future
 Add optional size-specific variants only if there is a demonstrated need for optimized hand-tuned icon assets.
@@ -158,10 +158,10 @@ Keep icon semantics conservative. They are visual affordances, not the canonical
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-icon-render-1 | Decorative By Default | Proposed | Icons are decorative visual cues rather than the sole carrier of meaning. | |
-| req-grid-icon-render-2 | Text Identity Still Required | Proposed | Consumers that need object identity also render associated textual identity elsewhere. | |
-| req-grid-icon-render-3 | Missing Icon Safe Fallback | Proposed | Missing icons do not make the object unusable or uninterpretable. | |
-| req-grid-icon-render-4 | Theming Through Color Inheritance | Proposed | The icon standard supports CSS color inheritance for theming. | |
+| req-grid-icon-render-1 | Decorative By Default | Implemented | Icons are decorative visual cues rather than the sole carrier of meaning. | Graph nodes always render label text alongside icon |
+| req-grid-icon-render-2 | Text Identity Still Required | Implemented | Consumers that need object identity also render associated textual identity elsewhere. | `label: data(label)` always shown beneath node |
+| req-grid-icon-render-3 | Missing Icon Safe Fallback | Implemented | Missing icons do not make the object unusable or uninterpretable. | Nodes without `icon_url` fall back to solid-color ellipse |
+| req-grid-icon-render-4 | Theming Through Color Inheritance | Implemented | The icon standard supports CSS color inheritance for theming. | SVG icons use `currentColor` in shipped assets |
 
 #### Future
 Define more specific accessibility guidance if TAP later introduces UIs where an icon may appear without adjacent text.

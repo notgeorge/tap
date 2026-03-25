@@ -1,7 +1,6 @@
 """FLIP batch subsystem — batch lifecycle and event recording."""
 
 from tap_flip.batch.service import (
-    batch_context,
     close_batch,
     create_batch,
     fail_batch,
@@ -12,7 +11,6 @@ from tap_flip.batch.service import (
 )
 
 __all__ = [
-    "batch_context",
     "close_batch",
     "create_batch",
     "fail_batch",

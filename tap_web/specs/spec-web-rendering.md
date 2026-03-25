@@ -25,7 +25,7 @@ We haven't fully defined the panel structure yet, likely going to do that next.
 | req-web-render-panel | [Panel Rendering Process](#panel-rendering-process) | Implemented | Panels rendered via HTMX; generic view renders panel's declared template |
 | req-web-render-panel-edit | [Panel Edit Rendering](#panel-edit-rendering) | Implemented | Panel edit pages integrate the panel route with the generic web editor shell |
 | req-web-render-missingpan | [Missing / Broken Panels](#missing--broken-panels) | Implemented | Missing panels show "Panel Error" in their layout slot |
-| req-web-render-landing | [Landing Page Owns /](#landing-page-owns-) | Proposed | Root `/` delegates to LandingPage-linked Page without client-side redirect |
+| req-web-render-landing | [Landing Page Owns /](#landing-page-owns-) | Implemented | Root `/` delegates to LandingPage-linked Page without client-side redirect |
 | req-web-rendering-pagesan.sec | [Page Rendering Sanitization](#page-rendering-sanitization-security) | Implemented | Base template + HTMX + static asset manifest ensure safe page output |
 | req-web-rendering-panelsan.sec | [Panel Rendering Sanitization](#panel-rendering-sanitization-security) | Implemented | Standard Django templates; `\|safe` risk documented |
 | req-web-rendering-path.sec | [Path Access Security](#path-access-security) | Backlog | User permission checks (deferred to user security model) |

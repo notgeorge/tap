@@ -35,3 +35,21 @@ class NoBatchContextError(Exception):
     """Raised when a FLIP-enabled model is saved without an active batch context."""
 
     pass
+
+
+class ServiceValidationError(Exception):
+    """Raised internally by the write pipeline when schema or model validation fails."""
+
+    pass
+
+
+class ServiceConstraintError(Exception):
+    """Raised internally by the write pipeline when a graph constraint is violated."""
+
+    pass
+
+
+class ServiceNotFoundError(Exception):
+    """Raised internally by the write pipeline when a target entity cannot be found."""
+
+    pass

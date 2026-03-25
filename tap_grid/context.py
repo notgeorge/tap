@@ -1,23 +1,27 @@
-"""Grid-level context variables for request/operation scoping.
+"""Grid-level context helpers — batch_id access through CallerContext.
 
-These contextvars are owned by tap_grid because they represent core operational
-context (which batch is active) that the grid layer needs to read during writes.
-tap_flip sets the batch_id when opening a batch; tap_grid reads it in BaseModel.save().
+These helpers are kept for backward compatibility. Both delegate to
+tap_grid.caller_context, which is the canonical location for execution context.
+
+New code should use get_caller_context() / set_caller_context() directly.
+Existing code that calls get_batch_id() / set_batch_id() continues to work.
 """
 
-import contextvars
-
-_batch_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "batch_id",
-    default=None,
-)
+from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 
 
 def set_batch_id(batch_id: str | None) -> None:
-    """Set the active batch ID for the current context."""
-    _batch_id.set(batch_id)
+    """Set the batch_id in the active CallerContext.
+
+    If a CallerContext is already active, its user is preserved. If none
+    exists, a system CallerContext (user=None) is created.
+    """
+    current = get_caller_context()
+    user = current.user if current else None
+    set_caller_context(CallerContext(user=user, batch_id=batch_id))
 
 
 def get_batch_id() -> str | None:
-    """Return the active batch ID, or None if no batch context is set."""
-    return _batch_id.get()
+    """Return the batch_id from the active CallerContext, or None."""
+    ctx = get_caller_context()
+    return ctx.batch_id if ctx else None

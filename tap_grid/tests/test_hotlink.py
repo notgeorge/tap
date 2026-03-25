@@ -197,6 +197,11 @@ class TestCheckHotlinks:
                     related_name="+",
                 )
                 ENTITY_TYPE: ClassVar[str] = "bad_page_type_x"
+                SERVICE_SCHEMAS: ClassVar[dict] = {
+                    "create": {"type": "object", "additionalProperties": False, "properties": {}},
+                    "patch": {"type": "object", "additionalProperties": False, "properties": {}},
+                    "replace": {"type": "object", "additionalProperties": False, "properties": {}},
+                }
                 HOTLINKS: ClassVar[list[dict]] = [
                     {
                         "name": "x",

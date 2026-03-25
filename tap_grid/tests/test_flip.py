@@ -1,13 +1,31 @@
 """Tests for FLIP field-path map logic (tap_grid.flip)."""
 
 import itertools
+import uuid
+from collections.abc import Generator
+from contextlib import contextmanager
 
 import pytest
 
+from tap_flip.batch.service import create_batch
 from tap_flip.config import clear_registry
+from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 from tap_grid.context import set_batch_id
 from tap_grid.exceptions import NoBatchContextError
 from tap_grid.flip import update_flip_map
+
+
+@contextmanager
+def _batch_ctx(source: str = "test") -> Generator[str, None, None]:
+    """Create a Batch entity and set CallerContext for the duration (test helper)."""
+    batch = create_batch(source=source)
+    batch_id = str(batch.entity.id)
+    prev = get_caller_context()
+    set_caller_context(CallerContext(user=None, batch_id=batch_id))
+    try:
+        yield batch_id
+    finally:
+        set_caller_context(prev)
 
 _counter = itertools.count()
 
@@ -130,7 +148,6 @@ class TestUpdateFlipMapIntegration:
     def test_flip_map_written_on_create(self, monkeypatch):
         """A FLIP-enabled model save writes flip_map to the database."""
         from plugins.lotr.models import Character
-        from tap_flip.batch.service import batch_context
         from tap_grid.services import create_entity
 
         monkeypatch.setattr(
@@ -140,7 +157,7 @@ class TestUpdateFlipMapIntegration:
         )
         clear_registry()
 
-        with batch_context(source="test:flip") as batch_id:
+        with _batch_ctx(source="test:flip") as batch_id:
             entity = create_entity("character", name="Frodo")
             char = Character.objects.create(entity=entity, bio="A hobbit")
 
@@ -150,7 +167,6 @@ class TestUpdateFlipMapIntegration:
     def test_flip_map_updated_on_partial_save(self, monkeypatch):
         """Partial save (update_fields) stamps only the changed tracked field."""
         from plugins.lotr.models import Character
-        from tap_flip.batch.service import batch_context
         from tap_grid.services import create_entity
 
         monkeypatch.setattr(
@@ -160,11 +176,11 @@ class TestUpdateFlipMapIntegration:
         )
         clear_registry()
 
-        with batch_context(source="test:flip-create") as _:
+        with _batch_ctx(source="test:flip-create"):
             entity = create_entity("character", name="Sam")
             char = Character.objects.create(entity=entity, bio="A gardener")
 
-        with batch_context(source="test:flip-update") as batch_id2:
+        with _batch_ctx(source="test:flip-update") as batch_id2:
             char.bio = "Gardener of the Shire"
             char.save(update_fields=["bio"])
 
@@ -174,7 +190,6 @@ class TestUpdateFlipMapIntegration:
     def test_untracked_field_not_in_flip_map(self, monkeypatch):
         """Fields not in the tracked list are absent from flip_map after save."""
         from plugins.lotr.models import Character
-        from tap_flip.batch.service import batch_context
         from tap_grid.services import create_entity
 
         monkeypatch.setattr(
@@ -184,7 +199,7 @@ class TestUpdateFlipMapIntegration:
         )
         clear_registry()
 
-        with batch_context(source="test:flip-untracked"):
+        with _batch_ctx(source="test:flip-untracked"):
             entity = create_entity("character", name="Gandalf")
             char = Character.objects.create(entity=entity, bio="A wizard", title="Grey")
 

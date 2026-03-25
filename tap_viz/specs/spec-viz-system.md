@@ -28,6 +28,7 @@ The first version of this specification intentionally focuses on runtime behavio
 | req-viz-system-renderer-adapter | [Renderer Adapter Model](#renderer-adapter-model) | Proposed | Cytoscape is the initial renderer adapter, not the canonical storage format |
 | req-viz-system-readonly-runtime | [Read-Only Runtime](#read-only-runtime) | Proposed | The viz runtime is view-oriented and non-mutating in v1 |
 | req-viz-system-legacy-layout-deprecation | [Legacy Layout Deprecation](#legacy-layout-deprecation) | Proposed | Existing raw Cytoscape layout storage is transitional |
+| req-viz-system-neighborhood | [Entity Neighborhood Query](#entity-neighborhood-query) | Backlog | Neighborhood retrieval should use search DSL; current helper is a pre-search holdover |
 
 ### System Boundaries
 ----
@@ -314,6 +315,38 @@ This requirement provides a clear path away from “layout equals raw Cytoscape 
 
 #### Future
 Define an explicit migration strategy once the new layout model and editor are implemented.
+
+### Entity Neighborhood Query
+----
+RID: `req-viz-system-neighborhood`
+Status: `Backlog`
+
+A common viz need is retrieving all nodes directly connected to a given entity — its one-hop neighborhood — for rendering in object viewers and context panels.
+
+#### Status Details
+Currently implemented as `tap_web/neighborhood.py` (`get_entity_neighborhood()`), which queries edges directly via the ORM rather than going through the TAP search system. This is a web-layer convenience helper that predates the search system and is not a service-layer contract.
+
+The correct long-term home for this is the search system. However, the TAP search system does not yet have a clean mechanism for expressing "get all nodes and edges one hop from this node" without writing a full module runner implementation. Until the ORM search DSL supports that query shape natively, the neighborhood helper is retained as a web-layer implementation detail.
+
+#### Implementation
+When the search DSL supports single-hop neighborhood traversal without a custom module runner:
+
+- `tap_web/neighborhood.py` should be refactored to execute a Search rather than a raw ORM query.
+- The neighborhood search definition should be expressible via the `orm` search type, not a dedicated runner.
+- `get_entity_neighborhood()` becomes a thin wrapper that constructs the Search and calls `execute_search()`.
+
+Until then, `tap_web/neighborhood.py` is explicitly flagged as a pre-search-system holdover. It should not be extended or copied as a pattern.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-system-neighborhood-1 | Neighborhood Query Uses Search | Backlog | Entity neighborhood retrieval is expressed as a TAP Search, not a raw ORM query. | Blocked on ORM DSL single-hop support |
+| req-viz-system-neighborhood-2 | Legacy Neighborhood Helper Replaced | Backlog | `tap_web/neighborhood.py` is refactored to use search execution after the DSL supports it. | |
+
+#### Future
+Add single-hop and multi-hop neighborhood query support to the ORM search DSL (`spec-grid-search.md`) so this can be unblocked.
+
 
 ## Deferred Areas
 

@@ -5,33 +5,20 @@ This module provides the API for:
 2. Recording batch events
 3. Querying batch history
 
-Usage:
-    # Context manager for automatic batch lifecycle
-    with batch_context(source="scanner:aws", actor=user) as batch_id:
-        create_entity("server", name="prod-web-01")
-        # batch_id automatically populated on models via signals
-
-    # Or explicit API for more control
-    batch = create_batch(source="import:csv", actor=user)
-    set_batch_id(str(batch.entity.id))
-    try:
-        # ... operations ...
-        close_batch(batch)
-    except Exception as e:
-        fail_batch(batch, str(e))
+Note: batch_context() has been removed. Batch lifecycle is now managed by the
+service layer, which generates a batch_id and threads it via CallerContext.
+See req-grid-service-batch-infra and req-grid-service-batch-signals.
 """
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Generator
-from contextlib import contextmanager
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from django.utils import timezone
 
-from tap_flip.history.context import get_batch_id, get_history_user, set_batch_id
+from tap_flip.history.context import get_batch_id, get_history_user
 from tap_grid.services import create_entity
 
 if TYPE_CHECKING:
@@ -170,48 +157,6 @@ def record_batch_event(
         actor=actor,
         metadata=metadata or {},
     )
-
-
-@contextmanager
-def batch_context(
-    source: str = "",
-    actor: User | None = None,
-    name: str = "",
-    metadata: dict[str, Any] | None = None,
-) -> Generator[str]:
-    """Context manager for batch operations.
-
-    Creates a batch, sets it in context, and handles lifecycle.
-
-    Usage:
-        with batch_context(source="import:csv") as batch_id:
-            create_entity(...)  # automatically tagged with batch_id
-        # batch is automatically closed on success, failed on exception
-
-    Yields:
-        The batch ID (string UUID).
-    """
-    batch = create_batch(
-        source=source,
-        actor=actor,
-        name=name,
-        metadata=metadata,
-    )
-    batch_id_str = str(batch.entity.id)
-
-    # Save previous context and set new
-    previous_batch_id = get_batch_id()
-    set_batch_id(batch_id_str)
-
-    try:
-        yield batch_id_str
-        close_batch(batch)
-    except Exception:
-        fail_batch(batch, error_message="Exception during batch execution")
-        raise
-    finally:
-        # Restore previous context
-        set_batch_id(previous_batch_id)
 
 
 def get_batch(batch_id: str) -> Batch | None:

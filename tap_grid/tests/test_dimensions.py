@@ -6,9 +6,14 @@ Covers:
   req-grid-dimension-dn  — Dimension node model
 """
 
+from collections.abc import Generator
+from contextlib import contextmanager
+
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
+from tap_flip.batch.service import create_batch
+from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 from tap_grid.constraints import (
     _edge_default_dimensions_registry,
     register_edge_default_dimensions,
@@ -16,6 +21,19 @@ from tap_grid.constraints import (
 from tap_grid.models import Dimension, Edge, Entity
 from tap_grid.services import create_entity
 from plugins.lotr.models import Character, Wanderer
+
+
+@contextmanager
+def _batch_ctx(source: str = "test") -> Generator[str, None, None]:
+    """Create a Batch entity and set CallerContext for the duration (test helper)."""
+    batch = create_batch(source=source)
+    batch_id = str(batch.entity.id)
+    prev = get_caller_context()
+    set_caller_context(CallerContext(user=None, batch_id=batch_id))
+    try:
+        yield batch_id
+    finally:
+        set_caller_context(prev)
 
 # ---------------------------------------------------------------------------
 # req-grid-dimension-em: Dimensions on Entity Model
@@ -92,7 +110,8 @@ class TestDefaultDimensions:
 
     def test_model_without_defaults_gets_empty_dims(self):
         """Model without DEFAULT_DIMENSIONS gets dimensions={} on the Entity (dc-1)."""
-        character = Character.objects.create(bio="no defaults")
+        with _batch_ctx(source="test:dims"):
+            character = Character.objects.create(bio="no defaults")
         assert character.entity.dimensions == {}
 
 

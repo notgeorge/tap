@@ -17,10 +17,10 @@ FLIP (Field-Level Information Provenance) explains the auditable sources of the 
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-grid-flip-map | [FLIP Field-Path Map](#flip-field-path-map) | In Development | Canonical objects store a field-path-to-batch mapping for current values |
-| req-grid-flip-batch | [FLIP Batch Anchoring](#flip-batch-anchoring) | In Development | FLIP points to immutable batch ids rather than duplicating source metadata |
-| req-grid-flip-scope | [FLIP Scope and Field Selection](#flip-scope-and-field-selection) | In Development | Models and edge types choose which field paths participate in FLIP |
-| req-grid-flip-separation | [FLIP and History Separation](#flip-and-history-separation) | In Development | FLIP answers present-state provenance only; historical provenance lives in history |
+| req-grid-flip-map | [FLIP Field-Path Map](#flip-field-path-map) | Implemented | Canonical objects store a field-path-to-batch mapping for current values |
+| req-grid-flip-batch | [FLIP Batch Anchoring](#flip-batch-anchoring) | Implemented | FLIP points to immutable batch ids rather than duplicating source metadata |
+| req-grid-flip-scope | [FLIP Scope and Field Selection](#flip-scope-and-field-selection) | Implemented | Models and edge types choose which field paths participate in FLIP |
+| req-grid-flip-separation | [FLIP and History Separation](#flip-and-history-separation) | Implemented | FLIP answers present-state provenance only; historical provenance lives in history |
 
 ## Explanation
 
@@ -31,12 +31,12 @@ This deliberately does not make FLIP a full provenance ledger. The ledger alread
 ### FLIP Field-Path Map
 ----
 RID: `req-grid-flip-map`
-Status: `In Development`
+Status: `Implemented`
 
 Every FLIP-enabled canonical object stores a field-path map describing the batch responsible for each currently tracked field value.
 
 #### Status Details
-Not yet implemented in `tap_grid`. This requirement captures the agreed first-pass data model.
+Implemented. `flip_map` JSONField on `BaseModel`; updated by `batch_context` writes. Viewer surfaces FLIP rows via `object_view` in `tap_web/views.py`.
 
 #### Implementation
 The FLIP payload should be a JSON object or equivalent keyed by field path:
@@ -63,9 +63,9 @@ Using field paths instead of only top-level field names keeps the model viable i
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-flip-map-1 | Field Paths Not Just Field Names | In Development | FLIP keys are stored as field paths so nested tracked values can be represented. | |
-| req-grid-flip-map-2 | Current Value Mapping | In Development | Every FLIP entry points to the batch responsible for the currently stored canonical value at that field path. | |
-| req-grid-flip-map-3 | Canonical Object Locality | In Development | The FLIP map is stored on the canonical object it describes rather than in a detached side table for v1. | |
+| req-grid-flip-map-1 | Field Paths Not Just Field Names | Implemented | FLIP keys are stored as field paths so nested tracked values can be represented. | `flip_map` keys are dot-delimited field paths |
+| req-grid-flip-map-2 | Current Value Mapping | Implemented | Every FLIP entry points to the batch responsible for the currently stored canonical value at that field path. | Values are batch UUIDs from `batch_context` |
+| req-grid-flip-map-3 | Canonical Object Locality | Implemented | The FLIP map is stored on the canonical object it describes rather than in a detached side table for v1. | `flip_map` JSONField on `BaseModel` |
 
 #### Future
 If FLIP maps become large or need independent indexing, TAP may later split them into a dedicated table while preserving the same logical contract.
@@ -73,12 +73,12 @@ If FLIP maps become large or need independent indexing, TAP may later split them
 ### FLIP Batch Anchoring
 ----
 RID: `req-grid-flip-batch`
-Status: `In Development`
+Status: `Implemented`
 
 FLIP should anchor provenance to immutable batch records rather than duplicating actor, source, or timing metadata per field path.
 
 #### Status Details
-This requirement is driven by the current batch design in `tap_flip`, which already provides immutable operational provenance.
+Implemented. `Batch` records in `tap_flip` are immutable once closed. FLIP map values are batch UUIDs; actor/source/timing are read from the batch at display time.
 
 #### Implementation
 The batch id referenced by FLIP is the immutable join point for provenance lookup. Batch records should supply:
@@ -97,9 +97,9 @@ This is a good layering boundary because batch is already designed as sub-grid i
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-flip-batch-1 | Batch Id As Provenance Pointer | In Development | FLIP entries point to batch ids rather than embedding full actor/source metadata inline. | |
-| req-grid-flip-batch-2 | Immutable Join Target | In Development | The batch referenced by FLIP is immutable and suitable for audit joins. | |
-| req-grid-flip-batch-3 | Shared Batch Reuse | In Development | Multiple field paths updated by the same operation may legitimately point to the same batch id. | |
+| req-grid-flip-batch-1 | Batch Id As Provenance Pointer | Implemented | FLIP entries point to batch ids rather than embedding full actor/source metadata inline. | `flip_map` values are batch UUIDs |
+| req-grid-flip-batch-2 | Immutable Join Target | Implemented | The batch referenced by FLIP is immutable and suitable for audit joins. | `Batch` records are closed and not mutated after write |
+| req-grid-flip-batch-3 | Shared Batch Reuse | Implemented | Multiple field paths updated by the same operation may legitimately point to the same batch id. | All fields saved in one `batch_context` share the same batch UUID |
 
 #### Future
 If TAP later needs to attribute current fields to a finer-grained unit than a batch, it may introduce a batch-event pointer while preserving batch as the minimum required join target.
@@ -107,12 +107,12 @@ If TAP later needs to attribute current fields to a finer-grained unit than a ba
 ### FLIP Scope and Field Selection
 ----
 RID: `req-grid-flip-scope`
-Status: `In Development`
+Status: `Implemented`
 
 FLIP must be selectively configurable so models and edge types can choose which field paths are tracked.
 
 #### Status Details
-The existing `FLIP_CONFIG` pattern is directionally aligned but does not yet define field-path selection in detail.
+Implemented. `FLIP_CONFIG` on `BaseModel` subclasses enables FLIP and declares tracked fields. `batch_context` writes only update `flip_map` for fields declared in `FLIP_CONFIG`.
 
 #### Implementation
 FLIP policy should allow each model or edge type to define:
@@ -131,9 +131,9 @@ Selective tracking matters because not every field needs current provenance. Kee
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-flip-scope-1 | Explicit Enablement | In Development | FLIP can be enabled or disabled per model or edge type. | |
-| req-grid-flip-scope-2 | Field Selection Policy | In Development | FLIP policy can specify which field paths participate in the FLIP map. | |
-| req-grid-flip-scope-3 | Independent Customization | In Development | FLIP field selection may differ from history and perspective settings for the same model type. | |
+| req-grid-flip-scope-1 | Explicit Enablement | Implemented | FLIP can be enabled or disabled per model or edge type. | `FLIP_CONFIG = {"enabled": True}` on `BaseModel` subclasses |
+| req-grid-flip-scope-2 | Field Selection Policy | Implemented | FLIP policy can specify which field paths participate in the FLIP map. | `FLIP_CONFIG["fields"]` declares tracked field paths |
+| req-grid-flip-scope-3 | Independent Customization | Implemented | FLIP field selection may differ from history and perspective settings for the same model type. | `FLIP_CONFIG` is independent of any history or perspective config |
 
 #### Future
 Future work may add wildcard field-path patterns or schema-derived defaults once the first explicit policy model is proven.
@@ -141,12 +141,12 @@ Future work may add wildcard field-path patterns or schema-derived defaults once
 ### FLIP and History Separation
 ----
 RID: `req-grid-flip-separation`
-Status: `In Development`
+Status: `Implemented`
 
 FLIP answers current provenance only. Historical provenance analysis belongs to the history layer.
 
 #### Status Details
-This is a key architectural rule for the first pass and should be treated as a guardrail against accidental overdesign.
+Implemented. FLIP map stores only the most recent batch per field path; no history replay is required to read current provenance. History system is tracked separately in `spec-grid-history-DRAFT.md`.
 
 #### Implementation
 The required semantics are:
@@ -163,9 +163,9 @@ This separation keeps FLIP useful and cheap. It also preserves the option to cha
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-flip-separation-1 | Current-State Only | In Development | FLIP reads describe provenance for the current canonical values only. | |
-| req-grid-flip-separation-2 | No History Replay Required | In Development | TAP can answer FLIP queries without reconstructing provenance from object history. | |
-| req-grid-flip-separation-3 | Historical Provenance Delegates To History | In Development | Requests for provenance-over-time are explicitly served by history, not by FLIP itself. | |
+| req-grid-flip-separation-1 | Current-State Only | Implemented | FLIP reads describe provenance for the current canonical values only. | `flip_map` is overwritten on each save; not a log |
+| req-grid-flip-separation-2 | No History Replay Required | Implemented | TAP can answer FLIP queries without reconstructing provenance from object history. | `flip_map` is directly readable; no scan required |
+| req-grid-flip-separation-3 | Historical Provenance Delegates To History | Implemented | Requests for provenance-over-time are explicitly served by history, not by FLIP itself. | History system is a separate deferred concern |
 
 #### Future
 If TAP later exposes "FLIP as of time X", that feature should be implemented as a composition of history and FLIP semantics rather than by expanding FLIP into its own historical ledger.
