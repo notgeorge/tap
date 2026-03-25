@@ -706,10 +706,15 @@ class Command(BaseCommand):
         return count
 
     def _cleanup_flip_demo_page(self) -> None:
-        """Remove the standalone /flip demo page and panel from earlier iterations."""
-        from tap_web.models import Page, Panel
+        """Remove the standalone /flip demo page and panel from earlier iterations.
 
-        deleted_pages = Page.objects.filter(slug="/flip").delete()
-        deleted_panels = Panel.objects.filter(slug="flip-demo-frodo").delete()
-        if deleted_pages[0] or deleted_panels[0]:
-            self.stdout.write("  - Cleaned up old /flip demo page and panel.")
+        Deletes via the Entity spine so that cascade removes the Page/Panel records too.
+        """
+        from tap_grid.models import Entity
+
+        entity_ids = list(
+            Entity.objects.filter(entity_type__in=["page", "panel"], name__in=["FLIP Demo", "Frodo Baggins — Field Provenance"]).values_list("pk", flat=True)
+        )
+        if entity_ids:
+            deleted = Entity.objects.filter(pk__in=entity_ids).delete()
+            self.stdout.write(f"  - Cleaned up {deleted[0]} old FLIP demo entities.")
