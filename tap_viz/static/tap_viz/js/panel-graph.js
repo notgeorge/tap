@@ -115,17 +115,19 @@ function initGraph(panelId) {
                 },
             },
         ],
-        layout: _buildLayout(placement),
         userZoomingEnabled: true,
         userPanningEnabled: true,
         boxSelectionEnabled: true,
     });
 
-    // After layout settles, lock minZoom to the fitted zoom so the graph can
-    // only be zoomed in, never shrunk smaller than the initial fit view.
+    // Register before running layout so we catch layoutstop even for
+    // synchronous layouts (cose with animate:false fires before the
+    // constructor returns if layout is passed inline).
     cy.one("layoutstop", function () {
         cy.minZoom(cy.zoom());
     });
+
+    cy.layout(_buildLayout(placement)).run();
 
     _attachToolbar(container, cy);
 
