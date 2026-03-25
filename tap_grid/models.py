@@ -226,7 +226,12 @@ class BaseModel(models.Model):
         blank=True,
         default="",
         db_index=True,
-        help_text="UUIDv7 of the batch this change was included in (FLIP Phase 2).",
+        help_text="UUIDv7 of the batch this change was included in.",
+    )
+    flip_map = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="FLIP field-path-to-batch-id map: tracks which batch last set each provenance-tracked field.",
     )
 
     class Meta:
@@ -371,6 +376,9 @@ class BaseModel(models.Model):
         - No entity set: creates Entity atomically with this save (transaction.atomic).
         - Entity already set: confirms it exists and has the correct entity_type.
         - skip_validation=True: bypasses full_validate() (for migrations / fixtures).
+
+        FLIP: update_flip_map() is called before the DB write so flip_map changes
+        are always atomic with the field changes that triggered them.
         """
         skip_validation: bool = kwargs.pop("skip_validation", False)
         if not skip_validation:
@@ -381,6 +389,16 @@ class BaseModel(models.Model):
             raise ImproperlyConfigured(
                 f"{self.__class__.__name__} must declare ENTITY_TYPE: ClassVar[str]."
             )
+
+        # FLIP map update — mutates self.flip_map in memory before the write.
+        from tap_grid.context import get_batch_id
+        from tap_grid.flip import update_flip_map
+
+        update_fields = kwargs.get("update_fields")
+        changed_fields = list(update_fields) if update_fields is not None else None
+        if update_flip_map(self, changed_fields, get_batch_id()):
+            if update_fields is not None:
+                kwargs["update_fields"] = list(update_fields) + ["flip_map"]
 
         if self.entity_id is None:
             with transaction.atomic():

@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from django.utils.text import slugify
+
 from tap_grid.exceptions import InvalidSearchDefinitionError
 
 if TYPE_CHECKING:
@@ -188,10 +190,13 @@ def _apply_order(qs: Any, order_by: list[str] | None, default: list[str]) -> Any
 
 def _serialize_entity(entity: Any) -> dict[str, Any]:
     """Serialize an Entity spine row to a node dict."""
+    entity_id = str(entity.id)
+    slug = slugify(entity.name) or "entity"
     return {
-        "entity_id": str(entity.id),
+        "entity_id": entity_id,
         "entity_type": entity.entity_type,
         "name": entity.name,
+        "url_id": f"{slug}--{entity_id}",
         "dimensions": entity.dimensions,
         "created_at": entity.created_at.isoformat() if entity.created_at else None,
         "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,

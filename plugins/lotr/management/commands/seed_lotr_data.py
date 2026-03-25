@@ -215,6 +215,9 @@ class Command(BaseCommand):
         search_count = self._seed_searches()
         self.stdout.write(self.style.SUCCESS(f"  + {search_count} new searches seeded."))
 
+        # Clean up any standalone FLIP demo page from earlier iterations.
+        self._cleanup_flip_demo_page()
+
         # Create web pages
         self._seed_web_page()
         self._seed_characters_page()
@@ -701,3 +704,12 @@ class Command(BaseCommand):
                 self.stdout.write(f"  + Search: {name}")
                 count += 1
         return count
+
+    def _cleanup_flip_demo_page(self) -> None:
+        """Remove the standalone /flip demo page and panel from earlier iterations."""
+        from tap_web.models import Page, Panel
+
+        deleted_pages = Page.objects.filter(slug="/flip").delete()
+        deleted_panels = Panel.objects.filter(slug="flip-demo-frodo").delete()
+        if deleted_pages[0] or deleted_panels[0]:
+            self.stdout.write("  - Cleaned up old /flip demo page and panel.")

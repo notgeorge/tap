@@ -77,7 +77,7 @@ class TestBatchFlipConfig:
         assert is_batch_enabled(Batch) is False
 
     def test_batch_enables_history_tracking(self):
-        """Batch.FLIP_CONFIG enables history tracking."""
+        """Batch has history tracking enabled via HistoricalRecords manager."""
         assert is_history_enabled(Batch) is True
 
     def test_batch_has_history_manager(self):

@@ -11,8 +11,10 @@ class TapVizConfig(AppConfig):
     verbose_name = "TAP Visualization"
 
     def ready(self) -> None:
-        """Register built-in panel types with the tap_web panel type registry."""
-        from tap_viz.panels.graph_panel import GraphPanelType
+        """Register built-in panel types and search runners."""
+        from tap_grid.registry import register_search_runner
+        from tap_viz.panels.graph_panel import GraphPanelType, hub_and_spoke_runner
         from tap_web.registry import panel_type_registry
 
         panel_type_registry.register("graph", GraphPanelType)
+        register_search_runner("hub-and-spoke", hub_and_spoke_runner)

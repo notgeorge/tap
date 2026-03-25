@@ -35,9 +35,9 @@ class Batch(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "batch"
 
-    # FLIP: Batch enables history but disables batch tracking (prevents self-reference)
+    # Batch disables batch tracking to prevent self-reference.
+    # History is enabled directly via the HistoricalRecords manager below.
     FLIP_CONFIG: ClassVar[dict[str, Any]] = {
-        "history": {"enabled": True},
         "batch": {"enabled": False},
     }
 

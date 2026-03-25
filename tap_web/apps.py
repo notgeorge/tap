@@ -78,10 +78,32 @@ class TapWebConfig(AppConfig):
 
     def ready(self) -> None:
         from tap_plugins.base import register_edge_types_from_list
+        from tap_web.editor import EditorDescriptor
+        from tap_web.panels.flip_panel import FlipPanelType
         from tap_web.panels.table_panel import TablePanelType
         from tap_web.panels.text_panel import TextPanelType
-        from tap_web.registry import panel_type_registry
+        from tap_web.registry import panel_type_registry, register_editor
 
         register_edge_types_from_list(self.edge_types)
         panel_type_registry.register("text", TextPanelType)
         panel_type_registry.register("table", TablePanelType)
+        panel_type_registry.register("flip", FlipPanelType)
+
+        class _PanelEditorDescriptor(EditorDescriptor):
+            """Redirects /object/panel/.../edit/ to the panel-specific editor."""
+
+            entity_type = "panel"
+
+            def get_editor_initial(self, obj: Any) -> dict[str, Any]:
+                return {}
+
+            def handle_save(self, form: Any, obj: Any, request: Any) -> Any:
+                raise NotImplementedError
+
+            def get_form_class(self, obj: Any) -> None:
+                return None
+
+            def get_extra_context(self, obj: Any) -> dict[str, Any]:
+                return {"edit_url_override": f"/panel/{obj.slug}--{obj.entity_id}/edit/"}
+
+        register_editor(_PanelEditorDescriptor())

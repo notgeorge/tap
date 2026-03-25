@@ -1,0 +1,127 @@
+{% extends "tap_web/base.html" %}
+{% load static %}
+
+{% block title %}{{ obj_name }} — TAP{% endblock %}
+
+{% block head_extras %}
+<link rel="stylesheet" href="{% static 'tap_viz/css/panel-graph.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+    <div>
+        <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">{{ entity_type }}</span>
+        <h1 class="text-2xl font-bold mt-0.5">{{ obj_name }}</h1>
+    </div>
+    {% if edit_url %}
+    <a href="{{ edit_url }}"
+       class="group flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+        </svg>
+        Edit
+    </a>
+    {% endif %}
+</div>
+
+{# Context region — hub-and-spoke graph #}
+<section class="mb-6">
+    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Graph Context</h2>
+    {% include "tap_viz/graph_context.html" %}
+</section>
+
+{# Panel preview region — only shown for panel objects #}
+{% if panel_render_url %}
+<section class="mb-6">
+    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Panel Preview</h2>
+    <div class="border border-slate-200 rounded bg-white p-4 min-h-16"
+         hx-get="{{ panel_render_url }}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <span class="text-slate-400 text-sm">Loading…</span>
+    </div>
+</section>
+{% endif %}
+
+{# Object body — label/value field display #}
+<section>
+    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Details</h2>
+    <dl class="bg-white border border-slate-200 rounded divide-y divide-slate-100">
+        {% for label, value in field_pairs %}
+        <div class="px-4 py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">{{ label }}</dt>
+            <dd class="mt-1 text-sm text-slate-800 sm:mt-0 sm:col-span-2">
+                {% if value %}{{ value }}{% else %}<span class="text-slate-400 italic">—</span>{% endif %}
+            </dd>
+        </div>
+        {% empty %}
+        <div class="px-4 py-3 text-sm text-slate-400 italic">No details available.</div>
+        {% endfor %}
+    </dl>
+</section>
+
+{# Inspection region — secondary read-only surfaces (req-web-viewer-inspect) #}
+{% if flip_rows is not None %}
+<section class="mt-4">
+    <details class="group border border-slate-200 rounded bg-white">
+        <summary class="flex items-center justify-between px-4 py-3 cursor-pointer select-none list-none hover:bg-slate-50 rounded">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                FLIP{% if flip_rows %} ({{ flip_rows|length }} field{{ flip_rows|length|pluralize }}){% endif %}
+            </span>
+            <svg width="16" height="16" class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </summary>
+        <div class="px-4 pb-4 pt-3 border-t border-slate-100">
+            {% if flip_error %}
+            <p class="text-sm text-amber-600">{{ flip_error }}</p>
+            {% elif not flip_rows %}
+            <p class="text-sm text-slate-400 italic">No provenance recorded. Save this object inside a batch context to populate FLIP data.</p>
+            {% else %}
+            <table class="w-full text-sm border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-200 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
+                        <th class="pb-2 pr-4">Field</th>
+                        <th class="pb-2 pr-4">Source</th>
+                        <th class="pb-2 pr-4">Actor</th>
+                        <th class="pb-2 pr-4">Written</th>
+                        <th class="pb-2">Batch Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in flip_rows %}
+                    <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                        <td class="py-2 pr-4 font-mono text-slate-800">{{ row.field }}</td>
+                        <td class="py-2 pr-4 text-slate-600">{{ row.source|default:"—" }}</td>
+                        <td class="py-2 pr-4 text-slate-600">{{ row.actor }}</td>
+                        <td class="py-2 pr-4 text-slate-500 whitespace-nowrap">
+                            {% if row.started_at %}{{ row.started_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}
+                        </td>
+                        <td class="py-2">
+                            <span class="inline-block rounded px-2 py-0.5 text-xs
+                                {% if row.status == 'closed' %}bg-green-100 text-green-700
+                                {% elif row.status == 'open' %}bg-blue-100 text-blue-700
+                                {% elif row.status == 'failed' %}bg-red-100 text-red-700
+                                {% else %}bg-slate-100 text-slate-500{% endif %}">
+                                {{ row.status|default:"unknown" }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="mt-3 text-xs text-slate-400 font-mono truncate" title="{{ flip_rows.0.batch_id }}">
+                batch: {{ flip_rows.0.batch_id }}
+            </div>
+            {% endif %}
+        </div>
+    </details>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block body_extras %}
+<script src="{% static 'tap_viz/js/cytoscape.min.js' %}"></script>
+<script src="{% static 'tap_viz/js/panel-graph.js' %}"></script>
+{% endblock %}

@@ -2,43 +2,36 @@
 
 This service layer allows future swaps of the history backend without
 changing call sites. Currently uses django-simple-history.
+
+History enablement is determined by whether the model has a HistoricalRecords
+manager attached, not by FLIP_CONFIG (history is independent of FLIP).
 """
 
 from typing import TYPE_CHECKING, Any
-
-from tap_flip.config import is_history_enabled
 
 if TYPE_CHECKING:
     from tap_grid.models import BaseModel
 
 
-def get_historical_records(model_instance: BaseModel) -> Any:
+def get_historical_records(model_instance: "BaseModel") -> Any:
     """Retrieve all historical records for a model instance.
 
     Returns the HistoricalRecords related manager for this instance.
-    If history is not enabled, returns an empty queryset.
+    If the model has no history manager, returns an empty list.
 
     Args:
         model_instance: The model instance to query history for.
 
     Returns:
-        QuerySet of historical records, or empty if history disabled.
+        QuerySet of historical records, or empty list if history not enabled.
     """
-    model_class = model_instance.__class__
-
-    if not is_history_enabled(model_class):
-        # Return empty queryset if history not enabled
-        if hasattr(model_class, "history"):
-            return model_class.history.none()
-        # Model has no history manager at all
-        from django.db.models import QuerySet
-
-        return QuerySet().none()
+    if not hasattr(model_instance.__class__, "history"):
+        return []
 
     return model_instance.history.all()  # type: ignore[attr-defined]
 
 
-def get_history_timeline(model_instance: BaseModel) -> list[dict[str, Any]]:
+def get_history_timeline(model_instance: "BaseModel") -> list[dict[str, Any]]:
     """Get a human-readable timeline of changes for a model.
 
     Returns a list of dicts with timestamp, change type, actor, and record ID.

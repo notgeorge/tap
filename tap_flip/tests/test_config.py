@@ -5,8 +5,10 @@ import pytest
 from tap_flip.config import (
     DEFAULT_FLIP_CONFIG,
     clear_registry,
+    get_flip_fields,
     get_model_flip_config,
     is_batch_enabled,
+    is_flip_enabled,
     is_history_enabled,
 )
 
@@ -22,27 +24,27 @@ def reset_registry():
 class TestDefaultFlipConfig:
     """Tests for the default FLIP_CONFIG structure."""
 
-    def test_default_config_has_all_sections(self):
-        """Default config has history, batch, and consensus sections."""
-        assert "history" in DEFAULT_FLIP_CONFIG
+    def test_default_config_has_batch_and_flip_sections(self):
+        """Default config has batch and flip sections only (history is independent)."""
         assert "batch" in DEFAULT_FLIP_CONFIG
-        assert "consensus" in DEFAULT_FLIP_CONFIG
+        assert "flip" in DEFAULT_FLIP_CONFIG
+        assert "history" not in DEFAULT_FLIP_CONFIG
+        assert "consensus" not in DEFAULT_FLIP_CONFIG
 
     def test_all_sections_have_enabled_key(self):
         """Every section has an 'enabled' key."""
-        for section in ["history", "batch", "consensus"]:
+        for section in ["batch", "flip"]:
             assert "enabled" in DEFAULT_FLIP_CONFIG[section]
 
     def test_all_features_disabled_by_default(self):
         """All FLIP features are disabled by default (opt-in)."""
-        assert DEFAULT_FLIP_CONFIG["history"]["enabled"] is False
         assert DEFAULT_FLIP_CONFIG["batch"]["enabled"] is False
-        assert DEFAULT_FLIP_CONFIG["consensus"]["enabled"] is False
+        assert DEFAULT_FLIP_CONFIG["flip"]["enabled"] is False
 
-    def test_history_has_depth_settings(self):
-        """History section has depth configuration."""
-        assert "depth_revisions" in DEFAULT_FLIP_CONFIG["history"]
-        assert "depth_days" in DEFAULT_FLIP_CONFIG["history"]
+    def test_flip_has_fields_list(self):
+        """Flip section has an explicit fields allow-list."""
+        assert "fields" in DEFAULT_FLIP_CONFIG["flip"]
+        assert DEFAULT_FLIP_CONFIG["flip"]["fields"] == []
 
 
 class TestGetModelFlipConfig:
@@ -55,93 +57,81 @@ class TestGetModelFlipConfig:
             pass
 
         config = get_model_flip_config(NoConfigModel)
-        assert config["history"]["enabled"] is False
         assert config["batch"]["enabled"] is False
+        assert config["flip"]["enabled"] is False
 
-    def test_model_with_partial_override(self):
-        """Model can override specific sections while inheriting others."""
+    def test_model_with_partial_batch_override(self):
+        """Model can enable batch while flip inherits defaults."""
 
-        class PartialConfigModel:
-            FLIP_CONFIG = {"history": {"enabled": True}}
+        class BatchOnlyModel:
+            FLIP_CONFIG = {"batch": {"enabled": True}}
 
-        config = get_model_flip_config(PartialConfigModel)
-        assert config["history"]["enabled"] is True
-        # Batch and consensus inherit defaults
-        assert config["batch"]["enabled"] is False
-        assert config["consensus"]["enabled"] is False
+        config = get_model_flip_config(BatchOnlyModel)
+        assert config["batch"]["enabled"] is True
+        assert config["flip"]["enabled"] is False
 
-    def test_model_with_nested_partial_override(self):
-        """Model can override nested values within a section."""
+    def test_model_with_flip_fields(self):
+        """Model can declare specific fields for FLIP tracking."""
 
-        class NestedConfigModel:
-            FLIP_CONFIG = {"history": {"enabled": True, "depth_revisions": 100}}
+        class FlipModel:
+            FLIP_CONFIG = {"flip": {"enabled": True, "fields": ["ip_address", "status"]}}
 
-        config = get_model_flip_config(NestedConfigModel)
-        assert config["history"]["enabled"] is True
-        assert config["history"]["depth_revisions"] == 100
-        # depth_days inherits default
-        assert config["history"]["depth_days"] is None
+        config = get_model_flip_config(FlipModel)
+        assert config["flip"]["enabled"] is True
+        assert config["flip"]["fields"] == ["ip_address", "status"]
 
     def test_config_cached_in_registry(self):
         """get_model_flip_config caches results."""
 
         class CachedModel:
-            FLIP_CONFIG = {"history": {"enabled": True}}
+            FLIP_CONFIG = {"batch": {"enabled": True}}
 
         config1 = get_model_flip_config(CachedModel)
         config2 = get_model_flip_config(CachedModel)
-        # Same object returned from cache
         assert config1 is config2
 
     def test_different_models_have_separate_configs(self):
         """Each model class has its own cached config."""
 
         class ModelA:
-            FLIP_CONFIG = {"history": {"enabled": True}}
+            FLIP_CONFIG = {"batch": {"enabled": True}}
 
         class ModelB:
-            FLIP_CONFIG = {"history": {"enabled": False}}
+            FLIP_CONFIG = {"batch": {"enabled": False}}
 
-        config_a = get_model_flip_config(ModelA)
-        config_b = get_model_flip_config(ModelB)
-
-        assert config_a["history"]["enabled"] is True
-        assert config_b["history"]["enabled"] is False
+        assert get_model_flip_config(ModelA)["batch"]["enabled"] is True
+        assert get_model_flip_config(ModelB)["batch"]["enabled"] is False
 
 
 class TestIsHistoryEnabled:
-    """Tests for is_history_enabled helper."""
+    """Tests for is_history_enabled helper.
 
-    def test_history_enabled_when_configured(self):
-        """is_history_enabled returns True for enabled models."""
+    History enablement is determined by whether the model has a HistoricalRecords
+    manager attached, not by FLIP_CONFIG.
+    """
 
-        class HistoryModel:
-            FLIP_CONFIG = {"history": {"enabled": True}}
+    def test_history_enabled_when_manager_present(self):
+        """is_history_enabled returns True when model has a history manager."""
 
-        assert is_history_enabled(HistoryModel) is True
+        class WithHistoryModel:
+            history = object()  # simulates HistoricalRecords manager
 
-    def test_history_disabled_by_default(self):
-        """is_history_enabled returns False for unconfigured models."""
+        assert is_history_enabled(WithHistoryModel) is True
 
-        class DefaultModel:
+    def test_history_disabled_when_no_manager(self):
+        """is_history_enabled returns False when model has no history manager."""
+
+        class NoHistoryModel:
             pass
 
-        assert is_history_enabled(DefaultModel) is False
-
-    def test_history_explicitly_disabled(self):
-        """is_history_enabled respects explicit False."""
-
-        class DisabledModel:
-            FLIP_CONFIG = {"history": {"enabled": False}}
-
-        assert is_history_enabled(DisabledModel) is False
+        assert is_history_enabled(NoHistoryModel) is False
 
 
 class TestIsBatchEnabled:
     """Tests for is_batch_enabled helper."""
 
     def test_batch_disabled_by_default(self):
-        """Batch is disabled by default (Phase 2 feature)."""
+        """Batch is disabled by default."""
 
         class DefaultModel:
             pass
@@ -155,3 +145,43 @@ class TestIsBatchEnabled:
             FLIP_CONFIG = {"batch": {"enabled": True}}
 
         assert is_batch_enabled(BatchModel) is True
+
+
+class TestIsFlipEnabled:
+    """Tests for is_flip_enabled helper."""
+
+    def test_flip_disabled_by_default(self):
+        """FLIP is disabled by default."""
+
+        class DefaultModel:
+            pass
+
+        assert is_flip_enabled(DefaultModel) is False
+
+    def test_flip_enabled_when_configured(self):
+        """is_flip_enabled returns True when configured."""
+
+        class FlipModel:
+            FLIP_CONFIG = {"flip": {"enabled": True, "fields": ["name"]}}
+
+        assert is_flip_enabled(FlipModel) is True
+
+
+class TestGetFlipFields:
+    """Tests for get_flip_fields helper."""
+
+    def test_empty_fields_by_default(self):
+        """No fields tracked by default."""
+
+        class DefaultModel:
+            pass
+
+        assert get_flip_fields(DefaultModel) == []
+
+    def test_returns_configured_fields(self):
+        """Returns the explicit allow-list from FLIP_CONFIG."""
+
+        class TrackedModel:
+            FLIP_CONFIG = {"flip": {"enabled": True, "fields": ["ip_address", "status"]}}
+
+        assert get_flip_fields(TrackedModel) == ["ip_address", "status"]

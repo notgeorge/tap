@@ -26,6 +26,7 @@ The viz panel owns runtime concerns such as loading a layout, receiving resolved
 | req-viz-panel-layout-reference | [Layout Reference](#layout-reference) | Proposed | Viz panels reference reusable layout entities |
 | req-viz-panel-runtime-nav | [Runtime Navigation](#runtime-navigation) | Proposed | Pan, zoom, and fit are required runtime behaviors |
 | req-viz-panel-runtime-selection | [Runtime Selection](#runtime-selection) | Proposed | Selection is part of the core runtime contract |
+| req-viz-panel-node-nav | [Node Navigation](#node-navigation) | Implemented | Clicking a graph node navigates to the TAP object viewer for that entity |
 | req-viz-panel-runtime-popover | [Runtime Popovers](#runtime-popovers) | Proposed | Popovers are an optional but standardized runtime behavior |
 | req-viz-panel-landing-default | [Landing Page Default](#landing-page-default) | Proposed | Default landing page should host a viz panel showing the graph in grid layout |
 | req-viz-panel-readonly | [Read-Only Runtime](#read-only-runtime) | Proposed | Viz panel runtime is read-only in v1 |
@@ -234,6 +235,35 @@ Selection is the minimal stateful interaction that makes inspection possible wit
 
 #### Future
 If multi-select becomes important, define it as a deliberate extension rather than assuming it implicitly.
+
+
+### Node Navigation
+----
+RID: `req-viz-panel-node-nav`
+Status: `Implemented`
+
+Clicking a graph node navigates to the TAP object viewer for that entity.
+
+#### Implementation
+- Node click (tap) triggers a browser navigation to `/object/{entity_type}/{url_id}/`.
+- `url_id` is a `{slug}--{entity_id}` string serialized into every node payload by `_serialize_entity`.
+- The slug is derived from the entity name via `django.utils.text.slugify`.
+- Edge clicks do not navigate; only node taps are wired.
+- Navigation replaces the current page (`window.location.href`).
+
+#### Development
+Node navigation is read-only and requires no graph mutation. It uses the same viewer URL contract as any other TAP object viewer entrypoint.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-panel-node-nav-1 | Node Tap Navigates | Implemented | Tapping a graph node navigates to `/object/{entity_type}/{url_id}/`. | `panel-graph.js` `cy.on("tap", "node", ...)` |
+| req-viz-panel-node-nav-2 | URL ID In Node Payload | Implemented | Every serialized node carries a `url_id` field usable as the viewer URL segment. | `_serialize_entity` in `orm_compiler.py` |
+| req-viz-panel-node-nav-3 | Edge Tap Does Not Navigate | Implemented | Clicking an edge does not trigger viewer navigation. | |
+
+#### Future
+If richer in-panel inspection (popovers, side panels) is later implemented, node tap behavior may be overridden by that contract.
 
 
 ### Runtime Popovers

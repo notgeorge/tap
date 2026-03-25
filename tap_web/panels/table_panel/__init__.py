@@ -17,7 +17,7 @@ Pagination:
   panel endpoint; Tabulator local pagination is not used.
 
 Config schema:
-  See req-web-stdpanel-table-config in spec-web-standard-panels-table.md.
+  See req-web-stdpanel-table-config in spec-web-panels-standard-table.md.
 """
 
 from __future__ import annotations

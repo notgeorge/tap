@@ -1,56 +1,37 @@
 """Context management for history tracking.
 
-Provides contextvars for implicit user and batch_id tracking.
-Explicit parameters in service calls take precedence over context.
+Provides the history_user contextvar for django-simple-history integration.
+The batch_id contextvar lives in tap_grid.context (grid-level operational context)
+and is re-exported here for backward compatibility.
 """
 
 import contextvars
 from typing import TYPE_CHECKING
 
+from tap_grid.context import get_batch_id, set_batch_id
+
 if TYPE_CHECKING:
     from tap_grid.models import User
 
-# ContextVar for the current user making changes.
-# Set by middleware/views before service calls.
-_history_user: contextvars.ContextVar[User | None] = contextvars.ContextVar(
+# Re-export so existing imports from tap_flip.history.context continue to work.
+__all__ = ["get_batch_id", "set_batch_id", "get_history_user", "set_history_user"]
+
+_history_user: contextvars.ContextVar["User | None"] = contextvars.ContextVar(
     "history_user",
     default=None,
 )
 
-# ContextVar for the current batch_id (Phase 2).
-# Will be set when processing a batch; None if no batch context.
-_batch_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "batch_id",
-    default=None,
-)
 
-
-def set_history_user(user: User | None) -> None:
-    """Set the current user for history context.
-
-    Call this in middleware or before service methods.
-    """
+def set_history_user(user: "User | None") -> None:
+    """Set the current user for history context."""
     _history_user.set(user)
 
 
-def get_history_user(instance: object = None, **kwargs: object) -> User | None:
-    """Get the current user from context, or None if unset.
+def get_history_user(instance: object = None, **kwargs: object) -> "User | None":
+    """Return the current user from context, or None if unset.
 
     Args:
         instance: The model instance being saved (passed by django-simple-history).
         **kwargs: Additional kwargs from django-simple-history (ignored).
-
-    Returns:
-        The user from context, or None if unset.
     """
     return _history_user.get()
-
-
-def set_batch_id(batch_id: str | None) -> None:
-    """Set the current batch_id (Phase 2)."""
-    _batch_id.set(batch_id)
-
-
-def get_batch_id() -> str | None:
-    """Get the current batch_id from context, or None if unset."""
-    return _batch_id.get()

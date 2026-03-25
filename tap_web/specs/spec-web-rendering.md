@@ -23,7 +23,7 @@ We haven't fully defined the panel structure yet, likely going to do that next.
 | req-web-rendering-slashpage | [Pages Start With /](#pages-start-with-) | Implemented | Dynamic pages rooted at `/`, not `/pages/...` |
 | req-web-render-process | [Page Rendering Process](#page-rendering-process) | Implemented | Multi-step pipeline: URL → page view → page service → page template → panel HTMX calls |
 | req-web-render-panel | [Panel Rendering Process](#panel-rendering-process) | Implemented | Panels rendered via HTMX; generic view renders panel's declared template |
-| req-web-render-panel-edit | [Panel Edit Rendering](#panel-edit-rendering) | Refactoring | Panel edit pages integrate the panel route with the generic web editor shell |
+| req-web-render-panel-edit | [Panel Edit Rendering](#panel-edit-rendering) | Implemented | Panel edit pages integrate the panel route with the generic web editor shell |
 | req-web-render-missingpan | [Missing / Broken Panels](#missing--broken-panels) | Implemented | Missing panels show "Panel Error" in their layout slot |
 | req-web-render-landing | [Landing Page Owns /](#landing-page-owns-) | Proposed | Root `/` delegates to LandingPage-linked Page without client-side redirect |
 | req-web-rendering-pagesan.sec | [Page Rendering Sanitization](#page-rendering-sanitization-security) | Implemented | Base template + HTMX + static asset manifest ensure safe page output |
@@ -126,7 +126,7 @@ The slug is decorative (for readability). The UUID is used to look up the Panel.
 
 ### Panel Edit Rendering
 RID: `req-web-render-panel-edit`
-Status: `Refactoring`
+Status: `Implemented`
 
 Panel edit mode integrates the panel edit route with the generic web editor shell. Shared editor layout and preview behavior are defined in `spec-web-editor.md`; this section defines only the panel-route integration.
 
@@ -156,11 +156,11 @@ Panels supply panel-specific editor content and optional object-preview behavior
 | --- | --- | :---: | --- | --- |
 | req-web-render-panel-edit-1 | Edit Route Exists | Implemented | Panel edit mode is routed at `/panel/<slug>--<uuid>/edit/`. | |
 | req-web-render-panel-edit-2 | UUID Lookup | Implemented | Edit route resolves the panel by UUID using the decorative slug pattern. | |
-| req-web-render-panel-edit-3 | Generic Editor Shell Used | Proposed | Panel edit pages are assembled through the generic web editor shell. | |
+| req-web-render-panel-edit-3 | Generic Editor Shell Used | Implemented | Panel edit pages are assembled through the generic web editor shell. | `panel_edit_view` renders `tap_web/editor.html` |
 | req-web-render-panel-edit-4 | Panel Editor Uses Declared Template | Implemented | The typed editor region renders the panel's declared `editor_view`. | |
 | req-web-render-panel-edit-5 | Editor Assets Emitted | Implemented | Editor page emits `editor_css` in the head and `editor_js` at the end of the body. | |
-| req-web-render-panel-edit-6 | Preview Separate From Save | Proposed | Edit page exposes preview and save as separate actions through the shared editor contract. | |
-| req-web-render-panel-edit-7 | Preview Applies Draft State | Proposed | Preview applies current draft editor state without persisting it. | |
+| req-web-render-panel-edit-6 | Preview Separate From Save | Backlog | Preview is deferred; save + history-revert is the v1 undo strategy. | |
+| req-web-render-panel-edit-7 | Preview Applies Draft State | Backlog | Preview is deferred; see `req-web-editor-preview-exec`. | |
 | req-web-render-panel-edit-8 | Edit Posts To Edit Endpoint | Implemented | Edit submissions target the panel edit endpoint rather than the normal view endpoint. | |
 
 #### Future

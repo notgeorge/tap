@@ -9,49 +9,44 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
+from tap_web.neighborhood import get_entity_neighborhood
 from tap_web.page_service import get_landing_page, get_page_by_slug, get_page_panels, parse_panel_url_id
 
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Page views
+# ---------------------------------------------------------------------------
+
+
 def landing_view(request: HttpRequest) -> HttpResponse:
-    """Serve the root URL via LandingPage indirection.
-
-    Resolves the earliest LandingPage → USES_LANDING_PAGE edge → Page and
-    renders that Page inline without issuing a redirect. Query params from the
-    root request are passed through unchanged to the page rendering context.
-
-    Renders a live all-nodes table when no LandingPage is configured.
-    """
+    """Serve the root URL via LandingPage indirection."""
     page = get_landing_page()
     if page is None:
         return _render_grid_placeholder(request)
-
     return _render_page(request, page)
 
 
 def page_view(request: HttpRequest, page_slug: str) -> HttpResponse:
-    """Render a Page by its slug.
-
-    Args:
-        page_slug: URL path captured by the catch-all pattern (without leading /).
-    """
+    """Render a Page by its slug."""
     slug = f"/{page_slug}"
     page = get_page_by_slug(slug)
     if page is None:
         raise Http404(f"Page '{slug}' not found.")
-
     return _render_page(request, page)
+
+
+# ---------------------------------------------------------------------------
+# Panel views
+# ---------------------------------------------------------------------------
 
 
 def panel_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
     """Render a Panel fragment for HTMX consumption.
 
     URL format: /panel/<slug>--<entity-uuid>/
-    The UUID portion is used for lookup; the slug is decorative.
-
-    On any exception during rendering, returns an error fragment at HTTP 200
-    so the HTMX swap completes and the layout slot shows 'Panel Error'.
+    On any exception returns an error fragment so the HTMX swap completes.
     """
     from tap_web.models import Panel
 
@@ -69,7 +64,11 @@ def panel_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
         extra_ctx: dict = {}
         if panel_type and hasattr(panel_type, "get_view_context"):
             extra_ctx = panel_type.get_view_context(panel, request) or {}
-        return render(request, panel.view, {"panel": panel, **extra_ctx})
+        return render(request, panel.view, {
+            "panel": panel,
+            "edit_url": f"/panel/{panel_url_id}/edit/",
+            **extra_ctx,
+        })
     except Exception as exc:  # noqa: BLE001
         logger.exception("Error rendering panel %s (view=%s)", entity_uuid, panel.view)
         return _panel_error(request, str(exc))
@@ -77,17 +76,11 @@ def panel_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
 
 @require_http_methods(["GET", "POST"])
 def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
-    """Render or save the panel editor page.
+    """Editor for a Panel object — routes through the generic editor shell.
 
     URL format: /panel/<slug>--<entity-uuid>/edit/
-    The UUID is used for lookup; the slug is decorative.
-
-    GET: Renders a two-region editor page — preview on top, editor below.
-         If the panel has a registered PanelType with a form_class, passes an
-         initialised Django Form in context for the typed editor template.
-    POST: If a PanelType form_class is found, validates via Django Form (server-
-          side sanitization) then saves. Falls back to direct JSON config editing
-          for panels without a registered PanelType.
+    Dispatches to the panel's registered PanelType for typed form handling.
+    Falls back to raw JSON config editing when no PanelType is registered.
     """
     from tap_web.models import Panel
 
@@ -102,6 +95,7 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
 
     panel_type = _get_panel_type_for_panel(panel)
     form_class = getattr(panel_type, "form_class", None) if panel_type else None
+    editor_template = getattr(panel_type, "editor_view", "") if panel_type else ""
 
     if request.method == "POST":
         if form_class is not None:
@@ -115,8 +109,8 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
                 return redirect("panel-edit", panel_url_id=panel_url_id)
             return render(
                 request,
-                "tap_web/panel_edit.html",
-                _panel_edit_context(panel_url_id, panel, form=form),
+                "tap_web/editor.html",
+                _panel_editor_context(panel_url_id, panel, form=form, editor_template=editor_template),
             )
         # Generic fallback — no registered PanelType; raw JSON config editing.
         panel.name = request.POST.get("name", panel.name)
@@ -128,8 +122,8 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
             except json.JSONDecodeError as exc:
                 return render(
                     request,
-                    "tap_web/panel_edit.html",
-                    _panel_edit_context(panel_url_id, panel, config_error=str(exc)),
+                    "tap_web/editor.html",
+                    _panel_editor_context(panel_url_id, panel, config_error=str(exc)),
                 )
         panel.save()
         return redirect("panel-edit", panel_url_id=panel_url_id)
@@ -142,20 +136,223 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
         else:
             initial = {"name": panel.name, "description": panel.description, **panel.config}
         form = form_class(initial=initial)
-    return render(request, "tap_web/panel_edit.html", _panel_edit_context(panel_url_id, panel, form=form))
+
+    return render(
+        request,
+        "tap_web/editor.html",
+        _panel_editor_context(panel_url_id, panel, form=form, editor_template=editor_template),
+    )
 
 
-# Standard Panel fields that map directly to Panel model attributes.
-# All other form cleaned_data keys are merged into panel.config.
+# ---------------------------------------------------------------------------
+# Generic object editor + viewer
+# ---------------------------------------------------------------------------
+
+
+@require_http_methods(["GET", "POST"])
+def object_edit_view(request: HttpRequest, entity_type: str, object_url_id: str) -> HttpResponse:
+    """Generic editor for any registered TAP entity type.
+
+    URL format: /object/<entity-type>/<slug>--<entity-uuid>/edit/
+    Requires a registered EditorDescriptor for the entity type.
+    """
+    from tap_grid.registry import get_model_class
+    from tap_web.registry import get_editor
+
+    entity_uuid = parse_panel_url_id(object_url_id)
+    if entity_uuid is None:
+        raise Http404(f"Invalid object URL: '{object_url_id}'")
+
+    descriptor = get_editor(entity_type)
+    if descriptor is None:
+        raise Http404(f"No editor registered for entity type '{entity_type}'.")
+
+    try:
+        model_cls = get_model_class(entity_type)
+    except KeyError:
+        raise Http404(f"Unknown entity type '{entity_type}'.")
+
+    try:
+        obj = model_cls.objects.select_related("entity").get(entity__pk=entity_uuid)
+    except model_cls.DoesNotExist:
+        raise Http404(f"{entity_type} '{entity_uuid}' not found.")
+
+    form_class = descriptor.get_form_class(obj)
+    editor_template = descriptor.get_editor_template(obj)
+    view_url = f"/object/{entity_type}/{object_url_id}/"
+
+    if form_class is None:
+        override = descriptor.get_extra_context(obj).get("edit_url_override")
+        if override:
+            return redirect(override)
+        raise Http404(f"No form registered for entity type '{entity_type}'.")
+
+    if request.method == "POST":
+        form = form_class(request.POST)
+        if form.is_valid():
+            descriptor.handle_save(form, obj, request)
+            return redirect("object-edit", entity_type=entity_type, object_url_id=object_url_id)
+        ctx = _object_editor_context(
+            entity_type, object_url_id, obj, form,
+            editor_template=editor_template, view_url=view_url,
+            extra=descriptor.get_extra_context(obj),
+        )
+        return render(request, "tap_web/editor.html", ctx)
+
+    initial = descriptor.get_editor_initial(obj)
+    form = form_class(initial=initial)
+    ctx = _object_editor_context(
+        entity_type, object_url_id, obj, form,
+        editor_template=editor_template, view_url=view_url,
+        extra=descriptor.get_extra_context(obj),
+    )
+    return render(request, "tap_web/editor.html", ctx)
+
+
+def object_view(request: HttpRequest, entity_type: str, object_url_id: str) -> HttpResponse:
+    """Generic viewer for any registered TAP entity type.
+
+    URL format: /object/<entity-type>/<slug>--<entity-uuid>/
+    """
+    from tap_grid.registry import get_model_class
+    from tap_web.registry import get_editor
+
+    entity_uuid = parse_panel_url_id(object_url_id)
+    if entity_uuid is None:
+        raise Http404(f"Invalid object URL: '{object_url_id}'")
+
+    try:
+        model_cls = get_model_class(entity_type)
+    except KeyError:
+        raise Http404(f"Unknown entity type '{entity_type}'.")
+
+    try:
+        obj = model_cls.objects.select_related("entity").get(entity__pk=entity_uuid)
+    except model_cls.DoesNotExist:
+        raise Http404(f"{entity_type} '{entity_uuid}' not found.")
+
+    descriptor = get_editor(entity_type)
+
+    # Build label/value pairs for field display.
+    field_pairs: list[tuple[str, Any]] = []
+    if descriptor is not None:
+        initial = descriptor.get_editor_initial(obj)
+        form_class = descriptor.get_form_class(obj)
+        if form_class is not None:
+            form = form_class(initial=initial)
+            for name, field in form.fields.items():
+                label = str(field.label or name.replace("_", " ").title())
+                value = initial.get(name, "")
+                field_pairs.append((label, value))
+
+    extra = descriptor.get_extra_context(obj) if descriptor else {}
+
+    # Panels: link to /panel/<slug>--<uuid>/edit/ not /object/panel/.../edit/
+    edit_url = extra.pop("edit_url_override", f"/object/{entity_type}/{object_url_id}/edit/")
+
+    graph_ctx = get_entity_neighborhood(obj.entity_id)
+
+    # FLIP inspection region (req-web-viewer-inspect): include if flip is enabled
+    # for this model so the viewer can render the collapsed provenance section.
+    flip_ctx: dict[str, Any] = {}
+    try:
+        from tap_flip.config import is_flip_enabled
+        from tap_web.panels.flip_panel import get_flip_context_for_entity
+
+        if is_flip_enabled(model_cls):
+            flip_ctx = get_flip_context_for_entity(str(entity_uuid))
+    except Exception:  # noqa: BLE001
+        pass  # FLIP inspection is best-effort; never break the viewer
+
+    ctx = {
+        "obj": obj,
+        "obj_name": str(obj),
+        "entity_type": entity_type,
+        "object_url_id": object_url_id,
+        "field_pairs": field_pairs,
+        "edit_url": edit_url,
+        **graph_ctx,
+        **extra,
+        **flip_ctx,
+    }
+    return render(request, "tap_web/viewer.html", ctx)
+
+
+# ---------------------------------------------------------------------------
+# Context builders
+# ---------------------------------------------------------------------------
+
+
+def _panel_editor_context(
+    panel_url_id: str,
+    panel: object,
+    form: object = None,
+    editor_template: str = "",
+    config_error: str = "",
+) -> dict:
+    """Build template context for the panel editor page."""
+    from tap_web.models import Panel
+
+    assert isinstance(panel, Panel)
+    graph_ctx = get_entity_neighborhood(panel.entity_id)
+    editor_css: dict[str, None] = dict.fromkeys(panel.editor_css or [])
+    editor_js: dict[str, None] = dict.fromkeys(panel.editor_js or [])
+    view_url = f"/object/panel/{panel.slug}--{panel.entity_id}/"
+    return {
+        "obj": panel,
+        "obj_name": panel.name or panel.slug,
+        "entity_type": "panel",
+        "object_url_id": panel_url_id,
+        "form": form,
+        "editor_template": editor_template,
+        "editor_css_assets": list(editor_css),
+        "editor_js_assets": list(editor_js),
+        "config_json": json.dumps(panel.config or {}, indent=2),
+        "config_error": config_error,
+        "view_url": view_url,
+        **graph_ctx,
+    }
+
+
+def _object_editor_context(
+    entity_type: str,
+    object_url_id: str,
+    obj: object,
+    form: object,
+    *,
+    editor_template: str = "",
+    view_url: str = "",
+    extra: dict | None = None,
+) -> dict:
+    """Build template context for the generic object editor page."""
+    graph_ctx = get_entity_neighborhood(getattr(obj, "entity_id"))
+    return {
+        "obj": obj,
+        "obj_name": str(obj),
+        "entity_type": entity_type,
+        "object_url_id": object_url_id,
+        "form": form,
+        "editor_template": editor_template,
+        "editor_css_assets": [],
+        "editor_js_assets": [],
+        "config_json": None,
+        "config_error": "",
+        "view_url": view_url,
+        **(extra or {}),
+        **graph_ctx,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Standard panel helpers
+# ---------------------------------------------------------------------------
+
 _STANDARD_PANEL_FIELDS = frozenset({"name", "description"})
 
 
 def _apply_form_to_panel(form: object, panel: object) -> None:
-    """Apply validated Django Form cleaned_data to a Panel instance.
-
-    Standard fields (title, description) map to Panel attributes.
-    All remaining fields are merged into panel.config.
-    """
+    """Apply validated form cleaned_data to a Panel. Standard fields go to
+    model attributes; all others are merged into panel.config."""
     from django.forms import BaseForm
 
     from tap_web.models import Panel
@@ -182,50 +379,19 @@ def _get_panel_type_for_panel(panel: object) -> type | None:
     return None
 
 
-def _panel_edit_context(
-    panel_url_id: str,
-    panel: object,
-    form: object = None,
-    config_error: str = "",
-) -> dict:
-    """Build template context for the panel edit page."""
-    from tap_web.models import Panel
-
-    assert isinstance(panel, Panel)
-    editor_css: dict[str, None] = dict.fromkeys(panel.editor_css or [])
-    editor_js: dict[str, None] = dict.fromkeys(panel.editor_js or [])
-    return {
-        "panel": panel,
-        "panel_url_id": panel_url_id,
-        "preview_url": f"/panel/{panel_url_id}/",
-        "editor_css_assets": list(editor_css),
-        "editor_js_assets": list(editor_js),
-        "config_json": json.dumps(panel.config or {}, indent=2),
-        "config_error": config_error,
-        "form": form,
-    }
-
-
 # ---------------------------------------------------------------------------
-# Internal helpers
+# Internal page rendering helpers
 # ---------------------------------------------------------------------------
 
 
 def _render_page(request: HttpRequest, page: object) -> HttpResponse:
-    """Render a Page using the page template.
-
-    Gathers panels from USES_PANEL edges, collects and deduplicates their
-    static assets, builds the sorted column/row structure for CSS Grid, and
-    passes everything to the page template.
-    """
+    """Render a Page using the page template."""
     panel_slots = get_page_panels(page)  # type: ignore[arg-type]
 
-    # Build a panel_id → panel URL mapping for layout rendering.
     panels_by_id: dict[str, str] = {}
     for panel_id, panel in panel_slots:
         panels_by_id[panel_id] = f"{panel.slug}--{panel.entity_id}"
 
-    # Deduplicate CSS and JS across all panels (order-preserving via dict).
     css: dict[str, None] = {}
     js: dict[str, None] = {}
     for _panel_id, panel in panel_slots:
@@ -234,7 +400,6 @@ def _render_page(request: HttpRequest, page: object) -> HttpResponse:
         for asset_path in panel.js:
             js[asset_path] = None
 
-    # Pre-process the layout JSONField into a sorted structure for the template.
     layout = getattr(page, "layout", {}) or {}
     processed_columns = _process_layout(layout, panels_by_id)
 
@@ -252,17 +417,12 @@ _NUMERIC_PREFIX_RE = re.compile(r"^[a-z]+-(\d+)")
 
 
 def _extract_numeric_key(key: str) -> int:
-    """Extract the leading integer from a col-N or row-N layout key."""
     m = _NUMERIC_PREFIX_RE.match(key)
     return int(m.group(1)) if m else 0
 
 
 def _process_layout(layout: dict, panels_by_id: dict[str, str]) -> list[dict]:
-    """Convert raw layout JSON into a sorted structure the template can iterate.
-
-    Returns a list of column dicts, each containing a sorted list of row dicts.
-    Each row dict includes the panel HTMX URL (or None if the panel_id has no match).
-    """
+    """Convert raw layout JSON into a sorted structure the template can iterate."""
     columns_raw = layout.get("columns", {})
     columns = sorted(columns_raw.items(), key=lambda kv: _extract_numeric_key(kv[0]))
 
@@ -277,7 +437,7 @@ def _process_layout(layout: dict, panels_by_id: dict[str, str]) -> list[dict]:
             processed_rows.append({
                 "key": row_key,
                 "panel_id": panel_id,
-                "panel_url_id": panels_by_id.get(panel_id),  # None if no panel linked
+                "panel_url_id": panels_by_id.get(panel_id),
                 "row_span": row_data.get("row_span", 1),
                 "col_span": row_data.get("col_span", 1),
             })
@@ -292,16 +452,11 @@ def _process_layout(layout: dict, panels_by_id: dict[str, str]) -> list[dict]:
 
 
 def _panel_error(request: HttpRequest, message: str) -> HttpResponse:
-    """Return a panel error HTML fragment so HTMX swap completes."""
     return render(request, "tap_web/panel_error.html", {"message": message})
 
 
 def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
-    """Render a live all-nodes + all-edges view when no LandingPage is configured.
-
-    Uses transient (unsaved) Search instances — execute_search reads only model
-    fields, never queries by PK, so no DB writes occur.
-    """
+    """Render a live all-nodes + all-edges view when no LandingPage is configured."""
     from tap_grid.models import Entity as _Entity
     from tap_grid.models import Search
     from tap_grid.search_service import execute_search
@@ -369,8 +524,6 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
         meta = {}
 
     # --- Edges ---
-    # result["count"] for root="edge" = len(current page), not total.
-    # Use info["total_count"] from the ORM compiler for correct pagination.
     if "results" in edge_result:
         edges: list[dict[str, Any]] = edge_result["results"].get("edges", [])
         e_lim: int = edge_result["limit"]
@@ -390,11 +543,9 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
         edges = edge_result.get("edges", [])
         edges_meta = {}
 
-    # Enrich nodes with icon URLs.
     from tap_web.panels.table_panel import _enrich_nodes_with_icons
     _enrich_nodes_with_icons(nodes)
 
-    # Enrich edges with from/to display names via bulk lookup.
     if edges:
         all_ids = {e["from_entity_id"] for e in edges} | {e["to_entity_id"] for e in edges}
         names: dict[str, str] = dict(

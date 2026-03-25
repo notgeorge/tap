@@ -1,7 +1,5 @@
 <div class="tap-panel tap-panel--table">
-    {% if panel.name %}
-    <h2 class="text-lg font-semibold text-slate-800 mb-3">{{ panel.name }}</h2>
-    {% endif %}
+    {% include "tap_web/panel_header.html" %}
 
     {% if table_error %}
     <div class="tap-panel-error rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

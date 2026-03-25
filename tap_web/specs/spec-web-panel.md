@@ -44,14 +44,12 @@ Status: `Implemented`
 
 A Panel object is the backing entity for a data-display component. It declares its view renderer, optional editor renderer, configuration object, static assets, and display metadata.
 
-Canonical entity instance metadata terminology is defined by `req-grid-entity-metadata` in `spec-grid-entity.md`. Current `Panel` implementation still uses `title`; that should be read in this spec as current implementation terminology rather than the preferred long-term canonical metadata term.
-
 #### Fields
 
 | Field | Type | Required | Notes |
 | --- | --- | :---: | --- |
 | `slug` | CharField (kebab-case) | Yes | Human-readable label used in the panel HTMX URL alongside the entity UUID. No uniqueness constraint — the UUID disambiguates. |
-| `title` | CharField | Yes | Current implementation field for the panel's human-readable name shown in UI. Canonical entity metadata terminology is `name`. |
+| `name` | CharField | Yes | Human-readable name shown in the UI. Canonical entity metadata term per `req-grid-entity-metadata`. |
 | `description` | TextField | No | What the panel is for |
 | `view` | CharField | Yes | Template path string for normal panel rendering. |
 | `editor_view` | CharField | No | Template path string for the panel editor UI. Optional until a panel supports editing. |
@@ -86,15 +84,11 @@ Asset list semantics:
 - Third-party libraries vendored into TAP should also be served as static files, for example under `js/lib/`.
 - Inline JavaScript embedded directly into panel HTML is not part of the panel contract.
 
-#### Development
-
-At the specification layer, `title` is legacy/current-state terminology for panel instance metadata. Future alignment should follow the canonical entity metadata contract defined in `req-grid-entity-metadata`.
-
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-obj-1 | Panel Fields | Implemented | Panel declares `slug`, `title`, `description`, `view`, `editor_view`, `config`, `js`, `css`, `editor_js`, `editor_css`, and `input_vars` as described above. | Edit-mode fields and `config` are not yet implemented. |
+| req-web-panel-obj-1 | Panel Fields | Implemented | Panel declares `slug`, `name`, `description`, `view`, `editor_view`, `config`, `js`, `css`, `editor_js`, `editor_css`, and `input_vars` as described above. | |
 | req-web-panel-obj-2 | View Is Template Path | Implemented | `view` stores a template path string. The generic panel view handler renders it with `render(request, panel.view)`. | |
 | req-web-panel-obj-3 | Asset Lists Default Empty | Implemented | `js`, `css`, `editor_js`, and `editor_css` default to `[]` when not set. | `editor_js` and `editor_css` are newly specified. |
 | req-web-panel-obj-4 | Panel URL Format | Implemented | Panel HTMX endpoint is `/panel/<slug>--<entity-uuid>/`. UUID is used for lookup; slug is decorative. | |
@@ -158,7 +152,7 @@ This requirement now formalizes only the panel-specific portion of edit mode. Sh
 - Panel edit mode uses optional `editor_view` plus `editor_js` and `editor_css`.
 - Panel edit mode is hosted inside the shared generic editor shell defined in `spec-web-editor.md`.
 - Panel edit mode operates on panel-owned metadata and configuration:
-  - `name`
+  - `name` (canonical entity instance metadata)
   - `description`
   - `config`
 - Panels may also provide a panel-specific object preview because panels have a human-facing rendered form.

@@ -29,3 +29,9 @@ class SearchExecutionError(Exception):
     """Raised on hard failures during search execution (DB error, invalid result envelope, etc.)."""
 
     pass
+
+
+class NoBatchContextError(Exception):
+    """Raised when a FLIP-enabled model is saved without an active batch context."""
+
+    pass

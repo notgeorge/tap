@@ -43,11 +43,12 @@ class TestPopulateBatchIdSignal:
             set_batch_id(None)
 
     def test_no_batch_id_without_context(self):
-        """batch_id remains empty without batch context."""
-        entity = create_entity("character", name="No Context Test")
-        character = Character.objects.create(entity=entity, bio="Test")
+        """FLIP-enabled models raise NoBatchContextError when saved without batch context."""
+        from tap_grid.exceptions import NoBatchContextError
 
-        assert character.batch_id == ""
+        entity = create_entity("character", name="No Context Test")
+        with pytest.raises(NoBatchContextError):
+            Character.objects.create(entity=entity, bio="Test")
 
     def test_batch_id_not_set_for_disabled_model(self):
         """batch_id not populated for models with batch tracking disabled."""
@@ -96,9 +97,10 @@ class TestRecordSaveEventSignal:
         batch = create_batch()
         batch_id = str(batch.entity.id)
 
-        # Create outside batch context
-        entity = create_entity("character", name="Update Event Test")
-        character = Character.objects.create(entity=entity, bio="Original")
+        # Create inside a setup batch context (FLIP enforcement requires it)
+        with batch_context(source="test:setup"):
+            entity = create_entity("character", name="Update Event Test")
+            character = Character.objects.create(entity=entity, bio="Original")
 
         # Update inside batch context
         set_batch_id(batch_id)
@@ -115,12 +117,12 @@ class TestRecordSaveEventSignal:
             set_batch_id(None)
 
     def test_no_event_without_context(self):
-        """No BatchEvent recorded without batch context."""
-        entity = create_entity("character", name="No Event Test")
-        Character.objects.create(entity=entity, bio="Test")
+        """FLIP-enabled models raise NoBatchContextError instead of silently skipping events."""
+        from tap_grid.exceptions import NoBatchContextError
 
-        # No batch context, so no events to query
-        # Just verify no error occurred
+        entity = create_entity("character", name="No Event Test")
+        with pytest.raises(NoBatchContextError):
+            Character.objects.create(entity=entity, bio="Test")
 
 
 @pytest.mark.django_db
@@ -132,9 +134,10 @@ class TestRecordDeleteEventSignal:
         batch = create_batch()
         batch_id = str(batch.entity.id)
 
-        # Create outside batch context
-        entity = create_entity("character", name="Delete Event Test")
-        Character.objects.create(entity=entity, bio="To Delete")
+        # Create inside a setup batch context (FLIP enforcement requires it)
+        with batch_context(source="test:setup"):
+            entity = create_entity("character", name="Delete Event Test")
+            Character.objects.create(entity=entity, bio="To Delete")
         entity_id = entity.id
 
         # Delete inside batch context

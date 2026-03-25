@@ -144,14 +144,32 @@
     var mode = mountEl.getAttribute("data-tap-table-mode") || "node";
     var columns = mode === "edge" ? EDGE_COLUMNS : COMMON_METADATA_COLUMNS;
 
-    /* global Tabulator */
-    new Tabulator(mountEl, {
+    var tableOptions = {
       data: rows,
       columns: columns,
       layout: "fitColumns",
       pagination: false, // Server handles pagination; disable Tabulator's own.
       placeholder: "No results.",
-    });
+    };
+
+    // Node-mode rows navigate to the object viewer on click (req-web-stdpanel-table-row-nav).
+    // Use rowFormatter to attach the click handler directly on the DOM element — Tabulator v6
+    // removed rowClick as a constructor option in favour of table.on().
+    if (mode === "node") {
+      tableOptions.rowFormatter = function (row) {
+        var el = row.getElement();
+        el.style.cursor = "pointer";
+        el.addEventListener("click", function () {
+          var data = row.getData();
+          if (data.url_id && data.entity_type) {
+            window.location.href = "/object/" + data.entity_type + "/" + data.url_id + "/";
+          }
+        });
+      };
+    }
+
+    /* global Tabulator */
+    new Tabulator(mountEl, tableOptions);
   }
 
   /**

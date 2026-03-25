@@ -1,24 +1,21 @@
 """FLIP configuration defaults and per-model management.
 
-Every FLIP-capable model can define a FLIP_CONFIG class attribute that controls
-which FLIP features are enabled. Models without FLIP_CONFIG use defaults (all disabled).
+FLIP_CONFIG controls which FLIP features are enabled per model. History and
+perspective have their own independent configuration mechanisms (not FLIP_CONFIG).
+
+Models without FLIP_CONFIG use defaults (all disabled, opt-in).
 """
 
 from typing import Any
 
-# Default FLIP_CONFIG shape — all features disabled by default (opt-in)
+# Default FLIP_CONFIG — all features disabled by default (opt-in)
 DEFAULT_FLIP_CONFIG: dict[str, Any] = {
-    "history": {
-        "enabled": False,
-        "depth_revisions": None,  # None = unlimited
-        "depth_days": None,
-    },
     "batch": {
         "enabled": False,
     },
-    "consensus": {
+    "flip": {
         "enabled": False,
-        "policy": None,
+        "fields": [],  # explicit allow-list of top-level Django model field names
     },
 }
 
@@ -64,15 +61,31 @@ def get_model_flip_config(model_class: type) -> dict[str, Any]:
 
 
 def is_history_enabled(model_class: type) -> bool:
-    """Check if history tracking is enabled for a model."""
-    config = get_model_flip_config(model_class)
-    return bool(config["history"]["enabled"])
+    """Check if history tracking is enabled for a model.
+
+    A model has history enabled when it carries a HistoricalRecords manager
+    (i.e., `history = HistoricalRecords(...)`). History is configured directly
+    on the model, not through FLIP_CONFIG.
+    """
+    return hasattr(model_class, "history")
 
 
 def is_batch_enabled(model_class: type) -> bool:
     """Check if batch tracking is enabled for a model."""
     config = get_model_flip_config(model_class)
     return bool(config["batch"]["enabled"])
+
+
+def is_flip_enabled(model_class: type) -> bool:
+    """Check if FLIP field-path tracking is enabled for a model."""
+    config = get_model_flip_config(model_class)
+    return bool(config["flip"]["enabled"])
+
+
+def get_flip_fields(model_class: type) -> list[str]:
+    """Return the list of field names tracked by FLIP for a model."""
+    config = get_model_flip_config(model_class)
+    return list(config["flip"]["fields"])
 
 
 def clear_registry() -> None:

@@ -33,20 +33,27 @@ class TestGetHistoricalRecords:
 
     def test_new_character_has_creation_record(self):
         """New Character instance has at least one history record (creation)."""
-        entity = create_entity("character", name="Test Character")
-        character = Character.objects.create(entity=entity, bio="Initial bio")
+        from tap_flip.batch.service import batch_context
+
+        with batch_context(source="test:history"):
+            entity = create_entity("character", name="Test Character")
+            character = Character.objects.create(entity=entity, bio="Initial bio")
 
         records = get_historical_records(character)
         assert records.count() >= 1
 
     def test_update_creates_new_record(self):
         """Updating a Character creates a new history record."""
-        entity = create_entity("character", name="Update Test")
-        character = Character.objects.create(entity=entity, bio="Original")
+        from tap_flip.batch.service import batch_context
+
+        with batch_context(source="test:history-create"):
+            entity = create_entity("character", name="Update Test")
+            character = Character.objects.create(entity=entity, bio="Original")
         initial_count = character.history.count()
 
-        character.bio = "Updated bio"
-        character.save()
+        with batch_context(source="test:history-update"):
+            character.bio = "Updated bio"
+            character.save()
 
         records = get_historical_records(character)
         assert records.count() > initial_count
@@ -57,8 +64,8 @@ class TestGetHistoricalRecords:
         location = Location.objects.create(entity=entity, description="Some place")
 
         records = get_historical_records(location)
-        # Should return empty queryset (not error)
-        assert records.count() == 0
+        # Should return empty (no history manager on Location)
+        assert len(records) == 0
 
 
 @pytest.mark.django_db
@@ -67,8 +74,11 @@ class TestGetHistoryTimeline:
 
     def test_timeline_has_required_fields(self):
         """Timeline entries have timestamp, change_type, actor, record_id."""
-        entity = create_entity("character", name="Timeline Test")
-        character = Character.objects.create(entity=entity, bio="Test")
+        from tap_flip.batch.service import batch_context
+
+        with batch_context(source="test:history"):
+            entity = create_entity("character", name="Timeline Test")
+            character = Character.objects.create(entity=entity, bio="Test")
 
         timeline = get_history_timeline(character)
         assert len(timeline) >= 1
@@ -81,11 +91,15 @@ class TestGetHistoryTimeline:
 
     def test_timeline_records_change_types(self):
         """Timeline shows different change types for create/update."""
-        entity = create_entity("character", name="Change Type Test")
-        character = Character.objects.create(entity=entity, bio="Original")
+        from tap_flip.batch.service import batch_context
 
-        character.bio = "Updated"
-        character.save()
+        with batch_context(source="test:history-create"):
+            entity = create_entity("character", name="Change Type Test")
+            character = Character.objects.create(entity=entity, bio="Original")
+
+        with batch_context(source="test:history-update"):
+            character.bio = "Updated"
+            character.save()
 
         timeline = get_history_timeline(character)
         # Most recent first, so update should be first
@@ -99,11 +113,14 @@ class TestHistoryUserAttribution:
 
     def test_history_records_user_from_context(self):
         """History records the user from context."""
+        from tap_flip.batch.service import batch_context
+
         user = User.objects.create_user(username="historian", password="test")
         set_history_user(user)
 
-        entity = create_entity("character", name="User Test")
-        character = Character.objects.create(entity=entity, bio="Test")
+        with batch_context(source="test:history-user"):
+            entity = create_entity("character", name="User Test")
+            character = Character.objects.create(entity=entity, bio="Test")
 
         # Check that the user was recorded
         latest_record = character.history.latest("history_id")
@@ -114,10 +131,13 @@ class TestHistoryUserAttribution:
 
     def test_history_without_user_context(self):
         """History works even without user in context (None)."""
+        from tap_flip.batch.service import batch_context
+
         set_history_user(None)
 
-        entity = create_entity("character", name="No User Test")
-        character = Character.objects.create(entity=entity, bio="Test")
+        with batch_context(source="test:history-no-user"):
+            entity = create_entity("character", name="No User Test")
+            character = Character.objects.create(entity=entity, bio="Test")
 
         # Should not error, user will be None
         latest_record = character.history.latest("history_id")

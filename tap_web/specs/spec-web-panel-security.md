@@ -77,7 +77,7 @@ This is a **platform-level** guarantee provided by Django's template engine. Aut
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-web-panel-render-content.sec-1 | Escaping By Default | Implemented | Panel content rendering uses Django template auto-escaping by default. Panel templates must not mark user-sourced values as safe. | Platform-level; verified by Text Panel XSS tests. |
-| req-web-panel-render-content.sec-2 | Edited Text Not Trusted HTML | Implemented | Text entered through standard panel editors is not treated as trusted HTML. `config.text` and `title` render as escaped plain text. | Verified in `test_text_panel.py` (`test_html_in_text_is_escaped`). |
+| req-web-panel-render-content.sec-2 | Edited Text Not Trusted HTML | Implemented | Text entered through standard panel editors is not treated as trusted HTML. `config.text` and `name` render as escaped plain text. | Verified in `test_text_panel.py` (`test_html_in_text_is_escaped`). |
 
 #### Future
 Define any future rich-text or trusted-HTML panel capability as a separate hardened feature rather than widening the default rendering rule.

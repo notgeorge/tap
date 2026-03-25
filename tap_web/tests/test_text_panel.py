@@ -126,7 +126,7 @@ class TestTextPanelEditView:
     def test_get_uses_panel_edit_template(self):
         panel = _create_text_panel()
         response = Client().get(_edit_url(panel))
-        assert "tap_web/panel_edit.html" in [t.name for t in response.templates]
+        assert "tap_web/editor.html" in [t.name for t in response.templates]
 
     def test_get_includes_text_panel_editor_template(self):
         panel = _create_text_panel()
@@ -174,7 +174,7 @@ class TestTextPanelEditView:
         panel = _create_text_panel()
         response = Client().post(_edit_url(panel), {"name": "", "description": "", "text": "body"})
         assert response.status_code == 200
-        assert b"tap_web/panel_edit.html" in bytes(str([t.name for t in response.templates]), "utf-8")
+        assert b"tap_web/editor.html" in bytes(str([t.name for t in response.templates]), "utf-8")
 
     def test_post_redirects_to_edit_page_on_success(self):
         panel = _create_text_panel()

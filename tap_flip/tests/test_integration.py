@@ -18,45 +18,46 @@ class TestFullHistoryFlow:
 
     def test_create_update_history_flow(self):
         """Full flow: create → update → query history."""
-        # Set user context
+        from tap_flip.batch.service import batch_context
+
         user = User.objects.create_user(username="flowtest", password="test")
         set_history_user(user)
+        try:
+            with batch_context(source="test:history-create"):
+                entity = create_entity("character", name="Frodo Baggins")
+                character = Character.objects.create(entity=entity, bio="A hobbit.")
 
-        # Create a character
-        entity = create_entity("character", name="Frodo Baggins")
-        character = Character.objects.create(entity=entity, bio="A hobbit.")
+            with batch_context(source="test:history-update"):
+                character.bio = "A brave hobbit of the Shire."
+                character.save()
 
-        # Update it
-        character.bio = "A brave hobbit of the Shire."
-        character.save()
+            records = get_historical_records(character)
+            timeline = get_history_timeline(character)
 
-        # Query history
-        records = get_historical_records(character)
-        timeline = get_history_timeline(character)
-
-        # Verify
-        assert records.count() == 2  # Create + Update
-        assert len(timeline) == 2
-        assert timeline[0]["actor"] == "flowtest"
-
-        # Cleanup
-        set_history_user(None)
+            assert records.count() == 2  # Create + Update
+            assert len(timeline) == 2
+            assert timeline[0]["actor"] == "flowtest"
+        finally:
+            set_history_user(None)
 
     def test_history_preserves_old_values(self):
         """History records preserve the state at each point in time."""
-        entity = create_entity("character", name="Gandalf")
-        character = Character.objects.create(entity=entity, bio="Version 1")
+        from tap_flip.batch.service import batch_context
 
-        character.bio = "Version 2"
-        character.save()
+        with batch_context(source="test:history-v1"):
+            entity = create_entity("character", name="Gandalf")
+            character = Character.objects.create(entity=entity, bio="Version 1")
 
-        character.bio = "Version 3"
-        character.save()
+        with batch_context(source="test:history-v2"):
+            character.bio = "Version 2"
+            character.save()
 
-        # Get all historical records
+        with batch_context(source="test:history-v3"):
+            character.bio = "Version 3"
+            character.save()
+
         records = list(character.history.all().order_by("history_date"))
 
-        # Should have 3 records with different bios
         assert len(records) == 3
         assert records[0].bio == "Version 1"
         assert records[1].bio == "Version 2"
@@ -68,22 +69,28 @@ class TestBatchIdFieldExists:
     """Tests for batch_id field on BaseModel."""
 
     def test_batch_id_field_exists_on_character(self):
-        """Character model has batch_id field."""
-        entity = create_entity("character", name="Batch ID Test")
-        character = Character.objects.create(entity=entity, bio="Test")
+        """Character model has batch_id field populated by batch context."""
+        from tap_flip.batch.service import batch_context
 
-        # batch_id should exist and be empty string in Phase 1
+        with batch_context(source="test:batch-id"):
+            entity = create_entity("character", name="Batch ID Test")
+            character = Character.objects.create(entity=entity, bio="Test")
+
         assert hasattr(character, "batch_id")
-        assert character.batch_id == ""
+        assert character.batch_id != ""  # signal populates it from batch context
 
     def test_batch_id_can_be_set(self):
-        """batch_id field can be set (for Phase 2 preparation)."""
-        entity = create_entity("character", name="Batch Set Test")
-        character = Character.objects.create(entity=entity, bio="Test")
+        """batch_id field can be manually overwritten."""
+        from tap_flip.batch.service import batch_context
+
+        with batch_context(source="test:batch-id-create"):
+            entity = create_entity("character", name="Batch Set Test")
+            character = Character.objects.create(entity=entity, bio="Test")
 
         batch_uuid = "019468b7-1234-7def-8000-000000000001"
         character.batch_id = batch_uuid
-        character.save()
+        with batch_context(source="test:batch-id-update"):
+            character.save()
 
         character.refresh_from_db()
         assert character.batch_id == batch_uuid
@@ -116,14 +123,17 @@ class TestHistoryEnabledVsDisabled:
         location = Location.objects.create(entity=entity, description="Test")
 
         records = get_historical_records(location)
-        assert records.count() == 0
+        assert len(records) == 0
 
     def test_both_have_batch_id(self):
         """Both Character and Location have batch_id (BaseModel field)."""
+        from tap_flip.batch.service import batch_context
+
         character_entity = create_entity("character", name="C")
         location_entity = create_entity("location", name="L")
 
-        character = Character.objects.create(entity=character_entity, bio="Test")
+        with batch_context(source="test:batch-id-both"):
+            character = Character.objects.create(entity=character_entity, bio="Test")
         location = Location.objects.create(entity=location_entity, description="Test")
 
         assert hasattr(character, "batch_id")

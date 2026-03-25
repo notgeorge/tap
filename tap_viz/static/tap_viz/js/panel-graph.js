@@ -36,6 +36,7 @@ function initGraph(panelId) {
                 entity_type: n.entity_type || "",
                 icon_url: n.icon_url || "",
                 shape: n.shape || "ellipse",
+                url_id: n.url_id || "",
             },
         };
     });
@@ -121,6 +122,16 @@ function initGraph(panelId) {
     });
 
     _attachToolbar(container, cy);
+
+    // Node tap → navigate to the object viewer (req-viz-panel-node-nav).
+    cy.on("tap", "node", function (evt) {
+        var node = evt.target;
+        var entityType = node.data("entity_type");
+        var urlId = node.data("url_id");
+        if (entityType && urlId) {
+            window.location.href = "/object/" + entityType + "/" + urlId + "/";
+        }
+    });
 }
 
 function _buildLayout(placement) {

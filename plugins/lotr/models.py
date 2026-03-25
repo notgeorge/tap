@@ -23,9 +23,10 @@ class Character(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "character"
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "ellipse"}}
+    # History is enabled directly via the HistoricalRecords manager below.
     FLIP_CONFIG: ClassVar[dict[str, Any]] = {
-        "history": {"enabled": True},
         "batch": {"enabled": True},
+        "flip": {"enabled": True, "fields": ["bio", "title"]},
     }
 
     history = HistoricalRecords(get_user=get_history_user)

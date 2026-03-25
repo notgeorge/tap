@@ -1,0 +1,113 @@
+{% extends "tap_web/base.html" %}
+{% load static %}
+
+{% block title %}Edit: {{ obj_name }} — TAP{% endblock %}
+
+{% block head_extras %}
+<link rel="stylesheet" href="{% static 'tap_viz/css/panel-graph.css' %}">
+{% for css_path in editor_css_assets %}
+<link rel="stylesheet" href="{% static css_path %}">
+{% endfor %}
+{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+    <div>
+        <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">{{ entity_type }}</span>
+        <h1 class="text-2xl font-bold mt-0.5">{{ obj_name }}</h1>
+    </div>
+    <div class="flex items-center gap-4">
+        {% if view_url %}
+        <a href="{{ view_url }}" class="text-sm text-slate-500 hover:text-slate-700">View</a>
+        {% endif %}
+        <a href="javascript:history.back()" class="text-sm text-slate-500 hover:text-slate-700">← Back</a>
+    </div>
+</div>
+
+{# Graph context region #}
+<section class="mb-6">
+    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Graph Context</h2>
+    {% include "tap_viz/graph_context.html" %}
+</section>
+
+{# Editor region #}
+<section>
+    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Editor</h2>
+    <form method="post" action="">
+        {% csrf_token %}
+        <div class="space-y-4 bg-white border border-slate-200 rounded p-4">
+
+            {% if editor_template and form %}
+            {# Typed editor — custom field template provided by the descriptor #}
+            {% include editor_template %}
+
+            {% elif form %}
+            {# Generic editor — render form fields automatically #}
+            {% for field in form %}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1"
+                       for="{{ field.id_for_label }}">
+                    {{ field.label }}{% if field.field.required %}<span class="text-red-500 ml-0.5">*</span>{% endif %}
+                </label>
+                {% if field.errors %}
+                <ul class="mb-1">
+                    {% for error in field.errors %}
+                    <li class="text-red-600 text-xs">{{ error }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                <div class="[&_input]:w-full [&_input]:border [&_input]:border-slate-300 [&_input]:rounded [&_input]:px-3 [&_input]:py-2 [&_input]:text-sm
+                            [&_textarea]:w-full [&_textarea]:border [&_textarea]:border-slate-300 [&_textarea]:rounded [&_textarea]:px-3 [&_textarea]:py-2 [&_textarea]:text-sm
+                            [&_select]:w-full [&_select]:border [&_select]:border-slate-300 [&_select]:rounded [&_select]:px-3 [&_select]:py-2 [&_select]:text-sm">
+                    {{ field }}
+                </div>
+                {% if field.help_text %}
+                <p class="text-xs text-slate-500 mt-0.5">{{ field.help_text }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            {% else %}
+            {# Fallback — no registered typed editor; raw JSON config (panels without a type) #}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="id_name">Name</label>
+                <input id="id_name" name="name" type="text" value="{{ obj.name }}"
+                       class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="id_description">Description</label>
+                <textarea id="id_description" name="description" rows="2"
+                          class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">{{ obj.description }}</textarea>
+            </div>
+            {% if config_json is not None %}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="id_config">
+                    Config <span class="font-normal text-slate-400">(JSON)</span>
+                </label>
+                {% if config_error %}
+                <p class="text-red-600 text-xs mb-1">{{ config_error }}</p>
+                {% endif %}
+                <textarea id="id_config" name="config" rows="6"
+                          class="w-full font-mono border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400{% if config_error %} border-red-400{% endif %}">{{ config_json }}</textarea>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <div class="flex items-center gap-3 pt-2 border-t border-slate-100">
+                <button type="submit"
+                        class="px-4 py-2 bg-slate-800 text-white text-sm rounded hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                    Save
+                </button>
+            </div>
+        </div>
+    </form>
+</section>
+{% endblock %}
+
+{% block body_extras %}
+<script src="{% static 'tap_viz/js/cytoscape.min.js' %}"></script>
+<script src="{% static 'tap_viz/js/panel-graph.js' %}"></script>
+{% for js_path in editor_js_assets %}
+<script src="{% static js_path %}"></script>
+{% endfor %}
+{% endblock %}

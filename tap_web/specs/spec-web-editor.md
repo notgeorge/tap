@@ -24,19 +24,20 @@ Hotlink editing is intentionally deferred. It requires additional relationship-a
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-web-editor-shell | [Editor Shell](#editor-shell) | Proposed | Shared editor page structure for editable TAP objects |
-| req-web-editor-graph | [Graph Context Preview](#graph-context-preview) | Proposed | Cytoscape hub-and-spoke view of the edited object and its immediate relationships |
+| req-web-editor-shell | [Editor Shell](#editor-shell) | Implemented | Shared editor page structure for editable TAP objects |
+| req-web-editor-graph | [Graph Context Preview](#graph-context-preview) | Implemented | Cytoscape hub-and-spoke view of the edited object and its immediate relationships |
 | req-web-editor-object-preview | [Object Preview](#object-preview) | Proposed | Type-aware preview of what the edited object looks like |
-| req-web-editor-preview-exec | [Preview Execution](#preview-execution) | Proposed | Preview applies draft changes without persisting them |
-| req-web-editor-typed | [Typed Editor Contract](#typed-editor-contract) | Proposed | Editor descriptors provide typed forms, initial values, preview behavior, and save behavior |
-| req-web-editor-fields | [Field Strategy](#field-strategy) | Proposed | Start with Django Forms / ModelForms; structured-object fields may layer on later |
+| req-web-editor-availability | [Editor Availability Contract](#editor-availability-contract) | Proposed | TAP objects may explicitly declare that no typed editor exists in v1 |
+| req-web-editor-preview-exec | [Preview Execution](#preview-execution) | Backlog | Deferred: save + history-revert is the v1 undo strategy |
+| req-web-editor-typed | [Typed Editor Contract](#typed-editor-contract) | Implemented | Editor descriptors provide typed forms, initial values, and save behavior |
+| req-web-editor-fields | [Field Strategy](#field-strategy) | Implemented | Start with Django Forms / ModelForms; structured-object fields may layer on later |
 | req-web-editor-hotlinks | [Hotlink Editing Deferral](#hotlink-editing-deferral) | Backlog | Hotlinks require more complex editor logic and are explicitly deferred |
-| req-web-editor-form.sec | [Editor Form Security](#editor-form-security) | Proposed | Generic editor security contract superseding panel-only wording |
+| req-web-editor-form.sec | [Editor Form Security](#editor-form-security) | Implemented | Generic editor security contract superseding panel-only wording |
 
 ### Editor Shell
 ----
 RID: `req-web-editor-shell`
-Status: `Proposed`
+Status: `Implemented`
 
 TAP Web provides a standard editor shell for editable objects. The shell is generic and not owned by any one object type.
 
@@ -46,8 +47,8 @@ TAP Web provides a standard editor shell for editable objects. The shell is gene
   - object preview beneath it when the edited type supports one
   - typed editor form beneath the preview regions
 - The shell provides standard actions:
-  - `Preview`
   - `Save`
+  - `Preview` is deferred to backlog; save + history-revert is the v1 undo strategy
 - The shell owns page chrome, action placement, and request lifecycle.
 - Edited object types provide only typed editor content and preview behavior.
 
@@ -58,14 +59,14 @@ Keep the shell stable and make object types plug into it. The shell should not n
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-editor-shell-1 | Shared Editor Shell Exists | Proposed | TAP Web defines one standard editor page shell rather than per-type page structures. | |
-| req-web-editor-shell-2 | Standard Actions | Proposed | The shell exposes both `Preview` and `Save` actions. | |
-| req-web-editor-shell-3 | Type Supplies Editor Content | Proposed | Edited object types provide typed editor fields inside the shared shell rather than replacing the shell itself. | |
+| req-web-editor-shell-1 | Shared Editor Shell Exists | Implemented | TAP Web defines one standard editor page shell rather than per-type page structures. | `tap_web/templates/tap_web/editor.html` |
+| req-web-editor-shell-2 | Standard Actions | Implemented | The shell exposes a `Save` action. `Preview` is deferred to backlog. | |
+| req-web-editor-shell-3 | Type Supplies Editor Content | Implemented | Edited object types provide typed editor fields inside the shared shell rather than replacing the shell itself. | `EditorDescriptor` + `editor_template` |
 
 ### Graph Context Preview
 ----
 RID: `req-web-editor-graph`
-Status: `Proposed`
+Status: `Implemented`
 
 The top of the generic editor always shows a Cytoscape representation of the edited object in immediate graph context.
 
@@ -86,10 +87,10 @@ Make graph context mandatory in the editor shell. TAP objects should not be edit
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-editor-graph-1 | Graph Region Exists | Proposed | The top region of the generic editor contains a Cytoscape graph preview. | |
-| req-web-editor-graph-2 | Edited Object Is Hub | Proposed | The edited object is centered conceptually as the hub in the graph preview. | Visual centering strategy may vary by layout implementation. |
-| req-web-editor-graph-3 | Immediate Relationships Included | Proposed | The graph preview includes immediate inbound/outbound edges and connected nodes only. | |
-| req-web-editor-graph-4 | Read Only In V1 | Proposed | The first graph preview does not mutate graph structure. | |
+| req-web-editor-graph-1 | Graph Region Exists | Implemented | The top region of the generic editor contains a Cytoscape graph preview. | `tap_viz/templates/tap_viz/graph_context.html` |
+| req-web-editor-graph-2 | Edited Object Is Hub | Implemented | The edited object is centered conceptually as the hub in the graph preview. | `hub_and_spoke_runner` in `tap_viz/panels/graph_panel` |
+| req-web-editor-graph-3 | Immediate Relationships Included | Implemented | The graph preview includes immediate inbound/outbound edges and connected nodes only. | |
+| req-web-editor-graph-4 | Read Only In V1 | Implemented | The first graph preview does not mutate graph structure. | |
 
 ### Object Preview
 ----
@@ -114,48 +115,60 @@ Do not force every editable type to invent a visual preview. Reserve rich object
 | req-web-editor-object-preview-2 | Rich Artifacts Show What They Look Like | Proposed | Layouts, pages, panels, and similar artifacts may render a visual object preview in the generic editor shell. | |
 | req-web-editor-object-preview-3 | Simple Types May Omit Rich Preview | Proposed | Simple model-backed objects are not required to provide a second rich preview surface beyond graph context. | |
 
-### Preview Execution
+### Editor Availability Contract
 ----
-RID: `req-web-editor-preview-exec`
+RID: `req-web-editor-availability`
 Status: `Proposed`
 
-Preview applies pending editor changes without saving them.
+Not every TAP Web object or panel type needs a typed editor in the first implementation. The editor contract must therefore distinguish between "editable and has a typed editor" and "renderable object with no editor in v1" so the UI can behave intentionally rather than looking broken.
 
 #### Implementation
-- `Preview` submits the current editor state through the same validation path used for save.
-- Preview constructs a draft object state in memory.
-- Preview does not persist database changes.
-- Preview may render:
-  - graph preview based on current persisted relationships in v1
-  - object preview using draft field values
-- `Save` persists validated changes after the user chooses to commit them.
+- TAP Web should support explicit editor availability metadata for object and panel types.
+- An object type may declare:
+  - editable with a typed editor
+  - no typed editor in v1
+- For panel types, absence of `editor_view` should be treated as an intentional no-editor state when the panel type is defined as view-only.
+- The UI should be able to suppress or disable edit affordances when no editor is available, rather than routing users into a dead-end shell.
 
 #### Development
-Preview should mean "apply the current draft," not "show the last saved object." This distinction matters most once the editor becomes more than a readonly inspector with a form attached.
+This is especially relevant for viewer-style standard panels such as history and FLIP inspectors. They are useful and first-class even if they do not support custom editing.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-editor-preview-exec-1 | Preview Does Not Save | Proposed | Preview applies changes without persisting them. | |
-| req-web-editor-preview-exec-2 | Preview Uses Validation Path | Proposed | Preview validates the current editor payload before rendering draft output. | |
-| req-web-editor-preview-exec-3 | Save Remains Explicit | Proposed | Persistence occurs only through the explicit `Save` action. | |
-| req-web-editor-preview-exec-4 | Draft Object Preview Supported | Proposed | Preview rendering may use unsaved draft object state. | |
+| req-web-editor-availability-1 | Explicit No-Editor State | Proposed | TAP Web can explicitly represent that a given object or panel type has no typed editor in v1. | |
+| req-web-editor-availability-2 | UI Honors Availability | Proposed | Edit affordances can be hidden or disabled when no editor is available. | |
+| req-web-editor-availability-3 | No Dead-End Edit Route Assumption | Proposed | The editor contract does not assume every renderable object must have a usable edit screen. | |
+
+### Preview Execution
+----
+RID: `req-web-editor-preview-exec`
+Status: `Backlog`
+
+Preview is explicitly deferred. The v1 undo strategy is save + history-revert via FLIP. Once the history system is live, reverting to a prior state is the equivalent of an undo operation, making preview a less urgent concern.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-editor-preview-exec-1 | Preview Deferred | Backlog | Preview is not part of the v1 editor shell. History-revert is the v1 undo path. | |
 
 ### Typed Editor Contract
 ----
 RID: `req-web-editor-typed`
-Status: `Proposed`
+Status: `Implemented`
 
 Editable object types plug into the generic editor through a typed editor descriptor rather than raw JSON by default.
 
 #### Implementation
-- A typed editor descriptor may provide:
-  - `form_class`
-  - `get_editor_initial(obj)`
-  - `build_preview(form, obj, request)` or equivalent draft-construction hook
-  - `handle_save(form, obj, request)`
-  - optional preview template/context hooks for object-specific previews
+- A typed editor descriptor provides:
+  - `entity_type` — the entity type slug this descriptor handles
+  - `form_class` — Django Form or ModelForm for the typed editor
+  - `get_editor_initial(obj)` — returns initial field values for an existing object
+  - `handle_save(form, obj, request)` — persists validated changes
+  - optional `get_extra_context(obj)` — extra template context for type-specific rendering
+  - optional `editor_template` — path to a custom form field template; generic field rendering used if absent
 - Typed editor descriptors are the standard extension path for node, edge, and richer object editors.
 - Raw JSON editing is a fallback/debug path rather than the primary editor contract.
 
@@ -166,16 +179,15 @@ This keeps TAP editors grounded in domain fields and model semantics rather than
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-editor-typed-1 | Typed Descriptor Contract Exists | Proposed | Editable object types integrate with the shell through a typed editor descriptor contract. | |
-| req-web-editor-typed-2 | Initial State Hook | Proposed | Typed editors can provide initial field values for an existing object. | |
-| req-web-editor-typed-3 | Preview Hook | Proposed | Typed editors can construct draft preview state without persisting it. | |
-| req-web-editor-typed-4 | Save Hook | Proposed | Typed editors can persist validated changes through a dedicated save hook. | |
-| req-web-editor-typed-5 | Raw JSON Is Fallback | Proposed | Raw JSON editing is not the default editor mode for typed objects. | |
+| req-web-editor-typed-1 | Typed Descriptor Contract Exists | Implemented | Editable object types integrate with the shell through a typed editor descriptor contract. | `EditorDescriptor` in `tap_web/editor.py`; `CharacterEditorDescriptor` in `plugins/lotr/forms.py` |
+| req-web-editor-typed-2 | Initial State Hook | Implemented | Typed editors can provide initial field values for an existing object. | `get_editor_initial(obj)` |
+| req-web-editor-typed-3 | Save Hook | Implemented | Typed editors persist validated changes through `handle_save`. | `handle_save(form, obj, request)` |
+| req-web-editor-typed-4 | Raw JSON Is Fallback | Implemented | Raw JSON editing is not the default editor mode for typed objects. | JSON fallback only shown when no descriptor is registered |
 
 ### Field Strategy
 ----
 RID: `req-web-editor-fields`
-Status: `Proposed`
+Status: `Implemented`
 
 The editor system starts with Django Forms / ModelForms for ordinary fields and adds more specialized structured-object controls only when needed.
 
@@ -194,9 +206,9 @@ This keeps the initial editor stack aligned with TAP's server-rendered Django + 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-editor-fields-1 | Django Forms First | Proposed | Standard Django Forms / ModelForms are the default field editing mechanism. | |
-| req-web-editor-fields-2 | Scalar Fields Use Standard Widgets | Proposed | Common scalar model fields use ordinary Django form fields and widgets in v1. | |
-| req-web-editor-fields-3 | Structured Objects Layer Later | Proposed | Embedded structured-object editing may be added later without redefining the base editor contract. | |
+| req-web-editor-fields-1 | Django Forms First | Implemented | Standard Django Forms / ModelForms are the default field editing mechanism. | `CharacterEditForm`, `TextPanelEditForm` |
+| req-web-editor-fields-2 | Scalar Fields Use Standard Widgets | Implemented | Common scalar model fields use ordinary Django form fields and widgets in v1. | |
+| req-web-editor-fields-3 | Structured Objects Layer Later | Implemented | Embedded structured-object editing may be added later without redefining the base editor contract. | |
 
 ### Hotlink Editing Deferral
 ----
@@ -220,7 +232,7 @@ Future work must define:
 ### Editor Form Security
 ----
 RID: `req-web-editor-form.sec`
-Status: `Proposed`
+Status: `Implemented`
 
 Generic editor submissions must use standard Django form security protections. This requirement generalizes the earlier panel-only wording to all TAP Web editors.
 
@@ -237,10 +249,10 @@ Editor security should be defined once at the generic editor layer and then refe
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-editor-form.sec-1 | CSRF Required | Proposed | All generic editor forms include CSRF protection. | |
-| req-web-editor-form.sec-2 | Server Validation Required | Proposed | Preview and save both use server-side validation before applying editor input. | |
-| req-web-editor-form.sec-3 | Untrusted Input Handling | Proposed | Persisted changes originate from validated form data rather than raw request payloads. | |
-| req-web-editor-form.sec-4 | Default Escaping Applies | Proposed | Preview and later rendering use standard Django escaping by default. | |
+| req-web-editor-form.sec-1 | CSRF Required | Implemented | All generic editor forms include CSRF protection. | `{% csrf_token %}` in `editor.html` |
+| req-web-editor-form.sec-2 | Server Validation Required | Implemented | Save uses server-side validation before applying editor input. | `form.is_valid()` before `handle_save` |
+| req-web-editor-form.sec-3 | Untrusted Input Handling | Implemented | Persisted changes originate from validated form data rather than raw request payloads. | `form.cleaned_data` in all descriptors |
+| req-web-editor-form.sec-4 | Default Escaping Applies | Implemented | Rendering uses standard Django escaping by default. | |
 
 ## Status Vocabulary
 

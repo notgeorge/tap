@@ -41,7 +41,7 @@ class TestPanelEditView:
         panel = self._create_panel()
         client = Client()
         response = client.get(self._edit_url(panel))
-        assert "tap_web/panel_edit.html" in [t.name for t in response.templates]
+        assert "tap_web/editor.html" in [t.name for t in response.templates]
 
     def test_get_renders_panel_title(self):
         panel = self._create_panel(name="My Panel")
@@ -49,11 +49,11 @@ class TestPanelEditView:
         response = client.get(self._edit_url(panel))
         assert b"My Panel" in response.content
 
-    def test_get_shows_preview_htmx_target(self):
+    def test_get_shows_graph_context_section(self):
         panel = self._create_panel()
         client = Client()
         response = client.get(self._edit_url(panel))
-        assert b"hx-get" in response.content
+        assert b"Graph Context" in response.content
 
     def test_post_saves_title(self):
         panel = self._create_panel(name="Old Title")
@@ -98,7 +98,7 @@ class TestPanelEditView:
             {"name": panel.name, "description": "", "config": "not-json"},
         )
         assert response.status_code == 200
-        assert b"tap_web/panel_edit.html" in bytes(str([t.name for t in response.templates]), "utf-8")
+        assert b"tap_web/editor.html" in bytes(str([t.name for t in response.templates]), "utf-8")
 
     def test_invalid_panel_url_returns_error_fragment(self):
         client = Client()

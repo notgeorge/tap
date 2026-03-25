@@ -22,18 +22,19 @@ The first implementation target is a simple default object viewer for ordinary m
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-web-viewer-shell | [Viewer Shell](#viewer-shell) | Proposed | Shared non-editable viewer page structure for TAP objects |
-| req-web-viewer-context | [Context Region](#context-region) | Proposed | Default top region situates the object and may be overridden by richer type-specific context |
-| req-web-viewer-fields | [Default Field Rendering](#default-field-rendering) | Proposed | Generic readable rendering for object fields |
+| req-web-viewer-shell | [Viewer Shell](#viewer-shell) | Implemented | Shared non-editable viewer page structure for TAP objects |
+| req-web-viewer-context | [Context Region](#context-region) | Implemented | Default top region situates the object and may be overridden by richer type-specific context |
+| req-web-viewer-fields | [Default Field Rendering](#default-field-rendering) | Implemented | Generic readable rendering for object fields |
+| req-web-viewer-inspect | [Inspection Region](#inspection-region) | In Development | Viewer may expose collapsible secondary inspection surfaces such as History and FLIP below the main object body |
 | req-web-viewer-enhanced | [Enhanced Type-Specific Views](#enhanced-type-specific-views) | Proposed | Object types may provide richer context and body rendering |
-| req-web-viewer-parity | [Viewer Editor Information Parity](#viewer-editor-information-parity) | Proposed | Viewer and editor expose the same core object information model |
-| req-web-viewer-fallback | [Fallback Rendering Strategy](#fallback-rendering-strategy) | Proposed | Disabled-form style rendering may exist as an implementation fallback but is not the preferred UX |
-| req-web-viewer-render.sec | [Viewer Rendering Security](#viewer-rendering-security) | Proposed | Viewer output uses standard Django escaping by default |
+| req-web-viewer-parity | [Viewer Editor Information Parity](#viewer-editor-information-parity) | Implemented | Viewer and editor expose the same core object information model |
+| req-web-viewer-fallback | [Fallback Rendering Strategy](#fallback-rendering-strategy) | Implemented | Disabled-form style rendering may exist as an implementation fallback but is not the preferred UX |
+| req-web-viewer-render.sec | [Viewer Rendering Security](#viewer-rendering-security) | Implemented | Viewer output uses standard Django escaping by default |
 
 ### Viewer Shell
 ----
 RID: `req-web-viewer-shell`
-Status: `Proposed`
+Status: `Implemented`
 
 TAP Web provides a standard viewer shell for object display. The shell is generic and not owned by any one object type.
 
@@ -52,14 +53,14 @@ Keep the shell stable and let object types extend it. Simple objects should get 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-viewer-shell-1 | Shared Viewer Shell Exists | Proposed | TAP Web defines one standard object viewer shell rather than requiring per-type detail page structures. | |
-| req-web-viewer-shell-2 | Non-Editable By Default | Proposed | The default viewer presents object information without edit controls. | |
-| req-web-viewer-shell-3 | Type Content Plugs Into Shared Shell | Proposed | Object types may supply context and body content inside the shared viewer shell. | |
+| req-web-viewer-shell-1 | Shared Viewer Shell Exists | Implemented | TAP Web defines one standard object viewer shell rather than requiring per-type detail page structures. | `tap_web/templates/tap_web/viewer.html` |
+| req-web-viewer-shell-2 | Non-Editable By Default | Implemented | The default viewer presents object information without edit controls. | |
+| req-web-viewer-shell-3 | Type Content Plugs Into Shared Shell | Implemented | Object types may supply context and body content inside the shared viewer shell. | Via `EditorDescriptor` field pairs |
 
 ### Context Region
 ----
 RID: `req-web-viewer-context`
-Status: `Proposed`
+Status: `Implemented`
 
 Every viewer includes a top context region that situates the object for a human reader.
 
@@ -82,15 +83,15 @@ The top region should answer "what kind of thing is this in context?" before the
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-viewer-context-1 | Top Context Region Exists | Proposed | Every object viewer includes a top context region. | |
-| req-web-viewer-context-2 | Graph Context Is Default | Proposed | The default context region uses graph context for objects without a richer override. | |
-| req-web-viewer-context-3 | Type May Replace Context Surface | Proposed | Object types may replace the default graph context with a more semantically meaningful context surface. | |
-| req-web-viewer-context-4 | Context Region Is Read Only | Proposed | The first viewer context region does not mutate object or graph state. | |
+| req-web-viewer-context-1 | Top Context Region Exists | Implemented | Every object viewer includes a top context region. | `tap_viz/graph_context.html` included in `viewer.html` |
+| req-web-viewer-context-2 | Graph Context Is Default | Implemented | The default context region uses graph context for objects without a richer override. | `hub_and_spoke_runner` via `get_entity_neighborhood` |
+| req-web-viewer-context-3 | Type May Replace Context Surface | Proposed | Object types may replace the default graph context with a more semantically meaningful context surface. | Not yet implemented |
+| req-web-viewer-context-4 | Context Region Is Read Only | Implemented | The first viewer context region does not mutate object or graph state. | |
 
 ### Default Field Rendering
 ----
 RID: `req-web-viewer-fields`
-Status: `Proposed`
+Status: `Implemented`
 
 The default viewer body renders object fields in readable HTML rather than editable controls.
 
@@ -109,9 +110,44 @@ The default viewer should look like a basic web page, not a disabled admin form,
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-viewer-fields-1 | Readable Field Display | Proposed | The default viewer renders fields as readable HTML content rather than editable inputs. | |
-| req-web-viewer-fields-2 | Common Scalar Types Supported | Proposed | The generic viewer body supports common scalar field types without requiring custom type-specific templates. | |
-| req-web-viewer-fields-3 | Structured Values Fallback | Proposed | Structured values have a readable fallback rendering when no richer type-specific rendering exists. | |
+| req-web-viewer-fields-1 | Readable Field Display | Implemented | The default viewer renders fields as readable HTML content rather than editable inputs. | `<dl>` label/value pairs in `viewer.html` |
+| req-web-viewer-fields-2 | Common Scalar Types Supported | Implemented | The generic viewer body supports common scalar field types without requiring custom type-specific templates. | |
+| req-web-viewer-fields-3 | Structured Values Fallback | Implemented | Structured values have a readable fallback rendering when no richer type-specific rendering exists. | |
+
+### Inspection Region
+----
+RID: `req-web-viewer-inspect`
+Status: `In Development`
+
+The viewer may expose a secondary inspection region beneath the main object body for capability-oriented supporting views such as History and FLIP. This region should be useful without competing with the primary object content.
+
+#### Status Details
+Proposed as the first viewer-shell integration point for history and provenance panels while those capabilities are still maturing.
+
+#### Implementation
+- The viewer shell may include an inspection region below the main object body.
+- The inspection region is for secondary read-only inspection surfaces, not the primary object presentation.
+- In v1, inspection surfaces should render as collapsed sections by default.
+- The first intended inspection surfaces are:
+  - History
+  - FLIP
+- Collapsed section labels may include lightweight counts when available, for example:
+  - `History (10)`
+  - `FLIP (7 fields)`
+- The viewer should not require side drawers, pop-out windows, or other more complex chrome for the first implementation.
+- If a given inspection capability is unavailable or has no meaningful data for the object, the viewer may omit that section or render a quiet empty state.
+
+#### Development
+This keeps the object's main meaning front and center while still making inspection tools easy to discover. Collapsed bottom sections are a good first-pass balance between usefulness and restraint.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-viewer-inspect-1 | Secondary Inspection Region Allowed | In Development | The shared viewer shell may include a dedicated region below the main body for secondary inspection surfaces. | FLIP section added to `viewer.html` |
+| req-web-viewer-inspect-2 | Collapsed By Default In V1 | In Development | The first inspection surfaces render as collapsed sections by default rather than expanded panes or side drawers. | `<details>` element, closed by default |
+| req-web-viewer-inspect-3 | Lightweight Counts In Labels | In Development | Inspection section headers may include useful counts such as number of history entries or tracked FLIP fields. | `FLIP (N fields)` in summary label |
+| req-web-viewer-inspect-4 | Main Content Remains Primary | In Development | Inspection surfaces are presented as secondary supporting UI and do not displace the main object context and body regions. | Section placed after Details |
 
 ### Enhanced Type-Specific Views
 ----
@@ -142,7 +178,7 @@ Use enhanced viewers to improve comprehension, not merely to make every type bes
 ### Viewer Editor Information Parity
 ----
 RID: `req-web-viewer-parity`
-Status: `Proposed`
+Status: `Implemented`
 
 Viewer and editor should present the same core object information model even though they serve different purposes.
 
@@ -159,13 +195,13 @@ Parity does not mean identical layout. It means the viewer and editor should agr
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-viewer-parity-1 | Shared Core Information Model | Proposed | Viewer and editor present the same core object information model. | |
-| req-web-viewer-parity-2 | Purpose-Specific Presentation | Proposed | Viewer and editor may differ in layout and interaction model while still presenting the same core information. | |
+| req-web-viewer-parity-1 | Shared Core Information Model | Implemented | Viewer and editor present the same core object information model. | Both derive field pairs from `get_editor_initial` |
+| req-web-viewer-parity-2 | Purpose-Specific Presentation | Implemented | Viewer and editor may differ in layout and interaction model while still presenting the same core information. | |
 
 ### Fallback Rendering Strategy
 ----
 RID: `req-web-viewer-fallback`
-Status: `Proposed`
+Status: `Implemented`
 
 The viewer may use form-derived metadata or even disabled-control rendering as an implementation fallback, but that fallback is not the preferred UX contract.
 
@@ -181,13 +217,13 @@ This requirement allows fast scaffolding without baking a weak presentation mode
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-viewer-fallback-1 | Form Metadata Reuse Allowed | Proposed | Viewer implementations may reuse form-derived metadata to avoid duplicating labels and ordering logic. | |
-| req-web-viewer-fallback-2 | Disabled Form Not Canonical UX | Proposed | Disabled-form rendering may exist as a fallback but is not the intended long-term viewer presentation model. | |
+| req-web-viewer-fallback-1 | Form Metadata Reuse Allowed | Implemented | Viewer implementations may reuse form-derived metadata to avoid duplicating labels and ordering logic. | `object_view` iterates `form.fields` for labels |
+| req-web-viewer-fallback-2 | Disabled Form Not Canonical UX | Implemented | Disabled-form rendering may exist as a fallback but is not the intended long-term viewer presentation model. | |
 
 ### Viewer Rendering Security
 ----
 RID: `req-web-viewer-render.sec`
-Status: `Proposed`
+Status: `Implemented`
 
 Viewer output uses standard Django escaping by default and does not treat object content as trusted HTML unless a future hardened requirement explicitly permits it.
 
@@ -203,8 +239,8 @@ Viewer richness should not widen the default trust boundary for object content.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-viewer-render.sec-1 | Default Escaping Applies | Proposed | Viewer output uses standard Django escaping by default. | |
-| req-web-viewer-render.sec-2 | No Implicit Trusted HTML | Proposed | Viewer surfaces do not implicitly treat object content as trusted HTML. | |
+| req-web-viewer-render.sec-1 | Default Escaping Applies | Implemented | Viewer output uses standard Django escaping by default. | |
+| req-web-viewer-render.sec-2 | No Implicit Trusted HTML | Implemented | Viewer surfaces do not implicitly treat object content as trusted HTML. | |
 
 ## Status Vocabulary
 

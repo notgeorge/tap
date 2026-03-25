@@ -23,6 +23,7 @@ The first requirement in this specification addresses third-party vendored compo
 | req-grid-thirdparty-manifest.sec | [Third-Party Vendored Component Manifest](#third-party-vendored-component-manifest) | Proposed | Platform-level contract for tracking vendored third-party code and assets included in TAP source |
 | req-grid-icon-static-svg.sec | [Static Svg Icon Security](#static-svg-icon-security) | Proposed | Security contract for shipped app/plugin SVG icons |
 | req-grid-icon-upload-svg.sec | [Uploaded Svg Icon Security](#uploaded-svg-icon-security) | Backlog | Future security contract for user-uploaded SVG icons |
+| req-grid-flip-write-batch.sec | [Domain Writes Must Use Batch Context](#domain-writes-must-use-batch-context) | Backlog | All domain object mutations must occur within an active batch context for auditability |
 
 ---
 
@@ -188,6 +189,43 @@ Future work must define:
 
 #### Future
 Define the upload pipeline, sanitization toolchain, and storage/publication model once user-uploaded icons become an active product feature.
+
+---
+
+### Domain Writes Must Use Batch Context
+----
+RID: `req-grid-flip-write-batch.sec`
+Status: `Backlog`
+Tags: `Security`, `FLIP`
+
+All mutations to domain objects (BaseModel subclasses) must occur within an active batch context so that every change is attributable to a known operational unit with actor, source, and timing metadata.
+
+#### Status Details
+Partially enforced: FLIP-enabled models already raise `NoBatchContextError` if saved without a batch context. The remaining gap is that models without FLIP enabled can still be saved without a batch, bypassing provenance entirely.
+
+#### Implementation
+The full enforcement requires:
+
+1. A `pre_save` hook (signal or ORM override) that checks for an active batch context before any `BaseModel` save.
+2. An explicit opt-out mechanism for legitimate batch-free writes such as migrations, fixtures, and one-time setup commands.
+3. Audit tooling to detect and flag writes that bypass the batch contract.
+
+#### Development
+A codebase audit is needed to identify all current write paths that operate outside batch context and either wrap them in `batch_context()` or formally exempt them. Until full enforcement is in place, FLIP-enabled models provide the strongest guarantee.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-flip-write-batch.sec-1 | FLIP Models Enforce Batch | Backlog | FLIP-enabled models raise NoBatchContextError when saved without an active batch context. | Already implemented |
+| req-grid-flip-write-batch.sec-2 | All BaseModel Writes Require Batch | Backlog | A pre-save gate prevents any BaseModel subclass from being saved without a batch context, regardless of FLIP enablement. | Requires codebase audit first |
+| req-grid-flip-write-batch.sec-3 | Exemption Mechanism Exists | Backlog | Legitimate batch-free writes (migrations, fixtures, setup) have an explicit, auditable opt-out rather than silently bypassing the gate. | |
+| req-grid-flip-write-batch.sec-4 | Codebase Audit Complete | Backlog | All existing write paths have been reviewed and either wrapped in batch_context() or formally exempted. | |
+
+#### Future
+Once the batch gate is in place, TAP may add monitoring or alerting for writes that use the exemption path in production.
+
+---
 
 ## Status Vocabulary
 

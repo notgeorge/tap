@@ -27,6 +27,7 @@ The first version should optimize for predictable behavior over maximum flexibil
 | req-web-stdpanel-table-pagination | [Table Pagination](#table-pagination) | Proposed | Table panel supports paginated traversal backed by TAP search pagination |
 | req-web-stdpanel-table-render | [Table Rendering Flow](#table-rendering-flow) | Proposed | V1 executes the linked Search server-side and mounts Tabulator from shipped static JS |
 | req-web-stdpanel-table-edit | [Table Panel Editor](#table-panel-editor) | Proposed | Standard editor configures linked search and table behavior flags |
+| req-web-stdpanel-table-row-nav | [Row Navigation](#row-navigation) | Implemented | Clicking a node-mode table row navigates to the TAP object viewer for that entity |
 
 ---
 
@@ -96,7 +97,7 @@ Status: `Proposed`
 The Table Panel is a built-in standard panel type that renders search-backed rows using the Tabulator JavaScript library.
 
 #### Status Details
-New standard proposed as its own specification so the behavior can grow independently from the catalog-level `spec-web-standard-panels.md`.
+New standard proposed as its own specification so the behavior can grow independently from the catalog-level `spec-web-panels-standard.md`.
 
 #### Implementation
 - The Table Panel lives in `tap_web/panels/table_panel/`.
@@ -312,6 +313,35 @@ Server-side first fits the current panel architecture and is easier to reason ab
 | req-web-stdpanel-table-render-2 | Browser Mount Uses Static JS | Proposed | Tabulator initialization happens in shipped static JS, not inline script blocks. | |
 | req-web-stdpanel-table-render-3 | Embedded Escaped Data Payload | Proposed | V1 passes search results to browser code as embedded escaped data in the rendered panel fragment rather than inline executable JavaScript. | |
 | req-web-stdpanel-table-render-4 | Refresh Path Remains Possible | Proposed | The rendering approach leaves room for periodic refresh without redefining the panel contract. | Full JSON endpoint deferred. |
+
+### Row Navigation
+----
+RID: `req-web-stdpanel-table-row-nav`
+Status: `Implemented`
+
+Clicking a row in node-mode table panels navigates to the TAP object viewer for that entity.
+
+#### Implementation
+- Row click triggers `window.location.href = "/object/{entity_type}/{url_id}/"`.
+- `url_id` is a `{slug}--{entity_id}` string serialized into every node payload by `_serialize_entity`.
+- Navigation applies only in `node` mode; edge-mode rows do not navigate.
+- A `pointer` cursor is applied to all node-mode rows to signal clickability.
+
+#### Development
+Row navigation is a read-only entrypoint to the object viewer. It must not interfere with Tabulator's own sorting, column resize, or pagination controls.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-stdpanel-table-row-nav-1 | Row Click Navigates In Node Mode | Implemented | Clicking a node-mode row navigates to `/object/{entity_type}/{url_id}/`. | `rowClick` in `panel-table.js` |
+| req-web-stdpanel-table-row-nav-2 | Edge Mode Rows Do Not Navigate | Implemented | Clicking a row in edge mode does not trigger viewer navigation. | |
+| req-web-stdpanel-table-row-nav-3 | Cursor Signals Clickability | Implemented | Node-mode rows display a pointer cursor. | `rowFormatter` in `panel-table.js` |
+| req-web-stdpanel-table-row-nav-4 | URL ID In Node Payload | Implemented | Every serialized node carries a `url_id` field usable as the viewer URL segment. | Cross-ref `req-viz-panel-node-nav-2` |
+
+#### Future
+If multi-select row actions (bulk view, comparison) are added later, define them as an extension rather than redefining the single-click navigation contract.
+
 
 ## Status Vocabulary
 
