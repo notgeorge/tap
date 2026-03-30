@@ -38,18 +38,36 @@ class NoBatchContextError(Exception):
 
 
 class ServiceValidationError(Exception):
-    """Raised internally by the write pipeline when schema or model validation fails."""
+    """Raised internally by the service layer when schema or model validation fails."""
 
     pass
 
 
 class ServiceConstraintError(Exception):
-    """Raised internally by the write pipeline when a graph constraint is violated."""
+    """Raised internally by the service layer when a graph constraint is violated."""
 
     pass
 
 
 class ServiceNotFoundError(Exception):
-    """Raised internally by the write pipeline when a target entity cannot be found."""
+    """Raised internally by the service layer when a target entity cannot be found."""
+
+    pass
+
+
+class ServiceAuthzError(Exception):
+    """Raised internally by the service layer when an authorization check fails."""
+
+    pass
+
+
+class ServiceConflictError(Exception):
+    """Raised internally by the service layer when an operation would create a conflict."""
+
+    pass
+
+
+class ServiceUnsupportedOperationError(Exception):
+    """Raised internally by the service layer when a requested operation is not supported."""
 
     pass

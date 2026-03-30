@@ -21,7 +21,7 @@ Batching is the write execution model for the TAP service layer. Treating all wr
 | req-grid-service-batch-infra | [Batch ID As Infrastructure](#batch-id-as-infrastructure) | Implemented | CallerContext introduced; batch_id threading via ContextVar implemented |
 | req-grid-service-batch-signals | [Signal Elimination](#signal-elimination) | Implemented | tap_flip/batch/signals.py deleted; provenance in BaseModel.save() |
 | req-grid-service-batch-dryrun | [Dry-Run Behavior](#dry-run-behavior) | Implemented | Full validation without persistence |
-| req-grid-service-batch-diag | [Per-Item Diagnostics](#per-item-diagnostics) | In Development | Batch partial diagnostics and reporting |
+| req-grid-service-batch-diag | [Per-Item Diagnostics](#per-item-diagnostics) | Implemented | Batch partial diagnostics and reporting |
 | req-grid-service-batch-tx | [Transactional Commit Behavior](#transactional-commit-behavior) | Implemented | All-or-nothing commit model |
 
 
@@ -154,7 +154,7 @@ Clarify whether dry-run should record ephemeral observability events once the in
 ### Per-Item Diagnostics
 ----
 RID: `req-grid-service-batch-diag`
-Status: `In Development`
+Status: `Implemented`
 
 Batch execution should return structured per-item diagnostics so callers can understand which requested operations would fail and why.
 
@@ -178,7 +178,7 @@ These diagnostics are especially important for dry-run flows but also useful for
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-service-batch-diag-1 | Operation Identified Per Item | Proposed | Batch diagnostics identify the requested operation for each item. | |
+| req-grid-service-batch-diag-1 | Operation Identified Per Item | Implemented | Batch diagnostics identify the requested operation for each item. | `WriteResult.operation` |
 | req-grid-service-batch-diag-2 | Safe Message And Stable Code | Implemented | Failed item diagnostics include a safe message and stable error code. | |
 | req-grid-service-batch-diag-3 | Machine Detail Payload | Implemented | Diagnostics include structured machine-usable detail payloads for automation and tooling. | |
 

@@ -8,11 +8,11 @@ The service layer exists so that callers do not need to understand Django model 
 
 This specification is the top-level contract. Lower-level operational details are defined in:
 
-- `spec-grid-service-read-DRAFT.md`
+- `spec-grid-service-read.md`
 - `spec-grid-service-write.md`
-- `spec-grid-service-delete-DRAFT.md`
+- `spec-grid-service-delete.md`
 - `spec-grid-service-batch.md`
-- `spec-grid-service-errors-DRAFT.md`
+- `spec-grid-service-errors.md`
 
 ## Goals
 
@@ -32,7 +32,7 @@ This specification is the top-level contract. Lower-level operational details ar
 | req-grid-service-scope | [Service Layer Scope](#service-layer-scope) | Proposed | Canonical scope and non-conformant bypasses |
 | req-grid-service-objects | [Canonical Objects And Addressing](#canonical-objects-and-addressing) | In Development | Public object kinds and accepted target forms |
 | req-grid-service-public | [Public API Surface](#public-api-surface) | In Development | Public entry points vs internal plumbing |
-| req-grid-service-discovery | [Discovery And Capability Publication](#discovery-and-capability-publication) | Proposed | Node/edge discovery, constraints, hotlinks |
+| req-grid-service-discovery | [Discovery And Capability Publication](#discovery-and-capability-publication) | Implemented | list_node_types, describe_node_type, list_edge_types, describe_edge_type, describe_service_capabilities |
 | req-grid-service-schemas | [Schema Publication And Identity](#schema-publication-and-identity) | In Development | Stable schema IDs, refs, bundling, model publication |
 | req-grid-service-response | [Representation And Response Modes](#representation-and-response-modes) | In Development | JSON envelopes, model return mode, schema refs |
 | req-grid-service-pipeline | [Common Service Pipeline](#common-service-pipeline) | Implemented | Shared execution order for reads and writes |
@@ -164,7 +164,7 @@ This balances readability for callers with maintainability for TAP itself.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-grid-service-public-1 | Explicit Public Verbs | Implemented | The service contract publishes intention-revealing entry points for node, edge, batch, and discovery operations. | |
-| req-grid-service-public-2 | Generic Object Wrapper | Proposed | A generic object wrapper may dispatch reads across node and edge representations. | |
+| req-grid-service-public-2 | Generic Object Wrapper | Implemented | A generic object wrapper dispatches reads across node and edge representations. | `get_object()` |
 | req-grid-service-public-3 | Shared Internal Pipeline | Implemented | Public entry points ultimately execute through a shared service-layer pipeline rather than independent ad hoc logic. | |
 
 #### Future
@@ -174,7 +174,7 @@ Define naming conventions and module boundaries for public entry points versus i
 ### Discovery And Capability Publication
 ----
 RID: `req-grid-service-discovery`
-Status: `Proposed`
+Status: `Implemented`
 
 The service layer publishes machine-usable discovery information so clients, plugins, and bots can inspect TAP types and operate intelligently without importing Python code or reverse-engineering model internals.
 
@@ -204,11 +204,11 @@ JSON Schema is the backbone for representation shape, but some graph concepts ar
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-service-discovery-1 | Node Type Discovery | Proposed | The service layer can list and describe node types. | |
-| req-grid-service-discovery-2 | Edge Type Discovery | Proposed | The service layer can list and describe edge types. | |
-| req-grid-service-discovery-3 | Constraints Published | Proposed | Discovery includes node and edge constraints in machine-usable form. | |
-| req-grid-service-discovery-4 | Hotlinks Published | Proposed | Discovery includes hotlink metadata in machine-usable form. | |
-| req-grid-service-discovery-5 | Discovery Includes Resolved Schemas | Proposed | Discovery bundles inline the relevant resolved schemas by default. | |
+| req-grid-service-discovery-1 | Node Type Discovery | Implemented | The service layer can list and describe node types. | |
+| req-grid-service-discovery-2 | Edge Type Discovery | Implemented | The service layer can list and describe edge types. | |
+| req-grid-service-discovery-3 | Constraints Published | Implemented | Discovery includes node and edge constraints in machine-usable form. | |
+| req-grid-service-discovery-4 | Hotlinks Published | Implemented | Discovery includes hotlink metadata in machine-usable form. | |
+| req-grid-service-discovery-5 | Discovery Includes Resolved Schemas | Implemented | describe_node_type() includes full inline schemas. | |
 
 #### Future
 Add discovery-time indicators for lifecycle/deprecation, recommended usage patterns, and future authorization hints once the security pass lands.

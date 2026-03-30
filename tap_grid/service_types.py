@@ -48,6 +48,7 @@ class ServiceError:
     code: Literal[
         "validation_error",
         "constraint_violation",
+        "authz_failure",
         "not_found",
         "conflict",
         "unsupported_operation",
@@ -56,6 +57,7 @@ class ServiceError:
     message: str
     field: str | None = None
     detail: dict[str, Any] | None = None
+    correlation_id: str | None = None
 
 
 @dataclass
@@ -73,10 +75,85 @@ class WriteResult:
 
     success: bool
     batch_id: str
+    operation: str | None = None
     entity_id: uuid.UUID | None = None
     object_summary: dict[str, Any] | None = None
     warnings: list[str] = field(default_factory=list)
     errors: list[ServiceError] = field(default_factory=list)
+
+
+@dataclass
+class ReadResult:
+    """Result envelope for a single direct-read operation.
+
+    Attributes:
+        success: True if the object was found and returned.
+        entity_id: UUID of the resolved entity.
+        entity_type: Registered type slug of the resolved entity.
+        object: The resolved model instance (or None on failure).
+        schema_refs: Map of verb name to TAP schema ref string (e.g. "character:create").
+        errors: Populated only when success=False.
+    """
+
+    success: bool
+    entity_id: uuid.UUID | None = None
+    entity_type: str | None = None
+    object: Any | None = None
+    schema_refs: dict[str, str] = field(default_factory=dict)
+    errors: list[ServiceError] = field(default_factory=list)
+
+
+@dataclass
+class NodeTypeDescription:
+    """Discovery description for a registered node type.
+
+    Attributes:
+        type_slug: The entity type slug.
+        schemas: Map of verb ("create"/"patch"/"replace") to JSON schema dict.
+        hotlinks: Declared hotlink definitions for this type.
+        outbound_edge_types: Edge types this node type can create outbound.
+        inbound_edge_types: Edge types this node type can receive inbound.
+    """
+
+    type_slug: str
+    schemas: dict[str, dict[str, Any]]
+    hotlinks: list[dict[str, Any]]
+    outbound_edge_types: list[str]
+    inbound_edge_types: list[str]
+
+
+@dataclass
+class EdgeTypeDescription:
+    """Discovery description for a registered edge type.
+
+    Attributes:
+        edge_type: The edge type slug.
+        allowed_sources: List of source node type slugs, or "wildcard", or "none".
+        allowed_targets: List of target node type slugs, or "wildcard", or "none".
+        property_schema: JSON schema for edge properties, or None if unregistered.
+    """
+
+    edge_type: str
+    allowed_sources: list[str] | str
+    allowed_targets: list[str] | str
+    property_schema: dict[str, Any] | None = None
+
+
+@dataclass
+class ServiceCapabilities:
+    """Top-level discovery description for the TAP service layer.
+
+    Attributes:
+        node_types: All registered node type slugs.
+        edge_types: All registered edge type slugs.
+        write_verbs: Supported write operation verb names.
+        read_functions: Supported direct-read function names.
+    """
+
+    node_types: list[str]
+    edge_types: list[str]
+    write_verbs: list[str]
+    read_functions: list[str]
 
 
 @dataclass

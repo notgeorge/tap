@@ -283,6 +283,11 @@ def register_entity_type(entity_type: str, model_cls: type) -> None:
     _entity_model_registry.register(entity_type, model_cls)
 
 
+def list_entity_types() -> list[str]:
+    """Return a sorted list of all registered entity type slugs."""
+    return _entity_model_registry.keys()
+
+
 def get_model_class(entity_type: str) -> type:
     """Return the model class registered for the given entity_type slug.
 

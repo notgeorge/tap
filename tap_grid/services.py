@@ -30,12 +30,24 @@ from tap_grid.caller_context import CallerContext, get_caller_context, set_calle
 from tap_grid.constraints import validate_edge as _validate_edge_constraint
 from tap_grid.exceptions import (
     InvalidEdgeError,
+    ServiceAuthzError,
+    ServiceConflictError,
     ServiceConstraintError,
     ServiceNotFoundError,
+    ServiceUnsupportedOperationError,
     ServiceValidationError,
 )
 from tap_grid.models import Edge, Entity
-from tap_grid.service_types import BatchWriteResult, ServiceError, WriteOperation, WriteResult
+from tap_grid.service_types import (
+    BatchWriteResult,
+    EdgeTypeDescription,
+    NodeTypeDescription,
+    ReadResult,
+    ServiceCapabilities,
+    ServiceError,
+    WriteOperation,
+    WriteResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -316,13 +328,13 @@ def _execute_write_pipeline(
                 instance.full_validate()
             except DjangoValidationError as exc:
                 errors = _django_errors_to_service_errors(exc)
-                return WriteResult(success=False, batch_id=batch_id, errors=errors)
+                return WriteResult(success=False, batch_id=batch_id, operation=op.verb, errors=errors)
 
             try:
                 instance.full_clean(exclude=["entity", "batch_id", "flip_map"])
             except DjangoValidationError as exc:
                 errors = _django_errors_to_service_errors(exc)
-                return WriteResult(success=False, batch_id=batch_id, errors=errors)
+                return WriteResult(success=False, batch_id=batch_id, operation=op.verb, errors=errors)
 
         # Steps 10 & 11: Persistence and provenance recording.
         # For deletes: record provenance BEFORE the Entity row is removed so
@@ -351,19 +363,24 @@ def _execute_write_pipeline(
         return WriteResult(
             success=True,
             batch_id=batch_id,
+            operation=op.verb,
             entity_id=entity_id_out,
             object_summary=summary,
         )
 
-    except (ServiceValidationError, ServiceConstraintError, ServiceNotFoundError) as exc:
+    except (ServiceValidationError, ServiceConstraintError, ServiceNotFoundError, ServiceAuthzError, ServiceConflictError, ServiceUnsupportedOperationError) as exc:
         code_map = {
             ServiceValidationError: "validation_error",
             ServiceConstraintError: "constraint_violation",
             ServiceNotFoundError: "not_found",
+            ServiceAuthzError: "authz_failure",
+            ServiceConflictError: "conflict",
+            ServiceUnsupportedOperationError: "unsupported_operation",
         }
         return WriteResult(
             success=False,
             batch_id=batch_id,
+            operation=op.verb,
             errors=[ServiceError(code=code_map[type(exc)], message=str(exc))],  # type: ignore[arg-type]
         )
     except Exception as exc:
@@ -371,6 +388,7 @@ def _execute_write_pipeline(
         return WriteResult(
             success=False,
             batch_id=batch_id,
+            operation=op.verb,
             errors=[ServiceError(code="internal_error", message=str(exc))],
         )
 
@@ -642,6 +660,217 @@ def delete_edge_by_entity(
     op = WriteOperation(verb="delete_edge", target=target)
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
     return batch_result.results[0] if batch_result.results else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+
+
+# ---------------------------------------------------------------------------
+# Public read API
+# ---------------------------------------------------------------------------
+
+
+def resolve_entity(target: str | uuid.UUID) -> Entity:
+    """Return the Entity row for the given entity UUID.
+
+    Args:
+        target: Entity UUID (str or uuid.UUID).
+
+    Returns:
+        The Entity instance.
+
+    Raises:
+        ServiceNotFoundError: If no entity with that UUID exists.
+        ServiceValidationError: If target cannot be coerced to a UUID.
+    """
+    entity_id = _coerce_uuid(target)
+    if entity_id is None:
+        raise ServiceValidationError("target must be a valid UUID.")
+    return _load_entity_or_raise(entity_id)
+
+
+def get_node(target: str | uuid.UUID) -> Any:
+    """Return the typed domain node instance for the given entity UUID.
+
+    Args:
+        target: Entity UUID (str or uuid.UUID).
+
+    Returns:
+        The concrete typed model instance (e.g. Character, Location).
+
+    Raises:
+        ServiceNotFoundError: If no entity with that UUID exists, or the type is unknown.
+        ServiceConstraintError: If the entity is an edge, not a node.
+        ServiceValidationError: If target cannot be coerced to a UUID.
+    """
+    from tap_grid.registry import get_model_class
+
+    entity_id = _coerce_uuid(target)
+    if entity_id is None:
+        raise ServiceValidationError("target must be a valid UUID.")
+    entity = _load_entity_or_raise(entity_id)
+    if entity.entity_type == "edge":
+        raise ServiceConstraintError(f"Entity {entity_id} is an edge, not a node.")
+    try:
+        model_cls = get_model_class(entity.entity_type)
+    except KeyError:
+        raise ServiceNotFoundError(f"Unknown entity type: '{entity.entity_type}'.")
+    try:
+        return model_cls.objects.select_related("entity").get(entity_id=entity_id)
+    except model_cls.DoesNotExist:
+        raise ServiceNotFoundError(f"Node {entity_id} not found.")
+
+
+def get_edge(target: str | uuid.UUID) -> Edge:
+    """Return the Edge instance for the given entity UUID.
+
+    Args:
+        target: Entity UUID (str or uuid.UUID).
+
+    Returns:
+        The Edge instance.
+
+    Raises:
+        ServiceNotFoundError: If no edge with that UUID exists.
+        ServiceValidationError: If target cannot be coerced to a UUID.
+    """
+    entity_id = _coerce_uuid(target)
+    if entity_id is None:
+        raise ServiceValidationError("target must be a valid UUID.")
+    try:
+        return Edge.objects.select_related("entity").get(entity_id=entity_id)
+    except Edge.DoesNotExist:
+        raise ServiceNotFoundError(f"Edge {entity_id} not found.")
+
+
+def get_object(target: str | uuid.UUID) -> Any:
+    """Return the typed domain instance for the given entity UUID (node or edge).
+
+    Dispatches to get_edge() for edge entities and get_node() for all others.
+
+    Args:
+        target: Entity UUID (str or uuid.UUID).
+
+    Returns:
+        The typed model instance.
+
+    Raises:
+        ServiceNotFoundError: If no entity with that UUID exists.
+        ServiceValidationError: If target cannot be coerced to a UUID.
+    """
+    entity_id = _coerce_uuid(target)
+    if entity_id is None:
+        raise ServiceValidationError("target must be a valid UUID.")
+    entity = _load_entity_or_raise(entity_id)
+    if entity.entity_type == "edge":
+        return get_edge(entity_id)
+    return get_node(entity_id)
+
+
+# ---------------------------------------------------------------------------
+# Public discovery API
+# ---------------------------------------------------------------------------
+
+
+def list_node_types() -> list[str]:
+    """Return all registered node type slugs, sorted."""
+    from tap_grid.registry import list_entity_types
+
+    return list_entity_types()
+
+
+def describe_node_type(type_slug: str) -> NodeTypeDescription:
+    """Return a discovery description for a registered node type.
+
+    Args:
+        type_slug: Entity type slug (e.g. "character").
+
+    Returns:
+        NodeTypeDescription with schemas, hotlinks, and constraint edge types.
+
+    Raises:
+        ServiceNotFoundError: If the type slug is not registered.
+    """
+    from tap_grid.constraints import WILDCARD, get_constraints
+    from tap_grid.registry import get_model_class
+
+    try:
+        model_cls = get_model_class(type_slug)
+    except KeyError:
+        raise ServiceNotFoundError(f"Unknown entity type: '{type_slug}'.")
+
+    schemas: dict[str, Any] = dict(getattr(model_cls, "SERVICE_SCHEMAS", {}))
+    hotlinks: list[dict[str, Any]] = list(getattr(model_cls, "HOTLINKS", []))
+
+    constraints = get_constraints(type_slug)
+    outbound: list[str] = []
+    inbound: list[str] = []
+    if constraints:
+        if constraints.outbound:
+            outbound = sorted(k for k in constraints.outbound if constraints.outbound[k] is not WILDCARD or True)
+        if constraints.inbound:
+            inbound = sorted(k for k in constraints.inbound if constraints.inbound[k] is not WILDCARD or True)
+
+    return NodeTypeDescription(
+        type_slug=type_slug,
+        schemas=schemas,
+        hotlinks=hotlinks,
+        outbound_edge_types=outbound,
+        inbound_edge_types=inbound,
+    )
+
+
+def list_edge_types() -> list[str]:
+    """Return all registered edge type slugs, sorted."""
+    from tap_grid.constraints import list_registered_edge_types
+
+    return list_registered_edge_types()
+
+
+def describe_edge_type(edge_type: str) -> EdgeTypeDescription:
+    """Return a discovery description for a registered edge type.
+
+    Args:
+        edge_type: Edge type slug (e.g. "LOCATED_IN").
+
+    Returns:
+        EdgeTypeDescription with allowed sources/targets and optional property schema.
+
+    Raises:
+        ServiceNotFoundError: If the edge type is not registered.
+    """
+    from tap_grid.constraints import WILDCARD, get_edge_property_schema, get_edge_type_constraints
+
+    constraints = get_edge_type_constraints(edge_type)
+    if constraints is None:
+        raise ServiceNotFoundError(f"Unknown edge type: '{edge_type}'.")
+
+    def _format_constraint(val: Any) -> list[str] | str:
+        if val is WILDCARD:
+            return "wildcard"
+        if val is None or not val:
+            return "none"
+        assert isinstance(val, set)
+        return sorted(val)
+
+    return EdgeTypeDescription(
+        edge_type=edge_type,
+        allowed_sources=_format_constraint(constraints.sources),
+        allowed_targets=_format_constraint(constraints.targets),
+        property_schema=get_edge_property_schema(edge_type),
+    )
+
+
+def describe_service_capabilities() -> ServiceCapabilities:
+    """Return a top-level discovery description of the TAP service layer."""
+    return ServiceCapabilities(
+        node_types=list_node_types(),
+        edge_types=list_edge_types(),
+        write_verbs=["create_node", "patch_node", "replace_node", "delete_node", "create_edge", "patch_edge", "replace_edge", "delete_edge"],
+        read_functions=["get_object", "get_node", "get_edge", "resolve_entity", "list_node_types", "describe_node_type", "list_edge_types", "describe_edge_type"],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Legacy backward-compatible helpers (kept for existing callers)
+# ---------------------------------------------------------------------------
 
 
 def create_entity(

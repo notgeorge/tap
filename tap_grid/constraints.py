@@ -234,6 +234,11 @@ def _merge_constraint_sets(
     return existing | new
 
 
+def list_registered_edge_types() -> list[str]:
+    """Return a sorted list of all registered edge type slugs."""
+    return _edge_type_registry.keys()
+
+
 def get_constraints(entity_type: str) -> NodeConstraints | None:
     """Get node constraints for an entity type, if registered."""
     return _node_registry.get_optional(entity_type)
