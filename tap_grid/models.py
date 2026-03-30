@@ -651,8 +651,8 @@ class Search(BaseModel):
             "properties": {
                 "name": {"type": "string", "minLength": 1},
                 "description": {"type": "string"},
-                "search_type": {"type": "string", "enum": ["module", "orm"]},
-                "root": {"type": "string", "enum": ["node", "edge"]},
+                "search_type": {"type": "string", "enum": ["module", "orm", "traversal"]},
+                "root": {"type": "string", "enum": ["node", "edge", ""]},
                 "definition": {"type": "object"},
                 "input_schema": {"type": ["object", "null"]},
                 "returns": {"type": ["object", "null"]},
@@ -666,8 +666,8 @@ class Search(BaseModel):
             "properties": {
                 "name": {"type": "string", "minLength": 1},
                 "description": {"type": "string"},
-                "search_type": {"type": "string", "enum": ["module", "orm"]},
-                "root": {"type": "string", "enum": ["node", "edge"]},
+                "search_type": {"type": "string", "enum": ["module", "orm", "traversal"]},
+                "root": {"type": "string", "enum": ["node", "edge", ""]},
                 "definition": {"type": "object"},
                 "input_schema": {"type": ["object", "null"]},
                 "returns": {"type": ["object", "null"]},
@@ -682,8 +682,8 @@ class Search(BaseModel):
             "properties": {
                 "name": {"type": "string", "minLength": 1},
                 "description": {"type": "string"},
-                "search_type": {"type": "string", "enum": ["module", "orm"]},
-                "root": {"type": "string", "enum": ["node", "edge"]},
+                "search_type": {"type": "string", "enum": ["module", "orm", "traversal"]},
+                "root": {"type": "string", "enum": ["node", "edge", ""]},
                 "definition": {"type": "object"},
                 "input_schema": {"type": ["object", "null"]},
                 "returns": {"type": ["object", "null"]},
@@ -700,11 +700,12 @@ class Search(BaseModel):
         },
         "search_type": {
             "validation": "jsonschema",
-            "schema": {"type": "string", "enum": ["module", "orm"]},
+            "schema": {"type": "string", "enum": ["module", "orm", "traversal"]},
         },
         "root": {
             "validation": "jsonschema",
-            "schema": {"type": "string", "enum": ["node", "edge"]},
+            # traversal searches derive root from the query text; accept blank for traversal.
+            "schema": {"type": "string", "enum": ["node", "edge", ""]},
         },
         "definition": {
             "validation": "jsonschema",
@@ -770,3 +771,17 @@ class Search(BaseModel):
             order_by = self.definition.get("order_by")
             if order_by is not None and not isinstance(order_by, list):
                 raise ValidationError({"definition": ["ORM 'order_by' must be a list."]})
+
+        elif self.search_type == "traversal":
+            query = self.definition.get("query")
+            if not query or not isinstance(query, (str, list)):
+                raise ValidationError(
+                    {"definition": ["Traversal definition requires 'query' as a non-empty string or list of strings."]}
+                )
+            # Attempt a parse to catch syntax errors early.
+            from tap_grid.traversal.parser import TraversalParseError, parse_traversal
+
+            try:
+                parse_traversal(query)
+            except TraversalParseError as exc:
+                raise ValidationError({"definition": [f"Traversal query parse error: {exc.message}"]}) from exc

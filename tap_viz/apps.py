@@ -17,4 +17,7 @@ class TapVizConfig(AppConfig):
         from tap_web.registry import panel_type_registry
 
         panel_type_registry.register("graph", GraphPanelType)
+        # Deprecated: hub-and-spoke runner is superseded by the traversal-backed Search in
+        # GraphPanelType.get_neighborhood_context(). Kept registered for backward compatibility
+        # until all callers are confirmed migrated. Remove in a follow-on cleanup pass.
         register_search_runner("hub-and-spoke", hub_and_spoke_runner)

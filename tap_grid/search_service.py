@@ -71,6 +71,8 @@ def execute_search(
             effective_limit,
             effective_offset,
         )
+    elif search.search_type == "traversal":
+        raw_result = _execute_traversal_search(search, validated_inputs, _SEARCH_DB_ALIAS)
     else:
         raise SearchExecutionError(f"Unknown search_type: {search.search_type!r}")
 
@@ -191,6 +193,20 @@ def _execute_module_search(
         ) from exc
 
     return cast(dict[str, Any], result)
+
+
+def _execute_traversal_search(
+    search: Search,
+    validated_inputs: dict[str, Any],
+    db_alias: str,
+) -> dict[str, Any]:
+    """Parse and execute a traversal search."""
+    from tap_grid.traversal import execute_traversal
+
+    try:
+        return execute_traversal(search, validated_inputs, db_alias=db_alias)
+    except Exception as exc:
+        raise SearchExecutionError(f"Traversal search execution failed: {exc}") from exc
 
 
 def _execute_orm_search(

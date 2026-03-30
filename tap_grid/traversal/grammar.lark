@@ -1,0 +1,109 @@
+// TAP Traversal Language Grammar
+// Authoritative syntax specification for spec-grid-traversal-execution.md
+// Parser: lark earley, ambiguity=resolve
+//
+// Convention: terminals prefixed with _ are discarded from parse-tree children.
+// This keeps transformer methods clean — they receive only data tokens, not keywords.
+
+start: clause+
+
+clause: match_clause
+      | where_clause
+      | return_clause
+
+// ---------------------------------------------------------------------------
+// MATCH
+// ---------------------------------------------------------------------------
+
+match_clause: _MATCH_KW path_var? pattern ("," pattern)*
+
+path_var: NAME "="
+
+pattern: node_pattern (edge_pattern node_pattern)+
+
+node_pattern: "(" node_body ")"
+node_body: NAME? (":" NAME)? inline_props?
+
+edge_pattern: outbound_edge
+            | inbound_edge
+            | undirected_edge
+
+outbound_edge:   "-[" edge_body "]->"
+inbound_edge:    "<-[" edge_body "]-"
+undirected_edge: "-[" edge_body "]-"
+
+edge_body: NAME? (":" NAME)? hop_range? inline_props?
+hop_range: "*" INT ".." INT
+
+inline_props: "{" prop_pair ("," prop_pair)* "}"
+prop_pair: NAME ":" value
+
+// ---------------------------------------------------------------------------
+// WHERE
+// ---------------------------------------------------------------------------
+
+where_clause: _WHERE_KW predicate
+
+// Precedence (lowest to highest): OR < AND < NOT < atom.
+// Earley with ambiguity=resolve handles left-recursive OR/AND.
+predicate: predicate _OR_KW predicate    -> or_pred
+         | predicate _AND_KW predicate   -> and_pred
+         | _NOT_KW predicate             -> not_pred
+         | "(" predicate ")"             -> paren_pred
+         | comparison
+
+comparison: field_path COMPARE_OP value
+
+field_path: NAME field_step*
+field_step: "." NAME               -> dot_step
+          | "[" ESCAPED_STRING "]" -> key_step
+          | "[" INT "]"            -> index_step
+          | "[" STAR "]"           -> wildcard_step
+
+STAR: "*"
+COMPARE_OP: "=" | "!=" | "<=" | ">=" | "<" | ">"
+
+// ---------------------------------------------------------------------------
+// RETURN
+// ---------------------------------------------------------------------------
+
+return_clause: _RETURN_KW return_item ("," return_item)*
+
+return_item: field_path (_AS_KW NAME)?
+
+// ---------------------------------------------------------------------------
+// Values
+// ---------------------------------------------------------------------------
+
+value: ESCAPED_STRING  -> string_val
+     | NUMBER          -> number_val
+     | param_ref
+     | /true/i         -> true_val
+     | /false/i        -> false_val
+     | /null/i         -> null_val
+
+param_ref: "$" NAME
+
+// ---------------------------------------------------------------------------
+// Keywords — underscore prefix causes lark to discard them from tree children
+// ---------------------------------------------------------------------------
+
+_MATCH_KW:  /MATCH/i
+_WHERE_KW:  /WHERE/i
+_RETURN_KW: /RETURN/i
+_AND_KW:    /AND/i
+_OR_KW:     /OR/i
+_NOT_KW:    /NOT/i
+_AS_KW:     /AS/i
+
+// ---------------------------------------------------------------------------
+// Terminals
+// ---------------------------------------------------------------------------
+
+NAME:   /[a-zA-Z_][a-zA-Z0-9_]*/
+INT:    /[0-9]+/
+NUMBER: /-?[0-9]+(\.[0-9]+)?/
+
+%import common.ESCAPED_STRING
+%import common.WS
+%ignore WS

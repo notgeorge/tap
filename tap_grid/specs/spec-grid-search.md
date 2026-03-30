@@ -48,7 +48,7 @@ Current Search implementation still uses `title` as a field name, but that shoul
 | --- | --- | :---: | --- |
 | `title` | CharField | Yes | Current implementation field for the search's human-readable name. Canonical entity metadata terminology is `name` per `req-grid-entity-metadata`. |
 | `description` | TextField | No | What the search is intended to retrieve |
-| `search_type` | CharField | Yes | Execution mode. In v1: `module` or `orm` |
+| `search_type` | CharField | Yes | Execution mode. In v1: `module`, `orm`, or `traversal` |
 | `root` | CharField | Yes | Search root. In v1: `node` or `edge` |
 | `definition` | JSONField | Yes | Execution-mode-specific search definition |
 | `input_schema` | JSONField | No | JSON Schema for domain-specific execution inputs (e.g. a `character_id` parameter). Not used for pagination — `limit` and `offset` are separate execution kwargs. |
@@ -65,6 +65,7 @@ A Search is a TAP-managed model derived from `BaseModel`, and therefore hangs of
 `search_type` determines how `definition` is interpreted:
 - `module` uses a registered search runner key.
 - `orm` uses a declarative ORM DSL.
+- `traversal` uses TAP traversal language text stored in `definition["query"]` (str or list[str]). See `spec-grid-traversal*.md` for the language and execution specs.
 
 `root` identifies whether the search begins from nodes or edges:
 - `node`
@@ -91,7 +92,7 @@ Do not treat `title` as the preferred long-term metadata term for entity instanc
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-grid-search-obj-1 | Search Is First-Class Entity | Implemented | Search is represented by its own TAP-managed model derived from `BaseModel`. | |
-| req-grid-search-obj-2 | Canonical Search Type Field | Implemented | Search stores `search_type` and supports `module` and `orm` in v1. | |
+| req-grid-search-obj-2 | Canonical Search Type Field | Implemented | Search stores `search_type` and supports `module`, `orm`, and `traversal` in v1. | |
 | req-grid-search-obj-3 | Canonical Root Field | Implemented | Search stores `root` and supports `node` and `edge` in v1. | |
 | req-grid-search-obj-4 | Definition Stored as JSON | Implemented | Search stores execution-specific query definition in `definition`. | |
 | req-grid-search-obj-5 | Input Schema Uses JSON Schema | Implemented | When `input_schema` is present, execution inputs are validated against it before search execution. | |

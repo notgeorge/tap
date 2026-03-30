@@ -120,9 +120,16 @@ class GraphPanelType:
         from tap_grid.search_service import execute_search
 
         search = Search(
-            search_type="module",
+            search_type="traversal",
+            root="node",
             name="hub-and-spoke",
-            definition={"runner_key": "hub-and-spoke"},
+            definition={
+                "query": [
+                    "MATCH (hub)-[e]-(neighbor)",
+                    "WHERE hub.entity_id = $entity_id",
+                    "RETURN hub, e, neighbor",
+                ]
+            },
             default_limit=200,
             max_limit=500,
         )
