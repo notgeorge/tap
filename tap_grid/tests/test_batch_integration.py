@@ -1,30 +1,24 @@
-"""Integration tests for FLIP Phase 1 (history tracking).
+"""Integration tests for batch and history tracking.
 
 Tests the full flow: context → model save → history recording.
 """
 
 import uuid
-from contextlib import contextmanager
 from collections.abc import Generator
+from contextlib import contextmanager
 
 import pytest
 
-from tap_flip.config import is_history_enabled
-from tap_flip.history import get_historical_records, get_history_timeline, set_history_user
-from tap_flip.batch.service import create_batch
+from tap_grid.batch_service import create_batch
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
+from tap_grid.history import get_historical_records, is_history_enabled, set_history_user
 from tap_grid.models import User
 from tap_grid.services import create_entity
-from plugins.lotr.models import Character, Location
 
 
 @contextmanager
 def _batch_ctx(source: str = "test") -> Generator[str, None, None]:
-    """Test helper: create a Batch entity and set CallerContext for the duration.
-
-    Replaces the removed batch_context() context manager for test use.
-    The Batch entity is created so BatchEvent queries remain valid.
-    """
+    """Test helper: create a Batch entity and set CallerContext for the duration."""
     batch = create_batch(source=source)
     batch_id = str(batch.entity.id)
     prev = get_caller_context()
@@ -40,7 +34,9 @@ class TestFullHistoryFlow:
     """End-to-end tests for history tracking flow."""
 
     def test_create_update_history_flow(self):
-        """Full flow: create → update → query history."""
+        """Full flow: create → update → history records increase."""
+        from plugins.lotr.models import Character
+
         user = User.objects.create_user(username="flowtest", password="test")
         set_history_user(user)
         try:
@@ -52,17 +48,15 @@ class TestFullHistoryFlow:
                 character.bio = "A brave hobbit of the Shire."
                 character.save()
 
-            records = get_historical_records(character)
-            timeline = get_history_timeline(character)
-
-            assert records.count() == 2  # Create + Update
-            assert len(timeline) == 2
-            assert timeline[0]["actor"] == "flowtest"
+            records = list(get_historical_records(character))
+            assert len(records) == 2  # Create + Update
         finally:
             set_history_user(None)
 
     def test_history_preserves_old_values(self):
         """History records preserve the state at each point in time."""
+        from plugins.lotr.models import Character
+
         with _batch_ctx(source="test:history-v1"):
             entity = create_entity("character", name="Gandalf")
             character = Character.objects.create(entity=entity, bio="Version 1")
@@ -82,6 +76,35 @@ class TestFullHistoryFlow:
         assert records[1].bio == "Version 2"
         assert records[2].bio == "Version 3"
 
+    def test_history_records_user_from_context(self):
+        """History records the user from context."""
+        from plugins.lotr.models import Character
+
+        user = User.objects.create_user(username="historian", password="test")
+        set_history_user(user)
+
+        with _batch_ctx(source="test:history-user"):
+            entity = create_entity("character", name="User Test")
+            character = Character.objects.create(entity=entity, bio="Test")
+
+        latest_record = character.history.latest("history_id")
+        assert latest_record.history_user == user
+
+        set_history_user(None)
+
+    def test_history_without_user_context(self):
+        """History works even without user in context (None)."""
+        from plugins.lotr.models import Character
+
+        set_history_user(None)
+
+        with _batch_ctx(source="test:history-no-user"):
+            entity = create_entity("character", name="No User Test")
+            character = Character.objects.create(entity=entity, bio="Test")
+
+        latest_record = character.history.latest("history_id")
+        assert latest_record.history_user is None
+
 
 @pytest.mark.django_db
 class TestBatchIdFieldExists:
@@ -89,6 +112,8 @@ class TestBatchIdFieldExists:
 
     def test_batch_id_field_exists_on_character(self):
         """Character model has batch_id field populated by CallerContext."""
+        from plugins.lotr.models import Character
+
         with _batch_ctx(source="test:batch-id") as batch_id:
             entity = create_entity("character", name="Batch ID Test")
             character = Character.objects.create(entity=entity, bio="Test")
@@ -98,6 +123,8 @@ class TestBatchIdFieldExists:
 
     def test_batch_id_updated_on_subsequent_save(self):
         """batch_id field is updated to the latest CallerContext batch on each save."""
+        from plugins.lotr.models import Character
+
         with _batch_ctx(source="test:batch-id-create") as first_batch_id:
             entity = create_entity("character", name="Batch Set Test")
             character = Character.objects.create(entity=entity, bio="Test")
@@ -114,54 +141,26 @@ class TestBatchIdFieldExists:
         assert character.batch_id == second_batch_id
         assert character.batch_id != first_batch_id
 
-    def test_batch_id_field_exists_on_location(self):
-        """Location model also has batch_id field (inherited from BaseModel).
-
-        batch_id is stamped from CallerContext even on FLIP-disabled models —
-        the field tracks which batch last touched the record.
-        """
-        entity = create_entity("location", name="Location Batch Test")
-        location = Location.objects.create(entity=entity, description="Test location")
-
-        assert hasattr(location, "batch_id")
-        # batch_id is populated from the active CallerContext (auto-fixture provides one)
-        assert location.batch_id != ""
-
 
 @pytest.mark.django_db
-class TestHistoryEnabledVsDisabled:
-    """Tests contrasting history-enabled vs disabled models."""
+class TestHistoryEnabledForAllModels:
+    """All concrete BaseModel subclasses now have history enabled by default."""
 
-    def test_character_enabled_location_disabled(self):
-        """Character has history, Location does not."""
+    def test_character_has_history(self):
+        """Character has history (FLIP-enabled model)."""
+        from plugins.lotr.models import Character
+
         assert is_history_enabled(Character) is True
-        assert is_history_enabled(Location) is False
 
-    def test_character_has_history_manager(self):
-        """Character has the history manager."""
+    def test_location_has_history(self):
+        """Location has history too (all BaseModel subclasses inherit it)."""
+        from plugins.lotr.models import Location
+
+        assert is_history_enabled(Location) is True
+
+    def test_both_have_history_manager(self):
+        """Both Character and Location have the history manager attribute."""
+        from plugins.lotr.models import Character, Location
+
         assert hasattr(Character, "history")
-
-    def test_location_no_history_manager(self):
-        """Location does not have history manager; get_historical_records returns empty."""
-        entity = create_entity("location", name="No History Test")
-        location = Location.objects.create(entity=entity, description="Test")
-
-        records = get_historical_records(location)
-        assert len(records) == 0
-
-    def test_both_have_batch_id(self):
-        """Both Character and Location have batch_id (BaseModel field).
-
-        batch_id is stamped on all BaseModel instances when a CallerContext is active.
-        """
-        character_entity = create_entity("character", name="C")
-        location_entity = create_entity("location", name="L")
-
-        with _batch_ctx(source="test:batch-id-both") as batch_id:
-            character = Character.objects.create(entity=character_entity, bio="Test")
-        location = Location.objects.create(entity=location_entity, description="Test")
-
-        assert hasattr(character, "batch_id")
-        assert character.batch_id == batch_id
-        assert hasattr(location, "batch_id")
-        assert location.batch_id != ""  # stamped from auto CallerContext fixture
+        assert hasattr(Location, "history")

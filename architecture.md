@@ -4,7 +4,8 @@ You will scaffold a Python/Django-based system strictly according to the followi
 
 Rules:
 - Do not invent concepts not present in the document.
-- Treat Entity as the authoritative system of record similar to wikibase / wikidata
+- Treat the specifications as the canonical source of truth when this document is less precise or has drifted.
+- Treat Entity as the canonical graph spine and higher-order metadata layer for TAP-managed nodes and edges.
 - Do not introduce multi-tenancy.
 - Do not introduce autonomous agent actions.
 - Start with the core data model first, then the plugin interfaces.
@@ -14,15 +15,18 @@ Generate code incrementally and explain design decisions briefly.
 
 The Analagy Platform (TAP) is a general-purpose systems-mastery platform that blends humans, ai, and software that is being developed for immediate applications in security, compliance, and operations. 
 
-Core Concepts
-Entity: the atomic unit of meaning in TAP. All domain objects are entities. This is the authoritative symbol ground for meaning in TAP.  The django standard ORM data model tables and the edge table reference entity Id as a column / key. All entity IDs are UUIDv7.
-Edge: a directed, typed relationship between two entities referencing the entity table
-Realm: a scoped graph context representing a perspective of the same system (e.g. design, configuration, operation, stored as a column on all applicable tables). Edges are represented in the Entity table.
-Environment:  Separation of scoped and branched versions of a graph for dev / stage / prod and more complex intermediate states ala dev-v1 dev-v2
-System: a bounded collection of entities and edges representing something being managed (ala a cloud SAAS service)
-Plugin: a module that introduces to TAP new entity types, edge types, constraints, and behaviors and which may depend on other plugins
+Core Concepts  
+* Entity: the graph spine and canonical reference for TAP-managed nodes and edges. It holds cross-cutting metadata such as identity, dimensions, timestamps, and related higher-order capabilities. All entity IDs are UUIDv7.
+* Edge: a directed, typed relationship between two entities. Edge is a first-class TAP object with its own table and a backing Entity on the spine.
+* Dimensions: a flat JSON object stored on Entity used to scope, partition, and interpret TAP-managed graph objects.
+* Service Layer: the canonical contract between applications and TAP-managed graph data. Node and edge reads/writes, batch-backed writes, discovery, constraints, and future security enforcement go through the service layer.
+* System: a bounded collection of entities and edges representing something being managed (ala a cloud SAAS service)
+* Plugin: a module that introduces to TAP new entity types, edge types, constraints, and behaviors and which may depend on other plugins
+* Grid:  the totality of the data that is modeled on the sql-based graph implementation.
 
 The TAP platform is built in python using the django platform to provide initial scaffolding, authentication, and ORM with graph capabilities.  Configuration of TAP for a specific use case / domain / product will be performed through a robust plugin mechanism which introduce domain specific schemas, views, operations, and will eventually include capabilities beyond django / python such as containers.
+
+History, FLIP, and (in the near future) perspectives are core grid concepts of TAP rather than standalone product domains. They may have implementation modules, but architecturally they belong to the grid/service-layer model and should be treated as first-class graph capabilities rather than separate applications in their own right.
 
 Fundamental Design Choices / Key differentiatiors that distinguish TAP from exsiting CRM, compliance, systems-management tools and are critical for the success of the project.
 
@@ -30,7 +34,7 @@ Fundamental Design Choices / Key differentiatiors that distinguish TAP from exsi
 
 2. Visualization - capabilites for humans to view and interact with the data in a graphical way, think google maps meets visio.  
 
-3.  Realms and Environments - Leverage the graph structure to include multiple realms / perspectives of the system such as the design graph, configuration graph, operation graph (where the three should match to confirm system operation) and to enable multiple environments tracking the same concepts to be managed on the same system (ala  the contents of a SAAS dev / stage / prod deployments).
+3.  Dimensions - Leverage dimensions on the Entity spine to include multiple graph contexts, namespaces, and perspectives without fragmenting the underlying node / edge model. Other scoping concepts such as realms, environments, and pocket dimensions may be explored later, but dimensions are the current implemented model.
 
 2. Plugin System - The plugin model avoids over-specifying the domains in which the platform can work, we're shooting to begin with implementing a set of first principles that apply to all systems (graph / traversal, history, schema management, security) which comprise the core of TAP, then use plugins to define the domain, interactions, and allow for highly customized features both within the django framework and outside of it while still allowing even outside components like containers and remote services to be managed (via plugin features) from within the TAP installation.  Plugins can also be scaffolded and have dependent plugins to further modularize / contain code and capabilites while still allowing use-case expansion.
 
@@ -43,6 +47,7 @@ TAP Runtime Loop (Conceptual)
 * Pre-requisite - TAP installed, necessary plugins added to define schemas and functionality, configured as necessary to meet the use case
 * Ingest or discover facts about a system
 * Normalize them into entities and edges
+* Route node and edge reads / writes through the service layer
 * Record provenance at field level
 * Evaluate relationships and constraints
 * Accept recommendations or actions
@@ -52,17 +57,19 @@ TAP Runtime Loop (Conceptual)
 
 Critical, essential elements of TAP:
 1.  Written in python and django with postgres and Django Ninja for customer-facing API (django admin api for django-standard admin operations) all bundled as a single container
-2.  Extends the base django ORM to include Entity for symbol grounding and lightweight Edge table (from, to, type of connection) for graph functionality
+2.  Extends the base django ORM to include Entity as the graph spine, typed BaseModel tables for domain data, and a dedicated Edge table with backing Entity rows for graph functionality
 3.  Uses cytoscape initially as the user-facing graphical view system
-4.  Supports a data model where graphs can be isolated into different realms
+4.  Supports a data model where graph objects can be scoped and partitioned using dimensions on the Entity spine
 5.  Uses plugins to isolate capabilities, plugins can import / depend on other plugins based initially on Simon Willison's django plugin approach
 6.  Considers every place in the architecture where touch points and surfaces can be exposed to support LLM integration ala RAG
 7.  Uses django's existing security model for authentication and best practices for data isolation
-8.  Each installation is single-tenant, although parts of the graph can be isolated into "projects" with their own security roles for read / write
+8.  Each installation is single-tenant, although dimensions and future security policy may be used to scope access to parts of the graph
 9.  All entity ids are based on UUIDv7
 10. Data objects have their own icon which can be used in visualizations, graphs, tables
 11. Can run on-prem with no connection to the Internet, all data and operations are 100% local to the application, no remote imports
 12. Supports federation as a distant target
+13. Node and edge operations are expected to go through the TAP service layer rather than direct ORM access
+14. TAP-managed types should be discoverable through registry-backed service-layer discovery rather than only through Python imports
 
 
 What TAP is definitely not
@@ -76,6 +83,7 @@ Pithy blurbs:
 * Google Maps meets Visio meets Wikipedia
 * Semantic web for humans instead of homo economicus
 * Palantir for the people
+* From Knowledge Graph to Wisdow Map
 
 Rampart is a TAP-managed system whose plugins create a domain for continuous compliance of SAAS services
 The plugin set defines:
@@ -91,8 +99,7 @@ Step-wise Priority Goals for v0
 3. tap_api - Manages API versioning, auth, and global API behavior, building out django ninja so there's an api layer that is minimal and effective and decide how to refactor plugins to support adding api endpoints in a sane way
 4. tab_web - Assets and helpers for building expressive dashboards and UIs which plugins will extend, once this is baked we can refactor the plugin from built in step 2 to include some pages to see things
 5. tap_viz - Visualization - present views of the data in visual graphical format (cytoscape), once we can see web pages we'll add cool visuals that will be a joyful thing to see
-6. tap_flip - FLIP - to include data provenance, history tracking, realms, and environments, by this point we should know what we're doing and can knock out an initial version that is elegant and leverages the core model
-7. tap_ai - Initial RAG / LLM Surfaces - read-only graph traversal, summarization, and suggestion helpers, the super-awesome stretch goal which takes this whole project to the next level
+6. tap_ai - Initial RAG / LLM Surfaces - read-only graph traversal, summarization, and suggestion helpers, the super-awesome stretch goal which takes this whole project to the next level
 
 Once V0 is complete we'll move on to:
 1.  Rampart plugin set
@@ -109,6 +116,4 @@ Explicit Non-Goals (v0)
 * Cross-organization federation
 
 What I have not formally defined until we get to that step in the implementation:
-1. How FLIP is implemented to leverage the entity / edge table to capture all the necessary use cases for history and provenance
-
-
+1. How future scoping concepts beyond dimensions, such as pocket dimensions or perspectives, should be modeled

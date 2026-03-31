@@ -12,9 +12,7 @@ This plugin provides diverse constraint patterns for testing edge validation:
 from typing import Any, ClassVar
 
 from django.db import models
-from simple_history.models import HistoricalRecords
 
-from tap_flip.history.context import get_history_user
 from tap_grid.models import BaseModel
 
 
@@ -50,13 +48,10 @@ class Character(BaseModel):
         },
     }
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "ellipse"}}
-    # History is enabled directly via the HistoricalRecords manager below.
     FLIP_CONFIG: ClassVar[dict[str, Any]] = {
         "batch": {"enabled": True},
         "flip": {"enabled": True, "fields": ["bio", "title"]},
     }
-
-    history = HistoricalRecords(get_user=get_history_user)
 
     # Characters can form many types of edges to various targets
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [

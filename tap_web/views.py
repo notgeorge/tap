@@ -272,7 +272,7 @@ def object_view(request: HttpRequest, entity_type: str, object_url_id: str) -> H
     # for this model so the viewer can render the collapsed provenance section.
     flip_ctx: dict[str, Any] = {}
     try:
-        from tap_flip.config import is_flip_enabled
+        from tap_grid.flip import is_flip_enabled
         from tap_web.panels.flip_panel import get_flip_context_for_entity
 
         if is_flip_enabled(model_cls):

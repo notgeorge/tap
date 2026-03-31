@@ -12,14 +12,20 @@ Key Directories - each are their own Django app, this is also the scaffolding pr
 3. tap_api - Manages API versioning, auth, and global API behavior, building out django ninja so there's an api layer that is minimal and effective and decide how to refactor plugins to support adding api endpoints in a sane way
 4. tap_web - Assets and helpers for building expressive dashboards and UIs which plugins will extend, once this is baked we can refactor the plugin from built in step 2 to include some pages to see things
 5. tap_viz - Visualization - present views of the data in visual graphical format (cytoscape), once we can see web pages we'll add cool visuals that will be a joyful thing to see
-6. tap_flip - FLIP - to include data provenance, history tracking, realms, and environments, by this point we should know what we're doing and can knock out an initial version that is elegant and leverages the core model
-7. tap_ai - Initial RAG / LLM Surfaces - read-only graph traversal, summarization, and suggestion helpers, the super-awesome stretch goal which takes this whole project to the next level
+6. tap_ai - Initial RAG / LLM Surfaces - read-only graph traversal, summarization, and suggestion helpers, the super-awesome stretch goal which takes this whole project to the next level
 
 TAP Core Architectural Rules
-    Entity is the authoritative system of record; ORM models and APIs must not introduce parallel sources of truth.
+    Specifications are the canonical source of truth; this guide is a high-level operational summary and must be kept aligned with the specs.
+    Entity is the graph spine and cross-cutting metadata layer for TAP-managed nodes and edges; typed BaseModel tables hold domain-specific data.
     ORM models refer to entity via foreign key relationships
-    Use a BaseModel for all domain ORM models (excluding Entity, Edge, Grid and Django auth models) to manage consistency of created_at, updated_at, originating_grid, and related fields and enforce compliance with FLIP
-    Any application code or background task that mutates domain data must do so explicitly via FLIP APIs and never bypass provenance recording.
+    Use a BaseModel for all domain ORM models (excluding Entity, Edge, Grid and Django auth models) so every TAP-managed node has a backing Entity on the spine.
+    The TAP service layer is the canonical path for TAP-managed node and edge reads and writes.
+    Any application code, plugin code, or background task that mutates TAP-managed node or edge data must do so through the service layer rather than direct ORM writes.
+    Direct ORM access is acceptable only for migrations, intentional low-level/model tests, and explicitly out-of-scope admin/infrastructure behavior.
+    Dimensions live on Entity and are the current implemented scoping/partitioning model for TAP-managed graph data.
+    FLIP and provenance integrate with the service layer and caller context; do not invent parallel mutation APIs.
+    History, FLIP, and future perspectives are core grid concepts, not separate architectural product domains; implementation modules should not be treated as independent system boundaries.
+    TAP-managed node and edge types should publish discoverable schemas and capabilities through the registry-backed service-layer discovery system.
     
 TAP Plugin Rules
     Plugins may register API routers only under a namespaced prefix controlled by tap_api (e.g. /api/v1/plugins/<plugin_slug>/...)
@@ -49,6 +55,8 @@ Testing Framework
     Test both positive and negative scenarios
     Tests should accompany new functionality where behavior is clear.
     Test behavior, not implementation
+    Application-level tests for TAP-managed node/edge behavior should prefer service-layer setup over direct ORM writes.
+    Direct ORM setup in tests is appropriate only when intentionally testing model-level or below-service-layer behavior.
 
 Django Best Practices
     Follow Django's "batteries included" philosophy - use built-in features before third-party packages
@@ -56,6 +64,7 @@ Django Best Practices
     Prefer ORM for standard operations and data models; use raw SQL or CTEs where graph traversal or performance requires it.
     Use Django signals sparingly, require approval before writing them, and document them well.
     Background tasks must not silently mutate core graph state in v0; all graph mutations must remain explicit and auditable.
+    For TAP-managed graph data, prefer the service layer over ad hoc ORM mutation even when the ORM would be simpler in the moment.
 
 Authentication & Authorization
     Use Django’s built-in authentication system
@@ -119,4 +128,3 @@ Development Commands
 
     # View logs
     docker compose logs -f web
-

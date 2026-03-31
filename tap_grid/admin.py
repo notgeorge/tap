@@ -1,4 +1,5 @@
-"""TAP Core Admin — registers Entity, EntityType, Edge, User, and Registry inspection views."""
+"""TAP Core Admin — registers Entity, EntityType, Edge, User, Batch, BatchEvent,
+and Registry inspection views."""
 
 from typing import Any
 
@@ -8,11 +9,55 @@ from django.db import models
 from django.http import Http404, HttpRequest, HttpResponse
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
+from simple_history.admin import SimpleHistoryAdmin
 
-from tap_grid.models import Edge, Entity, EntityType, User
+from tap_grid.models import Batch, BatchEvent, Edge, Entity, EntityType, User
 from tap_grid.registry import Registry, ScopedRegistry, meta_registry
 
 admin.site.register(User, UserAdmin)
+
+
+@admin.register(Batch)
+class BatchAdmin(SimpleHistoryAdmin):
+    """Admin for Batch model with history support."""
+
+    list_display = ["entity", "status", "source", "actor", "started_at", "closed_at"]
+    list_filter = ["status", "source"]
+    search_fields = ["entity__name", "source", "error_message"]
+    readonly_fields = ["entity", "started_at"]
+    date_hierarchy = "started_at"
+    ordering = ["-started_at"]
+
+
+@admin.register(BatchEvent)
+class BatchEventAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+    """Admin for BatchEvent model (read-only audit log)."""
+
+    list_display = ["id", "batch", "event_type", "entity_type", "model_name", "timestamp", "actor"]
+    list_filter = ["event_type", "entity_type", "model_name"]
+    search_fields = ["entity_id", "entity_type", "model_name"]
+    readonly_fields = [
+        "id",
+        "batch",
+        "event_type",
+        "entity_id",
+        "entity_type",
+        "model_name",
+        "timestamp",
+        "actor",
+        "metadata",
+    ]
+    date_hierarchy = "timestamp"
+    ordering = ["-timestamp"]
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_change_permission(self, request: HttpRequest, obj: BatchEvent | None = None) -> bool:
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj: BatchEvent | None = None) -> bool:
+        return False
 
 
 @admin.register(Entity)

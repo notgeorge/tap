@@ -7,8 +7,8 @@ from contextlib import contextmanager
 
 import pytest
 
-from tap_flip.batch.service import create_batch
-from tap_flip.config import clear_registry
+from tap_grid.batch_service import create_batch
+from tap_grid.flip import clear_registry
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 from tap_grid.context import set_batch_id
 from tap_grid.exceptions import NoBatchContextError

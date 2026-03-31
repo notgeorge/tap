@@ -8,9 +8,12 @@ Creates Middle-earth entities and edges for development and testing.
 Only runs when DEBUG=True. Idempotent - safe to run multiple times.
 """
 
+import uuid
+
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from tap_grid.caller_context import CallerContext, set_caller_context
 from tap_grid.models import Edge, Entity, Search
 from plugins.lotr.models import Artifact, Character, Faction, Location, Race
 
@@ -111,15 +114,20 @@ class Command(BaseCommand):
         # Faction edges
         ("Fellowship of the Ring", "Forces of Mordor", "ENEMIES_WITH"),
         ("Fellowship of the Ring", "Rohan", "ALLIES_WITH"),
-        # MENTORS edge (uses edge constraint, not node constraint)
-        ("Gandalf", "Frodo Baggins", "MENTORS"),
-        ("Bilbo Baggins", "Frodo Baggins", "MENTORS"),
+        # MENTORS edge (requires discipline property per edge constraint)
+        ("Gandalf", "Frodo Baggins", "MENTORS", {"discipline": "wizardry"}),
+        ("Bilbo Baggins", "Frodo Baggins", "MENTORS", {"discipline": "adventure"}),
     ]
 
     def handle(self, *args: object, **options: object) -> None:
         if not settings.DEBUG:
             self.stderr.write(self.style.WARNING("LOTR seed data skipped: DEBUG=False"))
             return
+
+        # Provide a CallerContext so FLIP-enabled models (Character, Artifact, etc.)
+        # can stamp batch_id without raising NoBatchContextError.
+        seed_batch_id = str(uuid.uuid7())
+        set_caller_context(CallerContext(user=None, batch_id=seed_batch_id))
 
         self.stdout.write("Seeding LOTR data...")
         entities: dict[str, Entity] = {}
@@ -181,7 +189,10 @@ class Command(BaseCommand):
 
         # Create edges
         edge_count = 0
-        for source_name, target_name, edge_type in self.EDGES:
+        for edge_def in self.EDGES:
+            source_name, target_name, edge_type = edge_def[0], edge_def[1], edge_def[2]
+            properties: dict = edge_def[3] if len(edge_def) > 3 else {}
+
             from_entity = entities.get(source_name)
             to_entity = entities.get(target_name)
 
@@ -205,6 +216,7 @@ class Command(BaseCommand):
                     from_entity=from_entity,
                     to_entity=to_entity,
                     edge_type=edge_type,
+                    properties=properties,
                 )
                 self.stdout.write(f"  + Edge: {source_name} --{edge_type}--> {target_name}")
                 edge_count += 1

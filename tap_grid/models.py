@@ -1,5 +1,5 @@
 """
-TAP Core Models — Entity, Edge, EntityType, BaseModel, User.
+TAP Core Models — Entity, Edge, EntityType, BaseModel, User, Batch, BatchEvent.
 
 Design philosophy: See DESIGN.md in this directory.
 """
@@ -14,6 +14,9 @@ from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models, transaction
 from django.utils import timezone
+from simple_history.models import HistoricalRecords
+
+from tap_grid.history import _get_history_user
 
 
 def dangerously_ignore_validator(fn: Any) -> Any:
@@ -188,6 +191,16 @@ class Entity(models.Model):
         blank=True,
         db_index=True,
     )
+    version = models.PositiveIntegerField(
+        default=1,
+        help_text="Monotonic revision counter. Increments on every canonical mutation, including tombstone.",
+    )
+    deleted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Set when the entity is tombstoned. Null means live.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -234,6 +247,13 @@ class EntityType(models.Model):
         return self.name
 
 
+class LiveManager(models.Manager["BaseModel"]):
+    """Default manager for BaseModel subclasses — excludes tombstoned entities."""
+
+    def get_queryset(self) -> models.QuerySet["BaseModel"]:
+        return super().get_queryset().filter(entity__deleted_at__isnull=True)
+
+
 class BaseModel(models.Model):
     """Abstract base for all domain ORM models (not Entity/EntityType/User).
 
@@ -252,7 +272,11 @@ class BaseModel(models.Model):
 
     FLIP integration:
         Subclasses can define FLIP_CONFIG to enable history tracking and
-        other provenance features. See tap_flip.config for defaults.
+        other provenance features. See tap_grid.flip for defaults.
+
+    Tombstone:
+        objects — default manager, excludes tombstoned entities (deleted_at set).
+        all_objects — unfiltered manager, includes tombstoned entities.
     """
 
     ENTITY_TYPE: ClassVar[str]
@@ -261,6 +285,17 @@ class BaseModel(models.Model):
     SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {}
     HOTLINKS: ClassVar[list[dict]] = []
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {}
+
+    objects = LiveManager()
+    all_objects = models.Manager()
+
+    # History tracking — enabled by default for all concrete BaseModel subclasses.
+    # DSH creates a separate HistoricalX table per concrete model in each app.
+    # V1 default: all objects tracked, no retention limits.
+    # Future: History Scope Configuration (per-model / per-app / grid-wide) is
+    # backlogged — design that mechanism before implementing it; it will affect
+    # migrations.
+    history = HistoricalRecords(get_user=_get_history_user, inherit=True)
 
     entity = models.OneToOneField(
         Entity,
@@ -316,8 +351,8 @@ class BaseModel(models.Model):
 
             register_constraints(constraint_type, outbound, inbound)
 
-        # FLIP: Cache config in registry (history registration deferred to app ready)
-        from tap_flip.config import get_model_flip_config
+        # FLIP: Cache config in registry.
+        from tap_grid.flip import get_model_flip_config
 
         get_model_flip_config(cls)
 
@@ -471,7 +506,10 @@ class BaseModel(models.Model):
         else:
             self._confirm_entity()
             super().save(*args, **kwargs)
-            Entity.objects.filter(pk=self.entity_id).update(updated_at=timezone.now())
+            Entity.objects.filter(pk=self.entity_id).update(
+                updated_at=timezone.now(),
+                version=models.F("version") + 1,
+            )
 
 
 class Edge(BaseModel):
@@ -785,3 +823,242 @@ class Search(BaseModel):
                 parse_traversal(query)
             except TraversalParseError as exc:
                 raise ValidationError({"definition": [f"Traversal query parse error: {exc.message}"]}) from exc
+
+
+# ---------------------------------------------------------------------------
+# Batch models (moved from tap_flip)
+# ---------------------------------------------------------------------------
+
+
+class BatchStatus(models.TextChoices):
+    """Batch lifecycle states."""
+
+    OPEN = "open", "Open"
+    CLOSED = "closed", "Closed"
+    FAILED = "failed", "Failed"
+
+
+class Batch(BaseModel):
+    """A logical operation group (ingestion run, bulk update, etc.).
+
+    Batch extends BaseModel, making it a first-class Entity in the TAP graph.
+    Batches can be queried, linked, and traversed like any other entity.
+
+    IMPORTANT: Batch disables batch tracking for itself to prevent infinite
+    recursion (a Batch cannot belong to another Batch).
+    """
+
+    ENTITY_TYPE: ClassVar[str] = "batch"
+
+    _DESCRIPTION_JSON_SCHEMA: ClassVar[dict] = {
+        "oneOf": [
+            {"type": "null"},
+            {
+                "type": "object",
+                "required": ["format", "data"],
+                "additionalProperties": False,
+                "properties": {
+                    "format": {"type": "string", "minLength": 1},
+                    "data": {"type": "object"},
+                },
+            },
+        ]
+    }
+
+    FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "description_json": {
+            "validation": "jsonschema",
+            "schema": _DESCRIPTION_JSON_SCHEMA,
+        }
+    }
+
+    # actor and closed_at are managed by service methods, not user payload.
+    # started_at is auto_now_add; status/error_message managed via close_batch/fail_batch.
+    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
+        "create": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+                "description_json": {"oneOf": [{"type": "null"}, {"type": "object"}]},
+                "source": {"type": "string"},
+                "metadata": {"type": "object"},
+            },
+        },
+        "patch": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+                "description_json": {"oneOf": [{"type": "null"}, {"type": "object"}]},
+                "source": {"type": "string"},
+                "metadata": {"type": "object"},
+                "status": {"type": "string", "enum": ["open", "closed", "failed"]},
+                "error_message": {"type": "string"},
+            },
+        },
+        "replace": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["title"],
+            "properties": {
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+                "description_json": {"oneOf": [{"type": "null"}, {"type": "object"}]},
+                "source": {"type": "string"},
+                "metadata": {"type": "object"},
+            },
+        },
+    }
+
+    # Batch disables batch tracking to prevent self-reference.
+    # History is inherited from BaseModel.
+    FLIP_CONFIG: ClassVar[dict[str, Any]] = {
+        "batch": {"enabled": False},
+    }
+
+    title = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Human-readable batch summary.",
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="Long-form description of the batch purpose.",
+    )
+    description_json = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Structured description payload with format and data keys.",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=BatchStatus.choices,
+        default=BatchStatus.OPEN,
+        db_index=True,
+    )
+    source = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Source identifier (e.g., 'scanner:aws', 'import:csv', 'api:v1').",
+    )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Free-form metadata about the batch (parameters, counts, etc.).",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="batches",
+        help_text="User who initiated the batch (if applicable).",
+    )
+    started_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When the batch was opened.",
+    )
+    closed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the batch was closed or failed.",
+    )
+    error_message = models.TextField(
+        blank=True,
+        default="",
+        help_text="Error details if status is 'failed'.",
+    )
+
+    class Meta(BaseModel.Meta):
+        db_table = "tap_batch"
+        ordering = ["-started_at"]
+
+    def __str__(self) -> str:
+        display = self.entity.name or str(self.entity.id)
+        return f"Batch {display} ({self.status})"
+
+
+class BatchEventType(models.TextChoices):
+    """Event types for BatchEvent."""
+
+    CREATE = "create", "Create"
+    UPDATE = "update", "Update"
+    DELETE = "delete", "Delete"
+    LINK = "link", "Link (edge creation)"
+    UNLINK = "unlink", "Unlink (edge deletion)"
+
+
+class BatchEvent(models.Model):
+    """Append-only log of changes within a batch.
+
+    BatchEvent is standalone (not an Entity) because it is internal bookkeeping.
+    These records are immutable after creation and enable replay/audit.
+
+    Design: One BatchEvent per atomic operation (create, update, delete).
+    Delta storage is NOT included here - django-simple-history handles that.
+    BatchEvent's job is correlation (what batch), not reconstruction (what changed).
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid7,
+        editable=False,
+    )
+    batch = models.ForeignKey(
+        Batch,
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    event_type = models.CharField(
+        max_length=20,
+        choices=BatchEventType.choices,
+        db_index=True,
+    )
+    entity_id = models.UUIDField(
+        db_index=True,
+        help_text="The Entity that was affected by this operation.",
+    )
+    entity_type = models.CharField(
+        max_length=255,
+        db_index=True,
+        help_text="Type of the affected entity (for quick filtering).",
+    )
+    model_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="ORM model class name if applicable (e.g., 'Concept').",
+    )
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="batch_events",
+    )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional context (edge endpoints, etc.).",
+    )
+
+    class Meta:
+        db_table = "tap_batch_event"
+        ordering = ["timestamp"]
+        indexes = [
+            models.Index(fields=["batch", "timestamp"], name="idx_batchevent_batch_ts"),
+            models.Index(fields=["entity_id", "timestamp"], name="idx_batchevent_entity_ts"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} on {self.entity_type}:{self.entity_id}"

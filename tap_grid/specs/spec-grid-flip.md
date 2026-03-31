@@ -146,7 +146,7 @@ Status: `Implemented`
 FLIP answers current provenance only. Historical provenance analysis belongs to the history layer.
 
 #### Status Details
-Implemented. FLIP map stores only the most recent batch per field path; no history replay is required to read current provenance. History system is tracked separately in `spec-grid-history-DRAFT.md`.
+Implemented. FLIP map stores only the most recent batch per field path; no history replay is required to read current provenance. History system is tracked separately in `spec-grid-history.md`.
 
 #### Implementation
 The required semantics are:

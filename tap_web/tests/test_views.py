@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import pytest
 from django.test import Client
 
-from tap_flip.batch.service import create_batch
+from tap_grid.batch_service import create_batch
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 from tap_grid.models import Entity
 

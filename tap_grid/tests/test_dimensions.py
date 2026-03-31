@@ -12,7 +12,7 @@ from contextlib import contextmanager
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
-from tap_flip.batch.service import create_batch
+from tap_grid.batch_service import create_batch
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 from tap_grid.constraints import (
     _edge_default_dimensions_registry,

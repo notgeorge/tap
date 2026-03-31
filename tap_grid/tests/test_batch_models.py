@@ -2,8 +2,9 @@
 
 import pytest
 
-from tap_flip.config import is_batch_enabled, is_history_enabled
-from tap_flip.models import Batch, BatchEvent, BatchEventType, BatchStatus
+from tap_grid.flip import is_batch_enabled
+from tap_grid.history import is_history_enabled
+from tap_grid.models import Batch, BatchEvent, BatchEventType, BatchStatus, BaseModel
 from tap_grid.services import create_entity
 
 
@@ -69,6 +70,67 @@ class TestBatchModel:
 
 
 @pytest.mark.django_db
+class TestBatchMetadataFields:
+    """Tests for Batch metadata fields (title, description, description_json)."""
+
+    def test_title_stored_and_retrieved(self):
+        """title is stored and retrieved correctly."""
+        entity = create_entity("batch", name="Title Test")
+        batch = Batch.objects.create(entity=entity, title="My Ingestion Run")
+
+        batch.refresh_from_db()
+        assert batch.title == "My Ingestion Run"
+
+    def test_title_defaults_to_empty_string(self):
+        """title defaults to empty string when not provided."""
+        entity = create_entity("batch", name="No Title")
+        batch = Batch.objects.create(entity=entity)
+
+        assert batch.title == ""
+
+    def test_description_stored_and_retrieved(self):
+        """description is stored and retrieved correctly."""
+        entity = create_entity("batch", name="Desc Test")
+        batch = Batch.objects.create(entity=entity, description="Imports all AWS resources.")
+
+        batch.refresh_from_db()
+        assert batch.description == "Imports all AWS resources."
+
+    def test_description_json_valid_shape_accepted(self):
+        """description_json with valid {format, data} shape is accepted."""
+        from tap_grid.batch_service import create_batch
+
+        batch = create_batch(
+            title="JSON Test",
+            description_json={"format": "markdown", "data": {"body": "# Hello"}},
+        )
+        batch.refresh_from_db()
+        assert batch.description_json == {"format": "markdown", "data": {"body": "# Hello"}}
+
+    def test_description_json_none_allowed(self):
+        """description_json=None is valid (field is nullable)."""
+        entity = create_entity("batch", name="Null JSON")
+        batch = Batch.objects.create(entity=entity, description_json=None)
+
+        batch.refresh_from_db()
+        assert batch.description_json is None
+
+    def test_create_batch_service_accepts_title(self):
+        """create_batch() passes title through to the created Batch."""
+        from tap_grid.batch_service import create_batch
+
+        batch = create_batch(title="Service Title Test", source="test")
+        assert batch.title == "Service Title Test"
+
+    def test_create_batch_service_accepts_description(self):
+        """create_batch() passes description through to the created Batch."""
+        from tap_grid.batch_service import create_batch
+
+        batch = create_batch(description="Detailed description here.")
+        assert batch.description == "Detailed description here."
+
+
+@pytest.mark.django_db
 class TestBatchFlipConfig:
     """Tests for Batch FLIP_CONFIG."""
 
@@ -77,7 +139,7 @@ class TestBatchFlipConfig:
         assert is_batch_enabled(Batch) is False
 
     def test_batch_enables_history_tracking(self):
-        """Batch has history tracking enabled via HistoricalRecords manager."""
+        """Batch has history tracking enabled (inherited from BaseModel)."""
         assert is_history_enabled(Batch) is True
 
     def test_batch_has_history_manager(self):
@@ -108,11 +170,6 @@ class TestBatchEventModel:
 
     def test_batch_event_is_not_entity(self):
         """BatchEvent does not extend BaseModel (standalone)."""
-        # BatchEvent should not have an entity field
-        assert not hasattr(BatchEvent, "entity") or not isinstance(getattr(BatchEvent, "entity", None), property)
-        # Check it's a plain Model, not BaseModel
-        from tap_grid.models import BaseModel
-
         assert not issubclass(BatchEvent, BaseModel)
 
     def test_batch_event_has_uuid_primary_key(self):

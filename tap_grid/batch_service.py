@@ -18,18 +18,21 @@ from typing import TYPE_CHECKING, Any
 
 from django.utils import timezone
 
-from tap_flip.history.context import get_batch_id, get_history_user
+from tap_grid.context import get_batch_id
+from tap_grid.history import get_history_user
 from tap_grid.services import create_entity
 
 if TYPE_CHECKING:
-    from tap_flip.models import Batch, BatchEvent
-    from tap_grid.models import Entity, User
+    from tap_grid.models import Batch, BatchEvent, Entity, User
 
 
 def create_batch(
     source: str = "",
     actor: User | None = None,
     name: str = "",
+    title: str = "",
+    description: str = "",
+    description_json: dict[str, Any] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> Batch:
     """Create a new batch.
@@ -37,13 +40,16 @@ def create_batch(
     Args:
         source: Source identifier (e.g., 'scanner:aws').
         actor: User initiating the batch (falls back to context user).
-        name: Optional human-readable name.
+        name: Optional human-readable name for the backing Entity.
+        title: Human-readable batch summary.
+        description: Long-form description of the batch purpose.
+        description_json: Structured description payload with format and data keys.
         metadata: Additional context for the batch.
 
     Returns:
         The created Batch instance.
     """
-    from tap_flip.models import Batch
+    from tap_grid.models import Batch
 
     actor = actor or get_history_user()
 
@@ -57,6 +63,9 @@ def create_batch(
         entity=entity,
         source=source,
         actor=actor,
+        title=title,
+        description=description,
+        description_json=description_json,
         metadata=metadata or {},
     )
 
@@ -73,7 +82,7 @@ def close_batch(batch: Batch) -> Batch:
     Raises:
         ValueError: If batch is not open.
     """
-    from tap_flip.models import BatchStatus
+    from tap_grid.models import BatchStatus
 
     if batch.status != BatchStatus.OPEN:
         raise ValueError(f"Cannot close batch in status '{batch.status}'")
@@ -97,7 +106,7 @@ def fail_batch(batch: Batch, error_message: str = "") -> Batch:
     Raises:
         ValueError: If batch is not open.
     """
-    from tap_flip.models import BatchStatus
+    from tap_grid.models import BatchStatus
 
     if batch.status != BatchStatus.OPEN:
         raise ValueError(f"Cannot fail batch in status '{batch.status}'")
@@ -119,9 +128,6 @@ def record_batch_event(
 ) -> BatchEvent | None:
     """Record a change event in the current batch.
 
-    This is called by signal handlers. External code typically
-    does not need to call this directly.
-
     Args:
         entity: The Entity that was affected.
         event_type: Type of change (create, update, delete, link, unlink).
@@ -133,7 +139,7 @@ def record_batch_event(
     Returns:
         The created BatchEvent, or None if no batch context.
     """
-    from tap_flip.models import Batch, BatchEvent
+    from tap_grid.models import Batch, BatchEvent
 
     # Resolve batch_id: explicit param > context > None
     resolved_batch_id = batch_id or get_batch_id()
@@ -143,7 +149,6 @@ def record_batch_event(
     try:
         batch = Batch.objects.get(entity_id=resolved_batch_id)
     except Batch.DoesNotExist:
-        # Log warning but don't fail the operation
         return None
 
     actor = actor or get_history_user()
@@ -168,7 +173,7 @@ def get_batch(batch_id: str) -> Batch | None:
     Returns:
         The Batch instance, or None if not found.
     """
-    from tap_flip.models import Batch
+    from tap_grid.models import Batch
 
     try:
         return Batch.objects.select_related("entity", "actor").get(entity_id=batch_id)
@@ -185,7 +190,7 @@ def get_batch_events(batch_id: str) -> list[BatchEvent]:
     Returns:
         List of BatchEvent instances, or empty list if batch not found.
     """
-    from tap_flip.models import Batch
+    from tap_grid.models import Batch
 
     try:
         batch = Batch.objects.get(entity_id=batch_id)
@@ -203,7 +208,7 @@ def get_entity_batches(entity_id: uuid.UUID) -> list[Batch]:
     Returns:
         List of Batch instances that have events for this entity.
     """
-    from tap_flip.models import Batch, BatchEvent
+    from tap_grid.models import Batch, BatchEvent
 
     batch_ids = BatchEvent.objects.filter(entity_id=entity_id).values_list("batch_id", flat=True).distinct()
 

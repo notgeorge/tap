@@ -346,14 +346,16 @@ class TestReplaceNode:
 
 @pytest.mark.django_db
 class TestDeleteNode:
-    """delete_node removes the domain object and its Entity spine."""
+    """delete_node tombstones the domain object and its Entity spine."""
 
     def test_deletes_object_and_entity(self):
         result = create_node("character", {"bio": "gone"})
         entity_id = result.entity_id
         del_result = delete_node(entity_id)
         assert del_result.success
-        assert not Entity.objects.filter(pk=entity_id).exists()
+        # Tombstone: entity row still exists, deleted_at is set
+        assert Entity.objects.filter(pk=entity_id, deleted_at__isnull=False).exists()
+        # LiveManager hides the tombstoned character
         assert not Character.objects.filter(entity_id=entity_id).exists()
 
     def test_target_not_found_returns_error(self):
@@ -782,12 +784,14 @@ class TestDeleteNodePipeline:
     """req-grid-service-delete-baseline: delete_node removes entity and cascades to edges."""
 
     def test_node_delete_removes_entity(self):
-        """req-grid-service-delete-baseline-1."""
+        """req-grid-service-delete-baseline-1: tombstone sets deleted_at."""
         result = create_node("character", {})
         entity_id = result.entity_id
         del_result = delete_node(entity_id)
         assert del_result.success
-        assert not Entity.objects.filter(pk=entity_id).exists()
+        # Tombstone: row persists with deleted_at set; not visible via live query
+        assert Entity.objects.filter(pk=entity_id, deleted_at__isnull=False).exists()
+        assert not Entity.objects.filter(pk=entity_id, deleted_at__isnull=True).exists()
 
     def test_node_delete_removes_related_edges(self):
         """req-grid-service-delete-baseline-2."""
@@ -816,7 +820,7 @@ class TestDeleteEdgePipeline:
     """req-grid-service-delete-baseline-3 and req-grid-service-delete-scope-2."""
 
     def test_delete_edge_by_entity_removes_edge_and_backing_entity(self):
-        """delete_edge_by_entity removes the Edge and its backing Entity."""
+        """delete_edge_by_entity tombstones the Edge and its backing Entity."""
         from tap_grid.services import delete_edge_by_entity
 
         a = create_entity("character")
@@ -825,8 +829,10 @@ class TestDeleteEdgePipeline:
         backing_pk = edge.entity.pk
         result = delete_edge_by_entity(edge.entity_id)
         assert result.success
+        # LiveManager hides the tombstoned edge
         assert not Edge.objects.filter(pk=edge.pk).exists()
-        assert not Entity.objects.filter(pk=backing_pk).exists()
+        # Edge entity is tombstoned (row still in DB)
+        assert Entity.objects.filter(pk=backing_pk, deleted_at__isnull=False).exists()
 
     def test_delete_edge_by_entity_endpoints_survive(self):
         from tap_grid.services import delete_edge_by_entity
@@ -844,3 +850,114 @@ class TestDeleteEdgePipeline:
         result = delete_edge_by_entity(uuid.uuid7())
         assert not result.success
         assert any(e.code == "not_found" for e in result.errors)
+
+
+@pytest.mark.django_db
+class TestTombstoneDelete:
+    """req-grid-service-delete-tombstone: delete_node uses soft-delete semantics."""
+
+    def test_delete_node_sets_deleted_at(self):
+        """delete_node sets deleted_at on the Entity; row remains in DB."""
+        result = create_node("character", {})
+        entity_id = result.entity_id
+        delete_node(entity_id)
+
+        entity = Entity.objects.get(pk=entity_id)
+        assert entity.deleted_at is not None
+
+    def test_tombstoned_node_hidden_from_live_manager(self):
+        """Tombstoned character not visible via Character.objects (LiveManager)."""
+        result = create_node("character", {})
+        entity_id = result.entity_id
+        delete_node(entity_id)
+
+        assert not Character.objects.filter(entity_id=entity_id).exists()
+
+    def test_tombstoned_node_visible_via_all_objects(self):
+        """Tombstoned character visible via Character.all_objects."""
+        result = create_node("character", {})
+        entity_id = result.entity_id
+        delete_node(entity_id)
+
+        assert Character.all_objects.filter(entity_id=entity_id).exists()
+
+    def test_delete_node_cascades_edges_to_tombstone(self):
+        """Edges touching a deleted node are also tombstoned."""
+        from_result = create_node("character", {})
+        to_result = create_node("location", {})
+        op = WriteOperation(
+            verb="create_edge",
+            from_target=from_result.entity_id,
+            to_target=to_result.entity_id,
+            edge_type="LOCATED_IN",
+            payload={},
+        )
+        write_batch([op])
+        edge = Edge.objects.get(from_entity_id=from_result.entity_id, to_entity_id=to_result.entity_id)
+        edge_entity_id = edge.entity_id
+
+        delete_node(from_result.entity_id)
+
+        # Edge is tombstoned (hidden from live manager)
+        assert not Edge.objects.filter(pk=edge.pk).exists()
+        # Edge entity row persists with deleted_at set
+        assert Entity.objects.filter(pk=edge_entity_id, deleted_at__isnull=False).exists()
+
+    def test_patch_tombstoned_node_returns_conflict(self):
+        """patch_node on a tombstoned entity returns entity_tombstoned conflict error."""
+        result = create_node("character", {})
+        entity_id = result.entity_id
+        delete_node(entity_id)
+
+        patch_result = patch_node(entity_id, {"bio": "should fail"})
+        assert not patch_result.success
+        assert any(e.code == "conflict" for e in patch_result.errors)
+
+    def test_replace_tombstoned_node_returns_conflict(self):
+        """replace_node on a tombstoned entity returns entity_tombstoned conflict error."""
+        result = create_node("character", {})
+        entity_id = result.entity_id
+        delete_node(entity_id)
+
+        replace_result = replace_node(entity_id, {"bio": "should fail"})
+        assert not replace_result.success
+        assert any(e.code == "conflict" for e in replace_result.errors)
+
+
+@pytest.mark.django_db
+class TestEntityVersion:
+    """req-grid-history-version: Entity.version increments on every canonical mutation."""
+
+    def test_version_starts_at_one(self):
+        """Newly created entity has version=1."""
+        result = create_node("character", {})
+        entity = Entity.objects.get(pk=result.entity_id)
+        assert entity.version == 1
+
+    def test_version_increments_on_patch(self):
+        """patch_node increments entity version."""
+        result = create_node("character", {})
+        entity_id = result.entity_id
+        patch_node(entity_id, {"bio": "updated"})
+
+        entity = Entity.objects.get(pk=entity_id)
+        assert entity.version == 2
+
+    def test_version_increments_on_each_save(self):
+        """Each successive mutation increments version."""
+        result = create_node("character", {})
+        entity_id = result.entity_id
+        patch_node(entity_id, {"bio": "v2"})
+        patch_node(entity_id, {"bio": "v3"})
+
+        entity = Entity.objects.get(pk=entity_id)
+        assert entity.version == 3
+
+    def test_version_increments_on_tombstone(self):
+        """delete_node (tombstone) also increments entity version."""
+        result = create_node("character", {})
+        entity_id = result.entity_id
+        delete_node(entity_id)
+
+        entity = Entity.objects.get(pk=entity_id)
+        assert entity.version == 2

@@ -2,15 +2,15 @@
 
 import pytest
 
-from tap_flip.config import (
+from tap_grid.flip import (
     DEFAULT_FLIP_CONFIG,
     clear_registry,
     get_flip_fields,
     get_model_flip_config,
     is_batch_enabled,
     is_flip_enabled,
-    is_history_enabled,
 )
+from tap_grid.history import is_history_enabled
 
 
 @pytest.fixture(autouse=True)

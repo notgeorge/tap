@@ -20,6 +20,7 @@ Grid history records how TAP's stored graph state changed over time. It exists t
 | req-grid-history-backend | [History Backend and Independence](#history-backend-and-independence) | Proposed | Initial backend may use `django-simple-history`, but the capability is specified independently of the backend |
 | req-grid-history-query | [Composable History Queries](#composable-history-queries) | Proposed | Query model must support bounded windows and latest-before semantics |
 | req-grid-history-time | [History Time Semantics](#history-time-semantics) | Proposed | `recorded_at` is system-owned; `observed_at` is source/world time where available |
+| req-grid-history-version | [Revision Metadata](#revision-metadata) | Implemented | Canonical entities carry a simple revision counter for lifecycle/debug metadata |
 | req-grid-history-scope | [History Scope Configuration](#history-scope-configuration) | Proposed | History enablement and retention depth remain configurable per model/edge type |
 
 ## Explanation
@@ -136,6 +137,41 @@ Trying to collapse these into one timestamp would make both capabilities weaker.
 
 #### Future
 Later work may add richer temporal semantics such as validity ranges or separate support for asserted-at versus observed-at when TAP begins handling analyst judgments in addition to direct observations.
+
+### Revision Metadata
+----
+RID: `req-grid-history-version`
+Status: `Implemented`
+
+Canonical entities should carry a lightweight revision counter that increments on each canonical mutation. This is revision metadata for the object's lifecycle, not the source of truth for historical reconstruction.
+
+#### Status Details
+Proposed for early inclusion because it is cheap to add now and will be useful later for debugging, UI, and cache coordination.
+
+#### Implementation
+The revision metadata contract is:
+
+1. `Entity.version` starts at `1` on creation.
+2. The version increments on every canonical persisted mutation, including tombstone/delete transitions.
+3. The version counter is updated through the service layer as part of normal writes.
+4. The version counter does not replace history rows and is not used as the source of truth for point-in-time reconstruction.
+5. The version counter is metadata about the current canonical revision, not a guarantee of exact equivalence to history-row count.
+
+#### Development
+This gives TAP a cheap monotonic "what revision is this object at?" capability without forcing history to depend on it. It should be treated as helpful metadata, not temporal truth.
+
+Delete lifecycle semantics, including tombstoning and `deleted_at`, are owned by `spec-grid-service-delete.md`. History builds on that delete contract and records the final tombstone transition as part of the object's timeline.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-history-version-1 | Version Starts At One | Implemented | Canonical entities begin at version `1` when first created. | `Entity.version` default=1 |
+| req-grid-history-version-2 | Version Increments On Mutation | Implemented | Every canonical mutation, including delete/tombstone, increments the entity's version. | `F("version") + 1` in BaseModel.save() and tombstone path |
+| req-grid-history-version-3 | Version Is Metadata Not Truth | Implemented | Historical reconstruction does not rely on the version counter as the authoritative source of prior state. | |
+
+#### Future
+If version metadata proves useful in APIs and the viewer shell, TAP may later expose it through response metadata or badges without changing history semantics.
 
 ### History Scope Configuration
 ----

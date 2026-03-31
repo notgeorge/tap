@@ -25,6 +25,7 @@ import jsonschema
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import models as django_models
 from django.db import transaction
+from django.utils import timezone
 
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 from tap_grid.constraints import validate_edge as _validate_edge_constraint
@@ -173,7 +174,7 @@ def _build_object_summary(instance: Any) -> dict[str, Any]:
 
 def _record_provenance(verb: str, entity: Entity, batch_id: str, user: Any) -> None:
     """Record a BatchEvent for the completed operation (best-effort)."""
-    from tap_flip.batch.service import record_batch_event
+    from tap_grid.batch_service import record_batch_event
 
     event_map = {
         "create_node": "create",
@@ -201,7 +202,7 @@ def _ensure_batch(batch_id: str, user: Any) -> None:
     Called before the main transaction so the Batch row is visible to
     record_batch_event() which looks it up by entity_id=batch_id.
     """
-    from tap_flip.models import Batch
+    from tap_grid.models import Batch
 
     if Batch.objects.filter(entity_id=batch_id).exists():
         return
@@ -288,7 +289,14 @@ def _execute_write_pipeline(
                 model_cls = get_model_class(target_entity.entity_type)
             except KeyError:
                 raise ServiceNotFoundError(f"Unknown entity type: '{target_entity.entity_type}'.")
-            instance = model_cls.objects.select_related("entity").get(entity_id=target_uuid)
+            instance = model_cls.all_objects.select_related("entity").get(entity_id=target_uuid)
+
+            # Write prohibition — tombstoned entities cannot be mutated.
+            if not is_delete and instance.entity.deleted_at is not None:
+                raise ServiceConflictError(
+                    f"Entity {target_uuid} is tombstoned and cannot be modified.",
+                    "entity_tombstoned",
+                )
 
         # Step 8 (early): edge_type immutability — checked before schema validation so the
         # error code is "constraint_violation" rather than "validation_error".
@@ -337,19 +345,35 @@ def _execute_write_pipeline(
                 return WriteResult(success=False, batch_id=batch_id, operation=op.verb, errors=errors)
 
         # Steps 10 & 11: Persistence and provenance recording.
-        # For deletes: record provenance BEFORE the Entity row is removed so
-        # the entity object is still valid when record_batch_event() reads it.
+        # For deletes: record provenance BEFORE tombstoning so the entity row
+        # is still valid when record_batch_event() reads it.
         # For creates/updates: record provenance AFTER save so entity_id is set.
         snapshot_entity: Entity | None = None
         if is_delete:
             entity_id_out = target_uuid
-            # Record provenance before deletion while the entity row still exists.
             if hasattr(instance, "entity"):
                 try:
                     _record_provenance(op.verb, instance.entity, batch_id, user)
                 except Exception:
                     logger.exception("Provenance recording failed for batch %s", batch_id)
-            instance.entity.delete()
+            # Tombstone: set deleted_at on the entity and cascade to its edges.
+            now = timezone.now()
+            from django.db.models import F, Q
+
+            Entity.objects.filter(pk=instance.entity_id).update(
+                deleted_at=now,
+                updated_at=now,
+                version=F("version") + 1,
+            )
+            # Cascade tombstone to edges at both endpoints.
+            edge_entity_ids = Edge.objects.filter(
+                Q(from_entity_id=instance.entity_id) | Q(to_entity_id=instance.entity_id)
+            ).values_list("entity_id", flat=True)
+            Entity.objects.filter(pk__in=list(edge_entity_ids)).update(
+                deleted_at=now,
+                updated_at=now,
+                version=F("version") + 1,
+            )
         else:
             instance.save(skip_validation=True)
             entity_id_out = instance.entity_id

@@ -4,6 +4,8 @@
 
 Batching is the write execution model for the TAP service layer. Treating all writes, including single-object writes, as batch-backed operations keeps provenance and execution semantics consistent while allowing dry-run, per-item diagnostics, and transactional all-or-nothing behavior.
 
+Batch records should also be legible as first-class change events. They need enough human-readable and machine-readable metadata to explain what a batch represents, why it happened, and how it can be related back to upstream systems such as source control, scanners, import jobs, and other structured change producers.
+
 ## Goals
 
 |    |                  |                                                                                 |
@@ -18,6 +20,7 @@ Batching is the write execution model for the TAP service layer. Treating all wr
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-grid-service-batch-all | [All Writes Are Batch-Backed](#all-writes-are-batch-backed) | Implemented | Single and multi-object writes share batch semantics |
+| req-grid-service-batch-metadata | [Batch Metadata Fields](#batch-metadata-fields) | Implemented | Human-readable and machine-readable batch metadata |
 | req-grid-service-batch-infra | [Batch ID As Infrastructure](#batch-id-as-infrastructure) | Implemented | CallerContext introduced; batch_id threading via ContextVar implemented |
 | req-grid-service-batch-signals | [Signal Elimination](#signal-elimination) | Implemented | tap_flip/batch/signals.py deleted; provenance in BaseModel.save() |
 | req-grid-service-batch-dryrun | [Dry-Run Behavior](#dry-run-behavior) | Implemented | Full validation without persistence |
@@ -50,6 +53,66 @@ Single-object writes are represented as one-operation batches. Multi-object writ
 
 #### Future
 Add batch-type metadata if later operational needs require distinguishing import, user edit, sync, or admin-driven batch categories.
+
+
+### Batch Metadata Fields
+----
+RID: `req-grid-service-batch-metadata`
+Status: `Implemented`
+
+Batch records should carry a small, explicit metadata surface that supports both human understanding and machine-usable correlation.
+
+#### Status Details
+This requirement introduces richer batch metadata beyond batch identity alone. It is intended to make batches useful as contextual change records for humans, bots, and future search/reporting surfaces.
+
+#### Implementation
+A batch should support these metadata fields:
+
+- `title`: required short human-readable summary of what the batch represents
+- `description`: optional longer free-form human-readable description
+- `description_json`: optional structured metadata object supplied by the batch creator
+
+`title` should be stored as a standard short text field such as a `CharField`.
+
+`description` should be stored as a free-form text field.
+
+`description_json` should be constrained to this fixed top-level shape:
+
+```json
+{
+  "format": "git",
+  "data": {
+    "commit": "abc123"
+  }
+}
+```
+
+Rules for `description_json`:
+
+- top-level value must be an object
+- top-level keys are fixed to `format` and `data`
+- `format` is a required non-empty string describing the payload format
+- `data` is a required object
+- `additionalProperties` is false at the top level
+- callers may add arbitrary format-specific fields inside `data`
+
+`description_json` is caller-supplied metadata. TAP does not impose a canonical domain schema beyond the fixed top-level wrapper and object-only requirements.
+
+This structure gives TAP a stable discriminator for parsing, rendering, search, and downstream automation without forcing all callers into one shared domain-specific schema.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-batch-metadata-1 | Title Required | Implemented | Each batch stores a required human-readable `title`. | Intended for humans and AI context. |
+| req-grid-service-batch-metadata-2 | Description Optional | Implemented | Each batch may store an optional longer-form `description`. | |
+| req-grid-service-batch-metadata-3 | Description JSON Optional | Implemented | Each batch may store optional structured `description_json` metadata. | |
+| req-grid-service-batch-metadata-4 | Fixed Top-Level JSON Shape | Implemented | `description_json`, when present, must be an object with exactly `format` and `data` keys. | No additional top-level keys. |
+| req-grid-service-batch-metadata-5 | Data Object Only | Implemented | `description_json.data` must itself be an object. | |
+| req-grid-service-batch-metadata-6 | Format String Required | Implemented | `description_json.format` must be a non-empty string describing the metadata format. | |
+
+#### Future
+Define whether TAP should publish a registry of known batch metadata formats and whether specific formats should get richer search/rendering helpers.
 
 
 ### Batch ID As Infrastructure
@@ -222,4 +285,3 @@ Revisit partial commit models only if a concrete operational need emerges; they 
 | Refactoring |  |
 | Deprecating |  |
 | Deprecated | Not part of the current architecture and should not be implemented |
-
