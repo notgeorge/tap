@@ -157,13 +157,13 @@ class TestGetPanelSearch:
     """get_panel_search resolves the USES_SEARCH edge to a Search instance."""
 
     def test_returns_none_when_no_edge(self):
-        from tap_web.panel_service import get_panel_search
+        from tap_web.panel import get_panel_search
 
         panel = _create_table_panel()
         assert get_panel_search(panel) is None
 
     def test_returns_linked_search(self):
-        from tap_web.panel_service import get_panel_search
+        from tap_web.panel import get_panel_search
 
         panel = _create_table_panel()
         search = _create_search()
@@ -175,7 +175,7 @@ class TestGetPanelSearch:
     def test_returns_none_on_dangling_edge(self):
         """A USES_SEARCH edge pointing to a deleted search returns None gracefully."""
         from tap_grid.models import Edge
-        from tap_web.panel_service import get_panel_search
+        from tap_web.panel import get_panel_search
 
         panel = _create_table_panel()
         search = _create_search()
@@ -261,7 +261,7 @@ class TestTablePanelViewContext:
         from django.test import RequestFactory
 
         request = RequestFactory().get(_panel_url(panel))
-        with patch("tap_grid.search_service.execute_search", return_value=fake_envelope):
+        with patch("tap_grid.search.execute_search", return_value=fake_envelope):
             ctx = TablePanelType.get_view_context(panel, request)
 
         # table_nodes_json must be valid JSON even when empty.
@@ -282,7 +282,7 @@ class TestTablePanelViewContext:
         from django.test import RequestFactory
 
         request = RequestFactory().get(_panel_url(panel))
-        with patch("tap_grid.search_service.execute_search", return_value=paginated_result):
+        with patch("tap_grid.search.execute_search", return_value=paginated_result):
             ctx = TablePanelType.get_view_context(panel, request)
 
         assert ctx["table_meta"]["count"] == 50
@@ -305,7 +305,7 @@ class TestTablePanelViewContext:
         from django.test import RequestFactory
 
         request = RequestFactory().get(_panel_url(panel), {"offset": "25", "limit": "25"})
-        with patch("tap_grid.search_service.execute_search", return_value=paginated_result):
+        with patch("tap_grid.search.execute_search", return_value=paginated_result):
             ctx = TablePanelType.get_view_context(panel, request)
 
         assert ctx["table_meta"]["display_end"] == 27  # min(25+25, 27) = 27, not 50
@@ -322,7 +322,7 @@ class TestTablePanelViewContext:
             "offset": 0,
             "results": {"nodes": [], "edges": [], "info": {}, "warnings": {}},
         }
-        with patch("tap_grid.search_service.execute_search", return_value=paginated_result):
+        with patch("tap_grid.search.execute_search", return_value=paginated_result):
             response = Client().get(_panel_url(panel))
 
         content = response.content.decode()
@@ -340,7 +340,7 @@ class TestTablePanelViewContext:
         _link_search(panel, search)
 
         request = RequestFactory().get(_panel_url(panel))
-        with patch("tap_grid.search_service.execute_search", side_effect=SearchExecutionError("boom")):
+        with patch("tap_grid.search.execute_search", side_effect=SearchExecutionError("boom")):
             ctx = TablePanelType.get_view_context(panel, request)
 
         assert ctx["table_error"] is not None
@@ -361,14 +361,14 @@ class TestTablePanelViewEndpoint:
         search = _create_search()
         _link_search(panel, search)
         fake_envelope = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
-        with patch("tap_grid.search_service.execute_search", return_value=fake_envelope):
+        with patch("tap_grid.search.execute_search", return_value=fake_envelope):
             response = Client().get(_panel_url(panel))
         assert response.status_code == 200
 
     def test_panel_view_uses_table_template(self):
         panel = _create_table_panel()
         fake_envelope = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
-        with patch("tap_grid.search_service.execute_search", return_value=fake_envelope):
+        with patch("tap_grid.search.execute_search", return_value=fake_envelope):
             response = Client().get(_panel_url(panel))
         template_names = [t.name for t in response.templates]
         assert "tap_web/panels/table_panel.html" in template_names
@@ -384,7 +384,7 @@ class TestTablePanelViewEndpoint:
         search = _create_search()
         _link_search(panel, search)
         fake_envelope = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
-        with patch("tap_grid.search_service.execute_search", return_value=fake_envelope):
+        with patch("tap_grid.search.execute_search", return_value=fake_envelope):
             response = Client().get(_panel_url(panel))
         assert b"data-tap-table-mount" in response.content
 
@@ -393,7 +393,7 @@ class TestTablePanelViewEndpoint:
         search = _create_search()
         _link_search(panel, search)
         fake_envelope = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
-        with patch("tap_grid.search_service.execute_search", return_value=fake_envelope):
+        with patch("tap_grid.search.execute_search", return_value=fake_envelope):
             response = Client().get(_panel_url(panel))
         assert b'type="application/json"' in response.content
         assert f"tap-table-data-{panel.entity_id}".encode() in response.content
@@ -404,7 +404,7 @@ class TestTablePanelViewEndpoint:
         search = _create_search()
         _link_search(panel, search)
         fake_envelope = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
-        with patch("tap_grid.search_service.execute_search", return_value=fake_envelope):
+        with patch("tap_grid.search.execute_search", return_value=fake_envelope):
             response = Client().get(_panel_url(panel))
         # No executable script blocks (type="application/json" is allowed).
         content = response.content.decode()
@@ -743,7 +743,7 @@ class TestTablePanelIconEnrichment:
             "warnings": {},
         }
         request = RequestFactory().get(_panel_url(panel))
-        with patch("tap_grid.search_service.execute_search", return_value=fake_envelope):
+        with patch("tap_grid.search.execute_search", return_value=fake_envelope):
             ctx = TablePanelType.get_view_context(panel, request)
 
         assert ctx["table_error"] is None

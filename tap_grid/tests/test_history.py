@@ -127,13 +127,13 @@ class TestHistoryServiceRawRecords:
         from collections.abc import Generator
         from contextlib import contextmanager
 
-        from tap_grid.batch_service import create_batch
+        from plugins.lotr.models import Character
+        from tap_grid.batch import create_batch
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.services import create_entity
-        from plugins.lotr.models import Character
 
         @contextmanager
-        def _batch_ctx(source: str = "test") -> Generator[str, None, None]:
+        def _batch_ctx(source: str = "test") -> Generator[str]:
             batch = create_batch(source=source)
             batch_id = str(batch.entity.id)
             prev = get_caller_context()
@@ -155,8 +155,8 @@ class TestHistoryServiceRawRecords:
 
     def test_history_service_timeline_raises_not_implemented(self):
         """HistoryService.timeline() is backlogged — raises NotImplementedError."""
-        from tap_grid.services import create_entity
         from plugins.lotr.models import Location
+        from tap_grid.services import create_entity
 
         entity = create_entity("location", name="Timeline Test")
         location = Location.objects.create(entity=entity, description="A place")

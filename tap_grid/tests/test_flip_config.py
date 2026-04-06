@@ -1,187 +1,165 @@
-"""Tests for FLIP configuration system."""
+"""Tests for FLIP default-on behavior (tap_grid.flip)."""
 
-import pytest
 
-from tap_grid.flip import (
-    DEFAULT_FLIP_CONFIG,
-    clear_registry,
-    get_flip_fields,
-    get_model_flip_config,
-    is_batch_enabled,
-    is_flip_enabled,
-)
+from tap_grid.flip import is_flip_enabled, update_flip_map
 from tap_grid.history import is_history_enabled
 
 
-@pytest.fixture(autouse=True)
-def reset_registry():
-    """Clear the FLIP registry before each test."""
-    clear_registry()
-    yield
-    clear_registry()
+class TestIsFlipEnabled:
+    """is_flip_enabled is True for models with service-writeable fields."""
 
+    def test_returns_true_for_model_with_service_schemas(self):
+        """Model with SERVICE_SCHEMAS properties is FLIP-enabled."""
 
-class TestDefaultFlipConfig:
-    """Tests for the default FLIP_CONFIG structure."""
+        class NodeModel:
+            SERVICE_SCHEMAS = {
+                "create": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
+            }
 
-    def test_default_config_has_batch_and_flip_sections(self):
-        """Default config has batch and flip sections only (history is independent)."""
-        assert "batch" in DEFAULT_FLIP_CONFIG
-        assert "flip" in DEFAULT_FLIP_CONFIG
-        assert "history" not in DEFAULT_FLIP_CONFIG
-        assert "consensus" not in DEFAULT_FLIP_CONFIG
+        assert is_flip_enabled(NodeModel) is True
 
-    def test_all_sections_have_enabled_key(self):
-        """Every section has an 'enabled' key."""
-        for section in ["batch", "flip"]:
-            assert "enabled" in DEFAULT_FLIP_CONFIG[section]
+    def test_returns_false_for_model_without_service_schemas(self):
+        """Model with no SERVICE_SCHEMAS is not FLIP-enabled."""
 
-    def test_all_features_disabled_by_default(self):
-        """All FLIP features are disabled by default (opt-in)."""
-        assert DEFAULT_FLIP_CONFIG["batch"]["enabled"] is False
-        assert DEFAULT_FLIP_CONFIG["flip"]["enabled"] is False
-
-    def test_flip_has_fields_list(self):
-        """Flip section has an explicit fields allow-list."""
-        assert "fields" in DEFAULT_FLIP_CONFIG["flip"]
-        assert DEFAULT_FLIP_CONFIG["flip"]["fields"] == []
-
-
-class TestGetModelFlipConfig:
-    """Tests for get_model_flip_config function."""
-
-    def test_model_without_flip_config_gets_defaults(self):
-        """Model with no FLIP_CONFIG attribute uses defaults."""
-
-        class NoConfigModel:
+        class NoSchemaModel:
             pass
 
-        config = get_model_flip_config(NoConfigModel)
-        assert config["batch"]["enabled"] is False
-        assert config["flip"]["enabled"] is False
+        assert is_flip_enabled(NoSchemaModel) is False
 
-    def test_model_with_partial_batch_override(self):
-        """Model can enable batch while flip inherits defaults."""
+    def test_returns_false_for_model_with_empty_service_schemas(self):
+        """Model with SERVICE_SCHEMAS but no properties is not FLIP-enabled."""
 
-        class BatchOnlyModel:
-            FLIP_CONFIG = {"batch": {"enabled": True}}
+        class EmptyModel:
+            SERVICE_SCHEMAS = {
+                "create": {"type": "object"},
+                "patch": {"type": "object"},
+                "replace": {"type": "object"},
+            }
 
-        config = get_model_flip_config(BatchOnlyModel)
-        assert config["batch"]["enabled"] is True
-        assert config["flip"]["enabled"] is False
+        assert is_flip_enabled(EmptyModel) is False
 
-    def test_model_with_flip_fields(self):
-        """Model can declare specific fields for FLIP tracking."""
+    def test_returns_false_for_internal_only_model(self):
+        """Internal-only model types are excluded from FLIP."""
 
-        class FlipModel:
-            FLIP_CONFIG = {"flip": {"enabled": True, "fields": ["ip_address", "status"]}}
+        class InternalModel:
+            INTERNAL_ONLY = True
+            SERVICE_SCHEMAS = {
+                "create": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {}},
+                "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
+            }
 
-        config = get_model_flip_config(FlipModel)
-        assert config["flip"]["enabled"] is True
-        assert config["flip"]["fields"] == ["ip_address", "status"]
+        assert is_flip_enabled(InternalModel) is False
 
-    def test_config_cached_in_registry(self):
-        """get_model_flip_config caches results."""
+    def test_returns_true_if_any_schema_has_properties(self):
+        """FLIP is enabled if at least one schema key has properties."""
 
-        class CachedModel:
-            FLIP_CONFIG = {"batch": {"enabled": True}}
+        class PatchOnlyFields:
+            SERVICE_SCHEMAS = {
+                "create": {"type": "object"},
+                "patch": {"type": "object", "properties": {"status": {"type": "string"}}},
+                "replace": {"type": "object"},
+            }
 
-        config1 = get_model_flip_config(CachedModel)
-        config2 = get_model_flip_config(CachedModel)
-        assert config1 is config2
-
-    def test_different_models_have_separate_configs(self):
-        """Each model class has its own cached config."""
-
-        class ModelA:
-            FLIP_CONFIG = {"batch": {"enabled": True}}
-
-        class ModelB:
-            FLIP_CONFIG = {"batch": {"enabled": False}}
-
-        assert get_model_flip_config(ModelA)["batch"]["enabled"] is True
-        assert get_model_flip_config(ModelB)["batch"]["enabled"] is False
+        assert is_flip_enabled(PatchOnlyFields) is True
 
 
 class TestIsHistoryEnabled:
-    """Tests for is_history_enabled helper.
-
-    History enablement is determined by whether the model has a HistoricalRecords
-    manager attached, not by FLIP_CONFIG.
-    """
+    """History enablement is determined by the presence of a HistoricalRecords manager."""
 
     def test_history_enabled_when_manager_present(self):
-        """is_history_enabled returns True when model has a history manager."""
-
         class WithHistoryModel:
-            history = object()  # simulates HistoricalRecords manager
+            history = object()
 
         assert is_history_enabled(WithHistoryModel) is True
 
     def test_history_disabled_when_no_manager(self):
-        """is_history_enabled returns False when model has no history manager."""
-
         class NoHistoryModel:
             pass
 
         assert is_history_enabled(NoHistoryModel) is False
 
 
-class TestIsBatchEnabled:
-    """Tests for is_batch_enabled helper."""
+class TestUpdateFlipMapDefaultOn:
+    """update_flip_map derives tracked fields from SERVICE_SCHEMAS by default."""
 
-    def test_batch_disabled_by_default(self):
-        """Batch is disabled by default."""
+    def _make(self, schemas=None, internal_only=False):
+        cls = type("TestModel", (), {
+            "SERVICE_SCHEMAS": schemas or {},
+            "INTERNAL_ONLY": internal_only,
+        })
+        instance = object.__new__(cls)
+        instance.flip_map = {}
+        return instance
 
-        class DefaultModel:
-            pass
+    def test_stamps_service_writeable_fields_on_full_save(self):
+        instance = self._make({
+            "create": {"type": "object", "properties": {"name": {"type": "string"}}},
+            "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
+            "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
+        })
+        result = update_flip_map(instance, None, "batch-abc")
+        assert result is True
+        assert instance.flip_map == {"name": "batch-abc"}
 
-        assert is_batch_enabled(DefaultModel) is False
+    def test_stamps_only_changed_fields_on_partial_save(self):
+        instance = self._make({
+            "create": {"type": "object", "properties": {"name": {"type": "string"}, "bio": {"type": "string"}}},
+            "patch": {"type": "object", "properties": {"name": {"type": "string"}, "bio": {"type": "string"}}},
+            "replace": {"type": "object", "properties": {"name": {"type": "string"}, "bio": {"type": "string"}}},
+        })
+        result = update_flip_map(instance, ["name"], "batch-123")
+        assert result is True
+        assert instance.flip_map == {"name": "batch-123"}
+        assert "bio" not in instance.flip_map
 
-    def test_batch_enabled_when_configured(self):
-        """is_batch_enabled returns True when configured."""
+    def test_returns_false_with_no_batch_id(self):
+        instance = self._make({
+            "create": {"type": "object", "properties": {"name": {"type": "string"}}},
+            "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
+            "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
+        })
+        result = update_flip_map(instance, None, None)
+        assert result is False
+        assert instance.flip_map == {}
 
-        class BatchModel:
-            FLIP_CONFIG = {"batch": {"enabled": True}}
+    def test_returns_false_for_internal_only_model(self):
+        instance = self._make(
+            {
+                "create": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
+            },
+            internal_only=True,
+        )
+        result = update_flip_map(instance, None, "batch-abc")
+        assert result is False
+        assert instance.flip_map == {}
 
-        assert is_batch_enabled(BatchModel) is True
+    def test_returns_false_when_no_service_schemas(self):
+        instance = self._make({})
+        result = update_flip_map(instance, None, "batch-abc")
+        assert result is False
 
+    def test_union_of_all_schema_properties(self):
+        """Fields from create, patch, and replace are all tracked."""
+        instance = self._make({
+            "create": {"type": "object", "properties": {"title": {"type": "string"}}},
+            "patch": {"type": "object", "properties": {"description": {"type": "string"}}},
+            "replace": {"type": "object", "properties": {"title": {"type": "string"}, "source": {"type": "string"}}},
+        })
+        result = update_flip_map(instance, None, "batch-xyz")
+        assert result is True
+        assert set(instance.flip_map.keys()) == {"title", "description", "source"}
 
-class TestIsFlipEnabled:
-    """Tests for is_flip_enabled helper."""
-
-    def test_flip_disabled_by_default(self):
-        """FLIP is disabled by default."""
-
-        class DefaultModel:
-            pass
-
-        assert is_flip_enabled(DefaultModel) is False
-
-    def test_flip_enabled_when_configured(self):
-        """is_flip_enabled returns True when configured."""
-
-        class FlipModel:
-            FLIP_CONFIG = {"flip": {"enabled": True, "fields": ["name"]}}
-
-        assert is_flip_enabled(FlipModel) is True
-
-
-class TestGetFlipFields:
-    """Tests for get_flip_fields helper."""
-
-    def test_empty_fields_by_default(self):
-        """No fields tracked by default."""
-
-        class DefaultModel:
-            pass
-
-        assert get_flip_fields(DefaultModel) == []
-
-    def test_returns_configured_fields(self):
-        """Returns the explicit allow-list from FLIP_CONFIG."""
-
-        class TrackedModel:
-            FLIP_CONFIG = {"flip": {"enabled": True, "fields": ["ip_address", "status"]}}
-
-        assert get_flip_fields(TrackedModel) == ["ip_address", "status"]
+    def test_overwrites_previous_batch_id(self):
+        instance = self._make({
+            "create": {"type": "object", "properties": {"name": {"type": "string"}}},
+            "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
+            "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
+        })
+        instance.flip_map = {"name": "old-batch"}
+        update_flip_map(instance, ["name"], "new-batch")
+        assert instance.flip_map["name"] == "new-batch"

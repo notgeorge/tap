@@ -20,10 +20,10 @@ panel_type_registry: ScopedRegistry[type] = ScopedRegistry(
 )
 
 # Simple dict keyed by entity_type slug.  One descriptor per type.
-_editor_registry: dict[str, "EditorDescriptor"] = {}
+_editor_registry: dict[str, EditorDescriptor] = {}
 
 
-def register_editor(descriptor: "EditorDescriptor") -> None:
+def register_editor(descriptor: EditorDescriptor) -> None:
     """Register a typed editor descriptor for an entity type.
 
     Args:
@@ -33,7 +33,7 @@ def register_editor(descriptor: "EditorDescriptor") -> None:
     _editor_registry[descriptor.entity_type] = descriptor
 
 
-def get_editor(entity_type: str) -> "EditorDescriptor | None":
+def get_editor(entity_type: str) -> EditorDescriptor | None:
     """Return the registered EditorDescriptor for entity_type, or None.
 
     Args:

@@ -142,7 +142,7 @@ class TablePanelType:
           table_nodes_json - JSON-encoded nodes string for safe embedding
           table_error      - error string, or None on success
         """
-        from tap_web.panel_service import get_panel_search
+        from tap_web.panel import get_panel_search
 
         search = get_panel_search(panel)
         if search is None:
@@ -159,7 +159,7 @@ class TablePanelType:
         offset = _safe_int(request.GET.get("offset"), 0)
 
         try:
-            from tap_grid.search_service import execute_search
+            from tap_grid.search import execute_search
 
             result = execute_search(search, limit=limit, offset=offset)
         except Exception as exc:  # noqa: BLE001
@@ -209,7 +209,7 @@ class TablePanelType:
         Includes the currently linked search UUID so the editor dropdown
         pre-selects the right Search.
         """
-        from tap_web.panel_service import get_panel_search
+        from tap_web.panel import get_panel_search
 
         search: Search | None = get_panel_search(panel)
         config = panel.config or {}
@@ -277,7 +277,7 @@ def _enrich_nodes_with_icons(nodes: list[dict[str, Any]]) -> None:
     Args:
         nodes: List of node dicts as returned by the search service.
     """
-    from tap_grid.icon_service import resolve_icon_url
+    from tap_grid.icon import resolve_icon_url
     from tap_grid.models import EntityType
 
     slugs = {n["entity_type"] for n in nodes if n.get("entity_type")}

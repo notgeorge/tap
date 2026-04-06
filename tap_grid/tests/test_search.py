@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 
 from tap_grid.exceptions import SearchExecutionError
 from tap_grid.models import Search
-from tap_grid.search_service import (
+from tap_grid.search import (
     _normalize_envelope,
     _resolve_limit,
     _validate_inputs,

@@ -1,6 +1,6 @@
-"""TAP traversal language parser.
+"""TAP gryphon language parser.
 
-Converts traversal text (str or list[str]) into a TraversalAST using lark.
+Converts gryphon text (str or list[str]) into a GryphonAST using lark.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import Any
 
 from lark import Lark, Token, Transformer, UnexpectedInput, v_args
 
-from tap_grid.traversal.ast_nodes import (
+from tap_grid.gryphon.ast_nodes import (
     AndPred,
     Comparison,
     DotStep,
@@ -26,7 +26,7 @@ from tap_grid.traversal.ast_nodes import (
     PathPattern,
     ReturnClause,
     ReturnItem,
-    TraversalAST,
+    GryphonAST,
     WildcardStep,
     WhereClause,
 )
@@ -46,8 +46,8 @@ _PARSER = Lark(
 )
 
 
-class TraversalParseError(Exception):
-    """Raised when traversal text cannot be parsed.
+class GryphonParseError(Exception):
+    """Raised when gryphon text cannot be parsed.
 
     Attributes:
         message: Human-readable description.
@@ -60,7 +60,7 @@ class TraversalParseError(Exception):
         self.line = line
         self.col = col
         loc = f" (line {line}, col {col})" if line is not None else ""
-        super().__init__(f"Traversal parse error{loc}: {message}")
+        super().__init__(f"Gryphon parse error{loc}: {message}")
 
 
 # ---------------------------------------------------------------------------
@@ -74,18 +74,18 @@ class _ASTTransformer(Transformer):
 
     # -- start / clauses --
 
-    def start(self, *clauses: Any) -> TraversalAST:
+    def start(self, *clauses: Any) -> GryphonAST:
         match_clauses = [c for c in clauses if isinstance(c, MatchClause)]
         where_clauses = [c for c in clauses if isinstance(c, WhereClause)]
         return_clauses = [c for c in clauses if isinstance(c, ReturnClause)]
 
         if not match_clauses:
-            raise TraversalParseError("At least one MATCH clause is required.")
+            raise GryphonParseError("At least one MATCH clause is required.")
 
         where = where_clauses[0] if where_clauses else None
         ret = return_clauses[0] if return_clauses else ReturnClause(items=None)
 
-        return TraversalAST(
+        return GryphonAST(
             match_clauses=tuple(match_clauses),
             where_clause=where,
             return_clause=ret,
@@ -285,18 +285,18 @@ _TRANSFORMER = _ASTTransformer()
 # ---------------------------------------------------------------------------
 
 
-def parse_traversal(text: str | list[str]) -> TraversalAST:
-    """Parse traversal text into a TraversalAST.
+def parse_gryphon(text: str | list[str]) -> GryphonAST:
+    """Parse gryphon text into a GryphonAST.
 
     Args:
         text: A single string or a list of strings (one clause per line).
               Both forms are equivalent and normalize to the same AST.
 
     Returns:
-        A frozen TraversalAST dataclass tree.
+        A frozen GryphonAST dataclass tree.
 
     Raises:
-        TraversalParseError: If the text cannot be parsed.
+        GryphonParseError: If the text cannot be parsed.
     """
     if isinstance(text, list):
         normalized = " ".join(text)
@@ -306,13 +306,13 @@ def parse_traversal(text: str | list[str]) -> TraversalAST:
     try:
         tree = _PARSER.parse(normalized)
         return _TRANSFORMER.transform(tree)
-    except TraversalParseError:
+    except GryphonParseError:
         raise
     except UnexpectedInput as exc:
-        raise TraversalParseError(
+        raise GryphonParseError(
             str(exc).split("\n")[0],
             line=getattr(exc, "line", None),
             col=getattr(exc, "column", None),
         ) from exc
     except Exception as exc:
-        raise TraversalParseError(str(exc)) from exc
+        raise GryphonParseError(str(exc)) from exc

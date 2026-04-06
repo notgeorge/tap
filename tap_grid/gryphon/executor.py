@@ -1,4 +1,4 @@
-"""TAP traversal executor — lowers a TraversalAST to ORM queries and returns a canonical envelope.
+"""TAP gryphon executor — lowers a GryphonAST to ORM queries and returns a canonical envelope.
 
 V1 supported patterns
 ---------------------
@@ -14,7 +14,7 @@ In all cases:
 - WHERE must constrain one node variable on entity_id via an equality against a $var.
 - RETURN may be omitted or include only bound variables → graph envelope result.
 
-Patterns outside this set raise SearchExecutionError("Unsupported traversal pattern").
+Patterns outside this set raise SearchExecutionError("Unsupported gryphon pattern").
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tap_grid.exceptions import SearchExecutionError
-from tap_grid.traversal.ast_nodes import (
+from tap_grid.gryphon.ast_nodes import (
     AndPred,
     Comparison,
     EdgePattern,
@@ -34,26 +34,26 @@ from tap_grid.traversal.ast_nodes import (
     ParamRef,
     PathPattern,
     ReturnClause,
-    TraversalAST,
+    GryphonAST,
     WhereClause,
     DotStep,
 )
-from tap_grid.traversal.parser import parse_traversal
+from tap_grid.gryphon.parser import parse_gryphon
 
 if TYPE_CHECKING:
     from tap_grid.models import Search
 
 
-def execute_traversal(
+def execute_gryphon(
     search: "Search",
     inputs: dict[str, Any],
     *,
     db_alias: str = "default",
 ) -> dict[str, Any]:
-    """Execute a traversal-type Search and return the canonical graph envelope.
+    """Execute a gryphon-type Search and return the canonical graph envelope.
 
     Args:
-        search: A Search instance with search_type="traversal" and definition["query"].
+        search: A Search instance with search_type="gryphon" and definition["query"].
         inputs: Runtime $var values; must supply all required params from the query.
         db_alias: Database alias for all queries (should be the read-only alias in production).
 
@@ -65,16 +65,16 @@ def execute_traversal(
     """
     query = search.definition.get("query", "")
     if not query:
-        raise SearchExecutionError("Traversal search definition is missing 'query'.")
+        raise SearchExecutionError("Gryphon search definition is missing 'query'.")
 
-    ast = parse_traversal(query)
+    ast = parse_gryphon(query)
 
     # Validate that all required $var names are present in inputs.
     required = ast.required_params()
     missing = required - set(inputs.keys())
     if missing:
         raise SearchExecutionError(
-            f"Traversal query requires inputs {sorted(missing)} but they were not provided."
+            f"Gryphon query requires inputs {sorted(missing)} but they were not provided."
         )
 
     return _execute_ast(ast, inputs, db_alias=db_alias)
@@ -86,7 +86,7 @@ def execute_traversal(
 
 
 def _execute_ast(
-    ast: TraversalAST,
+    ast: GryphonAST,
     inputs: dict[str, Any],
     *,
     db_alias: str,
@@ -95,30 +95,30 @@ def _execute_ast(
     # V1: exactly one MATCH clause with a single two-node one-edge pattern.
     if len(ast.match_clauses) != 1:
         raise SearchExecutionError(
-            "Unsupported traversal pattern: v1 supports exactly one MATCH clause."
+            "Unsupported gryphon pattern: v1 supports exactly one MATCH clause."
         )
     mc = ast.match_clauses[0]
     if len(mc.patterns) != 1:
         raise SearchExecutionError(
-            "Unsupported traversal pattern: v1 supports exactly one pattern per MATCH."
+            "Unsupported gryphon pattern: v1 supports exactly one pattern per MATCH."
         )
     pattern = mc.patterns[0]
     if len(pattern.edges) != 1:
         raise SearchExecutionError(
-            "Unsupported traversal pattern: v1 supports exactly one edge (one hop)."
+            "Unsupported gryphon pattern: v1 supports exactly one edge (one hop)."
         )
 
     edge_pat = pattern.edges[0]
     if edge_pat.min_hops != 1 or edge_pat.max_hops != 1:
         raise SearchExecutionError(
-            "Unsupported traversal pattern: v1 does not support bounded multi-hop traversal."
+            "Unsupported gryphon pattern: v1 does not support bounded multi-hop traversal."
         )
 
     # Find the anchor node variable constrained by entity_id in WHERE.
     anchor_var, entity_id_value = _extract_entity_id_anchor(ast.where_clause, inputs)
     if anchor_var is None or entity_id_value is None:
         raise SearchExecutionError(
-            "Unsupported traversal pattern: v1 requires WHERE <var>.entity_id = $param "
+            "Unsupported gryphon pattern: v1 requires WHERE <var>.entity_id = $param "
             "to identify the hub entity."
         )
 
@@ -130,7 +130,7 @@ def _execute_ast(
         hub_node = right_node
     else:
         raise SearchExecutionError(
-            f"Unsupported traversal pattern: anchor variable '{anchor_var}' "
+            f"Unsupported gryphon pattern: anchor variable '{anchor_var}' "
             "not found in MATCH pattern."
         )
 
@@ -196,7 +196,7 @@ def _execute_hub_and_spoke(
 ) -> dict[str, Any]:
     """Execute a one-hop neighborhood query for a single hub entity.
 
-    Mirrors the logic of hub_and_spoke_runner but driven from the traversal AST.
+    Mirrors the logic of hub_and_spoke_runner but driven from the gryphon AST.
     """
     from tap_grid.models import Edge, Entity
 

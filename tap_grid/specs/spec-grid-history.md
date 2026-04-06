@@ -181,7 +181,7 @@ Status: `Proposed`
 History should remain configurable per model and edge type so TAP can selectively apply it where it adds value and control retention depth independently from FLIP and perspective policy.
 
 #### Status Details
-The current `FLIP_CONFIG` direction already contains history enablement and depth placeholders. This requirement extends that concept into grid-spec language.
+History policy remains its own concern even though the implementation may currently rely on model-level configuration surfaces. This requirement defines the policy concept without tying it to FLIP configuration.
 
 #### Implementation
 History scope configuration should support:

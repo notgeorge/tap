@@ -2,9 +2,8 @@
 
 import pytest
 
-from tap_grid.flip import is_batch_enabled
 from tap_grid.history import is_history_enabled
-from tap_grid.models import Batch, BatchEvent, BatchEventType, BatchStatus, BaseModel
+from tap_grid.models import BaseModel, Batch, BatchEvent, BatchEventType, BatchStatus
 from tap_grid.services import create_entity
 
 
@@ -98,7 +97,7 @@ class TestBatchMetadataFields:
 
     def test_description_json_valid_shape_accepted(self):
         """description_json with valid {format, data} shape is accepted."""
-        from tap_grid.batch_service import create_batch
+        from tap_grid.batch import create_batch
 
         batch = create_batch(
             title="JSON Test",
@@ -117,28 +116,32 @@ class TestBatchMetadataFields:
 
     def test_create_batch_service_accepts_title(self):
         """create_batch() passes title through to the created Batch."""
-        from tap_grid.batch_service import create_batch
+        from tap_grid.batch import create_batch
 
         batch = create_batch(title="Service Title Test", source="test")
         assert batch.title == "Service Title Test"
 
     def test_create_batch_service_accepts_description(self):
         """create_batch() passes description through to the created Batch."""
-        from tap_grid.batch_service import create_batch
+        from tap_grid.batch import create_batch
 
         batch = create_batch(description="Detailed description here.")
         assert batch.description == "Detailed description here."
 
 
 @pytest.mark.django_db
-class TestBatchFlipConfig:
-    """Tests for Batch FLIP_CONFIG."""
+class TestBatchInternalOnly:
+    """Tests for Batch as an internal-only model type."""
 
-    def test_batch_disables_batch_tracking(self):
-        """Batch.FLIP_CONFIG disables batch tracking to prevent self-reference."""
-        assert is_batch_enabled(Batch) is False
+    def test_batch_is_internal_only(self):
+        """Batch.INTERNAL_ONLY prevents generic service-layer CRUD."""
+        assert Batch.INTERNAL_ONLY is True
 
-    def test_batch_enables_history_tracking(self):
+    def test_internal_only_default_is_false_on_base(self):
+        """BaseModel default for INTERNAL_ONLY is False."""
+        assert BaseModel.INTERNAL_ONLY is False
+
+    def test_batch_has_history_tracking(self):
         """Batch has history tracking enabled (inherited from BaseModel)."""
         assert is_history_enabled(Batch) is True
 

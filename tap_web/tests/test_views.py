@@ -6,13 +6,13 @@ from contextlib import contextmanager
 import pytest
 from django.test import Client
 
-from tap_grid.batch_service import create_batch
+from tap_grid.batch import create_batch
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 from tap_grid.models import Entity
 
 
 @contextmanager
-def _batch_ctx(source: str = "test") -> Generator[str, None, None]:
+def _batch_ctx(source: str = "test") -> Generator[str]:
     """Create a Batch entity and set CallerContext for the duration (test helper)."""
     batch = create_batch(source=source)
     batch_id = str(batch.entity.id)
@@ -53,7 +53,7 @@ class TestObjectEditorView:
 
         entity = Entity.objects.create(entity_type="character", name=name)
         with _batch_ctx(source="test:setup"):
-            char = Character.objects.create(entity=entity, title="The Grey", bio="A wizard.")
+            char = Character.objects.create(entity=entity, name="Gandalf", bio="A wizard.")
         url_id = f"{name.lower().replace(' ', '-')}--{entity.pk}"
         return char, url_id
 
@@ -119,7 +119,7 @@ class TestObjectViewerView:
 
         entity = Entity.objects.create(entity_type="character", name=name)
         with _batch_ctx(source="test:setup"):
-            char = Character.objects.create(entity=entity, title="King", bio="Heir of Isildur.")
+            char = Character.objects.create(entity=entity, name=name, bio="Heir of Isildur.")
         url_id = f"{name.lower().replace(' ', '-')}--{entity.pk}"
         return char, url_id
 

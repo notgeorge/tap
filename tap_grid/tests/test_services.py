@@ -4,7 +4,8 @@ import uuid
 
 import pytest
 
-from tap_grid.caller_context import CallerContext, set_caller_context
+from plugins.lotr.models import Character
+from tap_grid.caller_context import CallerContext
 from tap_grid.constraints import (
     _edge_property_schema_registry,
     register_edge_property_schema,
@@ -26,7 +27,6 @@ from tap_grid.services import (
     update_entity,
     write_batch,
 )
-from plugins.lotr.models import Character
 
 
 @pytest.mark.django_db
@@ -239,29 +239,29 @@ class TestCreateNode:
     """req-grid-service-write-surface-1: create_node creates a typed domain object."""
 
     def test_creates_character(self):
-        result = create_node("character", {"bio": "A hobbit.", "title": "Ring-bearer"})
+        result = create_node("character", {"name": "Ring-bearer", "bio": "A hobbit."})
         assert result.success
         assert result.entity_id is not None
         assert Character.objects.filter(entity_id=result.entity_id).exists()
 
     def test_entity_has_correct_type(self):
-        result = create_node("character", {"bio": "An elf."})
+        result = create_node("character", {"name": "Legolas", "bio": "An elf."})
         entity = Entity.objects.get(pk=result.entity_id)
         assert entity.entity_type == "character"
 
     def test_batch_id_stamped_on_model(self):
         ctx = CallerContext(batch_id=str(uuid.uuid7()))
-        result = create_node("character", {"bio": "test"}, caller_context=ctx)
+        result = create_node("character", {"name": "Test", "bio": "test"}, caller_context=ctx)
         char = Character.objects.get(entity_id=result.entity_id)
         assert char.batch_id == ctx.batch_id
 
     def test_object_summary_in_standard_mode(self):
-        result = create_node("character", {}, result_mode="standard")
+        result = create_node("character", {"name": "Test"}, result_mode="standard")
         assert result.object_summary is not None
         assert "entity_id" in result.object_summary
 
     def test_no_summary_in_minimal_mode(self):
-        result = create_node("character", {}, result_mode="minimal")
+        result = create_node("character", {"name": "Test"}, result_mode="minimal")
         assert result.object_summary is None
 
 
@@ -290,11 +290,11 @@ class TestPatchNode:
     """req-grid-service-write-patch: patch semantics leave omitted fields unchanged."""
 
     def test_omitted_fields_unchanged(self):
-        result = create_node("character", {"bio": "original bio", "title": "Lord"})
+        result = create_node("character", {"name": "Lord", "bio": "original bio"})
         char = Character.objects.get(entity_id=result.entity_id)
-        patch_result = patch_node(char.entity_id, {"title": "Updated"})
+        patch_result = patch_node(char.entity_id, {"name": "Updated"})
         char.refresh_from_db()
-        assert char.title == "Updated"
+        assert char.name == "Updated"
         assert char.bio == "original bio"  # untouched
 
     def test_json_field_deep_merge(self):
@@ -312,7 +312,7 @@ class TestPatchNode:
         assert search.definition == {"filters": {"name": "Frodo"}, "order_by": ["name"]}  # deep merged
 
     def test_scalar_field_replaces(self):
-        result = create_node("character", {"bio": "original"})
+        result = create_node("character", {"name": "Test", "bio": "original"})
         patch_node(result.entity_id, {"bio": "updated"})
         char = Character.objects.get(entity_id=result.entity_id)
         assert char.bio == "updated"
@@ -323,24 +323,24 @@ class TestReplaceNode:
     """req-grid-service-write-patch-4: replace_node replaces all user-writable fields."""
 
     def test_all_fields_replaced(self):
-        result = create_node("character", {"bio": "old bio", "title": "Old Title"})
-        replace_result = replace_node(result.entity_id, {"bio": "new bio", "title": "New Title"})
+        result = create_node("character", {"name": "Old Name", "bio": "old bio"})
+        replace_result = replace_node(result.entity_id, {"name": "New Name", "bio": "new bio"})
         assert replace_result.success
         char = Character.objects.get(entity_id=result.entity_id)
         assert char.bio == "new bio"
-        assert char.title == "New Title"
+        assert char.name == "New Name"
 
     def test_entity_spine_untouched(self):
-        result = create_node("character", {"bio": "bio"})
+        result = create_node("character", {"name": "name", "bio": "bio"})
         entity_before = Entity.objects.get(pk=result.entity_id)
-        replace_node(result.entity_id, {"bio": "new bio", "title": "title"})
+        replace_node(result.entity_id, {"name": "new name", "bio": "new bio"})
         entity_after = Entity.objects.get(pk=result.entity_id)
         assert entity_before.entity_type == entity_after.entity_type
         assert entity_before.pk == entity_after.pk
 
     def test_missing_required_field_fails(self):
-        result = create_node("character", {"bio": "bio", "title": "title"})
-        replace_result = replace_node(result.entity_id, {})  # missing required bio and title
+        result = create_node("character", {"name": "name", "bio": "bio"})
+        replace_result = replace_node(result.entity_id, {})  # missing required name and bio
         assert not replace_result.success
 
 
@@ -349,7 +349,7 @@ class TestDeleteNode:
     """delete_node tombstones the domain object and its Entity spine."""
 
     def test_deletes_object_and_entity(self):
-        result = create_node("character", {"bio": "gone"})
+        result = create_node("character", {"name": "Gone", "bio": "gone"})
         entity_id = result.entity_id
         del_result = delete_node(entity_id)
         assert del_result.success
@@ -369,8 +369,8 @@ class TestCreateEdgePipeline:
     """Tests for create_edge via write_batch pipeline (not the compat wrapper)."""
 
     def test_creates_edge_between_valid_nodes(self):
-        from_result = create_node("character", {})
-        to_result = create_node("location", {})
+        from_result = create_node("character", {"name": "Frodo"})
+        to_result = create_node("location", {"name": "Shire"})
         op = WriteOperation(
             verb="create_edge",
             from_target=from_result.entity_id,
@@ -387,8 +387,8 @@ class TestCreateEdgePipeline:
         ).exists()
 
     def test_edge_type_immutable_on_patch(self):
-        from_result = create_node("character", {})
-        to_result = create_node("location", {})
+        from_result = create_node("character", {"name": "Frodo"})
+        to_result = create_node("location", {"name": "Shire"})
         edge_result = write_batch([WriteOperation(
             verb="create_edge",
             from_target=from_result.entity_id,
@@ -402,8 +402,8 @@ class TestCreateEdgePipeline:
         assert any(e.code == "constraint_violation" for e in patch_result.errors)
 
     def test_no_edges_between_edges(self):
-        a = create_node("character", {})
-        b = create_node("location", {})
+        a = create_node("character", {"name": "Frodo"})
+        b = create_node("location", {"name": "Shire"})
         edge_result = write_batch([WriteOperation(
             verb="create_edge",
             from_target=a.entity_id,
@@ -413,7 +413,7 @@ class TestCreateEdgePipeline:
         )])
         edge = Edge.objects.get(from_entity_id=a.entity_id, to_entity_id=b.entity_id)
         # Try to use the edge's entity as an endpoint
-        c = create_node("character", {})
+        c = create_node("character", {"name": "Sam"})
         bad_op = WriteOperation(
             verb="create_edge",
             from_target=edge.entity_id,  # edge entity as source — not allowed
@@ -431,8 +431,8 @@ class TestWriteBatch:
     """req-grid-service-write-surface-3: write_batch() is atomic; failure rolls back all."""
 
     def test_multi_op_batch_commits(self):
-        op1 = WriteOperation(verb="create_node", type_slug="character", payload={"bio": "Frodo"})
-        op2 = WriteOperation(verb="create_node", type_slug="character", payload={"bio": "Sam"})
+        op1 = WriteOperation(verb="create_node", type_slug="character", payload={"name": "Frodo", "bio": "A hobbit"})
+        op2 = WriteOperation(verb="create_node", type_slug="character", payload={"name": "Sam", "bio": "Another hobbit"})
         result = write_batch([op1, op2])
         assert result.success
         assert len(result.results) == 2
@@ -448,8 +448,8 @@ class TestWriteBatch:
         assert Character.objects.count() == initial_count
 
     def test_shared_batch_id_across_all_results(self):
-        op1 = WriteOperation(verb="create_node", type_slug="character", payload={})
-        op2 = WriteOperation(verb="create_node", type_slug="character", payload={})
+        op1 = WriteOperation(verb="create_node", type_slug="character", payload={"name": "Frodo"})
+        op2 = WriteOperation(verb="create_node", type_slug="character", payload={"name": "Sam"})
         result = write_batch([op1, op2])
         assert result.results[0].batch_id == result.results[1].batch_id == result.batch_id
 
@@ -460,7 +460,7 @@ class TestDryRun:
 
     def test_dry_run_returns_success_with_no_db_write(self):
         initial_count = Character.objects.count()
-        result = create_node("character", {"bio": "phantom"}, dry_run=True)
+        result = create_node("character", {"name": "Phantom", "bio": "phantom"}, dry_run=True)
         assert result.success
         assert Character.objects.count() == initial_count
 
@@ -488,7 +488,7 @@ class TestCallerContextFlows:
 
     def test_auto_generated_batch_id_when_none_provided(self):
         # Pass explicit None caller_context so no batch_id is inherited from fixture.
-        result = create_node("character", {}, caller_context=None)
+        result = create_node("character", {"name": "Test"}, caller_context=None)
         assert result.success
         assert result.batch_id  # a batch_id was auto-generated
 
@@ -607,7 +607,7 @@ class TestGetNode:
     def test_returns_typed_instance(self):
         from tap_grid.services import get_node
 
-        result = create_node("character", {"bio": "Ring-bearer"})
+        result = create_node("character", {"name": "Frodo", "bio": "Ring-bearer"})
         char = get_node(result.entity_id)
         assert isinstance(char, Character)
         assert char.bio == "Ring-bearer"
@@ -615,7 +615,7 @@ class TestGetNode:
     def test_accepts_string_uuid(self):
         from tap_grid.services import get_node
 
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         char = get_node(str(result.entity_id))
         assert char.entity_id == result.entity_id
 
@@ -666,7 +666,7 @@ class TestGetObject:
     def test_returns_node_for_node_entity(self):
         from tap_grid.services import get_object
 
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         obj = get_object(result.entity_id)
         assert isinstance(obj, Character)
 
@@ -694,7 +694,7 @@ class TestResolveEntity:
     def test_returns_entity(self):
         from tap_grid.services import resolve_entity
 
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity = resolve_entity(result.entity_id)
         assert entity.pk == result.entity_id
         assert entity.entity_type == "character"
@@ -785,7 +785,7 @@ class TestDeleteNodePipeline:
 
     def test_node_delete_removes_entity(self):
         """req-grid-service-delete-baseline-1: tombstone sets deleted_at."""
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity_id = result.entity_id
         del_result = delete_node(entity_id)
         assert del_result.success
@@ -795,8 +795,8 @@ class TestDeleteNodePipeline:
 
     def test_node_delete_removes_related_edges(self):
         """req-grid-service-delete-baseline-2."""
-        from_result = create_node("character", {})
-        to_result = create_node("location", {})
+        from_result = create_node("character", {"name": "Frodo"})
+        to_result = create_node("location", {"name": "Shire"})
         op = WriteOperation(
             verb="create_edge",
             from_target=from_result.entity_id,
@@ -858,7 +858,7 @@ class TestTombstoneDelete:
 
     def test_delete_node_sets_deleted_at(self):
         """delete_node sets deleted_at on the Entity; row remains in DB."""
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity_id = result.entity_id
         delete_node(entity_id)
 
@@ -867,7 +867,7 @@ class TestTombstoneDelete:
 
     def test_tombstoned_node_hidden_from_live_manager(self):
         """Tombstoned character not visible via Character.objects (LiveManager)."""
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity_id = result.entity_id
         delete_node(entity_id)
 
@@ -875,7 +875,7 @@ class TestTombstoneDelete:
 
     def test_tombstoned_node_visible_via_all_objects(self):
         """Tombstoned character visible via Character.all_objects."""
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity_id = result.entity_id
         delete_node(entity_id)
 
@@ -883,8 +883,8 @@ class TestTombstoneDelete:
 
     def test_delete_node_cascades_edges_to_tombstone(self):
         """Edges touching a deleted node are also tombstoned."""
-        from_result = create_node("character", {})
-        to_result = create_node("location", {})
+        from_result = create_node("character", {"name": "Frodo"})
+        to_result = create_node("location", {"name": "Shire"})
         op = WriteOperation(
             verb="create_edge",
             from_target=from_result.entity_id,
@@ -905,7 +905,7 @@ class TestTombstoneDelete:
 
     def test_patch_tombstoned_node_returns_conflict(self):
         """patch_node on a tombstoned entity returns entity_tombstoned conflict error."""
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity_id = result.entity_id
         delete_node(entity_id)
 
@@ -915,11 +915,11 @@ class TestTombstoneDelete:
 
     def test_replace_tombstoned_node_returns_conflict(self):
         """replace_node on a tombstoned entity returns entity_tombstoned conflict error."""
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity_id = result.entity_id
         delete_node(entity_id)
 
-        replace_result = replace_node(entity_id, {"bio": "should fail"})
+        replace_result = replace_node(entity_id, {"name": "Test", "bio": "should fail"})
         assert not replace_result.success
         assert any(e.code == "conflict" for e in replace_result.errors)
 
@@ -930,13 +930,13 @@ class TestEntityVersion:
 
     def test_version_starts_at_one(self):
         """Newly created entity has version=1."""
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity = Entity.objects.get(pk=result.entity_id)
         assert entity.version == 1
 
     def test_version_increments_on_patch(self):
         """patch_node increments entity version."""
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity_id = result.entity_id
         patch_node(entity_id, {"bio": "updated"})
 
@@ -945,7 +945,7 @@ class TestEntityVersion:
 
     def test_version_increments_on_each_save(self):
         """Each successive mutation increments version."""
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity_id = result.entity_id
         patch_node(entity_id, {"bio": "v2"})
         patch_node(entity_id, {"bio": "v3"})
@@ -955,7 +955,7 @@ class TestEntityVersion:
 
     def test_version_increments_on_tombstone(self):
         """delete_node (tombstone) also increments entity version."""
-        result = create_node("character", {})
+        result = create_node("character", {"name": "Test"})
         entity_id = result.entity_id
         delete_node(entity_id)
 

@@ -4,9 +4,9 @@ import pytest
 from django.test import Client
 
 from tap_grid.models import Edge, Entity, Search
-from tap_web.models import Panel
 from tap_viz.models import Layout
 from tap_viz.panels.graph_panel import GraphPanelType, hub_and_spoke_runner
+from tap_web.models import Panel
 
 
 @pytest.mark.django_db

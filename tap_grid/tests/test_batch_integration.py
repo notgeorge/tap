@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from tap_grid.batch_service import create_batch
+from tap_grid.batch import create_batch
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 from tap_grid.history import get_historical_records, is_history_enabled, set_history_user
 from tap_grid.models import User
@@ -17,7 +17,7 @@ from tap_grid.services import create_entity
 
 
 @contextmanager
-def _batch_ctx(source: str = "test") -> Generator[str, None, None]:
+def _batch_ctx(source: str = "test") -> Generator[str]:
     """Test helper: create a Batch entity and set CallerContext for the duration."""
     batch = create_batch(source=source)
     batch_id = str(batch.entity.id)

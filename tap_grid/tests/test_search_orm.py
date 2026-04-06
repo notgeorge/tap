@@ -5,7 +5,7 @@ import pytest
 from tap_grid.exceptions import InvalidSearchDefinitionError
 from tap_grid.models import Edge, Search
 from tap_grid.orm_compiler import compile_orm_query
-from tap_grid.search_service import execute_search
+from tap_grid.search import execute_search
 
 
 def _orm_search(**kwargs):

@@ -22,6 +22,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-resolve | [Entity Resolution](#entity-resolution) | Implemented | `Entity.resolve()` uses the model registry to return the concrete typed object |
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
 | req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Implemented | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
+| req-grid-entity-internal | [Internal-Only Model Types](#internal-only-model-types) | Implemented | Some model types are graph-native but not writable through the default service-layer CRUD surface |
 | req-grid-entity-metadata | [Canonical Entity Metadata](#canonical-entity-metadata) | In Development | Platform-level canonical metadata contract for entity instances: `name`, `description`, `description_json`. `name` is fully implemented; `description` and `description_json` are pending. |
 | req-grid-entity-display | [Display Metadata](#display-metadata) | In Development | `DEFAULT_DISPLAY` class attribute implemented on `BaseModel`; instance-level `display` JSONField deferred |
 | req-grid-entity-cascade | [Edge-Directed Cascade Deletion](#edge-directed-cascade-deletion) | Backlog | When an entity is deleted, cascades should be expressible in terms of edge relationships, not just Django's raw FK CASCADE |
@@ -199,6 +200,46 @@ The dimensions integration was added concurrently with the dimension spec work; 
 
 #### Future
 Once FLIP is fully active, Entity creation through this path should be recorded as a provenance event. In v0 this is deferred; the mechanism should be hookable so FLIP can be wired in without changing this code.
+
+---
+
+### Internal-Only Model Types
+----
+RID: `req-grid-entity-internal`
+Status: `Implemented`
+
+Some `BaseModel` subclasses are first-class graph objects but should not be writable through the default service-layer create, patch, replace, and delete verbs. These are internal-only model types.
+
+#### Status Details
+Implemented. `BaseModel` declares `INTERNAL_ONLY: ClassVar[bool] = False`. `Batch` sets `INTERNAL_ONLY = True`. The generic write pipeline in `tap_grid/services.py` checks `INTERNAL_ONLY` after resolving `model_cls` for all node verbs and raises `ServiceUnsupportedOperationError`. FLIP stamping is also suppressed for internal-only types.
+
+#### Implementation
+The internal-only model contract is:
+
+1. `BaseModel` subclasses may declare `INTERNAL_ONLY: ClassVar[bool] = True`.
+2. `INTERNAL_ONLY = False` is the default for ordinary model types.
+3. Internal-only model types remain first-class entities on the spine and may still be readable, traversable, and linkable according to other rules.
+4. Internal-only model types are not writable through the default service-layer create, patch, replace, and delete surface.
+5. Internal-only model types may still be managed through dedicated subsystem services.
+
+`Batch` is the first intended example of an internal-only model type.
+
+#### Development
+This gives TAP a clean way to distinguish:
+
+- graph-native objects that should exist on the spine
+- from objects that ordinary callers should not mutate through generic CRUD verbs
+
+That boundary will likely be useful in several places beyond batches.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-entity-internal-1 | Internal Only Class Variable | Implemented | `BaseModel` subclasses may declare `INTERNAL_ONLY` to mark the type as not writable through the default service CRUD surface. | `INTERNAL_ONLY: ClassVar[bool] = False` on `BaseModel`; `Batch` sets `True` |
+| req-grid-entity-internal-2 | Default Is False | Implemented | Model types are not internal-only unless they explicitly declare that capability. | `BaseModel.INTERNAL_ONLY = False` default |
+| req-grid-entity-internal-3 | Still First-Class Entities | Implemented | Internal-only model types remain graph-native entities rather than second-class hidden tables. | `Batch` extends `BaseModel`, has Entity on spine |
+| req-grid-entity-internal-4 | Dedicated Services Still Allowed | Implemented | Internal-only model types may still be managed through dedicated subsystem services. | `tap_grid/batch.py` service functions bypass the generic pipeline |
 
 ---
 

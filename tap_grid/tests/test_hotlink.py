@@ -19,8 +19,7 @@ from tap_grid.hotlink import (
     extract_identifiers,
     validate_hotlinks,
 )
-from tap_grid.models import BaseModel, Edge, Entity
-
+from tap_grid.models import BaseModel, Edge
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -197,11 +196,7 @@ class TestCheckHotlinks:
                     related_name="+",
                 )
                 ENTITY_TYPE: ClassVar[str] = "bad_page_type_x"
-                SERVICE_SCHEMAS: ClassVar[dict] = {
-                    "create": {"type": "object", "additionalProperties": False, "properties": {}},
-                    "patch": {"type": "object", "additionalProperties": False, "properties": {}},
-                    "replace": {"type": "object", "additionalProperties": False, "properties": {}},
-                }
+                FIELD_SCHEMA: ClassVar[dict[str, dict]] = {}
                 HOTLINKS: ClassVar[list[dict]] = [
                     {
                         "name": "x",

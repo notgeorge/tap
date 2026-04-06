@@ -43,7 +43,6 @@ from tap_grid.service_types import (
     BatchWriteResult,
     EdgeTypeDescription,
     NodeTypeDescription,
-    ReadResult,
     ServiceCapabilities,
     ServiceError,
     WriteOperation,
@@ -174,7 +173,7 @@ def _build_object_summary(instance: Any) -> dict[str, Any]:
 
 def _record_provenance(verb: str, entity: Entity, batch_id: str, user: Any) -> None:
     """Record a BatchEvent for the completed operation (best-effort)."""
-    from tap_grid.batch_service import record_batch_event
+    from tap_grid.batch import record_batch_event
 
     event_map = {
         "create_node": "create",
@@ -261,6 +260,10 @@ def _execute_write_pipeline(
                 model_cls = get_model_class(op.type_slug)
             except KeyError:
                 raise ServiceNotFoundError(f"Unknown entity type: '{op.type_slug}'.")
+            if getattr(model_cls, "INTERNAL_ONLY", False):
+                raise ServiceUnsupportedOperationError(
+                    f"'{op.type_slug}' is an internal-only type and cannot be created through the generic service layer."
+                )
             instance = model_cls()
 
         elif op.verb == "create_edge":
@@ -289,6 +292,10 @@ def _execute_write_pipeline(
                 model_cls = get_model_class(target_entity.entity_type)
             except KeyError:
                 raise ServiceNotFoundError(f"Unknown entity type: '{target_entity.entity_type}'.")
+            if getattr(model_cls, "INTERNAL_ONLY", False):
+                raise ServiceUnsupportedOperationError(
+                    f"'{target_entity.entity_type}' is an internal-only type and cannot be modified through the generic service layer."
+                )
             instance = model_cls.all_objects.select_related("entity").get(entity_id=target_uuid)
 
             # Write prohibition — tombstoned entities cannot be mutated.
@@ -931,7 +938,7 @@ def update_entity(entity: Entity, *, caller_context: CallerContext | None = None
     return entity
 
 
-def delete_entity(entity: Entity, *, caller_context: "CallerContext | None" = None) -> None:
+def delete_entity(entity: Entity, *, caller_context: CallerContext | None = None) -> None:
     """Delete an Entity. Cascades to edges and domain objects."""
     entity.delete()
 

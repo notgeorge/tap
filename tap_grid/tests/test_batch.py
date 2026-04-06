@@ -2,7 +2,7 @@
 
 import pytest
 
-from tap_grid.batch_service import (
+from tap_grid.batch import (
     close_batch,
     create_batch,
     fail_batch,

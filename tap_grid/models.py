@@ -103,49 +103,75 @@ def _check_field_schemas(cls: type) -> None:
             )
 
 
-_ALLOWED_SERVICE_SCHEMA_KEYS: frozenset[str] = frozenset({"create", "patch", "replace", "read"})
-_REQUIRED_SERVICE_SCHEMA_KEYS: frozenset[str] = frozenset({"create", "patch", "replace"})
-
-
-def _check_service_schemas(cls: type) -> None:
-    """Enforce SERVICE_SCHEMAS startup invariants for concrete BaseModel subclasses.
+def _check_service_contract(cls: type) -> None:
+    """Enforce FIELD_SCHEMA startup invariants for concrete BaseModel subclasses.
 
     Skips abstract intermediates (classes without ENTITY_TYPE in their own __dict__).
     For concrete subclasses raises ImproperlyConfigured if:
-      - SERVICE_SCHEMAS is not declared in cls.__dict__
-      - Any required key ("create", "patch", "replace") is missing
-      - Any key is not in the allowed set {"create", "patch", "replace", "read"}
-      - Any value is not a dict
+      - FIELD_SCHEMA is not declared in cls.__dict__
+      - FIELD_SCHEMA is not a dict, or any entry value is not a dict
+      - Any CREATE_REQUIRED / REPLACE_REQUIRED entry is not a key in FIELD_SCHEMA
+      - Any PATCH_EXTRA_FIELDS entry value is not a dict
     """
-    # Abstract intermediates: no ENTITY_TYPE in own class body → skip
     if "ENTITY_TYPE" not in cls.__dict__:
         return
 
-    if "SERVICE_SCHEMAS" not in cls.__dict__:
+    if "FIELD_SCHEMA" not in cls.__dict__:
         raise ImproperlyConfigured(
-            f"{cls.__name__} declares ENTITY_TYPE but is missing SERVICE_SCHEMAS. "
-            f"All concrete BaseModel subclasses must declare SERVICE_SCHEMAS with "
-            f"keys: {sorted(_REQUIRED_SERVICE_SCHEMA_KEYS)}."
+            f"{cls.__name__} declares ENTITY_TYPE but is missing FIELD_SCHEMA. "
+            f"All concrete BaseModel subclasses must declare FIELD_SCHEMA."
         )
 
-    schemas: dict = cls.__dict__["SERVICE_SCHEMAS"]
-
-    for key in _REQUIRED_SERVICE_SCHEMA_KEYS:
-        if key not in schemas:
+    field_schema: dict = cls.__dict__["FIELD_SCHEMA"]
+    if not isinstance(field_schema, dict):
+        raise ImproperlyConfigured(
+            f"{cls.__name__}.FIELD_SCHEMA must be a dict, got {type(field_schema).__name__}."
+        )
+    for fname, fschema in field_schema.items():
+        if not isinstance(fschema, dict):
             raise ImproperlyConfigured(
-                f"{cls.__name__}.SERVICE_SCHEMAS is missing required key '{key}'."
+                f"{cls.__name__}.FIELD_SCHEMA['{fname}'] must be a dict, got {type(fschema).__name__}."
             )
 
-    for key, value in schemas.items():
-        if key not in _ALLOWED_SERVICE_SCHEMA_KEYS:
-            raise ImproperlyConfigured(
-                f"{cls.__name__}.SERVICE_SCHEMAS has unknown key '{key}'. "
-                f"Allowed keys: {sorted(_ALLOWED_SERVICE_SCHEMA_KEYS)}."
-            )
-        if not isinstance(value, dict):
-            raise ImproperlyConfigured(
-                f"{cls.__name__}.SERVICE_SCHEMAS['{key}'] must be a dict, got {type(value).__name__}."
-            )
+    for req_attr in ("CREATE_REQUIRED", "REPLACE_REQUIRED"):
+        if req_attr in cls.__dict__:
+            for fname in cls.__dict__[req_attr]:
+                if fname not in field_schema:
+                    raise ImproperlyConfigured(
+                        f"{cls.__name__}.{req_attr} references '{fname}' which is not in FIELD_SCHEMA."
+                    )
+
+    if "PATCH_EXTRA_FIELDS" in cls.__dict__:
+        for fname, fschema in cls.__dict__["PATCH_EXTRA_FIELDS"].items():
+            if not isinstance(fschema, dict):
+                raise ImproperlyConfigured(
+                    f"{cls.__name__}.PATCH_EXTRA_FIELDS['{fname}'] must be a dict, got {type(fschema).__name__}."
+                )
+
+
+def _build_service_schemas(cls: type) -> dict[str, dict]:
+    """Synthesize SERVICE_SCHEMAS from FIELD_SCHEMA, CREATE_REQUIRED, REPLACE_REQUIRED, PATCH_EXTRA_FIELDS.
+
+    patch — all fields optional; PATCH_EXTRA_FIELDS appended.
+    create — FIELD_SCHEMA fields; CREATE_REQUIRED enforced.
+    replace — FIELD_SCHEMA fields; REPLACE_REQUIRED enforced (defaults to CREATE_REQUIRED).
+    """
+    props: dict[str, dict] = dict(cls.FIELD_SCHEMA)
+    create_req: list[str] = list(getattr(cls, "CREATE_REQUIRED", []))
+    replace_req: list[str] = list(cls.__dict__["REPLACE_REQUIRED"]) if "REPLACE_REQUIRED" in cls.__dict__ else create_req
+    patch_extra: dict[str, dict] = dict(getattr(cls, "PATCH_EXTRA_FIELDS", {}))
+
+    def _schema(properties: dict, required: list[str]) -> dict:
+        s: dict = {"type": "object", "additionalProperties": False, "properties": dict(properties)}
+        if required:
+            s["required"] = required
+        return s
+
+    return {
+        "create": _schema(props, create_req),
+        "patch": _schema({**props, **patch_extra}, []),
+        "replace": _schema(props, replace_req),
+    }
 
 
 def get_default_grid_id() -> uuid.UUID | None:
@@ -250,7 +276,7 @@ class EntityType(models.Model):
 class LiveManager(models.Manager["BaseModel"]):
     """Default manager for BaseModel subclasses — excludes tombstoned entities."""
 
-    def get_queryset(self) -> models.QuerySet["BaseModel"]:
+    def get_queryset(self) -> models.QuerySet[BaseModel]:
         return super().get_queryset().filter(entity__deleted_at__isnull=True)
 
 
@@ -271,8 +297,10 @@ class BaseModel(models.Model):
         which edge types can connect to which node types. See constraints.py.
 
     FLIP integration:
-        Subclasses can define FLIP_CONFIG to enable history tracking and
-        other provenance features. See tap_grid.flip for defaults.
+        FLIP is default-on. Every service-writeable field (declared in
+        FIELD_SCHEMA) is automatically stamped with the active batch_id on
+        save. Set INTERNAL_ONLY = True to exclude a model type from both
+        generic CRUD and FLIP stamping.
 
     Tombstone:
         objects — default manager, excludes tombstoned entities (deleted_at set).
@@ -282,9 +310,16 @@ class BaseModel(models.Model):
     ENTITY_TYPE: ClassVar[str]
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]]
     FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {}
+    # Write surface declarations — concrete subclasses override these.
+    # SERVICE_SCHEMAS is synthesized from them at class definition time.
+    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {}
+    CREATE_REQUIRED: ClassVar[list[str]] = []
+    # REPLACE_REQUIRED: not declared here; synthesizer falls back to CREATE_REQUIRED.
+    PATCH_EXTRA_FIELDS: ClassVar[dict[str, dict]] = {}
     SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {}
     HOTLINKS: ClassVar[list[dict]] = []
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {}
+    INTERNAL_ONLY: ClassVar[bool] = False
 
     objects = LiveManager()
     all_objects = models.Manager()
@@ -325,8 +360,11 @@ class BaseModel(models.Model):
         # If these raise, nothing has been registered and the failure is clean.
         _check_field_schemas(cls)
 
-        # SERVICE_SCHEMAS invariants — concrete subclasses must declare all required keys.
-        _check_service_schemas(cls)
+        # FIELD_SCHEMA contract — concrete subclasses must declare FIELD_SCHEMA.
+        # SERVICE_SCHEMAS is synthesized from it.
+        _check_service_contract(cls)
+        if "ENTITY_TYPE" in cls.__dict__:
+            cls.SERVICE_SCHEMAS = _build_service_schemas(cls)
 
         # HOTLINKS invariants — only validate if this class declares HOTLINKS directly.
         if "HOTLINKS" in cls.__dict__:
@@ -351,10 +389,6 @@ class BaseModel(models.Model):
 
             register_constraints(constraint_type, outbound, inbound)
 
-        # FLIP: Cache config in registry.
-        from tap_grid.flip import get_model_flip_config
-
-        get_model_flip_config(cls)
 
     def get_name(self) -> str:
         """Return the name for the auto-created Entity.
@@ -523,28 +557,8 @@ class Edge(BaseModel):
 
     # from_entity, to_entity, and edge_type are dedicated create_edge() parameters,
     # not payload fields. Replace must not include edge_type (immutable once set).
-    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
-        "create": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "properties": {"type": "object"},
-            },
-        },
-        "patch": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "properties": {"type": "object"},
-            },
-        },
-        "replace": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "properties": {"type": "object"},
-            },
-        },
+    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+        "properties": {"type": "object"},
     }
 
     from_entity = models.ForeignKey(
@@ -627,34 +641,11 @@ class Dimension(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "dimension"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.meta": "dimension"}
 
-    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
-        "create": {
-            "type": "object",
-            "required": ["name"],
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-            },
-        },
-        "patch": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-            },
-        },
-        "replace": {
-            "type": "object",
-            "required": ["name"],
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-            },
-        },
+    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
     }
+    CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
@@ -681,55 +672,18 @@ class Search(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "search"
 
-    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
-        "create": {
-            "type": "object",
-            "required": ["name", "search_type", "root"],
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-                "search_type": {"type": "string", "enum": ["module", "orm", "traversal"]},
-                "root": {"type": "string", "enum": ["node", "edge", ""]},
-                "definition": {"type": "object"},
-                "input_schema": {"type": ["object", "null"]},
-                "returns": {"type": ["object", "null"]},
-                "default_limit": {"type": ["integer", "null"]},
-                "max_limit": {"type": ["integer", "null"]},
-            },
-        },
-        "patch": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-                "search_type": {"type": "string", "enum": ["module", "orm", "traversal"]},
-                "root": {"type": "string", "enum": ["node", "edge", ""]},
-                "definition": {"type": "object"},
-                "input_schema": {"type": ["object", "null"]},
-                "returns": {"type": ["object", "null"]},
-                "default_limit": {"type": ["integer", "null"]},
-                "max_limit": {"type": ["integer", "null"]},
-            },
-        },
-        "replace": {
-            "type": "object",
-            "required": ["name", "search_type", "root"],
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-                "search_type": {"type": "string", "enum": ["module", "orm", "traversal"]},
-                "root": {"type": "string", "enum": ["node", "edge", ""]},
-                "definition": {"type": "object"},
-                "input_schema": {"type": ["object", "null"]},
-                "returns": {"type": ["object", "null"]},
-                "default_limit": {"type": ["integer", "null"]},
-                "max_limit": {"type": ["integer", "null"]},
-            },
-        },
+    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "search_type": {"type": "string", "enum": ["module", "orm", "gryphon"]},
+        "root": {"type": "string", "enum": ["node", "edge", ""]},
+        "definition": {"type": "object"},
+        "input_schema": {"type": ["object", "null"]},
+        "returns": {"type": ["object", "null"]},
+        "default_limit": {"type": ["integer", "null"]},
+        "max_limit": {"type": ["integer", "null"]},
     }
+    CREATE_REQUIRED: ClassVar[list[str]] = ["name", "search_type", "root"]
 
     FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
         "name": {
@@ -738,11 +692,11 @@ class Search(BaseModel):
         },
         "search_type": {
             "validation": "jsonschema",
-            "schema": {"type": "string", "enum": ["module", "orm", "traversal"]},
+            "schema": {"type": "string", "enum": ["module", "orm", "gryphon"]},
         },
         "root": {
             "validation": "jsonschema",
-            # traversal searches derive root from the query text; accept blank for traversal.
+            # gryphon searches derive root from the query text; accept blank for gryphon.
             "schema": {"type": "string", "enum": ["node", "edge", ""]},
         },
         "definition": {
@@ -810,19 +764,19 @@ class Search(BaseModel):
             if order_by is not None and not isinstance(order_by, list):
                 raise ValidationError({"definition": ["ORM 'order_by' must be a list."]})
 
-        elif self.search_type == "traversal":
+        elif self.search_type == "gryphon":
             query = self.definition.get("query")
             if not query or not isinstance(query, (str, list)):
                 raise ValidationError(
-                    {"definition": ["Traversal definition requires 'query' as a non-empty string or list of strings."]}
+                    {"definition": ["Gryphon definition requires 'query' as a non-empty string or list of strings."]}
                 )
             # Attempt a parse to catch syntax errors early.
-            from tap_grid.traversal.parser import TraversalParseError, parse_traversal
+            from tap_grid.gryphon.parser import GryphonParseError, parse_gryphon
 
             try:
-                parse_traversal(query)
-            except TraversalParseError as exc:
-                raise ValidationError({"definition": [f"Traversal query parse error: {exc.message}"]}) from exc
+                parse_gryphon(query)
+            except GryphonParseError as exc:
+                raise ValidationError({"definition": [f"Gryphon query parse error: {exc.message}"]}) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -844,11 +798,13 @@ class Batch(BaseModel):
     Batch extends BaseModel, making it a first-class Entity in the TAP graph.
     Batches can be queried, linked, and traversed like any other entity.
 
-    IMPORTANT: Batch disables batch tracking for itself to prevent infinite
-    recursion (a Batch cannot belong to another Batch).
+    INTERNAL_ONLY = True: Batch is managed by dedicated batch services only.
+    Generic service-layer CRUD verbs reject it, and FLIP stamping is suppressed
+    to prevent self-referential provenance loops.
     """
 
     ENTITY_TYPE: ClassVar[str] = "batch"
+    INTERNAL_ONLY: ClassVar[bool] = True
 
     _DESCRIPTION_JSON_SCHEMA: ClassVar[dict] = {
         "oneOf": [
@@ -874,50 +830,21 @@ class Batch(BaseModel):
 
     # actor and closed_at are managed by service methods, not user payload.
     # started_at is auto_now_add; status/error_message managed via close_batch/fail_batch.
-    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
-        "create": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "title": {"type": "string"},
-                "description": {"type": "string"},
-                "description_json": {"oneOf": [{"type": "null"}, {"type": "object"}]},
-                "source": {"type": "string"},
-                "metadata": {"type": "object"},
-            },
-        },
-        "patch": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "title": {"type": "string"},
-                "description": {"type": "string"},
-                "description_json": {"oneOf": [{"type": "null"}, {"type": "object"}]},
-                "source": {"type": "string"},
-                "metadata": {"type": "object"},
-                "status": {"type": "string", "enum": ["open", "closed", "failed"]},
-                "error_message": {"type": "string"},
-            },
-        },
-        "replace": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["title"],
-            "properties": {
-                "title": {"type": "string"},
-                "description": {"type": "string"},
-                "description_json": {"oneOf": [{"type": "null"}, {"type": "object"}]},
-                "source": {"type": "string"},
-                "metadata": {"type": "object"},
-            },
-        },
+    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+        "title": {"type": "string"},
+        "description": {"type": "string"},
+        "description_json": {"oneOf": [{"type": "null"}, {"type": "object"}]},
+        "source": {"type": "string"},
+        "metadata": {"type": "object"},
+    }
+    REPLACE_REQUIRED: ClassVar[list[str]] = ["title"]
+    # status and error_message are patch-only lifecycle fields.
+    PATCH_EXTRA_FIELDS: ClassVar[dict[str, dict]] = {
+        "status": {"type": "string", "enum": ["open", "closed", "failed"]},
+        "error_message": {"type": "string"},
     }
 
-    # Batch disables batch tracking to prevent self-reference.
     # History is inherited from BaseModel.
-    FLIP_CONFIG: ClassVar[dict[str, Any]] = {
-        "batch": {"enabled": False},
-    }
 
     title = models.CharField(
         max_length=255,

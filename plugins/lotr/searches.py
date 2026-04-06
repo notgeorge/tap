@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 def list_characters_with_bio(
     search: Search, inputs: dict[str, Any], *, db_alias: str
 ) -> dict[str, Any]:
-    """Return all LOTR characters enriched with their title and bio fields."""
+    """Return all LOTR characters enriched with their bio field."""
     from plugins.lotr.models import Character
 
     characters = (
@@ -26,7 +26,6 @@ def list_characters_with_bio(
             "entity_type": "character",
             "name": c.entity.name,
             "dimensions": c.entity.dimensions,
-            "title": c.title,
             "bio": c.bio,
         }
         for c in characters

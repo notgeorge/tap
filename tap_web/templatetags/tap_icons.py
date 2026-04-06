@@ -13,7 +13,7 @@ also render textual identity elsewhere (req-grid-icon-render-2).
 from django import template
 from django.utils.html import format_html
 
-from tap_grid.icon_service import resolve_icon_url
+from tap_grid.icon import resolve_icon_url
 from tap_grid.models import EntityType
 
 register = template.Library()

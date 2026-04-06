@@ -1,4 +1,4 @@
-"""Tests for tap_grid.icon_service.
+"""Tests for tap_grid.icon.
 
 Covers validate_icon_key, resolve_icon_path, and resolve_icon_url.
 Icon file existence checks use Django's staticfiles finders so they
@@ -8,7 +8,7 @@ work correctly with app static directories in tests.
 import pytest
 from django.apps import apps
 
-from tap_grid.icon_service import resolve_icon_path, resolve_icon_url, validate_icon_key
+from tap_grid.icon import resolve_icon_path, resolve_icon_url, validate_icon_key
 from tap_grid.models import EntityType
 
 

@@ -23,12 +23,6 @@ class CharacterEditForm(forms.Form):
         strip=True,
         help_text="Character's canonical name.",
     )
-    title = forms.CharField(
-        max_length=255,
-        required=False,
-        strip=True,
-        help_text="In-world title or epithet (e.g. Ring-bearer, Istari).",
-    )
     bio = forms.CharField(
         required=False,
         strip=True,
@@ -48,7 +42,6 @@ class CharacterEditorDescriptor(EditorDescriptor):
         """Return initial values from entity name + character domain fields."""
         return {
             "name": obj.entity.name,
-            "title": obj.title or "",
             "bio": obj.bio or "",
         }
 

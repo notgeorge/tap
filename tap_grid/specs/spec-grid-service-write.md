@@ -20,6 +20,8 @@ Write operations are where the TAP service layer earns its keep. The write contr
 | --- | --- | :---: | --- |
 | req-grid-service-write-surface | [Write Operation Surface](#write-operation-surface) | Implemented | Canonical public write verbs |
 | req-grid-service-write-payloads | [Write Payload Semantics](#write-payload-semantics) | Implemented | Slug-driven payload handling and strict rejection |
+| req-grid-service-write-internal | [Internal-Only Write Exclusion](#internal-only-write-exclusion) | Implemented | Default service-layer CRUD verbs reject internal-only model types |
+| req-grid-service-write-schema-cleanup | [Service Schema Simplification](#service-schema-simplification) | Implemented | Replace per-verb `SERVICE_SCHEMAS` with a simpler writable-field contract |
 | req-grid-service-write-patch | [Patch And Replace Rules](#patch-and-replace-rules) | Implemented | Deep merge and immutable edge type rules |
 | req-grid-service-write-validate | [Write Validation Stack](#write-validation-stack) | Implemented | full_clean, constraints, hotlinks |
 | req-grid-service-write-results | [Write Result Envelopes](#write-result-envelopes) | Implemented | Minimal, standard, verbose |
@@ -60,6 +62,72 @@ These public verbs should share one internal dispatcher/pipeline.
 
 #### Future
 Decide whether any thin generic write wrapper is needed in addition to the explicit verbs.
+
+### Service Schema Simplification
+----
+RID: `req-grid-service-write-schema-cleanup`
+Status: `Implemented`
+
+The per-model write surface is declared via four concise ClassVars on `BaseModel` subclasses. `SERVICE_SCHEMAS` is synthesized from these at class definition time and remains available for service-layer consumption and introspection.
+
+#### Status Details
+Implemented. The three-verb `SERVICE_SCHEMAS` dict is no longer written by hand on any concrete model. All 16 concrete subclasses across `tap_grid`, `plugins/lotr`, `tap_web`, and `tap_viz` now use the new contract.
+
+#### Implementation
+Concrete `BaseModel` subclasses declare:
+
+1. `FIELD_SCHEMA: ClassVar[dict[str, dict]]` — field name to JSON Schema fragment; the complete writable field surface.
+2. `CREATE_REQUIRED: ClassVar[list[str]]` — fields required for `create_node`/`create_edge`. Defaults to `[]`.
+3. `REPLACE_REQUIRED: ClassVar[list[str]]` — fields required for `replace_node`/`replace_edge`. Defaults to `CREATE_REQUIRED` if not declared.
+4. `PATCH_EXTRA_FIELDS: ClassVar[dict[str, dict]]` — verb-specific fields patchable but absent from FIELD_SCHEMA (e.g., lifecycle fields like `status`). Defaults to `{}`.
+
+`BaseModel.__init_subclass__` calls `_check_service_contract()` to validate these at class definition time, then calls `_build_service_schemas()` to synthesize and assign `cls.SERVICE_SCHEMAS`. The service pipeline (`_execute_write_pipeline`) and `describe_node_type()` continue to read `SERVICE_SCHEMAS` unchanged.
+
+#### Development
+The cleanup resolved two mixed concerns that existed in the old design:
+
+- **which fields** are writable (now declared in `FIELD_SCHEMA`)
+- **what each verb requires** (now declared in `CREATE_REQUIRED` / `REPLACE_REQUIRED`)
+
+Patch semantics (all fields optional, extra lifecycle fields allowed) and replace semantics (reset-to-default for absent optional fields) remain in the service layer.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-write-schema-cleanup-1 | Simpler Writable Field Contract | Implemented | `FIELD_SCHEMA` replaces the three-verb `SERVICE_SCHEMAS` as the per-model writable-field declaration. `SERVICE_SCHEMAS` is synthesized automatically. | |
+| req-grid-service-write-schema-cleanup-2 | Sane Defaults On Create | Implemented | Models with no `CREATE_REQUIRED` (e.g., `Edge`, `Batch`, `LandingPage`) create instances with sane field defaults. | |
+| req-grid-service-write-schema-cleanup-3 | Required-On-Create Supported | Implemented | `CREATE_REQUIRED` and `REPLACE_REQUIRED` provide explicit required-field control per verb. Previously deferred; now implemented as part of this cleanup. | |
+
+### Internal-Only Write Exclusion
+----
+RID: `req-grid-service-write-internal`
+Status: `Implemented`
+
+The default service-layer CRUD surface must reject internal-only model types. These types are managed by dedicated subsystem services rather than ordinary generic create, patch, replace, and delete verbs.
+
+#### Status Details
+Implemented. `_execute_write_pipeline()` in `tap_grid/services.py` checks `getattr(model_cls, "INTERNAL_ONLY", False)` after resolving `model_cls` for all node verbs and raises `ServiceUnsupportedOperationError` with code `"unsupported_operation"` if the type is internal-only. `Batch` is the first internal-only type and is now rejected by `create_node`, `patch_node`, `replace_node`, and `delete_node`.
+
+#### Implementation
+The service-layer rule is:
+
+1. Generic `create_node`, `patch_node`, `replace_node`, and `delete_node` reject internal-only model types.
+2. Internal-only model types remain readable through normal read/search services unless another requirement limits that behavior.
+3. Dedicated subsystem services may still create or mutate internal-only model types.
+4. `Batch` is the first intended internal-only type and should not be writable through generic node CRUD verbs.
+
+#### Development
+This keeps public CRUD predictable while still letting TAP model internal graph-native artifacts as first-class entities.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-write-internal-1 | Generic Create Rejects Internal Only | Implemented | `create_node` rejects model types marked internal-only. | `ServiceUnsupportedOperationError` |
+| req-grid-service-write-internal-2 | Generic Update Rejects Internal Only | Implemented | `patch_node` and `replace_node` reject internal-only model types. | Check after target entity resolution |
+| req-grid-service-write-internal-3 | Generic Delete Rejects Internal Only | Implemented | `delete_node` rejects internal-only model types unless a future dedicated rule says otherwise. | |
+| req-grid-service-write-internal-4 | Dedicated Services Still Allowed | Implemented | Internal-only types may still be written through dedicated subsystem service APIs. | `tap_grid/batch.py` uses direct ORM |
 
 
 ### Write Payload Semantics
@@ -221,4 +289,3 @@ Define exact field-level contents of each result mode once the error and batch c
 | Refactoring |  |
 | Deprecating |  |
 | Deprecated | Not part of the current architecture and should not be implemented |
-

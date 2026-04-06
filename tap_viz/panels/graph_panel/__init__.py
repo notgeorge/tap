@@ -73,7 +73,7 @@ class GraphPanelType:
         edges: dict[str, dict[str, Any]] = {}
 
         try:
-            from tap_grid.search_service import execute_search
+            from tap_grid.search import execute_search
 
             for search in searches:
                 result = execute_search(search)
@@ -117,10 +117,10 @@ class GraphPanelType:
             ``graph_placement``, and ``graph_error``.
         """
         from tap_grid.models import Search
-        from tap_grid.search_service import execute_search
+        from tap_grid.search import execute_search
 
         search = Search(
-            search_type="traversal",
+            search_type="gryphon",
             root="node",
             name="hub-and-spoke",
             definition={
@@ -209,7 +209,7 @@ def _get_layout_searches(layout: Any) -> list[Any]:
 
 def _enrich_nodes_with_icons(nodes: list[dict[str, Any]]) -> None:
     """Add icon_url to each node dict in-place using the canonical grid icon service."""
-    from tap_grid.icon_service import resolve_icon_url
+    from tap_grid.icon import resolve_icon_url
     from tap_grid.models import EntityType
 
     slugs = {n["entity_type"] for n in nodes if n.get("entity_type")}

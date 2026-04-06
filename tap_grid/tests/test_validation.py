@@ -12,8 +12,8 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models
 
-from tap_grid.models import BaseModel, dangerously_ignore_validator
 from plugins.lotr.models import Character
+from tap_grid.models import BaseModel, dangerously_ignore_validator
 
 # ---------------------------------------------------------------------------
 # Module-level test models — no ENTITY_TYPE, no table (managed=False).

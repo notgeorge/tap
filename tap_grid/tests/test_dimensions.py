@@ -12,7 +12,8 @@ from contextlib import contextmanager
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
-from tap_grid.batch_service import create_batch
+from plugins.lotr.models import Character, Wanderer
+from tap_grid.batch import create_batch
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 from tap_grid.constraints import (
     _edge_default_dimensions_registry,
@@ -20,11 +21,10 @@ from tap_grid.constraints import (
 )
 from tap_grid.models import Dimension, Edge, Entity
 from tap_grid.services import create_entity
-from plugins.lotr.models import Character, Wanderer
 
 
 @contextmanager
-def _batch_ctx(source: str = "test") -> Generator[str, None, None]:
+def _batch_ctx(source: str = "test") -> Generator[str]:
     """Create a Batch entity and set CallerContext for the duration (test helper)."""
     batch = create_batch(source=source)
     batch_id = str(batch.entity.id)

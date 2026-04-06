@@ -19,6 +19,8 @@ Batch records should also be legible as first-class change events. They need eno
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
+| req-grid-service-batch-model | [Batch Model](#batch-model) | Implemented | Batch as a first-class Entity with lifecycle states and service functions |
+| req-grid-service-batch-event | [Batch Event Log](#batch-event-log) | Implemented | Append-only per-operation audit log linked to each Batch |
 | req-grid-service-batch-all | [All Writes Are Batch-Backed](#all-writes-are-batch-backed) | Implemented | Single and multi-object writes share batch semantics |
 | req-grid-service-batch-metadata | [Batch Metadata Fields](#batch-metadata-fields) | Implemented | Human-readable and machine-readable batch metadata |
 | req-grid-service-batch-infra | [Batch ID As Infrastructure](#batch-id-as-infrastructure) | Implemented | CallerContext introduced; batch_id threading via ContextVar implemented |
@@ -26,6 +28,117 @@ Batch records should also be legible as first-class change events. They need eno
 | req-grid-service-batch-dryrun | [Dry-Run Behavior](#dry-run-behavior) | Implemented | Full validation without persistence |
 | req-grid-service-batch-diag | [Per-Item Diagnostics](#per-item-diagnostics) | Implemented | Batch partial diagnostics and reporting |
 | req-grid-service-batch-tx | [Transactional Commit Behavior](#transactional-commit-behavior) | Implemented | All-or-nothing commit model |
+
+
+### Batch Model
+----
+RID: `req-grid-service-batch-model`
+Status: `Implemented`
+
+A Batch is a first-class TAP Entity representing a logical group of writes. It carries lifecycle state and metadata describing what the batch represents, why it happened, and how it relates to upstream systems.
+
+#### Status Details
+`Batch` extends `BaseModel` (ENTITY_TYPE `"batch"`), giving it a backing Entity on the spine. Batches can be queried, linked, and traversed like any other entity. Batch is intended to be an internal-only model type managed by dedicated batch services rather than ordinary generic CRUD. History is inherited from BaseModel.
+
+#### Fields
+
+| Field | Type | Nullable | Default | Description |
+| --- | --- | --- | --- | --- |
+| `entity` | OneToOne → Entity | No | — | Backing Entity on the TAP spine. `entity.entity_type = "batch"`. |
+| `title` | CharField(255) | No | `""` | Short human-readable summary of what the batch represents. |
+| `description` | TextField | No | `""` | Long-form free-text description of the batch purpose. |
+| `description_json` | JSONField | Yes | `null` | Structured metadata; must conform to `{format, data}` shape when present. See `req-grid-service-batch-metadata`. |
+| `status` | CharField choices | No | `"open"` | Lifecycle state. One of `open`, `closed`, `failed`. |
+| `source` | CharField(255) | No | `""` | Source identifier, e.g. `"scanner:aws"`, `"import:csv"`, `"api:v1"`. |
+| `metadata` | JSONField | No | `{}` | Free-form metadata: parameters, counts, correlation keys, etc. |
+| `actor` | FK → User | Yes | `null` | User who initiated the batch. `SET_NULL` on user deletion. |
+| `started_at` | DateTimeField | No | auto | When the batch was opened. Set once on creation. |
+| `closed_at` | DateTimeField | Yes | `null` | When the batch was closed or failed. Null while open. |
+| `error_message` | TextField | No | `""` | Error details populated when status is `"failed"`. |
+
+#### Lifecycle
+
+```
+open ──► closed   (via close_batch())
+open ──► failed   (via fail_batch())
+```
+
+Transitioning from any non-open state is an error. Closed and failed are terminal states; there is no re-open transition in v1.
+
+#### Service Functions
+
+| Function | Description |
+| --- | --- |
+| `create_batch(source, actor, name, title, description, description_json, metadata)` | Create a new open Batch and its backing Entity. |
+| `close_batch(batch)` | Transition `open → closed`; sets `closed_at`. Raises `ValueError` if not open. |
+| `fail_batch(batch, error_message)` | Transition `open → failed`; sets `closed_at` and `error_message`. Raises `ValueError` if not open. |
+| `get_batch(batch_id)` | Retrieve a Batch by its Entity UUID. Returns `None` if not found. |
+| `get_batch_events(batch_id)` | Return all `BatchEvent` records for a Batch. |
+| `get_entity_batches(entity_id)` | Return all Batches that have events touching a given Entity. |
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-batch-model-1 | Batch Is An Entity | Implemented | Batch extends BaseModel and has a backing Entity on the TAP spine. | ENTITY_TYPE = `"batch"` |
+| req-grid-service-batch-model-2 | Lifecycle States | Implemented | Batch supports `open`, `closed`, and `failed` states. | `BatchStatus` TextChoices |
+| req-grid-service-batch-model-3 | Open Is Default | Implemented | New batches begin in `open` state. | |
+| req-grid-service-batch-model-4 | Closed At Set On Transition | Implemented | `closed_at` is set when status transitions to `closed` or `failed`. | |
+| req-grid-service-batch-model-5 | Invalid Transition Rejected | Implemented | Attempting to close or fail a non-open batch raises an error. | `ValueError` |
+| req-grid-service-batch-model-6 | Actor Captured | Implemented | Batch records the initiating user as `actor`; survives user deletion as `null`. | |
+| req-grid-service-batch-model-7 | Infrastructure Exempt From Recursive Batching | Implemented | Batch creation is handled as service infrastructure rather than an ordinary user-managed write path, preventing recursive provenance loops. | `Batch.INTERNAL_ONLY = True`; FLIP skipped; see `req-grid-service-batch-all-3` and `req-grid-entity-internal` |
+
+#### Future
+Define whether batches should support named kinds (import, user-edit, sync, admin) as a `source` convention or a structured field. Define re-open semantics if operational needs require them.
+
+
+### Batch Event Log
+----
+RID: `req-grid-service-batch-event`
+Status: `Implemented`
+
+Each Batch accumulates an append-only log of per-operation events. Events record what happened to which Entity within the batch, enabling correlation, replay, and audit without requiring full delta reconstruction.
+
+#### Status Details
+`BatchEvent` is a standalone model (not a BaseModel subclass) — it is internal bookkeeping and does not need its own Entity on the spine. Events are immutable after creation. Delta reconstruction is handled by `django-simple-history` on the affected models; `BatchEvent` provides correlation, not content.
+
+#### Fields
+
+| Field | Type | Nullable | Default | Description |
+| --- | --- | --- | --- | --- |
+| `id` | UUIDField (PK) | No | uuid7 | Unique event identifier. |
+| `batch` | FK → Batch | No | — | The Batch this event belongs to. `CASCADE` on batch deletion. |
+| `event_type` | CharField choices | No | — | One of `create`, `update`, `delete`, `link`, `unlink`. |
+| `entity_id` | UUIDField | No | — | The affected Entity's UUID. |
+| `entity_type` | CharField | No | — | Type slug of the affected Entity (denormalised for fast filtering). |
+| `model_name` | CharField | No | `""` | ORM model class name, e.g. `"Character"`. Empty for raw entity ops. |
+| `timestamp` | DateTimeField | No | auto | When the event was recorded. |
+| `actor` | FK → User | Yes | `null` | User responsible for this specific operation. `SET_NULL` on user deletion. |
+| `metadata` | JSONField | No | `{}` | Free-form per-event metadata (e.g. field names changed, count deltas). |
+
+#### Event Types
+
+| Value | Meaning |
+| --- | --- |
+| `create` | A new node or edge was created. |
+| `update` | An existing node or edge was mutated (patch or replace). |
+| `delete` | A node or edge was deleted (tombstoned). |
+| `link` | An edge was created between two existing nodes. |
+| `unlink` | An edge was removed. |
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-batch-event-1 | Events Are Append-Only | Implemented | BatchEvent records are created once and never modified. | No update or delete permissions in admin |
+| req-grid-service-batch-event-2 | Event Links To Batch | Implemented | Every BatchEvent belongs to exactly one Batch. | FK with CASCADE |
+| req-grid-service-batch-event-3 | Entity Identity Captured | Implemented | Each event records the affected Entity's UUID and type. | Enables cross-batch entity audit |
+| req-grid-service-batch-event-4 | All Five Event Types Supported | Implemented | `create`, `update`, `delete`, `link`, `unlink` are all valid event types. | |
+| req-grid-service-batch-event-5 | Actor Captured Per Event | Implemented | Each event records the acting user; survives user deletion as `null`. | |
+| req-grid-service-batch-event-6 | Events Cascade On Batch Delete | Implemented | Deleting a Batch removes its events. | `on_delete=CASCADE` |
+
+#### Future
+Define whether event log retention should be configurable separately from Batch retention. Define whether events should carry a delta hash or reference to the history record for deeper traceability.
 
 
 ### All Writes Are Batch-Backed

@@ -1,4 +1,4 @@
-"""Frozen dataclasses representing the TAP traversal AST.
+"""Frozen dataclasses representing the TAP gryphon AST.
 
 All nodes are immutable. The transformer in parser.py builds these from the lark parse tree.
 """
@@ -71,7 +71,7 @@ class ParamRef:
 
 # Scalar values that may appear in predicates and inline property maps.
 # str | int | float | bool | None are plain Python types; ParamRef is TAP-specific.
-TraversalValue = str | int | float | bool | None | ParamRef
+GryphonValue = str | int | float | bool | None | ParamRef
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ class NodePattern:
 
     variable: str | None
     label: str | None
-    inline_props: dict[str, TraversalValue] = field(default_factory=dict)
+    inline_props: dict[str, GryphonValue] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -97,7 +97,7 @@ class EdgePattern:
     direction: Literal["out", "in", "any"]
     min_hops: int = 1
     max_hops: int = 1
-    inline_props: dict[str, TraversalValue] = field(default_factory=dict)
+    inline_props: dict[str, GryphonValue] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -123,7 +123,7 @@ class Comparison:
 
     field_path: FieldPath
     op: Literal["=", "!=", "<", ">", "<=", ">="]
-    value: TraversalValue
+    value: GryphonValue
 
 
 @dataclass(frozen=True)
@@ -197,8 +197,8 @@ class ReturnClause:
 
 
 @dataclass(frozen=True)
-class TraversalAST:
-    """The parsed representation of a complete traversal query."""
+class GryphonAST:
+    """The parsed representation of a complete gryphon query."""
 
     match_clauses: tuple[MatchClause, ...]
     where_clause: WhereClause | None

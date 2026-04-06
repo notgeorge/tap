@@ -8,7 +8,7 @@ import pytest
 from django.apps import apps
 from django.contrib.staticfiles import finders
 
-from tap_grid.icon_service import resolve_icon_path
+from tap_grid.icon import resolve_icon_path
 from tap_grid.models import EntityType
 
 

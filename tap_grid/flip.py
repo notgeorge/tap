@@ -1,110 +1,56 @@
-"""FLIP configuration and field-path map update logic.
+"""FLIP field-path map update logic.
 
-FLIP_CONFIG controls which FLIP features are enabled per model. History and
-perspective have their own independent configuration mechanisms (not FLIP_CONFIG).
+FLIP (Field-Level Information Provenance) is default-on for all service-writeable
+model types. It stamps every service-writeable field with the batch_id responsible
+for the current canonical value, derived from the model's SERVICE_SCHEMAS rather
+than a per-model allow-list.
 
-Models without FLIP_CONFIG use defaults (all disabled, opt-in).
-
-This module owns the in-memory mutation of flip_map on BaseModel instances.
-update_flip_map() is called from BaseModel.save() before the DB write so the
-flip_map update is included in the same transaction as the field changes.
-
-The batch_id is read from tap_grid.context (set by the service layer when a
-CallerContext is active).
+Rules:
+- Internal-only model types (INTERNAL_ONLY = True) are excluded from FLIP.
+- Service-writeable fields are the union of properties declared in
+  SERVICE_SCHEMAS["create"], ["patch"], and ["replace"].
+- If no CallerContext batch_id is active, FLIP stamping is silently skipped.
+  Direct ORM saves outside the service layer simply do not record provenance.
+- The batch_id is read from tap_grid.context (set by the service layer when a
+  CallerContext is active).
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tap_grid.models import BaseModel
 
 
-# ---------------------------------------------------------------------------
-# FLIP config
-# ---------------------------------------------------------------------------
-
-# Default FLIP_CONFIG — all features disabled by default (opt-in)
-DEFAULT_FLIP_CONFIG: dict[str, Any] = {
-    "batch": {
-        "enabled": False,
-    },
-    "flip": {
-        "enabled": False,
-        "fields": [],  # explicit allow-list of top-level Django model field names
-    },
-}
-
-# Central registry: maps model class name → merged FLIP_CONFIG
-_FLIP_REGISTRY: dict[str, dict[str, Any]] = {}
-
-
-def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Deep merge override into base, returning a new dict."""
-    result = {}
-    for key in base:
-        if key in override:
-            if isinstance(base[key], dict) and isinstance(override[key], dict):
-                result[key] = _deep_merge(base[key], override[key])
-            else:
-                result[key] = override[key]
-        else:
-            if isinstance(base[key], dict):
-                result[key] = base[key].copy()
-            else:
-                result[key] = base[key]
-    return result
-
-
-def get_model_flip_config(model_class: type) -> dict[str, Any]:
-    """Return merged FLIP_CONFIG for a model.
-
-    Merges model's FLIP_CONFIG attribute (if present) with defaults.
-    Results are cached in _FLIP_REGISTRY.
-
-    Args:
-        model_class: The model class to query.
-
-    Returns:
-        Merged config dict with all required keys.
-    """
-    class_name = model_class.__name__
-    if class_name not in _FLIP_REGISTRY:
-        model_config = getattr(model_class, "FLIP_CONFIG", {})
-        merged = _deep_merge(DEFAULT_FLIP_CONFIG, model_config)
-        _FLIP_REGISTRY[class_name] = merged
-    return _FLIP_REGISTRY[class_name]
-
-
-def is_batch_enabled(model_class: type) -> bool:
-    """Check if batch tracking is enabled for a model."""
-    config = get_model_flip_config(model_class)
-    return bool(config["batch"]["enabled"])
+def _get_service_writeable_fields(model_class: type) -> set[str]:
+    """Return the union of field names declared across all SERVICE_SCHEMAS payloads."""
+    schemas = getattr(model_class, "SERVICE_SCHEMAS", {})
+    fields: set[str] = set()
+    for key in ("create", "patch", "replace"):
+        props = schemas.get(key, {}).get("properties", {})
+        fields.update(props.keys())
+    return fields
 
 
 def is_flip_enabled(model_class: type) -> bool:
-    """Check if FLIP field-path tracking is enabled for a model."""
-    config = get_model_flip_config(model_class)
-    return bool(config["flip"]["enabled"])
+    """Return True if FLIP is active for this model type.
 
-
-def get_flip_fields(model_class: type) -> list[str]:
-    """Return the list of field names tracked by FLIP for a model."""
-    config = get_model_flip_config(model_class)
-    return list(config["flip"]["fields"])
+    FLIP is enabled when the model has at least one service-writeable field
+    and is not marked internal-only.
+    """
+    if getattr(model_class, "INTERNAL_ONLY", False):
+        return False
+    return bool(_get_service_writeable_fields(model_class))
 
 
 def clear_registry() -> None:
-    """Clear the FLIP registry. Used in tests."""
-    _FLIP_REGISTRY.clear()
+    """No-op. Retained for test compatibility during the config-deprecation pass."""
 
 
-# ---------------------------------------------------------------------------
-# flip_map update
-# ---------------------------------------------------------------------------
+def update_flip_map(instance: BaseModel, changed_fields: list[str] | None, batch_id: str | None) -> bool:
+    """Mutate instance.flip_map in memory for all service-writeable fields.
 
-
-def update_flip_map(instance: "BaseModel", changed_fields: list[str] | None, batch_id: str | None) -> bool:
-    """Mutate instance.flip_map in memory for FLIP-tracked fields.
+    Default-on: derives tracked fields from SERVICE_SCHEMAS rather than an
+    explicit allow-list. Internal-only model types are excluded.
 
     Should be called before save() so the mutation is included in the same
     DB write. Does NOT issue a separate save call.
@@ -112,41 +58,29 @@ def update_flip_map(instance: "BaseModel", changed_fields: list[str] | None, bat
     Args:
         instance: The domain model instance being saved.
         changed_fields: Field names being updated, or None for a full save
-            (all FLIP-tracked fields are updated).
-        batch_id: The active batch ID from tap_grid.context.
+            (all service-writeable fields are stamped).
+        batch_id: The active batch ID from CallerContext. If None, returns
+            False without raising — direct ORM saves outside the service layer
+            simply do not record provenance.
 
     Returns:
         True if flip_map was modified (so the caller can include "flip_map"
         in update_fields when doing a partial save).
-
-    Raises:
-        NoBatchContextError: If FLIP is enabled for this model but no batch
-            context is active.
     """
-    config = get_model_flip_config(instance.__class__)
-    flip_cfg = config.get("flip", {})
-
-    if not flip_cfg.get("enabled", False):
+    if not batch_id:
         return False
 
-    if not batch_id:
-        from tap_grid.exceptions import NoBatchContextError
+    if getattr(instance.__class__, "INTERNAL_ONLY", False):
+        return False
 
-        raise NoBatchContextError(
-            f"{instance.__class__.__name__} has FLIP enabled but was saved without an "
-            "active CallerContext. All FLIP-enabled writes must flow through the service layer "
-            "with a CallerContext carrying a batch_id."
-        )
-
-    tracked: set[str] = set(flip_cfg.get("fields", []))
-    if not tracked:
+    service_fields = _get_service_writeable_fields(instance.__class__)
+    if not service_fields:
         return False
 
     if changed_fields is None:
-        # Full save — stamp all tracked fields.
-        target = tracked
+        target = service_fields
     else:
-        target = tracked & set(changed_fields)
+        target = service_fields & set(changed_fields)
 
     if not target:
         return False

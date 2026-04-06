@@ -21,40 +21,13 @@ class Page(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "page"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
 
-    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
-        "create": {
-            "type": "object",
-            "required": ["name", "slug"],
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string", "minLength": 1},
-                "slug": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-                "layout": {"type": "object"},
-            },
-        },
-        "patch": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string", "minLength": 1},
-                "slug": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-                "layout": {"type": "object"},
-            },
-        },
-        "replace": {
-            "type": "object",
-            "required": ["name", "slug"],
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string", "minLength": 1},
-                "slug": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-                "layout": {"type": "object"},
-            },
-        },
+    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+        "name": {"type": "string", "minLength": 1},
+        "slug": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "layout": {"type": "object"},
     }
+    CREATE_REQUIRED: ClassVar[list[str]] = ["name", "slug"]
 
     # Hotlink contract: panel-id values embedded in layout must exactly match
     # the hotlink.value on the page's outbound USES_PANEL edges.
@@ -121,61 +94,20 @@ class Panel(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "panel"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
 
-    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
-        "create": {
-            "type": "object",
-            "required": ["slug", "name", "view"],
-            "additionalProperties": False,
-            "properties": {
-                "slug": {"type": "string", "minLength": 1},
-                "name": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-                "view": {"type": "string", "minLength": 1},
-                "editor_view": {"type": "string"},
-                "config": {"type": "object"},
-                "js": {"type": "array", "items": {"type": "string"}},
-                "css": {"type": "array", "items": {"type": "string"}},
-                "editor_js": {"type": "array", "items": {"type": "string"}},
-                "editor_css": {"type": "array", "items": {"type": "string"}},
-                "input_vars": {"type": "array", "items": {"type": "string"}},
-            },
-        },
-        "patch": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "slug": {"type": "string", "minLength": 1},
-                "name": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-                "view": {"type": "string", "minLength": 1},
-                "editor_view": {"type": "string"},
-                "config": {"type": "object"},
-                "js": {"type": "array", "items": {"type": "string"}},
-                "css": {"type": "array", "items": {"type": "string"}},
-                "editor_js": {"type": "array", "items": {"type": "string"}},
-                "editor_css": {"type": "array", "items": {"type": "string"}},
-                "input_vars": {"type": "array", "items": {"type": "string"}},
-            },
-        },
-        "replace": {
-            "type": "object",
-            "required": ["slug", "name", "view"],
-            "additionalProperties": False,
-            "properties": {
-                "slug": {"type": "string", "minLength": 1},
-                "name": {"type": "string", "minLength": 1},
-                "description": {"type": "string"},
-                "view": {"type": "string", "minLength": 1},
-                "editor_view": {"type": "string"},
-                "config": {"type": "object"},
-                "js": {"type": "array", "items": {"type": "string"}},
-                "css": {"type": "array", "items": {"type": "string"}},
-                "editor_js": {"type": "array", "items": {"type": "string"}},
-                "editor_css": {"type": "array", "items": {"type": "string"}},
-                "input_vars": {"type": "array", "items": {"type": "string"}},
-            },
-        },
+    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+        "slug": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "view": {"type": "string", "minLength": 1},
+        "editor_view": {"type": "string"},
+        "config": {"type": "object"},
+        "js": {"type": "array", "items": {"type": "string"}},
+        "css": {"type": "array", "items": {"type": "string"}},
+        "editor_js": {"type": "array", "items": {"type": "string"}},
+        "editor_css": {"type": "array", "items": {"type": "string"}},
+        "input_vars": {"type": "array", "items": {"type": "string"}},
     }
+    CREATE_REQUIRED: ClassVar[list[str]] = ["slug", "name", "view"]
 
     slug = models.CharField(
         max_length=255,
@@ -250,31 +182,9 @@ class LandingPage(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "landing_page"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
 
-    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {
-        "create": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string"},
-                "description": {"type": "string"},
-            },
-        },
-        "patch": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string"},
-                "description": {"type": "string"},
-            },
-        },
-        "replace": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "name": {"type": "string"},
-                "description": {"type": "string"},
-            },
-        },
+    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
     }
 
     name = models.CharField(max_length=255, blank=True, default="")

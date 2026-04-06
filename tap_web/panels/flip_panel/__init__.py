@@ -78,7 +78,7 @@ def get_flip_context_for_entity(entity_id: str) -> dict[str, Any]:
         return {"flip_subject": entity, "flip_rows": [], "flip_error": None}
 
     # Batch-load Batch records to avoid N+1 queries.
-    from tap_grid.batch_service import get_batch
+    from tap_grid.batch import get_batch
 
     unique_batch_ids = set(flip_map.values())
     batches: dict[str, Any] = {}

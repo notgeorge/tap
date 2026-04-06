@@ -1,4 +1,4 @@
-# Grid Traversal Specification
+# Grid gryphon Specification
 
 ## Philosophy
 
@@ -6,24 +6,24 @@ TAP needs a compact, graph-native language for describing traversals as durable 
 rather than scattering ad hoc Python, ORM fragments, or SQL across panels, alias rules, and
 future AI-generated query definitions.
 
-This language should feel familiar to anyone who has seen Cypher while remaining intentionally
-smaller and easier to reason about. The goal is not full Cypher compatibility. The goal is a
-TAP-native traversal representation that is concise enough to store as strings, expressive enough
-to describe real graph walks, and constrained enough to compile safely into TAP-controlled
-execution plans.
+This language is named gryphon, a TAP portmanteau of "grid" and "cypher." gryphon should feel
+familiar to anyone who has seen Cypher while remaining intentionally smaller and easier to reason
+about. The goal is not full Cypher compatibility. The goal is a TAP-native traversal
+representation that is concise enough to store as strings, expressive enough to describe real
+graph walks, and constrained enough to compile safely into TAP-controlled execution plans.
 
-Traversal expressions describe graph shape, binding, filtering, and projection. They are not
-the same thing as execution packaging. A traversal may be executed in graph-envelope mode,
-projected row mode, or another TAP-defined result shape without changing the traversal text.
+gryphon expressions describe graph shape, binding, filtering, and projection. They are not the
+same thing as execution packaging. A gryphon expression may be executed in graph-envelope mode,
+projected row mode, or another TAP-defined result shape without changing the gryphon text.
 
 ## Goals
 
 |    |              |                                                                                      |
 | :---: | ---       | ---                                                                                  |
-| 1. | Compact       | Represent common graph traversals in a short string-friendly form                    |
+| 1. | Compact       | Represent common graph traversals in a short string-friendly gryphon form            |
 | 2. | Familiar      | Reuse Cypher-like shape and notation where it improves readability                   |
 | 3. | Reusable      | Support storage on Search objects, alias rules, naming policies, and panel config    |
-| 4. | Safe          | Keep the language narrow enough to compile into TAP-controlled read-only execution    |
+| 4. | Safe          | Keep gryphon narrow enough to compile into TAP-controlled read-only execution        |
 | 5. | Parameterized | Support runtime inputs and named bindings without requiring query text rewriting      |
 | 6. | Graph-Native  | Express graph walks, path bindings, and graph-field filters directly                 |
 
@@ -31,8 +31,8 @@ projected row mode, or another TAP-defined result shape without changing the tra
 
 | Sub-Spec | Status | Description |
 | --- | :---: | --- |
-| [Traversal Language](spec-grid-traversal-language.md) | Approved for Development | Language surface: clauses, patterns, filters, params, return semantics |
-| [Traversal Execution](spec-grid-traversal-execution.md) | Approved for Development | Execution pipeline, compiler strategy, safety scope |
+| [gryphon Language](spec-grid-traversal-language.md) | Approved for Development | Language surface: clauses, patterns, filters, params, return semantics |
+| [gryphon Execution](spec-grid-traversal-execution.md) | Approved for Development | Execution pipeline, compiler strategy, safety scope |
 
 ## Requirements Summary
 
@@ -51,7 +51,7 @@ projected row mode, or another TAP-defined result shape without changing the tra
 
 ## Explanation
 
-Traversal is the compact graph representation TAP uses when the important thing is the path itself:
+gryphon is the compact graph representation TAP uses when the important thing is the path itself:
 
 - neighborhood lookups such as "everything connected one hop away"
 - alias offer path declaration
@@ -63,12 +63,12 @@ This specification deliberately separates:
 
 | Concept | Meaning |
 | --- | --- |
-| Traversal text | The compact path/query expression stored in TAP |
-| Traversal bindings | Named variables bound during matching |
+| gryphon text | The compact path/query expression stored in TAP |
+| gryphon bindings | Named variables bound during matching |
 | Execution plan | TAP-controlled compiled form used for ORM, SQL, or future engines |
 | Result packaging | TAP-level choice of graph envelope, projection rows, or another result shape |
 
-New traversal capabilities (aggregation, subqueries, time-travel reads) get their own sub-spec
+New gryphon capabilities (aggregation, subqueries, time-travel reads) get their own sub-spec
 rather than growing the language or execution sub-specs.
 
 

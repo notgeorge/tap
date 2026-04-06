@@ -13,7 +13,7 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
 from tap_web.neighborhood import get_entity_neighborhood
-from tap_web.page_service import get_landing_page, get_page_by_slug, get_page_panels, parse_panel_url_id
+from tap_web.page import get_landing_page, get_page_by_slug, get_page_panels, parse_panel_url_id
 
 logger = logging.getLogger(__name__)
 
@@ -341,7 +341,7 @@ def _object_editor_context(
     extra: dict | None = None,
 ) -> dict:
     """Build template context for the generic object editor page."""
-    graph_ctx = get_entity_neighborhood(getattr(obj, "entity_id"))
+    graph_ctx = get_entity_neighborhood(obj.entity_id)
     return {
         "obj": obj,
         "obj_name": str(obj),
@@ -366,7 +366,7 @@ def _object_editor_context(
 _STANDARD_PANEL_FIELDS = frozenset({"name", "description"})
 
 
-def _build_caller_context(request: HttpRequest) -> "CallerContext":
+def _build_caller_context(request: HttpRequest) -> CallerContext:
     """Build a CallerContext from the current HTTP request."""
     from tap_grid.caller_context import CallerContext
 
@@ -484,7 +484,7 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
     """Render a live all-nodes + all-edges view when no LandingPage is configured."""
     from tap_grid.models import Entity as _Entity
     from tap_grid.models import Search
-    from tap_grid.search_service import execute_search
+    from tap_grid.search import execute_search
     from tap_web.panels.table_panel import _safe_int, _safe_json
 
     _SEARCH_DB = "search_readonly"

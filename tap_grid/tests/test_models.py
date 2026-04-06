@@ -4,6 +4,7 @@ import pytest
 from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured
 
+from plugins.lotr.models import Character, Location
 from tap_grid.constraints import (
     _edge_property_schema_registry,
     register_edge_property_schema,
@@ -13,7 +14,6 @@ from tap_grid.models import Edge, Entity, EntityType
 from tap_grid.registry import get_model_class, register_entity_type, resolve_entity
 from tap_grid.services import create_entity
 from tap_plugins.base import TapPluginConfig
-from plugins.lotr.models import Character, Location
 
 
 @pytest.mark.django_db

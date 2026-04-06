@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from tap_grid.models import User
 
-_caller_context: contextvars.ContextVar["CallerContext | None"] = contextvars.ContextVar(
+_caller_context: contextvars.ContextVar[CallerContext | None] = contextvars.ContextVar(
     "caller_context",
     default=None,
 )
@@ -35,7 +35,7 @@ class CallerContext:
             layer will generate a new batch_id for this operation.
     """
 
-    user: "User | None" = None
+    user: User | None = None
     batch_id: str | None = None
 
 

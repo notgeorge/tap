@@ -6,16 +6,20 @@ Usage:
 
 Creates Middle-earth entities and edges for development and testing.
 Only runs when DEBUG=True. Idempotent - safe to run multiple times.
-"""
 
-import uuid
+All nodes and edges are created through the TAP service layer so that
+this command exercises constraint validation, FLIP provenance stamping,
+and batch tracking on every run.
+"""
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from tap_grid.caller_context import CallerContext, set_caller_context
-from tap_grid.models import Edge, Entity, Search
-from plugins.lotr.models import Artifact, Character, Faction, Location, Race
+from tap_grid.batch import create_batch
+from tap_grid.caller_context import CallerContext
+from tap_grid.models import Entity
+from tap_grid.service_types import WriteOperation
+from tap_grid.services import create_node, write_batch
 
 
 class Command(BaseCommand):
@@ -23,14 +27,14 @@ class Command(BaseCommand):
 
     # Characters
     CHARACTERS = [
-        {"name": "Frodo Baggins", "title": "Ring-bearer", "bio": "A hobbit of the Shire who inherits the One Ring."},
-        {"name": "Gandalf", "title": "The Grey", "bio": "A wizard and member of the Istari."},
-        {"name": "Aragorn", "title": "King of Gondor", "bio": "Heir of Isildur, ranger of the North."},
-        {"name": "Samwise Gamgee", "title": "Gardener", "bio": "Frodo's loyal companion."},
-        {"name": "Legolas", "title": "Prince of Mirkwood", "bio": "An elven archer."},
-        {"name": "Gimli", "title": "Son of Gloin", "bio": "A dwarf warrior."},
-        {"name": "Sauron", "title": "The Dark Lord", "bio": "Creator of the One Ring."},
-        {"name": "Bilbo Baggins", "title": "Burglar", "bio": "Frodo's uncle, found the Ring."},
+        {"name": "Frodo Baggins", "bio": "A hobbit of the Shire who inherits the One Ring."},
+        {"name": "Gandalf", "bio": "A wizard and member of the Istari."},
+        {"name": "Aragorn", "bio": "Heir of Isildur, ranger of the North."},
+        {"name": "Samwise Gamgee", "bio": "Frodo's loyal companion."},
+        {"name": "Legolas", "bio": "An elven archer."},
+        {"name": "Gimli", "bio": "A dwarf warrior."},
+        {"name": "Sauron", "bio": "Creator of the One Ring."},
+        {"name": "Bilbo Baggins", "bio": "Frodo's uncle, found the Ring."},
     ]
 
     # Locations
@@ -68,7 +72,7 @@ class Command(BaseCommand):
         {"name": "Rohan", "purpose": "Defend the Riddermark."},
     ]
 
-    # Edges to create (source_name, target_name, edge_type)
+    # Edges to create: (source_name, target_name, edge_type[, properties])
     EDGES = [
         # WIELDS edges
         ("Frodo Baggins", "The One Ring", "WIELDS"),
@@ -114,7 +118,7 @@ class Command(BaseCommand):
         # Faction edges
         ("Fellowship of the Ring", "Forces of Mordor", "ENEMIES_WITH"),
         ("Fellowship of the Ring", "Rohan", "ALLIES_WITH"),
-        # MENTORS edge (requires discipline property per edge constraint)
+        # MENTORS edges (requires discipline property per edge constraint)
         ("Gandalf", "Frodo Baggins", "MENTORS", {"discipline": "wizardry"}),
         ("Bilbo Baggins", "Frodo Baggins", "MENTORS", {"discipline": "adventure"}),
     ]
@@ -124,490 +128,120 @@ class Command(BaseCommand):
             self.stderr.write(self.style.WARNING("LOTR seed data skipped: DEBUG=False"))
             return
 
-        # Provide a CallerContext so FLIP-enabled models (Character, Artifact, etc.)
-        # can stamp batch_id without raising NoBatchContextError.
-        seed_batch_id = str(uuid.uuid7())
-        set_caller_context(CallerContext(user=None, batch_id=seed_batch_id))
+        # One CallerContext for the entire seed run so all writes share a batch.
+        batch = create_batch(source="seed_lotr_data", title="Initial seed upload")
+        ctx = CallerContext(user=None, batch_id=str(batch.entity_id))
 
         self.stdout.write("Seeding LOTR data...")
-        entities: dict[str, Entity] = {}
 
-        # Create characters
+        # entity_ids maps display name -> entity UUID string for edge creation.
+        entity_ids: dict[str, str] = {}
+
         for char in self.CHARACTERS:
-            entity, created = Entity.objects.get_or_create(
-                entity_type="character",
-                name=char["name"],
-            )
-            if created:
-                Character.objects.create(entity=entity, title=char["title"], bio=char["bio"])
-                self.stdout.write(f"  + Character: {char['name']}")
-            entities[char["name"]] = entity
+            entity_id = self._get_or_create_node("character", char, ctx)
+            if entity_id:
+                entity_ids[char["name"]] = entity_id
 
-        # Create locations
         for loc in self.LOCATIONS:
-            entity, created = Entity.objects.get_or_create(
-                entity_type="location",
-                name=loc["name"],
-            )
-            if created:
-                Location.objects.create(entity=entity, realm=loc["realm"], description=loc["description"])
-                self.stdout.write(f"  + Location: {loc['name']}")
-            entities[loc["name"]] = entity
+            entity_id = self._get_or_create_node("location", loc, ctx)
+            if entity_id:
+                entity_ids[loc["name"]] = entity_id
 
-        # Create artifacts
         for art in self.ARTIFACTS:
-            entity, created = Entity.objects.get_or_create(
-                entity_type="artifact",
-                name=art["name"],
-            )
-            if created:
-                Artifact.objects.create(entity=entity, power=art["power"], origin=art["origin"])
-                self.stdout.write(f"  + Artifact: {art['name']}")
-            entities[art["name"]] = entity
+            entity_id = self._get_or_create_node("artifact", art, ctx)
+            if entity_id:
+                entity_ids[art["name"]] = entity_id
 
-        # Create races
         for race in self.RACES:
-            entity, created = Entity.objects.get_or_create(
-                entity_type="race",
-                name=race["name"],
-            )
-            if created:
-                Race.objects.create(entity=entity, homeland=race["homeland"], traits=race["traits"])
-                self.stdout.write(f"  + Race: {race['name']}")
-            entities[race["name"]] = entity
+            entity_id = self._get_or_create_node("race", race, ctx)
+            if entity_id:
+                entity_ids[race["name"]] = entity_id
 
-        # Create factions
         for faction in self.FACTIONS:
-            entity, created = Entity.objects.get_or_create(
-                entity_type="faction",
-                name=faction["name"],
-            )
-            if created:
-                Faction.objects.create(entity=entity, purpose=faction["purpose"])
-                self.stdout.write(f"  + Faction: {faction['name']}")
-            entities[faction["name"]] = entity
+            entity_id = self._get_or_create_node("faction", faction, ctx)
+            if entity_id:
+                entity_ids[faction["name"]] = entity_id
 
-        # Create edges
-        edge_count = 0
-        for edge_def in self.EDGES:
-            source_name, target_name, edge_type = edge_def[0], edge_def[1], edge_def[2]
-            properties: dict = edge_def[3] if len(edge_def) > 3 else {}
+        self.stdout.write(self.style.SUCCESS(f"LOTR seed complete: {len(entity_ids)} entities tracked."))
 
-            from_entity = entities.get(source_name)
-            to_entity = entities.get(target_name)
+        # Edges
+        edge_count = self._seed_edges(entity_ids, ctx)
+        self.stdout.write(self.style.SUCCESS(f"  + {edge_count} new edges created."))
 
-            if not from_entity or not to_entity:
-                self.stderr.write(f"  ! Missing entity for edge: {source_name} -> {target_name}")
-                continue
-
-            edge_exists = Edge.objects.filter(
-                from_entity=from_entity,
-                to_entity=to_entity,
-                edge_type=edge_type,
-            ).exists()
-
-            if not edge_exists:
-                edge_entity = Entity.objects.create(
-                    entity_type="edge",
-                    name=edge_type,
-                )
-                Edge.objects.create(
-                    entity=edge_entity,
-                    from_entity=from_entity,
-                    to_entity=to_entity,
-                    edge_type=edge_type,
-                    properties=properties,
-                )
-                self.stdout.write(f"  + Edge: {source_name} --{edge_type}--> {target_name}")
-                edge_count += 1
-
-        self.stdout.write(self.style.SUCCESS(f"LOTR seed complete: {len(entities)} entities, {edge_count} new edges."))
-
-        # Create Search objects
+        # Searches
         search_count = self._seed_searches()
         self.stdout.write(self.style.SUCCESS(f"  + {search_count} new searches seeded."))
 
-        # Clean up any standalone FLIP demo page from earlier iterations.
+        # Web pages and panels
         self._cleanup_flip_demo_page()
-
-        # Create web pages
         self._seed_web_page()
         self._seed_characters_page()
         self._seed_default_landing()
 
-    def _seed_web_page(self) -> None:
-        """Create a Middle-earth welcome Page with a single Text Panel. Idempotent."""
-        from tap_grid.models import Edge, Entity
-        from tap_web.models import Page, Panel
-        from tap_web.panels.text_panel import TextPanelType
+    # ---------------------------------------------------------------------------
+    # Internal helpers
+    # ---------------------------------------------------------------------------
 
-        # Panel
-        panel, panel_created = Panel.objects.get_or_create(
-            slug="middle-earth-welcome",
-            defaults={
-                "name": "Welcome to Middle-earth",
-                "view": TextPanelType.view,
-                "editor_view": TextPanelType.editor_view,
-                "config": {"text": "hello middle earth"},
-            },
-        )
-        if panel_created:
-            self.stdout.write("  + Panel: Welcome to Middle-earth")
+    def _get_or_create_node(self, type_slug: str, payload: dict, ctx: CallerContext) -> str | None:
+        """Return entity_id for an existing node, or create it via the service layer.
 
-        # Page
-        layout = {
-            "columns": {
-                "col-1": {
-                    "width": "1fr",
-                    "rows": {
-                        "row-1": {"panel-id": "main"},
-                    },
-                }
-            }
-        }
-        page, page_created = Page.objects.get_or_create(
-            slug="/middle-earth",
-            defaults={
-                "name": "Middle-earth",
-                "layout": layout,
-            },
-        )
-        if page_created:
-            self.stdout.write("  + Page: /middle-earth")
-
-        # USES_PANEL edge linking page → panel with panel-id "main"
-        edge_exists = Edge.objects.filter(
-            from_entity=page.entity,
-            to_entity=panel.entity,
-            edge_type="USES_PANEL",
-        ).exists()
-        if not edge_exists:
-            edge_entity = Entity.objects.create(
-                entity_type="edge",
-                name="USES_PANEL",
-            )
-            Edge.objects.create(
-                entity=edge_entity,
-                from_entity=page.entity,
-                to_entity=panel.entity,
-                edge_type="USES_PANEL",
-                properties={"hotlink": {"model": "page", "spec": "page-panels", "value": "main"}},
-            )
-            self.stdout.write("  + Edge: /middle-earth --USES_PANEL[main]--> welcome panel")
-
-    def _seed_characters_page(self) -> None:
-        """Create a /middle-earth/characters Page with a Table Panel of characters. Idempotent.
-
-        Creates:
-          - A Table Panel linked to the 'All LOTR Characters' search via USES_SEARCH.
-          - A Page at /middle-earth/characters with the panel in its layout.
-          - A LandingPage → Page link so the root URL shows the characters table.
+        Idempotency: checks for an existing Entity with matching entity_type + name
+        before calling create_node. If found, returns its ID without creating a duplicate.
         """
-        from tap_grid.models import Edge, Entity, Search
-        from tap_web.models import Page, Panel
-        from tap_web.panels.table_panel import TablePanelType
+        name = payload.get("name", "")
+        existing = Entity.objects.filter(entity_type=type_slug, name=name).first()
+        if existing:
+            return str(existing.id)
 
-        # Table Panel
-        panel, panel_created = Panel.objects.update_or_create(
-            slug="lotr-characters-table",
-            defaults={
-                "name": "LOTR Characters",
-                "view": TablePanelType.view,
-                "editor_view": TablePanelType.editor_view,
-                "css": TablePanelType.css,
-                "js": TablePanelType.js,
-                "config": {
-                    "column_mode": "common_metadata",
-                    "default_limit": 25,
-                },
-            },
-        )
-        if panel_created:
-            self.stdout.write("  + Panel: LOTR Characters (table)")
+        result = create_node(type_slug, payload, caller_context=ctx)
+        if result.success:
+            self.stdout.write(f"  + {type_slug.capitalize()}: {name}")
+            return str(result.entity_id)
 
-        # Link panel → search via USES_SEARCH edge (idempotent)
-        try:
-            search = Search.objects.get(name="All LOTR Characters")
-            uses_search_exists = Edge.objects.filter(
-                from_entity=panel.entity,
-                to_entity=search.entity,
-                edge_type="USES_SEARCH",
-            ).exists()
-            if not uses_search_exists:
-                edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
-                Edge.objects.create(
-                    entity=edge_entity,
-                    from_entity=panel.entity,
-                    to_entity=search.entity,
-                    edge_type="USES_SEARCH",
-                )
-                self.stdout.write("  + Edge: lotr-characters-table --USES_SEARCH--> All LOTR Characters")
-        except Search.DoesNotExist:
-            self.stderr.write("  ! Search 'All LOTR Characters' not found; USES_SEARCH edge skipped.")
+        errors = "; ".join(e.message for e in result.errors)
+        self.stderr.write(f"  ! Failed to create {type_slug} '{name}': {errors}")
+        return None
 
-        # Page
-        layout = {
-            "columns": {
-                "col-1": {
-                    "width": "1fr",
-                    "rows": {
-                        "row-1": {"panel-id": "characters"},
-                    },
-                }
-            }
-        }
-        page, page_created = Page.objects.get_or_create(
-            slug="/middle-earth/characters",
-            defaults={
-                "name": "Middle-earth Characters",
-                "layout": layout,
-            },
-        )
-        if page_created:
-            self.stdout.write("  + Page: /middle-earth/characters")
+    def _seed_edges(self, entity_ids: dict[str, str], ctx: CallerContext) -> int:
+        """Create edges between the seeded entities. Skips edges that already exist."""
+        from tap_grid.models import Edge
 
-        # USES_PANEL edge: page → panel with panel-id "characters"
-        uses_panel_exists = Edge.objects.filter(
-            from_entity=page.entity,
-            to_entity=panel.entity,
-            edge_type="USES_PANEL",
-        ).exists()
-        if not uses_panel_exists:
-            edge_entity = Entity.objects.create(entity_type="edge", name="USES_PANEL")
-            Edge.objects.create(
-                entity=edge_entity,
-                from_entity=page.entity,
-                to_entity=panel.entity,
-                edge_type="USES_PANEL",
-                properties={"hotlink": {"model": "page", "spec": "page-panels", "value": "characters"}},
+        edge_count = 0
+        for edge_def in self.EDGES:
+            source_name, target_name, edge_type = edge_def[0], edge_def[1], edge_def[2]
+            properties: dict = edge_def[3] if len(edge_def) > 3 else {}  # type: ignore[misc]
+
+            from_id = entity_ids.get(source_name)
+            to_id = entity_ids.get(target_name)
+            if not from_id or not to_id:
+                self.stderr.write(f"  ! Missing entity for edge: {source_name} -> {target_name}")
+                continue
+
+            if Edge.objects.filter(from_entity_id=from_id, to_entity_id=to_id, edge_type=edge_type).exists():
+                continue
+
+            payload = {"properties": properties} if properties else {}
+            op = WriteOperation(
+                verb="create_edge",
+                from_target=from_id,
+                to_target=to_id,
+                edge_type=edge_type,
+                payload=payload,
             )
-            self.stdout.write("  + Edge: /middle-earth/characters --USES_PANEL[characters]--> lotr-characters-table")
+            result = write_batch([op], caller_context=ctx)
+            if result.success:
+                self.stdout.write(f"  + Edge: {source_name} --{edge_type}--> {target_name}")
+                edge_count += 1
+            else:
+                errors = "; ".join(e.message for e in result.errors + [e for r in result.results for e in r.errors])
+                self.stderr.write(f"  ! Edge {source_name} --{edge_type}--> {target_name}: {errors}")
 
-
-    def _seed_default_landing(self) -> None:  # noqa: PLR0912
-        """Seed the default landing page: viz panel (top) + nodes table. Idempotent.
-
-        Graph: LandingPage --USES_LANDING_PAGE--> Page
-               Page --USES_PANEL[graph]--> viz Panel
-               Page --USES_PANEL[nodes]--> table Panel
-               viz Panel --USES_LAYOUT[layout-id=default]--> Layout
-               Layout --USES_SEARCH[search-id=main]--> Search (all entities)
-               table Panel --USES_SEARCH--> Search (all entities)
-        """
-        from tap_grid.models import Edge, Entity, Search
-        from tap_web.models import LandingPage, Page, Panel
-        from tap_web.panels.table_panel import TablePanelType
-        from tap_viz.models import Layout
-        from tap_viz.panels.graph_panel import GraphPanelType
-
-        # --- Searches ---
-        all_entities_search, _ = Search.objects.get_or_create(
-            name="All Grid Entities",
-            defaults={
-                "description": "All entity nodes in the grid.",
-                "search_type": "orm",
-                "root": "node",
-                "definition": {"filters": {}, "order_by": ["name"]},
-                "default_limit": 200,
-                "max_limit": 500,
-            },
-        )
-        all_edges_search, _ = Search.objects.get_or_create(
-            name="All Grid Edges",
-            defaults={
-                "description": "All edges in the grid.",
-                "search_type": "orm",
-                "root": "edge",
-                "definition": {"filters": {}, "order_by": ["entity_id"]},
-                "default_limit": 500,
-                "max_limit": 2000,
-            },
-        )
-
-        # --- Layout entity ---
-        layout_entity, layout_entity_created = Entity.objects.get_or_create(
-            entity_type="layout",
-            name="Grid Overview",
-        )
-        _layout_definition = {
-            "inputs": [],
-            "steps": [{"type": "search", "search-id": "main"}],
-            "presentation": {"placement": "cytoscape:grid"},
-            "interactions": {},
-        }
-        layout, layout_created = Layout.objects.update_or_create(
-            entity=layout_entity,
-            defaults={
-                "name": "Grid Overview",
-                "description": "All entities in the grid shown as a graph.",
-                "definition": _layout_definition,
-            },
-        )
-        if layout_created:
-            self.stdout.write("  + Layout: Grid Overview")
-
-        # USES_SEARCH: Layout -> all_entities_search
-        if not Edge.objects.filter(
-            from_entity=layout.entity,
-            to_entity=all_entities_search.entity,
-            edge_type="USES_SEARCH",
-        ).exists():
-            edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
-            Edge.objects.create(
-                entity=edge_entity,
-                from_entity=layout.entity,
-                to_entity=all_entities_search.entity,
-                edge_type="USES_SEARCH",
-                properties={"search-id": "main"},
-            )
-            self.stdout.write("  + Edge: Grid Overview --USES_SEARCH[main]--> All Grid Entities")
-
-        # USES_SEARCH: Layout -> all_edges_search
-        if not Edge.objects.filter(
-            from_entity=layout.entity,
-            to_entity=all_edges_search.entity,
-            edge_type="USES_SEARCH",
-        ).exists():
-            edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
-            Edge.objects.create(
-                entity=edge_entity,
-                from_entity=layout.entity,
-                to_entity=all_edges_search.entity,
-                edge_type="USES_SEARCH",
-                properties={"search-id": "edges"},
-            )
-            self.stdout.write("  + Edge: Grid Overview --USES_SEARCH[edges]--> All Grid Edges")
-
-        # --- Graph panel ---
-        graph_panel, graph_panel_created = Panel.objects.update_or_create(
-            slug="grid-overview-graph",
-            defaults={
-                "name": "Grid Overview",
-                "view": GraphPanelType.view,
-                "js": GraphPanelType.js,
-                "css": GraphPanelType.css,
-                "config": {},
-            },
-        )
-        if graph_panel_created:
-            self.stdout.write("  + Panel: Grid Overview (graph)")
-
-        # USES_LAYOUT: graph_panel -> layout
-        if not Edge.objects.filter(
-            from_entity=graph_panel.entity,
-            to_entity=layout.entity,
-            edge_type="USES_LAYOUT",
-        ).exists():
-            edge_entity = Entity.objects.create(entity_type="edge", name="USES_LAYOUT")
-            Edge.objects.create(
-                entity=edge_entity,
-                from_entity=graph_panel.entity,
-                to_entity=layout.entity,
-                edge_type="USES_LAYOUT",
-                properties={"layout-id": "default"},
-            )
-            self.stdout.write("  + Edge: grid-overview-graph --USES_LAYOUT[default]--> Grid Overview")
-
-        # --- Nodes table panel ---
-        table_panel, table_panel_created = Panel.objects.update_or_create(
-            slug="grid-all-nodes-table",
-            defaults={
-                "name": "All Entities",
-                "view": TablePanelType.view,
-                "editor_view": TablePanelType.editor_view,
-                "js": TablePanelType.js,
-                "css": TablePanelType.css,
-                "config": {"column_mode": "common_metadata", "default_limit": 25},
-            },
-        )
-        if table_panel_created:
-            self.stdout.write("  + Panel: All Entities (table)")
-
-        # USES_SEARCH: table_panel -> all_entities_search
-        if not Edge.objects.filter(
-            from_entity=table_panel.entity,
-            to_entity=all_entities_search.entity,
-            edge_type="USES_SEARCH",
-        ).exists():
-            edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
-            Edge.objects.create(
-                entity=edge_entity,
-                from_entity=table_panel.entity,
-                to_entity=all_entities_search.entity,
-                edge_type="USES_SEARCH",
-            )
-            self.stdout.write("  + Edge: grid-all-nodes-table --USES_SEARCH--> All Grid Entities")
-
-        # --- Page ---
-        page_layout = {
-            "columns": {
-                "col-1": {
-                    "width": "1fr",
-                    "rows": {
-                        "row-1": {"panel-id": "graph"},
-                        "row-2": {"panel-id": "nodes"},
-                    },
-                }
-            }
-        }
-        page, page_created = Page.objects.get_or_create(
-            slug="/grid",
-            defaults={"name": "Grid", "layout": page_layout},
-        )
-        if page_created:
-            self.stdout.write("  + Page: /grid (Grid landing)")
-
-        # USES_PANEL: page -> graph_panel
-        if not Edge.objects.filter(
-            from_entity=page.entity, to_entity=graph_panel.entity, edge_type="USES_PANEL"
-        ).exists():
-            edge_entity = Entity.objects.create(entity_type="edge", name="USES_PANEL")
-            Edge.objects.create(
-                entity=edge_entity,
-                from_entity=page.entity,
-                to_entity=graph_panel.entity,
-                edge_type="USES_PANEL",
-                properties={"hotlink": {"model": "page", "spec": "page-panels", "value": "graph"}},
-            )
-            self.stdout.write("  + Edge: /grid --USES_PANEL[graph]--> grid-overview-graph")
-
-        # USES_PANEL: page -> table_panel
-        if not Edge.objects.filter(
-            from_entity=page.entity, to_entity=table_panel.entity, edge_type="USES_PANEL"
-        ).exists():
-            edge_entity = Entity.objects.create(entity_type="edge", name="USES_PANEL")
-            Edge.objects.create(
-                entity=edge_entity,
-                from_entity=page.entity,
-                to_entity=table_panel.entity,
-                edge_type="USES_PANEL",
-                properties={"hotlink": {"model": "page", "spec": "page-panels", "value": "nodes"}},
-            )
-            self.stdout.write("  + Edge: /grid --USES_PANEL[nodes]--> grid-all-nodes-table")
-
-        # --- LandingPage ---
-        landing, landing_created = LandingPage.objects.get_or_create(
-            name="Default",
-            defaults={"description": "Default TAP landing page."},
-        )
-        if landing_created:
-            self.stdout.write("  + LandingPage: Default")
-
-        # USES_LANDING_PAGE: landing -> page
-        if not Edge.objects.filter(
-            from_entity=landing.entity, to_entity=page.entity, edge_type="USES_LANDING_PAGE"
-        ).exists():
-            edge_entity = Entity.objects.create(entity_type="edge", name="USES_LANDING_PAGE")
-            Edge.objects.create(
-                entity=edge_entity,
-                from_entity=landing.entity,
-                to_entity=page.entity,
-                edge_type="USES_LANDING_PAGE",
-            )
-            self.stdout.write("  + Edge: LandingPage --USES_LANDING_PAGE--> /grid")
+        return edge_count
 
     def _seed_searches(self) -> int:
         """Create reusable Search objects for LOTR data exploration. Idempotent."""
+        from tap_grid.models import Search
+
         searches = [
             # --- ORM searches (declarative, no runner needed) ---
             {
@@ -695,7 +329,7 @@ class Command(BaseCommand):
             # --- Module search (runner-backed, includes typed model fields) ---
             {
                 "name": "Characters with Bio",
-                "description": "All characters with title and bio from the typed model.",
+                "description": "All characters with bio from the typed model.",
                 "search_type": "module",
                 "root": "node",
                 "definition": {
@@ -717,15 +351,292 @@ class Command(BaseCommand):
                 count += 1
         return count
 
-    def _cleanup_flip_demo_page(self) -> None:
-        """Remove the standalone /flip demo page and panel from earlier iterations.
+    def _seed_web_page(self) -> None:
+        """Create a Middle-earth welcome Page with a single Text Panel. Idempotent."""
+        from tap_grid.models import Edge, Entity
+        from tap_web.models import Page, Panel
+        from tap_web.panels.text_panel import TextPanelType
 
-        Deletes via the Entity spine so that cascade removes the Page/Panel records too.
-        """
+        panel, panel_created = Panel.objects.get_or_create(
+            slug="middle-earth-welcome",
+            defaults={
+                "name": "Welcome to Middle-earth",
+                "view": TextPanelType.view,
+                "editor_view": TextPanelType.editor_view,
+                "config": {"text": "hello middle earth"},
+            },
+        )
+        if panel_created:
+            self.stdout.write("  + Panel: Welcome to Middle-earth")
+
+        layout = {
+            "columns": {
+                "col-1": {
+                    "width": "1fr",
+                    "rows": {
+                        "row-1": {"panel-id": "main"},
+                    },
+                }
+            }
+        }
+        page, page_created = Page.objects.get_or_create(
+            slug="/middle-earth",
+            defaults={
+                "name": "Middle-earth",
+                "layout": layout,
+            },
+        )
+        if page_created:
+            self.stdout.write("  + Page: /middle-earth")
+
+        edge_exists = Edge.objects.filter(
+            from_entity=page.entity,
+            to_entity=panel.entity,
+            edge_type="USES_PANEL",
+        ).exists()
+        if not edge_exists:
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_PANEL")
+            Edge.objects.create(
+                entity=edge_entity,
+                from_entity=page.entity,
+                to_entity=panel.entity,
+                edge_type="USES_PANEL",
+                properties={"hotlink": {"model": "page", "spec": "page-panels", "value": "main"}},
+            )
+            self.stdout.write("  + Edge: /middle-earth --USES_PANEL[main]--> welcome panel")
+
+    def _seed_characters_page(self) -> None:
+        """Create a /middle-earth/characters Page with a Table Panel. Idempotent."""
+        from tap_grid.models import Edge, Entity, Search
+        from tap_web.models import Page, Panel
+        from tap_web.panels.table_panel import TablePanelType
+
+        panel, panel_created = Panel.objects.update_or_create(
+            slug="lotr-characters-table",
+            defaults={
+                "name": "LOTR Characters",
+                "view": TablePanelType.view,
+                "editor_view": TablePanelType.editor_view,
+                "css": TablePanelType.css,
+                "js": TablePanelType.js,
+                "config": {
+                    "column_mode": "common_metadata",
+                    "default_limit": 25,
+                },
+            },
+        )
+        if panel_created:
+            self.stdout.write("  + Panel: LOTR Characters (table)")
+
+        try:
+            search = Search.objects.get(name="All LOTR Characters")
+            uses_search_exists = Edge.objects.filter(
+                from_entity=panel.entity,
+                to_entity=search.entity,
+                edge_type="USES_SEARCH",
+            ).exists()
+            if not uses_search_exists:
+                edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
+                Edge.objects.create(
+                    entity=edge_entity,
+                    from_entity=panel.entity,
+                    to_entity=search.entity,
+                    edge_type="USES_SEARCH",
+                )
+                self.stdout.write("  + Edge: lotr-characters-table --USES_SEARCH--> All LOTR Characters")
+        except Search.DoesNotExist:
+            self.stderr.write("  ! Search 'All LOTR Characters' not found; USES_SEARCH edge skipped.")
+
+        layout = {
+            "columns": {
+                "col-1": {
+                    "width": "1fr",
+                    "rows": {
+                        "row-1": {"panel-id": "characters"},
+                    },
+                }
+            }
+        }
+        page, page_created = Page.objects.get_or_create(
+            slug="/middle-earth/characters",
+            defaults={
+                "name": "Middle-earth Characters",
+                "layout": layout,
+            },
+        )
+        if page_created:
+            self.stdout.write("  + Page: /middle-earth/characters")
+
+        uses_panel_exists = Edge.objects.filter(
+            from_entity=page.entity,
+            to_entity=panel.entity,
+            edge_type="USES_PANEL",
+        ).exists()
+        if not uses_panel_exists:
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_PANEL")
+            Edge.objects.create(
+                entity=edge_entity,
+                from_entity=page.entity,
+                to_entity=panel.entity,
+                edge_type="USES_PANEL",
+                properties={"hotlink": {"model": "page", "spec": "page-panels", "value": "characters"}},
+            )
+            self.stdout.write("  + Edge: /middle-earth/characters --USES_PANEL[characters]--> lotr-characters-table")
+
+    def _seed_default_landing(self) -> None:  # noqa: PLR0912
+        """Seed the default landing page: viz panel (top) + nodes table. Idempotent."""
+        from tap_grid.models import Edge, Entity, Search
+        from tap_viz.models import Layout
+        from tap_viz.panels.graph_panel import GraphPanelType
+        from tap_web.models import LandingPage, Page, Panel
+        from tap_web.panels.table_panel import TablePanelType
+
+        # --- Searches ---
+        all_entities_search, _ = Search.objects.get_or_create(
+            name="All Grid Entities",
+            defaults={
+                "description": "All entity nodes in the grid.",
+                "search_type": "orm",
+                "root": "node",
+                "definition": {"filters": {}, "order_by": ["name"]},
+                "default_limit": 200,
+                "max_limit": 500,
+            },
+        )
+        all_edges_search, _ = Search.objects.get_or_create(
+            name="All Grid Edges",
+            defaults={
+                "description": "All edges in the grid.",
+                "search_type": "orm",
+                "root": "edge",
+                "definition": {"filters": {}, "order_by": ["entity_id"]},
+                "default_limit": 500,
+                "max_limit": 2000,
+            },
+        )
+
+        # --- Layout entity ---
+        layout_entity, _ = Entity.objects.get_or_create(
+            entity_type="layout",
+            name="Grid Overview",
+        )
+        _layout_definition = {
+            "inputs": [],
+            "steps": [{"type": "search", "search-id": "main"}],
+            "presentation": {"placement": "cytoscape:grid"},
+            "interactions": {},
+        }
+        layout, layout_created = Layout.objects.update_or_create(
+            entity=layout_entity,
+            defaults={
+                "name": "Grid Overview",
+                "description": "All entities in the grid shown as a graph.",
+                "definition": _layout_definition,
+            },
+        )
+        if layout_created:
+            self.stdout.write("  + Layout: Grid Overview")
+
+        if not Edge.objects.filter(from_entity=layout.entity, to_entity=all_entities_search.entity, edge_type="USES_SEARCH").exists():
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
+            Edge.objects.create(entity=edge_entity, from_entity=layout.entity, to_entity=all_entities_search.entity, edge_type="USES_SEARCH", properties={"search-id": "main"})
+            self.stdout.write("  + Edge: Grid Overview --USES_SEARCH[main]--> All Grid Entities")
+
+        if not Edge.objects.filter(from_entity=layout.entity, to_entity=all_edges_search.entity, edge_type="USES_SEARCH").exists():
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
+            Edge.objects.create(entity=edge_entity, from_entity=layout.entity, to_entity=all_edges_search.entity, edge_type="USES_SEARCH", properties={"search-id": "edges"})
+            self.stdout.write("  + Edge: Grid Overview --USES_SEARCH[edges]--> All Grid Edges")
+
+        # --- Graph panel ---
+        graph_panel, graph_panel_created = Panel.objects.update_or_create(
+            slug="grid-overview-graph",
+            defaults={
+                "name": "Grid Overview",
+                "view": GraphPanelType.view,
+                "js": GraphPanelType.js,
+                "css": GraphPanelType.css,
+                "config": {},
+            },
+        )
+        if graph_panel_created:
+            self.stdout.write("  + Panel: Grid Overview (graph)")
+
+        if not Edge.objects.filter(from_entity=graph_panel.entity, to_entity=layout.entity, edge_type="USES_LAYOUT").exists():
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_LAYOUT")
+            Edge.objects.create(entity=edge_entity, from_entity=graph_panel.entity, to_entity=layout.entity, edge_type="USES_LAYOUT", properties={"layout-id": "default"})
+            self.stdout.write("  + Edge: grid-overview-graph --USES_LAYOUT[default]--> Grid Overview")
+
+        # --- Nodes table panel ---
+        table_panel, table_panel_created = Panel.objects.update_or_create(
+            slug="grid-all-nodes-table",
+            defaults={
+                "name": "All Entities",
+                "view": TablePanelType.view,
+                "editor_view": TablePanelType.editor_view,
+                "js": TablePanelType.js,
+                "css": TablePanelType.css,
+                "config": {"column_mode": "common_metadata", "default_limit": 25},
+            },
+        )
+        if table_panel_created:
+            self.stdout.write("  + Panel: All Entities (table)")
+
+        if not Edge.objects.filter(from_entity=table_panel.entity, to_entity=all_entities_search.entity, edge_type="USES_SEARCH").exists():
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
+            Edge.objects.create(entity=edge_entity, from_entity=table_panel.entity, to_entity=all_entities_search.entity, edge_type="USES_SEARCH")
+            self.stdout.write("  + Edge: grid-all-nodes-table --USES_SEARCH--> All Grid Entities")
+
+        # --- Page ---
+        page_layout = {
+            "columns": {
+                "col-1": {
+                    "width": "1fr",
+                    "rows": {
+                        "row-1": {"panel-id": "graph"},
+                        "row-2": {"panel-id": "nodes"},
+                    },
+                }
+            }
+        }
+        page, page_created = Page.objects.get_or_create(
+            slug="/grid",
+            defaults={"name": "Grid", "layout": page_layout},
+        )
+        if page_created:
+            self.stdout.write("  + Page: /grid (Grid landing)")
+
+        if not Edge.objects.filter(from_entity=page.entity, to_entity=graph_panel.entity, edge_type="USES_PANEL").exists():
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_PANEL")
+            Edge.objects.create(entity=edge_entity, from_entity=page.entity, to_entity=graph_panel.entity, edge_type="USES_PANEL", properties={"hotlink": {"model": "page", "spec": "page-panels", "value": "graph"}})
+            self.stdout.write("  + Edge: /grid --USES_PANEL[graph]--> grid-overview-graph")
+
+        if not Edge.objects.filter(from_entity=page.entity, to_entity=table_panel.entity, edge_type="USES_PANEL").exists():
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_PANEL")
+            Edge.objects.create(entity=edge_entity, from_entity=page.entity, to_entity=table_panel.entity, edge_type="USES_PANEL", properties={"hotlink": {"model": "page", "spec": "page-panels", "value": "nodes"}})
+            self.stdout.write("  + Edge: /grid --USES_PANEL[nodes]--> grid-all-nodes-table")
+
+        # --- LandingPage ---
+        landing, landing_created = LandingPage.objects.get_or_create(
+            name="Default",
+            defaults={"description": "Default TAP landing page."},
+        )
+        if landing_created:
+            self.stdout.write("  + LandingPage: Default")
+
+        if not Edge.objects.filter(from_entity=landing.entity, to_entity=page.entity, edge_type="USES_LANDING_PAGE").exists():
+            edge_entity = Entity.objects.create(entity_type="edge", name="USES_LANDING_PAGE")
+            Edge.objects.create(entity=edge_entity, from_entity=landing.entity, to_entity=page.entity, edge_type="USES_LANDING_PAGE")
+            self.stdout.write("  + Edge: LandingPage --USES_LANDING_PAGE--> /grid")
+
+    def _cleanup_flip_demo_page(self) -> None:
+        """Remove the standalone /flip demo page and panel from earlier iterations."""
         from tap_grid.models import Entity
 
         entity_ids = list(
-            Entity.objects.filter(entity_type__in=["page", "panel"], name__in=["FLIP Demo", "Frodo Baggins — Field Provenance"]).values_list("pk", flat=True)
+            Entity.objects.filter(
+                entity_type__in=["page", "panel"],
+                name__in=["FLIP Demo", "Frodo Baggins — Field Provenance"],
+            ).values_list("pk", flat=True)
         )
         if entity_ids:
             deleted = Entity.objects.filter(pk__in=entity_ids).delete()

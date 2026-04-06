@@ -1,21 +1,20 @@
-"""Tests for req-grid-service-schemas: SERVICE_SCHEMAS startup invariants.
+"""Tests for the FIELD_SCHEMA service contract: startup invariants and synthesis.
 
 Covers:
-  - req-grid-service-schemas-1: All concrete BaseModel subclasses must publish SERVICE_SCHEMAS
-  - req-grid-service-schemas-2: Missing schemas are ImproperlyConfigured at class-definition time
-  - req-grid-service-schemas-3: Schema content spot-checks for Edge and Search
+  - _check_service_contract: all concrete BaseModel subclasses must declare FIELD_SCHEMA
+  - _build_service_schemas: synthesizes correct SERVICE_SCHEMAS from the new ClassVars
+  - Content spot-checks for Edge, Search, and Character
 """
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import jsonschema
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 
-from tap_grid.models import BaseModel, Edge, Search
 from plugins.lotr.models import Character
-
+from tap_grid.models import BaseModel, Edge, Search
 
 # ---------------------------------------------------------------------------
 # Minimal abstract base for test-only concrete models (no table, no CASCADE).
@@ -38,59 +37,82 @@ class _TestBaseModel(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class TestServiceSchemasInvariant:
-    """req-grid-service-schemas-1/2: startup checks fire at class definition."""
+class TestServiceContractInvariant:
+    """_check_service_contract fires at class definition for concrete subclasses."""
 
-    def test_missing_service_schemas_raises(self):
-        """Concrete subclass missing SERVICE_SCHEMAS raises ImproperlyConfigured."""
-        with pytest.raises(ImproperlyConfigured, match="SERVICE_SCHEMAS"):
+    def test_missing_field_schema_raises(self):
+        """Concrete subclass missing FIELD_SCHEMA raises ImproperlyConfigured."""
+        with pytest.raises(ImproperlyConfigured, match="FIELD_SCHEMA"):
 
-            class _NoSchemas(_TestBaseModel):
-                ENTITY_TYPE: ClassVar[str] = "test_no_schemas_xyz"
-
-                class Meta(_TestBaseModel.Meta):
-                    managed = False
-
-    def test_missing_required_key_raises(self):
-        """SERVICE_SCHEMAS missing 'patch' raises ImproperlyConfigured."""
-        with pytest.raises(ImproperlyConfigured, match="'patch'"):
-
-            class _MissingPatch(_TestBaseModel):
-                ENTITY_TYPE: ClassVar[str] = "test_missing_patch_xyz"
-                SERVICE_SCHEMAS: ClassVar[dict] = {
-                    "create": {"type": "object", "additionalProperties": False, "properties": {}},
-                    "replace": {"type": "object", "additionalProperties": False, "properties": {}},
-                }
+            class _NoSchema(_TestBaseModel):
+                ENTITY_TYPE: ClassVar[str] = "test_no_schema_xyz"
 
                 class Meta(_TestBaseModel.Meta):
                     managed = False
 
-    def test_unknown_key_raises(self):
-        """SERVICE_SCHEMAS with an unrecognised key raises ImproperlyConfigured."""
-        with pytest.raises(ImproperlyConfigured, match="unknown key"):
-
-            class _UnknownKey(_TestBaseModel):
-                ENTITY_TYPE: ClassVar[str] = "test_unknown_key_xyz"
-                SERVICE_SCHEMAS: ClassVar[dict] = {
-                    "create": {"type": "object", "additionalProperties": False, "properties": {}},
-                    "patch": {"type": "object", "additionalProperties": False, "properties": {}},
-                    "replace": {"type": "object", "additionalProperties": False, "properties": {}},
-                    "destroy": {"type": "object"},
-                }
-
-                class Meta(_TestBaseModel.Meta):
-                    managed = False
-
-    def test_non_dict_value_raises(self):
-        """SERVICE_SCHEMAS with a non-dict value raises ImproperlyConfigured."""
+    def test_field_schema_non_dict_raises(self):
+        """FIELD_SCHEMA that is not a dict raises ImproperlyConfigured."""
         with pytest.raises(ImproperlyConfigured, match="must be a dict"):
 
-            class _BadValue(_TestBaseModel):
-                ENTITY_TYPE: ClassVar[str] = "test_bad_value_xyz"
-                SERVICE_SCHEMAS: ClassVar[dict] = {
-                    "create": "not a dict",  # type: ignore[dict-item]
-                    "patch": {"type": "object", "additionalProperties": False, "properties": {}},
-                    "replace": {"type": "object", "additionalProperties": False, "properties": {}},
+            class _BadSchema(_TestBaseModel):
+                ENTITY_TYPE: ClassVar[str] = "test_bad_schema_xyz"
+                FIELD_SCHEMA: ClassVar[Any] = "not a dict"  # type: ignore[assignment]
+
+                class Meta(_TestBaseModel.Meta):
+                    managed = False
+
+    def test_field_schema_entry_non_dict_raises(self):
+        """FIELD_SCHEMA entry that is not a dict raises ImproperlyConfigured."""
+        with pytest.raises(ImproperlyConfigured, match="must be a dict"):
+
+            class _BadEntry(_TestBaseModel):
+                ENTITY_TYPE: ClassVar[str] = "test_bad_entry_xyz"
+                FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                    "name": "not a dict",  # type: ignore[dict-item]
+                }
+
+                class Meta(_TestBaseModel.Meta):
+                    managed = False
+
+    def test_create_required_unknown_field_raises(self):
+        """CREATE_REQUIRED referencing a field not in FIELD_SCHEMA raises."""
+        with pytest.raises(ImproperlyConfigured, match="not in FIELD_SCHEMA"):
+
+            class _BadRequired(_TestBaseModel):
+                ENTITY_TYPE: ClassVar[str] = "test_bad_required_xyz"
+                FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                    "name": {"type": "string"},
+                }
+                CREATE_REQUIRED: ClassVar[list[str]] = ["name", "unknown_field"]
+
+                class Meta(_TestBaseModel.Meta):
+                    managed = False
+
+    def test_replace_required_unknown_field_raises(self):
+        """REPLACE_REQUIRED referencing a field not in FIELD_SCHEMA raises."""
+        with pytest.raises(ImproperlyConfigured, match="not in FIELD_SCHEMA"):
+
+            class _BadReplaceRequired(_TestBaseModel):
+                ENTITY_TYPE: ClassVar[str] = "test_bad_replace_req_xyz"
+                FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                    "name": {"type": "string"},
+                }
+                REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "ghost_field"]
+
+                class Meta(_TestBaseModel.Meta):
+                    managed = False
+
+    def test_patch_extra_fields_non_dict_value_raises(self):
+        """PATCH_EXTRA_FIELDS with a non-dict value raises ImproperlyConfigured."""
+        with pytest.raises(ImproperlyConfigured, match="must be a dict"):
+
+            class _BadPatchExtra(_TestBaseModel):
+                ENTITY_TYPE: ClassVar[str] = "test_bad_patch_extra_xyz"
+                FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                    "name": {"type": "string"},
+                }
+                PATCH_EXTRA_FIELDS: ClassVar[dict[str, Any]] = {
+                    "status": "not a dict",  # type: ignore[dict-item]
                 }
 
                 class Meta(_TestBaseModel.Meta):
@@ -103,45 +125,135 @@ class TestServiceSchemasInvariant:
             class Meta(_TestBaseModel.Meta):
                 abstract = True
 
-        # If we get here without ImproperlyConfigured, the invariant was correctly skipped.
-        assert not hasattr(_AbstractMiddle, "SERVICE_SCHEMAS") or True  # always passes
+        assert True  # reaching here means no ImproperlyConfigured was raised
 
-    def test_valid_service_schemas_accepted(self):
-        """A concrete class with all required keys and dict values is accepted."""
+    def test_valid_field_schema_accepted(self):
+        """A concrete class with valid FIELD_SCHEMA is accepted and SERVICE_SCHEMAS synthesized."""
 
         class _Valid(_TestBaseModel):
             ENTITY_TYPE: ClassVar[str] = "test_valid_xyz"
-            SERVICE_SCHEMAS: ClassVar[dict] = {
-                "create": {"type": "object", "additionalProperties": False, "properties": {}},
-                "patch": {"type": "object", "additionalProperties": False, "properties": {}},
-                "replace": {"type": "object", "additionalProperties": False, "properties": {}},
+            FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                "name": {"type": "string"},
             }
+            CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
             class Meta(_TestBaseModel.Meta):
                 managed = False
 
-        assert "create" in _Valid.SERVICE_SCHEMAS
-
-    def test_read_key_allowed(self):
-        """'read' key is allowed (deferred but valid) if provided alongside required keys."""
-
-        class _WithRead(_TestBaseModel):
-            ENTITY_TYPE: ClassVar[str] = "test_with_read_xyz"
-            SERVICE_SCHEMAS: ClassVar[dict] = {
-                "create": {"type": "object", "additionalProperties": False, "properties": {}},
-                "patch": {"type": "object", "additionalProperties": False, "properties": {}},
-                "replace": {"type": "object", "additionalProperties": False, "properties": {}},
-                "read": {"type": "object"},
-            }
-
-            class Meta(_TestBaseModel.Meta):
-                managed = False
-
-        assert "read" in _WithRead.SERVICE_SCHEMAS
+        assert {"create", "patch", "replace"} == set(_Valid.SERVICE_SCHEMAS.keys())
 
 
 # ---------------------------------------------------------------------------
-# req-grid-service-schemas-1: all registered concrete models publish schemas
+# Synthesis correctness tests
+# ---------------------------------------------------------------------------
+
+
+class TestServiceSchemasSynthesis:
+    """_build_service_schemas produces correct SERVICE_SCHEMAS from ClassVars."""
+
+    def test_create_required_propagated(self):
+        """CREATE_REQUIRED ends up in SERVICE_SCHEMAS['create']['required']."""
+
+        class _M(_TestBaseModel):
+            ENTITY_TYPE: ClassVar[str] = "test_synth_create_xyz"
+            FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                "name": {"type": "string"},
+                "bio": {"type": "string"},
+            }
+            CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
+
+            class Meta(_TestBaseModel.Meta):
+                managed = False
+
+        assert _M.SERVICE_SCHEMAS["create"]["required"] == ["name"]
+        assert "required" not in _M.SERVICE_SCHEMAS["patch"]
+
+    def test_replace_required_defaults_to_create_required(self):
+        """When REPLACE_REQUIRED is omitted, replace uses CREATE_REQUIRED."""
+
+        class _M(_TestBaseModel):
+            ENTITY_TYPE: ClassVar[str] = "test_synth_replace_default_xyz"
+            FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                "name": {"type": "string"},
+            }
+            CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
+
+            class Meta(_TestBaseModel.Meta):
+                managed = False
+
+        assert _M.SERVICE_SCHEMAS["replace"]["required"] == ["name"]
+
+    def test_replace_required_override(self):
+        """Explicit REPLACE_REQUIRED produces different required from CREATE_REQUIRED."""
+
+        class _M(_TestBaseModel):
+            ENTITY_TYPE: ClassVar[str] = "test_synth_replace_override_xyz"
+            FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                "name": {"type": "string"},
+                "bio": {"type": "string"},
+            }
+            CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
+            REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "bio"]
+
+            class Meta(_TestBaseModel.Meta):
+                managed = False
+
+        assert _M.SERVICE_SCHEMAS["create"]["required"] == ["name"]
+        assert _M.SERVICE_SCHEMAS["replace"]["required"] == ["name", "bio"]
+
+    def test_patch_extra_fields_appear_only_in_patch(self):
+        """PATCH_EXTRA_FIELDS fields appear in patch but not in create or replace."""
+
+        class _M(_TestBaseModel):
+            ENTITY_TYPE: ClassVar[str] = "test_synth_patch_extra_xyz"
+            FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                "name": {"type": "string"},
+            }
+            PATCH_EXTRA_FIELDS: ClassVar[dict[str, Any]] = {
+                "status": {"type": "string"},
+            }
+
+            class Meta(_TestBaseModel.Meta):
+                managed = False
+
+        assert "status" in _M.SERVICE_SCHEMAS["patch"]["properties"]
+        assert "status" not in _M.SERVICE_SCHEMAS["create"]["properties"]
+        assert "status" not in _M.SERVICE_SCHEMAS["replace"]["properties"]
+
+    def test_no_required_fields_produces_no_required_key(self):
+        """A model with no CREATE_REQUIRED produces schemas without 'required'."""
+
+        class _M(_TestBaseModel):
+            ENTITY_TYPE: ClassVar[str] = "test_synth_no_required_xyz"
+            FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                "name": {"type": "string"},
+            }
+
+            class Meta(_TestBaseModel.Meta):
+                managed = False
+
+        assert "required" not in _M.SERVICE_SCHEMAS["create"]
+        assert "required" not in _M.SERVICE_SCHEMAS["replace"]
+        assert "required" not in _M.SERVICE_SCHEMAS["patch"]
+
+    def test_additional_properties_false_in_all_verbs(self):
+        """Synthesized schemas always have additionalProperties: False."""
+
+        class _M(_TestBaseModel):
+            ENTITY_TYPE: ClassVar[str] = "test_synth_addl_props_xyz"
+            FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+                "name": {"type": "string"},
+            }
+
+            class Meta(_TestBaseModel.Meta):
+                managed = False
+
+        for verb in ("create", "patch", "replace"):
+            assert _M.SERVICE_SCHEMAS[verb]["additionalProperties"] is False
+
+
+# ---------------------------------------------------------------------------
+# Concrete model spot-checks
 # ---------------------------------------------------------------------------
 
 

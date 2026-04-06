@@ -5,7 +5,7 @@ import pytest
 from tap_grid.exceptions import SearchExecutionError, SearchRunnerNotFoundError
 from tap_grid.models import Search
 from tap_grid.registry import register_search_runner, search_runner_registry
-from tap_grid.search_service import _execute_module_search, execute_search
+from tap_grid.search import _execute_module_search, execute_search
 
 # ---------------------------------------------------------------------------
 # Registry isolation
