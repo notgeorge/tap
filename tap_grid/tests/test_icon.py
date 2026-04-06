@@ -16,17 +16,22 @@ from tap_grid.models import EntityType
 def register_lotr_types(db):
     """Seed LOTR EntityType records into the test DB.
 
-    Calls the DB-only portion of registration directly to avoid re-registering
-    edge constraints that are already in memory from app startup.
+    Uses the plugin manifest and model class attributes to register entity types,
+    avoiding re-registration of edge constraints already in memory from app startup.
     """
+    from django.utils.module_loading import import_string
+
     app_config = apps.get_app_config("lotr")
-    for et in app_config.entity_types:
+    manifest = app_config.manifest
+
+    for entry in manifest.models:
+        cls = import_string(entry.class_path)
         EntityType.objects.update_or_create(
-            slug=et["slug"],
+            slug=entry.slug,
             defaults={
-                "name": et.get("name", et["slug"]),
-                "icon": et.get("icon", ""),
-                "description": et.get("description", ""),
+                "name": getattr(cls, "ENTITY_NAME", entry.slug),
+                "icon": getattr(cls, "ENTITY_ICON", ""),
+                "description": getattr(cls, "ENTITY_DESCRIPTION", ""),
                 "plugin_name": app_config.name,
             },
         )

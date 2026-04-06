@@ -1,278 +1,117 @@
 """
-Seed LOTR development data for the landing page graph visualization.
+Seed LOTR development data: imports bundled GRIFT data then scaffolds web UI.
 
 Usage:
     docker compose exec web uv run python manage.py seed_lotr_data
 
-Creates Middle-earth entities and edges for development and testing.
-Only runs when DEBUG=True. Idempotent - safe to run multiple times.
+Steps:
+    1. Import core-data.grift.json via grift_import (characters, locations,
+       artifacts, races, factions, edges).
+    2. Seed Search objects for LOTR data exploration.
+    3. Scaffold web pages and panels (Middle-earth, /grid landing page).
 
-All nodes and edges are created through the TAP service layer so that
-this command exercises constraint validation, FLIP provenance stamping,
-and batch tracking on every run.
+Only runs when DEBUG=True. Idempotent — safe to run multiple times.
 """
 
+import json
+
+from django.apps import apps
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from tap_grid.batch import create_batch
-from tap_grid.caller_context import CallerContext
-from tap_grid.models import Entity
-from tap_grid.service_types import WriteOperation
-from tap_grid.services import create_node, write_batch
+from tap_plugins.base import TapPluginConfig
 
 
 class Command(BaseCommand):
-    help = "Seed LOTR data (characters, locations, artifacts, edges). Requires DEBUG=True."
-
-    # Characters
-    CHARACTERS = [
-        {"name": "Frodo Baggins", "bio": "A hobbit of the Shire who inherits the One Ring."},
-        {"name": "Gandalf", "bio": "A wizard and member of the Istari."},
-        {"name": "Aragorn", "bio": "Heir of Isildur, ranger of the North."},
-        {"name": "Samwise Gamgee", "bio": "Frodo's loyal companion."},
-        {"name": "Legolas", "bio": "An elven archer."},
-        {"name": "Gimli", "bio": "A dwarf warrior."},
-        {"name": "Sauron", "bio": "Creator of the One Ring."},
-        {"name": "Bilbo Baggins", "bio": "Frodo's uncle, found the Ring."},
-    ]
-
-    # Locations
-    LOCATIONS = [
-        {"name": "The Shire", "realm": "Eriador", "description": "Peaceful homeland of the Hobbits."},
-        {"name": "Rivendell", "realm": "Eriador", "description": "Elven refuge of Elrond."},
-        {"name": "Mordor", "realm": "Dark Lands", "description": "Domain of Sauron."},
-        {"name": "Gondor", "realm": "South Kingdom", "description": "Kingdom of Men."},
-        {"name": "Minas Tirith", "realm": "Gondor", "description": "The White City."},
-        {"name": "Mount Doom", "realm": "Mordor", "description": "Where the Ring was forged."},
-        {"name": "Mirkwood", "realm": "Rhovanion", "description": "Great forest of the Wood-elves."},
-    ]
-
-    # Artifacts
-    ARTIFACTS = [
-        {"name": "The One Ring", "power": "Dominion over all rings of power.", "origin": "Mount Doom"},
-        {"name": "Sting", "power": "Glows blue near orcs.", "origin": "Gondolin"},
-        {"name": "Anduril", "power": "Reforged from Narsil.", "origin": "Rivendell"},
-        {"name": "Glamdring", "power": "Foe-hammer of Gondolin.", "origin": "Gondolin"},
-    ]
-
-    # Races
-    RACES = [
-        {"name": "Hobbits", "homeland": "The Shire", "traits": "Small, fond of comfort and food."},
-        {"name": "Elves", "homeland": "Various", "traits": "Immortal, wise, skilled in crafts."},
-        {"name": "Dwarves", "homeland": "Erebor", "traits": "Miners, smiths, fierce warriors."},
-        {"name": "Men", "homeland": "Various", "traits": "Mortal, ambitious, numerous."},
-        {"name": "Wizards", "homeland": "Valinor", "traits": "Maiar spirits in mortal form."},
-    ]
-
-    # Factions
-    FACTIONS = [
-        {"name": "Fellowship of the Ring", "purpose": "Destroy the One Ring."},
-        {"name": "Forces of Mordor", "purpose": "Conquer Middle-earth."},
-        {"name": "Rohan", "purpose": "Defend the Riddermark."},
-    ]
-
-    # Edges to create: (source_name, target_name, edge_type[, properties])
-    EDGES = [
-        # WIELDS edges
-        ("Frodo Baggins", "The One Ring", "WIELDS"),
-        ("Frodo Baggins", "Sting", "WIELDS"),
-        ("Aragorn", "Anduril", "WIELDS"),
-        ("Gandalf", "Glamdring", "WIELDS"),
-        # BELONGS_TO edges
-        ("Frodo Baggins", "Hobbits", "BELONGS_TO"),
-        ("Samwise Gamgee", "Hobbits", "BELONGS_TO"),
-        ("Bilbo Baggins", "Hobbits", "BELONGS_TO"),
-        ("Gandalf", "Wizards", "BELONGS_TO"),
-        ("Aragorn", "Men", "BELONGS_TO"),
-        ("Legolas", "Elves", "BELONGS_TO"),
-        ("Gimli", "Dwarves", "BELONGS_TO"),
-        # LOCATED_IN edges
-        ("Frodo Baggins", "The Shire", "LOCATED_IN"),
-        ("Bilbo Baggins", "The Shire", "LOCATED_IN"),
-        ("Sauron", "Mordor", "LOCATED_IN"),
-        ("Legolas", "Mirkwood", "LOCATED_IN"),
-        # MEMBER_OF edges
-        ("Frodo Baggins", "Fellowship of the Ring", "MEMBER_OF"),
-        ("Gandalf", "Fellowship of the Ring", "MEMBER_OF"),
-        ("Aragorn", "Fellowship of the Ring", "MEMBER_OF"),
-        ("Samwise Gamgee", "Fellowship of the Ring", "MEMBER_OF"),
-        ("Legolas", "Fellowship of the Ring", "MEMBER_OF"),
-        ("Gimli", "Fellowship of the Ring", "MEMBER_OF"),
-        ("Sauron", "Forces of Mordor", "MEMBER_OF"),
-        # ALLIES_WITH edges (character-character)
-        ("Frodo Baggins", "Samwise Gamgee", "ALLIES_WITH"),
-        ("Aragorn", "Gandalf", "ALLIES_WITH"),
-        ("Legolas", "Gimli", "ALLIES_WITH"),
-        # ENEMIES_WITH edges
-        ("Gandalf", "Sauron", "ENEMIES_WITH"),
-        ("Aragorn", "Sauron", "ENEMIES_WITH"),
-        # FORGED_IN edges
-        ("The One Ring", "Mount Doom", "FORGED_IN"),
-        # CONTAINS edges
-        ("Mordor", "Mount Doom", "CONTAINS"),
-        ("Gondor", "Minas Tirith", "CONTAINS"),
-        # RULES edges
-        ("Aragorn", "Gondor", "RULES"),
-        ("Sauron", "Mordor", "RULES"),
-        # Faction edges
-        ("Fellowship of the Ring", "Forces of Mordor", "ENEMIES_WITH"),
-        ("Fellowship of the Ring", "Rohan", "ALLIES_WITH"),
-        # MENTORS edges (requires discipline property per edge constraint)
-        ("Gandalf", "Frodo Baggins", "MENTORS", {"discipline": "wizardry"}),
-        ("Bilbo Baggins", "Frodo Baggins", "MENTORS", {"discipline": "adventure"}),
-    ]
+    help = "Seed LOTR data via GRIFT import + web scaffold. Requires DEBUG=True."
 
     def handle(self, *args: object, **options: object) -> None:
         if not settings.DEBUG:
             self.stderr.write(self.style.WARNING("LOTR seed data skipped: DEBUG=False"))
             return
 
-        # One CallerContext for the entire seed run so all writes share a batch.
-        batch = create_batch(source="seed_lotr_data", title="Initial seed upload")
-        ctx = CallerContext(user=None, batch_id=str(batch.entity_id))
-
-        self.stdout.write("Seeding LOTR data...")
-
-        # entity_ids maps display name -> entity UUID string for edge creation.
-        entity_ids: dict[str, str] = {}
-
-        for char in self.CHARACTERS:
-            entity_id = self._get_or_create_node("character", char, ctx)
-            if entity_id:
-                entity_ids[char["name"]] = entity_id
-
-        for loc in self.LOCATIONS:
-            entity_id = self._get_or_create_node("location", loc, ctx)
-            if entity_id:
-                entity_ids[loc["name"]] = entity_id
-
-        for art in self.ARTIFACTS:
-            entity_id = self._get_or_create_node("artifact", art, ctx)
-            if entity_id:
-                entity_ids[art["name"]] = entity_id
-
-        for race in self.RACES:
-            entity_id = self._get_or_create_node("race", race, ctx)
-            if entity_id:
-                entity_ids[race["name"]] = entity_id
-
-        for faction in self.FACTIONS:
-            entity_id = self._get_or_create_node("faction", faction, ctx)
-            if entity_id:
-                entity_ids[faction["name"]] = entity_id
-
-        self.stdout.write(self.style.SUCCESS(f"LOTR seed complete: {len(entity_ids)} entities tracked."))
-
-        # Edges
-        edge_count = self._seed_edges(entity_ids, ctx)
-        self.stdout.write(self.style.SUCCESS(f"  + {edge_count} new edges created."))
-
-        # Searches
-        search_count = self._seed_searches()
-        self.stdout.write(self.style.SUCCESS(f"  + {search_count} new searches seeded."))
-
-        # Web pages and panels
+        self._import_grift()
+        self._seed_searches()
         self._cleanup_flip_demo_page()
         self._seed_web_page()
         self._seed_characters_page()
         self._seed_default_landing()
 
     # ---------------------------------------------------------------------------
-    # Internal helpers
+    # GRIFT import
     # ---------------------------------------------------------------------------
 
-    def _get_or_create_node(self, type_slug: str, payload: dict, ctx: CallerContext) -> str | None:
-        """Return entity_id for an existing node, or create it via the service layer.
+    def _import_grift(self) -> None:
+        """Import core-data.grift.json for the lotr plugin."""
+        from tap_grid.grift import grift_import
 
-        Idempotency: checks for an existing Entity with matching entity_type + name
-        before calling create_node. If found, returns its ID without creating a duplicate.
-        """
-        name = payload.get("name", "")
-        existing = Entity.objects.filter(entity_type=type_slug, name=name).first()
-        if existing:
-            return str(existing.id)
+        lotr_config = apps.get_app_config("lotr")
+        if not isinstance(lotr_config, TapPluginConfig) or lotr_config.manifest is None:
+            self.stderr.write(self.style.ERROR("  ! lotr plugin manifest not loaded; skipping GRIFT import."))
+            return
 
-        result = create_node(type_slug, payload, caller_context=ctx)
-        if result.success:
-            self.stdout.write(f"  + {type_slug.capitalize()}: {name}")
-            return str(result.entity_id)
+        manifest = lotr_config.manifest
+        bundles = manifest.grift
 
-        errors = "; ".join(e.message for e in result.errors)
-        self.stderr.write(f"  ! Failed to create {type_slug} '{name}': {errors}")
-        return None
+        if not bundles:
+            self.stderr.write(self.style.WARNING("  ! No GRIFT bundles declared in lotr manifest."))
+            return
 
-    def _seed_edges(self, entity_ids: dict[str, str], ctx: CallerContext) -> int:
-        """Create edges between the seeded entities. Skips edges that already exist."""
-        from tap_grid.models import Edge
+        for bundle in bundles:
+            grift_path = manifest.plugin_root / bundle.path
+            self.stdout.write(f"  Importing GRIFT bundle '{bundle.name}' ...")
 
-        edge_count = 0
-        for edge_def in self.EDGES:
-            source_name, target_name, edge_type = edge_def[0], edge_def[1], edge_def[2]
-            properties: dict = edge_def[3] if len(edge_def) > 3 else {}  # type: ignore[misc]
+            with open(grift_path) as fh:
+                document = json.load(fh)
 
-            from_id = entity_ids.get(source_name)
-            to_id = entity_ids.get(target_name)
-            if not from_id or not to_id:
-                self.stderr.write(f"  ! Missing entity for edge: {source_name} -> {target_name}")
-                continue
+            result = grift_import(document, dangling_edge_mode="warn", actor=None)
+            counts = result.counts
 
-            if Edge.objects.filter(from_entity_id=from_id, to_entity_id=to_id, edge_type=edge_type).exists():
-                continue
-
-            payload = {"properties": properties} if properties else {}
-            op = WriteOperation(
-                verb="create_edge",
-                from_target=from_id,
-                to_target=to_id,
-                edge_type=edge_type,
-                payload=payload,
-            )
-            result = write_batch([op], caller_context=ctx)
             if result.success:
-                self.stdout.write(f"  + Edge: {source_name} --{edge_type}--> {target_name}")
-                edge_count += 1
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"  + {bundle.name}: {counts.nodes_imported} node(s), "
+                        f"{counts.edges_imported} edge(s) imported"
+                        + (f", {counts.edges_skipped} skipped" if counts.edges_skipped else "")
+                        + "."
+                    )
+                )
+                for issue in result.issues:
+                    self.stdout.write(f"    ~ {issue.phase}: {issue.message}")
             else:
-                errors = "; ".join(e.message for e in result.errors + [e for r in result.results for e in r.errors])
-                self.stderr.write(f"  ! Edge {source_name} --{edge_type}--> {target_name}: {errors}")
+                self.stderr.write(self.style.ERROR(f"  ! GRIFT import failed for '{bundle.name}':"))
+                for issue in result.issues:
+                    self.stderr.write(f"    [{issue.phase}] {issue.path}: {issue.message}")
 
-        return edge_count
+    # ---------------------------------------------------------------------------
+    # Search seeding
+    # ---------------------------------------------------------------------------
 
-    def _seed_searches(self) -> int:
+    def _seed_searches(self) -> None:
         """Create reusable Search objects for LOTR data exploration. Idempotent."""
         from tap_grid.models import Search
 
         searches = [
-            # --- ORM searches (declarative, no runner needed) ---
             {
                 "name": "All LOTR Characters",
                 "description": "Every character in Middle-earth.",
                 "search_type": "orm",
                 "root": "node",
-                "definition": {
-                    "filters": {"entity_type": "character"},
-                    "order_by": ["name"],
-                },
+                "definition": {"filters": {"entity_type": "character"}, "order_by": ["name"]},
             },
             {
                 "name": "All LOTR Locations",
                 "description": "Every location in Middle-earth.",
                 "search_type": "orm",
                 "root": "node",
-                "definition": {
-                    "filters": {"entity_type": "location"},
-                    "order_by": ["name"],
-                },
+                "definition": {"filters": {"entity_type": "location"}, "order_by": ["name"]},
             },
             {
                 "name": "All LOTR Artifacts",
                 "description": "Every significant artifact.",
                 "search_type": "orm",
                 "root": "node",
-                "definition": {
-                    "filters": {"entity_type": "artifact"},
-                    "order_by": ["name"],
-                },
+                "definition": {"filters": {"entity_type": "artifact"}, "order_by": ["name"]},
             },
             {
                 "name": "Characters and Their Artifacts",
@@ -281,13 +120,7 @@ class Command(BaseCommand):
                 "root": "node",
                 "definition": {
                     "filters": {"entity_type": "character"},
-                    "hops": [
-                        {
-                            "direction": "out",
-                            "edge_type": "WIELDS",
-                            "target_filters": {"entity_type": "artifact"},
-                        }
-                    ],
+                    "hops": [{"direction": "out", "edge_type": "WIELDS", "target_filters": {"entity_type": "artifact"}}],
                     "order_by": ["name"],
                 },
             },
@@ -298,13 +131,7 @@ class Command(BaseCommand):
                 "root": "node",
                 "definition": {
                     "filters": {"entity_type": "character"},
-                    "hops": [
-                        {
-                            "direction": "out",
-                            "edge_type": "LOCATED_IN",
-                            "target_filters": {"entity_type": "location"},
-                        }
-                    ],
+                    "hops": [{"direction": "out", "edge_type": "LOCATED_IN", "target_filters": {"entity_type": "location"}}],
                     "order_by": ["name"],
                 },
             },
@@ -326,15 +153,12 @@ class Command(BaseCommand):
                 "root": "edge",
                 "definition": {"filters": {}, "order_by": ["entity_id"]},
             },
-            # --- Module search (runner-backed, includes typed model fields) ---
             {
                 "name": "Characters with Bio",
                 "description": "All characters with bio from the typed model.",
                 "search_type": "module",
                 "root": "node",
-                "definition": {
-                    "runner_key": "plugins.lotr.searches:list-characters-with-bio"
-                },
+                "definition": {"runner_key": "plugins.lotr.searches:list-characters-with-bio"},
             },
         ]
 
@@ -349,7 +173,12 @@ class Command(BaseCommand):
             if created:
                 self.stdout.write(f"  + Search: {name}")
                 count += 1
-        return count
+
+        self.stdout.write(self.style.SUCCESS(f"  + {count} new search(es) created."))
+
+    # ---------------------------------------------------------------------------
+    # Web scaffolding
+    # ---------------------------------------------------------------------------
 
     def _seed_web_page(self) -> None:
         """Create a Middle-earth welcome Page with a single Text Panel. Idempotent."""
@@ -370,31 +199,16 @@ class Command(BaseCommand):
             self.stdout.write("  + Panel: Welcome to Middle-earth")
 
         layout = {
-            "columns": {
-                "col-1": {
-                    "width": "1fr",
-                    "rows": {
-                        "row-1": {"panel-id": "main"},
-                    },
-                }
-            }
+            "columns": {"col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "main"}}}}
         }
         page, page_created = Page.objects.get_or_create(
             slug="/middle-earth",
-            defaults={
-                "name": "Middle-earth",
-                "layout": layout,
-            },
+            defaults={"name": "Middle-earth", "layout": layout},
         )
         if page_created:
             self.stdout.write("  + Page: /middle-earth")
 
-        edge_exists = Edge.objects.filter(
-            from_entity=page.entity,
-            to_entity=panel.entity,
-            edge_type="USES_PANEL",
-        ).exists()
-        if not edge_exists:
+        if not Edge.objects.filter(from_entity=page.entity, to_entity=panel.entity, edge_type="USES_PANEL").exists():
             edge_entity = Entity.objects.create(entity_type="edge", name="USES_PANEL")
             Edge.objects.create(
                 entity=edge_entity,
@@ -419,10 +233,7 @@ class Command(BaseCommand):
                 "editor_view": TablePanelType.editor_view,
                 "css": TablePanelType.css,
                 "js": TablePanelType.js,
-                "config": {
-                    "column_mode": "common_metadata",
-                    "default_limit": 25,
-                },
+                "config": {"column_mode": "common_metadata", "default_limit": 25},
             },
         )
         if panel_created:
@@ -430,49 +241,24 @@ class Command(BaseCommand):
 
         try:
             search = Search.objects.get(name="All LOTR Characters")
-            uses_search_exists = Edge.objects.filter(
-                from_entity=panel.entity,
-                to_entity=search.entity,
-                edge_type="USES_SEARCH",
-            ).exists()
-            if not uses_search_exists:
+            if not Edge.objects.filter(from_entity=panel.entity, to_entity=search.entity, edge_type="USES_SEARCH").exists():
                 edge_entity = Entity.objects.create(entity_type="edge", name="USES_SEARCH")
-                Edge.objects.create(
-                    entity=edge_entity,
-                    from_entity=panel.entity,
-                    to_entity=search.entity,
-                    edge_type="USES_SEARCH",
-                )
+                Edge.objects.create(entity=edge_entity, from_entity=panel.entity, to_entity=search.entity, edge_type="USES_SEARCH")
                 self.stdout.write("  + Edge: lotr-characters-table --USES_SEARCH--> All LOTR Characters")
         except Search.DoesNotExist:
             self.stderr.write("  ! Search 'All LOTR Characters' not found; USES_SEARCH edge skipped.")
 
         layout = {
-            "columns": {
-                "col-1": {
-                    "width": "1fr",
-                    "rows": {
-                        "row-1": {"panel-id": "characters"},
-                    },
-                }
-            }
+            "columns": {"col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "characters"}}}}
         }
         page, page_created = Page.objects.get_or_create(
             slug="/middle-earth/characters",
-            defaults={
-                "name": "Middle-earth Characters",
-                "layout": layout,
-            },
+            defaults={"name": "Middle-earth Characters", "layout": layout},
         )
         if page_created:
             self.stdout.write("  + Page: /middle-earth/characters")
 
-        uses_panel_exists = Edge.objects.filter(
-            from_entity=page.entity,
-            to_entity=panel.entity,
-            edge_type="USES_PANEL",
-        ).exists()
-        if not uses_panel_exists:
+        if not Edge.objects.filter(from_entity=page.entity, to_entity=panel.entity, edge_type="USES_PANEL").exists():
             edge_entity = Entity.objects.create(entity_type="edge", name="USES_PANEL")
             Edge.objects.create(
                 entity=edge_entity,
@@ -491,7 +277,6 @@ class Command(BaseCommand):
         from tap_web.models import LandingPage, Page, Panel
         from tap_web.panels.table_panel import TablePanelType
 
-        # --- Searches ---
         all_entities_search, _ = Search.objects.get_or_create(
             name="All Grid Entities",
             defaults={
@@ -515,23 +300,18 @@ class Command(BaseCommand):
             },
         )
 
-        # --- Layout entity ---
-        layout_entity, _ = Entity.objects.get_or_create(
-            entity_type="layout",
-            name="Grid Overview",
-        )
-        _layout_definition = {
-            "inputs": [],
-            "steps": [{"type": "search", "search-id": "main"}],
-            "presentation": {"placement": "cytoscape:grid"},
-            "interactions": {},
-        }
+        layout_entity, _ = Entity.objects.get_or_create(entity_type="layout", name="Grid Overview")
         layout, layout_created = Layout.objects.update_or_create(
             entity=layout_entity,
             defaults={
                 "name": "Grid Overview",
                 "description": "All entities in the grid shown as a graph.",
-                "definition": _layout_definition,
+                "definition": {
+                    "inputs": [],
+                    "steps": [{"type": "search", "search-id": "main"}],
+                    "presentation": {"placement": "cytoscape:grid"},
+                    "interactions": {},
+                },
             },
         )
         if layout_created:
@@ -547,7 +327,6 @@ class Command(BaseCommand):
             Edge.objects.create(entity=edge_entity, from_entity=layout.entity, to_entity=all_edges_search.entity, edge_type="USES_SEARCH", properties={"search-id": "edges"})
             self.stdout.write("  + Edge: Grid Overview --USES_SEARCH[edges]--> All Grid Edges")
 
-        # --- Graph panel ---
         graph_panel, graph_panel_created = Panel.objects.update_or_create(
             slug="grid-overview-graph",
             defaults={
@@ -566,7 +345,6 @@ class Command(BaseCommand):
             Edge.objects.create(entity=edge_entity, from_entity=graph_panel.entity, to_entity=layout.entity, edge_type="USES_LAYOUT", properties={"layout-id": "default"})
             self.stdout.write("  + Edge: grid-overview-graph --USES_LAYOUT[default]--> Grid Overview")
 
-        # --- Nodes table panel ---
         table_panel, table_panel_created = Panel.objects.update_or_create(
             slug="grid-all-nodes-table",
             defaults={
@@ -586,22 +364,12 @@ class Command(BaseCommand):
             Edge.objects.create(entity=edge_entity, from_entity=table_panel.entity, to_entity=all_entities_search.entity, edge_type="USES_SEARCH")
             self.stdout.write("  + Edge: grid-all-nodes-table --USES_SEARCH--> All Grid Entities")
 
-        # --- Page ---
         page_layout = {
             "columns": {
-                "col-1": {
-                    "width": "1fr",
-                    "rows": {
-                        "row-1": {"panel-id": "graph"},
-                        "row-2": {"panel-id": "nodes"},
-                    },
-                }
+                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "graph"}, "row-2": {"panel-id": "nodes"}}}
             }
         }
-        page, page_created = Page.objects.get_or_create(
-            slug="/grid",
-            defaults={"name": "Grid", "layout": page_layout},
-        )
+        page, page_created = Page.objects.get_or_create(slug="/grid", defaults={"name": "Grid", "layout": page_layout})
         if page_created:
             self.stdout.write("  + Page: /grid (Grid landing)")
 
@@ -615,7 +383,6 @@ class Command(BaseCommand):
             Edge.objects.create(entity=edge_entity, from_entity=page.entity, to_entity=table_panel.entity, edge_type="USES_PANEL", properties={"hotlink": {"model": "page", "spec": "page-panels", "value": "nodes"}})
             self.stdout.write("  + Edge: /grid --USES_PANEL[nodes]--> grid-all-nodes-table")
 
-        # --- LandingPage ---
         landing, landing_created = LandingPage.objects.get_or_create(
             name="Default",
             defaults={"description": "Default TAP landing page."},

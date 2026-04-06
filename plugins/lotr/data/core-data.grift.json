@@ -1,0 +1,873 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019d63fe-3c6e-7061-9368-c85fef493a59",
+        "entity_type": "batch",
+        "name": "LOTR core data v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.lotr",
+        "name": "LOTR core data v0.1.0",
+        "description": "Characters, locations, artifacts, races, factions, and edges for the Lord of the Rings example plugin."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "entity_type": "character",
+            "name": "Frodo Baggins",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Frodo Baggins",
+            "bio": "A hobbit of the Shire who inherits the One Ring."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
+            "entity_type": "character",
+            "name": "Gandalf",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Gandalf",
+            "bio": "A wizard and member of the Istari."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
+            "entity_type": "character",
+            "name": "Aragorn",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Aragorn",
+            "bio": "Heir of Isildur, ranger of the North."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8639b205dc8",
+            "entity_type": "character",
+            "name": "Samwise Gamgee",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Samwise Gamgee",
+            "bio": "Frodo's loyal companion."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
+            "entity_type": "character",
+            "name": "Legolas",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Legolas",
+            "bio": "An elven archer."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c865b9ae5164",
+            "entity_type": "character",
+            "name": "Gimli",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Gimli",
+            "bio": "A dwarf warrior."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
+            "entity_type": "character",
+            "name": "Sauron",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Sauron",
+            "bio": "Creator of the One Ring."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c86786a0a0eb",
+            "entity_type": "character",
+            "name": "Bilbo Baggins",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Bilbo Baggins",
+            "bio": "Frodo's uncle, found the Ring."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c868e1483031",
+            "entity_type": "location",
+            "name": "The Shire",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "The Shire",
+            "realm": "Eriador",
+            "description": "Peaceful homeland of the Hobbits."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8695200da3a",
+            "entity_type": "location",
+            "name": "Rivendell",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Rivendell",
+            "realm": "Eriador",
+            "description": "Elven refuge of Elrond."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "entity_type": "location",
+            "name": "Mordor",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Mordor",
+            "realm": "Dark Lands",
+            "description": "Domain of Sauron."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "entity_type": "location",
+            "name": "Gondor",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Gondor",
+            "realm": "South Kingdom",
+            "description": "Kingdom of Men."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c86c55a9c5a8",
+            "entity_type": "location",
+            "name": "Minas Tirith",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Minas Tirith",
+            "realm": "Gondor",
+            "description": "The White City."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c86d089f9a53",
+            "entity_type": "location",
+            "name": "Mount Doom",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Mount Doom",
+            "realm": "Mordor",
+            "description": "Where the Ring was forged."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c86e06172d78",
+            "entity_type": "location",
+            "name": "Mirkwood",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Mirkwood",
+            "realm": "Rhovanion",
+            "description": "Great forest of the Wood-elves."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c86f4f124ad5",
+            "entity_type": "artifact",
+            "name": "The One Ring",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "The One Ring",
+            "power": "Dominion over all rings of power.",
+            "origin": "Mount Doom"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8701650be92",
+            "entity_type": "artifact",
+            "name": "Sting",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Sting",
+            "power": "Glows blue near orcs.",
+            "origin": "Gondolin"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8712895301d",
+            "entity_type": "artifact",
+            "name": "Anduril",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Anduril",
+            "power": "Reforged from Narsil.",
+            "origin": "Rivendell"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c872dd751bc0",
+            "entity_type": "artifact",
+            "name": "Glamdring",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Glamdring",
+            "power": "Foe-hammer of Gondolin.",
+            "origin": "Gondolin"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c873458e9095",
+            "entity_type": "race",
+            "name": "Hobbits",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Hobbits",
+            "homeland": "The Shire",
+            "traits": "Small, fond of comfort and food."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c874afd3d3c3",
+            "entity_type": "race",
+            "name": "Elves",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Elves",
+            "homeland": "Various",
+            "traits": "Immortal, wise, skilled in crafts."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c87561db7fb5",
+            "entity_type": "race",
+            "name": "Dwarves",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Dwarves",
+            "homeland": "Erebor",
+            "traits": "Miners, smiths, fierce warriors."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8769530b164",
+            "entity_type": "race",
+            "name": "Men",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Men",
+            "homeland": "Various",
+            "traits": "Mortal, ambitious, numerous."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c877f671b960",
+            "entity_type": "race",
+            "name": "Wizards",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Wizards",
+            "homeland": "Valinor",
+            "traits": "Maiar spirits in mortal form."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "entity_type": "faction",
+            "name": "Fellowship of the Ring",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Fellowship of the Ring",
+            "purpose": "Destroy the One Ring."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c879e8dd5b07",
+            "entity_type": "faction",
+            "name": "Forces of Mordor",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Forces of Mordor",
+            "purpose": "Conquer Middle-earth."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c87a064c08d7",
+            "entity_type": "faction",
+            "name": "Rohan",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Rohan",
+            "purpose": "Defend the Riddermark."
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c87b75e0ed81",
+            "entity_type": "edge",
+            "name": "WIELDS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86f4f124ad5",
+            "edge_type": "WIELDS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c87c53008704",
+            "entity_type": "edge",
+            "name": "WIELDS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c8701650be92",
+            "edge_type": "WIELDS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c87d8550641e",
+            "entity_type": "edge",
+            "name": "WIELDS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c8712895301d",
+            "edge_type": "WIELDS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c87e6ea6ec75",
+            "entity_type": "edge",
+            "name": "WIELDS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c872dd751bc0",
+            "edge_type": "WIELDS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c87f9dbd1350",
+            "entity_type": "edge",
+            "name": "BELONGS_TO",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c873458e9095",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c880a53f04a4",
+            "entity_type": "edge",
+            "name": "BELONGS_TO",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c8639b205dc8",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c873458e9095",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8814c944e79",
+            "entity_type": "edge",
+            "name": "BELONGS_TO",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c86786a0a0eb",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c873458e9095",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8825b50c79d",
+            "entity_type": "edge",
+            "name": "BELONGS_TO",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c877f671b960",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8832c1abe9e",
+            "entity_type": "edge",
+            "name": "BELONGS_TO",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c8769530b164",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8849cb0e0fb",
+            "entity_type": "edge",
+            "name": "BELONGS_TO",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c874afd3d3c3",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c885d2bb2a4c",
+            "entity_type": "edge",
+            "name": "BELONGS_TO",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c865b9ae5164",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c87561db7fb5",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c886cc9379e9",
+            "entity_type": "edge",
+            "name": "LOCATED_IN",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c868e1483031",
+            "edge_type": "LOCATED_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c887d3df98bf",
+            "entity_type": "edge",
+            "name": "LOCATED_IN",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c86786a0a0eb",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c868e1483031",
+            "edge_type": "LOCATED_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c88840c55623",
+            "entity_type": "edge",
+            "name": "LOCATED_IN",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "edge_type": "LOCATED_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8899fa242ca",
+            "entity_type": "edge",
+            "name": "LOCATED_IN",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86e06172d78",
+            "edge_type": "LOCATED_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c88acbd4767f",
+            "entity_type": "edge",
+            "name": "MEMBER_OF",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "edge_type": "MEMBER_OF",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c88bf236d55a",
+            "entity_type": "edge",
+            "name": "MEMBER_OF",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "edge_type": "MEMBER_OF",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c88cd75f5db6",
+            "entity_type": "edge",
+            "name": "MEMBER_OF",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "edge_type": "MEMBER_OF",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c88d606c63fd",
+            "entity_type": "edge",
+            "name": "MEMBER_OF",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c8639b205dc8",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "edge_type": "MEMBER_OF",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c88ef811949b",
+            "entity_type": "edge",
+            "name": "MEMBER_OF",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "edge_type": "MEMBER_OF",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c88ffb8c7f88",
+            "entity_type": "edge",
+            "name": "MEMBER_OF",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c865b9ae5164",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "edge_type": "MEMBER_OF",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8909537f7e4",
+            "entity_type": "edge",
+            "name": "MEMBER_OF",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c879e8dd5b07",
+            "edge_type": "MEMBER_OF",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8914a2a909b",
+            "entity_type": "edge",
+            "name": "ALLIES_WITH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c8639b205dc8",
+            "edge_type": "ALLIES_WITH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c892ce03b2da",
+            "entity_type": "edge",
+            "name": "ALLIES_WITH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
+            "edge_type": "ALLIES_WITH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8935c796ecb",
+            "entity_type": "edge",
+            "name": "ALLIES_WITH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c865b9ae5164",
+            "edge_type": "ALLIES_WITH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8947f17dc63",
+            "entity_type": "edge",
+            "name": "ENEMIES_WITH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
+            "edge_type": "ENEMIES_WITH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c8950744ee63",
+            "entity_type": "edge",
+            "name": "ENEMIES_WITH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
+            "edge_type": "ENEMIES_WITH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c89613f4f9b1",
+            "entity_type": "edge",
+            "name": "FORGED_IN",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c86f4f124ad5",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86d089f9a53",
+            "edge_type": "FORGED_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c897bc5cce7a",
+            "entity_type": "edge",
+            "name": "CONTAINS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86d089f9a53",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c898e9f3d57d",
+            "entity_type": "edge",
+            "name": "CONTAINS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86c55a9c5a8",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c899a5ff6deb",
+            "entity_type": "edge",
+            "name": "RULES",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "edge_type": "RULES",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c89a73d1fded",
+            "entity_type": "edge",
+            "name": "RULES",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "edge_type": "RULES",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c89be3934b60",
+            "entity_type": "edge",
+            "name": "ENEMIES_WITH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c879e8dd5b07",
+            "edge_type": "ENEMIES_WITH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c89cf194e96f",
+            "entity_type": "edge",
+            "name": "ALLIES_WITH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c87a064c08d7",
+            "edge_type": "ALLIES_WITH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c89d9384071d",
+            "entity_type": "edge",
+            "name": "MENTORS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "edge_type": "MENTORS",
+            "properties": {
+              "discipline": "wizardry"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d63fe-3c6e-7061-9368-c89eeb874540",
+            "entity_type": "edge",
+            "name": "MENTORS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c86786a0a0eb",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "edge_type": "MENTORS",
+            "properties": {
+              "discipline": "adventure"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

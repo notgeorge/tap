@@ -1,0 +1,41 @@
+manifest_version = "0"
+plugin_version = "0.1.0"
+slug = "lotr"
+name = "Lord of the Rings"
+description = "Middle-earth example plugin — characters, locations, artifacts, races, and factions."
+
+[[models]]
+slug = "character"
+class = "plugins.lotr.models.character.Character"
+
+[[models]]
+slug = "location"
+class = "plugins.lotr.models.location.Location"
+
+[[models]]
+slug = "artifact"
+class = "plugins.lotr.models.artifact.Artifact"
+
+[[models]]
+slug = "race"
+class = "plugins.lotr.models.race.Race"
+
+[[models]]
+slug = "faction"
+class = "plugins.lotr.models.faction.Faction"
+
+[[models]]
+slug = "sentinel"
+class = "plugins.lotr.models.sentinel.Sentinel"
+
+[[models]]
+slug = "citadel"
+class = "plugins.lotr.models.citadel.Citadel"
+
+[[models]]
+slug = "wanderer"
+class = "plugins.lotr.models.wanderer.Wanderer"
+
+[[grift]]
+name = "core-data"
+path = "data/core-data.grift.json"

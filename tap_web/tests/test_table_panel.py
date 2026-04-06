@@ -672,17 +672,20 @@ class TestTablePanelIconEnrichment:
     def _lotr_entity_types(self):
         """Seed LOTR EntityType records without re-registering edge constraints."""
         from django.apps import apps
+        from django.utils.module_loading import import_string
 
         from tap_grid.models import EntityType
 
         app_config = apps.get_app_config("lotr")
-        for et in app_config.entity_types:
+        manifest = app_config.manifest
+        for entry in manifest.models:
+            cls = import_string(entry.class_path)
             EntityType.objects.update_or_create(
-                slug=et["slug"],
+                slug=entry.slug,
                 defaults={
-                    "name": et.get("name", et["slug"]),
-                    "icon": et.get("icon", ""),
-                    "description": et.get("description", ""),
+                    "name": getattr(cls, "ENTITY_NAME", entry.slug),
+                    "icon": getattr(cls, "ENTITY_ICON", ""),
+                    "description": getattr(cls, "ENTITY_DESCRIPTION", ""),
                     "plugin_name": app_config.name,
                 },
             )

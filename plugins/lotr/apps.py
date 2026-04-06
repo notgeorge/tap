@@ -10,59 +10,16 @@ class LotrConfig(TapPluginConfig):
     verbose_name = "Lord of the Rings"
     label = "lotr"
 
-    entity_types = [
-        {
-            "slug": "character",
-            "name": "Character",
-            "icon": "character",
-            "description": "A being in Middle-earth.",
-        },
-        {
-            "slug": "location",
-            "name": "Location",
-            "icon": "location",
-            "description": "A place in Middle-earth.",
-        },
-        {
-            "slug": "artifact",
-            "name": "Artifact",
-            "icon": "artifact",
-            "description": "A significant object of power.",
-        },
-        {
-            "slug": "race",
-            "name": "Race",
-            "icon": "race",
-            "description": "A race of beings.",
-        },
-        {
-            "slug": "faction",
-            "name": "Faction",
-            "description": "A group or alliance.",
-        },
-        {
-            "slug": "sentinel",
-            "name": "Sentinel",
-            "description": "A watcher (wildcard test).",
-        },
-        {
-            "slug": "citadel",
-            "name": "Citadel",
-            "description": "A fortified place (inbound block test).",
-        },
-        {
-            "slug": "wanderer",
-            "name": "Wanderer",
-            "description": "An unconstrained traveler.",
-        },
-    ]
+    # Entity types are declared in tap-plugin.toml and loaded from model classes.
+    # Display metadata (name, description, icon) comes from ENTITY_NAME /
+    # ENTITY_DESCRIPTION / ENTITY_ICON class attributes on each model.
 
+    # Edge type declarations remain here until manifest support for edges lands.
     edge_types = [
         {
             "slug": "WIELDS",
             "name": "Wields",
             "description": "Character wields an artifact.",
-            # Edge constraint: character -> artifact
             "sources": [{"type": "character"}],
             "targets": [{"type": "artifact"}],
             "property_schema": {
@@ -80,7 +37,6 @@ class LotrConfig(TapPluginConfig):
             "slug": "LOCATED_IN",
             "name": "Located In",
             "description": "Entity is located in a place.",
-            # Edge constraint: character -> location
             "sources": [{"type": "character"}],
             "targets": [{"type": "location"}],
         },
@@ -113,7 +69,6 @@ class LotrConfig(TapPluginConfig):
             "slug": "FORGED_IN",
             "name": "Forged In",
             "description": "Artifact was forged in a location.",
-            # Edge constraint: artifact -> location
             "sources": [{"type": "artifact"}],
             "targets": [{"type": "location"}],
         },
@@ -132,9 +87,6 @@ class LotrConfig(TapPluginConfig):
             "name": "Protects",
             "description": "Citadel protects a location.",
         },
-        # New edge type with constraint - demonstrates plugin extensibility
-        # Character can MENTORS character even though Character's OUTBOUND_EDGES
-        # doesn't list it (edge constraint grants permission)
         {
             "slug": "MENTORS",
             "name": "Mentors",
