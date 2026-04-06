@@ -355,6 +355,21 @@ def _execute_write_pipeline(
         # For deletes: record provenance BEFORE tombstoning so the entity row
         # is still valid when record_batch_event() reads it.
         # For creates/updates: record provenance AFTER save so entity_id is set.
+
+        # Pre-create Entity with the caller-specified entity_id for create verbs
+        # (e.g. GRIFT upsert where identity must be preserved across grids).
+        # This must happen after field-setting so get_name() returns the right value,
+        # and before save() so save() takes the explicit-entity path.
+        if is_create and op.entity_id is not None and instance.entity_id is None:
+            prespecified_id = _coerce_uuid(op.entity_id)
+            base_dims = dict(getattr(model_cls, "DEFAULT_DIMENSIONS", {}))
+            instance.entity = Entity.objects.create(
+                id=prespecified_id,
+                entity_type=model_cls.ENTITY_TYPE,
+                name=instance.get_name(),
+                dimensions=base_dims,
+            )
+
         snapshot_entity: Entity | None = None
         if is_delete:
             entity_id_out = target_uuid

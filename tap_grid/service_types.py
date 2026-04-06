@@ -32,6 +32,7 @@ class WriteOperation:
     from_target: str | uuid.UUID | None = None
     to_target: str | uuid.UUID | None = None
     edge_type: str | None = None
+    entity_id: str | uuid.UUID | None = None  # Pre-specified entity_id for create verbs (e.g. GRIFT upsert).
 
 
 @dataclass

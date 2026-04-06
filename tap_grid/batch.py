@@ -30,40 +30,51 @@ def create_batch(
     source: str = "",
     actor: User | None = None,
     name: str = "",
-    title: str = "",
     description: str = "",
     description_json: dict[str, Any] | None = None,
     metadata: dict[str, Any] | None = None,
+    entity_id: uuid.UUID | str | None = None,
 ) -> Batch:
     """Create a new batch.
 
     Args:
         source: Source identifier (e.g., 'scanner:aws').
         actor: User initiating the batch (falls back to context user).
-        name: Optional human-readable name for the backing Entity.
-        title: Human-readable batch summary.
+        name: Human-readable batch name; also used as the backing Entity name.
         description: Long-form description of the batch purpose.
         description_json: Structured description payload with format and data keys.
         metadata: Additional context for the batch.
+        entity_id: Optional pre-specified UUID for the backing Entity (e.g. GRIFT import).
+            When omitted, a new UUIDv7 is generated.
 
     Returns:
         The created Batch instance.
     """
-    from tap_grid.models import Batch
+    from tap_grid.models import Batch, Entity
 
     actor = actor or get_history_user()
 
-    # Create backing Entity for the Batch
-    entity = create_entity(
-        entity_type="batch",
-        name=name or f"Batch {datetime.now().isoformat()}",
-    )
+    resolved_name = name or f"Batch {datetime.now().isoformat()}"
+
+    # Create backing Entity for the Batch, optionally with a pre-specified ID.
+    if entity_id is not None:
+        resolved_id = uuid.UUID(str(entity_id)) if not isinstance(entity_id, uuid.UUID) else entity_id
+        entity = Entity.objects.create(
+            id=resolved_id,
+            entity_type="batch",
+            name=resolved_name,
+        )
+    else:
+        entity = create_entity(
+            entity_type="batch",
+            name=resolved_name,
+        )
 
     return Batch.objects.create(
         entity=entity,
         source=source,
         actor=actor,
-        title=title,
+        name=resolved_name,
         description=description,
         description_json=description_json,
         metadata=metadata or {},
