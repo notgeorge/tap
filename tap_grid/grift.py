@@ -633,6 +633,49 @@ def _run_preflight(
             if is_dangling and dangling_edge_mode == "permissive" and edge_entity_id:
                 dangling_edge_ids.add(edge_entity_id)
 
+    # --- Identity sanity: entity_type consistency for existing entities ---
+    # For each node/edge being imported, if it already exists in the grid its
+    # entity_type must match what the GRIFT file declares.  One bulk query covers
+    # all batches to import; invalid UUIDs are skipped (already flagged above).
+    grift_types: dict[str, tuple[str, str, str | None]] = {}  # normalized_id -> (type, path, batch_eid)
+    for batch_idx_s, batch_container_s in batches_to_import:
+        batch_path_s = f"$.batches[{batch_idx_s}]"
+        batch_eid_s = batch_container_s["batch_entity"]["entity_id"]
+        for node_idx_s, node_obj_s in enumerate(batch_container_s.get("nodes", [])):
+            raw_eid = node_obj_s.get("entity", {}).get("entity_id")
+            raw_type = node_obj_s.get("entity", {}).get("entity_type", "")
+            if raw_eid and raw_type:
+                try:
+                    grift_types[str(uuid.UUID(raw_eid))] = (raw_type, f"{batch_path_s}.nodes[{node_idx_s}].entity.entity_type", batch_eid_s)
+                except (ValueError, AttributeError):
+                    pass
+        for edge_idx_s, edge_obj_s in enumerate(batch_container_s.get("edges", [])):
+            raw_eid = edge_obj_s.get("entity", {}).get("entity_id")
+            if raw_eid:
+                try:
+                    grift_types[str(uuid.UUID(raw_eid))] = ("edge", f"{batch_path_s}.edges[{edge_idx_s}].entity.entity_type", batch_eid_s)
+                except (ValueError, AttributeError):
+                    pass
+
+    if grift_types:
+        for entity_uuid, grid_type in Entity.objects.filter(
+            pk__in=[uuid.UUID(eid) for eid in grift_types]
+        ).values_list("id", "entity_type"):
+            norm = str(entity_uuid)
+            if norm not in grift_types:
+                continue
+            grift_type, sanity_path, batch_eid_s = grift_types[norm]
+            if grift_type != grid_type:
+                issues.append(_issue(
+                    "entity_type_mismatch",
+                    f"Entity {norm} exists in grid as '{grid_type}' but GRIFT declares '{grift_type}'",
+                    "preflight",
+                    sanity_path,
+                    entity_id=norm,
+                    batch_entity_id=batch_eid_s,
+                    entity_type=grift_type,
+                ))
+
     # Decide overall ok: any hard-error issue means preflight failed.
     has_hard_error = any(i.code in _ERROR_CODES for i in issues)
     ok = not has_hard_error

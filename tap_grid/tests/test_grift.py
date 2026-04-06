@@ -466,6 +466,45 @@ class TestGriftProvenance:
 
 
 # ---------------------------------------------------------------------------
+# Identity sanity: entity_type consistency
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestGriftIdentitySanity:
+    def test_existing_entity_wrong_type_fails_preflight(self):
+        """If an entity_id exists in the grid as a different type, preflight fails."""
+        bid1 = _batch_entity_id()
+        nid = _node_entity_id()
+
+        # First import: creates a character.
+        result1 = grift_import(_minimal_doc([_batch_container(bid1, nodes=[_character_node(nid)])]))
+        assert result1.success
+
+        # Second import: same entity_id but now claims it's an artifact.
+        bid2 = _batch_entity_id()
+        wrong_type_node = {
+            "entity": {"entity_id": nid, "entity_type": "artifact", "dimensions": {}},
+            "node": {"name": "Sting", "power": "glows", "origin": "Erebor"},
+        }
+        result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[wrong_type_node])]))
+        assert not result2.success
+        assert any(e.code == "entity_type_mismatch" and e.entity_id == nid for e in result2.errors)
+        assert result2.counts.batches_imported == 0
+
+    def test_existing_entity_matching_type_succeeds(self):
+        """Re-importing an entity with the same entity_type passes preflight."""
+        bid1 = _batch_entity_id()
+        nid = _node_entity_id()
+        result1 = grift_import(_minimal_doc([_batch_container(bid1, nodes=[_character_node(nid)])]))
+        assert result1.success
+
+        bid2 = _batch_entity_id()
+        result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[_character_node(nid, name="Frodo Updated")])]))
+        assert result2.success
+
+
+# ---------------------------------------------------------------------------
 # Multi-batch document
 # ---------------------------------------------------------------------------
 
