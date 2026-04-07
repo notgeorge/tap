@@ -19,7 +19,7 @@ match_clause: _MATCH_KW path_var? pattern ("," pattern)*
 
 path_var: NAME "="
 
-pattern: node_pattern (edge_pattern node_pattern)+
+pattern: node_pattern (edge_pattern node_pattern)*
 
 node_pattern: "(" node_body ")"
 node_body: NAME? (":" NAME)? inline_props?

@@ -2,14 +2,23 @@
 
 V1 supported patterns
 ---------------------
-The v1 executor handles the hub-and-spoke pattern and close variants:
+The v1 executor handles two patterns:
 
+Type scan (node-only):
+    MATCH (c:character) RETURN c.entity_id, c.name, c.bio
+
+Hub-and-spoke (one hop):
     MATCH (a)-[e]-(b)     WHERE a.entity_id = $var   (undirected, one hop)
     MATCH (a)-[e:T]-(b)   WHERE a.entity_id = $var   (typed edge, undirected)
     MATCH (a)-[e]->(b)    WHERE a.entity_id = $var   (outbound only)
     MATCH (a)<-[e]-(b)    WHERE a.entity_id = $var   (inbound only)
 
-In all cases:
+For type scans:
+- Exactly one MATCH clause with a single node-only (no-edge) pattern.
+- Node must carry a label (entity type slug).
+- RETURN with field projections → row-like node dicts; omitted RETURN → graph envelope.
+
+For hub-and-spoke:
 - Exactly one MATCH clause with a single two-node, one-edge pattern.
 - WHERE must constrain one node variable on entity_id via an equality against a $var.
 - RETURN may be omitted or include only bound variables → graph envelope result.
@@ -25,18 +34,15 @@ from tap_grid.exceptions import SearchExecutionError
 from tap_grid.gryphon.ast_nodes import (
     AndPred,
     Comparison,
+    DotStep,
     EdgePattern,
-    FieldPath,
-    MatchClause,
+    GryphonAST,
     NodePattern,
     NotPred,
     OrPred,
     ParamRef,
-    PathPattern,
     ReturnClause,
-    GryphonAST,
     WhereClause,
-    DotStep,
 )
 from tap_grid.gryphon.parser import parse_gryphon
 
@@ -45,7 +51,7 @@ if TYPE_CHECKING:
 
 
 def execute_gryphon(
-    search: "Search",
+    search: Search,
     inputs: dict[str, Any],
     *,
     db_alias: str = "default",
@@ -103,6 +109,11 @@ def _execute_ast(
             "Unsupported gryphon pattern: v1 supports exactly one pattern per MATCH."
         )
     pattern = mc.patterns[0]
+
+    # Type scan: node-only pattern (no edges).
+    if len(pattern.edges) == 0:
+        return _execute_type_scan(pattern.nodes[0], ast.return_clause, db_alias=db_alias)
+
     if len(pattern.edges) != 1:
         raise SearchExecutionError(
             "Unsupported gryphon pattern: v1 supports exactly one edge (one hop)."
@@ -181,6 +192,112 @@ def _find_entity_id_in_predicate(pred: Any, inputs: dict[str, Any]) -> tuple[str
         # Not supported as the primary anchor lookup path in v1.
         return None, None
     return None, None
+
+
+# ---------------------------------------------------------------------------
+# Type-scan ORM execution
+# ---------------------------------------------------------------------------
+
+# Fields that live on Entity rather than the domain model.
+_ENTITY_FIELDS: frozenset[str] = frozenset(
+    {"entity_type", "name", "dimensions", "version", "created_at", "updated_at"}
+)
+
+
+def _execute_type_scan(
+    node: NodePattern,
+    return_clause: ReturnClause,
+    *,
+    db_alias: str,
+) -> dict[str, Any]:
+    """Execute a node-only MATCH pattern — scan all entities of the given type.
+
+    Args:
+        node: The single node pattern; must carry a label (entity type slug).
+        return_clause: Controls output shape (projected fields vs. graph envelope).
+        db_alias: Database alias to query against.
+
+    Returns:
+        Canonical envelope with ``nodes`` list and empty ``edges`` list.
+
+    Raises:
+        SearchExecutionError: If the node pattern carries no label.
+    """
+    if not node.label:
+        raise SearchExecutionError(
+            "Unsupported gryphon pattern: type scan requires a node label, e.g. (c:character)."
+        )
+
+    from tap_grid.registry import get_model_class
+
+    try:
+        model_cls = get_model_class(node.label)
+    except KeyError:
+        raise SearchExecutionError(
+            f"Unsupported gryphon pattern: unknown entity type '{node.label}'."
+        )
+
+    qs = model_cls.objects.using(db_alias).select_related("entity").order_by("entity__name")
+
+    var = node.variable or node.label
+    items = return_clause.items  # None → graph envelope
+
+    nodes: list[dict[str, Any]] = []
+    for domain_obj in qs:
+        if items is not None:
+            nodes.append(_project_node(domain_obj, items, var))
+        else:
+            nodes.append(_node_dict(domain_obj.entity))
+
+    return {"nodes": nodes, "edges": []}
+
+
+def _project_node(domain_obj: Any, items: tuple, var: str) -> dict[str, Any]:
+    """Build a projected dict for a domain model instance using RETURN items.
+
+    Only items whose field_path.variable matches ``var`` and that have a single
+    DotStep are resolved; others are silently skipped.
+
+    Args:
+        domain_obj: A domain model instance with a ``entity`` FK (via select_related).
+        items: Tuple of ReturnItem from the RETURN clause.
+        var: The variable name bound to this node in the MATCH pattern.
+
+    Returns:
+        Dict of {output_key: value} for matched projection items.
+    """
+    result: dict[str, Any] = {}
+    for item in items:
+        fp = item.path
+        if fp.variable != var:
+            continue
+        if len(fp.steps) != 1 or not isinstance(fp.steps[0], DotStep):
+            continue
+        field_name = fp.steps[0].name
+        key = item.alias if item.alias is not None else field_name
+        result[key] = _resolve_field(domain_obj, field_name)
+    return result
+
+
+def _resolve_field(domain_obj: Any, field_name: str) -> Any:
+    """Resolve a single field name from a domain model instance.
+
+    ``entity_id`` is the FK UUID on the domain model itself.
+    Fields in ``_ENTITY_FIELDS`` are read from the related Entity.
+    All other names are read directly from the domain model.
+
+    Args:
+        domain_obj: Domain model instance (with entity FK pre-fetched).
+        field_name: The bare field name from the RETURN projection.
+
+    Returns:
+        The field value; entity_id is coerced to str.
+    """
+    if field_name == "entity_id":
+        return str(domain_obj.entity_id)
+    if field_name in _ENTITY_FIELDS:
+        return getattr(domain_obj.entity, field_name)
+    return getattr(domain_obj, field_name)
 
 
 # ---------------------------------------------------------------------------

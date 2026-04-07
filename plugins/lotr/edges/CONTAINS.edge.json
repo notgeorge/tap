@@ -1,0 +1,5 @@
+{
+  "slug": "CONTAINS",
+  "name": "Contains",
+  "description": "Location contains another location."
+}

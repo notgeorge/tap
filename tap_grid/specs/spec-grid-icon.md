@@ -78,9 +78,14 @@ This requirement formalizes key-by-convention lookup and app/plugin isolation.
   - `<app>/static/<app-static-namespace>/icons/<icon-key>.svg`
 - Canonical static-relative lookup path is:
   - `<app-static-namespace>/icons/<icon-key>.svg`
+- For plugins, `<app-static-namespace>` is the plugin app label used by Django staticfiles resolution.
+- A plugin that declares slug `lotr` and icon key `character` therefore resolves to:
+  - source file: `plugins/lotr/static/lotr/icons/character.svg`
+  - static-relative path: `lotr/icons/character.svg`
 - Examples:
   - `tap_web/static/tap_web/icons/page.svg`
   - `tap_viz/static/tap_viz/icons/layout.svg`
+  - `plugins/lotr/static/lotr/icons/character.svg`
 - The icon resolver must not accept arbitrary relative paths, parent-directory traversal, or remote URLs.
 - Icon validation must confirm:
   - the icon key format is valid
@@ -96,9 +101,9 @@ Store only the icon key and derive the path by convention. This keeps metadata s
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-grid-icon-key-1 | Key By Convention | Implemented | Icon metadata uses an icon key rather than an arbitrary path string. | `icon_key` on entity type config |
-| req-grid-icon-key-2 | App Scoped Resolution | Implemented | Icon resolution is scoped to the app or plugin that owns the entity type. | `resolve_icon_url(entity_type)` in `tap_grid/icon_service.py` |
+| req-grid-icon-key-2 | App Scoped Resolution | Implemented | Icon resolution is scoped to the app or plugin that owns the entity type. | `resolve_icon_url(entity_type)` in `tap_grid/icon.py` |
 | req-grid-icon-key-3 | Canonical Static Icons Directory | Implemented | Icons resolve from each app/plugin's `static/.../icons/` directory by convention. | e.g. `tap_web/static/tap_web/icons/page.svg` |
-| req-grid-icon-key-4 | Path Validation Required | Implemented | Icon validation rejects invalid keys, invalid resolved paths, missing files, disallowed extensions, and remote paths. | `icon_service.py` validation logic |
+| req-grid-icon-key-4 | Path Validation Required | Implemented | Icon validation rejects invalid keys, invalid resolved paths, missing files, disallowed extensions, and remote paths. | `tap_grid/icon.py` validation logic |
 
 #### Future
 If TAP later supports richer icon metadata, keep convention-based resolution as the default and add explicit path metadata only with strong justification.

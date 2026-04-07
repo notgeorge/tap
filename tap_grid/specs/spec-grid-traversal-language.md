@@ -20,19 +20,19 @@ enough to compile safely into TAP-controlled execution plans.
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-grid-traversal-lang-shape | [Traversal Language Shape](#traversal-language-shape) | Approved for Development | MATCH/WHERE/RETURN clause structure |
-| req-grid-traversal-lang-storage | [Traversal Storage Form](#traversal-storage-form) | Approved for Development | String and list[str] storage forms |
-| req-grid-traversal-lang-patterns | [Pattern And Binding Syntax](#pattern-and-binding-syntax) | Approved for Development | Node/edge/path patterns, direction, bounded traversal |
-| req-grid-traversal-lang-filters | [Field And Predicate Semantics](#field-and-predicate-semantics) | Approved for Development | Inline filters and WHERE predicates over model and JSON fields |
-| req-grid-traversal-lang-combinators | [Predicate Combinators](#predicate-combinators) | Approved for Development | AND/OR/NOT in WHERE predicates |
-| req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Approved for Development | $var runtime inputs and named pattern bindings |
-| req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Approved for Development | RETURN projection and graph envelope default |
+| req-grid-traversal-lang-shape | [Traversal Language Shape](#traversal-language-shape) | Implemented | MATCH/WHERE/RETURN clause structure |
+| req-grid-traversal-lang-storage | [Traversal Storage Form](#traversal-storage-form) | Implemented | String and list[str] storage forms |
+| req-grid-traversal-lang-patterns | [Pattern And Binding Syntax](#pattern-and-binding-syntax) | Implemented | Node/edge/path patterns, direction, bounded traversal |
+| req-grid-traversal-lang-filters | [Field And Predicate Semantics](#field-and-predicate-semantics) | Implemented | Inline filters and WHERE predicates over model and JSON fields |
+| req-grid-traversal-lang-combinators | [Predicate Combinators](#predicate-combinators) | Implemented | AND/OR/NOT in WHERE predicates |
+| req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
+| req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
 
 
 ### gryphon Language Shape
 ----
 RID: `req-grid-traversal-lang-shape`
-Status: `Approved for Development`
+Status: `Implemented`
 
 gryphon uses Cypher-compatible clause style for the core read/traversal surface.
 
@@ -66,11 +66,11 @@ RETURN hub, edge, neighbor
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-traversal-lang-shape-1 | Supports Match Clause | Approved for Development | gryphon text supports `MATCH` as the primary pattern-binding clause. | |
-| req-grid-traversal-lang-shape-2 | Supports Where Clause | Approved for Development | gryphon text supports `WHERE` predicates over bound variables and fields. | |
-| req-grid-traversal-lang-shape-3 | Supports Return Clause | Approved for Development | gryphon text supports `RETURN` for named variables and projected fields. | |
-| req-grid-traversal-lang-shape-4 | Read-Only Surface Only | Approved for Development | V1 gryphon text excludes graph mutation clauses; they are rejected at parse time. | |
-| req-grid-traversal-lang-shape-5 | Multiple Match Compositional | Approved for Development | Multiple `MATCH` clauses extend the binding scope; earlier bindings are in scope for later clauses. | |
+| req-grid-traversal-lang-shape-1 | Supports Match Clause | Implemented | gryphon text supports `MATCH` as the primary pattern-binding clause. | |
+| req-grid-traversal-lang-shape-2 | Supports Where Clause | Implemented | gryphon text supports `WHERE` predicates over bound variables and fields. | |
+| req-grid-traversal-lang-shape-3 | Supports Return Clause | Implemented | gryphon text supports `RETURN` for named variables and projected fields. | |
+| req-grid-traversal-lang-shape-4 | Read-Only Surface Only | Implemented | V1 gryphon text excludes graph mutation clauses; they are rejected at parse time. | |
+| req-grid-traversal-lang-shape-5 | Multiple Match Compositional | Implemented | Multiple `MATCH` clauses extend the binding scope; earlier bindings are in scope for later clauses. | |
 
 #### Future
 Consider whether `OPTIONAL MATCH`, `WITH`, and aggregation are needed after the first round of
@@ -80,7 +80,7 @@ graph and naming use cases is implemented.
 ### gryphon Storage Form
 ----
 RID: `req-grid-traversal-lang-storage`
-Status: `Approved for Development`
+Status: `Implemented`
 
 gryphon text should be easy to store in JSON-backed definitions without requiring embedded
 newlines when they are inconvenient.
@@ -116,9 +116,9 @@ Execution normalizes both forms into one canonical string before parsing.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-traversal-lang-storage-1 | Single-Line String Allowed | Approved for Development | gryphon definitions may be stored as a single string. | |
-| req-grid-traversal-lang-storage-2 | Multi-Line List Allowed | Approved for Development | gryphon definitions may be stored as an ordered list of strings. | |
-| req-grid-traversal-lang-storage-3 | Forms Normalize Equivalently | Approved for Development | TAP normalizes string and list forms into the same executable gryphon meaning. | |
+| req-grid-traversal-lang-storage-1 | Single-Line String Allowed | Implemented | gryphon definitions may be stored as a single string. | |
+| req-grid-traversal-lang-storage-2 | Multi-Line List Allowed | Implemented | gryphon definitions may be stored as an ordered list of strings. | |
+| req-grid-traversal-lang-storage-3 | Forms Normalize Equivalently | Implemented | TAP normalizes string and list forms into the same executable gryphon meaning. | |
 
 #### Future
 If authoring tools later need per-line metadata such as comments or diagnostics, TAP may add an
@@ -128,7 +128,7 @@ enriched editor format while keeping these two storage forms valid.
 ### Pattern And Binding Syntax
 ----
 RID: `req-grid-traversal-lang-patterns`
-Status: `Approved for Development`
+Status: `Implemented`
 
 gryphon patterns describe node and edge shape, direction, repetition, and named bindings using
 Cypher-like syntax.
@@ -163,13 +163,13 @@ MATCH (server:host)<-[edge:ON_HOST]-(iface:interface)
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-traversal-lang-patterns-1 | Supports Node Variables And Labels | Approved for Development | Node patterns may declare a variable and label. | |
-| req-grid-traversal-lang-patterns-2 | Supports Edge Variables And Types | Approved for Development | Edge patterns may declare a variable and edge type. | |
-| req-grid-traversal-lang-patterns-3 | Supports Directed And Undirected Edges | Approved for Development | gryphon patterns support `out`, `in`, and undirected graph shape. | |
-| req-grid-traversal-lang-patterns-4 | Supports Path Variables | Approved for Development | Entire matched paths may be bound to named variables. | |
-| req-grid-traversal-lang-patterns-5 | Supports Bounded Repetition | Approved for Development | gryphon patterns support bounded hop repetition such as `*1..3`. | |
-| req-grid-traversal-lang-patterns-6 | Supports Anonymous Repeated Edges | Approved for Development | Bounded traversal may omit edge variable and edge type. | |
-| req-grid-traversal-lang-patterns-7 | Supports Wildcards By Omission | Approved for Development | Unspecified node labels or edge types behave as wildcards within TAP scope. | |
+| req-grid-traversal-lang-patterns-1 | Supports Node Variables And Labels | Implemented | Node patterns may declare a variable and label. | |
+| req-grid-traversal-lang-patterns-2 | Supports Edge Variables And Types | Implemented | Edge patterns may declare a variable and edge type. | |
+| req-grid-traversal-lang-patterns-3 | Supports Directed And Undirected Edges | Implemented | gryphon patterns support `out`, `in`, and undirected graph shape. | |
+| req-grid-traversal-lang-patterns-4 | Supports Path Variables | Implemented | Entire matched paths may be bound to named variables. | |
+| req-grid-traversal-lang-patterns-5 | Supports Bounded Repetition | Implemented | gryphon patterns support bounded hop repetition such as `*1..3`. | |
+| req-grid-traversal-lang-patterns-6 | Supports Anonymous Repeated Edges | Implemented | Bounded traversal may omit edge variable and edge type. | |
+| req-grid-traversal-lang-patterns-7 | Supports Wildcards By Omission | Implemented | Unspecified node labels or edge types behave as wildcards within TAP scope. | |
 
 #### Future
 Consider subgraph-scoped gryphon composition, where one gryphon result becomes the graph
@@ -184,7 +184,7 @@ appropriate limit.
 ### Field And Predicate Semantics
 ----
 RID: `req-grid-traversal-lang-filters`
-Status: `Approved for Development`
+Status: `Implemented`
 
 gryphon text must support matching and filtering on TAP object-model fields, including
 JSON-backed structures.
@@ -227,12 +227,12 @@ RETURN n.entity_id, n.name
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-traversal-lang-filters-1 | Inline Property Maps Supported | Approved for Development | Node and edge patterns may include inline property filters. | |
-| req-grid-traversal-lang-filters-2 | Where Predicates Supported | Approved for Development | gryphon text supports `WHERE` predicates over bound variables. | |
-| req-grid-traversal-lang-filters-3 | Dot Field Access Supported | Approved for Development | Predicates may access object-model fields with dot notation. | |
-| req-grid-traversal-lang-filters-4 | Keyed Json Access Supported | Approved for Development | Predicates may access JSON keys using bracket notation. | |
-| req-grid-traversal-lang-filters-5 | Positional Array Access Supported | Approved for Development | Predicates may address array members by numeric index. | |
-| req-grid-traversal-lang-filters-6 | Array Wildcard Access Supported | Approved for Development | Predicates may use `[*]` to mean "any array member". | |
+| req-grid-traversal-lang-filters-1 | Inline Property Maps Supported | Implemented | Node and edge patterns may include inline property filters. | |
+| req-grid-traversal-lang-filters-2 | Where Predicates Supported | Implemented | gryphon text supports `WHERE` predicates over bound variables. | |
+| req-grid-traversal-lang-filters-3 | Dot Field Access Supported | Implemented | Predicates may access object-model fields with dot notation. | |
+| req-grid-traversal-lang-filters-4 | Keyed Json Access Supported | Implemented | Predicates may access JSON keys using bracket notation. | |
+| req-grid-traversal-lang-filters-5 | Positional Array Access Supported | Implemented | Predicates may address array members by numeric index. | |
+| req-grid-traversal-lang-filters-6 | Array Wildcard Access Supported | Implemented | Predicates may use `[*]` to mean "any array member". | |
 
 #### Future
 Consider adding `IN`, `EXISTS`, and collection functions once enough real queries demonstrate
@@ -242,7 +242,7 @@ the need.
 ### Predicate Combinators
 ----
 RID: `req-grid-traversal-lang-combinators`
-Status: `Approved for Development`
+Status: `Implemented`
 
 gryphon `WHERE` predicates may be combined using `AND`, `OR`, and `NOT`. Parentheses may be used to
 control grouping explicitly.
@@ -276,10 +276,10 @@ Precedence (highest to lowest): `NOT` > `AND` > `OR`. Parentheses override prece
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-traversal-lang-combinators-1 | AND Supported | Approved for Development | `WHERE` predicates support `AND` to require both operands. | |
-| req-grid-traversal-lang-combinators-2 | OR Supported | Approved for Development | `WHERE` predicates support `OR` to accept either operand. | |
-| req-grid-traversal-lang-combinators-3 | NOT Supported | Approved for Development | `WHERE` predicates support `NOT` to negate a single predicate. | |
-| req-grid-traversal-lang-combinators-4 | Grouping With Parens | Approved for Development | Parentheses may be used to override default precedence. | |
+| req-grid-traversal-lang-combinators-1 | AND Supported | Implemented | `WHERE` predicates support `AND` to require both operands. | |
+| req-grid-traversal-lang-combinators-2 | OR Supported | Implemented | `WHERE` predicates support `OR` to accept either operand. | |
+| req-grid-traversal-lang-combinators-3 | NOT Supported | Implemented | `WHERE` predicates support `NOT` to negate a single predicate. | |
+| req-grid-traversal-lang-combinators-4 | Grouping With Parens | Implemented | Parentheses may be used to override default precedence. | |
 
 #### Future
 Add `XOR` if a concrete use case demonstrates the need.
@@ -288,7 +288,7 @@ Add `XOR` if a concrete use case demonstrates the need.
 ### Runtime Inputs And Variables
 ----
 RID: `req-grid-traversal-lang-params`
-Status: `Approved for Development`
+Status: `Implemented`
 
 gryphon text should be parameterizable and bind reusable names for nodes, edges, and paths.
 
@@ -315,9 +315,9 @@ RETURN p, host
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-traversal-lang-params-1 | Supports Dollar Variables | Approved for Development | Runtime inputs use `$var` syntax within gryphon text. | |
-| req-grid-traversal-lang-params-2 | Supports Node Edge And Path Variables | Approved for Development | Traversal matching may bind names for nodes, edges, and entire paths. | |
-| req-grid-traversal-lang-params-3 | Inputs Are Supplied Separately | Approved for Development | Runtime values are provided separately from stored traversal text. | |
+| req-grid-traversal-lang-params-1 | Supports Dollar Variables | Implemented | Runtime inputs use `$var` syntax within gryphon text. | |
+| req-grid-traversal-lang-params-2 | Supports Node Edge And Path Variables | Implemented | Traversal matching may bind names for nodes, edges, and entire paths. | |
+| req-grid-traversal-lang-params-3 | Inputs Are Supplied Separately | Implemented | Runtime values are provided separately from stored traversal text. | |
 
 #### Future
 If TAP later needs default parameter values or parameter typing inline in gryphon text,
@@ -327,7 +327,7 @@ define that separately rather than overloading `$var`.
 ### Return Semantics
 ----
 RID: `req-grid-traversal-lang-returns`
-Status: `Approved for Development`
+Status: `Implemented`
 
 gryphon supports projection of matched bindings. The default result packaging is a graph envelope
 of matched nodes and edges. Including an explicit `RETURN` clause signals that the caller wants
@@ -367,12 +367,12 @@ wire format.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-traversal-lang-returns-1 | Omitted Return Is Graph Envelope | Approved for Development | When `RETURN` is omitted, TAP returns a graph envelope of all matched nodes and edges. | |
-| req-grid-traversal-lang-returns-2 | Explicit Return Signals Row Projection | Approved for Development | Including `RETURN` signals that the caller wants projected row results rather than a full graph envelope. | |
-| req-grid-traversal-lang-returns-3 | Supports Variable Returns | Approved for Development | `RETURN` may include node, edge, and path variables. | |
-| req-grid-traversal-lang-returns-4 | Supports Field Projection | Approved for Development | `RETURN` may include specific fields from bound variables. | |
-| req-grid-traversal-lang-returns-5 | Supports Named Return Aliases | Approved for Development | `RETURN` may rename returned values using `AS`. | |
-| req-grid-traversal-lang-returns-6 | Packaging Remains Tap-Controlled | Approved for Development | Traversal text does not redefine TAP's canonical execution packaging contract. | |
+| req-grid-traversal-lang-returns-1 | Omitted Return Is Graph Envelope | Implemented | When `RETURN` is omitted, TAP returns a graph envelope of all matched nodes and edges. | |
+| req-grid-traversal-lang-returns-2 | Explicit Return Signals Row Projection | Implemented | Including `RETURN` signals that the caller wants projected row results rather than a full graph envelope. | |
+| req-grid-traversal-lang-returns-3 | Supports Variable Returns | Implemented | `RETURN` may include node, edge, and path variables. | |
+| req-grid-traversal-lang-returns-4 | Supports Field Projection | Implemented | `RETURN` may include specific fields from bound variables. | |
+| req-grid-traversal-lang-returns-5 | Supports Named Return Aliases | Implemented | `RETURN` may rename returned values using `AS`. | |
+| req-grid-traversal-lang-returns-6 | Packaging Remains Tap-Controlled | Implemented | Traversal text does not redefine TAP's canonical execution packaging contract. | |
 
 #### Future
 Aggregation and ordering within `RETURN` should be considered only after base traversal
@@ -384,7 +384,7 @@ execution semantics are stable.
 | Status States |  |
 | --- | --- |
 | Proposed |  |
-| Approved for Development | Requirement is accepted and ready to be implemented |
+| Implemented | Requirement is accepted and ready to be implemented |
 | In Development |  |
 | Implemented |  |
 | Verified |  |

@@ -2,18 +2,18 @@
 
 ## Philosophy
 
-Plugin load is the first durable contract between TAP core and TAP plugins. In v0 that contract should stay small, explicit, and inspectable: a plugin should declare what TAP-managed model types it introduces and what bundled GRIFT data it makes available, and TAP should know how to load that declaration consistently at startup.
+Plugin load is the first durable contract between TAP core and TAP plugins. In v0 that contract should stay small, explicit, and inspectable: a plugin should declare what TAP-managed model types it introduces, what edge types it contributes, what editor descriptors it provides, what search runners it contributes, and what bundled GRIFT data it makes available, and TAP should know how to load that declaration consistently at startup.
 
 This specification is intentionally narrower than a full plugin lifecycle. It does not define install, uninstall, dependency resolution, enablement state, or migration orchestration. It focuses only on what it means for a plugin to be present in a TAP installation and what must happen when that plugin loads.
 
-The guiding principle for v0 is that the plugin's load shape should be reviewable without digging through arbitrary Python. Python remains the implementation path for execution, but `tap-plugin.toml` should be the high-level declaration surface so humans and future tooling can quickly answer: what models does this plugin add, and what GRIFT files does it publish?
+The guiding principle for v0 is that the plugin's load shape should be reviewable without digging through arbitrary Python. Python remains the implementation path for execution, but `tap-plugin.toml` should be the high-level declaration surface so humans and future tooling can quickly answer: what models does this plugin add, what edge types does it contribute, what editors does it provide, what searches does it contribute, and what GRIFT files does it publish?
 
 ## Goals
 
 |    |              |                                                                                 |
 | :---: | ---       | ---                                                                             |
 | 1. | Explicit     | Plugin load behavior is defined by a small, specific contract rather than ad hoc startup code |
-| 2. | Inspectable  | A plugin exposes a high-level manifest declaring TAP-managed model and GRIFT surfaces |
+| 2. | Inspectable  | A plugin exposes a high-level manifest declaring TAP-managed model, edge, editor, search, and GRIFT surfaces |
 | 3. | Minimal      | v0 defines only startup/load behavior and defers install, uninstall, and dependencies |
 | 4. | Evolvable    | The v0 shape is simple enough to support future plugin tooling and richer lifecycle work |
 
@@ -23,7 +23,7 @@ The guiding principle for v0 is that the plugin's load shape should be reviewabl
 | --- | --- | :---: | --- |
 | req-plugin-load-v0-scope | [Plugin Load Scope](#plugin-load-scope) | Implemented | Defines what this v0 spec covers and excludes |
 | req-plugin-load-v0-contract | [Plugin Load Contract](#plugin-load-contract) | Implemented | Defines what TAP considers plugin load in v0 |
-| req-plugin-load-v0-manifest | [Plugin Manifest Declaration](#plugin-manifest-declaration) | Implemented | High-level declaration surface for models and GRIFT files |
+| req-plugin-load-v0-manifest | [Plugin Manifest Declaration](#plugin-manifest-declaration) | Implemented | High-level declaration surface for models, edges, and GRIFT files |
 | req-plugin-load-v0-models | [TAP-Managed Model Publication](#tap-managed-model-publication) | Implemented | Models introduced by a plugin are part of the load contract |
 | req-plugin-load-v0-grift | [Bundled GRIFT Publication](#bundled-grift-publication) | Implemented | GRIFT files are declared by the plugin as loadable bundled data |
 | req-plugin-load-v0-upsert | [GRIFT Upsert Policy](#grift-upsert-policy) | Implemented | Bundled plugin GRIFT uses strict upsert semantics in v0 |
@@ -47,6 +47,9 @@ For this specification:
 - the plugin must use the TAP plugin contract rather than behaving as an arbitrary Django app
 - the covered surfaces are:
   - TAP-managed model types introduced by the plugin
+  - edge types contributed by the plugin
+  - editor descriptors declared by the plugin
+  - search runners declared by the plugin
   - bundled GRIFT files declared by the plugin
   - plugin startup registration needed to expose those surfaces to TAP
 
@@ -65,7 +68,7 @@ This keeps the first plugin lifecycle spec aligned with the stated goal: formali
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-load-v0-scope-1 | TAP Surfaces Only | Proposed | The v0 load lifecycle covers TAP-managed plugin model and GRIFT declaration surfaces only. | |
+| req-plugin-load-v0-scope-1 | TAP Surfaces Only | Proposed | The v0 load lifecycle covers TAP-managed plugin model, edge, editor, search, and GRIFT declaration surfaces only. | |
 | req-plugin-load-v0-scope-2 | Django App Basis | Proposed | A v0 TAP plugin is still a Django app registered in `INSTALLED_APPS`. | |
 | req-plugin-load-v0-scope-3 | Lifecycle Narrowing | Proposed | Install, uninstall, and dependency management are explicitly outside this v0 scope. | |
 
@@ -88,13 +91,13 @@ In v0, plugin load means:
 1. the plugin's Django app is present in `INSTALLED_APPS`
 2. its Python modules are imported by Django
 3. any plugin `BaseModel` subclasses register their TAP model types through existing class-definition hooks
-4. the plugin exposes `tap-plugin.toml` describing its TAP-managed model and GRIFT surfaces
+4. the plugin exposes `tap-plugin.toml` describing its TAP-managed model, edge, editor, search, and GRIFT surfaces
 5. the plugin's `TapPluginConfig.ready()` execution completes without error
 6. TAP applies the startup registrations defined by the plugin contract
 
 `TapPluginConfig.ready()` is the v0 execution hook for plugin load. This is not just an implementation detail for this version; it is the formal startup boundary for the contract defined here.
 
-The load contract is satisfied when TAP can determine, from the plugin's declared surfaces and startup execution, what model types and bundled GRIFT data the plugin contributes.
+The load contract is satisfied when TAP can determine, from the plugin's declared surfaces and startup execution, what model types, edge types, editor descriptors, search runners, and bundled GRIFT data the plugin contributes.
 
 #### Development
 This requirement intentionally chooses a concrete boundary instead of a softer “plugins somehow load” description. That gives scaffolding and future tests a stable target.
@@ -104,7 +107,7 @@ This requirement intentionally chooses a concrete boundary instead of a softer �
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-plugin-load-v0-contract-1 | Ready Is Canonical Hook | Proposed | `TapPluginConfig.ready()` is the canonical v0 execution hook for plugin load behavior. | |
-| req-plugin-load-v0-contract-2 | Declared Surfaces Visible | Proposed | A loaded plugin exposes its TAP-managed model and GRIFT surfaces through a declared contract rather than only implicit startup side effects. | |
+| req-plugin-load-v0-contract-2 | Declared Surfaces Visible | Proposed | A loaded plugin exposes its TAP-managed model, edge, editor, search, and GRIFT surfaces through a declared contract rather than only implicit startup side effects. | |
 | req-plugin-load-v0-contract-3 | Load Completes Or Fails | Proposed | Plugin load is treated as a concrete startup step that either completes successfully or fails during app startup. | |
 
 #### Future
@@ -129,6 +132,9 @@ The v0 manifest declares, at minimum:
 - plugin version
 - plugin identity information sufficient to name the plugin
 - the TAP-managed model types the plugin introduces
+- the edge types the plugin contributes
+- the editor descriptors the plugin provides
+- the search runners the plugin provides
 - the bundled GRIFT files the plugin publishes as part of its loadable data surface
 
 The v0 manifest is intentionally high-level, but it is no longer abstract. In v0:
@@ -136,7 +142,7 @@ The v0 manifest is intentionally high-level, but it is no longer abstract. In v0
 - the manifest file name is fixed as `tap-plugin.toml`
 - the manifest is purely declarative
 - unknown keys are rejected
-- sections for `models` and `grift` may be omitted when empty
+- sections for `models`, `edges`, `editors`, `searches`, and `grift` may be omitted when empty
 
 This specification still leaves room for the dedicated manifest spec to define the exact TOML structure in detail.
 
@@ -157,8 +163,11 @@ This requirement gives TAP a middle path between two bad extremes:
 | req-plugin-load-v0-manifest-1 | Manifest Exists | Proposed | A v0 plugin exposes `tap-plugin.toml` describing its TAP-managed load surfaces. | |
 | req-plugin-load-v0-manifest-2 | Identity And Versions Declared | Proposed | The manifest declares plugin identity, manifest schema version, and plugin version. | |
 | req-plugin-load-v0-manifest-3 | Models Declared | Proposed | The manifest lists the TAP-managed model types introduced by the plugin. | |
-| req-plugin-load-v0-manifest-4 | GRIFT Files Declared | Proposed | The manifest lists the bundled GRIFT files published by the plugin. | |
-| req-plugin-load-v0-manifest-5 | Strict Declarative Surface | Proposed | The manifest is purely declarative and rejects unknown keys in v0. | |
+| req-plugin-load-v0-manifest-4 | Edges Declared | Proposed | The manifest lists the edge types contributed by the plugin. | |
+| req-plugin-load-v0-manifest-5 | Editors Declared | Proposed | The manifest lists the editor descriptors provided by the plugin. | |
+| req-plugin-load-v0-manifest-6 | Searches Declared | Proposed | The manifest lists the search runners provided by the plugin. | |
+| req-plugin-load-v0-manifest-7 | GRIFT Files Declared | Proposed | The manifest lists the bundled GRIFT files published by the plugin. | |
+| req-plugin-load-v0-manifest-8 | Strict Declarative Surface | Proposed | The manifest is purely declarative and rejects unknown keys in v0. | |
 
 #### Future
 The manifest may later grow to include dependency declarations, compatibility ranges, migration hooks, installation metadata, UI contributions, API routers, or capability flags.
@@ -333,7 +342,7 @@ The v0 load lifecycle has three conceptually distinct phases:
 Declaration phase:
 
 - the plugin provides `tap-plugin.toml`
-- the manifest declares TAP-managed model types and bundled GRIFT files
+- the manifest declares TAP-managed model types, edge types, editor descriptors, search runners, and bundled GRIFT files
 
 Class-definition phase:
 
@@ -347,8 +356,6 @@ Startup phase:
 - TAP can now treat the plugin's manifest-declared surfaces as loaded and available
 
 This specification does not require that the manifest be consumed before every class import in a technical sense. The important contract is conceptual and observable: TAP can describe the plugin's declared surfaces distinctly from the runtime registration side effects that make them active.
-
-One open area remains intentionally under-specified in this lifecycle document: edge type declarations should move toward their own file or files rather than remaining ad hoc metadata in Python startup code, but the exact v0 manifest and file mechanism for plugin-defined edges is deferred to the dedicated manifest work.
 
 #### Development
 The existing code already has a real split here. Writing it down now will make future scaffolding and loader work much less hand-wavy.
@@ -386,7 +393,6 @@ Plugin load v0 explicitly does not define:
 - migration orchestration beyond normal Django app behavior
 - automatic policy for when declared GRIFT bundles must be executed
 - manifest schema freeze beyond the minimum high-level declaration concepts in this spec
-- the final v0 file mechanism for plugin-defined edge declarations
 
 #### Development
 This is the line that keeps v0 honest. Once a couple more plugins exist, TAP will be in a better position to decide which of these should become first-class lifecycle concepts.
@@ -398,7 +404,7 @@ This is the line that keeps v0 honest. Once a couple more plugins exist, TAP wil
 | req-plugin-load-v0-nongoals-1 | Install Deferred | Proposed | The v0 plugin load lifecycle does not define install behavior. | |
 | req-plugin-load-v0-nongoals-2 | Uninstall Deferred | Proposed | The v0 plugin load lifecycle does not define uninstall behavior. | |
 | req-plugin-load-v0-nongoals-3 | Dependencies Deferred | Proposed | The v0 plugin load lifecycle does not define plugin dependency management. | |
-| req-plugin-load-v0-nongoals-4 | Edge Mechanism Deferred | Proposed | The v0 lifecycle spec does not yet define the final file/declaration mechanism for plugin-defined edge types. | |
+| req-plugin-load-v0-nongoals-4 | Manifest Shape Still Evolvable | Proposed | v0 defines the manifest contract but still leaves room for future refinement beyond its minimum declared concepts. | |
 
 #### Future
 The next likely extension points are:

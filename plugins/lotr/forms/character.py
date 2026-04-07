@@ -1,4 +1,4 @@
-"""Forms and editor descriptors for the LOTR plugin."""
+"""Forms and editor descriptors for LOTR Character entities."""
 
 from __future__ import annotations
 

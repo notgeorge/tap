@@ -1,0 +1,237 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019d6590-cafb-7069-b54c-3da3f8993a37",
+        "entity_type": "batch",
+        "name": "TAP grid landing v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.administrivia",
+        "name": "TAP grid landing v0.1.0",
+        "description": "Default /grid landing page, searches, layout, and panels for TAP administration."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-997d0d599735",
+            "entity_type": "search",
+            "name": "All Grid Entities",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "All Grid Entities",
+            "description": "All entity nodes in the grid.",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {"filters": {}, "order_by": ["name"]},
+            "default_limit": 200,
+            "max_limit": 500
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-997e96169195",
+            "entity_type": "search",
+            "name": "All Grid Edges",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "All Grid Edges",
+            "description": "All edges in the grid.",
+            "search_type": "orm",
+            "root": "edge",
+            "definition": {"filters": {}, "order_by": ["entity_id"]},
+            "default_limit": 500,
+            "max_limit": 2000
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-997f45b1ab5b",
+            "entity_type": "layout",
+            "name": "Grid Overview",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Grid Overview",
+            "description": "All entities in the grid shown as a graph.",
+            "definition": {
+              "inputs": [],
+              "steps": [{"type": "search", "search-id": "main"}],
+              "presentation": {"placement": "cytoscape:grid"},
+              "interactions": {}
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-998044963bcc",
+            "entity_type": "panel",
+            "name": "Grid Overview",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "grid-overview-graph",
+            "name": "Grid Overview",
+            "view": "tap_viz/panels/graph_panel.html",
+            "js": ["tap_viz/js/cytoscape.min.js", "tap_viz/js/panel-graph.js"],
+            "css": ["tap_viz/css/panel-graph.css"],
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-998199264b9a",
+            "entity_type": "panel",
+            "name": "All Entities",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "grid-all-nodes-table",
+            "name": "All Entities",
+            "view": "tap_web/panels/table_panel.html",
+            "editor_view": "tap_web/panels/table_panel_editor.html",
+            "js": ["js/lib/tabulator.min.js", "js/panel-table.js"],
+            "css": ["css/lib/tabulator.min.css"],
+            "config": {"column_mode": "common_metadata", "default_limit": 25}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-9982175883e3",
+            "entity_type": "page",
+            "name": "Grid",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Grid",
+            "slug": "/grid",
+            "layout": {
+              "columns": {
+                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "graph"}, "row-2": {"panel-id": "nodes"}}}
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-9983dd994b68",
+            "entity_type": "landing_page",
+            "name": "Default",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Default",
+            "description": "Default TAP landing page."
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-99848e55ad68",
+            "entity_type": "edge",
+            "name": "USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6590-cafc-73ba-a9f1-997f45b1ab5b",
+            "to_entity_id": "019d6590-cafc-73ba-a9f1-997d0d599735",
+            "edge_type": "USES_SEARCH",
+            "properties": {"search-id": "main"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-9985e6960876",
+            "entity_type": "edge",
+            "name": "USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6590-cafc-73ba-a9f1-997f45b1ab5b",
+            "to_entity_id": "019d6590-cafc-73ba-a9f1-997e96169195",
+            "edge_type": "USES_SEARCH",
+            "properties": {"search-id": "edges"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-9986e5ac59be",
+            "entity_type": "edge",
+            "name": "USES_LAYOUT",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6590-cafc-73ba-a9f1-998044963bcc",
+            "to_entity_id": "019d6590-cafc-73ba-a9f1-997f45b1ab5b",
+            "edge_type": "USES_LAYOUT",
+            "properties": {"layout-id": "default"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-9987ff9cd0e7",
+            "entity_type": "edge",
+            "name": "USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6590-cafc-73ba-a9f1-998199264b9a",
+            "to_entity_id": "019d6590-cafc-73ba-a9f1-997d0d599735",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-99888b0ab285",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6590-cafc-73ba-a9f1-9982175883e3",
+            "to_entity_id": "019d6590-cafc-73ba-a9f1-998044963bcc",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "graph"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-9989a5142fe4",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6590-cafc-73ba-a9f1-9982175883e3",
+            "to_entity_id": "019d6590-cafc-73ba-a9f1-998199264b9a",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "nodes"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6590-cafc-73ba-a9f1-998ab54e448a",
+            "entity_type": "edge",
+            "name": "USES_LANDING_PAGE",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6590-cafc-73ba-a9f1-9983dd994b68",
+            "to_entity_id": "019d6590-cafc-73ba-a9f1-9982175883e3",
+            "edge_type": "USES_LANDING_PAGE",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}

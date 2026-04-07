@@ -831,13 +831,13 @@ class Batch(BaseModel):
     # actor and closed_at are managed by service methods, not user payload.
     # started_at is auto_now_add; status/error_message managed via close_batch/fail_batch.
     FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
-        "title": {"type": "string"},
+        "name": {"type": "string"},
         "description": {"type": "string"},
         "description_json": {"oneOf": [{"type": "null"}, {"type": "object"}]},
         "source": {"type": "string"},
         "metadata": {"type": "object"},
     }
-    REPLACE_REQUIRED: ClassVar[list[str]] = ["title"]
+    REPLACE_REQUIRED: ClassVar[list[str]] = ["name"]
     # status and error_message are patch-only lifecycle fields.
     PATCH_EXTRA_FIELDS: ClassVar[dict[str, dict]] = {
         "status": {"type": "string", "enum": ["open", "closed", "failed"]},
@@ -846,11 +846,11 @@ class Batch(BaseModel):
 
     # History is inherited from BaseModel.
 
-    title = models.CharField(
+    name = models.CharField(
         max_length=255,
         blank=True,
         default="",
-        help_text="Human-readable batch summary.",
+        help_text="Human-readable batch name.",
     )
     description = models.TextField(
         blank=True,

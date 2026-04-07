@@ -9,29 +9,20 @@ import pytest
 from django.core.exceptions import ValidationError
 
 from tap_grid.exceptions import SearchExecutionError
-from tap_grid.models import Search
-from tap_grid.search import execute_search
 from tap_grid.gryphon.ast_nodes import (
     AndPred,
     Comparison,
     DotStep,
-    EdgePattern,
-    FieldPath,
+    GryphonAST,
     KeyStep,
-    MatchClause,
-    NodePattern,
     NotPred,
     OrPred,
     ParamRef,
-    PathPattern,
-    ReturnClause,
-    ReturnItem,
-    GryphonAST,
-    WhereClause,
     WildcardStep,
 )
 from tap_grid.gryphon.parser import GryphonParseError, parse_gryphon
-
+from tap_grid.models import Search
+from tap_grid.search import execute_search
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -218,6 +209,22 @@ class TestGryphonParser:
         with pytest.raises(GryphonParseError):
             parse_gryphon("")
 
+    def test_node_only_pattern_parses(self):
+        """req-grid-traversal-lang-patterns: node-only MATCH pattern is valid syntax."""
+        ast = parse_gryphon("MATCH (c:character) RETURN c.entity_id, c.name")
+        mc = ast.match_clauses[0]
+        pattern = mc.patterns[0]
+        assert len(pattern.nodes) == 1
+        assert len(pattern.edges) == 0
+        assert pattern.nodes[0].label == "character"
+
+    def test_node_only_no_label_parses(self):
+        """Node-only pattern without label is syntactically valid."""
+        ast = parse_gryphon("MATCH (n) RETURN n.entity_id")
+        pattern = ast.match_clauses[0].patterns[0]
+        assert len(pattern.edges) == 0
+        assert pattern.nodes[0].label is None
+
 
 # ---------------------------------------------------------------------------
 # TestGryphonExecutor — req-grid-traversal-exec-pipeline
@@ -228,9 +235,10 @@ class TestGryphonParser:
 class TestGryphonExecutor:
     def test_hub_spoke_returns_hub_and_neighbors(self):
         """Hub-and-spoke traversal returns hub + one-hop neighbors and edges."""
+        import uuid
+
         from tap_grid.caller_context import CallerContext, set_caller_context
         from tap_grid.models import Edge, Entity
-        import uuid
 
         ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
@@ -259,9 +267,10 @@ class TestGryphonExecutor:
 
     def test_outbound_only_direction(self):
         """Outbound-only pattern excludes inbound-only neighbors."""
+        import uuid
+
         from tap_grid.caller_context import CallerContext, set_caller_context
         from tap_grid.models import Edge, Entity
-        import uuid
 
         ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
@@ -336,6 +345,89 @@ class TestGryphonExecutor:
         with pytest.raises(SearchExecutionError, match="[Uu]nsupported"):
             execute_search(search, inputs={"entity_id": "00000000-0000-0000-0000-000000000000"})
 
+    def test_type_scan_returns_projected_nodes(self):
+        """req-grid-traversal-lang-returns-4: type scan with field projection."""
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+
+        for name in ("Frodo", "Sam"):
+            entity = Entity.objects.create(entity_type="character", name=name)
+            Character.objects.create(entity=entity, name=name, bio=f"{name} bio")
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.name, c.bio"},
+        )
+        result = execute_search(search, inputs={})
+
+        assert "nodes" in result
+        assert "edges" in result
+        assert result["edges"] == []
+        assert len(result["nodes"]) >= 2
+        node = result["nodes"][0]
+        assert "entity_id" in node
+        assert "name" in node
+        assert "bio" in node
+
+    def test_type_scan_envelope_when_return_omitted(self):
+        """req-grid-traversal-lang-returns-1: type scan without RETURN gives graph envelope."""
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+
+        entity = Entity.objects.create(entity_type="character", name="Gandalf")
+        Character.objects.create(entity=entity, name="Gandalf", bio="A wizard.")
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": "MATCH (c:character)"},
+        )
+        result = execute_search(search, inputs={})
+
+        assert "nodes" in result
+        node = result["nodes"][0]
+        # Graph envelope nodes have entity_id, entity_type, name.
+        assert "entity_id" in node
+        assert "entity_type" in node
+        assert "name" in node
+
+    def test_type_scan_no_label_raises(self):
+        """Type scan requires a node label to know which entity type to scan."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": "MATCH (c) RETURN c.entity_id"},
+        )
+        with pytest.raises(SearchExecutionError, match="[Ll]abel"):
+            execute_search(search, inputs={})
+
+    def test_type_scan_unknown_label_raises(self):
+        """Type scan with an unregistered entity type raises SearchExecutionError."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": "MATCH (c:nonexistent_type) RETURN c.entity_id"},
+        )
+        with pytest.raises(SearchExecutionError, match="[Uu]nknown"):
+            execute_search(search, inputs={})
+
 
 # ---------------------------------------------------------------------------
 # TestSearchModelGryphon — Search.validate() gryphon branch
@@ -394,9 +486,10 @@ class TestSearchModelGryphon:
 class TestSearchServiceGryphon:
     def test_gryphon_dispatch_returns_canonical_envelope(self):
         """req-grid-traversal-exec-pipeline-4: results normalized into canonical envelope."""
+        import uuid
+
         from tap_grid.caller_context import CallerContext, set_caller_context
         from tap_grid.models import Entity
-        import uuid
 
         ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)

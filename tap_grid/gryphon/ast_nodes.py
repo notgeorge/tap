@@ -6,8 +6,7 @@ All nodes are immutable. The transformer in parser.py builds these from the lark
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
-
+from typing import Literal
 
 # ---------------------------------------------------------------------------
 # Field path
@@ -130,23 +129,23 @@ class Comparison:
 class AndPred:
     """Conjunction: both operands must be true."""
 
-    left: "Predicate"
-    right: "Predicate"
+    left: Predicate
+    right: Predicate
 
 
 @dataclass(frozen=True)
 class OrPred:
     """Disjunction: either operand must be true."""
 
-    left: "Predicate"
-    right: "Predicate"
+    left: Predicate
+    right: Predicate
 
 
 @dataclass(frozen=True)
 class NotPred:
     """Negation: operand must be false."""
 
-    operand: "Predicate"
+    operand: Predicate
 
 
 Predicate = Comparison | AndPred | OrPred | NotPred

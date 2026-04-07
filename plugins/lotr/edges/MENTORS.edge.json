@@ -1,0 +1,16 @@
+{
+  "slug": "MENTORS",
+  "name": "Mentors",
+  "description": "One character mentors another.",
+  "sources": ["character"],
+  "targets": ["character"],
+  "property_schema": {
+    "type": "object",
+    "required": ["discipline"],
+    "properties": {
+      "discipline": {"type": "string"},
+      "duration_years": {"type": "integer", "minimum": 0}
+    },
+    "additionalProperties": false
+  }
+}

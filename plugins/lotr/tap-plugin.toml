@@ -4,38 +4,37 @@ slug = "lotr"
 name = "Lord of the Rings"
 description = "Middle-earth example plugin — characters, locations, artifacts, races, and factions."
 
-[[models]]
-slug = "character"
-class = "plugins.lotr.models.character.Character"
+[models]
+character = "plugins.lotr.models.character.Character"
+location = "plugins.lotr.models.location.Location"
+artifact = "plugins.lotr.models.artifact.Artifact"
+race = "plugins.lotr.models.race.Race"
+faction = "plugins.lotr.models.faction.Faction"
+sentinel = "plugins.lotr.models.sentinel.Sentinel"
+citadel = "plugins.lotr.models.citadel.Citadel"
+wanderer = "plugins.lotr.models.wanderer.Wanderer"
 
-[[models]]
-slug = "location"
-class = "plugins.lotr.models.location.Location"
+[edges]
+WIELDS = "edges/WIELDS.edge.json"
+LOCATED_IN = "edges/LOCATED_IN.edge.json"
+RULES = "edges/RULES.edge.json"
+BELONGS_TO = "edges/BELONGS_TO.edge.json"
+MEMBER_OF = "edges/MEMBER_OF.edge.json"
+ALLIES_WITH = "edges/ALLIES_WITH.edge.json"
+ENEMIES_WITH = "edges/ENEMIES_WITH.edge.json"
+FORGED_IN = "edges/FORGED_IN.edge.json"
+CONTAINS = "edges/CONTAINS.edge.json"
+REFERENCES = "edges/REFERENCES.edge.json"
+PROTECTS = "edges/PROTECTS.edge.json"
+MENTORS = "edges/MENTORS.edge.json"
 
-[[models]]
-slug = "artifact"
-class = "plugins.lotr.models.artifact.Artifact"
+[editors]
+character = "plugins.lotr.forms.character.CharacterEditorDescriptor"
 
-[[models]]
-slug = "race"
-class = "plugins.lotr.models.race.Race"
+[searches]
+list-characters-with-bio = "plugins.lotr.searches.characters.list_characters_with_bio"
 
-[[models]]
-slug = "faction"
-class = "plugins.lotr.models.faction.Faction"
-
-[[models]]
-slug = "sentinel"
-class = "plugins.lotr.models.sentinel.Sentinel"
-
-[[models]]
-slug = "citadel"
-class = "plugins.lotr.models.citadel.Citadel"
-
-[[models]]
-slug = "wanderer"
-class = "plugins.lotr.models.wanderer.Wanderer"
-
-[[grift]]
-name = "core-data"
-path = "data/core-data.grift.json"
+[grift]
+core-data = "data/core-data.grift.json"
+searches = "data/searches.grift.json"
+web = "data/web.grift.json"

@@ -213,7 +213,7 @@ class TestListCharactersRunner:
         """list-characters-with-bio runner is registered by AppConfig.ready()."""
         from tap_grid.registry import search_runner_registry
 
-        assert "plugins.lotr.searches:list-characters-with-bio" in search_runner_registry
+        assert "plugins.lotr.searches.characters:list-characters-with-bio" in search_runner_registry
 
     def test_list_characters_returns_envelope(self):
         """list-characters-with-bio runner returns valid graph envelope via execute_search."""
@@ -224,7 +224,7 @@ class TestListCharactersRunner:
             name="List Characters",
             search_type="module",
             root="node",
-            definition={"runner_key": "plugins.lotr.searches:list-characters-with-bio"},
+            definition={"runner_key": "plugins.lotr.searches.characters:list-characters-with-bio"},
         )
         result = execute_search(s)
         assert "nodes" in result
@@ -239,7 +239,7 @@ class TestListCharactersRunner:
             name="Readonly Test",
             search_type="module",
             root="node",
-            definition={"runner_key": "plugins.lotr.searches:list-characters-with-bio"},
+            definition={"runner_key": "plugins.lotr.searches.characters:list-characters-with-bio"},
         )
         result = execute_search(s)
         assert isinstance(result["nodes"], list)

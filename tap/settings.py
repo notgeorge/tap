@@ -77,6 +77,8 @@ INSTALLED_APPS = [
     # TAP apps (added as we scaffold each one)
     "tap_grid",
     "tap_plugins",
+    # Administrivia plugin — TAP administrative pages and infrastructure
+    "plugins.administrivia.apps.AdministriviaConfig",
     # LOTR plugin — Middle-earth entities for constraint testing
     "plugins.lotr.apps.LotrConfig",
     # API layer — last so ready() discovers all plugin routers

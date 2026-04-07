@@ -1,12 +1,8 @@
 """TapPluginConfig — base class for TAP plugins.
 
 Plugins subclass this and provide a tap-plugin.toml manifest at their root.
-The manifest declares TAP-managed model types and bundled GRIFT files.
-
-Edge types are still declared as a Python class attribute (edge manifest
-declarations are deferred to a later spec version).
-
-Override get_api_router() to expose API endpoints.
+The manifest declares TAP-managed model types, edge types, editor descriptors,
+search runners, and bundled GRIFT files.
 """
 
 from __future__ import annotations
@@ -24,9 +20,8 @@ logger = logging.getLogger(__name__)
 def register_edge_types_from_list(edge_types: list[dict[str, Any]]) -> None:
     """Register edge constraints, property schemas, and default dimensions.
 
-    Processes a list of edge type dicts in the same format used by
-    TapPluginConfig.edge_types. Call this from any AppConfig.ready() that
-    needs to register web or core edge types without subclassing TapPluginConfig.
+    Utility for non-plugin apps that need to register edge types without a manifest.
+    Processes a list of edge type dicts using the legacy {slug, sources, targets, ...} shape.
     """
     from tap_grid.constraints import (
         register_edge_default_dimensions,
@@ -52,40 +47,38 @@ def register_edge_types_from_list(edge_types: list[dict[str, Any]]) -> None:
 class TapPluginConfig(AppConfig):
     """Base AppConfig for TAP plugins.
 
-    Subclass this and provide a tap-plugin.toml manifest at the plugin root.
-    Declare edge types as a class attribute (edge manifest support is deferred)::
+    Subclass this and provide a tap-plugin.toml manifest at the plugin root::
 
         class MyPluginConfig(TapPluginConfig):
             name = "my_plugin"
-            verbose_name = "My Plugin"
 
-            edge_types = [
-                {
-                    "slug": "APPLIES_TO",
-                    "name": "Applies To",
-                    "description": "Concept applies to precept",
-                    "sources": [{"type": "concept"}],
-                    "targets": [{"type": "precept"}],
-                },
-            ]
-
-    Edge constraints in edge_types:
-        - sources: list of {"type": "..."} dicts for allowed source node types
-        - targets: list of {"type": "..."} dicts for allowed target node types
-        - Omit sources/targets for wildcard (any node type allowed)
-
-    Entity type metadata (name, description, icon) is read from class attributes
-    on each declared model class:
-        - ENTITY_NAME (str, optional): human-readable name; falls back to slug
-        - ENTITY_DESCRIPTION (str, optional): short description; falls back to ""
-        - ENTITY_ICON (str, optional): icon key; falls back to ""
+    ``label`` and ``verbose_name`` are read from ``tap-plugin.toml`` (slug and
+    name respectively) so they don't need to be declared here.  Explicit class
+    attributes still take precedence if you need to override them.
     """
-
-    # Edge types remain a Python class attribute (manifest support deferred).
-    edge_types: list[dict[str, Any]] = []
 
     # Resolved at ready() time; None until then.
     _manifest: Any = None  # PluginManifest | None
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Auto-derive ``name`` from the subclass module path if not explicitly set."""
+        super().__init_subclass__(**kwargs)
+        if "name" not in cls.__dict__:
+            cls.name = cls.__module__.rsplit(".", 1)[0]
+
+    def __init__(self, app_name: str, app_module: Any) -> None:
+        """Populate label/verbose_name from tap-plugin.toml before Django reads them."""
+        toml_path = Path(app_module.__file__).parent / "tap-plugin.toml"
+        if toml_path.exists():
+            import tomllib
+
+            with open(toml_path, "rb") as fh:
+                data = tomllib.load(fh)
+            if "label" not in type(self).__dict__ and "slug" in data:
+                self.label = data["slug"]
+            if "verbose_name" not in type(self).__dict__ and "name" in data:
+                self.verbose_name = data["name"]
+        super().__init__(app_name, app_module)
 
     @property
     def manifest(self) -> Any:
@@ -94,8 +87,11 @@ class TapPluginConfig(AppConfig):
 
     def ready(self) -> None:
         self._load_and_validate_manifest()
-        self._register_edge_constraints()
+        self._register_edges_from_manifest()
         self._register_types_from_manifest()
+        self._register_editors_from_manifest()
+        self._register_searches_from_manifest()
+        self._import_grift_from_manifest()
 
     def get_api_router(self) -> Any:
         """Return a ninja.Router for this plugin, or None.
@@ -121,7 +117,7 @@ class TapPluginConfig(AppConfig):
         from tap_plugins.manifest import (
             PluginManifestError,
             load_manifest,
-            validate_model_classes,
+            validate_manifest_classes,
             warn_undeclared_convention_files,
         )
 
@@ -132,30 +128,53 @@ class TapPluginConfig(AppConfig):
             raise RuntimeError(f"Plugin '{self.name}' failed manifest validation: {exc}") from exc
 
         try:
-            validate_model_classes(manifest)
+            validate_manifest_classes(manifest)
         except PluginManifestError as exc:
-            raise RuntimeError(f"Plugin '{self.name}' manifest model class validation failed: {exc}") from exc
+            raise RuntimeError(
+                f"Plugin '{self.name}' manifest class validation failed: {exc}"
+            ) from exc
 
         warn_undeclared_convention_files(manifest)
         self._manifest = manifest
 
     # ---------------------------------------------------------------------------
+    # Edge registration
+    # ---------------------------------------------------------------------------
+
+    def _register_edges_from_manifest(self) -> None:
+        """Register edge constraints, property schemas, and default dimensions from manifest."""
+        if self._manifest is None:
+            return
+
+        from tap_grid.constraints import (
+            register_edge_default_dimensions,
+            register_edge_property_schema,
+            register_edge_type_constraints,
+        )
+
+        for edge in self._manifest.edges:
+            sources = (
+                [{"type": s} for s in edge.sources] if edge.sources is not None else None
+            )
+            targets = (
+                [{"type": t} for t in edge.targets] if edge.targets is not None else None
+            )
+
+            if sources is not None or targets is not None:
+                register_edge_type_constraints(edge.slug, sources, targets)
+
+            if edge.property_schema is not None:
+                register_edge_property_schema(edge.slug, edge.property_schema)
+
+            if edge.default_dimensions is not None:
+                register_edge_default_dimensions(edge.slug, edge.default_dimensions)
+
+    # ---------------------------------------------------------------------------
     # Type registration
     # ---------------------------------------------------------------------------
 
-    def _register_edge_constraints(self) -> None:
-        """Register edge constraints and property schemas from edge_types."""
-        register_edge_types_from_list(self.edge_types)
-
     def _register_types_from_manifest(self) -> None:
-        """Register entity and edge types into the EntityType table from manifest.
-
-        Entity types are driven by [[models]] entries in tap-plugin.toml.
-        Display metadata is read from ENTITY_NAME, ENTITY_DESCRIPTION, ENTITY_ICON
-        class attributes on each declared model class.
-
-        Edge types are driven by the edge_types class attribute (manifest support deferred).
-        """
+        """Register entity and edge types into the EntityType table from manifest."""
         if self._manifest is None:
             return
 
@@ -176,16 +195,113 @@ class TapPluginConfig(AppConfig):
                     },
                 )
 
-            for et in self.edge_types:
+            for edge in self._manifest.edges:
                 EntityType.objects.update_or_create(
-                    slug=et["slug"],
+                    slug=edge.slug,
                     defaults={
-                        "name": et.get("name", et["slug"]),
-                        "icon": et.get("icon", ""),
-                        "description": et.get("description", ""),
+                        "name": edge.name,
+                        "icon": "",
+                        "description": edge.description,
                         "plugin_name": self.name,
                     },
                 )
 
         except (OperationalError, ProgrammingError):
             logger.debug("EntityType table not ready; skipping type registration.")
+
+    # ---------------------------------------------------------------------------
+    # Editor registration
+    # ---------------------------------------------------------------------------
+
+    def _register_editors_from_manifest(self) -> None:
+        """Register editor descriptors declared in the manifest."""
+        if self._manifest is None or not self._manifest.editors:
+            return
+
+        from django.utils.module_loading import import_string
+
+        from tap_web.registry import register_editor
+
+        for entry in self._manifest.editors:
+            cls = import_string(entry.class_path)
+            register_editor(cls())
+
+    # ---------------------------------------------------------------------------
+    # Search registration
+    # ---------------------------------------------------------------------------
+
+    def _register_searches_from_manifest(self) -> None:
+        """Register search runner callables declared in the manifest."""
+        if self._manifest is None or not self._manifest.searches:
+            return
+
+        from django.utils.module_loading import import_string
+
+        from tap_grid.registry import register_search_runner
+
+        for entry in self._manifest.searches:
+            runner = import_string(entry.callable_path)
+            register_search_runner(entry.runner_key, runner)
+
+    # ---------------------------------------------------------------------------
+    # GRIFT import
+    # ---------------------------------------------------------------------------
+
+    def _import_grift_from_manifest(self) -> None:
+        """Import declared GRIFT bundles on plugin load (upsert — idempotent).
+
+        Runs on every startup until a plugin state system is introduced.
+        """
+        if self._manifest is None or not self._manifest.grift:
+            return
+
+        import json
+
+        try:
+            from tap_grid.grift import grift_import
+        except ImportError:
+            logger.debug("tap_grid.grift not available; skipping GRIFT import for plugin '%s'.", self.name)
+            return
+
+        try:
+            for entry in self._manifest.grift:
+                grift_path = self._manifest.plugin_root / entry.path
+                with open(grift_path) as fh:
+                    document = json.load(fh)
+
+                result = grift_import(document, dangling_edge_mode="warn", actor=None)
+                counts = result.counts
+
+                if result.success:
+                    logger.info(
+                        "Plugin '%s': GRIFT bundle '%s' imported — %d node(s), %d edge(s).",
+                        self.name,
+                        entry.name,
+                        counts.nodes_imported,
+                        counts.edges_imported,
+                    )
+                    for w in result.warnings:
+                        logger.warning(
+                            "Plugin '%s': GRIFT bundle '%s' warning [%s]: %s",
+                            self.name,
+                            entry.name,
+                            w.phase,
+                            w.message,
+                        )
+                else:
+                    logger.error(
+                        "Plugin '%s': GRIFT bundle '%s' import failed.",
+                        self.name,
+                        entry.name,
+                    )
+                    for err in result.errors:
+                        logger.error(
+                            "Plugin '%s': GRIFT bundle '%s' [%s] %s: %s",
+                            self.name,
+                            entry.name,
+                            err.phase,
+                            err.path,
+                            err.message,
+                        )
+        except (OperationalError, ProgrammingError):
+            logger.debug("Database not ready; skipping GRIFT import for plugin '%s'.", self.name)

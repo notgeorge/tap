@@ -16,6 +16,7 @@ from tap_grid.gryphon.ast_nodes import (
     DotStep,
     EdgePattern,
     FieldPath,
+    GryphonAST,
     IndexStep,
     KeyStep,
     MatchClause,
@@ -26,9 +27,8 @@ from tap_grid.gryphon.ast_nodes import (
     PathPattern,
     ReturnClause,
     ReturnItem,
-    GryphonAST,
-    WildcardStep,
     WhereClause,
+    WildcardStep,
 )
 
 _GRAMMAR_PATH = os.path.join(os.path.dirname(__file__), "grammar.lark")

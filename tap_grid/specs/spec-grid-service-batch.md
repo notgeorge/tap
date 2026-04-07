@@ -45,7 +45,7 @@ A Batch is a first-class TAP Entity representing a logical group of writes. It c
 | Field | Type | Nullable | Default | Description |
 | --- | --- | --- | --- | --- |
 | `entity` | OneToOne → Entity | No | — | Backing Entity on the TAP spine. `entity.entity_type = "batch"`. |
-| `title` | CharField(255) | No | `""` | Short human-readable summary of what the batch represents. |
+| `name` | CharField(255) | No | `""` | Human-readable batch name; mirrors the backing Entity name. |
 | `description` | TextField | No | `""` | Long-form free-text description of the batch purpose. |
 | `description_json` | JSONField | Yes | `null` | Structured metadata; must conform to `{format, data}` shape when present. See `req-grid-service-batch-metadata`. |
 | `status` | CharField choices | No | `"open"` | Lifecycle state. One of `open`, `closed`, `failed`. |
@@ -69,7 +69,7 @@ Transitioning from any non-open state is an error. Closed and failed are termina
 
 | Function | Description |
 | --- | --- |
-| `create_batch(source, actor, name, title, description, description_json, metadata)` | Create a new open Batch and its backing Entity. |
+| `create_batch(source, actor, name, description, description_json, metadata)` | Create a new open Batch and its backing Entity. `name` is used for both the Batch and its backing Entity. |
 | `close_batch(batch)` | Transition `open → closed`; sets `closed_at`. Raises `ValueError` if not open. |
 | `fail_batch(batch, error_message)` | Transition `open → failed`; sets `closed_at` and `error_message`. Raises `ValueError` if not open. |
 | `get_batch(batch_id)` | Retrieve a Batch by its Entity UUID. Returns `None` if not found. |
@@ -181,11 +181,11 @@ This requirement introduces richer batch metadata beyond batch identity alone. I
 #### Implementation
 A batch should support these metadata fields:
 
-- `title`: required short human-readable summary of what the batch represents
+- `name`: required human-readable batch name (also used as the backing Entity name)
 - `description`: optional longer free-form human-readable description
 - `description_json`: optional structured metadata object supplied by the batch creator
 
-`title` should be stored as a standard short text field such as a `CharField`.
+`name` should be stored as a standard short text field such as a `CharField`.
 
 `description` should be stored as a free-form text field.
 
@@ -217,7 +217,7 @@ This structure gives TAP a stable discriminator for parsing, rendering, search, 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-service-batch-metadata-1 | Title Required | Implemented | Each batch stores a required human-readable `title`. | Intended for humans and AI context. |
+| req-grid-service-batch-metadata-1 | Name Required | Implemented | Each batch stores a required human-readable `name`; also used as the backing Entity name. | Intended for humans and AI context. |
 | req-grid-service-batch-metadata-2 | Description Optional | Implemented | Each batch may store an optional longer-form `description`. | |
 | req-grid-service-batch-metadata-3 | Description JSON Optional | Implemented | Each batch may store optional structured `description_json` metadata. | |
 | req-grid-service-batch-metadata-4 | Fixed Top-Level JSON Shape | Implemented | `description_json`, when present, must be an object with exactly `format` and `data` keys. | No additional top-level keys. |

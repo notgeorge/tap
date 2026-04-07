@@ -1,0 +1,156 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019d657d-cc50-71e9-a77b-e7d8cba4bf55",
+        "entity_type": "batch",
+        "name": "LOTR searches v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.lotr",
+        "name": "LOTR searches v0.1.0",
+        "description": "Reusable Search objects for exploring LOTR data in the TAP grid."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019d657d-cc50-71e9-a77b-e7d9a684010c",
+            "entity_type": "search",
+            "name": "All LOTR Characters",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "All LOTR Characters",
+            "description": "Every character in Middle-earth.",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {"filters": {"entity_type": "character"}, "order_by": ["name"]}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d657d-cc50-71e9-a77b-e7da0c960bd0",
+            "entity_type": "search",
+            "name": "All LOTR Locations",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "All LOTR Locations",
+            "description": "Every location in Middle-earth.",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {"filters": {"entity_type": "location"}, "order_by": ["name"]}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d657d-cc50-71e9-a77b-e7dbbefcb7e3",
+            "entity_type": "search",
+            "name": "All LOTR Artifacts",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "All LOTR Artifacts",
+            "description": "Every significant artifact.",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {"filters": {"entity_type": "artifact"}, "order_by": ["name"]}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d657d-cc50-71e9-a77b-e7dcd0332e8f",
+            "entity_type": "search",
+            "name": "Characters and Their Artifacts",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Characters and Their Artifacts",
+            "description": "Characters with the artifacts they wield (one-hop graph).",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {
+              "filters": {"entity_type": "character"},
+              "hops": [{"direction": "out", "edge_type": "WIELDS", "target_filters": {"entity_type": "artifact"}}],
+              "order_by": ["name"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d657d-cc50-71e9-a77b-e7ddc6024f3b",
+            "entity_type": "search",
+            "name": "Characters and Their Locations",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Characters and Their Locations",
+            "description": "Characters with where they are located (one-hop graph).",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {
+              "filters": {"entity_type": "character"},
+              "hops": [{"direction": "out", "edge_type": "LOCATED_IN", "target_filters": {"entity_type": "location"}}],
+              "order_by": ["name"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d657d-cc50-71e9-a77b-e7de8daa4f19",
+            "entity_type": "search",
+            "name": "Character Alliances",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Character Alliances",
+            "description": "Characters and who they are allied with.",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {
+              "filters": {"entity_type": "character"},
+              "hops": [{"direction": "out", "edge_type": "ALLIES_WITH"}],
+              "order_by": ["name"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d657d-cc50-71e9-a77b-e7dff210af8a",
+            "entity_type": "search",
+            "name": "All Fellowship Edges",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "All Fellowship Edges",
+            "description": "All relationship edges in the Middle-earth graph.",
+            "search_type": "orm",
+            "root": "edge",
+            "definition": {"filters": {}, "order_by": ["entity_id"]}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d657d-cc50-71e9-a77b-e7e09dff227c",
+            "entity_type": "search",
+            "name": "Characters with Bio",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Characters with Bio",
+            "description": "All characters with bio from the typed model.",
+            "search_type": "module",
+            "root": "node",
+            "definition": {"runner_key": "plugins.lotr.searches.characters:list-characters-with-bio"}
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

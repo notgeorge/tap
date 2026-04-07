@@ -70,22 +70,22 @@ class TestBatchModel:
 
 @pytest.mark.django_db
 class TestBatchMetadataFields:
-    """Tests for Batch metadata fields (title, description, description_json)."""
+    """Tests for Batch metadata fields (name, description, description_json)."""
 
-    def test_title_stored_and_retrieved(self):
-        """title is stored and retrieved correctly."""
-        entity = create_entity("batch", name="Title Test")
-        batch = Batch.objects.create(entity=entity, title="My Ingestion Run")
+    def test_name_stored_and_retrieved(self):
+        """name is stored and retrieved correctly."""
+        entity = create_entity("batch", name="Name Test")
+        batch = Batch.objects.create(entity=entity, name="My Ingestion Run")
 
         batch.refresh_from_db()
-        assert batch.title == "My Ingestion Run"
+        assert batch.name == "My Ingestion Run"
 
-    def test_title_defaults_to_empty_string(self):
-        """title defaults to empty string when not provided."""
-        entity = create_entity("batch", name="No Title")
+    def test_name_defaults_to_empty_string(self):
+        """name defaults to empty string when not provided."""
+        entity = create_entity("batch", name="No Name")
         batch = Batch.objects.create(entity=entity)
 
-        assert batch.title == ""
+        assert batch.name == ""
 
     def test_description_stored_and_retrieved(self):
         """description is stored and retrieved correctly."""
@@ -100,7 +100,7 @@ class TestBatchMetadataFields:
         from tap_grid.batch import create_batch
 
         batch = create_batch(
-            title="JSON Test",
+            name="JSON Test",
             description_json={"format": "markdown", "data": {"body": "# Hello"}},
         )
         batch.refresh_from_db()
@@ -114,12 +114,12 @@ class TestBatchMetadataFields:
         batch.refresh_from_db()
         assert batch.description_json is None
 
-    def test_create_batch_service_accepts_title(self):
-        """create_batch() passes title through to the created Batch."""
+    def test_create_batch_service_accepts_name(self):
+        """create_batch() passes name through to the created Batch."""
         from tap_grid.batch import create_batch
 
-        batch = create_batch(title="Service Title Test", source="test")
-        assert batch.title == "Service Title Test"
+        batch = create_batch(name="Service Name Test", source="test")
+        assert batch.name == "Service Name Test"
 
     def test_create_batch_service_accepts_description(self):
         """create_batch() passes description through to the created Batch."""

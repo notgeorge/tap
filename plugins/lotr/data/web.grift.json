@@ -1,0 +1,133 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019d6580-5d1e-7625-acaf-39fc96650cdf",
+        "entity_type": "batch",
+        "name": "LOTR web pages v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.lotr",
+        "name": "LOTR web pages v0.1.0",
+        "description": "Middle-earth web pages and panels for the LOTR example plugin."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-39fd89787948",
+            "entity_type": "panel",
+            "name": "Welcome to Middle-earth",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "middle-earth-welcome",
+            "name": "Welcome to Middle-earth",
+            "view": "tap_web/panels/text_panel.html",
+            "editor_view": "tap_web/panels/text_panel_editor.html",
+            "config": {"text": "hello middle earth"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-39fe73b516f8",
+            "entity_type": "page",
+            "name": "Middle-earth",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Middle-earth",
+            "slug": "/middle-earth",
+            "layout": {
+              "columns": {
+                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "main"}}}
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a008393de41",
+            "entity_type": "panel",
+            "name": "LOTR Characters",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "lotr-characters-table",
+            "name": "LOTR Characters",
+            "view": "tap_web/panels/table_panel.html",
+            "editor_view": "tap_web/panels/table_panel_editor.html",
+            "css": ["css/lib/tabulator.min.css"],
+            "js": ["js/lib/tabulator.min.js", "js/panel-table.js"],
+            "config": {"column_mode": "common_metadata", "default_limit": 25}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a02521ad4bb",
+            "entity_type": "page",
+            "name": "Middle-earth Characters",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Middle-earth Characters",
+            "slug": "/middle-earth/characters",
+            "layout": {
+              "columns": {
+                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "characters"}}}
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-39ffebceec3f",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6580-5d1e-7625-acaf-39fe73b516f8",
+            "to_entity_id": "019d6580-5d1e-7625-acaf-39fd89787948",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "main"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a01760922bd",
+            "entity_type": "edge",
+            "name": "USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6580-5d1e-7625-acaf-3a008393de41",
+            "to_entity_id": "019d657d-cc50-71e9-a77b-e7d9a684010c",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a03293605e8",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6580-5d1e-7625-acaf-3a02521ad4bb",
+            "to_entity_id": "019d6580-5d1e-7625-acaf-3a008393de41",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "characters"}}
+          }
+        }
+      ]
+    }
+  ]
+}

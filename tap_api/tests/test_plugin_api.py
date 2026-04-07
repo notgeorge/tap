@@ -1,21 +1,6 @@
-"""Tests for plugin router discovery, version endpoint, and auth."""
+"""Tests for version endpoint and auth."""
 
 import pytest
-
-from tap_grid.services import create_entity
-
-
-@pytest.mark.django_db
-class TestPluginRouter:
-    def test_characters_endpoint(self, logged_in_client):
-        entity = create_entity("character", name="Frodo Baggins")
-        create_entity("location", name="Not a character")
-        response = logged_in_client.get("/api/v1/plugins/lotr/characters/")
-        assert response.status_code == 200
-        data = response.json()
-        found = [e for e in data if e["id"] == str(entity.pk)]
-        assert len(found) == 1
-        assert found[0]["name"] == "Frodo Baggins"
 
 
 @pytest.mark.django_db

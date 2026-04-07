@@ -11,7 +11,7 @@ from tap_grid.batch import (
     get_entity_batches,
     record_batch_event,
 )
-from tap_grid.context import get_batch_id, set_batch_id
+from tap_grid.context import set_batch_id
 from tap_grid.history import set_history_user
 from tap_grid.models import BatchEventType, BatchStatus, User
 from tap_grid.services import create_entity

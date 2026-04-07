@@ -12,13 +12,5 @@ set -e
 echo "==> Running database migrations..."
 uv run python manage.py migrate --noinput
 
-# Seed development data if DEBUG mode is enabled
-if [ "$DEBUG" = "true" ]; then
-    echo "==> Seeding LOTR demo data (DEBUG=true)..."
-    uv run python manage.py seed_lotr_data
-else
-    echo "==> Skipping seed data (DEBUG=$DEBUG)"
-fi
-
 echo "==> Starting Django development server..."
 exec uv run python manage.py runserver 0.0.0.0:8000
