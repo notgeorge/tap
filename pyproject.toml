@@ -121,8 +121,10 @@ django_settings_module = "tap.settings"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "tap.settings"
+testpaths = ["tap_grid", "tap_plugins", "tap_api", "tap_web", "tap_viz", "plugins"]
 python_files = ["test_*.py", "*_test.py"]
 addopts = "-v --tb=short"
 markers = [
     "no_registry_isolation: opt out of search runner registry isolation between tests",
+    "spec: link a test to one or more spec acceptance criteria by ACID",
 ]

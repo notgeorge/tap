@@ -29,7 +29,7 @@ PROTECTS = "edges/PROTECTS.edge.json"
 MENTORS = "edges/MENTORS.edge.json"
 
 [editors]
-character = "plugins.lotr.forms.character.CharacterEditorDescriptor"
+character = "plugins.lotr.editors.character.CharacterEditorDescriptor"
 
 [searches]
 list-characters-with-bio = "plugins.lotr.searches.characters.list_characters_with_bio"

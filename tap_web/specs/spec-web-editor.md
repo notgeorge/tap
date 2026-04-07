@@ -179,7 +179,7 @@ This keeps TAP editors grounded in domain fields and model semantics rather than
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-editor-typed-1 | Typed Descriptor Contract Exists | Implemented | Editable object types integrate with the shell through a typed editor descriptor contract. | `EditorDescriptor` in `tap_web/editor.py`; `CharacterEditorDescriptor` in `plugins/lotr/forms.py` |
+| req-web-editor-typed-1 | Typed Descriptor Contract Exists | Implemented | Editable object types integrate with the shell through a typed editor descriptor contract. | `EditorDescriptor` in `tap_web/editor.py`; `CharacterEditorDescriptor` in `plugins/lotr/editors/character.py` |
 | req-web-editor-typed-2 | Initial State Hook | Implemented | Typed editors can provide initial field values for an existing object. | `get_editor_initial(obj)` |
 | req-web-editor-typed-3 | Save Hook | Implemented | Typed editors persist validated changes through `handle_save`. | `handle_save(form, obj, request)` |
 | req-web-editor-typed-4 | Raw JSON Is Fallback | Implemented | Raw JSON editing is not the default editor mode for typed objects. | JSON fallback only shown when no descriptor is registered |

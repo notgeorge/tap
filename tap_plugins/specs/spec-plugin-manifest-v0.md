@@ -343,8 +343,8 @@ Each value in `[editors]` is the concrete Python import path for the editor desc
 
 In v0:
 
-- `forms/` is an optional directory at the plugin root for editor descriptors and their associated Django form classes
-- if `[editors]` is present, editor descriptor code should live under `forms/`
+- `editors/` is an optional directory at the plugin root for editor descriptors and their associated Django form classes
+- if `[editors]` is present, editor descriptor code should live under `editors/`
 - there is at most one editor per entity type within a plugin
 
 The loader validates that:
@@ -363,7 +363,7 @@ Templates used by editor descriptors are not declared in the manifest in v0. The
 | --- | --- | :---: | --- | --- |
 | req-plugin-manifest-v0-editors-1 | Mapping Table | Proposed | Editor declarations use an `[editors]` TOML table. | |
 | req-plugin-manifest-v0-editors-2 | Entity Type To Descriptor Shape | Proposed | Each `[editors]` entry maps an entity type slug to a concrete editor descriptor class path. | |
-| req-plugin-manifest-v0-editors-3 | Optional Forms Directory | Proposed | `forms/` is optional and is only needed when a plugin declares editors. | |
+| req-plugin-manifest-v0-editors-3 | Optional Editors Directory | Proposed | `editors/` is optional and is only needed when a plugin declares editors. | |
 | req-plugin-manifest-v0-editors-4 | One Editor Per Entity Type | Proposed | v0 allows at most one editor per entity type within a plugin. | |
 | req-plugin-manifest-v0-editors-5 | Loader Validates Descriptor Class | Proposed | The loader validates that each declared editor class resolves to a concrete `EditorDescriptor`. | |
 | req-plugin-manifest-v0-editors-6 | Loader Validates Entity Type Match | Proposed | The loader validates that each declared editor descriptor matches the manifest entity type key. | |
@@ -528,17 +528,17 @@ In v0:
 
 - `models/` is a **required** directory at the plugin root. TAP-managed model code must live under `models/`. A plugin without a `models/` directory is invalid.
 - `edges/` is the required directory for edge definition files. Plugin edge declarations point to files under `edges/`.
-- `forms/` is an optional directory for editor descriptor and Django form class code when a plugin declares editors.
+- `editors/` is an optional directory for editor descriptor and Django form class code when a plugin declares editors.
 - `searches/` is the required directory for search runner modules when a plugin declares searches.
 - `data/` is the required directory for GRIFT files. Plugin GRIFT bundles are declared with paths relative to the plugin root (e.g. `data/core-data.grift.json`).
 
 `data/` sub-directories are allowed as a convenience for organizing large or multi-category data sets (e.g. `data/nodes/characters.grift.json`, `data/edges.grift.json`). Sub-directory paths are declared explicitly in the manifest `[grift]` table the same way as top-level paths. TAP does not require that sub-directories be declared separately; only file-level GRIFT entries are declarable.
 
-TAP does not load every file found in `models/`, `edges/`, `forms/`, `searches/`, or `data/` automatically. Only manifest-declared entries are part of the plugin load contract.
+TAP does not load every file found in `models/`, `edges/`, `editors/`, `searches/`, or `data/` automatically. Only manifest-declared entries are part of the plugin load contract.
 
 Manifest-declared paths are evaluated relative to the plugin root.
 
-If files exist in `models/`, `edges/`, `forms/`, `searches/`, or `data/` (including sub-directories) but are not declared in the manifest:
+If files exist in `models/`, `edges/`, `editors/`, `searches/`, or `data/` (including sub-directories) but are not declared in the manifest:
 
 - TAP warns that they are undeclared
 - TAP does not treat them as loadable plugin surfaces
@@ -547,14 +547,14 @@ If files exist in `models/`, `edges/`, `forms/`, `searches/`, or `data/` (includ
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-paths-1 | Required Directories Defined | Implemented | v0 defines `models/`, `edges/`, and `data/` as required plugin directories for their declared surfaces, and `forms/` plus `searches/` as optional locations for declared behavior. | |
-| req-plugin-manifest-v0-paths-2 | No Implicit Autoload | Implemented | Files in `models/`, `edges/`, `forms/`, `searches/`, or `data/` are not loaded solely because they are present. | |
+| req-plugin-manifest-v0-paths-1 | Required Directories Defined | Implemented | v0 defines `models/`, `edges/`, and `data/` as required plugin directories for their declared surfaces, and `editors/` plus `searches/` as optional locations for declared behavior. | |
+| req-plugin-manifest-v0-paths-2 | No Implicit Autoload | Implemented | Files in `models/`, `edges/`, `editors/`, `searches/`, or `data/` are not loaded solely because they are present. | |
 | req-plugin-manifest-v0-paths-3 | Relative To Plugin Root | Implemented | Manifest paths are resolved relative to the plugin root. | |
 | req-plugin-manifest-v0-paths-4 | Undeclared Files Warn | Implemented | Undeclared files in convention directories produce warnings, not startup errors. | |
 | req-plugin-manifest-v0-paths-5 | Data Subdirectories Allowed | Implemented | `data/` may contain sub-directories for organizational convenience without requiring sub-path declarations. | |
 | req-plugin-manifest-v0-paths-6 | Models Directory Required | Implemented | A plugin missing a `models/` directory at its root is invalid. | |
 | req-plugin-manifest-v0-paths-7 | Edges Directory Required | Proposed | A plugin missing an `edges/` directory at its root is invalid when it declares edges. | |
-| req-plugin-manifest-v0-paths-8 | Forms Directory Optional | Proposed | A plugin may omit `forms/` entirely unless it declares editors. | |
+| req-plugin-manifest-v0-paths-8 | Editors Directory Optional | Proposed | A plugin may omit `editors/` entirely unless it declares editors. | |
 | req-plugin-manifest-v0-paths-9 | Searches Directory Optional | Proposed | A plugin may omit `searches/` entirely unless it declares search runners. | |
 
 #### Future
