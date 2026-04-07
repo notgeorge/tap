@@ -1,0 +1,58 @@
+<div class="tap-panel tap-panel--viewer">
+    {% include "tap_web/panel_header.html" %}
+
+    {% if viewer_error %}
+    <div class="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        {{ viewer_error }}
+    </div>
+
+    {% elif not viewer_obj %}
+    <div class="text-sm text-slate-400 italic">No subject configured.</div>
+
+    {% else %}
+    <div class="mb-4 flex items-center justify-between">
+        <div>
+            <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">{{ viewer_entity_type }}</span>
+            <h2 class="text-xl font-bold mt-0.5">{{ viewer_obj_name }}</h2>
+        </div>
+        {% if viewer_edit_url %}
+        <a href="{{ viewer_edit_url }}"
+           class="group flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+            </svg>
+            Edit
+        </a>
+        {% endif %}
+    </div>
+
+    {% if viewer_panel_render_url %}
+    <section class="mb-4">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Panel Preview</h3>
+        <div class="border border-slate-200 rounded bg-white p-4 min-h-16"
+             hx-get="{{ viewer_panel_render_url }}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <span class="text-slate-400 text-sm">Loading...</span>
+        </div>
+    </section>
+    {% endif %}
+
+    <section>
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Details</h3>
+        <dl class="bg-white border border-slate-200 rounded divide-y divide-slate-100">
+            {% for label, value in viewer_field_pairs %}
+            <div class="px-4 py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                <dt class="text-sm font-medium text-slate-500">{{ label }}</dt>
+                <dd class="mt-1 text-sm text-slate-800 sm:mt-0 sm:col-span-2">
+                    {% if value %}{{ value }}{% else %}<span class="text-slate-400 italic">--</span>{% endif %}
+                </dd>
+            </div>
+            {% empty %}
+            <div class="px-4 py-3 text-sm text-slate-400 italic">No details available.</div>
+            {% endfor %}
+        </dl>
+    </section>
+    {% endif %}
+</div>

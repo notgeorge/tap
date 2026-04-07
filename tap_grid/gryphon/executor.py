@@ -313,7 +313,7 @@ def _execute_hub_and_spoke(
 ) -> dict[str, Any]:
     """Execute a one-hop neighborhood query for a single hub entity.
 
-    Mirrors the logic of hub_and_spoke_runner but driven from the gryphon AST.
+    Executes a one-hop neighborhood query driven from the gryphon AST.
     """
     from tap_grid.models import Edge, Entity
 

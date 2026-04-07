@@ -12,7 +12,6 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
-from tap_web.neighborhood import get_entity_neighborhood
 from tap_web.page import get_landing_page, get_page_by_slug, get_page_panels, parse_panel_url_id
 
 logger = logging.getLogger(__name__)
@@ -64,6 +63,11 @@ def panel_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
 
     try:
         panel_type = _get_panel_type_for_panel(panel)
+
+        # POST dispatch: if the panel type defines handle_post, route POST there.
+        if request.method == "POST" and panel_type and hasattr(panel_type, "handle_post"):
+            return panel_type.handle_post(panel, request)
+
         extra_ctx: dict = {}
         if panel_type and hasattr(panel_type, "get_view_context"):
             extra_ctx = panel_type.get_view_context(panel, request) or {}
@@ -170,18 +174,15 @@ def object_edit_view(request: HttpRequest, entity_type: str, object_url_id: str)
     """Generic editor for any registered TAP entity type.
 
     URL format: /object/<entity-type>/<slug>--<entity-uuid>/edit/
-    Requires a registered EditorDescriptor for the entity type.
+    Uses the GRIFT-defined /__entity-editor page when available (GET only —
+    POST is handled by the EditorPanelType via the panel endpoint). Falls back
+    to the legacy monolithic editor.html template.
     """
     from tap_grid.registry import get_model_class
-    from tap_web.registry import get_editor
 
     entity_uuid = parse_panel_url_id(object_url_id)
     if entity_uuid is None:
         raise Http404(f"Invalid object URL: '{object_url_id}'")
-
-    descriptor = get_editor(entity_type)
-    if descriptor is None:
-        raise Http404(f"No editor registered for entity type '{entity_type}'.")
 
     try:
         model_cls = get_model_class(entity_type)
@@ -192,6 +193,70 @@ def object_edit_view(request: HttpRequest, entity_type: str, object_url_id: str)
         obj = model_cls.objects.select_related("entity").get(entity__pk=entity_uuid)
     except model_cls.DoesNotExist:
         raise Http404(f"{entity_type} '{entity_uuid}' not found.")
+
+    # Try GRIFT-defined editor page (GET only — POST goes through panel HTMX).
+    if request.method == "GET":
+        page = get_page_by_slug("/__entity-editor")
+        if page is not None:
+            return _render_page(request, page, extra_query_params={
+                "entity_id": str(entity_uuid),
+                "entity_type": entity_type,
+                "subject_entity_id": str(entity_uuid),
+            })
+
+    # Legacy fallback.
+    return _legacy_object_edit_view(request, obj, entity_type, object_url_id)
+
+
+def object_view(request: HttpRequest, entity_type: str, object_url_id: str) -> HttpResponse:
+    """Generic viewer for any registered TAP entity type.
+
+    URL format: /object/<entity-type>/<slug>--<entity-uuid>/
+    Uses the GRIFT-defined /__entity-viewer page when available, with fallback
+    to the legacy monolithic viewer.html template.
+    """
+    from tap_grid.registry import get_model_class
+
+    entity_uuid = parse_panel_url_id(object_url_id)
+    if entity_uuid is None:
+        raise Http404(f"Invalid object URL: '{object_url_id}'")
+
+    try:
+        model_cls = get_model_class(entity_type)
+    except KeyError:
+        raise Http404(f"Unknown entity type '{entity_type}'.")
+
+    try:
+        obj = model_cls.objects.select_related("entity").get(entity__pk=entity_uuid)
+    except model_cls.DoesNotExist:
+        raise Http404(f"{entity_type} '{entity_uuid}' not found.")
+
+    # Try GRIFT-defined viewer page.
+    page = get_page_by_slug("/__entity-viewer")
+    if page is not None:
+        return _render_page(request, page, extra_query_params={
+            "entity_id": str(entity_uuid),
+            "entity_type": entity_type,
+            "subject_entity_id": str(entity_uuid),
+        })
+
+    # Legacy fallback — monolithic viewer.html.
+    return _legacy_object_view(request, obj, entity_type, object_url_id)
+
+
+def _legacy_object_edit_view(
+    request: HttpRequest,
+    obj: Any,
+    entity_type: str,
+    object_url_id: str,
+) -> HttpResponse:
+    """Legacy monolithic editor — used when GRIFT /__entity-editor page is not imported."""
+    from tap_web.neighborhood import get_entity_neighborhood  # noqa: F811
+    from tap_web.registry import get_editor
+
+    descriptor = get_editor(entity_type)
+    if descriptor is None:
+        raise Http404(f"No editor registered for entity type '{entity_type}'.")
 
     form_class = descriptor.get_form_class(obj)
     editor_template = descriptor.get_editor_template(obj)
@@ -208,48 +273,57 @@ def object_edit_view(request: HttpRequest, entity_type: str, object_url_id: str)
         if form.is_valid():
             descriptor.handle_save(form, obj, request)
             return redirect("object-edit", entity_type=entity_type, object_url_id=object_url_id)
-        ctx = _object_editor_context(
-            entity_type, object_url_id, obj, form,
-            editor_template=editor_template, view_url=view_url,
-            extra=descriptor.get_extra_context(obj),
-        )
+        graph_ctx = get_entity_neighborhood(obj.entity_id)
+        ctx = {
+            "obj": obj,
+            "obj_name": str(obj),
+            "entity_type": entity_type,
+            "object_url_id": object_url_id,
+            "form": form,
+            "editor_template": editor_template,
+            "editor_css_assets": [],
+            "editor_js_assets": [],
+            "config_json": None,
+            "config_error": "",
+            "view_url": view_url,
+            **(descriptor.get_extra_context(obj) or {}),
+            **graph_ctx,
+        }
         return render(request, "tap_web/editor.html", ctx)
 
     initial = descriptor.get_editor_initial(obj)
     form = form_class(initial=initial)
-    ctx = _object_editor_context(
-        entity_type, object_url_id, obj, form,
-        editor_template=editor_template, view_url=view_url,
-        extra=descriptor.get_extra_context(obj),
-    )
+    graph_ctx = get_entity_neighborhood(obj.entity_id)
+    ctx = {
+        "obj": obj,
+        "obj_name": str(obj),
+        "entity_type": entity_type,
+        "object_url_id": object_url_id,
+        "form": form,
+        "editor_template": editor_template,
+        "editor_css_assets": [],
+        "editor_js_assets": [],
+        "config_json": None,
+        "config_error": "",
+        "view_url": view_url,
+        **(descriptor.get_extra_context(obj) or {}),
+        **graph_ctx,
+    }
     return render(request, "tap_web/editor.html", ctx)
 
 
-def object_view(request: HttpRequest, entity_type: str, object_url_id: str) -> HttpResponse:
-    """Generic viewer for any registered TAP entity type.
-
-    URL format: /object/<entity-type>/<slug>--<entity-uuid>/
-    """
-    from tap_grid.registry import get_model_class
+def _legacy_object_view(
+    request: HttpRequest,
+    obj: Any,
+    entity_type: str,
+    object_url_id: str,
+) -> HttpResponse:
+    """Legacy monolithic viewer — used when GRIFT /__entity-viewer page is not imported."""
+    from tap_web.neighborhood import get_entity_neighborhood
     from tap_web.registry import get_editor
-
-    entity_uuid = parse_panel_url_id(object_url_id)
-    if entity_uuid is None:
-        raise Http404(f"Invalid object URL: '{object_url_id}'")
-
-    try:
-        model_cls = get_model_class(entity_type)
-    except KeyError:
-        raise Http404(f"Unknown entity type '{entity_type}'.")
-
-    try:
-        obj = model_cls.objects.select_related("entity").get(entity__pk=entity_uuid)
-    except model_cls.DoesNotExist:
-        raise Http404(f"{entity_type} '{entity_uuid}' not found.")
 
     descriptor = get_editor(entity_type)
 
-    # Build label/value pairs for field display.
     field_pairs: list[tuple[str, Any]] = []
     if descriptor is not None:
         initial = descriptor.get_editor_initial(obj)
@@ -262,23 +336,20 @@ def object_view(request: HttpRequest, entity_type: str, object_url_id: str) -> H
                 field_pairs.append((label, value))
 
     extra = descriptor.get_extra_context(obj) if descriptor else {}
-
-    # Panels: link to /panel/<slug>--<uuid>/edit/ not /object/panel/.../edit/
     edit_url = extra.pop("edit_url_override", f"/object/{entity_type}/{object_url_id}/edit/")
 
     graph_ctx = get_entity_neighborhood(obj.entity_id)
 
-    # FLIP inspection region (req-web-viewer-inspect): include if flip is enabled
-    # for this model so the viewer can render the collapsed provenance section.
     flip_ctx: dict[str, Any] = {}
     try:
         from tap_grid.flip import is_flip_enabled
         from tap_web.panels.flip_panel import get_flip_context_for_entity
 
+        model_cls = type(obj)
         if is_flip_enabled(model_cls):
-            flip_ctx = get_flip_context_for_entity(str(entity_uuid))
+            flip_ctx = get_flip_context_for_entity(str(obj.entity_id))
     except Exception:  # noqa: BLE001
-        pass  # FLIP inspection is best-effort; never break the viewer
+        pass
 
     ctx = {
         "obj": obj,
@@ -308,6 +379,7 @@ def _panel_editor_context(
 ) -> dict:
     """Build template context for the panel editor page."""
     from tap_web.models import Panel
+    from tap_web.neighborhood import get_entity_neighborhood
 
     assert isinstance(panel, Panel)
     graph_ctx = get_entity_neighborhood(panel.entity_id)
@@ -341,6 +413,8 @@ def _object_editor_context(
     extra: dict | None = None,
 ) -> dict:
     """Build template context for the generic object editor page."""
+    from tap_web.neighborhood import get_entity_neighborhood
+
     graph_ctx = get_entity_neighborhood(obj.entity_id)
     return {
         "obj": obj,
@@ -409,7 +483,11 @@ def _get_panel_type_for_panel(panel: object) -> type | None:
 # ---------------------------------------------------------------------------
 
 
-def _render_page(request: HttpRequest, page: object) -> HttpResponse:
+def _render_page(
+    request: HttpRequest,
+    page: object,
+    extra_query_params: dict[str, str] | None = None,
+) -> HttpResponse:
     """Render a Page using the page template."""
     panel_slots = get_page_panels(page)  # type: ignore[arg-type]
 
@@ -428,12 +506,16 @@ def _render_page(request: HttpRequest, page: object) -> HttpResponse:
     layout = getattr(page, "layout", {}) or {}
     processed_columns = _process_layout(layout, panels_by_id)
 
+    query_params = request.GET.copy()
+    if extra_query_params:
+        query_params.update(extra_query_params)
+
     context = {
         "page": page,
         "processed_columns": processed_columns,
         "css_assets": list(css),
         "js_assets": list(js),
-        "query_params": request.GET,
+        "query_params": query_params,
     }
     return render(request, "tap_web/page.html", context)
 

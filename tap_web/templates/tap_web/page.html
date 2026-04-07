@@ -27,7 +27,7 @@
         No panel linked to slot <code>{{ row.panel_id }}</code>.
       </div>
       {% else %}
-      <div hx-get="/panel/{{ row.panel_url_id }}/"
+      <div hx-get="/panel/{{ row.panel_url_id }}/{% if query_params %}?{{ query_params.urlencode }}{% endif %}"
            hx-trigger="load"
            hx-swap="innerHTML">
         <div class="text-slate-400 text-sm p-4">Loading…</div>

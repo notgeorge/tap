@@ -1,0 +1,83 @@
+<div class="tap-panel tap-panel--editor">
+    {% include "tap_web/panel_header.html" %}
+
+    {% if editor_error %}
+    <div class="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        {{ editor_error }}
+    </div>
+
+    {% elif not editor_obj %}
+    <div class="text-sm text-slate-400 italic">No subject configured.</div>
+
+    {% elif editor_redirect_url %}
+    <div class="text-sm text-slate-500">
+        This entity uses a custom editor.
+        <a href="{{ editor_redirect_url }}" class="text-blue-600 hover:underline">Open editor</a>
+    </div>
+
+    {% elif not editor_form %}
+    <div class="text-sm text-slate-400 italic">No form available for this entity type.</div>
+
+    {% else %}
+    <div class="mb-4 flex items-center justify-between">
+        <div>
+            <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">{{ editor_entity_type }}</span>
+            <h2 class="text-xl font-bold mt-0.5">{{ editor_obj_name }}</h2>
+        </div>
+        {% if editor_view_url %}
+        <a href="{{ editor_view_url }}" class="text-sm text-slate-500 hover:text-slate-700">View</a>
+        {% endif %}
+    </div>
+
+    {% if editor_success %}
+    <div class="rounded border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 mb-4">
+        {{ editor_success }}
+    </div>
+    {% endif %}
+
+    <form method="post"
+          hx-post="/panel/{{ panel.slug }}--{{ panel.entity_id }}/{% if editor_query_string %}?{{ editor_query_string }}{% endif %}"
+          hx-target="closest .tap-panel--editor"
+          hx-swap="outerHTML">
+        {% csrf_token %}
+        <div class="space-y-4 bg-white border border-slate-200 rounded p-4">
+
+            {% if editor_template and editor_form %}
+            {% include editor_template %}
+
+            {% elif editor_form %}
+            {% for field in editor_form %}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1"
+                       for="{{ field.id_for_label }}">
+                    {{ field.label }}{% if field.field.required %}<span class="text-red-500 ml-0.5">*</span>{% endif %}
+                </label>
+                {% if field.errors %}
+                <ul class="mb-1">
+                    {% for error in field.errors %}
+                    <li class="text-red-600 text-xs">{{ error }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                <div class="[&_input]:w-full [&_input]:border [&_input]:border-slate-300 [&_input]:rounded [&_input]:px-3 [&_input]:py-2 [&_input]:text-sm
+                            [&_textarea]:w-full [&_textarea]:border [&_textarea]:border-slate-300 [&_textarea]:rounded [&_textarea]:px-3 [&_textarea]:py-2 [&_textarea]:text-sm
+                            [&_select]:w-full [&_select]:border [&_select]:border-slate-300 [&_select]:rounded [&_select]:px-3 [&_select]:py-2 [&_select]:text-sm">
+                    {{ field }}
+                </div>
+                {% if field.help_text %}
+                <p class="text-xs text-slate-500 mt-0.5">{{ field.help_text }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            <div class="flex items-center gap-3 pt-2 border-t border-slate-100">
+                <button type="submit"
+                        class="px-4 py-2 bg-slate-800 text-white text-sm rounded hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                    Save
+                </button>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+</div>

@@ -1,0 +1,276 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019d7a00-1000-7000-a000-000000000001",
+        "entity_type": "batch",
+        "name": "Entity viewer/editor pages v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.administrivia",
+        "name": "Entity viewer/editor pages v0.1.0",
+        "description": "GRIFT-defined entity viewer and editor pages with graph, viewer, flip, and editor panels."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000010",
+            "entity_type": "search",
+            "name": "Entity Neighborhood",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Entity Neighborhood",
+            "description": "Hub-and-spoke neighborhood graph for a single entity.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": [
+                "MATCH (hub)-[e]-(neighbor)",
+                "WHERE hub.entity_id = $entity_id",
+                "RETURN hub, e, neighbor"
+              ]
+            },
+            "input_schema": {
+              "type": "object",
+              "required": ["entity_id"],
+              "properties": {
+                "entity_id": {"type": "string"}
+              }
+            },
+            "default_limit": 200,
+            "max_limit": 500
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000020",
+            "entity_type": "layout",
+            "name": "Entity Neighborhood Layout",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Entity Neighborhood Layout",
+            "description": "Layout for the entity neighborhood graph panel.",
+            "definition": {
+              "inputs": [],
+              "steps": [{"type": "search", "search-id": "main"}],
+              "presentation": {"placement": "cytoscape:cose"},
+              "interactions": {}
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000030",
+            "entity_type": "panel",
+            "name": "Entity Graph",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "entity-neighborhood-graph",
+            "name": "Entity Graph",
+            "view": "tap_viz/panels/graph_panel.html",
+            "js": ["tap_viz/js/cytoscape.min.js", "tap_viz/js/panel-graph.js"],
+            "css": ["tap_viz/css/panel-graph.css"],
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000031",
+            "entity_type": "panel",
+            "name": "Entity Viewer",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "entity-viewer",
+            "name": "Entity Viewer",
+            "view": "tap_web/panels/viewer_panel.html",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000032",
+            "entity_type": "panel",
+            "name": "Entity FLIP",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "entity-flip",
+            "name": "Entity FLIP",
+            "view": "tap_web/panels/flip_panel.html",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000033",
+            "entity_type": "panel",
+            "name": "Entity Editor",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "entity-editor",
+            "name": "Entity Editor",
+            "view": "tap_web/panels/editor_panel.html",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000040",
+            "entity_type": "page",
+            "name": "Entity Viewer",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Entity Viewer",
+            "slug": "/__entity-viewer",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {"panel-id": "graph"},
+                    "row-2": {"panel-id": "viewer"},
+                    "row-3": {"panel-id": "flip"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000041",
+            "entity_type": "page",
+            "name": "Entity Editor",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Entity Editor",
+            "slug": "/__entity-editor",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {"panel-id": "graph"},
+                    "row-2": {"panel-id": "editor"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000050",
+            "entity_type": "edge",
+            "name": "USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d7a00-1000-7000-a000-000000000020",
+            "to_entity_id": "019d7a00-1000-7000-a000-000000000010",
+            "edge_type": "USES_SEARCH",
+            "properties": {"search-id": "main"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000051",
+            "entity_type": "edge",
+            "name": "USES_LAYOUT",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d7a00-1000-7000-a000-000000000030",
+            "to_entity_id": "019d7a00-1000-7000-a000-000000000020",
+            "edge_type": "USES_LAYOUT",
+            "properties": {"layout-id": "default"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000060",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d7a00-1000-7000-a000-000000000040",
+            "to_entity_id": "019d7a00-1000-7000-a000-000000000030",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "graph"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000061",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d7a00-1000-7000-a000-000000000040",
+            "to_entity_id": "019d7a00-1000-7000-a000-000000000031",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "viewer"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000062",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d7a00-1000-7000-a000-000000000040",
+            "to_entity_id": "019d7a00-1000-7000-a000-000000000032",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "flip"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000070",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d7a00-1000-7000-a000-000000000041",
+            "to_entity_id": "019d7a00-1000-7000-a000-000000000030",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "graph"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d7a00-1000-7000-a000-000000000071",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d7a00-1000-7000-a000-000000000041",
+            "to_entity_id": "019d7a00-1000-7000-a000-000000000033",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "editor"}}
+          }
+        }
+      ]
+    }
+  ]
+}

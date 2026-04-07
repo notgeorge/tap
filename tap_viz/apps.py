@@ -11,13 +11,8 @@ class TapVizConfig(AppConfig):
     verbose_name = "TAP Visualization"
 
     def ready(self) -> None:
-        """Register built-in panel types and search runners."""
-        from tap_grid.registry import register_search_runner
-        from tap_viz.panels.graph_panel import GraphPanelType, hub_and_spoke_runner
+        """Register built-in panel types."""
+        from tap_viz.panels.graph_panel import GraphPanelType
         from tap_web.registry import panel_type_registry
 
         panel_type_registry.register("graph", GraphPanelType)
-        # Deprecated: hub-and-spoke runner is superseded by the gryphon-backed Search in
-        # GraphPanelType.get_neighborhood_context(). Kept registered for backward compatibility
-        # until all callers are confirmed migrated. Remove in a follow-on cleanup pass.
-        register_search_runner("hub-and-spoke", hub_and_spoke_runner)
