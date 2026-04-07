@@ -13,7 +13,7 @@ _LIST_CHARACTERS_QUERY = "MATCH (c:character) RETURN c.entity_id, c.entity_type,
 
 
 def list_characters_with_bio(
-    _search: Search, inputs: dict[str, Any], *, db_alias: str
+    _search: Search, inputs: dict[str, Any], *, db_alias: str, **kwargs: Any
 ) -> dict[str, Any]:
     """Return all LOTR characters enriched with their bio field (via Gryphon type scan)."""
     from tap_grid.models import Search as SearchModel
@@ -24,4 +24,4 @@ def list_characters_with_bio(
         root="node",
         definition={"query": _LIST_CHARACTERS_QUERY},
     )
-    return execute_gryphon(proxy, inputs, db_alias=db_alias)
+    return execute_gryphon(proxy, inputs, db_alias=db_alias, **kwargs)

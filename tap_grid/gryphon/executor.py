@@ -31,6 +31,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tap_grid.exceptions import SearchExecutionError
+from tap_grid.grift.subgraph import (
+    SubgraphLayer,
+    batch_resolve_entity_names,
+    batch_resolve_icon_urls,
+    batch_resolve_shapes,
+    batch_resolve_typed_models,
+    serialize_edge_extended,
+    serialize_edge_full,
+    serialize_edge_lite,
+    serialize_node_extended,
+    serialize_node_full,
+    serialize_node_lite,
+)
 from tap_grid.gryphon.ast_nodes import (
     AndPred,
     Comparison,
@@ -55,6 +68,7 @@ def execute_gryphon(
     inputs: dict[str, Any],
     *,
     db_alias: str = "default",
+    layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Execute a gryphon-type Search and return the canonical graph envelope.
 
@@ -62,6 +76,7 @@ def execute_gryphon(
         search: A Search instance with search_type="gryphon" and definition["query"].
         inputs: Runtime $var values; must supply all required params from the query.
         db_alias: Database alias for all queries (should be the read-only alias in production).
+        layer: GRIFT subgraph return layer (lite, full, extended).
 
     Returns:
         ``{"nodes": [...], "edges": [...]}`` canonical envelope.
@@ -79,11 +94,9 @@ def execute_gryphon(
     required = ast.required_params()
     missing = required - set(inputs.keys())
     if missing:
-        raise SearchExecutionError(
-            f"Gryphon query requires inputs {sorted(missing)} but they were not provided."
-        )
+        raise SearchExecutionError(f"Gryphon query requires inputs {sorted(missing)} but they were not provided.")
 
-    return _execute_ast(ast, inputs, db_alias=db_alias)
+    return _execute_ast(ast, inputs, db_alias=db_alias, layer=layer)
 
 
 # ---------------------------------------------------------------------------
@@ -96,41 +109,33 @@ def _execute_ast(
     inputs: dict[str, Any],
     *,
     db_alias: str,
+    layer: SubgraphLayer,
 ) -> dict[str, Any]:
     """Dispatch to the appropriate execution strategy based on AST shape."""
     # V1: exactly one MATCH clause with a single two-node one-edge pattern.
     if len(ast.match_clauses) != 1:
-        raise SearchExecutionError(
-            "Unsupported gryphon pattern: v1 supports exactly one MATCH clause."
-        )
+        raise SearchExecutionError("Unsupported gryphon pattern: v1 supports exactly one MATCH clause.")
     mc = ast.match_clauses[0]
     if len(mc.patterns) != 1:
-        raise SearchExecutionError(
-            "Unsupported gryphon pattern: v1 supports exactly one pattern per MATCH."
-        )
+        raise SearchExecutionError("Unsupported gryphon pattern: v1 supports exactly one pattern per MATCH.")
     pattern = mc.patterns[0]
 
     # Type scan: node-only pattern (no edges).
     if len(pattern.edges) == 0:
-        return _execute_type_scan(pattern.nodes[0], ast.return_clause, db_alias=db_alias)
+        return _execute_type_scan(pattern.nodes[0], ast.return_clause, db_alias=db_alias, layer=layer)
 
     if len(pattern.edges) != 1:
-        raise SearchExecutionError(
-            "Unsupported gryphon pattern: v1 supports exactly one edge (one hop)."
-        )
+        raise SearchExecutionError("Unsupported gryphon pattern: v1 supports exactly one edge (one hop).")
 
     edge_pat = pattern.edges[0]
     if edge_pat.min_hops != 1 or edge_pat.max_hops != 1:
-        raise SearchExecutionError(
-            "Unsupported gryphon pattern: v1 does not support bounded multi-hop traversal."
-        )
+        raise SearchExecutionError("Unsupported gryphon pattern: v1 does not support bounded multi-hop traversal.")
 
     # Find the anchor node variable constrained by entity_id in WHERE.
     anchor_var, entity_id_value = _extract_entity_id_anchor(ast.where_clause, inputs)
     if anchor_var is None or entity_id_value is None:
         raise SearchExecutionError(
-            "Unsupported gryphon pattern: v1 requires WHERE <var>.entity_id = $param "
-            "to identify the hub entity."
+            "Unsupported gryphon pattern: v1 requires WHERE <var>.entity_id = $param " "to identify the hub entity."
         )
 
     # Determine which node in the pattern is the anchor.
@@ -141,14 +146,14 @@ def _execute_ast(
         hub_node = right_node
     else:
         raise SearchExecutionError(
-            f"Unsupported gryphon pattern: anchor variable '{anchor_var}' "
-            "not found in MATCH pattern."
+            f"Unsupported gryphon pattern: anchor variable '{anchor_var}' " "not found in MATCH pattern."
         )
 
     return _execute_hub_and_spoke(
         entity_id=str(entity_id_value),
         edge_pattern=edge_pat,
         db_alias=db_alias,
+        layer=layer,
     )
 
 
@@ -199,9 +204,7 @@ def _find_entity_id_in_predicate(pred: Any, inputs: dict[str, Any]) -> tuple[str
 # ---------------------------------------------------------------------------
 
 # Fields that live on Entity rather than the domain model.
-_ENTITY_FIELDS: frozenset[str] = frozenset(
-    {"entity_type", "name", "dimensions", "version", "created_at", "updated_at"}
-)
+_ENTITY_FIELDS: frozenset[str] = frozenset({"entity_type", "name", "dimensions", "version", "created_at", "updated_at"})
 
 
 def _execute_type_scan(
@@ -209,6 +212,7 @@ def _execute_type_scan(
     return_clause: ReturnClause,
     *,
     db_alias: str,
+    layer: SubgraphLayer,
 ) -> dict[str, Any]:
     """Execute a node-only MATCH pattern — scan all entities of the given type.
 
@@ -216,6 +220,7 @@ def _execute_type_scan(
         node: The single node pattern; must carry a label (entity type slug).
         return_clause: Controls output shape (projected fields vs. graph envelope).
         db_alias: Database alias to query against.
+        layer: GRIFT subgraph return layer.
 
     Returns:
         Canonical envelope with ``nodes`` list and empty ``edges`` list.
@@ -224,31 +229,28 @@ def _execute_type_scan(
         SearchExecutionError: If the node pattern carries no label.
     """
     if not node.label:
-        raise SearchExecutionError(
-            "Unsupported gryphon pattern: type scan requires a node label, e.g. (c:character)."
-        )
+        raise SearchExecutionError("Unsupported gryphon pattern: type scan requires a node label, e.g. (c:character).")
 
     from tap_grid.registry import get_model_class
 
     try:
         model_cls = get_model_class(node.label)
     except KeyError:
-        raise SearchExecutionError(
-            f"Unsupported gryphon pattern: unknown entity type '{node.label}'."
-        )
+        raise SearchExecutionError(f"Unsupported gryphon pattern: unknown entity type '{node.label}'.")
 
     qs = model_cls.objects.using(db_alias).select_related("entity").order_by("entity__name")
 
     var = node.variable or node.label
     items = return_clause.items  # None → graph envelope
 
-    nodes: list[dict[str, Any]] = []
-    for domain_obj in qs:
-        if items is not None:
-            nodes.append(_project_node(domain_obj, items, var))
-        else:
-            nodes.append(_node_dict(domain_obj.entity))
+    if items is not None:
+        # Projection mode — keep existing behavior (returns projected dicts).
+        nodes: list[dict[str, Any]] = [_project_node(domain_obj, items, var) for domain_obj in qs]
+        return {"nodes": nodes, "edges": []}
 
+    # Graph envelope mode — use grift serializers.
+    domain_objects = list(qs)
+    nodes = _serialize_typed_nodes(domain_objects, layer, db_alias)
     return {"nodes": nodes, "edges": []}
 
 
@@ -310,6 +312,7 @@ def _execute_hub_and_spoke(
     edge_pattern: EdgePattern,
     *,
     db_alias: str,
+    layer: SubgraphLayer,
 ) -> dict[str, Any]:
     """Execute a one-hop neighborhood query for a single hub entity.
 
@@ -334,11 +337,14 @@ def _execute_hub_and_spoke(
 
     direction = edge_pattern.direction
 
+    # select_related("entity") needed for full/extended edge serialization.
+    extra_related = ["entity"] if layer != "lite" else []
+
     if direction in ("out", "any"):
         outbound_qs = (
             Edge.objects.using(db_alias)
             .filter(from_entity=hub, **edge_filter)
-            .select_related("to_entity")
+            .select_related("to_entity", *extra_related)
             .order_by("entity__created_at")
         )
         outbound = list(outbound_qs)
@@ -349,7 +355,7 @@ def _execute_hub_and_spoke(
         inbound_qs = (
             Edge.objects.using(db_alias)
             .filter(to_entity=hub, **edge_filter)
-            .select_related("from_entity")
+            .select_related("from_entity", *extra_related)
             .order_by("entity__created_at")
         )
         inbound = list(inbound_qs)
@@ -364,41 +370,116 @@ def _execute_hub_and_spoke(
         neighbor_ids.add(str(edge.from_entity_id))
 
     neighbors = (
-        {str(e.pk): e for e in Entity.objects.using(db_alias).filter(pk__in=neighbor_ids)}
-        if neighbor_ids
-        else {}
+        {str(e.pk): e for e in Entity.objects.using(db_alias).filter(pk__in=neighbor_ids)} if neighbor_ids else {}
     )
 
-    # Serialize nodes.
-    nodes: list[dict[str, Any]] = [_node_dict(hub)]
-    for entity in neighbors.values():
-        nodes.append(_node_dict(entity))
+    # Collect all entities for serialization.
+    all_entities = [hub] + list(neighbors.values())
 
-    # Serialize edges (only those whose both endpoints are in the node set).
-    node_ids = {str(hub.pk)} | neighbor_ids
-    edges: list[dict[str, Any]] = []
+    # Filter qualifying edges (both endpoints in node set).
+    node_id_set = {str(hub.pk)} | neighbor_ids
+    qualifying_edges: list[Edge] = []
     for edge in outbound:
-        if str(edge.to_entity_id) in node_ids:
-            edges.append(_edge_dict(edge))
+        if str(edge.to_entity_id) in node_id_set:
+            qualifying_edges.append(edge)
     for edge in inbound:
-        if str(edge.from_entity_id) in node_ids:
-            edges.append(_edge_dict(edge))
+        if str(edge.from_entity_id) in node_id_set:
+            qualifying_edges.append(edge)
+
+    # Serialize using grift layer serializers.
+    nodes = _serialize_entity_nodes(all_entities, layer, db_alias)
+    edges = _serialize_edge_list(qualifying_edges, layer, db_alias)
 
     return {"nodes": nodes, "edges": edges}
 
 
-def _node_dict(entity: Any) -> dict[str, Any]:
-    return {
-        "entity_id": str(entity.pk),
-        "entity_type": entity.entity_type,
-        "name": entity.name,
-    }
+# ---------------------------------------------------------------------------
+# Serialization helpers
+# ---------------------------------------------------------------------------
 
 
-def _edge_dict(edge: Any) -> dict[str, Any]:
-    return {
-        "entity_id": str(edge.entity_id),
-        "from_entity_id": str(edge.from_entity_id),
-        "to_entity_id": str(edge.to_entity_id),
-        "edge_type": edge.edge_type,
-    }
+def _serialize_entity_nodes(
+    entities: list[Any],
+    layer: SubgraphLayer,
+    db_alias: str,
+) -> list[dict[str, Any]]:
+    """Serialize Entity objects to node dicts at the requested layer."""
+    if layer == "lite":
+        return [serialize_node_lite(e) for e in entities]
+
+    typed_models = batch_resolve_typed_models(entities, db_alias)
+
+    if layer == "full":
+        return [serialize_node_full(e, typed_models.get(str(e.pk))) for e in entities]
+
+    # extended
+    slugs = {e.entity_type for e in entities if e.entity_type != "edge"}
+    icon_map = batch_resolve_icon_urls(slugs)
+    shape_map = batch_resolve_shapes(slugs)
+
+    return [
+        serialize_node_extended(
+            e,
+            typed_models.get(str(e.pk)),
+            icon_url=icon_map.get(e.entity_type, ""),
+            shape=shape_map.get(e.entity_type, "ellipse"),
+        )
+        for e in entities
+    ]
+
+
+def _serialize_typed_nodes(
+    domain_objects: list[Any],
+    layer: SubgraphLayer,
+    db_alias: str,
+) -> list[dict[str, Any]]:
+    """Serialize typed model instances (with pre-fetched entity) to node dicts."""
+    if layer == "lite":
+        return [serialize_node_lite(obj.entity) for obj in domain_objects]
+
+    if layer == "full":
+        return [serialize_node_full(obj.entity, obj) for obj in domain_objects]
+
+    # extended
+    slugs = {obj.entity.entity_type for obj in domain_objects}
+    icon_map = batch_resolve_icon_urls(slugs)
+    shape_map = batch_resolve_shapes(slugs)
+
+    return [
+        serialize_node_extended(
+            obj.entity,
+            obj,
+            icon_url=icon_map.get(obj.entity.entity_type, ""),
+            shape=shape_map.get(obj.entity.entity_type, "ellipse"),
+        )
+        for obj in domain_objects
+    ]
+
+
+def _serialize_edge_list(
+    edges: list[Any],
+    layer: SubgraphLayer,
+    db_alias: str,
+) -> list[dict[str, Any]]:
+    """Serialize Edge objects to edge dicts at the requested layer."""
+    if layer == "lite":
+        return [serialize_edge_lite(e) for e in edges]
+
+    if layer == "full":
+        return [serialize_edge_full(e) for e in edges]
+
+    # extended — resolve endpoint names.
+    endpoint_ids: set[str] = set()
+    for edge in edges:
+        endpoint_ids.add(str(edge.from_entity_id))
+        endpoint_ids.add(str(edge.to_entity_id))
+    name_map = batch_resolve_entity_names(endpoint_ids, db_alias)
+
+    return [
+        serialize_edge_extended(
+            e,
+            from_name=name_map.get(str(e.from_entity_id), ""),
+            to_name=name_map.get(str(e.to_entity_id), ""),
+        )
+        for e in edges
+    ]

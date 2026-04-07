@@ -227,8 +227,22 @@ class TestTablePanelViewContext:
             "offset": 0,
             "results": {
                 "nodes": [
-                    {"entity_id": "abc", "entity_type": "concept", "name": "A", "dimensions": {}, "created_at": None, "updated_at": None},
-                    {"entity_id": "def", "entity_type": "concept", "name": "B", "dimensions": {}, "created_at": None, "updated_at": None},
+                    {
+                        "entity_id": "abc",
+                        "entity_type": "concept",
+                        "name": "A",
+                        "dimensions": {},
+                        "created_at": None,
+                        "updated_at": None,
+                    },
+                    {
+                        "entity_id": "def",
+                        "entity_type": "concept",
+                        "name": "B",
+                        "dimensions": {},
+                        "created_at": None,
+                        "updated_at": None,
+                    },
                 ],
                 "edges": [],
                 "info": {},
@@ -327,8 +341,8 @@ class TestTablePanelViewContext:
 
         content = response.content.decode()
         assert "tap-table-pagination" in content  # bar is present
-        assert "Prev" in content                  # Prev rendered (disabled)
-        assert "Next" in content                  # Next rendered (enabled)
+        assert "Prev" in content  # Prev rendered (disabled)
+        assert "Next" in content  # Next rendered (enabled)
 
     def test_search_execution_error_returns_error_context(self):
         from django.test import RequestFactory
@@ -690,46 +704,31 @@ class TestTablePanelIconEnrichment:
                 },
             )
 
-    def test_icon_url_present_in_every_node(self):
-        """Every node dict has an icon_url key after enrichment."""
-        from tap_web.panels.table_panel import _enrich_nodes_with_icons
-
-        nodes = [
-            {"entity_type": "faction", "name": "Mordor"},
-            {"entity_type": "faction", "name": "Rivendell"},
-        ]
-        _enrich_nodes_with_icons(nodes)
-        for node in nodes:
-            assert "icon_url" in node
-
-    def test_icon_url_non_empty_for_type_with_icon(self):
-        """Nodes with an entity type that has a registered icon get a non-empty icon_url."""
-        from tap_web.panels.table_panel import _enrich_nodes_with_icons
+    def test_icon_url_resolved_for_type_with_icon(self):
+        """batch_resolve_icon_urls returns non-empty URL for entity types with icons."""
+        from tap_grid.grift.subgraph import batch_resolve_icon_urls
 
         self._lotr_entity_types()
-        nodes = [{"entity_type": "character", "name": "Frodo"}]
-        _enrich_nodes_with_icons(nodes)
-        assert nodes[0]["icon_url"] != ""
+        icon_map = batch_resolve_icon_urls({"character"})
+        assert icon_map.get("character", "") != ""
 
     def test_icon_url_empty_for_type_without_icon(self):
-        """Nodes with an entity type that has no icon get an empty string."""
-        from tap_web.panels.table_panel import _enrich_nodes_with_icons
+        """batch_resolve_icon_urls returns empty string for types without icons."""
+        from tap_grid.grift.subgraph import batch_resolve_icon_urls
 
         self._lotr_entity_types()
-        nodes = [{"entity_type": "faction", "name": "Mordor"}]
-        _enrich_nodes_with_icons(nodes)
-        assert nodes[0]["icon_url"] == ""
+        icon_map = batch_resolve_icon_urls({"faction"})
+        assert icon_map.get("faction", "") == ""
 
     def test_icon_url_empty_for_unknown_entity_type(self):
-        """Nodes with an unregistered entity type get an empty string, not an error."""
-        from tap_web.panels.table_panel import _enrich_nodes_with_icons
+        """batch_resolve_icon_urls returns empty map for unregistered types."""
+        from tap_grid.grift.subgraph import batch_resolve_icon_urls
 
-        nodes = [{"entity_type": "does-not-exist", "name": "Ghost"}]
-        _enrich_nodes_with_icons(nodes)
-        assert nodes[0]["icon_url"] == ""
+        icon_map = batch_resolve_icon_urls({"does-not-exist"})
+        assert icon_map.get("does-not-exist", "") == ""
 
     def test_icon_url_in_view_context_nodes(self):
-        """get_view_context includes icon_url in the nodes passed to the template."""
+        """get_view_context returns nodes with icon_url (extended layer)."""
         from unittest.mock import patch
 
         from django.test import RequestFactory
@@ -740,7 +739,23 @@ class TestTablePanelIconEnrichment:
         self._lotr_entity_types()
 
         fake_envelope = {
-            "nodes": [{"entity_type": "character", "entity_id": "abc", "name": "Frodo", "dimensions": {}, "updated_at": None}],
+            "nodes": [
+                {
+                    "entity": {
+                        "entity_type": "character",
+                        "entity_id": "abc",
+                        "name": "Frodo",
+                        "dimensions": {},
+                        "created_at": None,
+                        "updated_at": None,
+                        "deleted_at": None,
+                    },
+                    "node": {"name": "Frodo", "bio": "A hobbit"},
+                    "icon_url": "/static/lotr/icons/character.svg",
+                    "shape": "ellipse",
+                    "url_id": "frodo--abc",
+                }
+            ],
             "edges": [],
             "info": {},
             "warnings": {},

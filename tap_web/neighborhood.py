@@ -1,12 +1,14 @@
 """Neighborhood service — graph context for legacy viewer and editor shells.
 
-Executes a transient gryphon hub-and-spoke search and enriches the results
-for Cytoscape rendering.  Used only by the legacy monolithic viewer/editor
-templates; new code uses the GRIFT-defined entity pages instead.
+Executes a transient gryphon hub-and-spoke search and returns the results
+in GRIFT extended layer format for Cytoscape rendering.  Used only by the
+legacy monolithic viewer/editor templates; new code uses the GRIFT-defined
+entity pages instead.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from typing import Any
@@ -26,12 +28,6 @@ def get_entity_neighborhood(entity_id: uuid.UUID | str) -> dict[str, Any]:
     """
     from tap_grid.models import Search
     from tap_grid.search import execute_search
-    from tap_viz.panels.graph_panel import (
-        _enrich_nodes_with_icons,
-        _enrich_nodes_with_shape,
-        _error_ctx,
-        _safe_json,
-    )
 
     search = Search(
         search_type="gryphon",
@@ -48,7 +44,7 @@ def get_entity_neighborhood(entity_id: uuid.UUID | str) -> dict[str, Any]:
         max_limit=500,
     )
     try:
-        result = execute_search(search, inputs={"entity_id": str(entity_id)})
+        result = execute_search(search, inputs={"entity_id": str(entity_id)}, layer="extended")
         envelope = result.get("results", result)
         nodes_raw: list[dict[str, Any]] = envelope.get("nodes", [])
         edges_raw: list[dict[str, Any]] = envelope.get("edges", [])
@@ -58,13 +54,25 @@ def get_entity_neighborhood(entity_id: uuid.UUID | str) -> dict[str, Any]:
         ctx["graph_context_id"] = str(entity_id)
         return ctx
 
-    _enrich_nodes_with_icons(nodes_raw)
-    _enrich_nodes_with_shape(nodes_raw)
-
     return {
         "graph_nodes_json": _safe_json(nodes_raw),
         "graph_edges_json": _safe_json(edges_raw),
         "graph_placement": "cytoscape:cose",
         "graph_error": None,
         "graph_context_id": str(entity_id),
+    }
+
+
+def _safe_json(value: Any) -> str:
+    """Serialize value to a JSON string safe for embedding in HTML script blocks."""
+    raw = json.dumps(value)
+    return raw.replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
+
+
+def _error_ctx(message: str) -> dict[str, Any]:
+    return {
+        "graph_nodes_json": _safe_json([]),
+        "graph_edges_json": _safe_json([]),
+        "graph_placement": "cytoscape:cose",
+        "graph_error": message,
     }

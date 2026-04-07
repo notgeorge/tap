@@ -18,6 +18,7 @@
   "use strict";
 
   // Columns for common_metadata mode (req-web-stdpanel-table-columns).
+  // Node data uses GRIFT extended format: {entity: {...}, node: {...}, icon_url, shape, url_id}
   var COMMON_METADATA_COLUMNS = [
     {
       // Icon column — decorative, no header text, empty when no icon available.
@@ -42,7 +43,7 @@
     },
     {
       title: "ID",
-      field: "entity_id",
+      field: "entity.entity_id",
       width: 120,
       formatter: function (cell) {
         // Show only the last 8 chars of the UUID for readability.
@@ -55,17 +56,17 @@
     },
     {
       title: "Name",
-      field: "name",
+      field: "entity.name",
       widthGrow: 2,
     },
     {
       title: "Type",
-      field: "entity_type",
+      field: "entity.entity_type",
       width: 120,
     },
     {
       title: "Last Edited",
-      field: "updated_at",
+      field: "entity.updated_at",
       width: 160,
       formatter: function (cell) {
         var val = cell.getValue();
@@ -79,7 +80,7 @@
     },
     {
       title: "Dimensions",
-      field: "dimensions",
+      field: "entity.dimensions",
       widthGrow: 1,
       formatter: function (cell) {
         var val = cell.getValue();
@@ -90,6 +91,7 @@
   ];
 
   // Columns for edge mode — shows enriched from/to display names.
+  // Edge data uses GRIFT extended format: {entity: {...}, edge: {...}, from_name, to_name}
   var EDGE_COLUMNS = [
     {
       title: "From",
@@ -98,7 +100,7 @@
     },
     {
       title: "Type",
-      field: "edge_type",
+      field: "edge.edge_type",
       width: 160,
     },
     {
@@ -108,7 +110,7 @@
     },
     {
       title: "Properties",
-      field: "properties",
+      field: "edge.properties",
       widthGrow: 1,
       formatter: function (cell) {
         var val = cell.getValue();
@@ -161,8 +163,10 @@
         el.style.cursor = "pointer";
         el.addEventListener("click", function () {
           var data = row.getData();
-          if (data.url_id && data.entity_type) {
-            window.location.href = "/object/" + data.entity_type + "/" + data.url_id + "/";
+          var entityType = data.entity ? data.entity.entity_type : "";
+          var urlId = data.url_id || "";
+          if (urlId && entityType) {
+            window.location.href = "/object/" + entityType + "/" + urlId + "/";
           }
         });
       };

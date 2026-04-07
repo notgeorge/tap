@@ -17,6 +17,7 @@ import jsonschema  # type: ignore[import-untyped]
 from django.core.exceptions import ValidationError
 
 from tap_grid.exceptions import SearchExecutionError
+from tap_grid.grift.subgraph import SubgraphLayer
 
 if TYPE_CHECKING:
     from tap_grid.models import Search
@@ -35,6 +36,7 @@ def execute_search(
     *,
     limit: int | None = None,
     offset: int | None = None,
+    layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Execute a Search and return the canonical 4-key graph envelope.
 
@@ -46,6 +48,7 @@ def execute_search(
                  search.max_limit if set. None means use search.default_limit
                  (which itself may be None, meaning unpaginated).
         offset:  Zero-based offset into the primary-side results. Defaults to 0.
+        layer:   GRIFT subgraph return layer (lite, full, extended).
 
     Returns:
         If paginated: {"count": int, "limit": int, "offset": int, "results": envelope}
@@ -62,7 +65,7 @@ def execute_search(
     start_time = time.monotonic()
 
     if search.search_type == "module":
-        raw_result = _execute_module_search(search, validated_inputs, _SEARCH_DB_ALIAS)
+        raw_result = _execute_module_search(search, validated_inputs, _SEARCH_DB_ALIAS, layer=layer)
     elif search.search_type == "orm":
         raw_result = _execute_orm_search(
             search,
@@ -70,9 +73,10 @@ def execute_search(
             _SEARCH_DB_ALIAS,
             effective_limit,
             effective_offset,
+            layer=layer,
         )
     elif search.search_type == "gryphon":
-        raw_result = _execute_gryphon_search(search, validated_inputs, _SEARCH_DB_ALIAS)
+        raw_result = _execute_gryphon_search(search, validated_inputs, _SEARCH_DB_ALIAS, layer=layer)
     else:
         raise SearchExecutionError(f"Unknown search_type: {search.search_type!r}")
 
@@ -120,9 +124,7 @@ def _validate_inputs(search: Search, inputs: dict[str, Any]) -> dict[str, Any]:
     return inputs
 
 
-def _resolve_limit(
-    search: Search, caller_limit: int | None
-) -> tuple[int | None, dict[str, Any]]:
+def _resolve_limit(search: Search, caller_limit: int | None) -> tuple[int | None, dict[str, Any]]:
     """Apply pagination rules and return (effective_limit, warnings).
 
     1. caller_limit overrides search.default_limit.
@@ -170,6 +172,8 @@ def _execute_module_search(
     search: Search,
     validated_inputs: dict[str, Any],
     db_alias: str,
+    *,
+    layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Resolve and invoke a module search runner.
 
@@ -186,11 +190,9 @@ def _execute_module_search(
     runner = get_search_runner(runner_key)  # raises SearchRunnerNotFoundError on miss
 
     try:
-        result = runner(search, validated_inputs, db_alias=db_alias)
+        result = runner(search, validated_inputs, db_alias=db_alias, layer=layer)
     except Exception as exc:
-        raise SearchExecutionError(
-            f"Runner '{runner_key}' raised an exception: {exc}"
-        ) from exc
+        raise SearchExecutionError(f"Runner '{runner_key}' raised an exception: {exc}") from exc
 
     return cast(dict[str, Any], result)
 
@@ -199,12 +201,14 @@ def _execute_gryphon_search(
     search: Search,
     validated_inputs: dict[str, Any],
     db_alias: str,
+    *,
+    layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Parse and execute a gryphon search."""
     from tap_grid.gryphon import execute_gryphon
 
     try:
-        return execute_gryphon(search, validated_inputs, db_alias=db_alias)
+        return execute_gryphon(search, validated_inputs, db_alias=db_alias, layer=layer)
     except Exception as exc:
         raise SearchExecutionError(f"Gryphon search execution failed: {exc}") from exc
 
@@ -215,11 +219,13 @@ def _execute_orm_search(
     db_alias: str,
     limit: int | None,
     offset: int,
+    *,
+    layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Compile and execute an ORM DSL search."""
     from tap_grid.orm_compiler import compile_orm_query
 
     try:
-        return compile_orm_query(search, db_alias, limit=limit, offset=offset)
+        return compile_orm_query(search, db_alias, limit=limit, offset=offset, layer=layer)
     except Exception as exc:
         raise SearchExecutionError(f"ORM search execution failed: {exc}") from exc

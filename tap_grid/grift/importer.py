@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -19,14 +19,14 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from tap_grid.batch import close_batch, create_batch, fail_batch
+from tap_grid.batch import close_batch, create_batch
 from tap_grid.caller_context import CallerContext
 from tap_grid.models import Entity
 from tap_grid.service_types import WriteOperation
 from tap_grid.services import write_batch
 
 if TYPE_CHECKING:
-    from tap_grid.models import User
+    pass
 
 
 GRIFT_VERSION = "0"
@@ -133,24 +133,28 @@ _NODE_ALLOWED = frozenset(["entity", "node"])
 _EDGE_REQUIRED = frozenset(["entity", "edge"])
 _EDGE_ALLOWED = frozenset(["entity", "edge"])
 _ENVELOPE_REQUIRED = frozenset(["entity_id", "entity_type", "dimensions"])
-_ENVELOPE_ALLOWED = frozenset(["entity_id", "entity_type", "name", "dimensions", "created_at", "updated_at", "deleted_at"])
+_ENVELOPE_ALLOWED = frozenset(
+    ["entity_id", "entity_type", "name", "dimensions", "created_at", "updated_at", "deleted_at"]
+)
 _EDGE_PAYLOAD_REQUIRED = frozenset(["from_entity_id", "to_entity_id", "edge_type", "properties"])
 _EDGE_PAYLOAD_ALLOWED = frozenset(["from_entity_id", "to_entity_id", "edge_type", "properties"])
 
 # Codes that are always treated as hard errors (not warnings).
-_ERROR_CODES = frozenset([
-    "invalid_json",
-    "schema_validation_failed",
-    "duplicate_entity_id",
-    "duplicate_batch_id",
-    "unknown_entity_type",
-    "payload_validation_failed",
-    "timestamp_in_future",
-    "timestamp_order_invalid",
-    "entity_type_mismatch",
-    "dangling_edge",  # hard error in strict mode; warning surfaced separately in permissive
-    "execution_failed",
-])
+_ERROR_CODES = frozenset(
+    [
+        "invalid_json",
+        "schema_validation_failed",
+        "duplicate_entity_id",
+        "duplicate_batch_id",
+        "unknown_entity_type",
+        "payload_validation_failed",
+        "timestamp_in_future",
+        "timestamp_order_invalid",
+        "entity_type_mismatch",
+        "dangling_edge",  # hard error in strict mode; warning surfaced separately in permissive
+        "execution_failed",
+    ]
+)
 
 
 # ---------------------------------------------------------------------------
@@ -195,26 +199,60 @@ def _issue(
 def _check_uuid(value: Any, path: str, issues: list[GriftIssue], *, batch_entity_id: str | None = None) -> str | None:
     """Validate value is a UUID string. Returns the string if valid, else None."""
     if not isinstance(value, str):
-        issues.append(_issue("schema_validation_failed", f"Expected UUID string at {path}, got {type(value).__name__}", "schema", path, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"Expected UUID string at {path}, got {type(value).__name__}",
+                "schema",
+                path,
+                batch_entity_id=batch_entity_id,
+            )
+        )
         return None
     try:
         uuid.UUID(value)
         return value
     except ValueError:
-        issues.append(_issue("schema_validation_failed", f"Invalid UUID at {path}: {value!r}", "schema", path, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"Invalid UUID at {path}: {value!r}",
+                "schema",
+                path,
+                batch_entity_id=batch_entity_id,
+            )
+        )
         return None
 
 
-def _check_datetime(value: Any, path: str, issues: list[GriftIssue], *, batch_entity_id: str | None = None) -> datetime | None:
+def _check_datetime(
+    value: Any, path: str, issues: list[GriftIssue], *, batch_entity_id: str | None = None
+) -> datetime | None:
     """Validate value is an RFC 3339 datetime string. Returns parsed datetime or None."""
     if value is None:
         return None
     if not isinstance(value, str):
-        issues.append(_issue("schema_validation_failed", f"Expected datetime string at {path}, got {type(value).__name__}", "schema", path, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"Expected datetime string at {path}, got {type(value).__name__}",
+                "schema",
+                path,
+                batch_entity_id=batch_entity_id,
+            )
+        )
         return None
     dt = parse_datetime(value)
     if dt is None:
-        issues.append(_issue("schema_validation_failed", f"Invalid datetime at {path}: {value!r}", "schema", path, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"Invalid datetime at {path}: {value!r}",
+                "schema",
+                path,
+                batch_entity_id=batch_entity_id,
+            )
+        )
     return dt
 
 
@@ -239,55 +277,155 @@ def _validate_envelope(
 ) -> str | None:
     """Validate a GriftEntityEnvelope. Returns entity_id string if valid."""
     if not isinstance(envelope, dict):
-        issues.append(_issue("schema_validation_failed", f"Entity envelope at {path} must be an object", "schema", path, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"Entity envelope at {path} must be an object",
+                "schema",
+                path,
+                batch_entity_id=batch_entity_id,
+            )
+        )
         return None
 
     for key in envelope:
         if key not in _ENVELOPE_ALLOWED:
-            issues.append(_issue("schema_validation_failed", f"Unknown key '{key}' in entity envelope at {path}.{key}", "schema", f"{path}.{key}", batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"Unknown key '{key}' in entity envelope at {path}.{key}",
+                    "schema",
+                    f"{path}.{key}",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
 
     for req in _ENVELOPE_REQUIRED:
         if req not in envelope:
-            issues.append(_issue("schema_validation_failed", f"Missing required field '{req}' in entity envelope at {path}", "schema", f"{path}.{req}", batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"Missing required field '{req}' in entity envelope at {path}",
+                    "schema",
+                    f"{path}.{req}",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
 
     entity_id = _check_uuid(envelope.get("entity_id", ""), f"{path}.entity_id", issues, batch_entity_id=batch_entity_id)
 
     if "entity_type" in envelope:
         if not isinstance(envelope["entity_type"], str) or not envelope["entity_type"]:
-            issues.append(_issue("schema_validation_failed", f"entity_type must be a non-empty string at {path}.entity_type", "schema", f"{path}.entity_type", batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"entity_type must be a non-empty string at {path}.entity_type",
+                    "schema",
+                    f"{path}.entity_type",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
 
     if "dimensions" in envelope:
         dims = envelope["dimensions"]
         if not isinstance(dims, dict):
-            issues.append(_issue("schema_validation_failed", f"dimensions must be an object at {path}.dimensions", "schema", f"{path}.dimensions", batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"dimensions must be an object at {path}.dimensions",
+                    "schema",
+                    f"{path}.dimensions",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
         else:
             for k, v in dims.items():
                 if not isinstance(k, str) or not isinstance(v, str):
-                    issues.append(_issue("schema_validation_failed", f"dimensions must be string-to-string at {path}.dimensions", "schema", f"{path}.dimensions", batch_entity_id=batch_entity_id))
+                    issues.append(
+                        _issue(
+                            "schema_validation_failed",
+                            f"dimensions must be string-to-string at {path}.dimensions",
+                            "schema",
+                            f"{path}.dimensions",
+                            batch_entity_id=batch_entity_id,
+                        )
+                    )
                     break
 
     if "name" in envelope and envelope["name"] is not None:
         if not isinstance(envelope["name"], str) or not envelope["name"]:
-            issues.append(_issue("schema_validation_failed", f"name must be a non-empty string at {path}.name", "schema", f"{path}.name", batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"name must be a non-empty string at {path}.name",
+                    "schema",
+                    f"{path}.name",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
 
     # Timestamp validation and ordering.
-    created_at = _check_datetime(envelope.get("created_at"), f"{path}.created_at", issues, batch_entity_id=batch_entity_id)
-    updated_at = _check_datetime(envelope.get("updated_at"), f"{path}.updated_at", issues, batch_entity_id=batch_entity_id)
+    created_at = _check_datetime(
+        envelope.get("created_at"), f"{path}.created_at", issues, batch_entity_id=batch_entity_id
+    )
+    updated_at = _check_datetime(
+        envelope.get("updated_at"), f"{path}.updated_at", issues, batch_entity_id=batch_entity_id
+    )
     deleted_at_raw = envelope.get("deleted_at")
-    deleted_at = _check_datetime(deleted_at_raw, f"{path}.deleted_at", issues, batch_entity_id=batch_entity_id) if deleted_at_raw is not None else None
+    deleted_at = (
+        _check_datetime(deleted_at_raw, f"{path}.deleted_at", issues, batch_entity_id=batch_entity_id)
+        if deleted_at_raw is not None
+        else None
+    )
 
     if deleted_at_raw is not None and "updated_at" not in envelope:
-        issues.append(_issue("timestamp_order_invalid", f"deleted_at requires updated_at to also be present at {path}", "validation", f"{path}.deleted_at", entity_id=entity_id, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "timestamp_order_invalid",
+                f"deleted_at requires updated_at to also be present at {path}",
+                "validation",
+                f"{path}.deleted_at",
+                entity_id=entity_id,
+                batch_entity_id=batch_entity_id,
+            )
+        )
 
     if created_at and updated_at and _make_aware(updated_at) < _make_aware(created_at):
-        issues.append(_issue("timestamp_order_invalid", f"updated_at must be >= created_at at {path}", "validation", f"{path}.updated_at", entity_id=entity_id, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "timestamp_order_invalid",
+                f"updated_at must be >= created_at at {path}",
+                "validation",
+                f"{path}.updated_at",
+                entity_id=entity_id,
+                batch_entity_id=batch_entity_id,
+            )
+        )
 
     if updated_at and deleted_at and _make_aware(deleted_at) < _make_aware(updated_at):
-        issues.append(_issue("timestamp_order_invalid", f"deleted_at must be >= updated_at at {path}", "validation", f"{path}.deleted_at", entity_id=entity_id, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "timestamp_order_invalid",
+                f"deleted_at must be >= updated_at at {path}",
+                "validation",
+                f"{path}.deleted_at",
+                entity_id=entity_id,
+                batch_entity_id=batch_entity_id,
+            )
+        )
 
     for ts_name, ts_val in [("created_at", created_at), ("updated_at", updated_at), ("deleted_at", deleted_at)]:
         if ts_val is not None and _make_aware(ts_val) > reference_time:
-            issues.append(_issue("timestamp_in_future", f"{ts_name} is in the future at {path}.{ts_name}", "validation", f"{path}.{ts_name}", entity_id=entity_id, batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "timestamp_in_future",
+                    f"{ts_name} is in the future at {path}.{ts_name}",
+                    "validation",
+                    f"{path}.{ts_name}",
+                    entity_id=entity_id,
+                    batch_entity_id=batch_entity_id,
+                )
+            )
 
     return entity_id
 
@@ -310,13 +448,32 @@ def _validate_node_payload(
     from tap_grid.registry import get_model_class
 
     if not isinstance(payload, dict):
-        issues.append(_issue("schema_validation_failed", f"node payload at {path} must be an object", "schema", path, entity_id=entity_id, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"node payload at {path} must be an object",
+                "schema",
+                path,
+                entity_id=entity_id,
+                batch_entity_id=batch_entity_id,
+            )
+        )
         return False
 
     try:
         model_cls = get_model_class(entity_type)
     except KeyError:
-        issues.append(_issue("unknown_entity_type", f"Unknown entity type '{entity_type}' at {path}", "validation", path, entity_id=entity_id, batch_entity_id=batch_entity_id, entity_type=entity_type))
+        issues.append(
+            _issue(
+                "unknown_entity_type",
+                f"Unknown entity type '{entity_type}' at {path}",
+                "validation",
+                path,
+                entity_id=entity_id,
+                batch_entity_id=batch_entity_id,
+                entity_type=entity_type,
+            )
+        )
         return False
 
     replace_schema = model_cls.SERVICE_SCHEMAS.get("replace", {})
@@ -324,7 +481,17 @@ def _validate_node_payload(
         try:
             jsonschema.validate(instance=payload, schema=replace_schema)
         except jsonschema.ValidationError as exc:
-            issues.append(_issue("payload_validation_failed", exc.message, "validation", f"{path}.{exc.json_path}" if exc.json_path != "$" else path, entity_id=entity_id, batch_entity_id=batch_entity_id, entity_type=entity_type))
+            issues.append(
+                _issue(
+                    "payload_validation_failed",
+                    exc.message,
+                    "validation",
+                    f"{path}.{exc.json_path}" if exc.json_path != "$" else path,
+                    entity_id=entity_id,
+                    batch_entity_id=batch_entity_id,
+                    entity_type=entity_type,
+                )
+            )
             return False
 
     return True
@@ -345,28 +512,77 @@ def _validate_edge_payload(
 ) -> bool:
     """Validate GriftEdgePayload shape. Returns True if structurally valid."""
     if not isinstance(payload, dict):
-        issues.append(_issue("schema_validation_failed", f"edge payload at {path} must be an object", "schema", path, entity_id=entity_id, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"edge payload at {path} must be an object",
+                "schema",
+                path,
+                entity_id=entity_id,
+                batch_entity_id=batch_entity_id,
+            )
+        )
         return False
 
     for key in payload:
         if key not in _EDGE_PAYLOAD_ALLOWED:
-            issues.append(_issue("schema_validation_failed", f"Unknown key '{key}' in edge payload at {path}.{key}", "schema", f"{path}.{key}", entity_id=entity_id, batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"Unknown key '{key}' in edge payload at {path}.{key}",
+                    "schema",
+                    f"{path}.{key}",
+                    entity_id=entity_id,
+                    batch_entity_id=batch_entity_id,
+                )
+            )
 
     for req in _EDGE_PAYLOAD_REQUIRED:
         if req not in payload:
-            issues.append(_issue("schema_validation_failed", f"Missing required field '{req}' in edge payload at {path}", "schema", f"{path}.{req}", entity_id=entity_id, batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"Missing required field '{req}' in edge payload at {path}",
+                    "schema",
+                    f"{path}.{req}",
+                    entity_id=entity_id,
+                    batch_entity_id=batch_entity_id,
+                )
+            )
 
     ok = True
     for uuid_field in ("from_entity_id", "to_entity_id"):
-        if uuid_field in payload and _check_uuid(payload[uuid_field], f"{path}.{uuid_field}", issues, batch_entity_id=batch_entity_id) is None:
+        if (
+            uuid_field in payload
+            and _check_uuid(payload[uuid_field], f"{path}.{uuid_field}", issues, batch_entity_id=batch_entity_id)
+            is None
+        ):
             ok = False
 
     if "edge_type" in payload and (not isinstance(payload["edge_type"], str) or not payload["edge_type"]):
-        issues.append(_issue("schema_validation_failed", f"edge_type must be a non-empty string at {path}.edge_type", "schema", f"{path}.edge_type", entity_id=entity_id, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"edge_type must be a non-empty string at {path}.edge_type",
+                "schema",
+                f"{path}.edge_type",
+                entity_id=entity_id,
+                batch_entity_id=batch_entity_id,
+            )
+        )
         ok = False
 
     if "properties" in payload and not isinstance(payload["properties"], dict):
-        issues.append(_issue("schema_validation_failed", f"properties must be an object at {path}.properties", "schema", f"{path}.properties", entity_id=entity_id, batch_entity_id=batch_entity_id))
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"properties must be an object at {path}.properties",
+                "schema",
+                f"{path}.properties",
+                entity_id=entity_id,
+                batch_entity_id=batch_entity_id,
+            )
+        )
         ok = False
 
     return ok
@@ -393,10 +609,14 @@ def _run_preflight(
 
     for req in _DOC_REQUIRED:
         if req not in document:
-            issues.append(_issue("schema_validation_failed", f"Missing required top-level key '{req}'", "schema", f"$.{req}"))
+            issues.append(
+                _issue("schema_validation_failed", f"Missing required top-level key '{req}'", "schema", f"$.{req}")
+            )
 
     if any(i.code == "schema_validation_failed" for i in issues):
-        return _PreflightResult(ok=False, batches_to_import=[], batches_to_skip=[], dangling_edge_ids=set(), issues=issues)
+        return _PreflightResult(
+            ok=False, batches_to_import=[], batches_to_skip=[], dangling_edge_ids=set(), issues=issues
+        )
 
     # --- metadata ---
     metadata = document["metadata"]
@@ -405,22 +625,44 @@ def _run_preflight(
     else:
         for key in metadata:
             if key not in _METADATA_ALLOWED:
-                issues.append(_issue("schema_validation_failed", f"Unknown key '{key}' in metadata", "schema", f"$.metadata.{key}"))
+                issues.append(
+                    _issue(
+                        "schema_validation_failed", f"Unknown key '{key}' in metadata", "schema", f"$.metadata.{key}"
+                    )
+                )
         gv = metadata.get("grift_version")
         if gv is None:
-            issues.append(_issue("schema_validation_failed", "Missing grift_version in metadata", "schema", "$.metadata.grift_version"))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    "Missing grift_version in metadata",
+                    "schema",
+                    "$.metadata.grift_version",
+                )
+            )
         elif not isinstance(gv, str) or not gv:
-            issues.append(_issue("schema_validation_failed", "grift_version must be a non-empty string", "schema", "$.metadata.grift_version"))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    "grift_version must be a non-empty string",
+                    "schema",
+                    "$.metadata.grift_version",
+                )
+            )
 
     if not isinstance(document.get("_reserved"), dict):
         issues.append(_issue("schema_validation_failed", "_reserved must be an object", "schema", "$._reserved"))
 
     if not isinstance(document.get("batches"), list):
         issues.append(_issue("schema_validation_failed", "batches must be an array", "schema", "$.batches"))
-        return _PreflightResult(ok=False, batches_to_import=[], batches_to_skip=[], dangling_edge_ids=set(), issues=issues)
+        return _PreflightResult(
+            ok=False, batches_to_import=[], batches_to_skip=[], dangling_edge_ids=set(), issues=issues
+        )
 
     if any(i.code == "schema_validation_failed" for i in issues):
-        return _PreflightResult(ok=False, batches_to_import=[], batches_to_skip=[], dangling_edge_ids=set(), issues=issues)
+        return _PreflightResult(
+            ok=False, batches_to_import=[], batches_to_skip=[], dangling_edge_ids=set(), issues=issues
+        )
 
     # --- Per-batch validation ---
     all_entity_ids: set[str] = set()
@@ -435,16 +677,32 @@ def _run_preflight(
         batch_path = f"$.batches[{batch_idx}]"
 
         if not isinstance(batch_container, dict):
-            issues.append(_issue("schema_validation_failed", f"Batch at {batch_path} must be an object", "schema", batch_path))
+            issues.append(
+                _issue("schema_validation_failed", f"Batch at {batch_path} must be an object", "schema", batch_path)
+            )
             continue
 
         for key in batch_container:
             if key not in _BATCH_ALLOWED:
-                issues.append(_issue("schema_validation_failed", f"Unknown key '{key}' in batch at {batch_path}.{key}", "schema", f"{batch_path}.{key}"))
+                issues.append(
+                    _issue(
+                        "schema_validation_failed",
+                        f"Unknown key '{key}' in batch at {batch_path}.{key}",
+                        "schema",
+                        f"{batch_path}.{key}",
+                    )
+                )
 
         for req in _BATCH_REQUIRED:
             if req not in batch_container:
-                issues.append(_issue("schema_validation_failed", f"Missing required key '{req}' in batch at {batch_path}", "schema", f"{batch_path}.{req}"))
+                issues.append(
+                    _issue(
+                        "schema_validation_failed",
+                        f"Missing required key '{req}' in batch at {batch_path}",
+                        "schema",
+                        f"{batch_path}.{req}",
+                    )
+                )
 
         if not all(k in batch_container for k in _BATCH_REQUIRED):
             continue
@@ -462,22 +720,57 @@ def _run_preflight(
         # batch_entity.entity_type must be "batch".
         if batch_container["batch_entity"].get("entity_type") != "batch":
             got = batch_container["batch_entity"].get("entity_type")
-            issues.append(_issue("entity_type_mismatch", f"batch_entity.entity_type must be 'batch', got '{got}'", "validation", f"{batch_path}.batch_entity.entity_type", entity_id=batch_entity_id, batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "entity_type_mismatch",
+                    f"batch_entity.entity_type must be 'batch', got '{got}'",
+                    "validation",
+                    f"{batch_path}.batch_entity.entity_type",
+                    entity_id=batch_entity_id,
+                    batch_entity_id=batch_entity_id,
+                )
+            )
 
         # Duplicate batch-level checks.
         if batch_entity_id in all_batch_ids:
-            issues.append(_issue("duplicate_batch_id", f"Duplicate batch entity_id '{batch_entity_id}'", "preflight", f"{batch_path}.batch_entity.entity_id", entity_id=batch_entity_id, batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "duplicate_batch_id",
+                    f"Duplicate batch entity_id '{batch_entity_id}'",
+                    "preflight",
+                    f"{batch_path}.batch_entity.entity_id",
+                    entity_id=batch_entity_id,
+                    batch_entity_id=batch_entity_id,
+                )
+            )
             continue
         all_batch_ids.add(batch_entity_id)
 
         if batch_entity_id in all_entity_ids:
-            issues.append(_issue("duplicate_entity_id", f"Duplicate entity_id '{batch_entity_id}'", "preflight", f"{batch_path}.batch_entity.entity_id", entity_id=batch_entity_id, batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "duplicate_entity_id",
+                    f"Duplicate entity_id '{batch_entity_id}'",
+                    "preflight",
+                    f"{batch_path}.batch_entity.entity_id",
+                    entity_id=batch_entity_id,
+                    batch_entity_id=batch_entity_id,
+                )
+            )
             continue
         all_entity_ids.add(batch_entity_id)
 
         # Validate batch_node payload against Batch replace schema.
         if not isinstance(batch_container["batch_node"], dict):
-            issues.append(_issue("schema_validation_failed", f"batch_node at {batch_path}.batch_node must be an object", "schema", f"{batch_path}.batch_node", batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"batch_node at {batch_path}.batch_node must be an object",
+                    "schema",
+                    f"{batch_path}.batch_node",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
         else:
             from tap_grid.models import Batch
 
@@ -486,14 +779,39 @@ def _run_preflight(
                 try:
                     jsonschema.validate(instance=batch_container["batch_node"], schema=replace_schema)
                 except jsonschema.ValidationError as exc:
-                    issues.append(_issue("payload_validation_failed", exc.message, "validation", f"{batch_path}.batch_node", entity_id=batch_entity_id, batch_entity_id=batch_entity_id))
+                    issues.append(
+                        _issue(
+                            "payload_validation_failed",
+                            exc.message,
+                            "validation",
+                            f"{batch_path}.batch_node",
+                            entity_id=batch_entity_id,
+                            batch_entity_id=batch_entity_id,
+                        )
+                    )
 
         # nodes/edges must be arrays.
         if not isinstance(batch_container["nodes"], list):
-            issues.append(_issue("schema_validation_failed", f"nodes at {batch_path}.nodes must be an array", "schema", f"{batch_path}.nodes", batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"nodes at {batch_path}.nodes must be an array",
+                    "schema",
+                    f"{batch_path}.nodes",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
             continue
         if not isinstance(batch_container["edges"], list):
-            issues.append(_issue("schema_validation_failed", f"edges at {batch_path}.edges must be an array", "schema", f"{batch_path}.edges", batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"edges at {batch_path}.edges must be an array",
+                    "schema",
+                    f"{batch_path}.edges",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
             continue
 
         # Validate each node object.
@@ -501,16 +819,40 @@ def _run_preflight(
             node_path = f"{batch_path}.nodes[{node_idx}]"
 
             if not isinstance(node_obj, dict):
-                issues.append(_issue("schema_validation_failed", f"Node at {node_path} must be an object", "schema", node_path, batch_entity_id=batch_entity_id))
+                issues.append(
+                    _issue(
+                        "schema_validation_failed",
+                        f"Node at {node_path} must be an object",
+                        "schema",
+                        node_path,
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
                 continue
 
             for key in node_obj:
                 if key not in _NODE_ALLOWED:
-                    issues.append(_issue("schema_validation_failed", f"Unknown key '{key}' in node at {node_path}.{key}", "schema", f"{node_path}.{key}", batch_entity_id=batch_entity_id))
+                    issues.append(
+                        _issue(
+                            "schema_validation_failed",
+                            f"Unknown key '{key}' in node at {node_path}.{key}",
+                            "schema",
+                            f"{node_path}.{key}",
+                            batch_entity_id=batch_entity_id,
+                        )
+                    )
 
             for req in _NODE_REQUIRED:
                 if req not in node_obj:
-                    issues.append(_issue("schema_validation_failed", f"Missing required key '{req}' in node at {node_path}", "schema", f"{node_path}.{req}", batch_entity_id=batch_entity_id))
+                    issues.append(
+                        _issue(
+                            "schema_validation_failed",
+                            f"Missing required key '{req}' in node at {node_path}",
+                            "schema",
+                            f"{node_path}.{req}",
+                            batch_entity_id=batch_entity_id,
+                        )
+                    )
 
             if not all(k in node_obj for k in _NODE_REQUIRED):
                 continue
@@ -526,29 +868,69 @@ def _run_preflight(
                 continue
 
             if node_entity_id in all_entity_ids:
-                issues.append(_issue("duplicate_entity_id", f"Duplicate entity_id '{node_entity_id}'", "preflight", f"{node_path}.entity.entity_id", entity_id=node_entity_id, batch_entity_id=batch_entity_id))
+                issues.append(
+                    _issue(
+                        "duplicate_entity_id",
+                        f"Duplicate entity_id '{node_entity_id}'",
+                        "preflight",
+                        f"{node_path}.entity.entity_id",
+                        entity_id=node_entity_id,
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
                 continue
             all_entity_ids.add(node_entity_id)
             file_node_ids.add(node_entity_id)
 
             entity_type = node_obj["entity"].get("entity_type", "")
-            _validate_node_payload(node_obj["node"], entity_type, f"{node_path}.node", issues, batch_entity_id=batch_entity_id, entity_id=node_entity_id)
+            _validate_node_payload(
+                node_obj["node"],
+                entity_type,
+                f"{node_path}.node",
+                issues,
+                batch_entity_id=batch_entity_id,
+                entity_id=node_entity_id,
+            )
 
         # Validate each edge object.
         for edge_idx, edge_obj in enumerate(batch_container["edges"]):
             edge_path = f"{batch_path}.edges[{edge_idx}]"
 
             if not isinstance(edge_obj, dict):
-                issues.append(_issue("schema_validation_failed", f"Edge at {edge_path} must be an object", "schema", edge_path, batch_entity_id=batch_entity_id))
+                issues.append(
+                    _issue(
+                        "schema_validation_failed",
+                        f"Edge at {edge_path} must be an object",
+                        "schema",
+                        edge_path,
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
                 continue
 
             for key in edge_obj:
                 if key not in _EDGE_ALLOWED:
-                    issues.append(_issue("schema_validation_failed", f"Unknown key '{key}' in edge at {edge_path}.{key}", "schema", f"{edge_path}.{key}", batch_entity_id=batch_entity_id))
+                    issues.append(
+                        _issue(
+                            "schema_validation_failed",
+                            f"Unknown key '{key}' in edge at {edge_path}.{key}",
+                            "schema",
+                            f"{edge_path}.{key}",
+                            batch_entity_id=batch_entity_id,
+                        )
+                    )
 
             for req in _EDGE_REQUIRED:
                 if req not in edge_obj:
-                    issues.append(_issue("schema_validation_failed", f"Missing required key '{req}' in edge at {edge_path}", "schema", f"{edge_path}.{req}", batch_entity_id=batch_entity_id))
+                    issues.append(
+                        _issue(
+                            "schema_validation_failed",
+                            f"Missing required key '{req}' in edge at {edge_path}",
+                            "schema",
+                            f"{edge_path}.{req}",
+                            batch_entity_id=batch_entity_id,
+                        )
+                    )
 
             if not all(k in edge_obj for k in _EDGE_REQUIRED):
                 continue
@@ -565,22 +947,53 @@ def _run_preflight(
 
             if edge_obj["entity"].get("entity_type") != "edge":
                 got = edge_obj["entity"].get("entity_type")
-                issues.append(_issue("entity_type_mismatch", f"edge entity envelope must have entity_type='edge', got '{got}'", "validation", f"{edge_path}.entity.entity_type", entity_id=edge_entity_id, batch_entity_id=batch_entity_id))
+                issues.append(
+                    _issue(
+                        "entity_type_mismatch",
+                        f"edge entity envelope must have entity_type='edge', got '{got}'",
+                        "validation",
+                        f"{edge_path}.entity.entity_type",
+                        entity_id=edge_entity_id,
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
 
             if edge_entity_id in all_entity_ids:
-                issues.append(_issue("duplicate_entity_id", f"Duplicate entity_id '{edge_entity_id}'", "preflight", f"{edge_path}.entity.entity_id", entity_id=edge_entity_id, batch_entity_id=batch_entity_id))
+                issues.append(
+                    _issue(
+                        "duplicate_entity_id",
+                        f"Duplicate entity_id '{edge_entity_id}'",
+                        "preflight",
+                        f"{edge_path}.entity.entity_id",
+                        entity_id=edge_entity_id,
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
                 continue
             all_entity_ids.add(edge_entity_id)
 
-            _validate_edge_payload(edge_obj["edge"], f"{edge_path}.edge", issues, batch_entity_id=batch_entity_id, entity_id=edge_entity_id)
+            _validate_edge_payload(
+                edge_obj["edge"], f"{edge_path}.edge", issues, batch_entity_id=batch_entity_id, entity_id=edge_entity_id
+            )
 
         # Check batch idempotency: already exists locally?
         from tap_grid.models import Batch
 
         if Batch.all_objects.filter(entity_id=batch_entity_id).exists():
-            batches_to_skip.append(GriftSkippedBatch(batch_entity_id=batch_entity_id, path=batch_path, reason="batch_already_imported"))
+            batches_to_skip.append(
+                GriftSkippedBatch(batch_entity_id=batch_entity_id, path=batch_path, reason="batch_already_imported")
+            )
         elif Entity.objects.filter(pk=uuid.UUID(batch_entity_id)).exclude(entity_type="batch").exists():
-            issues.append(_issue("entity_type_mismatch", f"entity_id '{batch_entity_id}' exists locally but is not a batch", "preflight", f"{batch_path}.batch_entity.entity_id", entity_id=batch_entity_id, batch_entity_id=batch_entity_id))
+            issues.append(
+                _issue(
+                    "entity_type_mismatch",
+                    f"entity_id '{batch_entity_id}' exists locally but is not a batch",
+                    "preflight",
+                    f"{batch_path}.batch_entity.entity_id",
+                    entity_id=batch_entity_id,
+                    batch_entity_id=batch_entity_id,
+                )
+            )
         else:
             batches_to_import.append((batch_idx, batch_container))
 
@@ -609,23 +1022,25 @@ def _run_preflight(
                 if endpoint_id not in file_node_ids:
                     try:
                         exists = Entity.objects.filter(pk=uuid.UUID(endpoint_id)).exists()
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         exists = False
 
                     if not exists:
                         is_dangling = True
                         if dangling_edge_mode == "strict":
-                            issues.append(_issue(
-                                "dangling_edge",
-                                f"Edge endpoint {field_name}='{endpoint_id}' not found in file or grid",
-                                "preflight",
-                                f"{edge_path}.edge.{field_name}",
-                                entity_id=edge_entity_id,
-                                batch_entity_id=batch_entity_id,
-                                from_entity_id=from_id,
-                                to_entity_id=to_id,
-                                edge_entity_id=edge_entity_id,
-                            ))
+                            issues.append(
+                                _issue(
+                                    "dangling_edge",
+                                    f"Edge endpoint {field_name}='{endpoint_id}' not found in file or grid",
+                                    "preflight",
+                                    f"{edge_path}.edge.{field_name}",
+                                    entity_id=edge_entity_id,
+                                    batch_entity_id=batch_entity_id,
+                                    from_entity_id=from_id,
+                                    to_entity_id=to_id,
+                                    edge_entity_id=edge_entity_id,
+                                )
+                            )
                         else:
                             if edge_entity_id:
                                 dangling_edge_ids.add(edge_entity_id)
@@ -646,35 +1061,45 @@ def _run_preflight(
             raw_type = node_obj_s.get("entity", {}).get("entity_type", "")
             if raw_eid and raw_type:
                 try:
-                    grift_types[str(uuid.UUID(raw_eid))] = (raw_type, f"{batch_path_s}.nodes[{node_idx_s}].entity.entity_type", batch_eid_s)
-                except (ValueError, AttributeError):
+                    grift_types[str(uuid.UUID(raw_eid))] = (
+                        raw_type,
+                        f"{batch_path_s}.nodes[{node_idx_s}].entity.entity_type",
+                        batch_eid_s,
+                    )
+                except ValueError, AttributeError:
                     pass
         for edge_idx_s, edge_obj_s in enumerate(batch_container_s.get("edges", [])):
             raw_eid = edge_obj_s.get("entity", {}).get("entity_id")
             if raw_eid:
                 try:
-                    grift_types[str(uuid.UUID(raw_eid))] = ("edge", f"{batch_path_s}.edges[{edge_idx_s}].entity.entity_type", batch_eid_s)
-                except (ValueError, AttributeError):
+                    grift_types[str(uuid.UUID(raw_eid))] = (
+                        "edge",
+                        f"{batch_path_s}.edges[{edge_idx_s}].entity.entity_type",
+                        batch_eid_s,
+                    )
+                except ValueError, AttributeError:
                     pass
 
     if grift_types:
-        for entity_uuid, grid_type in Entity.objects.filter(
-            pk__in=[uuid.UUID(eid) for eid in grift_types]
-        ).values_list("id", "entity_type"):
+        for entity_uuid, grid_type in Entity.objects.filter(pk__in=[uuid.UUID(eid) for eid in grift_types]).values_list(
+            "id", "entity_type"
+        ):
             norm = str(entity_uuid)
             if norm not in grift_types:
                 continue
             grift_type, sanity_path, batch_eid_s = grift_types[norm]
             if grift_type != grid_type:
-                issues.append(_issue(
-                    "entity_type_mismatch",
-                    f"Entity {norm} exists in grid as '{grid_type}' but GRIFT declares '{grift_type}'",
-                    "preflight",
-                    sanity_path,
-                    entity_id=norm,
-                    batch_entity_id=batch_eid_s,
-                    entity_type=grift_type,
-                ))
+                issues.append(
+                    _issue(
+                        "entity_type_mismatch",
+                        f"Entity {norm} exists in grid as '{grid_type}' but GRIFT declares '{grift_type}'",
+                        "preflight",
+                        sanity_path,
+                        entity_id=norm,
+                        batch_entity_id=batch_eid_s,
+                        entity_type=grift_type,
+                    )
+                )
 
     # Decide overall ok: any hard-error issue means preflight failed.
     has_hard_error = any(i.code in _ERROR_CODES for i in issues)
@@ -778,8 +1203,14 @@ def _execute_grift_batch(
                 if Entity.objects.filter(pk=uuid.UUID(node_entity_id)).exists():
                     ops.append(WriteOperation(verb="replace_node", target=node_entity_id, payload=payload))
                 else:
-                    ops.append(WriteOperation(verb="create_node", type_slug=entity_type, payload=payload, entity_id=node_entity_id))
-                op_meta.append({"path": node_path, "entity_id": node_entity_id, "entity_type": entity_type, "kind": "node"})
+                    ops.append(
+                        WriteOperation(
+                            verb="create_node", type_slug=entity_type, payload=payload, entity_id=node_entity_id
+                        )
+                    )
+                op_meta.append(
+                    {"path": node_path, "entity_id": node_entity_id, "entity_type": entity_type, "kind": "node"}
+                )
 
             for edge_idx, edge_obj in enumerate(batch_container.get("edges", [])):
                 edge_entity_id = edge_obj["entity"]["entity_id"]
@@ -788,33 +1219,39 @@ def _execute_grift_batch(
 
                 if edge_entity_id in dangling_edge_ids:
                     edges_skipped += 1
-                    issues.append(_issue(
-                        "dangling_edge",
-                        f"Skipping dangling edge {edge_entity_id} (permissive mode)",
-                        "execution",
-                        edge_path,
-                        entity_id=edge_entity_id,
-                        batch_entity_id=batch_entity_id,
-                        entity_type="edge",
-                        operation="skip",
-                        from_entity_id=edge.get("from_entity_id"),
-                        to_entity_id=edge.get("to_entity_id"),
-                        edge_entity_id=edge_entity_id,
-                    ))
+                    issues.append(
+                        _issue(
+                            "dangling_edge",
+                            f"Skipping dangling edge {edge_entity_id} (permissive mode)",
+                            "execution",
+                            edge_path,
+                            entity_id=edge_entity_id,
+                            batch_entity_id=batch_entity_id,
+                            entity_type="edge",
+                            operation="skip",
+                            from_entity_id=edge.get("from_entity_id"),
+                            to_entity_id=edge.get("to_entity_id"),
+                            edge_entity_id=edge_entity_id,
+                        )
+                    )
                     continue
 
                 properties = edge.get("properties") or {}
                 if Entity.objects.filter(pk=uuid.UUID(edge_entity_id)).exists():
-                    ops.append(WriteOperation(verb="replace_edge", target=edge_entity_id, payload={"properties": properties}))
+                    ops.append(
+                        WriteOperation(verb="replace_edge", target=edge_entity_id, payload={"properties": properties})
+                    )
                 else:
-                    ops.append(WriteOperation(
-                        verb="create_edge",
-                        from_target=edge["from_entity_id"],
-                        to_target=edge["to_entity_id"],
-                        edge_type=edge["edge_type"],
-                        payload={"properties": properties},
-                        entity_id=edge_entity_id,
-                    ))
+                    ops.append(
+                        WriteOperation(
+                            verb="create_edge",
+                            from_target=edge["from_entity_id"],
+                            to_target=edge["to_entity_id"],
+                            edge_type=edge["edge_type"],
+                            payload={"properties": properties},
+                            entity_id=edge_entity_id,
+                        )
+                    )
                 op_meta.append({"path": edge_path, "entity_id": edge_entity_id, "entity_type": "edge", "kind": "edge"})
 
             # Execute all node + edge ops in one write_batch call (atomic).
@@ -828,16 +1265,18 @@ def _execute_grift_batch(
                             edges_imported += 1
                     else:
                         for err in op_result.errors:
-                            issues.append(_issue(
-                                "execution_failed",
-                                f"{err.code}: {err.message}",
-                                "execution",
-                                meta["path"],
-                                entity_id=meta["entity_id"],
-                                batch_entity_id=batch_entity_id,
-                                entity_type=meta["entity_type"],
-                                operation=op_result.operation,
-                            ))
+                            issues.append(
+                                _issue(
+                                    "execution_failed",
+                                    f"{err.code}: {err.message}",
+                                    "execution",
+                                    meta["path"],
+                                    entity_id=meta["entity_id"],
+                                    batch_entity_id=batch_entity_id,
+                                    entity_type=meta["entity_type"],
+                                    operation=op_result.operation,
+                                )
+                            )
                         raise _BatchFailed()
 
             close_batch(batch)
@@ -850,15 +1289,18 @@ def _execute_grift_batch(
     errors_count = sum(1 for i in issues if i.code == "execution_failed")
     warnings_count = sum(1 for i in issues if i.code == "dangling_edge")
 
-    return GriftImportedBatch(
-        batch_entity_id=batch_entity_id,
-        path=batch_path,
-        nodes_imported=nodes_imported,
-        edges_imported=edges_imported,
-        edges_skipped=edges_skipped,
-        errors_count=errors_count,
-        warnings_count=warnings_count,
-    ), issues
+    return (
+        GriftImportedBatch(
+            batch_entity_id=batch_entity_id,
+            path=batch_path,
+            nodes_imported=nodes_imported,
+            edges_imported=edges_imported,
+            edges_skipped=edges_skipped,
+            errors_count=errors_count,
+            warnings_count=warnings_count,
+        ),
+        issues,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -933,7 +1375,9 @@ def grift_import(
             import_mode=IMPORT_MODE,
             dangling_edge_mode=dangling_edge_mode,
             reference_time=reference_time.isoformat(),
-            counts=GriftCounts(batches_skipped=len(preflight.batches_to_skip), errors=len(errors), warnings=len(warnings)),
+            counts=GriftCounts(
+                batches_skipped=len(preflight.batches_to_skip), errors=len(errors), warnings=len(warnings)
+            ),
             imported_batches=[],
             skipped_batches=preflight.batches_to_skip,
             errors=errors,

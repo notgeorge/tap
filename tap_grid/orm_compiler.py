@@ -4,19 +4,30 @@ Compiles declarative JSON search definitions into read-only TAP ORM queries.
 The v1 DSL supports: root selection, conjunctive filters, optional one-hop
 graph traversal, and deterministic ordering.
 
-Entry point: compile_orm_query(search, db_alias, limit, offset) -> dict
+Entry point: compile_orm_query(search, db_alias, limit, offset, layer) -> dict
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from django.utils.text import slugify
-
 from tap_grid.exceptions import InvalidSearchDefinitionError
+from tap_grid.grift.subgraph import (
+    SubgraphLayer,
+    batch_resolve_entity_names,
+    batch_resolve_icon_urls,
+    batch_resolve_shapes,
+    batch_resolve_typed_models,
+    serialize_edge_extended,
+    serialize_edge_full,
+    serialize_edge_lite,
+    serialize_node_extended,
+    serialize_node_full,
+    serialize_node_lite,
+)
 
 if TYPE_CHECKING:
-    from tap_grid.models import Search
+    from tap_grid.models import Edge, Entity, Search
 
 
 def compile_orm_query(
@@ -24,6 +35,7 @@ def compile_orm_query(
     db_alias: str,
     limit: int | None = None,
     offset: int = 0,
+    layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Compile and execute an ORM DSL search definition.
 
@@ -32,6 +44,7 @@ def compile_orm_query(
         db_alias:  DB alias to use for all queries (read-only alias in production).
         limit:     Maximum number of primary-side results to return.
         offset:    Zero-based offset into the primary-side results.
+        layer:     GRIFT subgraph return layer (lite, full, extended).
 
     Returns:
         Canonical 4-key envelope: {"nodes": [...], "edges": [...], "info": {...}, "warnings": {}}
@@ -49,9 +62,9 @@ def compile_orm_query(
         raise InvalidSearchDefinitionError("ORM search supports at most one hop.")
 
     if search.root == "node":
-        return _execute_node_query(db_alias, filters, hops, order_by, limit, offset)
+        return _execute_node_query(db_alias, filters, hops, order_by, limit, offset, layer)
     else:
-        return _execute_edge_query(db_alias, filters, hops, order_by, limit, offset)
+        return _execute_edge_query(db_alias, filters, hops, order_by, limit, offset, layer)
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +79,7 @@ def _execute_node_query(
     order_by: list[str] | None,
     limit: int | None,
     offset: int,
+    layer: SubgraphLayer,
 ) -> dict[str, Any]:
     from tap_grid.models import Edge, Entity
 
@@ -83,7 +97,8 @@ def _execute_node_query(
         paginated_qs = root_qs
 
     if not hops:
-        nodes = [_serialize_entity(e) for e in paginated_qs]
+        all_entities = list(paginated_qs)
+        nodes = _serialize_nodes(all_entities, layer, db_alias)
         return {"nodes": nodes, "edges": [], "info": {"total_count": total_count}, "warnings": {}}
 
     hop = hops[0]
@@ -92,15 +107,11 @@ def _execute_node_query(
     root_ids = list(paginated_qs.values_list("id", flat=True))
 
     if direction == "out":
-        hop_edge_qs = Edge.objects.using(db_alias).filter(
-            from_entity_id__in=root_ids, edge_type=edge_type
-        )
+        hop_edge_qs = Edge.objects.using(db_alias).filter(from_entity_id__in=root_ids, edge_type=edge_type)
         endpoint_ids = list(hop_edge_qs.values_list("to_entity_id", flat=True))
         endpoint_filters = hop.get("target_filters", {})
     else:  # "in"
-        hop_edge_qs = Edge.objects.using(db_alias).filter(
-            to_entity_id__in=root_ids, edge_type=edge_type
-        )
+        hop_edge_qs = Edge.objects.using(db_alias).filter(to_entity_id__in=root_ids, edge_type=edge_type)
         endpoint_ids = list(hop_edge_qs.values_list("from_entity_id", flat=True))
         endpoint_filters = hop.get("source_filters", {})
 
@@ -115,10 +126,11 @@ def _execute_node_query(
     else:
         hop_edge_qs = hop_edge_qs.filter(from_entity_id__in=surviving_ids)
 
-    nodes = [_serialize_entity(e) for e in paginated_qs] + [
-        _serialize_entity(e) for e in endpoint_qs
-    ]
-    edges = [_serialize_edge(e) for e in hop_edge_qs]
+    all_entities = list(paginated_qs) + list(endpoint_qs)
+    edge_list = list(hop_edge_qs.select_related("entity")) if layer != "lite" else list(hop_edge_qs)
+
+    nodes = _serialize_nodes(all_entities, layer, db_alias)
+    edges = _serialize_edges(edge_list, layer, db_alias)
     return {"nodes": nodes, "edges": edges, "info": {"total_count": total_count}, "warnings": {}}
 
 
@@ -134,10 +146,13 @@ def _execute_edge_query(
     order_by: list[str] | None,
     limit: int | None,
     offset: int,
+    layer: SubgraphLayer,
 ) -> dict[str, Any]:
     from tap_grid.models import Edge, Entity
 
     edge_qs = Edge.objects.using(db_alias)
+    if layer != "lite":
+        edge_qs = edge_qs.select_related("entity")
     if filters:
         edge_qs = edge_qs.filter(**filters)
     edge_qs = _apply_order(edge_qs, order_by, default=["entity_id"])
@@ -150,7 +165,8 @@ def _execute_edge_query(
         paginated_qs = edge_qs
 
     if not hops:
-        edges = [_serialize_edge(e) for e in paginated_qs]
+        edge_list = list(paginated_qs)
+        edges = _serialize_edges(edge_list, layer, db_alias)
         return {"nodes": [], "edges": edges, "info": {"total_count": total_count}, "warnings": {}}
 
     hop = hops[0]
@@ -168,8 +184,9 @@ def _execute_edge_query(
     if endpoint_filters:
         endpoint_qs = endpoint_qs.filter(**endpoint_filters)
 
-    nodes = [_serialize_entity(e) for e in endpoint_qs]
-    edges = [_serialize_edge(e) for e in edges_list]
+    all_entities = list(endpoint_qs)
+    nodes = _serialize_nodes(all_entities, layer, db_alias)
+    edges = _serialize_edges(edges_list, layer, db_alias)
     return {"nodes": nodes, "edges": edges, "info": {"total_count": total_count}, "warnings": {}}
 
 
@@ -184,31 +201,64 @@ def _apply_order(qs: Any, order_by: list[str] | None, default: list[str]) -> Any
 
 
 # ---------------------------------------------------------------------------
-# Serialization
+# Serialization helpers
 # ---------------------------------------------------------------------------
 
 
-def _serialize_entity(entity: Any) -> dict[str, Any]:
-    """Serialize an Entity spine row to a node dict."""
-    entity_id = str(entity.id)
-    slug = slugify(entity.name) or "entity"
-    return {
-        "entity_id": entity_id,
-        "entity_type": entity.entity_type,
-        "name": entity.name,
-        "url_id": f"{slug}--{entity_id}",
-        "dimensions": entity.dimensions,
-        "created_at": entity.created_at.isoformat() if entity.created_at else None,
-        "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,
-    }
+def _serialize_nodes(
+    entities: list[Entity],
+    layer: SubgraphLayer,
+    db_alias: str,
+) -> list[dict[str, Any]]:
+    """Serialize a list of Entity objects to node dicts at the requested layer."""
+    if layer == "lite":
+        return [serialize_node_lite(e) for e in entities]
+
+    typed_models = batch_resolve_typed_models(entities, db_alias)
+
+    if layer == "full":
+        return [serialize_node_full(e, typed_models.get(str(e.pk))) for e in entities]
+
+    # extended
+    slugs = {e.entity_type for e in entities if e.entity_type != "edge"}
+    icon_map = batch_resolve_icon_urls(slugs)
+    shape_map = batch_resolve_shapes(slugs)
+
+    return [
+        serialize_node_extended(
+            e,
+            typed_models.get(str(e.pk)),
+            icon_url=icon_map.get(e.entity_type, ""),
+            shape=shape_map.get(e.entity_type, "ellipse"),
+        )
+        for e in entities
+    ]
 
 
-def _serialize_edge(edge: Any) -> dict[str, Any]:
-    """Serialize an Edge model row to an edge dict."""
-    return {
-        "entity_id": str(edge.entity_id),
-        "from_entity_id": str(edge.from_entity_id),
-        "to_entity_id": str(edge.to_entity_id),
-        "edge_type": edge.edge_type,
-        "properties": edge.properties,
-    }
+def _serialize_edges(
+    edges: list[Edge],
+    layer: SubgraphLayer,
+    db_alias: str,
+) -> list[dict[str, Any]]:
+    """Serialize a list of Edge objects to edge dicts at the requested layer."""
+    if layer == "lite":
+        return [serialize_edge_lite(e) for e in edges]
+
+    if layer == "full":
+        return [serialize_edge_full(e) for e in edges]
+
+    # extended — resolve endpoint names.
+    endpoint_ids: set[str] = set()
+    for edge in edges:
+        endpoint_ids.add(str(edge.from_entity_id))
+        endpoint_ids.add(str(edge.to_entity_id))
+    name_map = batch_resolve_entity_names(endpoint_ids, db_alias)
+
+    return [
+        serialize_edge_extended(
+            e,
+            from_name=name_map.get(str(e.from_entity_id), ""),
+            to_name=name_map.get(str(e.to_entity_id), ""),
+        )
+        for e in edges
+    ]

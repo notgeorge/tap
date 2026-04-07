@@ -129,33 +129,25 @@ class TestGryphonParser:
 
     def test_and_predicate(self):
         """req-grid-traversal-lang-combinators-1: AND."""
-        ast = parse_gryphon(
-            'MATCH (n)-[e]-(m) WHERE n.entity_id = $id AND n.name = "web01" RETURN n'
-        )
+        ast = parse_gryphon('MATCH (n)-[e]-(m) WHERE n.entity_id = $id AND n.name = "web01" RETURN n')
         pred = ast.where_clause.predicate
         assert isinstance(pred, AndPred)
 
     def test_or_predicate(self):
         """req-grid-traversal-lang-combinators-2: OR."""
-        ast = parse_gryphon(
-            'MATCH (n)-[e]-(m) WHERE n.entity_id = $id OR n.name = "web01" RETURN n'
-        )
+        ast = parse_gryphon('MATCH (n)-[e]-(m) WHERE n.entity_id = $id OR n.name = "web01" RETURN n')
         pred = ast.where_clause.predicate
         assert isinstance(pred, OrPred)
 
     def test_not_predicate(self):
         """req-grid-traversal-lang-combinators-3: NOT."""
-        ast = parse_gryphon(
-            'MATCH (n)-[e]-(m) WHERE NOT n.name = "excluded" RETURN n'
-        )
+        ast = parse_gryphon('MATCH (n)-[e]-(m) WHERE NOT n.name = "excluded" RETURN n')
         pred = ast.where_clause.predicate
         assert isinstance(pred, NotPred)
 
     def test_bracket_key_access(self):
         """req-grid-traversal-lang-filters-4: keyed JSON access."""
-        ast = parse_gryphon(
-            'MATCH (n)-[e]-(m) WHERE n.dimensions["tap.graph"] = "web" RETURN n'
-        )
+        ast = parse_gryphon('MATCH (n)-[e]-(m) WHERE n.dimensions["tap.graph"] = "web" RETURN n')
         pred = ast.where_clause.predicate
         assert isinstance(pred, Comparison)
         steps = pred.field_path.steps
@@ -164,9 +156,7 @@ class TestGryphonParser:
 
     def test_array_wildcard_access(self):
         """req-grid-traversal-lang-filters-6: array wildcard [*]."""
-        ast = parse_gryphon(
-            "MATCH (n)-[e]-(m) WHERE n.properties.aliases[*].name = $alias RETURN n"
-        )
+        ast = parse_gryphon("MATCH (n)-[e]-(m) WHERE n.properties.aliases[*].name = $alias RETURN n")
         pred = ast.where_clause.predicate
         steps = pred.field_path.steps
         assert any(isinstance(s, WildcardStep) for s in steps)
@@ -184,9 +174,7 @@ class TestGryphonParser:
 
     def test_return_alias(self):
         """req-grid-traversal-lang-returns-5: AS alias."""
-        ast = parse_gryphon(
-            "MATCH (h)-[e]-(n) WHERE h.entity_id = $id RETURN h.name AS accepted_name"
-        )
+        ast = parse_gryphon("MATCH (h)-[e]-(n) WHERE h.entity_id = $id RETURN h.name AS accepted_name")
         ret = ast.return_clause
         assert ret.items is not None
         assert ret.items[0].alias == "accepted_name"
@@ -260,7 +248,7 @@ class TestGryphonExecutor:
         )
         result = execute_search(search, inputs={"entity_id": str(hub.pk)})
 
-        node_ids = {n["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
         assert str(hub.pk) in node_ids
         assert str(neighbor.pk) in node_ids
         assert len(result["edges"]) == 1
@@ -302,7 +290,7 @@ class TestGryphonExecutor:
             },
         )
         result = execute_search(search, inputs={"entity_id": str(hub.pk)})
-        node_ids = {n["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
         assert str(outbound_neighbor.pk) in node_ids
         assert str(inbound_neighbor.pk) not in node_ids
 
@@ -338,9 +326,7 @@ class TestGryphonExecutor:
             search_type="gryphon",
             root="node",
             name="test",
-            definition={
-                "query": "MATCH (a)-[e*1..3]-(b) WHERE a.entity_id = $entity_id RETURN a"
-            },
+            definition={"query": "MATCH (a)-[e*1..3]-(b) WHERE a.entity_id = $entity_id RETURN a"},
         )
         with pytest.raises(SearchExecutionError, match="[Uu]nsupported"):
             execute_search(search, inputs={"entity_id": "00000000-0000-0000-0000-000000000000"})
@@ -401,10 +387,12 @@ class TestGryphonExecutor:
 
         assert "nodes" in result
         node = result["nodes"][0]
-        # Graph envelope nodes have entity_id, entity_type, name.
-        assert "entity_id" in node
-        assert "entity_type" in node
-        assert "name" in node
+        # Graph envelope nodes use GRIFT full shape: {entity: {...}, node: {...}}.
+        assert "entity" in node
+        assert "node" in node
+        assert "entity_id" in node["entity"]
+        assert "entity_type" in node["entity"]
+        assert "name" in node["entity"]
 
     def test_type_scan_no_label_raises(self):
         """Type scan requires a node label to know which entity type to scan."""

@@ -12,6 +12,10 @@ Rendering:
   for Cytoscape to consume client-side.  Search inputs are forwarded from
   request.GET so that context parameters (e.g. entity_id) reach the search.
 
+  Nodes and edges are returned in GRIFT extended layer format so the template
+  receives icon_url, shape, url_id, from_name, to_name without additional
+  panel-side enrichment.
+
 Read-only: no graph or layout mutation occurs in this panel.
 """
 
@@ -71,29 +75,32 @@ class GraphPanelType:
             raw_inputs = {k: v for k, v in request.GET.items() if k not in ("limit", "offset")}
 
             for search in searches:
-                result = execute_search(search, inputs=raw_inputs or None)
+                result = execute_search(search, inputs=raw_inputs or None, layer="extended")
                 envelope = result.get("results", result)
                 for node in envelope.get("nodes", []):
-                    nodes.setdefault(node["entity_id"], node)
+                    nodes.setdefault(node["entity"]["entity_id"], node)
                 for edge in envelope.get("edges", []):
-                    key = edge.get("entity_id") or f"{edge['from_entity_id']}-{edge['to_entity_id']}-{edge['edge_type']}"
+                    key = (
+                        edge["entity"]["entity_id"]
+                        if edge.get("entity")
+                        else (
+                            f"{edge['edge']['from_entity_id']}-{edge['edge']['to_entity_id']}-{edge['edge']['edge_type']}"
+                        )
+                    )
                     edges.setdefault(key, edge)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Graph panel search execution failed for panel %s", panel.entity_id)
             return _error_ctx(f"Search execution failed: {exc}")
 
-        node_list = list(nodes.values())
-        _enrich_nodes_with_icons(node_list)
-        _enrich_nodes_with_shape(node_list)
-
         placement = layout.definition.get("presentation", {}).get("placement", "cytoscape:cose")
 
         return {
-            "graph_nodes_json": _safe_json(node_list),
+            "graph_nodes_json": _safe_json(list(nodes.values())),
             "graph_edges_json": _safe_json(list(edges.values())),
             "graph_placement": placement,
             "graph_error": None,
         }
+
 
 def _get_panel_layout(panel: Panel) -> Any | None:
     """Return the Layout linked to a Panel via USES_LAYOUT edge (layout-id=default), or None."""
@@ -147,41 +154,6 @@ def _get_layout_searches(layout: Any) -> list[Any]:
                 edge.to_entity_id,
             )
     return results
-
-
-def _enrich_nodes_with_icons(nodes: list[dict[str, Any]]) -> None:
-    """Add icon_url to each node dict in-place using the canonical grid icon service."""
-    from tap_grid.icon import resolve_icon_url
-    from tap_grid.models import EntityType
-
-    slugs = {n["entity_type"] for n in nodes if n.get("entity_type")}
-    if not slugs:
-        for node in nodes:
-            node["icon_url"] = ""
-        return
-
-    icon_map: dict[str, str] = {
-        et.slug: resolve_icon_url(et) or ""
-        for et in EntityType.objects.filter(slug__in=slugs)
-    }
-    for node in nodes:
-        node["icon_url"] = icon_map.get(node.get("entity_type", ""), "")
-
-
-def _enrich_nodes_with_shape(nodes: list[dict[str, Any]]) -> None:
-    """Add shape to each node dict in-place from the model's DEFAULT_DISPLAY tap_viz hints."""
-    from tap_grid.registry import get_model_class
-
-    for node in nodes:
-        entity_type = node.get("entity_type", "")
-        shape = "ellipse"
-        if entity_type:
-            try:
-                model_cls = get_model_class(entity_type)
-                shape = model_cls.DEFAULT_DISPLAY.get("tap_viz", {}).get("shape", "ellipse")
-            except KeyError:
-                pass
-        node["shape"] = shape
 
 
 def _safe_json(value: Any) -> str:

@@ -1,0 +1,68 @@
+"""GRIFT — Grid Interchange Format for TAP.
+
+This package provides:
+  - **Importer** (``tap_grid.grift.importer``): parse, validate, and import
+    GRIFT v0 documents into the local TAP grid.
+  - **Subgraph** (``tap_grid.grift.subgraph``): canonical serializers for
+    GRIFT subgraph envelopes (lite / full / extended layers).
+
+Re-exports from importer keep existing ``from tap_grid.grift import ...``
+call sites working without changes.
+"""
+
+# Importer re-exports (backward compatible).
+from tap_grid.grift.importer import (
+    GRIFT_VERSION,
+    IMPORT_MODE,
+    GriftCounts,
+    GriftImportedBatch,
+    GriftImportResult,
+    GriftIssue,
+    GriftSkippedBatch,
+    grift_import,
+)
+
+# Subgraph public API.
+from tap_grid.grift.subgraph import (
+    SubgraphLayer,
+    batch_resolve_entity_names,
+    batch_resolve_icon_urls,
+    batch_resolve_shapes,
+    batch_resolve_typed_models,
+    serialize_edge_extended,
+    serialize_edge_full,
+    serialize_edge_lite,
+    serialize_entity_envelope,
+    serialize_node_extended,
+    serialize_node_full,
+    serialize_node_lite,
+    serialize_node_payload,
+    serialize_subgraph,
+)
+
+__all__ = [
+    # Importer
+    "GRIFT_VERSION",
+    "IMPORT_MODE",
+    "GriftCounts",
+    "GriftImportedBatch",
+    "GriftImportResult",
+    "GriftIssue",
+    "GriftSkippedBatch",
+    "grift_import",
+    # Subgraph
+    "SubgraphLayer",
+    "batch_resolve_entity_names",
+    "batch_resolve_icon_urls",
+    "batch_resolve_shapes",
+    "batch_resolve_typed_models",
+    "serialize_edge_extended",
+    "serialize_edge_full",
+    "serialize_edge_lite",
+    "serialize_entity_envelope",
+    "serialize_node_extended",
+    "serialize_node_full",
+    "serialize_node_lite",
+    "serialize_node_payload",
+    "serialize_subgraph",
+]

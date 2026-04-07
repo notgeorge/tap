@@ -24,6 +24,26 @@ def _orm_search(**kwargs):
 # ---------------------------------------------------------------------------
 
 
+def _node_entity_id(node):
+    """Extract entity_id from a GRIFT full/extended node dict."""
+    return node["entity"]["entity_id"]
+
+
+def _node_entity_type(node):
+    """Extract entity_type from a GRIFT full/extended node dict."""
+    return node["entity"]["entity_type"]
+
+
+def _edge_entity_id(edge):
+    """Extract entity_id from a GRIFT full/extended edge dict."""
+    return edge["entity"]["entity_id"]
+
+
+def _edge_type(edge):
+    """Extract edge_type from a GRIFT full/extended edge dict."""
+    return edge["edge"]["edge_type"]
+
+
 def _make_character(bio="Test"):
     from plugins.lotr.models import Character
 
@@ -56,7 +76,6 @@ class TestRootSelection:
     def test_node_root_excludes_edge_entities(self):
         """Node root returns non-edge entities only."""
         character = _make_character()
-        # Edge entities have entity_type="edge" — should be excluded from node root
         s = Search.objects.create(
             name="Node Root",
             search_type="orm",
@@ -64,9 +83,9 @@ class TestRootSelection:
             definition={"filters": {}},
         )
         result = execute_search(s)
-        entity_types = {n["entity_type"] for n in result["nodes"]}
+        entity_types = {_node_entity_type(n) for n in result["nodes"]}
         assert "edge" not in entity_types
-        assert any(n["entity_id"] == str(character.entity_id) for n in result["nodes"])
+        assert any(_node_entity_id(n) == str(character.entity_id) for n in result["nodes"])
 
     def test_edge_root_returns_edge_entities(self):
         """Edge root queries the Edge model."""
@@ -82,7 +101,7 @@ class TestRootSelection:
         result = execute_search(s)
         assert result["nodes"] == []
         assert len(result["edges"]) >= 1
-        assert all(e["edge_type"] == "LINKS_TO" for e in result["edges"])
+        assert all(_edge_type(e) == "LINKS_TO" for e in result["edges"])
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +121,7 @@ class TestConjunctiveFilters:
             definition={"filters": {"entity_type": "character"}},
         )
         result = execute_search(s)
-        entity_types = {n["entity_type"] for n in result["nodes"]}
+        entity_types = {_node_entity_type(n) for n in result["nodes"]}
         assert entity_types == {"character"}
 
     def test_no_filters_returns_all_non_edge_entities(self):
@@ -141,8 +160,7 @@ class TestConjunctiveFilters:
             definition={"filters": {"entity_type": "character", "name": ""}},
         )
         result = execute_search(s)
-        # All characters have blank name — both should be returned
-        assert all(n["entity_type"] == "character" for n in result["nodes"])
+        assert all(_node_entity_type(n) == "character" for n in result["nodes"])
 
 
 # ---------------------------------------------------------------------------
@@ -169,8 +187,8 @@ class TestHopTraversal:
             },
         )
         result = execute_search(s)
-        node_ids = {n["entity_id"] for n in result["nodes"]}
-        edge_ids = {e["entity_id"] for e in result["edges"]}
+        node_ids = {_node_entity_id(n) for n in result["nodes"]}
+        edge_ids = {_edge_entity_id(e) for e in result["edges"]}
         assert str(w1.entity_id) in node_ids
         assert str(w2.entity_id) in node_ids
         assert str(edge.entity_id) in edge_ids
@@ -191,7 +209,7 @@ class TestHopTraversal:
             },
         )
         result = execute_search(s)
-        node_ids = {n["entity_id"] for n in result["nodes"]}
+        node_ids = {_node_entity_id(n) for n in result["nodes"]}
         assert str(w1.entity_id) in node_ids
         assert str(w2.entity_id) in node_ids
         assert len(result["edges"]) >= 1
@@ -218,8 +236,7 @@ class TestHopTraversal:
             },
         )
         result = execute_search(s)
-        # Target filter excludes w2; edges connecting to excluded targets are also dropped
-        assert str(w2.entity_id) not in {n["entity_id"] for n in result["nodes"]}
+        assert str(w2.entity_id) not in {_node_entity_id(n) for n in result["nodes"]}
         assert result["edges"] == []
 
     def test_no_hop_returns_empty_edges(self):
@@ -256,9 +273,7 @@ class TestOrdering:
         )
         result1 = execute_search(s)
         result2 = execute_search(s)
-        assert [n["entity_id"] for n in result1["nodes"]] == [
-            n["entity_id"] for n in result2["nodes"]
-        ]
+        assert [_node_entity_id(n) for n in result1["nodes"]] == [_node_entity_id(n) for n in result2["nodes"]]
 
     def test_explicit_order_by_applied(self):
         """order_by field is applied to the queryset."""
@@ -273,7 +288,7 @@ class TestOrdering:
             definition={"filters": {"entity_type": "character"}, "order_by": ["id"]},
         )
         result = execute_search(s)
-        ids = [n["entity_id"] for n in result["nodes"]]
+        ids = [_node_entity_id(n) for n in result["nodes"]]
         assert ids == sorted(ids)
 
 
@@ -294,10 +309,10 @@ class TestNonTapModelsExcluded:
             definition={"filters": {}},
         )
         result = execute_search(s)
-        # All returned nodes must have entity_type (present on all Entity rows)
         for node in result["nodes"]:
-            assert "entity_type" in node
-            assert "entity_id" in node
+            assert "entity" in node
+            assert "entity_type" in node["entity"]
+            assert "entity_id" in node["entity"]
 
 
 # ---------------------------------------------------------------------------
@@ -363,11 +378,11 @@ class TestOrmResultEnvelope:
             definition={"filters": {"entity_type": "character"}, "order_by": ["id"]},
         )
         all_result = execute_search(s)
-        all_ids = [n["entity_id"] for n in all_result["nodes"]]
+        all_ids = [_node_entity_id(n) for n in all_result["nodes"]]
 
         if len(all_ids) >= 2:
             paginated = execute_search(s, limit=1, offset=1)
-            page_ids = [n["entity_id"] for n in paginated["results"]["nodes"]]
+            page_ids = [_node_entity_id(n) for n in paginated["results"]["nodes"]]
             assert all_ids[1] == page_ids[0]
 
 

@@ -36,7 +36,7 @@ def isolate_registry(request):
 def _make_valid_runner(nodes=None, edges=None):
     """Return a runner that produces a valid envelope."""
 
-    def runner(search, inputs, *, db_alias):
+    def runner(search, inputs, *, db_alias, **kwargs):
         return {
             "nodes": nodes or [],
             "edges": edges or [],
@@ -51,7 +51,7 @@ def _make_valid_runner(nodes=None, edges=None):
 def _make_partial_runner():
     """Return a runner that produces a minimal valid envelope (no info/warnings)."""
 
-    def runner(search, inputs, *, db_alias):
+    def runner(search, inputs, *, db_alias, **kwargs):
         return {"nodes": [{"entity_id": "abc"}], "edges": []}
 
     runner.__module__ = "tap_grid.tests.fake_module"
@@ -61,7 +61,7 @@ def _make_partial_runner():
 def _make_crash_runner():
     """Return a runner that always raises."""
 
-    def runner(search, inputs, *, db_alias):
+    def runner(search, inputs, *, db_alias, **kwargs):
         raise RuntimeError("runner exploded")
 
     runner.__module__ = "tap_grid.tests.fake_module"
@@ -71,7 +71,7 @@ def _make_crash_runner():
 def _make_bad_result_runner():
     """Return a runner that returns a malformed result."""
 
-    def runner(search, inputs, *, db_alias):
+    def runner(search, inputs, *, db_alias, **kwargs):
         return {"only_nodes": []}
 
     runner.__module__ = "tap_grid.tests.fake_module"
@@ -122,7 +122,7 @@ class TestRunnerInvocation:
     def test_runner_receives_search_and_inputs(self):
         received = {}
 
-        def runner(search, inputs, *, db_alias):
+        def runner(search, inputs, *, db_alias, **kwargs):
             received["search"] = search
             received["inputs"] = inputs
             received["db_alias"] = db_alias
@@ -143,7 +143,7 @@ class TestRunnerInvocation:
         """Integration: execute_search passes the read-only db_alias to the runner."""
         received = {}
 
-        def runner(search, inputs, *, db_alias):
+        def runner(search, inputs, *, db_alias, **kwargs):
             received["db_alias"] = db_alias
             return {"nodes": [], "edges": []}
 
@@ -189,7 +189,7 @@ class TestModuleResultNormalization:
         assert result["nodes"] == [{"id": "x"}]
 
     def test_runner_info_merged_with_service_info(self):
-        def runner(search, inputs, *, db_alias):
+        def runner(search, inputs, *, db_alias, **kwargs):
             return {"nodes": [], "edges": [], "info": {"custom_key": "value"}, "warnings": {}}
 
         runner.__module__ = "tap_grid.tests.fake_module"

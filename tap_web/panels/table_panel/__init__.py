@@ -161,7 +161,7 @@ class TablePanelType:
         try:
             from tap_grid.search import execute_search
 
-            result = execute_search(search, limit=limit, offset=offset)
+            result = execute_search(search, limit=limit, offset=offset, layer="extended")
         except Exception as exc:  # noqa: BLE001
             logger.exception("Table panel search execution failed for panel %s", panel.entity_id)
             return {
@@ -191,8 +191,6 @@ class TablePanelType:
         else:
             nodes = result.get("nodes", [])
             meta = {}
-
-        _enrich_nodes_with_icons(nodes)
 
         return {
             "table_nodes": nodes,
@@ -268,32 +266,6 @@ class TablePanelType:
                 )
 
 
-def _enrich_nodes_with_icons(nodes: list[dict[str, Any]]) -> None:
-    """Add icon_url to each node dict in-place.
-
-    Batches the EntityType lookup to avoid N+1 queries. Sets icon_url to an
-    empty string for nodes whose entity type has no icon or cannot be resolved.
-
-    Args:
-        nodes: List of node dicts as returned by the search service.
-    """
-    from tap_grid.icon import resolve_icon_url
-    from tap_grid.models import EntityType
-
-    slugs = {n["entity_type"] for n in nodes if n.get("entity_type")}
-    if not slugs:
-        for node in nodes:
-            node["icon_url"] = ""
-        return
-
-    icon_map: dict[str, str] = {
-        et.slug: resolve_icon_url(et) or ""
-        for et in EntityType.objects.filter(slug__in=slugs)
-    }
-    for node in nodes:
-        node["icon_url"] = icon_map.get(node.get("entity_type", ""), "")
-
-
 def _safe_json(value: Any) -> str:
     """Serialize value to a JSON string safe for embedding in HTML script blocks.
 
@@ -310,5 +282,5 @@ def _safe_int(value: Any, default: int) -> int:
     try:
         result = int(value)
         return result if result > 0 else default
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default

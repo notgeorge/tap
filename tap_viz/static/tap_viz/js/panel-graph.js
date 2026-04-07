@@ -27,13 +27,14 @@ function initGraph(panelId) {
         return;
     }
 
-    // Build Cytoscape elements from TAP canonical node/edge envelopes.
+    // Build Cytoscape elements from GRIFT extended node/edge envelopes.
     const cyNodes = nodes.map(function (n) {
+        var ent = n.entity || {};
         return {
             data: {
-                id: n.entity_id,
-                label: n.name || n.entity_type || n.entity_id,
-                entity_type: n.entity_type || "",
+                id: ent.entity_id,
+                label: ent.name || ent.entity_type || ent.entity_id,
+                entity_type: ent.entity_type || "",
                 icon_url: n.icon_url || "",
                 shape: n.shape || "ellipse",
                 url_id: n.url_id || "",
@@ -41,18 +42,21 @@ function initGraph(panelId) {
         };
     });
 
-    const nodeIds = new Set(nodes.map(function (n) { return n.entity_id; }));
+    const nodeIds = new Set(nodes.map(function (n) { return n.entity.entity_id; }));
     const cyEdges = edges
         .filter(function (e) {
-            return nodeIds.has(e.from_entity_id) && nodeIds.has(e.to_entity_id);
+            var ed = e.edge || {};
+            return nodeIds.has(ed.from_entity_id) && nodeIds.has(ed.to_entity_id);
         })
         .map(function (e) {
+            var ent = e.entity || {};
+            var ed = e.edge || {};
             return {
                 data: {
-                    id: e.entity_id || (e.from_entity_id + "-" + e.to_entity_id + "-" + e.edge_type),
-                    source: e.from_entity_id,
-                    target: e.to_entity_id,
-                    label: e.edge_type || "",
+                    id: ent.entity_id || (ed.from_entity_id + "-" + ed.to_entity_id + "-" + ed.edge_type),
+                    source: ed.from_entity_id,
+                    target: ed.to_entity_id,
+                    label: ed.edge_type || "",
                 },
             };
         });
