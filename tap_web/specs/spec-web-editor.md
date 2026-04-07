@@ -25,7 +25,7 @@ Hotlink editing is intentionally deferred. It requires additional relationship-a
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-web-editor-shell | [Editor Shell](#editor-shell) | Implemented | Shared editor page structure for editable TAP objects |
-| req-web-editor-graph | [Graph Context Preview](#graph-context-preview) | Implemented | Cytoscape hub-and-spoke view of the edited object and its immediate relationships |
+| req-web-editor-graph | [Graph Context Preview](#graph-context-preview) | Implemented | Cytoscape neighborhood graph of the edited object and its immediate relationships |
 | req-web-editor-object-preview | [Object Preview](#object-preview) | Proposed | Type-aware preview of what the edited object looks like |
 | req-web-editor-availability | [Editor Availability Contract](#editor-availability-contract) | Proposed | TAP objects may explicitly declare that no typed editor exists in v1 |
 | req-web-editor-preview-exec | [Preview Execution](#preview-execution) | Backlog | Deferred: save + history-revert is the v1 undo strategy |
@@ -71,7 +71,7 @@ Status: `Implemented`
 The top of the generic editor always shows a Cytoscape representation of the edited object in immediate graph context.
 
 #### Implementation
-- The graph preview uses a hub-and-spoke representation.
+- The graph preview uses a Gryphon neighborhood search rendered by the graph panel.
 - The edited object is the hub.
 - The graph includes:
   - the edited object
@@ -87,8 +87,8 @@ Make graph context mandatory in the editor shell. TAP objects should not be edit
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-editor-graph-1 | Graph Region Exists | Implemented | The top region of the generic editor contains a Cytoscape graph preview. | `tap_viz/templates/tap_viz/graph_context.html` |
-| req-web-editor-graph-2 | Edited Object Is Hub | Implemented | The edited object is centered conceptually as the hub in the graph preview. | `hub_and_spoke_runner` in `tap_viz/panels/graph_panel` |
+| req-web-editor-graph-1 | Graph Region Exists | Implemented | The top region of the generic editor contains a Cytoscape graph preview. | Graph panel on the GRIFT-defined `/__entity-editor` page |
+| req-web-editor-graph-2 | Edited Object Is Hub | Implemented | The edited object is centered conceptually as the hub in the graph preview. | Gryphon neighborhood search via graph panel |
 | req-web-editor-graph-3 | Immediate Relationships Included | Implemented | The graph preview includes immediate inbound/outbound edges and connected nodes only. | |
 | req-web-editor-graph-4 | Read Only In V1 | Implemented | The first graph preview does not mutate graph structure. | |
 
