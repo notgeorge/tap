@@ -93,12 +93,15 @@ class GraphPanelType:
             logger.exception("Graph panel search execution failed for panel %s", panel.entity_id)
             return _error_ctx(f"Search execution failed: {exc}")
 
-        placement = layout.definition.get("presentation", {}).get("placement", "cytoscape:cose")
+        presentation = layout.definition.get("presentation", {})
+        placement = presentation.get("placement", "cytoscape:cose")
+        nesting_enabled = presentation.get("nesting", {}).get("enabled", False)
 
         return {
             "graph_nodes_json": safe_json(list(nodes.values())),
             "graph_edges_json": safe_json(list(edges.values())),
             "graph_placement": placement,
+            "graph_nesting_enabled": nesting_enabled,
             "graph_error": None,
         }
 

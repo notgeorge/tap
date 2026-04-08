@@ -24,7 +24,20 @@ class Artifact(BaseModel):
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
     REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "power", "origin"]
-    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "nesting": {
+                "child": [
+                    {
+                        "name": "artifact-inside-character",
+                        "description": "An artifact may be visually nested inside a wielding character.",
+                        "gryphon": "(parent:character)-[:WIELDS]->(child:artifact)",
+                    }
+                ]
+            },
+        }
+    }
 
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {"nodes": [{"type": "location"}], "edges": [{"type": "FORGED_IN"}]},

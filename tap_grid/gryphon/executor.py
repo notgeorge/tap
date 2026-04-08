@@ -1,27 +1,24 @@
 """TAP gryphon executor — lowers a GryphonAST to ORM queries and returns a canonical envelope.
 
-V1 supported patterns
+V2 supported patterns
 ---------------------
-The v1 executor handles two patterns:
+The v2 executor handles three pattern types, with UNION merge across multiple MATCH clauses:
 
 Type scan (node-only):
     MATCH (c:character) RETURN c.entity_id, c.name, c.bio
 
-Hub-and-spoke (one hop):
+Hub-and-spoke (one hop, WHERE anchor):
     MATCH (a)-[e]-(b)     WHERE a.entity_id = $var   (undirected, one hop)
     MATCH (a)-[e:T]-(b)   WHERE a.entity_id = $var   (typed edge, undirected)
     MATCH (a)-[e]->(b)    WHERE a.entity_id = $var   (outbound only)
     MATCH (a)<-[e]-(b)    WHERE a.entity_id = $var   (inbound only)
 
-For type scans:
-- Exactly one MATCH clause with a single node-only (no-edge) pattern.
-- Node must carry a label (entity type slug).
-- RETURN with field projections → row-like node dicts; omitted RETURN → graph envelope.
+Edge-type scan (one hop, no WHERE anchor):
+    MATCH (r:realm)-[e:CONTAINS]->(l:location)
+    MATCH (a:character)-[e:WIELDS]->(b:artifact)
 
-For hub-and-spoke:
-- Exactly one MATCH clause with a single two-node, one-edge pattern.
-- WHERE must constrain one node variable on entity_id via an equality against a $var.
-- RETURN may be omitted or include only bound variables → graph envelope result.
+Multiple MATCH clauses are executed independently (UNION semantics) and results are merged
+with entity_id deduplication.
 
 Patterns outside this set raise SearchExecutionError("Unsupported gryphon pattern").
 """
@@ -33,9 +30,9 @@ from typing import TYPE_CHECKING, Any
 from tap_grid.exceptions import SearchExecutionError
 from tap_grid.grift.subgraph import (
     SubgraphLayer,
+    batch_resolve_display,
     batch_resolve_entity_names,
     batch_resolve_icon_urls,
-    batch_resolve_shapes,
     batch_resolve_typed_models,
     serialize_edge_extended,
     serialize_edge_full,
@@ -54,6 +51,7 @@ from tap_grid.gryphon.ast_nodes import (
     NotPred,
     OrPred,
     ParamRef,
+    PathPattern,
     ReturnClause,
     WhereClause,
 )
@@ -111,50 +109,102 @@ def _execute_ast(
     db_alias: str,
     layer: SubgraphLayer,
 ) -> dict[str, Any]:
-    """Dispatch to the appropriate execution strategy based on AST shape."""
-    # V1: exactly one MATCH clause with a single two-node one-edge pattern.
-    if len(ast.match_clauses) != 1:
-        raise SearchExecutionError("Unsupported gryphon pattern: v1 supports exactly one MATCH clause.")
-    mc = ast.match_clauses[0]
-    if len(mc.patterns) != 1:
-        raise SearchExecutionError("Unsupported gryphon pattern: v1 supports exactly one pattern per MATCH.")
-    pattern = mc.patterns[0]
+    """Dispatch to the appropriate execution strategy based on AST shape.
 
+    Supports multiple MATCH clauses (UNION semantics): each clause is executed
+    independently and results are merged with entity_id deduplication.
+    """
+    anchor_var, entity_id_value = _extract_entity_id_anchor(ast.where_clause, inputs)
+
+    all_nodes: dict[str, dict[str, Any]] = {}
+    all_edges: dict[str, dict[str, Any]] = {}
+
+    for mc in ast.match_clauses:
+        if len(mc.patterns) != 1:
+            raise SearchExecutionError("Unsupported gryphon pattern: each MATCH clause must have exactly one pattern.")
+        pattern = mc.patterns[0]
+
+        result = _dispatch_pattern(
+            pattern,
+            anchor_var=anchor_var,
+            entity_id_value=entity_id_value,
+            return_clause=ast.return_clause,
+            db_alias=db_alias,
+            layer=layer,
+        )
+
+        for node in result.get("nodes", []):
+            key = _node_key(node, layer)
+            all_nodes.setdefault(key, node)
+        for edge in result.get("edges", []):
+            key = _edge_key(edge, layer)
+            all_edges.setdefault(key, edge)
+
+    return {"nodes": list(all_nodes.values()), "edges": list(all_edges.values())}
+
+
+def _dispatch_pattern(
+    pattern: PathPattern,
+    *,
+    anchor_var: str | None,
+    entity_id_value: Any,
+    return_clause: ReturnClause,
+    db_alias: str,
+    layer: SubgraphLayer,
+) -> dict[str, Any]:
+    """Route a single MATCH pattern to the appropriate execution mode."""
     # Type scan: node-only pattern (no edges).
     if len(pattern.edges) == 0:
-        return _execute_type_scan(pattern.nodes[0], ast.return_clause, db_alias=db_alias, layer=layer)
+        return _execute_type_scan(pattern.nodes[0], return_clause, db_alias=db_alias, layer=layer)
 
     if len(pattern.edges) != 1:
-        raise SearchExecutionError("Unsupported gryphon pattern: v1 supports exactly one edge (one hop).")
+        raise SearchExecutionError("Unsupported gryphon pattern: only single-hop patterns are supported.")
 
     edge_pat = pattern.edges[0]
     if edge_pat.min_hops != 1 or edge_pat.max_hops != 1:
-        raise SearchExecutionError("Unsupported gryphon pattern: v1 does not support bounded multi-hop traversal.")
+        raise SearchExecutionError("Unsupported gryphon pattern: bounded multi-hop traversal is not supported.")
 
-    # Find the anchor node variable constrained by entity_id in WHERE.
-    anchor_var, entity_id_value = _extract_entity_id_anchor(ast.where_clause, inputs)
-    if anchor_var is None or entity_id_value is None:
-        raise SearchExecutionError(
-            "Unsupported gryphon pattern: v1 requires WHERE <var>.entity_id = $param " "to identify the hub entity."
-        )
+    # Hub-and-spoke: has WHERE anchor.
+    if anchor_var is not None and entity_id_value is not None:
+        left_node, right_node = pattern.nodes[0], pattern.nodes[1]
+        if left_node.variable != anchor_var and right_node.variable != anchor_var:
+            # Anchor variable doesn't match this pattern — fall through to edge-type scan.
+            pass
+        else:
+            return _execute_hub_and_spoke(
+                entity_id=str(entity_id_value),
+                edge_pattern=edge_pat,
+                db_alias=db_alias,
+                layer=layer,
+            )
 
-    # Determine which node in the pattern is the anchor.
-    left_node, right_node = pattern.nodes[0], pattern.nodes[1]
-    if left_node.variable == anchor_var:
-        hub_node = left_node
-    elif right_node.variable == anchor_var:
-        hub_node = right_node
-    else:
-        raise SearchExecutionError(
-            f"Unsupported gryphon pattern: anchor variable '{anchor_var}' " "not found in MATCH pattern."
-        )
-
-    return _execute_hub_and_spoke(
-        entity_id=str(entity_id_value),
+    # Edge-type scan: edge pattern with no WHERE anchor (or anchor not in this pattern).
+    if not edge_pat.edge_type:
+        raise SearchExecutionError("Unsupported gryphon pattern: edge-type scan requires a typed edge.")
+    return _execute_edge_type_scan(
+        left_node=pattern.nodes[0],
+        right_node=pattern.nodes[1],
         edge_pattern=edge_pat,
         db_alias=db_alias,
         layer=layer,
     )
+
+
+def _node_key(node: dict[str, Any], layer: SubgraphLayer) -> str:
+    """Extract a dedup key from a serialized node dict."""
+    if layer == "lite":
+        return str(node["entity_id"])
+    # Projected type-scan results are flat dicts with entity_id at top level.
+    if "entity" in node:
+        return str(node["entity"]["entity_id"])
+    return str(node.get("entity_id", id(node)))
+
+
+def _edge_key(edge: dict[str, Any], layer: SubgraphLayer) -> str:
+    """Extract a dedup key from a serialized edge dict."""
+    if layer == "lite":
+        return str(edge["entity_id"])
+    return str(edge["entity"]["entity_id"])
 
 
 def _extract_entity_id_anchor(
@@ -394,6 +444,75 @@ def _execute_hub_and_spoke(
 
 
 # ---------------------------------------------------------------------------
+# Edge-type scan ORM execution
+# ---------------------------------------------------------------------------
+
+
+def _execute_edge_type_scan(
+    left_node: NodePattern,
+    right_node: NodePattern,
+    edge_pattern: EdgePattern,
+    *,
+    db_alias: str,
+    layer: SubgraphLayer,
+) -> dict[str, Any]:
+    """Execute an edge-type scan — all edges of a given type, filtered by endpoint labels.
+
+    Used for patterns like ``MATCH (r:realm)-[e:CONTAINS]->(l:location)`` where there is
+    no WHERE anchor. Scans all matching edges, filters by direction and endpoint types,
+    and returns a graph envelope.
+    """
+    from tap_grid.models import Edge, Entity
+
+    direction = edge_pattern.direction
+    edge_type = edge_pattern.edge_type
+    extra_related = ["entity"] if layer != "lite" else []
+
+    qualifying_edges: list[Edge] = []
+
+    if direction in ("out", "any"):
+        filters: dict[str, Any] = {"edge_type": edge_type}
+        if left_node.label:
+            filters["from_entity__entity_type"] = left_node.label
+        if right_node.label:
+            filters["to_entity__entity_type"] = right_node.label
+        qs = (
+            Edge.objects.using(db_alias)
+            .filter(**filters)
+            .select_related("from_entity", "to_entity", *extra_related)
+            .order_by("entity__created_at")
+        )
+        qualifying_edges.extend(qs)
+
+    if direction in ("in", "any"):
+        filters = {"edge_type": edge_type}
+        if left_node.label:
+            filters["to_entity__entity_type"] = left_node.label
+        if right_node.label:
+            filters["from_entity__entity_type"] = right_node.label
+        qs = (
+            Edge.objects.using(db_alias)
+            .filter(**filters)
+            .select_related("from_entity", "to_entity", *extra_related)
+            .order_by("entity__created_at")
+        )
+        qualifying_edges.extend(qs)
+
+    # Collect all endpoint entities.
+    entity_map: dict[str, Entity] = {}
+    for edge in qualifying_edges:
+        entity_map.setdefault(str(edge.from_entity_id), edge.from_entity)
+        entity_map.setdefault(str(edge.to_entity_id), edge.to_entity)
+
+    all_entities = list(entity_map.values())
+
+    nodes = _serialize_entity_nodes(all_entities, layer, db_alias)
+    edges = _serialize_edge_list(qualifying_edges, layer, db_alias)
+
+    return {"nodes": nodes, "edges": edges}
+
+
+# ---------------------------------------------------------------------------
 # Serialization helpers
 # ---------------------------------------------------------------------------
 
@@ -415,14 +534,14 @@ def _serialize_entity_nodes(
     # extended
     slugs = {e.entity_type for e in entities if e.entity_type != "edge"}
     icon_map = batch_resolve_icon_urls(slugs)
-    shape_map = batch_resolve_shapes(slugs)
+    display_map = batch_resolve_display(slugs)
 
     return [
         serialize_node_extended(
             e,
             typed_models.get(str(e.pk)),
             icon_url=icon_map.get(e.entity_type, ""),
-            shape=shape_map.get(e.entity_type, "ellipse"),
+            display=display_map.get(e.entity_type, {}),
         )
         for e in entities
     ]
@@ -443,14 +562,14 @@ def _serialize_typed_nodes(
     # extended
     slugs = {obj.entity.entity_type for obj in domain_objects}
     icon_map = batch_resolve_icon_urls(slugs)
-    shape_map = batch_resolve_shapes(slugs)
+    display_map = batch_resolve_display(slugs)
 
     return [
         serialize_node_extended(
             obj.entity,
             obj,
             icon_url=icon_map.get(obj.entity.entity_type, ""),
-            shape=shape_map.get(obj.entity.entity_type, "ellipse"),
+            display=display_map.get(obj.entity.entity_type, {}),
         )
         for obj in domain_objects
     ]

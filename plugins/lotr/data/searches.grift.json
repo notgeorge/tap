@@ -148,6 +148,28 @@
             "root": "node",
             "definition": {"runner_key": "plugins.lotr.searches.characters:list-characters-with-bio"}
           }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eed-adf7-7572-91aa-e19006369266",
+            "entity_type": "search",
+            "name": "LOTR Saga",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "LOTR Saga",
+            "description": "Middle-earth saga showing realm, location, character, and artifact nesting.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": [
+                "MATCH (r:realm)-[e1:CONTAINS]->(l:location)",
+                "MATCH (l2:location)-[e2:CONTAINS]->(l3:location)",
+                "MATCH (c:character)-[e3:LOCATED_IN]->(loc:location)",
+                "MATCH (c2:character)-[e4:WIELDS]->(a:artifact)"
+              ]
+            }
+          }
         }
       ],
       "edges": []

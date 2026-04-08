@@ -507,3 +507,223 @@ class TestSearchServiceGryphon:
         )
         with pytest.raises(SearchExecutionError, match="Unknown search_type"):
             execute_search(search, inputs={})
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonEdgeTypeScan — edge-type scan execution mode
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonEdgeTypeScan:
+    def _setup_realm_locations(self):
+        """Create realm→location CONTAINS edges for testing."""
+        import uuid
+
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Edge, Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+
+        realm = Entity.objects.create(entity_type="realm", name="Middle-earth")
+        mordor = Entity.objects.create(entity_type="location", name="Mordor")
+        gondor = Entity.objects.create(entity_type="location", name="Gondor")
+        frodo = Entity.objects.create(entity_type="character", name="Frodo")
+
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=realm,
+            to_entity=mordor,
+            edge_type="CONTAINS",
+        )
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=realm,
+            to_entity=gondor,
+            edge_type="CONTAINS",
+        )
+        # A non-matching edge type to verify filtering.
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=frodo,
+            to_entity=mordor,
+            edge_type="LOCATED_IN",
+        )
+        return realm, mordor, gondor, frodo
+
+    def test_edge_type_scan_returns_matching_edges(self):
+        """Edge-type scan returns all edges of the given type with correct endpoints."""
+        realm, mordor, gondor, _frodo = self._setup_realm_locations()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": "MATCH (r:realm)-[e:CONTAINS]->(l:location)"},
+        )
+        result = execute_search(search, inputs={})
+
+        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        assert str(realm.pk) in node_ids
+        assert str(mordor.pk) in node_ids
+        assert str(gondor.pk) in node_ids
+        assert len(result["edges"]) == 2
+
+    def test_edge_type_scan_filters_by_endpoint_type(self):
+        """Only edges with matching endpoint types are returned."""
+        _realm, _mordor, _gondor, frodo = self._setup_realm_locations()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": "MATCH (r:realm)-[e:CONTAINS]->(l:location)"},
+        )
+        result = execute_search(search, inputs={})
+
+        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        # Frodo is not a realm or location endpoint of CONTAINS.
+        assert str(frodo.pk) not in node_ids
+
+    def test_edge_type_scan_inbound_direction(self):
+        """Inbound edge-type scan reverses endpoint label mapping."""
+        realm, mordor, gondor, _frodo = self._setup_realm_locations()
+
+        # Inbound: left_node matches to_entity, right_node matches from_entity.
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": "MATCH (l:location)<-[e:CONTAINS]-(r:realm)"},
+        )
+        result = execute_search(search, inputs={})
+
+        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        assert str(realm.pk) in node_ids
+        assert str(mordor.pk) in node_ids
+        assert str(gondor.pk) in node_ids
+        assert len(result["edges"]) == 2
+
+    def test_edge_type_scan_requires_typed_edge(self):
+        """Edge-type scan without a typed edge raises SearchExecutionError."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": "MATCH (a:realm)-[e]->(b:location)"},
+        )
+        with pytest.raises(SearchExecutionError, match="typed edge"):
+            execute_search(search, inputs={})
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonUnion — multiple MATCH clauses with UNION merge
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonUnion:
+    def _setup_graph(self):
+        """Create a small graph with realm, locations, characters, and artifacts."""
+        import uuid
+
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Edge, Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+
+        realm = Entity.objects.create(entity_type="realm", name="Middle-earth")
+        mordor = Entity.objects.create(entity_type="location", name="Mordor")
+        frodo = Entity.objects.create(entity_type="character", name="Frodo")
+        ring = Entity.objects.create(entity_type="artifact", name="The One Ring")
+
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=realm,
+            to_entity=mordor,
+            edge_type="CONTAINS",
+        )
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=frodo,
+            to_entity=mordor,
+            edge_type="LOCATED_IN",
+        )
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=frodo,
+            to_entity=ring,
+            edge_type="WIELDS",
+        )
+        return realm, mordor, frodo, ring
+
+    def test_two_match_clauses_merged(self):
+        """Two MATCH clauses return merged, deduplicated results."""
+        realm, mordor, frodo, ring = self._setup_graph()
+
+        query = [
+            "MATCH (r:realm)-[e1:CONTAINS]->(l:location)",
+            "MATCH (c:character)-[e2:WIELDS]->(a:artifact)",
+        ]
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": query},
+        )
+        result = execute_search(search, inputs={})
+
+        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        assert str(realm.pk) in node_ids
+        assert str(mordor.pk) in node_ids
+        assert str(frodo.pk) in node_ids
+        assert str(ring.pk) in node_ids
+        assert len(result["edges"]) == 2
+
+    def test_shared_nodes_deduplicated(self):
+        """Nodes appearing in multiple clause results are not duplicated."""
+        realm, mordor, frodo, ring = self._setup_graph()
+
+        # Both clauses will return Mordor (as location in CONTAINS and as target in LOCATED_IN).
+        query = [
+            "MATCH (r:realm)-[e1:CONTAINS]->(l:location)",
+            "MATCH (c:character)-[e2:LOCATED_IN]->(l2:location)",
+        ]
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": query},
+        )
+        result = execute_search(search, inputs={})
+
+        node_ids = [n["entity"]["entity_id"] for n in result["nodes"]]
+        # Mordor should appear exactly once despite being in both results.
+        assert node_ids.count(str(mordor.pk)) == 1
+
+    def test_four_clause_saga_shape(self):
+        """Full four-clause query shape matching the saga demo pattern."""
+        realm, mordor, frodo, ring = self._setup_graph()
+
+        query = [
+            "MATCH (r:realm)-[e1:CONTAINS]->(l:location)",
+            "MATCH (l2:location)-[e2:CONTAINS]->(l3:location)",
+            "MATCH (c:character)-[e3:LOCATED_IN]->(loc:location)",
+            "MATCH (c2:character)-[e4:WIELDS]->(a:artifact)",
+        ]
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="test",
+            definition={"query": query},
+        )
+        result = execute_search(search, inputs={})
+
+        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        # All four entity types should be represented.
+        assert str(realm.pk) in node_ids
+        assert str(mordor.pk) in node_ids
+        assert str(frodo.pk) in node_ids
+        assert str(ring.pk) in node_ids

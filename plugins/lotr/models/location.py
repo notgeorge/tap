@@ -24,7 +24,37 @@ class Location(BaseModel):
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
     REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "description", "realm"]
-    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "round-rectangle"}}
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "round-rectangle",
+            "nesting": {
+                "parent": [
+                    {
+                        "name": "location-contains-location",
+                        "description": "A location may visually contain a child location.",
+                        "gryphon": "(parent:location)-[:CONTAINS]->(child:location)",
+                    },
+                    {
+                        "name": "location-contains-character",
+                        "description": "A location visually contains characters located there.",
+                        "gryphon": "(parent:location)<-[:LOCATED_IN]-(child:character)",
+                    },
+                ],
+                "child": [
+                    {
+                        "name": "location-inside-realm",
+                        "description": "A location may be visually nested inside a containing realm.",
+                        "gryphon": "(parent:realm)-[:CONTAINS]->(child:location)",
+                    },
+                    {
+                        "name": "location-inside-location",
+                        "description": "A location may be visually nested inside a parent location.",
+                        "gryphon": "(parent:location)-[:CONTAINS]->(child:location)",
+                    },
+                ],
+            },
+        }
+    }
 
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {"nodes": [{"type": "location"}], "edges": [{"type": "CONTAINS"}]},
@@ -33,7 +63,7 @@ class Location(BaseModel):
     INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {"nodes": [{"type": "character"}], "edges": [{"type": "LOCATED_IN"}, {"type": "RULES"}]},
         {"nodes": [{"type": "artifact"}], "edges": [{"type": "FORGED_IN"}]},
-        {"nodes": [{"type": "location"}], "edges": [{"type": "CONTAINS"}]},
+        {"nodes": [{"type": "location"}, {"type": "realm"}], "edges": [{"type": "CONTAINS"}]},
         {"nodes": [{"type": "citadel"}], "edges": [{"type": "PROTECTS"}]},
     ]
 

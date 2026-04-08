@@ -63,7 +63,7 @@
             "editor_view": "tap_web/panels/table_panel_editor.html",
             "css": ["css/lib/tabulator.min.css"],
             "js": ["js/lib/tabulator.min.js", "js/panel-table.js"],
-            "config": {"column_mode": "common_metadata", "default_limit": 25}
+            "config": {"column_mode": "common_metadata", "default_page_size": 100}
           }
         },
         {
@@ -79,6 +79,57 @@
             "layout": {
               "columns": {
                 "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "characters"}}}
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eed-adf7-7572-91aa-e191117b20dd",
+            "entity_type": "layout",
+            "name": "LOTR Saga Layout",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "LOTR Saga Layout",
+            "definition": {
+              "presentation": {
+                "placement": "cytoscape:cose",
+                "nesting": {"enabled": true}
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eed-adf7-7572-91aa-e192e5c74b75",
+            "entity_type": "panel",
+            "name": "LOTR Saga Graph",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "lotr-saga-graph",
+            "name": "LOTR Saga Graph",
+            "view": "tap_viz/panels/graph_panel.html",
+            "editor_view": "",
+            "css": ["tap_viz/css/panel-graph.css"],
+            "js": ["tap_viz/js/cytoscape.min.js", "tap_viz/js/panel-graph.js"],
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eed-adf7-7572-91aa-e1931473e7d5",
+            "entity_type": "page",
+            "name": "Middle-earth Saga",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Middle-earth Saga",
+            "slug": "/middle-earth/saga",
+            "layout": {
+              "columns": {
+                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "saga"}}}
               }
             }
           }
@@ -125,6 +176,48 @@
             "to_entity_id": "019d6580-5d1e-7625-acaf-3a008393de41",
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "characters"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eed-adf7-7572-91aa-e19488f810a1",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6eed-adf7-7572-91aa-e1931473e7d5",
+            "to_entity_id": "019d6eed-adf7-7572-91aa-e192e5c74b75",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "saga"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eed-adf7-7572-91aa-e195df8b8f4e",
+            "entity_type": "edge",
+            "name": "USES_LAYOUT",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6eed-adf7-7572-91aa-e192e5c74b75",
+            "to_entity_id": "019d6eed-adf7-7572-91aa-e191117b20dd",
+            "edge_type": "USES_LAYOUT",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eed-adf7-7572-91aa-e19632a4a5dc",
+            "entity_type": "edge",
+            "name": "USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6eed-adf7-7572-91aa-e191117b20dd",
+            "to_entity_id": "019d6eed-adf7-7572-91aa-e19006369266",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
           }
         }
       ]

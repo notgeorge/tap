@@ -89,16 +89,18 @@ def serialize_node_extended(
     typed_model: BaseModel | None = None,
     *,
     icon_url: str = "",
-    shape: str = "ellipse",
+    display: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Extended layer: full shape plus presentation metadata."""
     entity_id = str(entity.pk)
     slug = slugify(entity.name) or "entity"
+    disp = display or {}
     return {
         "entity": serialize_entity_envelope(entity),
         "node": serialize_node_payload(typed_model) if typed_model else {},
         "icon_url": icon_url,
-        "shape": shape,
+        "shape": disp.get("shape", "ellipse"),
+        "display": disp,
         "url_id": f"{slug}--{entity_id}",
     }
 
@@ -204,21 +206,24 @@ def batch_resolve_icon_urls(entity_type_slugs: set[str]) -> dict[str, str]:
     return {et.slug: resolve_icon_url(et) or "" for et in EntityType.objects.filter(slug__in=entity_type_slugs)}
 
 
-def batch_resolve_shapes(entity_type_slugs: set[str]) -> dict[str, str]:
-    """Resolve Cytoscape shapes for a set of entity type slugs in batch.
+def batch_resolve_display(entity_type_slugs: set[str]) -> dict[str, dict[str, Any]]:
+    """Resolve full tap_viz display metadata for a set of entity type slugs.
+
+    Returns the complete ``DEFAULT_DISPLAY.get("tap_viz", {})`` dict per slug,
+    making shape, nesting, and any future display concerns transparent.
 
     Returns:
-        {slug: shape_string} — defaults to "ellipse".
+        {slug: tap_viz_display_dict}
     """
     from tap_grid.registry import get_model_class
 
-    result: dict[str, str] = {}
+    result: dict[str, dict[str, Any]] = {}
     for slug in entity_type_slugs:
         try:
             model_cls = get_model_class(slug)
-            result[slug] = model_cls.DEFAULT_DISPLAY.get("tap_viz", {}).get("shape", "ellipse")
+            result[slug] = model_cls.DEFAULT_DISPLAY.get("tap_viz", {})
         except KeyError:
-            result[slug] = "ellipse"
+            result[slug] = {}
     return result
 
 
@@ -275,7 +280,7 @@ def serialize_subgraph(
     # extended — resolve presentation metadata.
     slugs = {e.entity_type for e in entities if e.entity_type != "edge"}
     icon_map = batch_resolve_icon_urls(slugs)
-    shape_map = batch_resolve_shapes(slugs)
+    display_map = batch_resolve_display(slugs)
 
     # Edge endpoint names.
     endpoint_ids: set[str] = set()
@@ -290,7 +295,7 @@ def serialize_subgraph(
                 e,
                 typed_models.get(str(e.pk)),
                 icon_url=icon_map.get(e.entity_type, ""),
-                shape=shape_map.get(e.entity_type, "ellipse"),
+                display=display_map.get(e.entity_type, {}),
             )
             for e in entities
         ],

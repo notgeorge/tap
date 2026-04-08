@@ -23,7 +23,27 @@ class Character(BaseModel):
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
     REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "bio"]
-    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "ellipse"}}
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "ellipse",
+            "nesting": {
+                "parent": [
+                    {
+                        "name": "character-wields-artifact",
+                        "description": "A character visually contains artifacts they wield.",
+                        "gryphon": "(parent:character)-[:WIELDS]->(child:artifact)",
+                    }
+                ],
+                "child": [
+                    {
+                        "name": "character-inside-location",
+                        "description": "A character may be visually nested inside its location.",
+                        "gryphon": "(parent:location)<-[:LOCATED_IN]-(child:character)",
+                    }
+                ],
+            },
+        }
+    }
 
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {"nodes": [{"type": "artifact"}], "edges": [{"type": "WIELDS"}]},

@@ -11,6 +11,188 @@
 
 /* global cytoscape */
 
+// ---------------------------------------------------------------------------
+// TapVizNestingResolver — client-side compound-node resolution
+// ---------------------------------------------------------------------------
+
+// Matches: (parent:label)-[:TYPE]->(child:label) OR (parent:label)<-[:TYPE]-(child:label)
+var NESTING_PATTERN_RE = /^\(parent(?::(\w+))?\)\s*(?:-\[(?:\w+:)?(\w+)\]->\s*\(child(?::(\w+))?\)|<-\[(?:\w+:)?(\w+)\]-\s*\(child(?::(\w+))?\))$/;
+
+function TapVizNestingResolver(nodes, edges) {
+    this.nodes = nodes;
+    this.edges = edges;
+}
+
+TapVizNestingResolver.prototype._parsePattern = function (gryphon) {
+    var m = NESTING_PATTERN_RE.exec(gryphon.trim());
+    if (!m) return null;
+    // Groups: 1=parentLabel, 2=outEdgeType, 3=outChildLabel, 4=inEdgeType, 5=inChildLabel
+    if (m[2]) {
+        return { parentLabel: m[1] || null, childLabel: m[3] || null, edgeType: m[2], direction: "out" };
+    }
+    return { parentLabel: m[1] || null, childLabel: m[5] || null, edgeType: m[4], direction: "in" };
+};
+
+TapVizNestingResolver.prototype.resolve = function () {
+    var self = this;
+    var warnings = [];
+
+    // 1. Build type-by-entity-id map.
+    var typeByEntityId = {};
+    this.nodes.forEach(function (n) {
+        var ent = n.entity || {};
+        typeByEntityId[ent.entity_id] = ent.entity_type;
+    });
+
+    // 2. Collect all nesting rules from all node types' display.nesting metadata.
+    var rules = [];
+    var seenTypes = {};
+    this.nodes.forEach(function (n) {
+        var ent = n.entity || {};
+        var entityType = ent.entity_type;
+        if (seenTypes[entityType]) return;
+        seenTypes[entityType] = true;
+
+        var nesting = (n.display || {}).nesting;
+        if (!nesting) return;
+
+        // Parent-side rules: self-side is parent, so parentLabel must match entityType.
+        (nesting.parent || []).forEach(function (rel) {
+            var parsed = self._parsePattern(rel.gryphon || "");
+            if (!parsed) {
+                warnings.push({ category: "unsupported_matcher_syntax", message: "Cannot parse: " + rel.gryphon });
+                return;
+            }
+            if (parsed.parentLabel && parsed.parentLabel !== entityType) {
+                warnings.push({ category: "context_type_mismatch", message: "Parent rule on " + entityType + " declares parent:" + parsed.parentLabel });
+                return;
+            }
+            parsed.parentLabel = entityType;
+            rules.push(parsed);
+        });
+
+        // Child-side rules: self-side is child, so childLabel must match entityType.
+        (nesting.child || []).forEach(function (rel) {
+            var parsed = self._parsePattern(rel.gryphon || "");
+            if (!parsed) {
+                warnings.push({ category: "unsupported_matcher_syntax", message: "Cannot parse: " + rel.gryphon });
+                return;
+            }
+            if (parsed.childLabel && parsed.childLabel !== entityType) {
+                warnings.push({ category: "context_type_mismatch", message: "Child rule on " + entityType + " declares child:" + parsed.childLabel });
+                return;
+            }
+            parsed.childLabel = entityType;
+            rules.push(parsed);
+        });
+    });
+
+    // 3. Deduplicate rules (same parentLabel + childLabel + edgeType + direction).
+    var ruleKeys = {};
+    var uniqueRules = [];
+    rules.forEach(function (r) {
+        var key = (r.parentLabel || "") + "|" + (r.childLabel || "") + "|" + r.edgeType + "|" + r.direction;
+        if (!ruleKeys[key]) {
+            ruleKeys[key] = true;
+            uniqueRules.push(r);
+        }
+    });
+
+    // 4. Match edges against rules, build candidate assignments.
+    var candidates = {};  // childId -> Set of parentIds
+    var consumedEdges = {};  // edgeId -> [parentId, childId]
+    this.edges.forEach(function (e) {
+        var ent = e.entity || {};
+        var ed = e.edge || {};
+        var edgeId = ent.entity_id;
+        var fromType = typeByEntityId[ed.from_entity_id];
+        var toType = typeByEntityId[ed.to_entity_id];
+
+        uniqueRules.forEach(function (rule) {
+            var parentId, childId;
+            if (rule.direction === "out" && ed.edge_type === rule.edgeType) {
+                if ((!rule.parentLabel || fromType === rule.parentLabel) &&
+                    (!rule.childLabel || toType === rule.childLabel)) {
+                    parentId = ed.from_entity_id;
+                    childId = ed.to_entity_id;
+                }
+            } else if (rule.direction === "in" && ed.edge_type === rule.edgeType) {
+                // Inbound: (parent)<-[:TYPE]-(child) means from=child, to=parent.
+                if ((!rule.parentLabel || toType === rule.parentLabel) &&
+                    (!rule.childLabel || fromType === rule.childLabel)) {
+                    parentId = ed.to_entity_id;
+                    childId = ed.from_entity_id;
+                }
+            }
+            if (parentId && childId) {
+                if (!candidates[childId]) candidates[childId] = {};
+                candidates[childId][parentId] = true;
+                consumedEdges[edgeId] = [parentId, childId];
+            }
+        });
+    });
+
+    // 5. Accept single-parent, reject multiple parents.
+    var parentByChildId = {};
+    var hiddenEdgeIds = new Set();
+    Object.keys(candidates).forEach(function (childId) {
+        var parents = Object.keys(candidates[childId]);
+        if (parents.length === 1) {
+            parentByChildId[childId] = parents[0];
+        } else {
+            warnings.push({
+                category: "multiple_parents",
+                message: "Child " + childId + " has " + parents.length + " candidate parents: " + parents.join(", "),
+            });
+        }
+    });
+
+    // 6. Detect cycles — walk parent chain, drop cyclic assignments.
+    var inCycle = {};
+    Object.keys(parentByChildId).forEach(function (startChild) {
+        var visited = {};
+        var current = startChild;
+        while (parentByChildId[current]) {
+            if (visited[current]) {
+                // Mark all nodes in the cycle.
+                var cycleNode = current;
+                do {
+                    inCycle[cycleNode] = true;
+                    cycleNode = parentByChildId[cycleNode];
+                } while (cycleNode !== current);
+                break;
+            }
+            visited[current] = true;
+            current = parentByChildId[current];
+        }
+    });
+    if (Object.keys(inCycle).length > 0) {
+        warnings.push({
+            category: "cycle_detected",
+            message: "Cycle involving: " + Object.keys(inCycle).join(", "),
+        });
+        Object.keys(inCycle).forEach(function (id) {
+            delete parentByChildId[id];
+        });
+    }
+
+    // 7. Mark consumed edges as hidden (only for accepted assignments).
+    Object.keys(consumedEdges).forEach(function (edgeId) {
+        var pair = consumedEdges[edgeId];
+        var parentId = pair[0], childId = pair[1];
+        if (parentByChildId[childId] === parentId) {
+            hiddenEdgeIds.add(edgeId);
+        }
+    });
+
+    return { parentByChildId: parentByChildId, hiddenEdgeIds: hiddenEdgeIds, warnings: warnings };
+};
+
+
+// ---------------------------------------------------------------------------
+// initGraph — main entry point per graph panel
+// ---------------------------------------------------------------------------
+
 function initGraph(panelId) {
     const nodesEl = document.getElementById("tap-graph-nodes-" + panelId);
     const edgesEl = document.getElementById("tap-graph-edges-" + panelId);
@@ -27,19 +209,33 @@ function initGraph(panelId) {
         return;
     }
 
+    // Nesting resolution — gated by layout flag.
+    var nestingEnabled = container.dataset.nesting === "true";
+    var nesting = { parentByChildId: {}, hiddenEdgeIds: new Set(), warnings: [] };
+
+    if (nestingEnabled) {
+        var resolver = new TapVizNestingResolver(nodes, edges);
+        nesting = resolver.resolve();
+        nesting.warnings.forEach(function (w) {
+            console.warn("[TAP Nesting]", w.category, w.message);
+        });
+    }
+
     // Build Cytoscape elements from GRIFT extended node/edge envelopes.
     const cyNodes = nodes.map(function (n) {
         var ent = n.entity || {};
-        return {
-            data: {
-                id: ent.entity_id,
-                label: ent.name || ent.entity_type || ent.entity_id,
-                entity_type: ent.entity_type || "",
-                icon_url: n.icon_url || "",
-                shape: n.shape || "ellipse",
-                url_id: n.url_id || "",
-            },
+        var data = {
+            id: ent.entity_id,
+            label: ent.name || ent.entity_type || ent.entity_id,
+            entity_type: ent.entity_type || "",
+            icon_url: n.icon_url || "",
+            shape: n.shape || "ellipse",
+            url_id: n.url_id || "",
         };
+        if (nesting.parentByChildId[ent.entity_id]) {
+            data.parent = nesting.parentByChildId[ent.entity_id];
+        }
+        return { data: data };
     });
 
     const nodeIds = new Set(nodes.map(function (n) { return n.entity.entity_id; }));
@@ -51,13 +247,16 @@ function initGraph(panelId) {
         .map(function (e) {
             var ent = e.entity || {};
             var ed = e.edge || {};
+            var edgeId = ent.entity_id || (ed.from_entity_id + "-" + ed.to_entity_id + "-" + ed.edge_type);
+            var classes = nesting.hiddenEdgeIds.has(edgeId) ? "tap-nesting-hidden" : "";
             return {
                 data: {
-                    id: ent.entity_id || (ed.from_entity_id + "-" + ed.to_entity_id + "-" + ed.edge_type),
+                    id: edgeId,
                     source: ed.from_entity_id,
                     target: ed.to_entity_id,
                     label: ed.edge_type || "",
                 },
+                classes: classes,
             };
         });
 
@@ -109,6 +308,24 @@ function initGraph(panelId) {
                     "font-size": "9px",
                     "color": "#64748b",
                 },
+            },
+            {
+                // Compound parent nodes (nesting containers).
+                selector: ":parent",
+                style: {
+                    "background-opacity": 0.08,
+                    "border-width": 2,
+                    "border-color": "#94a3b8",
+                    "padding": "30px",
+                    "text-valign": "top",
+                    "text-margin-y": "-4px",
+                    "font-size": "13px",
+                },
+            },
+            {
+                // Hidden containment edges (consumed by nesting).
+                selector: ".tap-nesting-hidden",
+                style: { "display": "none" },
             },
             {
                 selector: ":selected",

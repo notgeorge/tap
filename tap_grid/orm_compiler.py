@@ -16,7 +16,7 @@ from tap_grid.grift.subgraph import (
     SubgraphLayer,
     batch_resolve_entity_names,
     batch_resolve_icon_urls,
-    batch_resolve_shapes,
+    batch_resolve_display,
     batch_resolve_typed_models,
     serialize_edge_extended,
     serialize_edge_full,
@@ -222,14 +222,14 @@ def _serialize_nodes(
     # extended
     slugs = {e.entity_type for e in entities if e.entity_type != "edge"}
     icon_map = batch_resolve_icon_urls(slugs)
-    shape_map = batch_resolve_shapes(slugs)
+    display_map = batch_resolve_display(slugs)
 
     return [
         serialize_node_extended(
             e,
             typed_models.get(str(e.pk)),
             icon_url=icon_map.get(e.entity_type, ""),
-            shape=shape_map.get(e.entity_type, "ellipse"),
+            display=display_map.get(e.entity_type, {}),
         )
         for e in entities
     ]

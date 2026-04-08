@@ -11,7 +11,8 @@
 <div id="tap-graph-container-{{ panel.entity_id }}"
      class="relative w-full border border-slate-200 rounded-lg bg-white"
      style="height: 420px;"
-     data-placement="{{ graph_placement }}">
+     data-placement="{{ graph_placement }}"
+     data-nesting="{{ graph_nesting_enabled|yesno:'true,false' }}">
     <div id="tap-graph-{{ panel.entity_id }}" class="w-full h-full overflow-hidden rounded-lg"></div>
 </div>
 

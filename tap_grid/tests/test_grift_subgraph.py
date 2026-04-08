@@ -7,7 +7,7 @@ import uuid
 import pytest
 
 from tap_grid.grift.subgraph import (
-    batch_resolve_shapes,
+    batch_resolve_display,
     batch_resolve_typed_models,
     serialize_edge_extended,
     serialize_edge_full,
@@ -157,7 +157,7 @@ class TestSerializeNodeFull:
 class TestSerializeNodeExtended:
     def test_includes_presentation_fields(self):
         character = _make_character(name="Frodo")
-        node = serialize_node_extended(character.entity, character, icon_url="/static/icon.svg", shape="ellipse")
+        node = serialize_node_extended(character.entity, character, icon_url="/static/icon.svg", display={"shape": "ellipse"})
         assert node["icon_url"] == "/static/icon.svg"
         assert node["shape"] == "ellipse"
         assert "url_id" in node
@@ -265,15 +265,15 @@ class TestBatchResolveTypedModels:
 
 
 @pytest.mark.django_db
-class TestBatchResolveShapes:
-    def test_returns_shape_from_default_display(self):
-        result = batch_resolve_shapes({"character"})
+class TestBatchResolveDisplay:
+    def test_returns_display_from_default_display(self):
+        result = batch_resolve_display({"character"})
         assert "character" in result
-        assert result["character"] == "ellipse"
+        assert result["character"].get("shape", "ellipse") == "ellipse"
 
-    def test_unknown_type_defaults_to_ellipse(self):
-        result = batch_resolve_shapes({"nonexistent_xyz"})
-        assert result["nonexistent_xyz"] == "ellipse"
+    def test_unknown_type_defaults_to_empty_dict(self):
+        result = batch_resolve_display({"nonexistent_xyz"})
+        assert result["nonexistent_xyz"] == {}
 
 
 # ---------------------------------------------------------------------------

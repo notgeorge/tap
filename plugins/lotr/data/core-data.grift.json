@@ -356,6 +356,18 @@
             "name": "Rohan",
             "purpose": "Defend the Riddermark."
           }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
+            "entity_type": "realm",
+            "name": "Middle-earth",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Middle-earth",
+            "description": "The great continent where the events of the Lord of the Rings take place."
+          }
         }
       ],
       "edges": [
@@ -522,7 +534,7 @@
           },
           "edge": {
             "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c868e1483031",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
             "edge_type": "LOCATED_IN",
             "properties": {}
           }
@@ -564,7 +576,7 @@
           },
           "edge": {
             "from_entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86e06172d78",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
             "edge_type": "LOCATED_IN",
             "properties": {}
           }
@@ -865,6 +877,118 @@
             "properties": {
               "discipline": "adventure"
             }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eec-e9e2-7627-9c48-c824c58c8ab1",
+            "entity_type": "edge",
+            "name": "LOCATED_IN",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c8639b205dc8",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "edge_type": "LOCATED_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eec-e9e2-7627-9c48-c825c7951cb9",
+            "entity_type": "edge",
+            "name": "LOCATED_IN",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "edge_type": "LOCATED_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eec-e9e2-7627-9c48-c82667c02d71",
+            "entity_type": "edge",
+            "name": "LOCATED_IN",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "edge_type": "LOCATED_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eec-e9e2-7627-9c48-c827ebd430c7",
+            "entity_type": "edge",
+            "name": "CONTAINS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c868e1483031",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eec-e9e2-7627-9c48-c828df12d2ae",
+            "entity_type": "edge",
+            "name": "CONTAINS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c8695200da3a",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eec-e9e2-7627-9c48-c829ddf47615",
+            "entity_type": "edge",
+            "name": "CONTAINS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eec-e9e2-7627-9c48-c82ae764760d",
+            "entity_type": "edge",
+            "name": "CONTAINS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6eec-e9e2-7627-9c48-c82b57174a12",
+            "entity_type": "edge",
+            "name": "CONTAINS",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
+            "to_entity_id": "019d63fe-3c6e-7061-9368-c86e06172d78",
+            "edge_type": "CONTAINS",
+            "properties": {}
           }
         }
       ]
