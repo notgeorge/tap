@@ -36,9 +36,7 @@
     {% endif %}
 
     <form method="post"
-          hx-post="/panel/{{ panel.slug }}--{{ panel.entity_id }}/{% if editor_query_string %}?{{ editor_query_string }}{% endif %}"
-          hx-target="closest .tap-panel--editor"
-          hx-swap="outerHTML">
+          {% if editor_form_action %}action="{{ editor_form_action }}"{% else %}hx-post="/panel/{{ panel.slug }}--{{ panel.entity_id }}/{% if editor_query_string %}?{{ editor_query_string }}{% endif %}" hx-target="closest .tap-panel--editor" hx-swap="outerHTML"{% endif %}>
         {% csrf_token %}
         <div class="space-y-4 bg-white border border-slate-200 rounded p-4">
 

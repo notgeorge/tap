@@ -87,8 +87,8 @@ Make graph context mandatory in the editor shell. TAP objects should not be edit
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-editor-graph-1 | Graph Region Exists | Implemented | The top region of the generic editor contains a Cytoscape graph preview. | Graph panel on the GRIFT-defined `/__entity-editor` page |
-| req-web-editor-graph-2 | Edited Object Is Hub | Implemented | The edited object is centered conceptually as the hub in the graph preview. | Gryphon neighborhood search via graph panel |
+| req-web-editor-graph-1 | Graph Region Exists | Implemented | The top region of the generic editor contains a Cytoscape graph preview. | Graph panel rendered via synthetic page builder (`req-web-page-synthetic`) using GRIFT subgraph in `tap_web/data/` |
+| req-web-editor-graph-2 | Edited Object Is Hub | Implemented | The edited object is centered conceptually as the hub in the graph preview. | Gryphon neighborhood search defined in the entity editor GRIFT subgraph; executed at render time |
 | req-web-editor-graph-3 | Immediate Relationships Included | Implemented | The graph preview includes immediate inbound/outbound edges and connected nodes only. | |
 | req-web-editor-graph-4 | Read Only In V1 | Implemented | The first graph preview does not mutate graph structure. | |
 

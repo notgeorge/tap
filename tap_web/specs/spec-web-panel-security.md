@@ -18,6 +18,7 @@ Panels accept, render, and sometimes edit user-provided data. TAP Web needs one 
 | --- | --- | :---: | --- |
 | req-web-panel-edit-form.sec | [Panel Edit Form Security](#panel-edit-form-security) | Implemented | Platform-level: CSRF middleware + Django Form validation + auto-escaping |
 | req-web-panel-render-content.sec | [Panel Content Rendering Security](#panel-content-rendering-security) | Implemented | Platform-level: Django template auto-escaping applies to all panel templates |
+| req-web-panel-json-embed.sec | [Script-Context JSON Embedding Security](#script-context-json-embedding-security) | Implemented | Centralized safe_json() for all JSON-in-script-block embedding |
 
 ### Panel Edit Form Security
 ----
@@ -82,12 +83,46 @@ This is a **platform-level** guarantee provided by Django's template engine. Aut
 #### Future
 Define any future rich-text or trusted-HTML panel capability as a separate hardened feature rather than widening the default rendering rule.
 
+### Script-Context JSON Embedding Security
+----
+RID: `req-web-panel-json-embed.sec`
+Status: `Implemented`
+
+Panels and views that embed serialized data inside `<script>` blocks operate in a different security context than standard template variable interpolation. Django's template auto-escaping (`req-web-panel-render-content.sec`) protects HTML context, but JSON embedded in script blocks **must** use `|safe` to avoid double-escaping — which means auto-escaping is explicitly bypassed.
+
+This creates a distinct attack surface: if the serialized JSON contains user-controlled data with sequences like `</script>`, `<!--`, or `&`, an attacker can break out of the script block and inject arbitrary HTML or JavaScript. The three-character set `<`, `>`, `&` is sufficient to cover script-block breakout (`</script>`), HTML comment injection (`<!--`), and entity-based bypasses.
+
+This requirement mandates that all JSON data destined for `<script>` blocks pass through a centralized utility that escapes HTML-significant characters in the serialized output using Unicode escape sequences (`\u003c`, `\u003e`, `\u0026`). This is the same escaping strategy Django's built-in `json_script` template filter uses internally.
+
+#### Why Not Use Django's json_script Filter Directly?
+
+Django's `json_script` filter emits a complete `<script id="..." type="application/json">...</script>` element. TAP panels need the raw escaped JSON string to pass as a template variable (e.g. `{{ graph_nodes_json|safe }}`) within existing script blocks and template structures. A callable utility is the right shape for this use case.
+
+#### Implementation
+
+`tap_web.utils.safe_json(value)` — serializes `value` via `json.dumps()`, then replaces `<`, `>`, and `&` with their Unicode escape equivalents. All panel context builders and views that embed JSON in script blocks must use this utility instead of raw `json.dumps()`.
+
+Direct `json.dumps()` output must not be passed through `|safe` in any template. If JSON needs to be embedded in a script block, it must go through `safe_json()`.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-panel-json-embed.sec-1 | Central Utility Exists | Implemented | `tap_web.utils.safe_json()` is the single implementation for HTML-safe JSON serialization. | |
+| req-web-panel-json-embed.sec-2 | Unicode Escape Applied | Implemented | Utility escapes `<`, `>`, `&` to `\u003c`, `\u003e`, `\u0026` after `json.dumps()`. | |
+| req-web-panel-json-embed.sec-3 | All Call Sites Migrated | Implemented | All existing `_safe_json` implementations are replaced with imports from `tap_web.utils`. | |
+| req-web-panel-json-embed.sec-4 | XSS Round-Trip Test | Implemented | A payload containing `</script><script>alert(1)` is verified to round-trip safely through `safe_json()` with no unescaped `<` or `>` in the output. | |
+
+#### Future
+Consider a custom template filter (`|safe_json`) that wraps this utility for even more ergonomic use in templates, reducing the `{{ value|safe }}` pattern to `{{ value|safe_json }}` which makes the intent self-documenting.
+
+
 ## Status Vocabulary
 
 | Status States |  |
 | --- | --- |
 | Proposed |  |
-| Approved for Development | Requirement is accepted and ready to be implemented |
+| Implemented | Requirement is accepted and ready to be implemented |
 | In Development |  |
 | Implemented |  |
 | Verified |  |

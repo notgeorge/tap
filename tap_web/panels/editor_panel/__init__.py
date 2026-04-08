@@ -58,12 +58,16 @@ class EditorPanelType:
         entity_type = request.GET.get("entity_type", "")
 
         if not entity_id or not entity_type:
-            return render(request, cls.view, {
-                "panel": panel,
-                "editor_obj": None,
-                "editor_form": None,
-                "editor_error": "No subject configured.",
-            })
+            return render(
+                request,
+                cls.view,
+                {
+                    "panel": panel,
+                    "editor_obj": None,
+                    "editor_form": None,
+                    "editor_error": "No subject configured.",
+                },
+            )
 
         from tap_grid.registry import get_model_class
         from tap_web.registry import get_editor
@@ -71,31 +75,43 @@ class EditorPanelType:
         try:
             model_cls = get_model_class(entity_type)
             obj = model_cls.objects.select_related("entity").get(entity__pk=entity_id)
-        except (KeyError, Exception):
-            return render(request, cls.view, {
-                "panel": panel,
-                "editor_obj": None,
-                "editor_form": None,
-                "editor_error": f"Entity '{entity_id}' not found.",
-            })
+        except KeyError, Exception:
+            return render(
+                request,
+                cls.view,
+                {
+                    "panel": panel,
+                    "editor_obj": None,
+                    "editor_form": None,
+                    "editor_error": f"Entity '{entity_id}' not found.",
+                },
+            )
 
         descriptor = get_editor(entity_type)
         if descriptor is None:
-            return render(request, cls.view, {
-                "panel": panel,
-                "editor_obj": obj,
-                "editor_form": None,
-                "editor_error": f"No editor registered for '{entity_type}'.",
-            })
+            return render(
+                request,
+                cls.view,
+                {
+                    "panel": panel,
+                    "editor_obj": obj,
+                    "editor_form": None,
+                    "editor_error": f"No editor registered for '{entity_type}'.",
+                },
+            )
 
         form_class = descriptor.get_form_class(obj)
         if form_class is None:
-            return render(request, cls.view, {
-                "panel": panel,
-                "editor_obj": obj,
-                "editor_form": None,
-                "editor_error": f"No form registered for '{entity_type}'.",
-            })
+            return render(
+                request,
+                cls.view,
+                {
+                    "panel": panel,
+                    "editor_obj": obj,
+                    "editor_form": None,
+                    "editor_error": f"No form registered for '{entity_type}'.",
+                },
+            )
 
         form = form_class(request.POST)
         editor_template = descriptor.get_editor_template(obj)

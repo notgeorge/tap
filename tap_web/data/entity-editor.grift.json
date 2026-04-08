@@ -1,0 +1,158 @@
+{
+  "metadata": {
+    "grift_version": "0",
+    "description": "Synthetic entity editor page — graph context and typed editor form."
+  },
+  "nodes": [
+    {
+      "entity": {
+        "entity_id": "synthetic:search:entity-neighborhood",
+        "entity_type": "search",
+        "name": "Entity Neighborhood"
+      },
+      "node": {
+        "name": "Entity Neighborhood",
+        "description": "Hub-and-spoke neighborhood graph for a single entity.",
+        "search_type": "gryphon",
+        "root": "node",
+        "definition": {
+          "query": [
+            "MATCH (hub)-[e]-(neighbor)",
+            "WHERE hub.entity_id = $entity_id",
+            "RETURN hub, e, neighbor"
+          ]
+        },
+        "input_schema": {
+          "type": "object",
+          "required": ["entity_id"],
+          "properties": {
+            "entity_id": {"type": "string"}
+          }
+        },
+        "default_limit": 200,
+        "max_limit": 500
+      }
+    },
+    {
+      "entity": {
+        "entity_id": "synthetic:layout:entity-neighborhood",
+        "entity_type": "layout",
+        "name": "Entity Neighborhood Layout"
+      },
+      "node": {
+        "name": "Entity Neighborhood Layout",
+        "description": "Layout for the entity neighborhood graph panel.",
+        "definition": {
+          "inputs": [],
+          "steps": [{"type": "search", "search-id": "main"}],
+          "presentation": {"placement": "cytoscape:cose"},
+          "interactions": {}
+        }
+      }
+    },
+    {
+      "entity": {
+        "entity_id": "synthetic:panel:entity-graph",
+        "entity_type": "panel",
+        "name": "Entity Graph"
+      },
+      "node": {
+        "slug": "entity-neighborhood-graph",
+        "name": "Entity Graph",
+        "view": "tap_viz/panels/graph_panel.html",
+        "js": ["tap_viz/js/cytoscape.min.js", "tap_viz/js/panel-graph.js"],
+        "css": ["tap_viz/css/panel-graph.css"],
+        "config": {}
+      }
+    },
+    {
+      "entity": {
+        "entity_id": "synthetic:panel:entity-editor",
+        "entity_type": "panel",
+        "name": "Entity Editor"
+      },
+      "node": {
+        "slug": "entity-editor",
+        "name": "Entity Editor",
+        "view": "tap_web/panels/editor_panel.html",
+        "config": {}
+      }
+    },
+    {
+      "entity": {
+        "entity_id": "synthetic:page:entity-editor",
+        "entity_type": "page",
+        "name": "Entity Editor"
+      },
+      "node": {
+        "name": "Entity Editor",
+        "slug": "/__entity-editor",
+        "layout": {
+          "columns": {
+            "col-1": {
+              "width": "1fr",
+              "rows": {
+                "row-1": {"panel-id": "graph"},
+                "row-2": {"panel-id": "editor"}
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "entity": {
+        "entity_id": "synthetic:edge:layout-uses-search",
+        "entity_type": "edge",
+        "name": "USES_SEARCH"
+      },
+      "edge": {
+        "from_entity_id": "synthetic:layout:entity-neighborhood",
+        "to_entity_id": "synthetic:search:entity-neighborhood",
+        "edge_type": "USES_SEARCH",
+        "properties": {"search-id": "main"}
+      }
+    },
+    {
+      "entity": {
+        "entity_id": "synthetic:edge:graph-panel-uses-layout",
+        "entity_type": "edge",
+        "name": "USES_LAYOUT"
+      },
+      "edge": {
+        "from_entity_id": "synthetic:panel:entity-graph",
+        "to_entity_id": "synthetic:layout:entity-neighborhood",
+        "edge_type": "USES_LAYOUT",
+        "properties": {"layout-id": "default"}
+      }
+    },
+    {
+      "entity": {
+        "entity_id": "synthetic:edge:editor-page-uses-graph",
+        "entity_type": "edge",
+        "name": "USES_PANEL"
+      },
+      "edge": {
+        "from_entity_id": "synthetic:page:entity-editor",
+        "to_entity_id": "synthetic:panel:entity-graph",
+        "edge_type": "USES_PANEL",
+        "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "graph"}}
+      }
+    },
+    {
+      "entity": {
+        "entity_id": "synthetic:edge:editor-page-uses-editor",
+        "entity_type": "edge",
+        "name": "USES_PANEL"
+      },
+      "edge": {
+        "from_entity_id": "synthetic:page:entity-editor",
+        "to_entity_id": "synthetic:panel:entity-editor",
+        "edge_type": "USES_PANEL",
+        "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "editor"}}
+      }
+    }
+  ]
+}

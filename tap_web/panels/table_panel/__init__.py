@@ -22,9 +22,10 @@ Config schema:
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import TYPE_CHECKING, Any
+
+from tap_web.utils import safe_json
 
 import jsonschema  # type: ignore[import-untyped]
 from django import forms
@@ -150,7 +151,7 @@ class TablePanelType:
                 "table_nodes": [],
                 "table_meta": {},
                 "table_search": None,
-                "table_nodes_json": _safe_json([]),
+                "table_nodes_json": safe_json([]),
                 "table_error": "No search linked to this panel.",
             }
 
@@ -168,7 +169,7 @@ class TablePanelType:
                 "table_nodes": [],
                 "table_meta": {},
                 "table_search": search,
-                "table_nodes_json": _safe_json([]),
+                "table_nodes_json": safe_json([]),
                 "table_error": f"Search execution failed: {exc}",
             }
 
@@ -196,7 +197,7 @@ class TablePanelType:
             "table_nodes": nodes,
             "table_meta": meta,
             "table_search": search,
-            "table_nodes_json": _safe_json(nodes),
+            "table_nodes_json": safe_json(nodes),
             "table_error": None,
         }
 
@@ -266,15 +267,6 @@ class TablePanelType:
                 )
 
 
-def _safe_json(value: Any) -> str:
-    """Serialize value to a JSON string safe for embedding in HTML script blocks.
-
-    Escapes <, >, and & so the JSON can be used with {{ json_str|safe }}
-    inside a <script type="application/json"> block without risking premature
-    tag termination. Mirrors the escaping performed by Django's json_script filter.
-    """
-    raw = json.dumps(value)
-    return raw.replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
 
 
 def _safe_int(value: Any, default: int) -> int:

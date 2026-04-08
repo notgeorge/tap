@@ -71,11 +71,15 @@ def panel_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
         extra_ctx: dict = {}
         if panel_type and hasattr(panel_type, "get_view_context"):
             extra_ctx = panel_type.get_view_context(panel, request) or {}
-        return render(request, panel.view, {
-            "panel": panel,
-            "edit_url": f"/panel/{panel_url_id}/edit/",
-            **extra_ctx,
-        })
+        return render(
+            request,
+            panel.view,
+            {
+                "panel": panel,
+                "edit_url": f"/panel/{panel_url_id}/edit/",
+                **extra_ctx,
+            },
+        )
     except Exception as exc:  # noqa: BLE001
         logger.exception("Error rendering panel %s (view=%s)", entity_uuid, panel.view)
         return _panel_error(request, str(exc))
@@ -174,9 +178,10 @@ def object_edit_view(request: HttpRequest, entity_type: str, object_url_id: str)
     """Generic editor for any registered TAP entity type.
 
     URL format: /object/<entity-type>/<slug>--<entity-uuid>/edit/
-    Uses the GRIFT-defined /__entity-editor page when available (GET only —
-    POST is handled by the EditorPanelType via the panel endpoint). Falls back
-    to the legacy monolithic editor.html template.
+    GET renders via the synthetic page builder using the entity-editor GRIFT
+    subgraph. POST is handled by the EditorPanelType via the panel endpoint
+    when using persisted pages; for synthetic pages, POST falls back to the
+    legacy editor path since synthetic panels are rendered inline.
     """
     from tap_grid.registry import get_model_class
 
@@ -194,26 +199,32 @@ def object_edit_view(request: HttpRequest, entity_type: str, object_url_id: str)
     except model_cls.DoesNotExist:
         raise Http404(f"{entity_type} '{entity_uuid}' not found.")
 
-    # Try GRIFT-defined editor page (GET only — POST goes through panel HTMX).
-    if request.method == "GET":
-        page = get_page_by_slug("/__entity-editor")
-        if page is not None:
-            return _render_page(request, page, extra_query_params={
-                "entity_id": str(entity_uuid),
-                "entity_type": entity_type,
-                "subject_entity_id": str(entity_uuid),
-            })
+    # POST: handle form submission directly (synthetic panels render inline,
+    # so the editor panel's HTMX post targets the object edit URL).
+    if request.method == "POST":
+        return _handle_object_edit_post(request, obj, entity_type, object_url_id)
 
-    # Legacy fallback.
-    return _legacy_object_edit_view(request, obj, entity_type, object_url_id)
+    # GET: render via synthetic page builder.
+    from tap_web.synthetic import load_subgraph, render_synthetic_page
+
+    subgraph = load_subgraph("entity-editor")
+    return render_synthetic_page(
+        request,
+        subgraph,
+        extra_query_params={
+            "entity_id": str(entity_uuid),
+            "entity_type": entity_type,
+            "subject_entity_id": str(entity_uuid),
+        },
+    )
 
 
 def object_view(request: HttpRequest, entity_type: str, object_url_id: str) -> HttpResponse:
     """Generic viewer for any registered TAP entity type.
 
     URL format: /object/<entity-type>/<slug>--<entity-uuid>/
-    Uses the GRIFT-defined /__entity-viewer page when available, with fallback
-    to the legacy monolithic viewer.html template.
+    Renders via the synthetic page builder using the entity-viewer GRIFT
+    subgraph in tap_web/data/.
     """
     from tap_grid.registry import get_model_class
 
@@ -227,31 +238,31 @@ def object_view(request: HttpRequest, entity_type: str, object_url_id: str) -> H
         raise Http404(f"Unknown entity type '{entity_type}'.")
 
     try:
-        obj = model_cls.objects.select_related("entity").get(entity__pk=entity_uuid)
+        model_cls.objects.select_related("entity").get(entity__pk=entity_uuid)
     except model_cls.DoesNotExist:
         raise Http404(f"{entity_type} '{entity_uuid}' not found.")
 
-    # Try GRIFT-defined viewer page.
-    page = get_page_by_slug("/__entity-viewer")
-    if page is not None:
-        return _render_page(request, page, extra_query_params={
+    from tap_web.synthetic import load_subgraph, render_synthetic_page
+
+    subgraph = load_subgraph("entity-viewer")
+    return render_synthetic_page(
+        request,
+        subgraph,
+        extra_query_params={
             "entity_id": str(entity_uuid),
             "entity_type": entity_type,
             "subject_entity_id": str(entity_uuid),
-        })
-
-    # Legacy fallback — monolithic viewer.html.
-    return _legacy_object_view(request, obj, entity_type, object_url_id)
+        },
+    )
 
 
-def _legacy_object_edit_view(
+def _handle_object_edit_post(
     request: HttpRequest,
     obj: Any,
     entity_type: str,
     object_url_id: str,
 ) -> HttpResponse:
-    """Legacy monolithic editor — used when GRIFT /__entity-editor page is not imported."""
-    from tap_web.neighborhood import get_entity_neighborhood  # noqa: F811
+    """Handle POST for the generic object editor — validate and save via EditorDescriptor."""
     from tap_web.registry import get_editor
 
     descriptor = get_editor(entity_type)
@@ -259,110 +270,31 @@ def _legacy_object_edit_view(
         raise Http404(f"No editor registered for entity type '{entity_type}'.")
 
     form_class = descriptor.get_form_class(obj)
-    editor_template = descriptor.get_editor_template(obj)
-    view_url = f"/object/{entity_type}/{object_url_id}/"
-
     if form_class is None:
         override = descriptor.get_extra_context(obj).get("edit_url_override")
         if override:
             return redirect(override)
         raise Http404(f"No form registered for entity type '{entity_type}'.")
 
-    if request.method == "POST":
-        form = form_class(request.POST)
-        if form.is_valid():
-            descriptor.handle_save(form, obj, request)
-            return redirect("object-edit", entity_type=entity_type, object_url_id=object_url_id)
-        graph_ctx = get_entity_neighborhood(obj.entity_id)
-        ctx = {
-            "obj": obj,
-            "obj_name": str(obj),
+    form = form_class(request.POST)
+    if form.is_valid():
+        descriptor.handle_save(form, obj, request)
+        return redirect("object-edit", entity_type=entity_type, object_url_id=object_url_id)
+
+    # Validation failed — re-render the synthetic editor page with errors.
+    # The editor panel will pick up form errors from the re-rendered context.
+    from tap_web.synthetic import load_subgraph, render_synthetic_page
+
+    subgraph = load_subgraph("entity-editor")
+    return render_synthetic_page(
+        request,
+        subgraph,
+        extra_query_params={
+            "entity_id": str(obj.entity_id),
             "entity_type": entity_type,
-            "object_url_id": object_url_id,
-            "form": form,
-            "editor_template": editor_template,
-            "editor_css_assets": [],
-            "editor_js_assets": [],
-            "config_json": None,
-            "config_error": "",
-            "view_url": view_url,
-            **(descriptor.get_extra_context(obj) or {}),
-            **graph_ctx,
-        }
-        return render(request, "tap_web/editor.html", ctx)
-
-    initial = descriptor.get_editor_initial(obj)
-    form = form_class(initial=initial)
-    graph_ctx = get_entity_neighborhood(obj.entity_id)
-    ctx = {
-        "obj": obj,
-        "obj_name": str(obj),
-        "entity_type": entity_type,
-        "object_url_id": object_url_id,
-        "form": form,
-        "editor_template": editor_template,
-        "editor_css_assets": [],
-        "editor_js_assets": [],
-        "config_json": None,
-        "config_error": "",
-        "view_url": view_url,
-        **(descriptor.get_extra_context(obj) or {}),
-        **graph_ctx,
-    }
-    return render(request, "tap_web/editor.html", ctx)
-
-
-def _legacy_object_view(
-    request: HttpRequest,
-    obj: Any,
-    entity_type: str,
-    object_url_id: str,
-) -> HttpResponse:
-    """Legacy monolithic viewer — used when GRIFT /__entity-viewer page is not imported."""
-    from tap_web.neighborhood import get_entity_neighborhood
-    from tap_web.registry import get_editor
-
-    descriptor = get_editor(entity_type)
-
-    field_pairs: list[tuple[str, Any]] = []
-    if descriptor is not None:
-        initial = descriptor.get_editor_initial(obj)
-        form_class = descriptor.get_form_class(obj)
-        if form_class is not None:
-            form = form_class(initial=initial)
-            for name, field in form.fields.items():
-                label = str(field.label or name.replace("_", " ").title())
-                value = initial.get(name, "")
-                field_pairs.append((label, value))
-
-    extra = descriptor.get_extra_context(obj) if descriptor else {}
-    edit_url = extra.pop("edit_url_override", f"/object/{entity_type}/{object_url_id}/edit/")
-
-    graph_ctx = get_entity_neighborhood(obj.entity_id)
-
-    flip_ctx: dict[str, Any] = {}
-    try:
-        from tap_grid.flip import is_flip_enabled
-        from tap_web.panels.flip_panel import get_flip_context_for_entity
-
-        model_cls = type(obj)
-        if is_flip_enabled(model_cls):
-            flip_ctx = get_flip_context_for_entity(str(obj.entity_id))
-    except Exception:  # noqa: BLE001
-        pass
-
-    ctx = {
-        "obj": obj,
-        "obj_name": str(obj),
-        "entity_type": entity_type,
-        "object_url_id": object_url_id,
-        "field_pairs": field_pairs,
-        "edit_url": edit_url,
-        **graph_ctx,
-        **extra,
-        **flip_ctx,
-    }
-    return render(request, "tap_web/viewer.html", ctx)
+            "subject_entity_id": str(obj.entity_id),
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -379,10 +311,9 @@ def _panel_editor_context(
 ) -> dict:
     """Build template context for the panel editor page."""
     from tap_web.models import Panel
-    from tap_web.neighborhood import get_entity_neighborhood
 
     assert isinstance(panel, Panel)
-    graph_ctx = get_entity_neighborhood(panel.entity_id)
+    graph_ctx = _get_neighborhood_context(panel.entity_id)
     editor_css: dict[str, None] = dict.fromkeys(panel.editor_css or [])
     editor_js: dict[str, None] = dict.fromkeys(panel.editor_js or [])
     view_url = f"/object/panel/{panel.slug}--{panel.entity_id}/"
@@ -413,9 +344,7 @@ def _object_editor_context(
     extra: dict | None = None,
 ) -> dict:
     """Build template context for the generic object editor page."""
-    from tap_web.neighborhood import get_entity_neighborhood
-
-    graph_ctx = get_entity_neighborhood(obj.entity_id)
+    graph_ctx = _get_neighborhood_context(obj.entity_id)
     return {
         "obj": obj,
         "obj_name": str(obj),
@@ -430,6 +359,59 @@ def _object_editor_context(
         "view_url": view_url,
         **(extra or {}),
         **graph_ctx,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Graph context helper (replaces neighborhood.py)
+# ---------------------------------------------------------------------------
+
+
+def _get_neighborhood_context(entity_id: object) -> dict[str, Any]:
+    """Return Cytoscape graph context for the panel/object editor templates.
+
+    Executes a transient gryphon hub-and-spoke search using the same Search
+    definition as the synthetic entity page subgraph.
+    """
+    from tap_grid.models import Search
+    from tap_grid.search import execute_search
+    from tap_web.utils import safe_json
+
+    search = Search(
+        search_type="gryphon",
+        root="node",
+        name="hub-and-spoke",
+        definition={
+            "query": [
+                "MATCH (hub)-[e]-(neighbor)",
+                "WHERE hub.entity_id = $entity_id",
+                "RETURN hub, e, neighbor",
+            ]
+        },
+        default_limit=200,
+        max_limit=500,
+    )
+    try:
+        result = execute_search(search, inputs={"entity_id": str(entity_id)}, layer="extended")
+        envelope = result.get("results", result)
+        nodes_raw = envelope.get("nodes", [])
+        edges_raw = envelope.get("edges", [])
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("hub-and-spoke search failed for entity %s", entity_id)
+        return {
+            "graph_nodes_json": safe_json([]),
+            "graph_edges_json": safe_json([]),
+            "graph_placement": "cytoscape:cose",
+            "graph_error": f"Graph context failed: {exc}",
+            "graph_context_id": str(entity_id),
+        }
+
+    return {
+        "graph_nodes_json": safe_json(nodes_raw),
+        "graph_edges_json": safe_json(edges_raw),
+        "graph_placement": "cytoscape:cose",
+        "graph_error": None,
+        "graph_context_id": str(entity_id),
     }
 
 
@@ -541,19 +523,23 @@ def _process_layout(layout: dict, panels_by_id: dict[str, str]) -> list[dict]:
         processed_rows: list[dict] = []
         for row_key, row_data in rows:
             panel_id = row_data.get("panel-id", "")
-            processed_rows.append({
-                "key": row_key,
-                "panel_id": panel_id,
-                "panel_url_id": panels_by_id.get(panel_id),
-                "row_span": row_data.get("row_span", 1),
-                "col_span": row_data.get("col_span", 1),
-            })
+            processed_rows.append(
+                {
+                    "key": row_key,
+                    "panel_id": panel_id,
+                    "panel_url_id": panels_by_id.get(panel_id),
+                    "row_span": row_data.get("row_span", 1),
+                    "col_span": row_data.get("col_span", 1),
+                }
+            )
 
-        processed.append({
-            "key": col_key,
-            "width": col_data.get("width", "1fr"),
-            "rows": processed_rows,
-        })
+        processed.append(
+            {
+                "key": col_key,
+                "width": col_data.get("width", "1fr"),
+                "rows": processed_rows,
+            }
+        )
 
     return processed
 
@@ -567,7 +553,8 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
     from tap_grid.models import Entity as _Entity
     from tap_grid.models import Search
     from tap_grid.search import execute_search
-    from tap_web.panels.table_panel import _safe_int, _safe_json
+    from tap_web.panels.table_panel import _safe_int
+    from tap_web.utils import safe_json
 
     _SEARCH_DB = "search_readonly"
 
@@ -592,9 +579,9 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
     )
 
     _empty_ctx: dict[str, Any] = {
-        "nodes_json": _safe_json([]),
+        "nodes_json": safe_json([]),
         "meta": {},
-        "edges_json": _safe_json([]),
+        "edges_json": safe_json([]),
         "edges_meta": {},
         "table_error": None,
     }
@@ -651,13 +638,12 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
         edges_meta = {}
 
     from tap_web.panels.table_panel import _enrich_nodes_with_icons
+
     _enrich_nodes_with_icons(nodes)
 
     if edges:
         all_ids = {e["from_entity_id"] for e in edges} | {e["to_entity_id"] for e in edges}
-        names: dict[str, str] = dict(
-            _Entity.objects.using(_SEARCH_DB).filter(id__in=all_ids).values_list("id", "name")
-        )
+        names: dict[str, str] = dict(_Entity.objects.using(_SEARCH_DB).filter(id__in=all_ids).values_list("id", "name"))
         for edge in edges:
             edge["from_name"] = names.get(edge["from_entity_id"]) or edge["from_entity_id"][-8:]
             edge["to_name"] = names.get(edge["to_entity_id"]) or edge["to_entity_id"][-8:]
@@ -666,9 +652,9 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
         request,
         "tap_web/setup_placeholder.html",
         {
-            "nodes_json": _safe_json(nodes),
+            "nodes_json": safe_json(nodes),
             "meta": meta,
-            "edges_json": _safe_json(edges),
+            "edges_json": safe_json(edges),
             "edges_meta": edges_meta,
             "table_error": None,
         },

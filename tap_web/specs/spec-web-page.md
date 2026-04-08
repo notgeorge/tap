@@ -32,7 +32,7 @@ Future:
 | req-web-page-sanitize.sec | [Page Object Sanitization](#page-object-sanitization) | Implemented | Schema-first input hardening plus safe HTML output escaping |
 | req-web-page-plink | [Page to Panel Links](#page-to-panel-links) | Implemented | `USES_PANEL` links bind `panel-id` slots to panel nodes |
 | req-web-page-landing | [Landing Pages](#landing-pages) | Proposed | Landing-page indirection for root URL |
-| req-web-page-ephemeral | [Ephemeral Pages](#ephemeral-pages) | Backlog | On-the-fly page generation from a layout descriptor without persisting Page or Panel objects |
+| req-web-page-synthetic | [Synthetic Pages](#synthetic-pages) | Implemented | GRIFT-subgraph-driven page rendering without persisting Page or Panel objects |
 | req-web-page-params | [Page Variables](#page-variables) | Proposed | URL-backed `tap_page_vars` provide canonical shared page state |
 | req-web-page-local | [Page Persistent Variables](#page-persistent-variables) | Proposed | In-memory `tap_page_persistent_vars` allow panels to reuse derived data and results |
 | req-web-page-coord | [Page Variable Coordinator](#page-variable-coordinator) | Proposed | Small page-level JavaScript coordinator resolves variable mappings and dispatches panel input updates |
@@ -479,8 +479,8 @@ Handle multiple landing pages more efficiently - maybe with some sort of constra
 - Root query params are passed through unchanged to rendered page context.
 
 **Misconfiguration behavior**
-- If no `LandingPage` object exists, render setup placeholder.
-- If selected `LandingPage` exists but target Page is missing/invalid, render setup placeholder.
+- If no `LandingPage` object exists, return a simple setup message or 404. The previous `_render_grid_placeholder` (a standalone rendering pipeline in `views.py` with its own transient searches and custom template) is deprecated; landing page provisioning is the responsibility of a plugin such as administrivia.
+- If selected `LandingPage` exists but target Page is missing/invalid, return a simple error or 404.
 
 | Future ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
@@ -493,40 +493,61 @@ Handle multiple landing pages more efficiently - maybe with some sort of constra
 | req-web-page-landing-9 | Invalid Target Placeholder | Proposed | If selected landing target is missing/invalid, root route renders setup placeholder. | |
 
 
-### Ephemeral Pages
+### Synthetic Pages
 ----
-RID: `req-web-page-ephemeral`
-Status: `Backlog`
+RID: `req-web-page-synthetic`
+Status: `Implemented`
 
-An ephemeral page is a fully rendered TAP Web page produced from a layout descriptor without creating or persisting any Page, Panel, or LandingPage objects in the grid.
+An synthetic page is a fully rendered TAP Web page produced from a GRIFT subgraph without creating or persisting any Page, Panel, or LandingPage objects in the grid.
 
 #### Status Details
-Tracked explicitly so the current `_render_grid_placeholder` approach (a separate rendering pipeline in `views.py`) can be replaced with a single, principled ephemeral-page path. Also provides the foundation for AI-generated pages.
+This requirement was originally drafted before the GRIFT format existed. The rewrite below replaces the earlier `SyntheticPageDescriptor` concept with GRIFT subgraphs as the native descriptor format. Because GRIFT subgraphs already carry typed node payloads, edges, and entity metadata, they serve as a complete page composition blueprint without needing a parallel schema.
 
 #### Implementation
-- An ephemeral page is driven entirely by an in-memory `EphemeralPageDescriptor` — a plain data structure that mirrors the Page layout schema and carries enough panel configuration to render each slot without DB-backed Panel nodes.
-- The descriptor is structurally compatible with the existing layout JSON schema (`req-web-page-layout-sanitize.sec`) so the same rendering logic handles both.
-- Ephemeral pages use transient (unsaved) model instances or plain config dicts in place of Panel objects; no write to the grid occurs.
-- The root-route setup placeholder (`_render_grid_placeholder`) is replaced by an ephemeral page that auto-generates a standard nodes + edges layout.
-- Ephemeral pages are not assigned slugs and are not accessible via `/page/<slug>` routing.
-- An ephemeral page may be "promoted" — saved as real Page and Panel objects — by an explicit save action, but promotion is not required.
-- The AI assistant layer (`tap_ai`) will use ephemeral pages to materialise dynamically generated layouts in response to user requests before offering to promote them.
+
+**Descriptor format is a GRIFT subgraph.**
+An synthetic page is defined by a standard GRIFT subgraph (`{"nodes": [...], "edges": [...]}`) containing the full composition chain needed to render a page: Page, Panel, Search, and optionally Layout nodes, connected by standard edge types (USES_PANEL, USES_SEARCH, USES_LAYOUT). The subgraph follows the same GRIFT node/edge object format used by the import pipeline — same entity envelopes, same typed payloads. No new schema is needed.
+
+**Synthetic page builder.**
+`tap_web` provides an synthetic page builder that accepts a GRIFT subgraph and returns a rendered HTTP response. The builder:
+
+1. Parses the subgraph and resolves the node and edge graph in memory.
+2. Identifies the Page node and its layout.
+3. Follows USES_PANEL edges to find panels for each layout slot.
+4. For each panel, follows USES_SEARCH and USES_LAYOUT edges in the in-memory graph to resolve the panel's data dependencies.
+5. Executes searches through the standard search service (searches read from the database — only the page composition is synthetic).
+6. Calls the registered PanelType's rendering logic with the resolved context.
+7. Renders panel fragments inline (server-side) rather than emitting HTMX `hx-get` stubs that would require DB-backed panel lookup.
+
+**Inline panel rendering.**
+Synthetic panels are rendered server-side during page assembly. The page template includes rendered panel HTML directly in each layout slot rather than HTMX callbacks to `/panel/<slug>--<uuid>/`. This avoids the need for synthetic panels to be addressable by UUID. Persisted pages continue to use HTMX panel loading.
+
+**Callers.**
+Any view or service that needs to render a page from a GRIFT subgraph calls the synthetic page builder. The first consumers are the entity viewer and editor views (`object_view`, `object_edit_view`), which use synthetic subgraphs defined in `tap_web/data/` to render default entity pages without requiring any plugin to be installed.
+
+**No grid writes.**
+Rendering an synthetic page does not create, modify, or delete any node or edge in the grid. The GRIFT subgraph is a read-only composition blueprint. Searches executed during rendering are read-only database operations routed through the standard search service.
+
+**Not routable by slug.**
+Synthetic pages are not assigned slugs and are not accessible via `/<page_slug>` routing. They are rendered programmatically by views that construct or load a subgraph for a specific purpose.
 
 #### Development
-Design the `EphemeralPageDescriptor` contract before implementation so that `tap_ai` can generate descriptors without knowing rendering internals. Keep the descriptor serializable to JSON so AI-generated pages can round-trip over an API boundary.
+The GRIFT subgraph format is already JSON-serializable, which means future consumers (AI agents, API endpoints) can generate synthetic page definitions without knowing rendering internals. Keep the builder's contract simple: subgraph in, response out.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-page-ephemeral-1 | Descriptor Contract | Backlog | An `EphemeralPageDescriptor` schema is defined and structurally compatible with the existing layout schema. | |
-| req-web-page-ephemeral-2 | No Grid Writes | Backlog | Rendering an ephemeral page does not create or modify any Page, Panel, or LandingPage node. | |
-| req-web-page-ephemeral-3 | Setup Placeholder Replaced | Backlog | The root-route fallback (`_render_grid_placeholder`) is replaced by an ephemeral page using the standard rendering pipeline. | |
-| req-web-page-ephemeral-4 | Promotion Path | Backlog | An ephemeral page can be promoted to persistent Page and Panel objects via an explicit save action. | |
-| req-web-page-ephemeral-5 | AI Descriptor Generation | Backlog | `tap_ai` can produce an `EphemeralPageDescriptor` that the ephemeral page renderer accepts without modification. | |
+| req-web-page-synthetic-1 | GRIFT Subgraph Descriptor | Implemented | Synthetic pages are defined by standard GRIFT subgraphs containing Page, Panel, Search, and edge nodes. No custom descriptor schema. | `tap_web/data/entity-viewer.grift.json`, `tap_web/data/entity-editor.grift.json` |
+| req-web-page-synthetic-2 | No Grid Writes | Implemented | Rendering a synthetic page does not create or modify any Page, Panel, or LandingPage node. | `SyntheticGraph` resolves in memory; searches use read-only DB alias |
+| req-web-page-synthetic-3 | Inline Panel Rendering | Implemented | Synthetic panels are rendered server-side inline rather than via HTMX callbacks to DB-backed panel endpoints. | `render_to_string` in `_render_synthetic_panel`; `synthetic_page.html` uses `{{ row.rendered_html\|safe }}` |
+| req-web-page-synthetic-4 | Synthetic Page Builder | Implemented | `tap_web` provides a builder that accepts a GRIFT subgraph and returns a rendered page response. | `tap_web/synthetic.py`: `render_synthetic_page()` |
+| req-web-page-synthetic-5 | Entity Pages Use Synthetic Builder | Implemented | The default entity viewer and editor are rendered via the synthetic page builder using GRIFT subgraphs defined in `tap_web/data/`. | `object_view` and `object_edit_view` in `tap_web/views.py` |
 
 #### Future
-Define security constraints for AI-generated descriptors — field allowlists, panel type restrictions, and promotion approval flow before any user-facing save action is permitted.
+- **Promotion:** An synthetic page may be "promoted" — saved as persistent Page and Panel objects — by writing the GRIFT subgraph to the grid through the standard import pipeline. Promotion is an explicit save action, not automatic.
+- **AI generation:** `tap_ai` produces GRIFT subgraphs that the synthetic page builder accepts directly. Users can view AI-generated pages syntheticly, tweak them, and then decide whether to promote them to persistent grid objects.
+- **Security:** Define constraints for externally generated subgraphs — panel type allowlists, template path restrictions, and promotion approval flow before any user-facing save action is permitted.
 
 
 ### Page Variables

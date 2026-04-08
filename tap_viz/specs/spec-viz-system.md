@@ -28,7 +28,7 @@ The first version of this specification intentionally focuses on runtime behavio
 | req-viz-system-renderer-adapter | [Renderer Adapter Model](#renderer-adapter-model) | Proposed | Cytoscape is the initial renderer adapter, not the canonical storage format |
 | req-viz-system-readonly-runtime | [Read-Only Runtime](#read-only-runtime) | Proposed | The viz runtime is view-oriented and non-mutating in v1 |
 | req-viz-system-legacy-layout-deprecation | [Legacy Layout Deprecation](#legacy-layout-deprecation) | Proposed | Existing raw Cytoscape layout storage is transitional |
-| req-viz-system-neighborhood | [Entity Neighborhood Query](#entity-neighborhood-query) | Backlog | Neighborhood retrieval should use search DSL; current helper is a pre-search holdover |
+| req-viz-system-neighborhood | [Entity Neighborhood Query](#entity-neighborhood-query) | Deprecated | Replaced by synthetic page builder; `neighborhood.py` removed |
 
 ### System Boundaries
 ----
@@ -319,33 +319,24 @@ Define an explicit migration strategy once the new layout model and editor are i
 ### Entity Neighborhood Query
 ----
 RID: `req-viz-system-neighborhood`
-Status: `Backlog`
+Status: `Deprecated`
 
 A common viz need is retrieving all nodes directly connected to a given entity — its one-hop neighborhood — for rendering in object viewers and context panels.
 
 #### Status Details
-Currently implemented as `tap_web/neighborhood.py` (`get_entity_neighborhood()`), which queries edges directly via the ORM rather than going through the TAP search system. This is a web-layer convenience helper that predates the search system and is not a service-layer contract.
+Deprecating. The `tap_web/neighborhood.py` helper was a transitional adapter that constructed a transient gryphon-backed Search to provide Cytoscape context for legacy viewer/editor shells. This is now superseded by the synthetic page builder (`req-web-page-synthetic`), which renders entity viewer and editor pages from GRIFT subgraphs that carry their own Search definitions. The neighborhood query still exists — it lives as a persisted Search node inside the entity page GRIFT subgraph — but the adapter module and legacy fallback views that consumed it are no longer needed.
 
-The correct long-term home for this is the search system. However, the TAP search system does not yet have a clean mechanism for expressing "get all nodes and edges one hop from this node" without writing a full module runner implementation. Until the ORM search DSL supports that query shape natively, the neighborhood helper is retained as a web-layer implementation detail.
-
-#### Implementation
-When the search DSL supports single-hop neighborhood traversal without a custom module runner:
-
-- `tap_web/neighborhood.py` should be refactored to execute a Search rather than a raw ORM query.
-- The neighborhood search definition should be expressible via the `orm` search type, not a dedicated runner.
-- `get_entity_neighborhood()` becomes a thin wrapper that constructs the Search and calls `execute_search()`.
-
-Until then, `tap_web/neighborhood.py` is explicitly flagged as a pre-search-system holdover. It should not be extended or copied as a pattern.
+#### Deprecation Path
+- `tap_web/neighborhood.py` and its `get_entity_neighborhood()` function are removed.
+- The legacy viewer/editor fallback views (`_legacy_object_view`, `_legacy_object_edit_view`) that called the neighborhood helper are replaced by the synthetic page builder.
+- The gryphon hub-and-spoke neighborhood query is preserved as a Search node in the entity page GRIFT subgraph defined in `tap_web/data/`.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-system-neighborhood-1 | Neighborhood Query Uses Search | Backlog | Entity neighborhood retrieval is expressed as a TAP Search, not a raw ORM query. | Blocked on ORM DSL single-hop support |
-| req-viz-system-neighborhood-2 | Legacy Neighborhood Helper Replaced | Backlog | `tap_web/neighborhood.py` is refactored to use search execution after the DSL supports it. | |
-
-#### Future
-Add single-hop and multi-hop neighborhood query support to the ORM search DSL (`spec-grid-search.md`) so this can be unblocked.
+| req-viz-system-neighborhood-1 | Neighborhood Query Uses Search | Deprecated | Entity neighborhood retrieval was expressed as a TAP Search. Now carried as a Search node in the entity page GRIFT subgraph rather than constructed in Python code. | |
+| req-viz-system-neighborhood-2 | Neighborhood Helper Is Thin Adapter | Deprecated | `tap_web/neighborhood.py` is removed; its role is replaced by the synthetic page builder. | |
 
 
 ## Deferred Areas

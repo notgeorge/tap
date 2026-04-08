@@ -44,7 +44,7 @@ class TestLandingView:
         assert b"/admin/" in response.content
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
 class TestObjectEditorView:
     """Generic /object/<type>/<slug>--<uuid>/edit/ editor shell for registered entity types."""
 
@@ -53,7 +53,7 @@ class TestObjectEditorView:
 
         entity = Entity.objects.create(entity_type="character", name=name)
         with _batch_ctx(source="test:setup"):
-            char = Character.objects.create(entity=entity, name="Gandalf", bio="A wizard.")
+            char = Character.objects.create(entity=entity, name=name, bio="A wizard.")
         url_id = f"{name.lower().replace(' ', '-')}--{entity.pk}"
         return char, url_id
 
@@ -62,10 +62,16 @@ class TestObjectEditorView:
         response = Client().get(f"/object/character/{url_id}/edit/")
         assert response.status_code == 200
 
-    def test_get_uses_editor_template(self):
+    def test_get_uses_synthetic_page(self):
         _, url_id = self._make_character()
         response = Client().get(f"/object/character/{url_id}/edit/")
-        assert "tap_web/editor.html" in [t.name for t in response.templates]
+        assert "tap_web/synthetic_page.html" in [t.name for t in response.templates]
+
+    def test_get_includes_editor_panel(self):
+        _, url_id = self._make_character()
+        response = Client().get(f"/object/character/{url_id}/edit/")
+        template_names = [t.name for t in response.templates]
+        assert "tap_web/panels/editor_panel.html" in template_names
 
     def test_get_includes_typed_editor_template(self):
         _, url_id = self._make_character()
@@ -99,7 +105,7 @@ class TestObjectEditorView:
         _, url_id = self._make_character()
         response = Client().post(f"/object/character/{url_id}/edit/", {"name": "", "title": "", "bio": ""})
         assert response.status_code == 200
-        assert b"tap_web/editor.html" in bytes(str([t.name for t in response.templates]), "utf-8")
+        assert "tap_web/synthetic_page.html" in [t.name for t in response.templates]
 
     def test_unknown_entity_type_returns_404(self):
         response = Client().get("/object/unknown-type/some-slug--00000000-0000-0000-0000-000000000000/edit/")
@@ -110,7 +116,7 @@ class TestObjectEditorView:
         assert response.status_code == 404
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
 class TestObjectViewerView:
     """Generic /object/<type>/<slug>--<uuid>/ viewer shell."""
 
@@ -128,10 +134,16 @@ class TestObjectViewerView:
         response = Client().get(f"/object/character/{url_id}/")
         assert response.status_code == 200
 
-    def test_get_uses_viewer_template(self):
+    def test_get_uses_synthetic_page(self):
         _, url_id = self._make_character()
         response = Client().get(f"/object/character/{url_id}/")
-        assert "tap_web/viewer.html" in [t.name for t in response.templates]
+        assert "tap_web/synthetic_page.html" in [t.name for t in response.templates]
+
+    def test_get_includes_viewer_panel(self):
+        _, url_id = self._make_character()
+        response = Client().get(f"/object/character/{url_id}/")
+        template_names = [t.name for t in response.templates]
+        assert "tap_web/panels/viewer_panel.html" in template_names
 
     def test_get_renders_character_name(self):
         _, url_id = self._make_character(name="Legolas")
@@ -142,6 +154,18 @@ class TestObjectViewerView:
         _, url_id = self._make_character()
         response = Client().get(f"/object/character/{url_id}/")
         assert b"/edit/" in response.content
+
+    def test_viewer_includes_graph_panel(self):
+        _, url_id = self._make_character()
+        response = Client().get(f"/object/character/{url_id}/")
+        template_names = [t.name for t in response.templates]
+        assert "tap_viz/panels/graph_panel.html" in template_names
+
+    def test_viewer_includes_flip_panel(self):
+        _, url_id = self._make_character()
+        response = Client().get(f"/object/character/{url_id}/")
+        template_names = [t.name for t in response.templates]
+        assert "tap_web/panels/flip_panel.html" in template_names
 
     def test_unknown_entity_type_returns_404(self):
         response = Client().get("/object/unknown-type/some-slug--00000000-0000-0000-0000-000000000000/")

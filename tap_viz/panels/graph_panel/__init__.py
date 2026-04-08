@@ -21,9 +21,10 @@ Read-only: no graph or layout mutation occurs in this panel.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import TYPE_CHECKING, Any
+
+from tap_web.utils import safe_json
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -95,8 +96,8 @@ class GraphPanelType:
         placement = layout.definition.get("presentation", {}).get("placement", "cytoscape:cose")
 
         return {
-            "graph_nodes_json": _safe_json(list(nodes.values())),
-            "graph_edges_json": _safe_json(list(edges.values())),
+            "graph_nodes_json": safe_json(list(nodes.values())),
+            "graph_edges_json": safe_json(list(edges.values())),
             "graph_placement": placement,
             "graph_error": None,
         }
@@ -156,16 +157,10 @@ def _get_layout_searches(layout: Any) -> list[Any]:
     return results
 
 
-def _safe_json(value: Any) -> str:
-    """Serialize value to a JSON string safe for embedding in HTML script blocks."""
-    raw = json.dumps(value)
-    return raw.replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
-
-
 def _error_ctx(message: str) -> dict[str, Any]:
     return {
-        "graph_nodes_json": _safe_json([]),
-        "graph_edges_json": _safe_json([]),
+        "graph_nodes_json": safe_json([]),
+        "graph_edges_json": safe_json([]),
         "graph_placement": "cytoscape:cose",
         "graph_error": message,
     }

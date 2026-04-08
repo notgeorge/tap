@@ -83,8 +83,8 @@ The top region should answer "what kind of thing is this in context?" before the
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-viewer-context-1 | Top Context Region Exists | Implemented | Every object viewer includes a top context region. | Graph panel on the GRIFT-defined `/__entity-viewer` page |
-| req-web-viewer-context-2 | Graph Context Is Default | Implemented | The default context region uses graph context for objects without a richer override. | Gryphon neighborhood search via graph panel |
+| req-web-viewer-context-1 | Top Context Region Exists | Implemented | Every object viewer includes a top context region. | Graph panel rendered via synthetic page builder (`req-web-page-synthetic`) using GRIFT subgraph in `tap_web/data/` |
+| req-web-viewer-context-2 | Graph Context Is Default | Implemented | The default context region uses graph context for objects without a richer override. | Gryphon neighborhood search defined in the entity viewer GRIFT subgraph; executed at render time |
 | req-web-viewer-context-3 | Type May Replace Context Surface | Proposed | Object types may replace the default graph context with a more semantically meaningful context surface. | Not yet implemented |
 | req-web-viewer-context-4 | Context Region Is Read Only | Implemented | The first viewer context region does not mutate object or graph state. | |
 
