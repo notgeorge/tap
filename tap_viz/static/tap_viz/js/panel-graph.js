@@ -16,7 +16,8 @@
 // ---------------------------------------------------------------------------
 
 // Matches: (parent:label)-[:TYPE]->(child:label) OR (parent:label)<-[:TYPE]-(child:label)
-var NESTING_PATTERN_RE = /^\(parent(?::(\w+))?\)\s*(?:-\[(?:\w+:)?(\w+)\]->\s*\(child(?::(\w+))?\)|<-\[(?:\w+:)?(\w+)\]-\s*\(child(?::(\w+))?\))$/;
+// Edge bracket supports [:TYPE], [var:TYPE], or [TYPE].
+var NESTING_PATTERN_RE = /^\(parent(?::(\w+))?\)\s*(?:-\[(?:\w+)?:?(\w+)\]->\s*\(child(?::(\w+))?\)|<-\[(?:\w+)?:?(\w+)\]-\s*\(child(?::(\w+))?\))$/;
 
 function TapVizNestingResolver(nodes, edges) {
     this.nodes = nodes;
