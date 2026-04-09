@@ -20,7 +20,7 @@ This spec covers the plugin validation harness provided by `tap_plugins` and the
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-plugin-test-system | [Plugin System Tests](#plugin-system-tests) | In Development | Tests for the plugin machinery itself |
-| req-plugin-test-harness | [Plugin Validation Harness](#plugin-validation-harness) | Proposed | Standardized validation that any plugin can run |
+| req-plugin-test-harness | [Plugin Validation Harness](#plugin-validation-harness) | Backlog | Standardized validation that any plugin can run |
 | req-plugin-test-custom | [Plugin-Specific Tests](#plugin-specific-tests) | In Development | Conventions for hand-written plugin tests |
 
 ### Plugin System Tests
@@ -64,12 +64,12 @@ A minimal test-only fixture plugin (not LOTR) may be introduced to decouple syst
 ### Plugin Validation Harness
 ----
 RID: `req-plugin-test-harness`
-Status: `Proposed`
+Status: `Backlog`
 
 `tap_plugins` provides a standardized validation harness that any plugin can run to verify its structural correctness.
 
 #### Status Details
-Proposed. This is the "free validation" that plugin authors get for following conventions.
+Backlog. Deferred until TAP has a use case for new plugin development. The compliance validator will be built when plugin authors need it, not before.
 
 #### Implementation
 
@@ -132,16 +132,16 @@ The base class discovers the plugin by slug, loads its manifest, and runs all ap
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-test-harness-1 | Base Class Exists | Proposed | `tap_plugins.testing` provides `PluginValidationTestCase`. | |
-| req-plugin-test-harness-2 | Manifest Integrity Checks | Proposed | The harness validates manifest TOML structure and field presence. | |
-| req-plugin-test-harness-3 | Model Resolution Checks | Proposed | The harness validates that declared model classes resolve and match slugs. | |
-| req-plugin-test-harness-4 | Edge File Checks | Proposed | The harness validates edge definition files parse, have required fields, and match slugs. | |
-| req-plugin-test-harness-5 | Editor Resolution Checks | Proposed | The harness validates editor descriptor resolution and entity type matching. | |
-| req-plugin-test-harness-6 | Search Callable Checks | Proposed | The harness validates search runner callable resolution. | |
-| req-plugin-test-harness-7 | GRIFT File Checks | Proposed | The harness validates GRIFT files parse and conform to the v0 envelope schema. | |
-| req-plugin-test-harness-8 | Full Load Cycle | Proposed | The harness validates the plugin can complete registration and GRIFT import. | |
-| req-plugin-test-harness-9 | Graceful Section Skip | Proposed | Missing manifest sections (e.g. no `[editors]`) cause checks to be skipped, not to fail. | |
-| req-plugin-test-harness-10 | Actionable Failure Messages | Proposed | Validation failures include the manifest key, file path, or class path that failed. | |
+| req-plugin-test-harness-1 | Base Class Exists | Backlog | `tap_plugins.testing` provides `PluginValidationTestCase`. | |
+| req-plugin-test-harness-2 | Manifest Integrity Checks | Backlog | The harness validates manifest TOML structure and field presence. | |
+| req-plugin-test-harness-3 | Model Resolution Checks | Backlog | The harness validates that declared model classes resolve and match slugs. | |
+| req-plugin-test-harness-4 | Edge File Checks | Backlog | The harness validates edge definition files parse, have required fields, and match slugs. | |
+| req-plugin-test-harness-5 | Editor Resolution Checks | Backlog | The harness validates editor descriptor resolution and entity type matching. | |
+| req-plugin-test-harness-6 | Search Callable Checks | Backlog | The harness validates search runner callable resolution. | |
+| req-plugin-test-harness-7 | GRIFT File Checks | Backlog | The harness validates GRIFT files parse and conform to the v0 envelope schema. | |
+| req-plugin-test-harness-8 | Full Load Cycle | Backlog | The harness validates the plugin can complete registration and GRIFT import. | |
+| req-plugin-test-harness-9 | Graceful Section Skip | Backlog | Missing manifest sections (e.g. no `[editors]`) cause checks to be skipped, not to fail. | |
+| req-plugin-test-harness-10 | Actionable Failure Messages | Backlog | Validation failures include the manifest key, file path, or class path that failed. | |
 
 #### Future
 The validation harness may evolve into a `manage.py validate_plugin <slug>` management command for non-test-suite usage. A `--strict` flag could treat warnings (undeclared files) as errors.

@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -172,9 +172,7 @@ def _parse_models(raw_models: Any, manifest_path: Path) -> list[ModelEntry]:
     entries: list[ModelEntry] = []
     for slug, class_path in raw_models.items():
         if not isinstance(class_path, str) or not class_path:
-            raise PluginManifestError(
-                f"models.{slug} must be a non-empty string class path in {manifest_path}"
-            )
+            raise PluginManifestError(f"models.{slug} must be a non-empty string class path in {manifest_path}")
         entries.append(ModelEntry(slug=slug, class_path=class_path))
 
     return entries
@@ -189,14 +187,10 @@ def _parse_edges(raw_edges: Any, manifest_path: Path, plugin_root: Path) -> list
 
     for slug, rel_path in raw_edges.items():
         if not isinstance(rel_path, str) or not rel_path:
-            raise PluginManifestError(
-                f"edges.{slug} must be a non-empty string path in {manifest_path}"
-            )
+            raise PluginManifestError(f"edges.{slug} must be a non-empty string path in {manifest_path}")
 
         if ".." in Path(rel_path).parts:
-            raise PluginManifestError(
-                f"edges.{slug} path '{rel_path}' contains path traversal in {manifest_path}"
-            )
+            raise PluginManifestError(f"edges.{slug} path '{rel_path}' contains path traversal in {manifest_path}")
 
         if not rel_path.endswith(".edge.json"):
             raise PluginManifestError(
@@ -204,9 +198,7 @@ def _parse_edges(raw_edges: Any, manifest_path: Path, plugin_root: Path) -> list
             )
 
         if rel_path in seen_paths:
-            raise PluginManifestError(
-                f"Duplicate edge file path '{rel_path}' in {manifest_path}"
-            )
+            raise PluginManifestError(f"Duplicate edge file path '{rel_path}' in {manifest_path}")
         seen_paths.add(rel_path)
 
         full_path = plugin_root / rel_path
@@ -238,9 +230,7 @@ def _load_edge_file(
 
     unknown = set(data.keys()) - _ALLOWED_EDGE_FILE_KEYS
     if unknown:
-        raise PluginManifestError(
-            f"Unknown keys in edge file '{rel_path}': {sorted(unknown)}"
-        )
+        raise PluginManifestError(f"Unknown keys in edge file '{rel_path}': {sorted(unknown)}")
 
     file_slug = data.get("slug")
     if not isinstance(file_slug, str) or not file_slug:
@@ -261,16 +251,12 @@ def _load_edge_file(
     sources = data.get("sources")
     if sources is not None:
         if not isinstance(sources, list) or not all(isinstance(s, str) for s in sources):
-            raise PluginManifestError(
-                f"Edge file '{rel_path}' 'sources' must be an array of strings"
-            )
+            raise PluginManifestError(f"Edge file '{rel_path}' 'sources' must be an array of strings")
 
     targets = data.get("targets")
     if targets is not None:
         if not isinstance(targets, list) or not all(isinstance(t, str) for t in targets):
-            raise PluginManifestError(
-                f"Edge file '{rel_path}' 'targets' must be an array of strings"
-            )
+            raise PluginManifestError(f"Edge file '{rel_path}' 'targets' must be an array of strings")
 
     property_schema = data.get("property_schema")
     if property_schema is not None and not isinstance(property_schema, dict):
@@ -278,9 +264,7 @@ def _load_edge_file(
 
     default_dimensions = data.get("default_dimensions")
     if default_dimensions is not None and not isinstance(default_dimensions, dict):
-        raise PluginManifestError(
-            f"Edge file '{rel_path}' 'default_dimensions' must be an object"
-        )
+        raise PluginManifestError(f"Edge file '{rel_path}' 'default_dimensions' must be an object")
 
     return EdgeEntry(
         slug=file_slug,
@@ -301,9 +285,7 @@ def _parse_editors(raw_editors: Any, manifest_path: Path) -> list[EditorEntry]:
     entries: list[EditorEntry] = []
     for entity_type, class_path in raw_editors.items():
         if not isinstance(class_path, str) or not class_path:
-            raise PluginManifestError(
-                f"editors.{entity_type} must be a non-empty string class path in {manifest_path}"
-            )
+            raise PluginManifestError(f"editors.{entity_type} must be a non-empty string class path in {manifest_path}")
         entries.append(EditorEntry(entity_type=entity_type, class_path=class_path))
 
     return entries
@@ -333,14 +315,10 @@ def _parse_grift(raw_grift: Any, manifest_path: Path) -> list[GriftEntry]:
 
     for name, path in raw_grift.items():
         if not isinstance(path, str) or not path:
-            raise PluginManifestError(
-                f"grift.{name} must be a non-empty string path in {manifest_path}"
-            )
+            raise PluginManifestError(f"grift.{name} must be a non-empty string path in {manifest_path}")
 
         if ".." in Path(path).parts:
-            raise PluginManifestError(
-                f"grift.{name} path '{path}' contains path traversal in {manifest_path}"
-            )
+            raise PluginManifestError(f"grift.{name} path '{path}' contains path traversal in {manifest_path}")
 
         if path in seen_paths:
             raise PluginManifestError(f"Duplicate GRIFT bundle path '{path}' in {manifest_path}")
@@ -359,16 +337,12 @@ def _parse_grift(raw_grift: Any, manifest_path: Path) -> list[GriftEntry]:
 def _validate_top_level(raw: dict[str, Any], manifest_path: Path) -> None:
     unknown = set(raw.keys()) - _ALLOWED_TOP_KEYS
     if unknown:
-        raise PluginManifestError(
-            f"Unknown top-level keys in {manifest_path}: {sorted(unknown)}"
-        )
+        raise PluginManifestError(f"Unknown top-level keys in {manifest_path}: {sorted(unknown)}")
 
     for key in _REQUIRED_TOP_KEYS:
         value = raw.get(key)
         if not isinstance(value, str) or not value:
-            raise PluginManifestError(
-                f"Required field '{key}' must be a non-empty string in {manifest_path}"
-            )
+            raise PluginManifestError(f"Required field '{key}' must be a non-empty string in {manifest_path}")
 
     if raw["manifest_version"] != "0":
         raise PluginManifestError(
@@ -391,8 +365,7 @@ def _validate_grift_paths(manifest: PluginManifest) -> None:
         full_path = manifest.plugin_root / entry.path
         if not full_path.exists():
             raise PluginManifestError(
-                f"Declared GRIFT path '{entry.path}' not found at {full_path} "
-                f"(plugin '{manifest.slug}')"
+                f"Declared GRIFT path '{entry.path}' not found at {full_path} " f"(plugin '{manifest.slug}')"
             )
 
 
@@ -458,8 +431,7 @@ def _validate_editor_classes(manifest: PluginManifest) -> None:
 
         if not isinstance(instance, EditorDescriptor):
             raise PluginManifestError(
-                f"Editor class '{entry.class_path}' is not an EditorDescriptor subclass "
-                f"in plugin '{manifest.slug}'"
+                f"Editor class '{entry.class_path}' is not an EditorDescriptor subclass " f"in plugin '{manifest.slug}'"
             )
 
         if instance.entity_type != entry.entity_type:
@@ -497,13 +469,13 @@ def warn_undeclared_convention_files(manifest: PluginManifest) -> None:
     declared_grift_paths = {entry.path for entry in manifest.grift}
     declared_edge_paths = {entry.file_path for entry in manifest.edges}
 
-    data_dir = manifest.plugin_root / "data"
-    if data_dir.is_dir():
-        for grift_file in data_dir.rglob("*.grift.json"):
+    grift_dir = manifest.plugin_root / "grift"
+    if grift_dir.is_dir():
+        for grift_file in grift_dir.rglob("*.grift.json"):
             rel = str(grift_file.relative_to(manifest.plugin_root))
             if rel not in declared_grift_paths:
                 logger.warning(
-                    "Plugin '%s': undeclared GRIFT file '%s' in data/ — not part of load contract",
+                    "Plugin '%s': undeclared GRIFT file '%s' in grift/ — not part of load contract",
                     manifest.slug,
                     rel,
                 )

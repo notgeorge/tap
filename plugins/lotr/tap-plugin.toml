@@ -12,6 +12,7 @@ race = "plugins.lotr.models.race.Race"
 faction = "plugins.lotr.models.faction.Faction"
 sentinel = "plugins.lotr.models.sentinel.Sentinel"
 citadel = "plugins.lotr.models.citadel.Citadel"
+realm = "plugins.lotr.models.realm.Realm"
 wanderer = "plugins.lotr.models.wanderer.Wanderer"
 
 [edges]
@@ -35,6 +36,6 @@ character = "plugins.lotr.editors.character.CharacterEditorDescriptor"
 list-characters-with-bio = "plugins.lotr.searches.characters.list_characters_with_bio"
 
 [grift]
-core-data = "data/core-data.grift.json"
-searches = "data/searches.grift.json"
-web = "data/web.grift.json"
+core-data = "grift/core-data.grift.json"
+searches = "grift/searches.grift.json"
+web = "grift/web.grift.json"

@@ -479,7 +479,7 @@ GRIFT declarations use a TOML table:
 
 ```toml
 [grift]
-core-data = "data/core-data.grift.json"
+core-data = "grift/core-data.grift.json"
 ```
 
 Each key in `[grift]` is a logical bundle name unique within the plugin.
@@ -518,10 +518,10 @@ When a plugin state system is introduced, auto-import can be conditioned on plug
 RID: `req-plugin-manifest-v0-paths`
 Status: `In Development`
 
-The manifest requires specific directories and supports `data/` subdirectory organization without requiring sub-paths to be declared.
+The manifest requires specific directories and supports `grift/` subdirectory organization without requiring sub-paths to be declared.
 
 #### Status Details
-Updated from Proposed: `models/` is now a required directory, not a convention. `data/` allows optional sub-directories as an organizational convenience that does not change loader semantics.
+Updated from Proposed: `models/` is now a required directory, not a convention. `grift/` allows optional sub-directories as an organizational convenience that does not change loader semantics.
 
 #### Implementation
 In v0:
@@ -530,15 +530,15 @@ In v0:
 - `edges/` is the required directory for edge definition files. Plugin edge declarations point to files under `edges/`.
 - `editors/` is an optional directory for editor descriptor and Django form class code when a plugin declares editors.
 - `searches/` is the required directory for search runner modules when a plugin declares searches.
-- `data/` is the required directory for GRIFT files. Plugin GRIFT bundles are declared with paths relative to the plugin root (e.g. `data/core-data.grift.json`).
+- `grift/` is the required directory for GRIFT files. Plugin GRIFT bundles are declared with paths relative to the plugin root (e.g. `grift/core-data.grift.json`).
 
-`data/` sub-directories are allowed as a convenience for organizing large or multi-category data sets (e.g. `data/nodes/characters.grift.json`, `data/edges.grift.json`). Sub-directory paths are declared explicitly in the manifest `[grift]` table the same way as top-level paths. TAP does not require that sub-directories be declared separately; only file-level GRIFT entries are declarable.
+`grift/` sub-directories are allowed as a convenience for organizing large or multi-category data sets (e.g. `grift/nodes/characters.grift.json`, `grift/edges.grift.json`). Sub-directory paths are declared explicitly in the manifest `[grift]` table the same way as top-level paths. TAP does not require that sub-directories be declared separately; only file-level GRIFT entries are declarable.
 
-TAP does not load every file found in `models/`, `edges/`, `editors/`, `searches/`, or `data/` automatically. Only manifest-declared entries are part of the plugin load contract.
+TAP does not load every file found in `models/`, `edges/`, `editors/`, `searches/`, or `grift/` automatically. Only manifest-declared entries are part of the plugin load contract.
 
 Manifest-declared paths are evaluated relative to the plugin root.
 
-If files exist in `models/`, `edges/`, `editors/`, `searches/`, or `data/` (including sub-directories) but are not declared in the manifest:
+If files exist in `models/`, `edges/`, `editors/`, `searches/`, or `grift/` (including sub-directories) but are not declared in the manifest:
 
 - TAP warns that they are undeclared
 - TAP does not treat them as loadable plugin surfaces
@@ -547,18 +547,18 @@ If files exist in `models/`, `edges/`, `editors/`, `searches/`, or `data/` (incl
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-paths-1 | Required Directories Defined | Implemented | v0 defines `models/`, `edges/`, and `data/` as required plugin directories for their declared surfaces, and `editors/` plus `searches/` as optional locations for declared behavior. | |
-| req-plugin-manifest-v0-paths-2 | No Implicit Autoload | Implemented | Files in `models/`, `edges/`, `editors/`, `searches/`, or `data/` are not loaded solely because they are present. | |
+| req-plugin-manifest-v0-paths-1 | Required Directories Defined | Implemented | v0 defines `models/`, `edges/`, and `grift/` as required plugin directories for their declared surfaces, and `editors/` plus `searches/` as optional locations for declared behavior. | |
+| req-plugin-manifest-v0-paths-2 | No Implicit Autoload | Implemented | Files in `models/`, `edges/`, `editors/`, `searches/`, or `grift/` are not loaded solely because they are present. | |
 | req-plugin-manifest-v0-paths-3 | Relative To Plugin Root | Implemented | Manifest paths are resolved relative to the plugin root. | |
 | req-plugin-manifest-v0-paths-4 | Undeclared Files Warn | Implemented | Undeclared files in convention directories produce warnings, not startup errors. | |
-| req-plugin-manifest-v0-paths-5 | Data Subdirectories Allowed | Implemented | `data/` may contain sub-directories for organizational convenience without requiring sub-path declarations. | |
+| req-plugin-manifest-v0-paths-5 | Grift Subdirectories Allowed | Implemented | `grift/` may contain sub-directories for organizational convenience without requiring sub-path declarations. | |
 | req-plugin-manifest-v0-paths-6 | Models Directory Required | Implemented | A plugin missing a `models/` directory at its root is invalid. | |
 | req-plugin-manifest-v0-paths-7 | Edges Directory Required | Proposed | A plugin missing an `edges/` directory at its root is invalid when it declares edges. | |
 | req-plugin-manifest-v0-paths-8 | Editors Directory Optional | Proposed | A plugin may omit `editors/` entirely unless it declares editors. | |
 | req-plugin-manifest-v0-paths-9 | Searches Directory Optional | Proposed | A plugin may omit `searches/` entirely unless it declares search runners. | |
 
 #### Future
-Later tooling may scaffold these directories automatically or offer commands to reconcile undeclared files with manifest entries. Sub-directory conventions within `data/` may be standardized if patterns emerge across plugins.
+Later tooling may scaffold these directories automatically or offer commands to reconcile undeclared files with manifest entries. Sub-directory conventions within `grift/` may be standardized if patterns emerge across plugins.
 
 ### Validation Rules
 ----

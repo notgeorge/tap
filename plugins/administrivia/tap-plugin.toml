@@ -5,5 +5,5 @@ name = "Administrivia"
 description = "TAP administrative pages, panels, searches, and infrastructure."
 
 [grift]
-grid-landing = "data/grid-landing.grift.json"
-entity-pages = "data/entity-pages.grift.json"
+grid-landing = "grift/grid-landing.grift.json"
+entity-pages = "grift/entity-pages.grift.json"
