@@ -342,6 +342,27 @@ function initGraph(panelId) {
         boxSelectionEnabled: true,
     });
 
+    // Light background grid via cytoscape-grid-guide extension.
+    if (cy.gridGuide) {
+        cy.gridGuide({
+            drawGrid: true,
+            gridSpacing: 40,
+            gridColor: "#cbd5e1",
+            lineWidth: 1.0,
+            gridStackOrder: -1,
+            snapToGridOnRelease: false,
+            snapToGridDuringDrag: false,
+            snapToAlignmentLocationOnRelease: false,
+            snapToAlignmentLocationDuringDrag: false,
+            distributionGuidelines: false,
+            geometricGuideline: false,
+            resize: false,
+            parentPadding: false,
+            zoomDash: true,
+            panGrid: true,
+        });
+    }
+
     // Register before running layout so we catch layoutstop even for
     // synchronous layouts (cose with animate:false fires before the
     // constructor returns if layout is passed inline).

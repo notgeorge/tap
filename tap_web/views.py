@@ -480,6 +480,11 @@ def _render_page(
     css: dict[str, None] = {}
     js: dict[str, None] = {}
     for _panel_id, panel in panel_slots:
+        panel_type = _get_panel_type_for_panel(panel)
+        for asset_path in getattr(panel_type, "css", []):
+            css[asset_path] = None
+        for asset_path in getattr(panel_type, "js", []):
+            js[asset_path] = None
         for asset_path in panel.css:
             css[asset_path] = None
         for asset_path in panel.js:
@@ -558,23 +563,23 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
 
     _SEARCH_DB = "search_readonly"
 
-    node_limit = _safe_int(request.GET.get("limit"), 25)
+    node_limit = _safe_int(request.GET.get("limit"), 100)
     node_offset = _safe_int(request.GET.get("offset"), 0)
-    edge_limit = _safe_int(request.GET.get("edge_limit"), 50)
+    edge_limit = _safe_int(request.GET.get("edge_limit"), 100)
     edge_offset = _safe_int(request.GET.get("edge_offset"), 0)
 
     node_search = Search(
         search_type="orm",
         root="node",
         definition={"filters": {}, "order_by": ["name"]},
-        default_limit=25,
-        max_limit=200,
+        default_limit=100,
+        max_limit=500,
     )
     edge_search = Search(
         search_type="orm",
         root="edge",
         definition={"filters": {}, "order_by": ["edge_type"]},
-        default_limit=50,
+        default_limit=100,
         max_limit=500,
     )
 

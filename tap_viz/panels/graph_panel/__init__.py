@@ -45,7 +45,7 @@ class GraphPanelType:
     slug = "graph"
     label = "Graph Panel"
     view = "tap_viz/panels/graph_panel.html"
-    js: list[str] = ["tap_viz/js/cytoscape.min.js", "tap_viz/js/panel-graph.js"]
+    js: list[str] = ["tap_viz/js/cytoscape.min.js", "tap_viz/js/cytoscape-grid-guide.js", "tap_viz/js/panel-graph.js"]
     css: list[str] = ["tap_viz/css/panel-graph.css"]
     config_defaults: dict[str, Any] = {}
 

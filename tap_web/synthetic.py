@@ -344,9 +344,19 @@ def render_synthetic_page(
     panels_by_id = graph.get_panels_for_page(page)
 
     # Collect CSS/JS assets across all panels.
+    # Panel type assets (from the registered PanelType class) are included first
+    # so infrastructure scripts (e.g. cytoscape-grid-guide) are loaded
+    # automatically without requiring each GRIFT panel to declare them.
+    from tap_web.views import _get_panel_type_for_panel
+
     css: dict[str, None] = {}
     js: dict[str, None] = {}
     for panel in panels_by_id.values():
+        panel_type = _get_panel_type_for_panel(panel)
+        for path in getattr(panel_type, "css", []):
+            css[path] = None
+        for path in getattr(panel_type, "js", []):
+            js[path] = None
         for path in panel.css:
             css[path] = None
         for path in panel.js:
