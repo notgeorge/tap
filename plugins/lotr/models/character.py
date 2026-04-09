@@ -41,6 +41,11 @@ class Character(BaseModel):
                         "gryphon": "(parent:location)<-[:LOCATED_IN]-(child:character)",
                     }
                 ],
+                "parent_label": {
+                    "horizontal_alignment": "center",
+                    "vertical_alignment": "top",
+                    "inside_or_outside": "outside",
+                },
             },
         }
     }

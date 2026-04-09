@@ -26,7 +26,12 @@ class Realm(BaseModel):
                         "description": "A realm visually contains its locations.",
                         "gryphon": "(parent:realm)-[:CONTAINS]->(child:location)",
                     }
-                ]
+                ],
+                "parent_label": {
+                    "horizontal_alignment": "center",
+                    "vertical_alignment": "top",
+                    "inside_or_outside": "outside",
+                },
             },
         }
     }

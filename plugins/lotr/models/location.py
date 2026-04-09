@@ -52,6 +52,11 @@ class Location(BaseModel):
                         "gryphon": "(parent:location)-[:CONTAINS]->(child:location)",
                     },
                 ],
+                "parent_label": {
+                    "horizontal_alignment": "center",
+                    "vertical_alignment": "top",
+                    "inside_or_outside": "outside",
+                },
             },
         }
     }

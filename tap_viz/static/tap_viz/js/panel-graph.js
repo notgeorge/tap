@@ -191,6 +191,112 @@ TapVizNestingResolver.prototype.resolve = function () {
 
 
 // ---------------------------------------------------------------------------
+// TapParentLabelOverlay — lightweight HTML label positioner for parent nodes.
+//
+// The cytoscape-node-html-label plugin cannot reliably position compound node
+// labels because its one("render") bootstrap fires before layout, when
+// compound node dimensions are NaN.  This overlay creates and positions
+// label divs directly, hooking into layoutstop, pan/zoom, and position/bounds
+// events after layout completes and dimensions are stable.
+// ---------------------------------------------------------------------------
+
+function TapParentLabelOverlay(cy, parentLabelData) {
+    this._cy = cy;
+    this._data = parentLabelData;  // { entityId: { label, icon_url, config } }
+    this._container = null;        // outer div (pan/zoom transformed)
+    this._els = {};                // entityId -> wrapper div
+}
+
+TapParentLabelOverlay.prototype.init = function () {
+    var self = this;
+    var cyContainer = this._cy.container();
+
+    // Create overlay container next to the canvas.
+    var el = document.createElement("div");
+    var canvas = cyContainer.querySelector("canvas");
+    var s = el.style;
+    s.position = "absolute";
+    s.zIndex = "10";
+    s.width = "500px";
+    s.margin = s.padding = s.border = s.outline = "0px";
+    s.pointerEvents = "none";
+    s.transformOrigin = "top left";
+    canvas.parentNode.appendChild(el);
+    this._container = el;
+
+    // Create a wrapper per parent node.
+    this._cy.nodes(":parent").forEach(function (node) {
+        var id = node.id();
+        var pl = self._data[id];
+        if (!pl) return;
+
+        var wrapper = document.createElement("div");
+        wrapper.style.position = "absolute";
+
+        var escapedLabel = _escapeHtml(pl.label);
+        var iconHtml = pl.icon_url
+            ? '<img class="tap-parent-label__icon" src="' + _escapeHtml(pl.icon_url) + '" alt="" />'
+            : "";
+        wrapper.innerHTML = '<div class="tap-parent-label">' + iconHtml +
+            '<span class="tap-parent-label__text">' + escapedLabel + "</span></div>";
+
+        el.appendChild(wrapper);
+        self._els[id] = wrapper;
+    });
+
+    // Initial sync.
+    this._syncPanZoom();
+    this._syncAllPositions();
+
+    // Bind events.
+    this._cy.on("pan zoom", function () { self._syncPanZoom(); });
+    this._cy.on("layoutstop", function () { self._syncAllPositions(); });
+    this._cy.on("position bounds", "node:parent", function (evt) {
+        self._syncPosition(evt.target);
+    });
+};
+
+TapParentLabelOverlay.prototype._syncPanZoom = function () {
+    var pan = this._cy.pan();
+    var zoom = this._cy.zoom();
+    var t = "translate(" + pan.x + "px," + pan.y + "px) scale(" + zoom + ")";
+    var s = this._container.style;
+    s.webkitTransform = t;
+    s.msTransform = t;
+    s.transform = t;
+};
+
+TapParentLabelOverlay.prototype._syncAllPositions = function () {
+    var self = this;
+    this._cy.nodes(":parent").forEach(function (node) {
+        self._syncPosition(node);
+    });
+};
+
+TapParentLabelOverlay.prototype._syncPosition = function (node) {
+    var wrapper = this._els[node.id()];
+    if (!wrapper) return;
+
+    var pos = node.position();
+    var w = node.width();
+    var h = node.height();
+
+    // Guard against pre-layout NaN dimensions.
+    if (isNaN(pos.x) || isNaN(pos.y) || isNaN(w) || isNaN(h)) return;
+
+    // Position at horizontal center, vertical top of compound node.
+    var x = pos.x;
+    var y = pos.y - h / 2;
+
+    var t = "translate(-50%, -100%) translate(" + x.toFixed(2) + "px," + y.toFixed(2) + "px)";
+    var s = wrapper.style;
+    s.webkitTransform = t;
+    s.msTransform = t;
+    s.transform = t;
+};
+
+
+// ---------------------------------------------------------------------------
 // initGraph — main entry point per graph panel
 // ---------------------------------------------------------------------------
 
@@ -219,6 +325,33 @@ function initGraph(panelId) {
         nesting = resolver.resolve();
         nesting.warnings.forEach(function (w) {
             console.warn("[TAP Nesting]", w.category, w.message);
+        });
+    }
+
+    // Collect the set of entity IDs that are actual parents (have children).
+    var parentIds = new Set();
+    Object.keys(nesting.parentByChildId).forEach(function (childId) {
+        parentIds.add(nesting.parentByChildId[childId]);
+    });
+
+    // Build per-parent metadata for HTML label rendering.
+    // parentLabelData: { entityId: { label, icon_url, config } }
+    var parentLabelData = {};
+    if (parentIds.size > 0) {
+        nodes.forEach(function (n) {
+            var ent = n.entity || {};
+            if (!parentIds.has(ent.entity_id)) return;
+            var nestingMeta = ((n.display || {}).nesting) || {};
+            var plConfig = nestingMeta.parent_label || {};
+            parentLabelData[ent.entity_id] = {
+                label: ent.name || ent.entity_type || ent.entity_id,
+                icon_url: n.icon_url || "",
+                config: {
+                    horizontal_alignment: plConfig.horizontal_alignment || "center",
+                    vertical_alignment: plConfig.vertical_alignment || "top",
+                    inside_or_outside: plConfig.inside_or_outside || "outside",
+                },
+            };
         });
     }
 
@@ -312,15 +445,16 @@ function initGraph(panelId) {
             },
             {
                 // Compound parent nodes (nesting containers).
+                // Normal text label and background-image icon are suppressed;
+                // parent-label HTML overlay handles icon + text rendering.
                 selector: ":parent",
                 style: {
                     "background-opacity": 0.08,
+                    "background-image": "none",
                     "border-width": 2,
                     "border-color": "#94a3b8",
                     "padding": "30px",
-                    "text-valign": "top",
-                    "text-margin-y": "-4px",
-                    "font-size": "13px",
+                    "label": "",
                 },
             },
             {
@@ -368,6 +502,13 @@ function initGraph(panelId) {
     // constructor returns if layout is passed inline).
     cy.one("layoutstop", function () {
         cy.minZoom(cy.zoom());
+
+        // Parent-label HTML overlay — initialized after layout so compound
+        // node positions and dimensions are stable.
+        if (parentIds.size > 0) {
+            var overlay = new TapParentLabelOverlay(cy, parentLabelData);
+            overlay.init();
+        }
     });
 
     cy.layout(_buildLayout(placement)).run();
@@ -482,4 +623,10 @@ function _syncFullscreenIcon(btn, isFullscreen) {
     const compress = btn.querySelector(".tap-cy-compress");
     if (expand) expand.style.display = isFullscreen ? "none" : "";
     if (compress) compress.style.display = isFullscreen ? "" : "none";
+}
+
+function _escapeHtml(str) {
+    var div = document.createElement("div");
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
 }

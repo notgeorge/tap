@@ -45,6 +45,28 @@
     margin: 2px 0;
 }
 
+/* Parent-label HTML overlay (cytoscape-node-html-label) */
+.tap-parent-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1e293b;
+}
+
+.tap-parent-label__icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.tap-parent-label__text {
+    line-height: 1;
+}
+
 /* Fullscreen overrides */
 [id^="tap-graph-container-"]:fullscreen {
     background: #0f172a;

@@ -23,6 +23,8 @@ The first version is intentionally narrow. It defines a small model-level metada
 | req-viz-nesting-metadata | [Model Nesting Metadata](#model-nesting-metadata) | Proposed | Model-level metadata path and relationship object contract |
 | req-viz-nesting-gryphon-subset | [Nesting Gryphon Subset](#nesting-gryphon-subset) | Proposed | Exact supported matcher syntax for nesting |
 | req-viz-nesting-client-compound-node | [Client Compound Node Resolution](#client-compound-node-resolution) | Proposed | Client-side nesting resolution and Cytoscape parent assignment |
+| req-viz-nesting-parent-label-metadata | [Parent Label Metadata](#parent-label-metadata) | Proposed | Model-level metadata for default parent-label placement |
+| req-viz-nesting-parent-label-rendering | [Parent Label Rendering](#parent-label-rendering) | Proposed | HTML-label-based rendering behavior for parent nodes |
 | req-viz-nesting-hidden-edges | [Hidden Containment Edges](#hidden-containment-edges) | Proposed | Consumed containment edges remain in Cytoscape but are hidden |
 | req-viz-nesting-warnings | [Warning Categories](#warning-categories) | Proposed | Normative warning categories for invalid or ambiguous nesting |
 | req-viz-nesting-lotr-saga-demo | [LOTR Saga Demo](#lotr-saga-demo) | Proposed | Saved-search-backed demonstration page for the v0 nesting behavior |
@@ -175,6 +177,79 @@ MATCH (parent:character)-[:WIELDS]->(child:artifact) RETURN parent, child
 - Consider formal parser reuse if TAP later standardizes client-side Gryphon utilities beyond nesting.
 
 
+### Parent Label Metadata
+----
+RID: `req-viz-nesting-parent-label-metadata`
+Status: `Proposed`
+
+Models may declare default parent-label placement through model display metadata under the `tap_viz` namespace.
+
+#### Implementation
+
+The normative metadata path is:
+
+- `DEFAULT_DISPLAY["tap_viz"]["nesting"]["parent_label"]`
+
+The v0 metadata object contains exactly:
+
+- `horizontal_alignment`
+- `vertical_alignment`
+- `inside_or_outside`
+
+Allowed values:
+
+- `horizontal_alignment`: `left`, `center`, `right`
+- `vertical_alignment`: `top`, `bottom`
+- `inside_or_outside`: `inside`, `outside`
+
+These defaults only apply when a node is actually rendered as a parent node after nesting resolution. Non-parent nodes ignore `parent_label` metadata.
+
+When `parent_label` metadata is absent, the normative default is:
+
+- `horizontal_alignment = center`
+- `vertical_alignment = top`
+- `inside_or_outside = outside`
+
+Example:
+
+```python
+DEFAULT_DISPLAY = {
+    "tap_viz": {
+        "shape": "round-rectangle",
+        "nesting": {
+            "parent": [
+                {
+                    "name": "realm-contains-location",
+                    "description": "A realm visually contains its locations.",
+                    "gryphon": "(parent:realm)-[:CONTAINS]->(child:location)",
+                }
+            ],
+            "parent_label": {
+                "horizontal_alignment": "center",
+                "vertical_alignment": "top",
+                "inside_or_outside": "outside",
+            },
+        },
+    }
+}
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-nesting-parent-label-metadata-1 | Metadata Path Is Normative | Proposed | Parent-label defaults live at `DEFAULT_DISPLAY["tap_viz"]["nesting"]["parent_label"]`. | |
+| req-viz-nesting-parent-label-metadata-2 | Exact V0 Field Shape | Proposed | V0 parent-label metadata includes exactly `horizontal_alignment`, `vertical_alignment`, and `inside_or_outside`. | |
+| req-viz-nesting-parent-label-metadata-3 | Defaults Are Normative | Proposed | Missing metadata defaults to `center`, `top`, `outside`. | |
+| req-viz-nesting-parent-label-metadata-4 | Only Parent Nodes Use Parent Label Metadata | Proposed | Nodes that are not rendered as parents ignore `parent_label` metadata. | |
+
+#### Future
+
+- Consider left-side and right-side parent labels.
+- Consider rotated parent labels for side placements.
+- Consider a non-parent label metadata system where nodes can declare label placement defaults (alignment, inside/outside) for their normal (non-parent) rendering mode.
+
+
 ### Client Compound Node Resolution
 ----
 RID: `req-viz-nesting-client-compound-node`
@@ -229,6 +304,67 @@ Resolution rules:
 - Add richer compound-node styling once real nested pages exist.
 
 
+### Parent Label Rendering
+----
+RID: `req-viz-nesting-parent-label-rendering`
+Status: `Proposed`
+
+Parent nodes render labels through a TAP-owned HTML overlay so icons and text can be composed as one parent-label unit.
+
+#### Implementation
+
+Parent-label rendering is a TAP Viz runtime concern that occurs after nesting resolution has identified actual parent nodes and after layout completes (so compound node positions and dimensions are stable).
+
+For the Cytoscape renderer in v0:
+
+- `TapParentLabelOverlay` creates and positions label divs directly
+- the overlay is initialized inside the `layoutstop` handler to avoid pre-layout NaN dimensions on compound nodes
+- the overlay container sits alongside the Cytoscape canvas with matching pan/zoom transforms
+- individual label wrappers are positioned via CSS transforms in model-space coordinates
+
+Parent-label rendering rules:
+
+- Only nodes actually rendered as parents receive parent-label HTML rendering.
+- Parent nodes suppress their normal Cytoscape text label.
+- Parent nodes suppress background-image icon rendering inside the node body.
+- Parent-label HTML uses the existing `icon_url` from the graph envelope.
+- Parent-label text uses the same label source as normal nodes.
+- The icon is rendered to the left of the text.
+- The HTML structure is TAP-owned, fixed, sanitized, and non-interactive.
+- Parent-label anchoring is relative to the compound node bounding box.
+
+The v0 CSS hooks are:
+
+- `tap-parent-label`
+- `tap-parent-label__icon`
+- `tap-parent-label__text`
+
+The v0 HTML structure is conceptually:
+
+```html
+<div class="tap-parent-label">
+  <img class="tap-parent-label__icon" src="..." alt="" />
+  <span class="tap-parent-label__text">Middle-earth</span>
+</div>
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-nesting-parent-label-rendering-1 | Tap Owned Overlay In V0 | Proposed | The Cytoscape renderer uses `TapParentLabelOverlay` for parent labels in v0. | |
+| req-viz-nesting-parent-label-rendering-2 | Applies Only To Actual Parent Nodes | Proposed | Parent-label rendering is applied only after nesting resolution identifies true parent nodes. | |
+| req-viz-nesting-parent-label-rendering-3 | Parent Nodes Suppress Normal Text And In-Node Icon | Proposed | Parent nodes do not use ordinary Cytoscape text or background-image icon rendering. | |
+| req-viz-nesting-parent-label-rendering-4 | Html Template Is Tap Owned And Sanitized | Proposed | Parent-label HTML is TAP-owned, fixed-structure, sanitized, and not supplied by models. | |
+| req-viz-nesting-parent-label-rendering-5 | Parent Label Is Non Interactive | Proposed | Parent-label overlay does not intercept normal Cytoscape node interaction. | |
+
+#### Future
+
+- Add richer parent chrome and more advanced label treatments.
+- Add support for side labels and rotated labels.
+- Wire parent-label failures into TAP's future error tracking system.
+
+
 ### Hidden Containment Edges
 ----
 RID: `req-viz-nesting-hidden-edges`
@@ -278,6 +414,7 @@ The warning categories are:
 - `context_type_mismatch`
 - `multiple_parents`
 - `cycle_detected`
+- `parent_label_template_error`
 
 Category meanings:
 
@@ -289,6 +426,8 @@ Category meanings:
   More than one distinct parent was proposed for the same child after evaluating all applicable rules.
 - `cycle_detected`
   Accepted parent-child assignments would create a cycle; all assignments participating in that cycle are dropped.
+- `parent_label_template_error`
+  TAP Viz could not safely produce the parent-label HTML template and fell back to a plain Cytoscape text label.
 
 Message text is implementation-defined, but warnings should provide enough detail to identify the relationship definition, involved entities, and the failure reason.
 
