@@ -61,8 +61,6 @@
             "name": "LOTR Characters",
             "view": "tap_web/panels/table_panel.html",
             "editor_view": "tap_web/panels/table_panel_editor.html",
-            "css": ["tap_web/css/lib/tabulator.min.css"],
-            "js": ["tap_web/js/lib/tabulator.min.js", "tap_web/js/panel-table.js"],
             "config": {"column_mode": "common_metadata", "default_page_size": 100}
           }
         },
@@ -140,8 +138,6 @@
             "name": "LOTR Saga Graph",
             "view": "tap_viz/panels/graph_panel.html",
             "editor_view": "",
-            "css": ["tap_viz/css/panel-graph.css"],
-            "js": ["tap_viz/js/lib/cytoscape.min.js", "tap_viz/js/panel-graph.js"],
             "config": {}
           }
         },

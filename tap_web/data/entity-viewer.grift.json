@@ -60,8 +60,6 @@
         "slug": "entity-neighborhood-graph",
         "name": "Entity Graph",
         "view": "tap_viz/panels/graph_panel.html",
-        "js": ["tap_viz/js/cytoscape.min.js", "tap_viz/js/panel-graph.js"],
-        "css": ["tap_viz/css/panel-graph.css"],
         "config": {}
       }
     },

@@ -3,7 +3,6 @@
 Covers:
   req-web-page-slug-sanitize.sec — Page slug normalization and security rules
   req-web-page-layout-sanitize.sec — Page layout JSON Schema validation
-  req-web-panel-static — Panel static asset external URL rejection
 """
 
 import pytest
@@ -11,9 +10,8 @@ import pytest
 from tap_web.exceptions import (
     PageLayoutValidationError,
     PageSlugValidationError,
-    PanelStaticAssetValidationError,
 )
-from tap_web.validation import validate_page_layout, validate_page_slug, validate_panel_assets
+from tap_web.validation import validate_page_layout, validate_page_slug
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -170,7 +168,9 @@ class TestValidatePageLayout:
 
     def test_unknown_top_level_key_raises(self):
         with pytest.raises(PageLayoutValidationError):
-            validate_page_layout({"columns": {"col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "x"}}}}, "extra": 1})
+            validate_page_layout(
+                {"columns": {"col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "x"}}}}, "extra": 1}
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -178,52 +178,9 @@ class TestValidatePageLayout:
 # ---------------------------------------------------------------------------
 
 
-class TestValidatePanelAssets:
-    """Panel asset paths must be Django-static-relative, not external URLs."""
-
-    def _make_panel(self, **kwargs):
-        """Create a minimal Panel-like object without saving to DB."""
-        from unittest.mock import MagicMock
-
-        panel = MagicMock()
-        panel.js = kwargs.get("js", [])
-        panel.css = kwargs.get("css", [])
-        panel.editor_js = kwargs.get("editor_js", [])
-        panel.editor_css = kwargs.get("editor_css", [])
-        return panel
-
-    def test_relative_paths_pass(self):
-        panel = self._make_panel(js=["js/app.js"], css=["css/panel.css"])
-        validate_panel_assets(panel)
-
-    def test_empty_lists_pass(self):
-        panel = self._make_panel()
-        validate_panel_assets(panel)
-
-    def test_http_url_in_js_raises(self):
-        panel = self._make_panel(js=["http://example.com/bad.js"])
-        with pytest.raises(PanelStaticAssetValidationError, match="js"):
-            validate_panel_assets(panel)
-
-    def test_https_url_in_css_raises(self):
-        panel = self._make_panel(css=["https://cdn.example.com/style.css"])
-        with pytest.raises(PanelStaticAssetValidationError, match="css"):
-            validate_panel_assets(panel)
-
-    def test_https_url_in_editor_js_raises(self):
-        panel = self._make_panel(editor_js=["https://example.com/editor.js"])
-        with pytest.raises(PanelStaticAssetValidationError, match="editor_js"):
-            validate_panel_assets(panel)
-
-    def test_https_url_in_editor_css_raises(self):
-        panel = self._make_panel(editor_css=["https://example.com/editor.css"])
-        with pytest.raises(PanelStaticAssetValidationError, match="editor_css"):
-            validate_panel_assets(panel)
-
-
 # ---------------------------------------------------------------------------
 # Model-level full_validate() hooks (req-web-page-slug-sanitize.sec,
-# req-web-page-layout-sanitize.sec, req-web-panel-static)
+# req-web-page-layout-sanitize.sec)
 # ---------------------------------------------------------------------------
 
 
@@ -269,28 +226,3 @@ class TestPageFullValidate:
         assert "layout" in exc_info.value.message_dict
 
 
-class TestPanelFullValidate:
-    """Panel.full_validate() enforces static asset constraints via validate() hook."""
-
-    def _make_panel(self, **kwargs):
-        from tap_web.models import Panel
-
-        defaults = {
-            "slug": "test-panel",
-            "name": "Test Panel",
-            "view": "tap_web/panel_error.html",
-        }
-        defaults.update(kwargs)
-        return Panel(**defaults)
-
-    def test_valid_panel_passes(self):
-        panel = self._make_panel(js=["js/app.js"], css=["css/panel.css"])
-        panel.full_validate()  # no exception
-
-    def test_external_js_url_raises_validation_error(self):
-        from django.core.exceptions import ValidationError
-
-        panel = self._make_panel(js=["https://cdn.example.com/bad.js"])
-        with pytest.raises(ValidationError) as exc_info:
-            panel.full_validate()
-        assert "__all__" in exc_info.value.message_dict

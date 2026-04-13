@@ -37,9 +37,7 @@ def _create_table_panel(**kwargs) -> Panel:
         "name": "Test Table",
         "view": TablePanelType.view,
         "editor_view": TablePanelType.editor_view,
-        "config": {"column_mode": "common_metadata", "default_limit": 25},
-        "js": ["js/lib/tabulator.min.js", "js/panel-table.js"],
-        "css": ["css/lib/tabulator.min.css"],
+        "config": {"column_mode": "common_metadata", "default_page_size": 25},
     }
     defaults.update(kwargs)
     return Panel.objects.create(**defaults)
@@ -104,7 +102,7 @@ class TestTablePanelTypeRegistration:
 
     def test_has_config_defaults(self):
         assert TablePanelType.config_defaults["column_mode"] == "common_metadata"
-        assert TablePanelType.config_defaults["default_limit"] == 25
+        assert TablePanelType.config_defaults["default_page_size"] == 100
 
     def test_uses_search_edge_type_registered(self, django_db_setup):  # noqa: ARG002
         from tap_grid.constraints import get_edge_type_constraints
@@ -122,7 +120,7 @@ class TestTableConfigSchema:
     """Panel.config is validated against TABLE_CONFIG_SCHEMA."""
 
     def test_valid_full_config_passes(self):
-        _validate_table_config({"column_mode": "common_metadata", "default_limit": 25})
+        _validate_table_config({"column_mode": "common_metadata", "default_page_size": 25})
 
     def test_valid_minimal_config_passes(self):
         _validate_table_config({})
@@ -131,13 +129,13 @@ class TestTableConfigSchema:
         with pytest.raises(ValidationError):
             _validate_table_config({"column_mode": "unknown_mode"})
 
-    def test_default_limit_below_min_fails(self):
+    def test_default_page_size_below_min_fails(self):
         with pytest.raises(ValidationError):
-            _validate_table_config({"default_limit": 0})
+            _validate_table_config({"default_page_size": 0})
 
-    def test_default_limit_above_max_fails(self):
+    def test_default_page_size_above_max_fails(self):
         with pytest.raises(ValidationError):
-            _validate_table_config({"default_limit": 501})
+            _validate_table_config({"default_page_size": 501})
 
     def test_additional_properties_rejected(self):
         with pytest.raises(ValidationError):
@@ -282,67 +280,79 @@ class TestTablePanelViewContext:
         parsed = json.loads(ctx["table_nodes_json"])
         assert isinstance(parsed, list)
 
-    def test_pagination_meta_populated_when_paginated(self):
+    def test_meta_populated_with_total_count_and_page_size(self):
         panel = _create_table_panel()
         search = _create_search()
         _link_search(panel, search)
 
         paginated_result = {
-            "count": 50,
+            "count": 25,
             "limit": 25,
             "offset": 0,
-            "results": {"nodes": [], "edges": [], "info": {}, "warnings": {}},
+            "results": {
+                "nodes": [{"entity": {"entity_id": f"id-{i}"}} for i in range(25)],
+                "edges": [],
+                "info": {"total_count": 50},
+                "warnings": {},
+            },
         }
         from django.test import RequestFactory
 
-        request = RequestFactory().get(_panel_url(panel))
+        request = RequestFactory().get(_panel_url(panel), {"page_size": "25"})
         with patch("tap_grid.search.execute_search", return_value=paginated_result):
             ctx = TablePanelType.get_view_context(panel, request)
 
-        assert ctx["table_meta"]["count"] == 50
+        assert ctx["table_meta"]["total_count"] == 50
+        assert ctx["table_meta"]["showing"] == 25
+        assert ctx["table_meta"]["page_size"] == 25
         assert ctx["table_meta"]["has_next"] is True
         assert ctx["table_meta"]["has_prev"] is False
-        assert ctx["table_meta"]["display_end"] == 25  # min(0+25, 50)
 
-    def test_display_end_capped_at_count_on_last_page(self):
-        """display_end must not exceed count on the final page (req-web-stdpanel-table-pagination-8)."""
+    def test_page_size_options_are_dynamic(self):
+        """Options include only steps below total_count, plus All."""
         panel = _create_table_panel()
         search = _create_search()
         _link_search(panel, search)
 
-        paginated_result = {
-            "count": 27,
-            "limit": 25,
-            "offset": 25,
-            "results": {"nodes": [], "edges": [], "info": {}, "warnings": {}},
+        fake_envelope = {
+            "nodes": [{"entity": {"entity_id": f"id-{i}"}} for i in range(60)],
+            "edges": [],
+            "info": {"total_count": 60},
+            "warnings": {},
         }
         from django.test import RequestFactory
 
-        request = RequestFactory().get(_panel_url(panel), {"offset": "25", "limit": "25"})
-        with patch("tap_grid.search.execute_search", return_value=paginated_result):
+        request = RequestFactory().get(_panel_url(panel), {"page_size": "0"})
+        with patch("tap_grid.search.execute_search", return_value=fake_envelope):
             ctx = TablePanelType.get_view_context(panel, request)
 
-        assert ctx["table_meta"]["display_end"] == 27  # min(25+25, 27) = 27, not 50
+        options = ctx["table_meta"]["page_size_options"]
+        values = [o["value"] for o in options]
+        # 25 and 50 are below 60, 100/200/500 are not; All(0) always present
+        assert 25 in values
+        assert 50 in values
+        assert 100 not in values
+        assert 0 in values  # "All"
 
-    def test_pagination_bar_present_on_first_page(self):
-        """Pagination bar renders on page 1 even though has_prev=False (req-web-stdpanel-table-pagination-6/7)."""
+    def test_nav_bar_present_above_and_below_table(self):
+        """Nav bar renders both above and below table with total count."""
         panel = _create_table_panel()
         search = _create_search()
         _link_search(panel, search)
 
-        paginated_result = {
-            "count": 50,
-            "limit": 25,
-            "offset": 0,
-            "results": {"nodes": [], "edges": [], "info": {}, "warnings": {}},
+        fake_envelope = {
+            "nodes": [],
+            "edges": [],
+            "info": {"total_count": 50},
+            "warnings": {},
         }
-        with patch("tap_grid.search.execute_search", return_value=paginated_result):
+        with patch("tap_grid.search.execute_search", return_value=fake_envelope):
             response = Client().get(_panel_url(panel))
 
         content = response.content.decode()
-        assert "tap-table-pagination" in content  # bar is present
-        assert "Prev" in content  # Prev rendered (disabled)
-        assert "Next" in content  # Next rendered (enabled)
+        assert content.count("tap-table-nav ") >= 2  # above + below
+        assert "Showing" in content
+        assert "of 50" in content
 
     def test_search_execution_error_returns_error_context(self):
         from django.test import RequestFactory
@@ -456,10 +466,15 @@ class TestTablePanelEditorInitial:
         assert initial["search_uuid"] == str(search.entity_id)
 
     def test_returns_config_fields(self):
-        panel = _create_table_panel(config={"column_mode": "common_metadata", "default_limit": 50})
+        panel = _create_table_panel(config={"column_mode": "common_metadata", "default_page_size": 50})
         initial = TablePanelType.get_editor_initial(panel)
         assert initial["column_mode"] == "common_metadata"
-        assert initial["default_limit"] == 50
+        assert initial["default_page_size"] == 50
+
+    def test_returns_default_page_size_when_not_in_config(self):
+        panel = _create_table_panel(config={"column_mode": "common_metadata"})
+        initial = TablePanelType.get_editor_initial(panel)
+        assert initial["default_page_size"] == 100
 
 
 @pytest.mark.django_db
@@ -475,7 +490,7 @@ class TestTablePanelHandleSave:
             "description": panel.description,
             "search_uuid": search_uuid,
             "column_mode": "common_metadata",
-            "default_limit": 25,
+            "default_page_size": 25,
         }
         data.update(overrides)
         return TablePanelEditForm(data)
@@ -493,14 +508,15 @@ class TestTablePanelHandleSave:
 
     def test_save_updates_config(self):
         panel = _create_table_panel()
-        form = self._make_form(panel, default_limit=50)
+        form = self._make_form(panel, default_page_size=50)
         assert form.is_valid(), form.errors
         from django.test import RequestFactory
 
         request = RequestFactory().post(_edit_url(panel))
         TablePanelType.handle_save(form, panel, request)
         panel.refresh_from_db()
-        assert panel.config["default_limit"] == 50
+        assert panel.config["default_page_size"] == 50
+        assert "default_limit" not in panel.config
 
     def test_save_creates_uses_search_edge(self):
         from tap_grid.models import Edge
@@ -581,7 +597,7 @@ class TestTablePanelEditView:
                 "description": "",
                 "search_uuid": str(search.entity_id),
                 "column_mode": "common_metadata",
-                "default_limit": "25",
+                "default_page_size": "25",
             },
         )
         assert response.status_code == 302
@@ -595,7 +611,7 @@ class TestTablePanelEditView:
                 "description": "",
                 "search_uuid": "",
                 "column_mode": "common_metadata",
-                "default_limit": "25",
+                "default_page_size": "25",
             },
         )
         assert response.status_code == 200
@@ -615,7 +631,7 @@ class TestTablePanelEditForm:
                 "description": "",
                 "search_uuid": "",
                 "column_mode": "common_metadata",
-                "default_limit": "25",
+                "default_page_size": "25",
             }
         )
         assert form.is_valid(), form.errors
@@ -627,7 +643,7 @@ class TestTablePanelEditForm:
                 "description": "",
                 "search_uuid": "",
                 "column_mode": "common_metadata",
-                "default_limit": "25",
+                "default_page_size": "25",
             }
         )
         assert not form.is_valid()
@@ -640,24 +656,24 @@ class TestTablePanelEditForm:
                 "description": "",
                 "search_uuid": "",
                 "column_mode": "bad_mode",
-                "default_limit": "25",
+                "default_page_size": "25",
             }
         )
         assert not form.is_valid()
         assert "column_mode" in form.errors
 
-    def test_default_limit_below_min_fails(self):
+    def test_default_page_size_below_min_fails(self):
         form = TablePanelEditForm(
             {
                 "name": "T",
                 "description": "",
                 "search_uuid": "",
                 "column_mode": "common_metadata",
-                "default_limit": "0",
+                "default_page_size": "0",
             }
         )
         assert not form.is_valid()
-        assert "default_limit" in form.errors
+        assert "default_page_size" in form.errors
 
     def test_search_choices_populated(self):
         search = _create_search(name="My Search")
@@ -667,7 +683,7 @@ class TestTablePanelEditForm:
                 "description": "",
                 "search_uuid": str(search.entity_id),
                 "column_mode": "common_metadata",
-                "default_limit": "25",
+                "default_page_size": "25",
             }
         )
         choice_values = [v for v, _ in form.fields["search_uuid"].choices]

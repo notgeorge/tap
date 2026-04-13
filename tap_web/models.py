@@ -11,8 +11,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from tap_grid.models import BaseModel
-from tap_web.exceptions import PageLayoutValidationError, PageSlugValidationError, PanelStaticAssetValidationError
-from tap_web.validation import validate_page_layout, validate_page_slug, validate_panel_assets
+from tap_web.exceptions import PageLayoutValidationError, PageSlugValidationError
+from tap_web.validation import validate_page_layout, validate_page_slug
 
 
 class Page(BaseModel):
@@ -21,7 +21,7 @@ class Page(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "page"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
 
-    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {
         "name": {"type": "string", "minLength": 1},
         "slug": {"type": "string", "minLength": 1},
         "description": {"type": "string"},
@@ -43,7 +43,7 @@ class Page(BaseModel):
         }
     ]
 
-    FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {
         "layout": {"validation": "function"},
     }
 
@@ -94,17 +94,13 @@ class Panel(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "panel"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
 
-    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {
         "slug": {"type": "string", "minLength": 1},
         "name": {"type": "string", "minLength": 1},
         "description": {"type": "string"},
         "view": {"type": "string", "minLength": 1},
         "editor_view": {"type": "string"},
         "config": {"type": "object"},
-        "js": {"type": "array", "items": {"type": "string"}},
-        "css": {"type": "array", "items": {"type": "string"}},
-        "editor_js": {"type": "array", "items": {"type": "string"}},
-        "editor_css": {"type": "array", "items": {"type": "string"}},
         "input_vars": {"type": "array", "items": {"type": "string"}},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["slug", "name", "view"]
@@ -130,26 +126,6 @@ class Panel(BaseModel):
         blank=True,
         help_text="Panel-specific configuration object. Default: {}.",
     )
-    js = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="Flat list of static-relative JS paths. Example: ['js/cytoscape.js']",
-    )
-    css = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="Flat list of static-relative CSS paths. Example: ['css/panel.css']",
-    )
-    editor_js = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="Flat list of static-relative JS paths used in panel edit mode. Default: [].",
-    )
-    editor_css = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="Flat list of static-relative CSS paths used in panel edit mode. Default: [].",
-    )
     input_vars = models.JSONField(
         default=list,
         blank=True,
@@ -158,12 +134,6 @@ class Panel(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "web_panel"
-
-    def validate(self) -> None:
-        try:
-            validate_panel_assets(self)
-        except PanelStaticAssetValidationError as exc:
-            raise ValidationError({"__all__": [str(exc)]}) from exc
 
     def get_name(self) -> str:
         return self.name or ""
@@ -182,7 +152,7 @@ class LandingPage(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "landing_page"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.graph": "web"}
 
-    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {
         "name": {"type": "string"},
         "description": {"type": "string"},
     }

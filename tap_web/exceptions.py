@@ -7,7 +7,3 @@ class PageSlugValidationError(ValueError):
 
 class PageLayoutValidationError(ValueError):
     """Raised when a Page layout fails JSON Schema validation."""
-
-
-class PanelStaticAssetValidationError(ValueError):
-    """Raised when a Panel asset path references an external URL."""

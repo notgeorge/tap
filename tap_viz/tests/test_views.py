@@ -35,8 +35,6 @@ class TestGraphPanelView:
             slug="test-graph",
             name="Test Graph",
             view=GraphPanelType.view,
-            js=GraphPanelType.js,
-            css=GraphPanelType.css,
         )
         edge_entity2 = Entity.objects.create(entity_type="edge", name="USES_LAYOUT")
         Edge.objects.create(

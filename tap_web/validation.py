@@ -1,24 +1,19 @@
 """TAP Web validation utilities.
 
-Provides slug, layout, and asset validators for Page and Panel objects.
+Provides slug and layout validators for Page objects.
 All validators raise dedicated exception types from tap_web.exceptions.
 """
 
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
 
 import jsonschema
 
 from tap_web.exceptions import (
     PageLayoutValidationError,
     PageSlugValidationError,
-    PanelStaticAssetValidationError,
 )
-
-if TYPE_CHECKING:
-    from tap_web.models import Panel
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +52,9 @@ def validate_page_slug(slug: str, reserved_prefixes: list[str] | None = None) ->
         raise PageSlugValidationError("Slug must not end with a trailing slash.")
 
     if _SLUG_DOT_SEGMENT_RE.search(slug):
-        raise PageSlugValidationError("Slug must not contain dot-segments (/./ or /../) or standalone . and .. segments.")
+        raise PageSlugValidationError(
+            "Slug must not contain dot-segments (/./ or /../) or standalone . and .. segments."
+        )
 
     if reserved_prefixes:
         for prefix in reserved_prefixes:
@@ -78,9 +75,7 @@ _LAYOUT_SCHEMA: dict = {
         "columns": {
             "type": "object",
             "minProperties": 1,
-            "propertyNames": {
-                "pattern": "^col-[1-9][0-9]*(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?$"
-            },
+            "propertyNames": {"pattern": "^col-[1-9][0-9]*(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?$"},
             "additionalProperties": {
                 "type": "object",
                 "additionalProperties": False,
@@ -90,8 +85,18 @@ _LAYOUT_SCHEMA: dict = {
                         "type": "string",
                         "enum": [
                             "auto",
-                            "1fr", "2fr", "3fr", "4fr", "5fr", "6fr",
-                            "7fr", "8fr", "9fr", "10fr", "11fr", "12fr",
+                            "1fr",
+                            "2fr",
+                            "3fr",
+                            "4fr",
+                            "5fr",
+                            "6fr",
+                            "7fr",
+                            "8fr",
+                            "9fr",
+                            "10fr",
+                            "11fr",
+                            "12fr",
                         ],
                     },
                     "tags": {
@@ -105,9 +110,7 @@ _LAYOUT_SCHEMA: dict = {
                     "rows": {
                         "type": "object",
                         "minProperties": 1,
-                        "propertyNames": {
-                            "pattern": "^row-[1-9][0-9]*(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?$"
-                        },
+                        "propertyNames": {"pattern": "^row-[1-9][0-9]*(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?$"},
                         "additionalProperties": {
                             "type": "object",
                             "additionalProperties": False,
@@ -160,28 +163,3 @@ def validate_page_layout(layout: dict) -> None:
         raise PageLayoutValidationError(f"Invalid page layout: {exc.message}") from exc
 
 
-# ---------------------------------------------------------------------------
-# Panel static asset validation (req-web-panel-static)
-# ---------------------------------------------------------------------------
-
-_EXTERNAL_URL_PREFIXES = ("http://", "https://")
-
-
-def validate_panel_assets(panel: Panel) -> None:
-    """Validate that all Panel asset paths are Django-static-relative (no external URLs).
-
-    Args:
-        panel: The Panel instance whose asset lists are checked.
-
-    Raises:
-        PanelStaticAssetValidationError: If any asset path starts with http:// or https://.
-    """
-    asset_fields = ("js", "css", "editor_js", "editor_css")
-    for field_name in asset_fields:
-        paths: list[str] = getattr(panel, field_name, []) or []
-        for path in paths:
-            if isinstance(path, str) and path.startswith(_EXTERNAL_URL_PREFIXES):
-                raise PanelStaticAssetValidationError(
-                    f"Panel asset path '{path}' in field '{field_name}' must be a Django-static-relative path, "
-                    "not an external URL."
-                )

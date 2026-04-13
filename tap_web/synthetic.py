@@ -55,18 +55,15 @@ class SyntheticPage(SyntheticNode):
 
 
 class SyntheticPanel(SyntheticNode):
-    """In-memory Panel — provides view, js, css, config for panel rendering."""
+    """In-memory Panel — provides view, config, and editor hooks for panel
+    rendering. Static assets come from the panel type, not the instance."""
 
     def __init__(self, envelope: dict[str, Any]) -> None:
         super().__init__(envelope)
         self.slug: str = self._node.get("slug", "")
         self.view: str = self._node.get("view", "")
-        self.js: list[str] = self._node.get("js", [])
-        self.css: list[str] = self._node.get("css", [])
         self.config: dict = self._node.get("config", {})
         self.editor_view: str = self._node.get("editor_view", "")
-        self.editor_js: list[str] = self._node.get("editor_js", [])
-        self.editor_css: list[str] = self._node.get("editor_css", [])
         self.description: str = self._node.get("description", "")
 
 
@@ -349,6 +346,8 @@ def render_synthetic_page(
     # automatically without requiring each GRIFT panel to declare them.
     from tap_web.views import _get_panel_type_for_panel
 
+    # Panel types are authoritative for static assets; panel instances do
+    # not declare js/css.
     css: dict[str, None] = {}
     js: dict[str, None] = {}
     for panel in panels_by_id.values():
@@ -356,10 +355,6 @@ def render_synthetic_page(
         for path in getattr(panel_type, "css", []):
             css[path] = None
         for path in getattr(panel_type, "js", []):
-            js[path] = None
-        for path in panel.css:
-            css[path] = None
-        for path in panel.js:
             js[path] = None
 
     # Process layout into sorted columns and rows, then render each panel inline.

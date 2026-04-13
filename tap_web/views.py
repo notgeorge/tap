@@ -314,8 +314,10 @@ def _panel_editor_context(
 
     assert isinstance(panel, Panel)
     graph_ctx = _get_neighborhood_context(panel.entity_id)
-    editor_css: dict[str, None] = dict.fromkeys(panel.editor_css or [])
-    editor_js: dict[str, None] = dict.fromkeys(panel.editor_js or [])
+    # Editor assets come from the panel type, not the panel instance.
+    panel_type = _get_panel_type_for_panel(panel)
+    editor_css: dict[str, None] = dict.fromkeys(getattr(panel_type, "editor_css", []) or [])
+    editor_js: dict[str, None] = dict.fromkeys(getattr(panel_type, "editor_js", []) or [])
     view_url = f"/object/panel/{panel.slug}--{panel.entity_id}/"
     return {
         "obj": panel,
@@ -477,6 +479,9 @@ def _render_page(
     for panel_id, panel in panel_slots:
         panels_by_id[panel_id] = f"{panel.slug}--{panel.entity_id}"
 
+    # Static assets come exclusively from the panel type. Panel instances do
+    # not declare assets — a panel is identified by its `view` and the type
+    # owns all css/js the panel needs to render.
     css: dict[str, None] = {}
     js: dict[str, None] = {}
     for _panel_id, panel in panel_slots:
@@ -484,10 +489,6 @@ def _render_page(
         for asset_path in getattr(panel_type, "css", []):
             css[asset_path] = None
         for asset_path in getattr(panel_type, "js", []):
-            js[asset_path] = None
-        for asset_path in panel.css:
-            css[asset_path] = None
-        for asset_path in panel.js:
             js[asset_path] = None
 
     layout = getattr(page, "layout", {}) or {}

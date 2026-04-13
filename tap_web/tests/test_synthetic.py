@@ -153,8 +153,8 @@ class TestSyntheticNodeAttributes:
         assert panel.slug == "entity-neighborhood-graph"
         assert panel.name == "Entity Graph"
         assert panel.view == "tap_viz/panels/graph_panel.html"
-        assert "tap_viz/js/cytoscape.min.js" in panel.js
-        assert "tap_viz/css/panel-graph.css" in panel.css
+        # Static assets come from the panel type (GraphPanelType), not the
+        # synthetic instance.
 
     def test_synthetic_search_attributes(self, viewer_subgraph):
         graph = SyntheticGraph(viewer_subgraph)
