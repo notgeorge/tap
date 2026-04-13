@@ -45,23 +45,35 @@ class GraphPanelType:
     slug = "graph"
     label = "Graph Panel"
     view = "tap_viz/panels/graph_panel.html"
-    js: list[str] = ["tap_viz/js/cytoscape.min.js", "tap_viz/js/cytoscape-grid-guide.js", "tap_viz/js/panel-graph.js"]
+    js: list[str] = [
+        "tap_viz/js/lib/cytoscape.min.js",
+        "tap_viz/js/lib/cytoscape-grid-guide.js",
+        "tap_viz/js/panel-graph.js",
+    ]
     css: list[str] = ["tap_viz/css/panel-graph.css"]
     config_defaults: dict[str, Any] = {}
 
     @classmethod
     def get_view_context(cls, panel: Panel, request: HttpRequest) -> dict[str, Any]:
-        """Resolve layout and searches, execute all, merge results for the template.
+        """Resolve projection (preferred) or legacy layout, execute seed search, and
+        pre-bake results for Cytoscape rendering.
 
-        Executes all USES_SEARCH edges from the linked layout and merges nodes and
-        edges across results (deduplicating by entity_id). Returns a context dict with:
-          graph_nodes_json  - JSON-encoded nodes list
-          graph_edges_json  - JSON-encoded edges list
-          graph_error       - error string, or None on success
+        Resolution order:
+          1. USES_PROJECTION edge -> Projection (new, projection-hosted panels)
+          2. USES_LAYOUT edge -> Layout (legacy fallback)
+
+        For projection-hosted panels: serializes the projection definition into
+        the context so the client runtime can orchestrate elevations + layouts
+        after bootstrap. The seed search (if any) is pre-baked for fast first
+        paint, mirroring the legacy rendering path.
         """
+        projection = _get_panel_projection(panel)
+        if projection is not None:
+            return cls._projection_context(panel, projection, request)
+
         layout = _get_panel_layout(panel)
         if layout is None:
-            return _error_ctx("No layout linked to this panel (USES_LAYOUT edge missing).")
+            return _error_ctx("No projection or layout linked to this panel.")
 
         searches = _get_layout_searches(layout)
         if not searches:
@@ -100,10 +112,113 @@ class GraphPanelType:
         return {
             "graph_nodes_json": safe_json(list(nodes.values())),
             "graph_edges_json": safe_json(list(edges.values())),
+            "graph_projection_json": safe_json(None),
             "graph_placement": placement,
             "graph_nesting_enabled": nesting_enabled,
             "graph_error": None,
         }
+
+    @classmethod
+    def _projection_context(
+        cls,
+        panel: Panel,
+        projection: Any,
+        request: HttpRequest,
+    ) -> dict[str, Any]:
+        """Build a context dict for a projection-hosted graph panel.
+
+        Pre-bakes the optional seed search (via USES_SEARCH on the Panel itself)
+        for fast first paint; otherwise starts with an empty node/edge set. The
+        client-side projection runtime takes over after handoff.
+        """
+        nodes: dict[str, dict[str, Any]] = {}
+        edges: dict[str, dict[str, Any]] = {}
+
+        seed_searches = _get_panel_seed_searches(panel)
+        try:
+            from tap_grid.search import execute_search
+
+            raw_inputs = {k: v for k, v in request.GET.items() if k not in ("limit", "offset")}
+            for search in seed_searches:
+                result = execute_search(search, inputs=raw_inputs or None, layer="extended")
+                envelope = result.get("results", result)
+                for node in envelope.get("nodes", []):
+                    nodes.setdefault(node["entity"]["entity_id"], node)
+                for edge in envelope.get("edges", []):
+                    key = (
+                        edge["entity"]["entity_id"]
+                        if edge.get("entity")
+                        else (
+                            f"{edge['edge']['from_entity_id']}-{edge['edge']['to_entity_id']}-{edge['edge']['edge_type']}"
+                        )
+                    )
+                    edges.setdefault(key, edge)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Graph panel seed search failed for panel %s", panel.entity_id)
+            return _error_ctx(f"Seed search execution failed: {exc}")
+
+        return {
+            "graph_nodes_json": safe_json(list(nodes.values())),
+            "graph_edges_json": safe_json(list(edges.values())),
+            "graph_projection_json": safe_json(projection.definition),
+            "graph_placement": "projection",
+            "graph_nesting_enabled": False,
+            "graph_error": None,
+        }
+
+
+def _get_panel_projection(panel: Panel) -> Any | None:
+    """Return the Projection linked to a Panel via USES_PROJECTION edge, or None."""
+    from tap_grid.models import Edge
+    from tap_viz.models import Projection
+
+    edge = (
+        Edge.objects.filter(
+            from_entity=panel.entity,
+            edge_type="USES_PROJECTION",
+        )
+        .select_related("to_entity")
+        .order_by("entity__created_at")
+        .first()
+    )
+    if edge is None:
+        return None
+
+    try:
+        return Projection.objects.select_related("entity").get(entity=edge.to_entity)
+    except Projection.DoesNotExist:
+        logger.warning(
+            "USES_PROJECTION edge %s points to missing Projection entity %s",
+            edge.pk,
+            edge.to_entity_id,
+        )
+        return None
+
+
+def _get_panel_seed_searches(panel: Panel) -> list[Any]:
+    """Return any seed Searches linked directly to a Panel via USES_SEARCH edges."""
+    from tap_grid.models import Edge, Search
+
+    edges = (
+        Edge.objects.filter(
+            from_entity=panel.entity,
+            edge_type="USES_SEARCH",
+        )
+        .select_related("to_entity")
+        .order_by("entity__created_at")
+    )
+
+    results: list[Any] = []
+    for edge in edges:
+        try:
+            results.append(Search.objects.select_related("entity").get(entity=edge.to_entity))
+        except Search.DoesNotExist:
+            logger.warning(
+                "USES_SEARCH edge %s points to missing Search entity %s",
+                edge.pk,
+                edge.to_entity_id,
+            )
+    return results
 
 
 def _get_panel_layout(panel: Panel) -> Any | None:
@@ -164,6 +279,7 @@ def _error_ctx(message: str) -> dict[str, Any]:
     return {
         "graph_nodes_json": safe_json([]),
         "graph_edges_json": safe_json([]),
+        "graph_projection_json": safe_json(None),
         "graph_placement": "cytoscape:cose",
         "graph_error": message,
     }

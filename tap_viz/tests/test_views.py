@@ -69,4 +69,4 @@ class TestGraphPanelView:
         panel_url_id = f"orphan-graph--{panel.entity_id}"
         response = client.get(f"/panel/{panel_url_id}/")
         assert response.status_code == 200
-        assert b"USES_LAYOUT" in response.content
+        assert b"No projection or layout linked" in response.content

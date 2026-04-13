@@ -1,9 +1,36 @@
 """Tests for tap_viz models."""
 
 import pytest
+from django.core.exceptions import ValidationError
 
 from tap_grid.models import Entity
-from tap_viz.models import Layout
+from tap_viz.models import Layout, Projection
+
+
+def _valid_projection_definition() -> dict:
+    return {
+        "default_elevation": "saga-level",
+        "elevations": [
+            {
+                "name": "saga-level",
+                "description": "top",
+                "zoom": 0.6,
+                "tap_layouts": [
+                    {"name": "saga-stage", "description": "", "js_file": "plugins/lotr/static/lotr/js/projections/saga-stage.js"}
+                ],
+                "double_tap_targets": [{"entity_type": "character", "target_elevation": "character-view"}],
+            },
+            {
+                "name": "character-view",
+                "description": "zoomed",
+                "zoom": 1.4,
+                "tap_layouts": [
+                    {"name": "character", "description": "", "js_file": "plugins/lotr/static/lotr/js/projections/character-view.js"}
+                ],
+                "double_tap_targets": [],
+            },
+        ],
+    }
 
 
 @pytest.mark.django_db
@@ -39,3 +66,52 @@ class TestLayout:
         )
         layout.refresh_from_db()
         assert layout.definition == definition
+
+
+@pytest.mark.django_db
+class TestProjection:
+    def test_create_valid(self):
+        p = Projection(name="saga", description="test", definition=_valid_projection_definition())
+        p.full_validate()
+        p.save()
+        assert p.name == "saga"
+        assert p.entity.entity_type == "projection"
+
+    def test_str(self):
+        p = Projection.objects.create(name="p", definition=_valid_projection_definition())
+        assert str(p) == "p"
+
+    def test_duplicate_elevation_names_rejected(self):
+        d = _valid_projection_definition()
+        d["elevations"][1]["name"] = "saga-level"
+        d["default_elevation"] = "saga-level"
+        p = Projection(name="x", definition=d)
+        with pytest.raises(ValidationError) as exc:
+            p.full_validate()
+        assert "unique" in str(exc.value).lower()
+
+    def test_duplicate_zoom_rejected(self):
+        d = _valid_projection_definition()
+        d["elevations"][1]["zoom"] = 0.6
+        p = Projection(name="x", definition=d)
+        with pytest.raises(ValidationError):
+            p.full_validate()
+
+    def test_default_elevation_must_exist(self):
+        d = _valid_projection_definition()
+        d["default_elevation"] = "ghost"
+        p = Projection(name="x", definition=d)
+        with pytest.raises(ValidationError):
+            p.full_validate()
+
+    def test_empty_tap_layouts_rejected(self):
+        d = _valid_projection_definition()
+        d["elevations"][0]["tap_layouts"] = []
+        p = Projection(name="x", definition=d)
+        with pytest.raises(ValidationError):
+            p.full_validate()
+
+    def test_missing_elevations_rejected(self):
+        p = Projection(name="x", definition={"default_elevation": "a"})
+        with pytest.raises(ValidationError):
+            p.full_validate()

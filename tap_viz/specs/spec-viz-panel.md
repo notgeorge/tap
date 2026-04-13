@@ -4,7 +4,7 @@
 
 The viz panel is the primary runtime surface for human-facing graph visualization inside TAP pages. It brings graph-native data into the existing page and panel system so people can inspect and navigate meaningful slices of the grid without leaving the broader page context.
 
-The viz panel owns runtime concerns such as loading a layout, receiving resolved page inputs, rendering a scene, and handling user navigation within the panel. It does not own the definition of the graph view itself. Data retrieval, graph assembly, containment, placement, and presentation rules belong to the referenced layout.
+The viz panel owns host/runtime concerns such as receiving resolved page inputs, creating the Cytoscape surface, rendering panel chrome, and handling user navigation within the panel. It does not own the definition of the graph view itself. Under the current architecture, graph view behavior belongs to the referenced projection and the tap layouts that projection orchestrates.
 
 ## Goals
 
@@ -13,29 +13,30 @@ The viz panel owns runtime concerns such as loading a layout, receiving resolved
 | 1. | Hostable | Viz panels must fit cleanly into the existing TAP page and panel framework. |
 | 2. | Input-Aware | Viz panels must consume resolved page inputs through the existing panel input contract. |
 | 3. | Navigable | Viz panels must support core graph navigation behaviors such as pan, zoom, fit, selection, and optional popovers. |
-| 4. | Layout-Driven | Viz panels must render a referenced layout entity rather than embedding full graph logic directly in panel config. |
+| 4. | Projection-Hosted | Viz panels must host a referenced projection rather than embedding full graph logic directly in panel config. |
 | 5. | Safe | Viz panels must fail safely and remain read-only in v1. |
 
 ## Requirements
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-viz-panel-hosting | [Panel Hosting](#panel-hosting) | Implemented | Viz panels are hosted by the existing TAP panel framework |
-| req-viz-panel-config | [Panel Configuration](#panel-configuration) | Proposed | Panel config covers layout reference and runtime host behavior |
-| req-viz-panel-inputs | [Panel Inputs](#panel-inputs) | Proposed | Viz panels consume resolved page inputs and pass them into layout execution |
-| req-viz-panel-layout-reference | [Layout Reference](#layout-reference) | Proposed | Viz panels reference reusable layout entities |
+| req-viz-panel-hosting | [Panel Hosting](#panel-hosting) | Refactoring | Viz panels are hosted by the existing TAP panel framework and are evolving toward projection runtime handoff |
+| req-viz-panel-config | [Panel Configuration](#panel-configuration) | Proposed | Panel config covers projection-hosted runtime behavior |
+| req-viz-panel-inputs | [Panel Inputs](#panel-inputs) | Proposed | Viz panels consume resolved page inputs and pass them into projection and layout execution |
+| req-viz-panel-projection-reference | [Projection Reference](#projection-reference) | Proposed | Graph panels reference reusable projection entities through `USES_PROJECTION` |
+| req-viz-panel-layout-reference | [Layout Reference](#layout-reference) | Deprecated | `USES_LAYOUT` is deprecated for graph panels in favor of `USES_PROJECTION` |
 | req-viz-panel-runtime-nav | [Runtime Navigation](#runtime-navigation) | Implemented | Pan, zoom, and fit are required runtime behaviors |
 | req-viz-panel-runtime-selection | [Runtime Selection](#runtime-selection) | Implemented | Selection is part of the core runtime contract |
 | req-viz-panel-node-nav | [Node Navigation](#node-navigation) | Implemented | Clicking a graph node navigates to the TAP object viewer for that entity |
 | req-viz-panel-runtime-popover | [Runtime Popovers](#runtime-popovers) | Proposed | Popovers are an optional but standardized runtime behavior |
 | req-viz-panel-landing-default | [Landing Page Default](#landing-page-default) | Implemented | Default landing page should host a viz panel showing the graph in grid layout |
 | req-viz-panel-readonly | [Read-Only Runtime](#read-only-runtime) | Implemented | Viz panel runtime is read-only in v1 |
-| req-viz-panel-failure-handling | [Failure Handling](#failure-handling) | Implemented | Viz panels fail safely within the panel shell |
+| req-viz-panel-failure-handling | [Failure Handling](#failure-handling) | Refactoring | Viz panels fail safely within the panel shell and must distinguish panel, projection, and layout runtime failures |
 
 ### Panel Hosting
 ----
 RID: `req-viz-panel-hosting`
-Status: `Implemented`
+Status: `Refactoring`
 
 The viz panel is hosted through the normal TAP panel framework and participates in the same page composition rules as other panel types.
 
@@ -47,9 +48,12 @@ This requirement makes viz a first-class panel citizen instead of a special page
 - It uses the generic panel lifecycle for:
   - page placement
   - asset loading
+  - Cytoscape host creation
   - runtime rendering
   - panel error fallback
 - Viz-specific runtime behavior may be implemented in `tap_viz`, but hosting remains owned by the general panel system.
+- A graph panel may initialize with zero server-provided nodes when a referenced projection is expected to populate the scene after runtime handoff.
+- The last act of graph panel bootstrap is to hand the initialized Cytoscape host and referenced projection to the TAP Viz projection runtime.
 
 #### Development
 The panel shell is the right place to standardize composition, while viz-specific logic stays inside the viz subsystem.
@@ -71,15 +75,14 @@ If full-screen dedicated viz routes are needed later, define them as alternate h
 RID: `req-viz-panel-config`
 Status: `Proposed`
 
-Viz panel configuration is limited to host/runtime concerns. It does not embed the layout pipeline itself.
+Viz panel configuration is limited to host/runtime concerns. It does not embed projection or layout logic itself.
 
 #### Status Details
-This keeps a clean separation between panel instance concerns and reusable layout definition concerns.
+This keeps a clean separation between panel instance concerns and reusable projection and layout definition concerns.
 
 #### Implementation
 The canonical panel config shape in v1 includes:
 
-- `layout_entity_id` required
 - `initial_viewport` optional
 - `chrome` optional object:
   - toolbar enabled
@@ -91,22 +94,29 @@ The canonical panel config shape in v1 includes:
   - minimum zoom
   - maximum zoom
 
+Graph panels reference projections through graph structure rather than through panel config fields.
+
+For graph panels, the panel instance should reference exactly one projection using:
+
+- `USES_PROJECTION` edge to a projection node
+
 The panel config does not define:
 - search steps
+- projection definition data
 - placement actions
 - containment rules
 - styling rules
 
 #### Development
-Panel config should stay small enough that the same layout can be reused in multiple panels with different host behavior.
+Panel config should stay small enough that the same projection can be reused in multiple panels with different host behavior.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-panel-config-1 | Layout Reference Required | Proposed | Viz panel config requires a referenced layout entity identifier. | |
-| req-viz-panel-config-2 | Host Behavior Only | Proposed | Viz panel config is limited to host/runtime behavior rather than embedding layout logic. | |
-| req-viz-panel-config-3 | Reuse Preserved | Proposed | A layout can be reused by multiple panel instances with different panel-level runtime settings. | |
+| req-viz-panel-config-1 | Projection Reference Not In Config | Proposed | Graph panel config stays focused on host/runtime concerns and does not embed projection definition data. | |
+| req-viz-panel-config-2 | Host Behavior Only | Proposed | Viz panel config is limited to host/runtime behavior rather than embedding projection or layout logic. | |
+| req-viz-panel-config-3 | Reuse Preserved | Proposed | A projection can be reused by multiple panel instances with different panel-level runtime settings. | |
 
 #### Future
 If common panel chrome patterns emerge, define shared config helpers instead of expanding the core panel config arbitrarily.
@@ -117,7 +127,7 @@ If common panel chrome patterns emerge, define shared config helpers instead of 
 RID: `req-viz-panel-inputs`
 Status: `Proposed`
 
-Viz panels consume resolved page inputs through the existing panel input contract and pass those values into layout execution.
+Viz panels consume resolved page inputs through the existing panel input contract and pass those values into projection and layout execution.
 
 #### Status Details
 This requirement aligns viz with the TAP page/panel input model from the start so viz can participate in page-level coordination rather than becoming a closed island.
@@ -126,51 +136,73 @@ This requirement aligns viz with the TAP page/panel input model from the start s
 - Viz panels declare panel-local input names as needed.
 - Pages remain responsible for mapping page variables to panel-local names.
 - Viz panels receive resolved input objects through the canonical panel input event contract.
-- Layout execution may bind resolved panel inputs into search execution inputs and layout inputs.
-- On input change, the panel reruns layout execution deterministically for the new input state.
+- Projection runtime and tap layouts may bind resolved panel inputs into search execution inputs and layout inputs.
+- On input change, the panel reruns projection-hosted execution deterministically for the new input state.
 
 #### Development
-Input binding belongs at the panel/layout boundary, not inside renderer-native configuration.
+Input binding belongs at the panel/runtime boundary, not inside renderer-native configuration.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-viz-panel-inputs-1 | Existing Panel Input Contract Used | Proposed | Viz panels consume resolved inputs through the existing TAP panel input model. | |
-| req-viz-panel-inputs-2 | Layout Execution Input Binding Allowed | Proposed | Layout execution may bind resolved panel inputs into layout and search inputs. | |
-| req-viz-panel-inputs-3 | Deterministic Rerun On Input Change | Proposed | Viz panel runtime reruns layout execution deterministically when panel inputs change. | |
+| req-viz-panel-inputs-2 | Projection And Layout Input Binding Allowed | Proposed | Projection runtime and tap layouts may bind resolved panel inputs into search and layout inputs. | |
+| req-viz-panel-inputs-3 | Deterministic Rerun On Input Change | Proposed | Viz panel runtime reruns projection-hosted execution deterministically when panel inputs change. | |
 
 #### Future
 Define richer input typing and validation in the layout spec once common patterns emerge.
 
 
-### Layout Reference
+### Projection Reference
 ----
-RID: `req-viz-panel-layout-reference`
+RID: `req-viz-panel-projection-reference`
 Status: `Proposed`
 
-Every viz panel references a reusable viz layout entity that defines what graph view is rendered.
+Every graph panel references a reusable viz projection entity that defines what graph view is rendered.
 
 #### Status Details
-This requirement prevents panel instances from becoming one-off graph-definition containers.
+This requirement prevents panel instances from becoming one-off graph-definition containers and keeps projection orchestration out of panel-local config.
 
 #### Implementation
-- The panel references one default layout entity.
-- The layout reference is stable and reusable.
-- The panel may provide runtime inputs and host settings, but the layout defines the graph view.
+- The panel references one default projection entity through a `USES_PROJECTION` edge.
+- The projection reference is stable and reusable.
+- The panel may provide runtime inputs and host settings, but the projection and its tap layouts define the graph view.
+- Graph panels must support projection startup even when no server-provided nodes are present at panel initialization time.
+- The panel creates the Cytoscape host surface and then hands off control to the projection runtime as the last step of bootstrap.
 
 #### Development
-The panel should be thought of as “a runtime host for a layout” rather than “the place where the graph view is authored.”
+The panel should be thought of as “a runtime host for a projection” rather than “the place where the graph view is authored.”
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-panel-layout-reference-1 | Default Layout Reference Exists | Proposed | A viz panel references one default layout entity for runtime rendering. | |
-| req-viz-panel-layout-reference-2 | Layout Remains Reusable | Proposed | The referenced layout is not owned by the panel instance and may be shared elsewhere. | |
+| req-viz-panel-projection-reference-1 | Default Projection Reference Exists | Proposed | A graph panel references one default projection entity through `USES_PROJECTION`. | |
+| req-viz-panel-projection-reference-2 | Projection Remains Reusable | Proposed | The referenced projection is not owned by the panel instance and may be shared elsewhere. | |
+| req-viz-panel-projection-reference-3 | Zero-Node Projection Startup Allowed | Proposed | A graph panel may initialize with no server-provided nodes when the projection runtime is expected to populate the scene. | |
+| req-viz-panel-projection-reference-4 | Runtime Handoff Defined | Proposed | The final act of graph panel bootstrap is to hand the initialized Cytoscape host and projection object to the projection runtime. | |
 
 #### Future
-Later work may define layout switching or adjacent layouts, but that is not part of v1.
+Later work may define projection switching or adjacent projections, but that is not part of v1.
+
+
+### Layout Reference
+----
+RID: `req-viz-panel-layout-reference`
+Status: `Deprecated`
+
+`USES_LAYOUT` as the primary graph-panel binding model is deprecated in favor of projection-owned runtime orchestration.
+
+#### Implementation
+- Graph panels should reference projections through `USES_PROJECTION`.
+- Direct `USES_LAYOUT` binding may remain temporarily for compatibility during transition, but it is no longer the target architecture for graph panels.
+
+#### Development
+Tap layouts remain important, but they now run under projection orchestration rather than serving as the panel's primary referenced artifact.
+
+#### Future
+Remove graph-panel dependence on direct `USES_LAYOUT` bindings once projection runtime adoption is complete.
 
 
 ### Runtime Navigation
@@ -300,15 +332,15 @@ Define structured inspection cards, related actions, and deep-linked details in 
 RID: `req-viz-panel-landing-default`
 Status: `Implemented`
 
-The default landing page should host a viz panel that shows all visible graph nodes and edges using a grid-style layout.
+The default landing page should host a viz panel that shows all visible graph nodes and edges using a graph-wide view.
 
 #### Status Details
 This requirement captures the current high-priority product goal of making the landing page show the graph through the new panel-native architecture.
 
 #### Implementation
 - The default landing page contains a viz panel.
-- That panel’s default layout renders all nodes and edges in a graph-wide view.
-- The initial placement mode for this layout is grid-oriented.
+- That panel's initial graph view renders all nodes and edges in a graph-wide view.
+- The initial placement mode for this view is grid-oriented.
 
 #### Development
 This requirement is primarily a product target, but it also serves as the reference implementation for panel-native graph rendering.
@@ -318,8 +350,8 @@ This requirement is primarily a product target, but it also serves as the refere
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-viz-panel-landing-default-1 | Landing Page Uses Viz Panel | Implemented | The default landing page hosts a viz panel under the normal page/panel system. | Grid Overview panel on the seeded landing page |
-| req-viz-panel-landing-default-2 | Full Graph View Used | Implemented | The panel’s referenced default layout renders all visible nodes and edges. | `list-concepts` search runner via graph panel |
-| req-viz-panel-landing-default-3 | Grid Placement Used Initially | Implemented | The default layout uses grid-style placement in the initial implementation target. | `cytoscape:cose` layout (default in `_buildLayout`) |
+| req-viz-panel-landing-default-2 | Full Graph View Used | Implemented | The panel's initial graph view renders all visible nodes and edges. | Graph-wide ORM search via graph panel |
+| req-viz-panel-landing-default-3 | Grid Placement Used Initially | Implemented | The initial graph view uses grid-style placement in the initial implementation target. | `cytoscape:cose` layout (default in `_buildLayout`) |
 
 #### Future
 The landing-page layout may later become more curated or contextual, but the panel-native architecture should remain.
@@ -367,7 +399,7 @@ If inline editing is later desired, it should be gated behind a separate spec an
 ### Failure Handling
 ----
 RID: `req-viz-panel-failure-handling`
-Status: `Implemented`
+Status: `Refactoring`
 
 Viz panel failures must fail safely inside the panel shell and surface useful runtime warnings without breaking the hosting page.
 
@@ -375,9 +407,10 @@ Viz panel failures must fail safely inside the panel shell and surface useful ru
 Graph rendering and layout execution are more complex than simple text rendering, so safe failure behavior must be explicit.
 
 #### Implementation
-- If the layout cannot be loaded, the panel fails with the standard panel error behavior.
-- If layout execution produces warnings, the runtime may surface warning state while still rendering.
-- If an unsupported step or formatter is encountered, the failure must be explicit and isolated to the panel.
+- If the panel cannot bootstrap its runtime host, it fails with the standard panel error behavior.
+- If the projection cannot be initialized, that failure is explicit and isolated to the panel.
+- If tap layout execution produces warnings, the runtime may surface warning state while still rendering.
+- If a tap layout fails, that failure is explicit and isolated to the panel, but other layouts may still run according to the layout runtime contract.
 
 #### Development
 Prefer explicit failure or warning surfaces over silent partial behavior that leaves the graph view misleading.
@@ -387,8 +420,8 @@ Prefer explicit failure or warning surfaces over silent partial behavior that le
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-viz-panel-failure-handling-1 | Host Page Remains Intact | Implemented | Viz panel failure does not break page rendering outside the affected panel. | Panel error fragment from `tap_web` panel view handler; HTMX swap isolates failures |
-| req-viz-panel-failure-handling-2 | Warning State Allowed | Implemented | Recoverable layout/runtime warnings may be surfaced without treating the entire render as fatal. | Empty-nodes early return renders inline message in the panel container |
-| req-viz-panel-failure-handling-3 | Unsupported Behavior Fails Explicitly | Implemented | Unsupported layout behavior fails explicitly rather than degrading silently. | Guard clause in `initGraph` returns without rendering if required elements are missing |
+| req-viz-panel-failure-handling-2 | Warning State Allowed | Refactoring | Recoverable projection and layout warnings may be surfaced without treating the entire render as fatal. | Empty-nodes early return renders inline message in the panel container |
+| req-viz-panel-failure-handling-3 | Runtime Failures Distinguished | Refactoring | Panel bootstrap failure, projection initialization failure, and layout execution failure are distinct runtime concerns. | |
 
 #### Future
 Define richer diagnostics, telemetry, and operator-facing debugging tools once the runtime matures.

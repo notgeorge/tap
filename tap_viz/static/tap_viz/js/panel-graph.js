@@ -303,6 +303,7 @@ TapParentLabelOverlay.prototype._syncPosition = function (node) {
 function initGraph(panelId) {
     const nodesEl = document.getElementById("tap-graph-nodes-" + panelId);
     const edgesEl = document.getElementById("tap-graph-edges-" + panelId);
+    const projectionEl = document.getElementById("tap-graph-projection-" + panelId);
     const container = document.getElementById("tap-graph-container-" + panelId);
     const cyEl = document.getElementById("tap-graph-" + panelId);
 
@@ -310,8 +311,10 @@ function initGraph(panelId) {
 
     const nodes = JSON.parse(nodesEl.textContent || "[]");
     const edges = JSON.parse(edgesEl.textContent || "[]");
+    const projection = projectionEl ? JSON.parse(projectionEl.textContent || "null") : null;
 
-    if (nodes.length === 0) {
+    // Projection-hosted panel: empty scenes are allowed (the runtime populates them).
+    if (nodes.length === 0 && !projection) {
         cyEl.innerHTML = '<p class="text-sm text-slate-400 p-4">No nodes to display.</p>';
         return;
     }
@@ -497,21 +500,32 @@ function initGraph(panelId) {
         });
     }
 
-    // Register before running layout so we catch layoutstop even for
-    // synchronous layouts (cose with animate:false fires before the
-    // constructor returns if layout is passed inline).
-    cy.one("layoutstop", function () {
-        cy.minZoom(cy.zoom());
+    if (projection) {
+        // Projection-hosted panel: hand off to the client runtime instead of
+        // running a single top-level layout. The runtime orchestrates
+        // elevations, tap layouts, and zoom-driven transitions.
+        import("/static/tap_viz/js/runtime/projection.js")
+            .then(function (mod) {
+                return mod.initProjection(cy, projection, {});
+            })
+            .catch(function (err) {
+                console.error("[TAP projection] init failed", err);
+            });
+    } else {
+        // Legacy layout-hosted panel: single placement, zoom-locked after layout.
+        cy.one("layoutstop", function () {
+            cy.minZoom(cy.zoom());
 
-        // Parent-label HTML overlay — initialized after layout so compound
-        // node positions and dimensions are stable.
-        if (parentIds.size > 0) {
-            var overlay = new TapParentLabelOverlay(cy, parentLabelData);
-            overlay.init();
-        }
-    });
+            // Parent-label HTML overlay — initialized after layout so compound
+            // node positions and dimensions are stable.
+            if (parentIds.size > 0) {
+                var overlay = new TapParentLabelOverlay(cy, parentLabelData);
+                overlay.init();
+            }
+        });
 
-    cy.layout(_buildLayout(placement)).run();
+        cy.layout(_buildLayout(placement)).run();
+    }
 
     _attachToolbar(container, cy);
 

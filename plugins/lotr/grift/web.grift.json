@@ -61,8 +61,8 @@
             "name": "LOTR Characters",
             "view": "tap_web/panels/table_panel.html",
             "editor_view": "tap_web/panels/table_panel_editor.html",
-            "css": ["css/lib/tabulator.min.css"],
-            "js": ["js/lib/tabulator.min.js", "js/panel-table.js"],
+            "css": ["tap_web/css/lib/tabulator.min.css"],
+            "js": ["tap_web/js/lib/tabulator.min.js", "tap_web/js/panel-table.js"],
             "config": {"column_mode": "common_metadata", "default_page_size": 100}
           }
         },
@@ -85,18 +85,46 @@
         },
         {
           "entity": {
-            "entity_id": "019d6eed-adf7-7572-91aa-e191117b20dd",
-            "entity_type": "layout",
-            "name": "LOTR Saga Layout",
+            "entity_id": "fa7c2017-a654-45dc-a057-702e1f91431a",
+            "entity_type": "projection",
+            "name": "LOTR Saga Projection",
             "dimensions": {"tap.graph": "web"}
           },
           "node": {
-            "name": "LOTR Saga Layout",
+            "name": "LOTR Saga Projection",
+            "description": "Middle-earth saga projection: nested realm/location/character/artifact scene with double-tap character-view elevation.",
             "definition": {
-              "presentation": {
-                "placement": "cytoscape:cose",
-                "nesting": {"enabled": true}
-              }
+              "default_elevation": "saga-level",
+              "elevations": [
+                {
+                  "name": "saga-level",
+                  "description": "All realms, locations, characters, and artifacts arranged in nested compound nodes.",
+                  "zoom": 0.6,
+                  "tap_layouts": [
+                    {
+                      "name": "saga-stage",
+                      "description": "Nest realm/location/character/artifact, size parents, grid recursively.",
+                      "js_file": "plugins/lotr/static/lotr/js/projections/saga-stage.js"
+                    }
+                  ],
+                  "double_tap_targets": [
+                    {"entity_type": "character", "target_elevation": "character-view"}
+                  ]
+                },
+                {
+                  "name": "character-view",
+                  "description": "Zoomed view on a single character showing their wielded artifacts.",
+                  "zoom": 1.4,
+                  "tap_layouts": [
+                    {
+                      "name": "character-view",
+                      "description": "Lay out the character's artifacts inside the character compound.",
+                      "js_file": "plugins/lotr/static/lotr/js/projections/character-view.js"
+                    }
+                  ],
+                  "double_tap_targets": []
+                }
+              ]
             }
           }
         },
@@ -113,7 +141,7 @@
             "view": "tap_viz/panels/graph_panel.html",
             "editor_view": "",
             "css": ["tap_viz/css/panel-graph.css"],
-            "js": ["tap_viz/js/cytoscape.min.js", "tap_viz/js/panel-graph.js"],
+            "js": ["tap_viz/js/lib/cytoscape.min.js", "tap_viz/js/panel-graph.js"],
             "config": {}
           }
         },
@@ -194,15 +222,15 @@
         },
         {
           "entity": {
-            "entity_id": "019d6eed-adf7-7572-91aa-e195df8b8f4e",
+            "entity_id": "a30aeeb6-db45-4240-9ad4-44926e90d89f",
             "entity_type": "edge",
-            "name": "USES_LAYOUT",
+            "name": "USES_PROJECTION",
             "dimensions": {}
           },
           "edge": {
             "from_entity_id": "019d6eed-adf7-7572-91aa-e192e5c74b75",
-            "to_entity_id": "019d6eed-adf7-7572-91aa-e191117b20dd",
-            "edge_type": "USES_LAYOUT",
+            "to_entity_id": "fa7c2017-a654-45dc-a057-702e1f91431a",
+            "edge_type": "USES_PROJECTION",
             "properties": {}
           }
         },
@@ -214,7 +242,7 @@
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d6eed-adf7-7572-91aa-e191117b20dd",
+            "from_entity_id": "019d6eed-adf7-7572-91aa-e192e5c74b75",
             "to_entity_id": "019d6eed-adf7-7572-91aa-e19006369266",
             "edge_type": "USES_SEARCH",
             "properties": {}
