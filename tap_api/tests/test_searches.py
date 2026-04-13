@@ -74,11 +74,13 @@ class TestExecuteSearch:
         assert response.status_code == 422
         assert response.json()["error"] == "input_validation_failed"
 
-    def test_auth_required(self, client):
+    def test_anonymous_access_allowed(self, client):
+        """Read-only search execution is anonymous-accessible to match the
+        public read-only policy of graph panel HTML rendering."""
         search = _orm_character_search()
         response = client.post(
             f"/api/v1/searches/{search.entity_id}/execute",
             data={},
             content_type="application/json",
         )
-        assert response.status_code == 401
+        assert response.status_code == 200

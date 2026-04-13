@@ -25,7 +25,7 @@ class ExecuteSearchIn(Schema):
     layer: SubgraphLayer | None = None
 
 
-@router.post("/{search_id}/execute", response={200: dict, 422: dict, 500: dict})
+@router.post("/{search_id}/execute", response={200: dict, 422: dict, 500: dict}, auth=None)
 def execute_search_endpoint(
     request: HttpRequest,
     search_id: uuid.UUID,
@@ -35,7 +35,8 @@ def execute_search_endpoint(
 
     Body is POST-shaped because `inputs` is a nested JSON object that would
     be awkward and URL-length-limited as query params. The operation itself
-    is read-only; read-only enforcement is at the DB alias level.
+    is read-only; read-only enforcement is at the DB alias level, and access
+    matches the public read-only policy of graph panel HTML rendering.
     """
     search = get_object_or_404(Search, entity_id=search_id)
     try:

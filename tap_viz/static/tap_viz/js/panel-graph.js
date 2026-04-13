@@ -224,24 +224,11 @@ TapParentLabelOverlay.prototype.init = function () {
     canvas.parentNode.appendChild(el);
     this._container = el;
 
-    // Create a wrapper per parent node.
+    // Wrappers are created lazily on first sync so parents that appear after
+    // init (e.g. when a drilldown tap layout nests new children inside an
+    // existing node) also get labels.
     this._cy.nodes(":parent").forEach(function (node) {
-        var id = node.id();
-        var pl = self._data[id];
-        if (!pl) return;
-
-        var wrapper = document.createElement("div");
-        wrapper.style.position = "absolute";
-
-        var escapedLabel = _escapeHtml(pl.label);
-        var iconHtml = pl.icon_url
-            ? '<img class="tap-parent-label__icon" src="' + _escapeHtml(pl.icon_url) + '" alt="" />'
-            : "";
-        wrapper.innerHTML = '<div class="tap-parent-label">' + iconHtml +
-            '<span class="tap-parent-label__text">' + escapedLabel + "</span></div>";
-
-        el.appendChild(wrapper);
-        self._els[id] = wrapper;
+        self._ensureWrapper(node);
     });
 
     // Initial sync.
@@ -256,6 +243,32 @@ TapParentLabelOverlay.prototype.init = function () {
     });
 };
 
+TapParentLabelOverlay.prototype._ensureWrapper = function (node) {
+    var id = node.id();
+    if (this._els[id]) return this._els[id];
+    if (node.hasClass("tap-dim-anchor")) return null;
+
+    // Prefer prebuilt label data; fall back to the node's own data so the
+    // overlay works without server-side metadata.
+    var pl = this._data[id] || {
+        label: node.data("label") || node.data("entity_type") || id,
+        icon_url: node.data("icon_url") || "",
+    };
+
+    var wrapper = document.createElement("div");
+    wrapper.style.position = "absolute";
+
+    var iconHtml = pl.icon_url
+        ? '<img class="tap-parent-label__icon" src="' + _escapeHtml(pl.icon_url) + '" alt="" />'
+        : "";
+    wrapper.innerHTML = '<div class="tap-parent-label">' + iconHtml +
+        '<span class="tap-parent-label__text">' + _escapeHtml(pl.label || "") + "</span></div>";
+
+    this._container.appendChild(wrapper);
+    this._els[id] = wrapper;
+    return wrapper;
+};
+
 TapParentLabelOverlay.prototype._syncPanZoom = function () {
     var pan = this._cy.pan();
     var zoom = this._cy.zoom();
@@ -268,13 +281,25 @@ TapParentLabelOverlay.prototype._syncPanZoom = function () {
 
 TapParentLabelOverlay.prototype._syncAllPositions = function () {
     var self = this;
+    var liveParentIds = {};
     this._cy.nodes(":parent").forEach(function (node) {
+        liveParentIds[node.id()] = true;
+        self._ensureWrapper(node);
         self._syncPosition(node);
+    });
+    // Strip wrappers for nodes that are no longer parents (e.g. a character
+    // that had its artifact children moved out on an elevation transition).
+    Object.keys(this._els).forEach(function (id) {
+        if (!liveParentIds[id]) {
+            var wrapper = self._els[id];
+            if (wrapper && wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+            delete self._els[id];
+        }
     });
 };
 
 TapParentLabelOverlay.prototype._syncPosition = function (node) {
-    var wrapper = this._els[node.id()];
+    var wrapper = this._ensureWrapper(node);
     if (!wrapper) return;
 
     var pos = node.position();
@@ -461,8 +486,12 @@ function initGraph(panelId) {
                 },
             },
             {
-                // Hidden containment edges (consumed by nesting).
-                selector: ".tap-nesting-hidden",
+                // Hidden by class:
+                //  - tap-nesting-hidden / tap-hidden-containment: consumed by
+                //    nesting resolution (the edge drove a parent-child assignment)
+                //  - tap-elevation-hidden: the active elevation's layout has
+                //    deferred this element to a lower-altitude elevation
+                selector: ".tap-nesting-hidden, .tap-hidden-containment, .tap-elevation-hidden",
                 style: { "display": "none" },
             },
             {
@@ -508,6 +537,9 @@ function initGraph(panelId) {
             .then(function (mod) {
                 return mod.initProjection(cy, projection, {});
             })
+            .then(function () {
+                _installProjectionParentLabels(cy);
+            })
             .catch(function (err) {
                 console.error("[TAP projection] init failed", err);
             });
@@ -529,15 +561,126 @@ function initGraph(panelId) {
 
     _attachToolbar(container, cy);
 
-    // Node tap → navigate to the object viewer (req-viz-panel-node-nav).
+    // Node tap / double-tap handling.
+    //
+    // Single-tap drives navigation to the object viewer. Double-tap is the
+    // projection runtime's drilldown gesture. Projection panels delay
+    // navigation by DBL_TAP_WINDOW_MS so a second tap can cancel it.
+    //
+    // Two detection channels run in parallel so cytoscape's pointer
+    // translation quirks can't silently break drilldown across browsers:
+    //
+    //   1. Manual two-tap timer on cytoscape `tap` events. Works reliably
+    //      in Chrome; timing varies in Firefox.
+    //   2. Native browser `dblclick` on the cy container with a hit test
+    //      that maps pointer coordinates to the target node. This is the
+    //      guaranteed path on every browser.
+    //
+    // Both channels funnel through _fireDoubleTap, which dedupes by node+
+    // timestamp so rapid double-fires become one.
+    var DBL_TAP_WINDOW_MS = 400;
+    var DBL_FIRE_DEDUP_MS = 500;
+    var pendingNavTimer = null;
+    var lastTapTime = 0;
+    var lastTapNodeId = null;
+    var lastFiredNodeId = null;
+    var lastFiredTime = 0;
+
+    function _fireDoubleTap(node) {
+        if (!node) return;
+        var now = Date.now();
+        if (node.id() === lastFiredNodeId && (now - lastFiredTime) < DBL_FIRE_DEDUP_MS) {
+            return;
+        }
+        lastFiredNodeId = node.id();
+        lastFiredTime = now;
+        lastTapTime = 0;
+        lastTapNodeId = null;
+        clearTimeout(pendingNavTimer);
+        pendingNavTimer = null;
+        node.trigger("tap-double");
+    }
+
     cy.on("tap", "node", function (evt) {
         var node = evt.target;
+        if (node.hasClass("tap-dim-anchor")) return;
+
         var entityType = node.data("entity_type");
         var urlId = node.data("url_id");
-        if (entityType && urlId) {
-            window.location.href = "/object/" + entityType + "/" + urlId + "/";
+        var nodeId = node.id();
+        var now = Date.now();
+
+        var go = function () {
+            if (entityType && urlId) {
+                window.location.href = "/object/" + entityType + "/" + urlId + "/";
+            }
+        };
+
+        if (!projection) {
+            go();
+            return;
+        }
+
+        // Second tap within the window on the same node → double-tap.
+        if (nodeId === lastTapNodeId && (now - lastTapTime) < DBL_TAP_WINDOW_MS) {
+            _fireDoubleTap(node);
+            return;
+        }
+
+        // First tap → remember and schedule delayed navigation.
+        lastTapTime = now;
+        lastTapNodeId = nodeId;
+        clearTimeout(pendingNavTimer);
+        pendingNavTimer = setTimeout(go, DBL_TAP_WINDOW_MS);
+    });
+
+    // Firefox fallback: native dblclick with pointer→node hit test.
+    if (projection) {
+        cyEl.addEventListener("dblclick", function (e) {
+            var rect = cyEl.getBoundingClientRect();
+            var node = _findNodeAtRenderedPosition(cy, e.clientX - rect.left, e.clientY - rect.top);
+            if (node) _fireDoubleTap(node);
+        });
+    }
+}
+
+function _findNodeAtRenderedPosition(cy, x, y) {
+    // Prefer leaf nodes (non-parents) so a click inside a compound lands on
+    // the child, not the compound parent. Walk in reverse so topmost-painted
+    // wins when overlaps occur.
+    var hits = [];
+    cy.nodes(":visible").not(".tap-dim-anchor").forEach(function (n) {
+        var rpos = n.renderedPosition();
+        var rw = n.renderedWidth() / 2;
+        var rh = n.renderedHeight() / 2;
+        if (x >= rpos.x - rw && x <= rpos.x + rw && y >= rpos.y - rh && y <= rpos.y + rh) {
+            hits.push(n);
         }
     });
+    if (hits.length === 0) return null;
+    // Leaves first, then parents.
+    var leaves = hits.filter(function (n) { return n.children().length === 0; });
+    if (leaves.length > 0) return leaves[leaves.length - 1];
+    return hits[hits.length - 1];
+}
+
+function _installProjectionParentLabels(cy) {
+    var parents = cy.nodes(":parent").not(".tap-dim-anchor");
+    if (parents.length === 0) return;
+    var labelData = {};
+    parents.forEach(function (p) {
+        labelData[p.id()] = {
+            label: p.data("label") || p.data("entity_type") || p.id(),
+            icon_url: p.data("icon_url") || "",
+            config: {
+                horizontal_alignment: "center",
+                vertical_alignment: "top",
+                inside_or_outside: "outside",
+            },
+        };
+    });
+    var overlay = new TapParentLabelOverlay(cy, labelData);
+    overlay.init();
 }
 
 function _buildLayout(placement) {

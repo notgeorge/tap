@@ -158,15 +158,14 @@
           },
           "node": {
             "name": "LOTR Saga",
-            "description": "Middle-earth saga showing realm, location, character, and artifact nesting.",
+            "description": "Middle-earth saga seed: realms, locations, and characters (artifacts load on character-view drilldown).",
             "search_type": "gryphon",
             "root": "node",
             "definition": {
               "query": [
                 "MATCH (r:realm)-[e1:CONTAINS]->(l:location)",
                 "MATCH (l2:location)-[e2:CONTAINS]->(l3:location)",
-                "MATCH (c:character)-[e3:LOCATED_IN]->(loc:location)",
-                "MATCH (c2:character)-[e4:WIELDS]->(a:artifact)"
+                "MATCH (c:character)-[e3:LOCATED_IN]->(loc:location)"
               ]
             }
           }

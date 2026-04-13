@@ -34,6 +34,7 @@ Projections should also be self-contained. A projection must be able to define a
 | req-viz-projection-incremental-loading | [Incremental Loading](#incremental-loading) | Implemented | `character-view.js` demonstrates runtime sub-search via `runtime/search.js` |
 | req-viz-projection-self-contained | [Self-Contained Execution](#self-contained-execution) | Implemented | LOTR saga projection defines nesting, dimensions, and layout without model-level hints |
 | req-viz-projection-lotr-monolith | [LOTR Monolithic Example](#lotr-monolithic-example) | Implemented | Wired in `plugins/lotr/grift/web.grift.json` + saga-stage / character-view modules |
+| req-viz-projection-viewport-scoped-expansion | [Viewport-Scoped Expansion](#viewport-scoped-expansion) | Backlog | Per-visible-viewport elevation expansion for large graphs |
 
 ## Requirements
 
@@ -307,3 +308,32 @@ The LOTR example should be treated as the proving ground for the v0 projection a
 #### Future
 
 Split LOTR projection pieces into reusable referenced artifacts only after the monolithic shape proves itself in practice.
+
+
+### Viewport-Scoped Expansion
+----
+RID: `req-viz-projection-viewport-scoped-expansion`
+Status: `Backlog`
+
+Elevation expansion should eventually be scoped to what is visible in the viewport rather than operating on every applicable node in the whole graph.
+
+#### Implementation
+
+The v0 model runs a tap layout on entering an elevation and that layout expands every applicable node in the scene (for example, character-view expands every character in cy). This is fine for small graphs like the LOTR saga (under 100 nodes). For larger grids the expand-all fetch + layout cost becomes prohibitive.
+
+The future model should:
+
+- compute the set of nodes of the relevant entity type that fall within the current viewport
+- expand only those nodes on elevation entry
+- watch pan events and lazily expand additional nodes as they enter the viewport
+- reclaim nodes that leave the viewport by a hysteresis margin
+
+Viewport-scoped expansion should preserve the "magnify and enhance" mental model: as you zoom into a denser region, the applicable nodes there expand; panning around reveals newly-expanded neighborhoods.
+
+#### Development
+
+Capture the cost model in concrete numbers before designing this: what is the fetch latency per character, what is the layout cost per compound, and what is the user-visible lag threshold. Design choices flow from those numbers.
+
+#### Future
+
+Define an API for layouts to declare "which node type I expand" so the runtime can compute viewport membership without the layout having to.

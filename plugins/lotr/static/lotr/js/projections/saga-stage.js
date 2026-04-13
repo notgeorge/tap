@@ -1,17 +1,17 @@
 /**
  * LOTR saga-stage tap layout.
  *
- * Initial-load layout for the LOTR saga projection. Works off the pre-baked
- * seed graph (realm/locations/characters/artifacts already loaded into cy)
- * and arranges it into nested compound-node scene:
+ * Asserts the saga-level scene state:
  *
  *   realm
- *     ├── location
- *     │     └── character
- *     │           └── artifact
- *     └── ...
+ *     └── location
+ *           └── character       (leaf; no artifact children at this elevation)
  *
- * Uses tap_viz runtime modules for nesting and per-parent dimensions.
+ * Saga-stage is an elevation invariant: whenever it runs (initial load or
+ * re-entry from character-view via zoom-out) it leaves cy in the shape above,
+ * regardless of what the previous elevation left behind. Artifacts added by
+ * character-view are hidden + un-nested on re-entry rather than removed, so
+ * the next character-view re-entry can reuse them without re-fetching.
  */
 
 import {applyNesting} from "/static/tap_viz/js/runtime/nesting.js";
@@ -26,36 +26,43 @@ const NESTING_CONFIG = {
             gryphon: "(parent:realm)-[:CONTAINS]->(child:location)",
         },
         {
+            name: "location-contains-location",
+            description: "Nest sub-locations inside their parent location.",
+            gryphon: "(parent:location)-[:CONTAINS]->(child:location)",
+        },
+        {
             name: "location-contains-character",
             description: "Nest characters inside their location.",
             gryphon: "(parent:location)<-[:LOCATED_IN]-(child:character)",
         },
-        {
-            name: "character-contains-artifact",
-            description: "Nest artifacts inside their wielder.",
-            gryphon: "(parent:character)-[:WIELDS]->(child:artifact)",
-        },
     ],
 };
 
+// At saga-level characters are leaf nodes — only realms and locations are
+// compound parents. Character dims are declared by character-view when it
+// nests artifacts inside them, and stripped by the plugin on re-entry.
 const PARENT_DIMENSIONS = {
     realm: {width: 1800, height: 1200, padding: 60},
     location: {width: 520, height: 360, padding: 30},
-    character: {width: 220, height: 160, padding: 18},
 };
 
 export async function execute(context) {
     const {cy, trigger_reason} = context;
 
-    if (trigger_reason !== "initial_load" && trigger_reason !== "zoom_transition") {
-        return;
-    }
+    // 1. Teardown: artifacts from a prior character-view entry are un-nested
+    //    and marked hidden. They stay in cy so re-entry can unhide without
+    //    another API round trip.
+    cy.nodes('[entity_type="artifact"]').forEach((a) => {
+        if (a.parent().length > 0) a.move({parent: null});
+        a.addClass("tap-elevation-hidden");
+    });
+    cy.edges('[edge_type="WIELDS"]').addClass("tap-elevation-hidden");
 
-    // 1. Layout-owned nesting.
+    // 2. Layout-owned nesting — only the saga-level rules.
     const {warnings} = applyNesting(cy, NESTING_CONFIG);
     warnings.forEach((w) => console.warn("[saga-stage]", w.category, w.message));
 
-    // 2. Declare per-parent dimensions on every compound node.
+    // 3. Declare per-parent dimensions on every compound node.
     const td = cy.tapDimensions();
     cy.nodes(":parent")
         .not(".tap-dim-anchor")
@@ -65,13 +72,16 @@ export async function execute(context) {
             if (dim) td.set(parent.id(), dim);
         });
 
-    // 3. Post-order recursive layout. Grid is dense and honors boundingBox.
+    // 4. Post-order recursive layout. Grid is dense and honors boundingBox.
     td.clearWarnings();
     td.layoutRecursive({
         defaultLayout: {name: "grid", spacingFactor: 1.2},
     });
     td.warnings().forEach((w) => console.warn("[saga-stage]", w.category, w));
 
-    // 4. Fit the whole scene, excluding anchor nodes from the fit target.
-    cy.fit(cy.nodes().not(".tap-dim-anchor"), 40);
+    // 5. Fit the whole scene only on initial load. Scroll-based re-entry
+    //    leaves viewport control to the user / projection runtime.
+    if (trigger_reason === "initial_load") {
+        cy.fit(cy.nodes(":visible").not(".tap-dim-anchor"), 40);
+    }
 }

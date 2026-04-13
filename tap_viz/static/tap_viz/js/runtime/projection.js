@@ -35,6 +35,11 @@ export async function initProjection(cy, projection, opts = {}) {
         onError: opts.onError || ((e) => console.error("[projection]", e)),
         activeElevation: null,
         transitionLock: false,
+        // After a commanded transition, anchorZoom pins the zoom watcher to
+        // the current elevation so small user scroll movements don't
+        // immediately override it. Cleared when the user zooms far enough
+        // away from the anchor to warrant a real transition.
+        anchorZoom: null,
         destroyed: false,
         listeners: [],
     };
@@ -83,13 +88,70 @@ export async function initProjection(cy, projection, opts = {}) {
             trigger_node: triggerNode,
             inputs: state.inputs,
         };
+
+        // Scroll-driven elevation transitions preserve the user's visual
+        // frame of reference: record the node closest to the viewport center
+        // before the layout runs, then re-pan after so that same node lands
+        // at the same rendered position. Without this, layoutRecursive
+        // shuffles compounds out from under the viewport and the user ends
+        // up looking at some unrelated part of the scene.
+        let hero = null;
+        let heroBefore = null;
+        if (triggerReason === "zoom_transition") {
+            hero = findHeroNode();
+            if (hero) heroBefore = {...hero.renderedPosition()};
+        }
+
         await runLayoutsSerially(elevation, context);
+
+        if (hero && heroBefore && !hero.removed()) {
+            const zoom = cy.zoom();
+            const modelNow = hero.position();
+            cy.pan({
+                x: heroBefore.x - modelNow.x * zoom,
+                y: heroBefore.y - modelNow.y * zoom,
+            });
+        }
+    }
+
+    function findHeroNode() {
+        const containerRect = cy.container().getBoundingClientRect();
+        const cxR = containerRect.width / 2;
+        const cyR = containerRect.height / 2;
+        let best = null;
+        let bestDist = Infinity;
+        cy.nodes(":visible").not(".tap-dim-anchor").forEach((n) => {
+            if (n.isParent()) return; // prefer leaf nodes — they move less on layout
+            const rp = n.renderedPosition();
+            const d = Math.hypot(rp.x - cxR, rp.y - cyR);
+            if (d < bestDist) {
+                bestDist = d;
+                best = n;
+            }
+        });
+        return best;
     }
 
     // ---- Zoom watcher ----
+    // log-ratio distance from the anchor required to release the pin.
+    // ln(1.6) ≈ 0.47 → need to zoom to less than ~62% or more than ~160%
+    // of the anchor before the watcher resumes normal elevation activation.
+    const ANCHOR_RELEASE_LOG_RATIO = 0.47;
+
     function onZoom() {
         if (state.destroyed || state.transitionLock) return;
         const zoom = cy.zoom();
+
+        if (state.anchorZoom != null) {
+            const drift = Math.abs(Math.log(zoom / state.anchorZoom));
+            if (drift < ANCHOR_RELEASE_LOG_RATIO) {
+                // Small movement inside the hysteresis window — stay put.
+                return;
+            }
+            // User zoomed far enough to "leave" the commanded elevation.
+            state.anchorZoom = null;
+        }
+
         const target = elevationForZoom(zoom);
         if (target && target !== state.activeElevation) {
             activate(target, "zoom_transition").catch((e) => state.onError(e));
@@ -99,56 +161,67 @@ export async function initProjection(cy, projection, opts = {}) {
     state.listeners.push(["zoom", onZoom]);
 
     // ---- Double-tap watcher ----
-    let lastTapTime = 0;
-    let lastTapNodeId = null;
-    const DOUBLE_TAP_MS = 400;
-
-    function onNodeTap(evt) {
+    // panel-graph.js detects double-taps via a manual two-tap timer and fires
+    // a `tap-double` custom cytoscape event on the target node. We subscribe
+    // to that rather than cytoscape's built-in `dbltap`, which is not
+    // reliably emitted across pointer configurations in 3.30.x.
+    function onNodeDblTap(evt) {
         if (state.destroyed) return;
         const node = evt.target;
         if (!node || !node.isNode || !node.isNode()) return;
-
-        const now = Date.now();
-        const nodeId = node.id();
-        if (nodeId === lastTapNodeId && now - lastTapTime < DOUBLE_TAP_MS) {
-            lastTapTime = 0;
-            lastTapNodeId = null;
-            handleDoubleTap(node).catch((e) => state.onError(e));
-            return;
-        }
-        lastTapTime = now;
-        lastTapNodeId = nodeId;
+        handleDoubleTap(node).catch((e) => state.onError(e));
     }
-    cy.on("tap", "node", onNodeTap);
-    state.listeners.push(["tap node", onNodeTap]);
+    cy.on("tap-double", "node", onNodeDblTap);
+    state.listeners.push(["tap-double node", onNodeDblTap]);
+
+    /**
+     * Look up the target elevation for a given entity type across *all*
+     * elevations' double_tap_targets. Model: double-tap is a property of
+     * the entity type, not the source elevation — double-tapping a character
+     * always drills into character-view regardless of where you started.
+     */
+    function findDoubleTapTarget(entityType) {
+        for (const elev of projection.elevations) {
+            const rules = elev.double_tap_targets || [];
+            const hit = rules.find((t) => t.entity_type === entityType);
+            if (hit) return elevationByName(hit.target_elevation);
+        }
+        return null;
+    }
 
     async function handleDoubleTap(node) {
         const entityType = node.data("entity_type") || "";
-        const current = state.activeElevation;
-        if (!current || !Array.isArray(current.double_tap_targets)) return;
-        const hit = current.double_tap_targets.find((t) => t.entity_type === entityType);
-        if (!hit) return;
-        const target = elevationByName(hit.target_elevation);
-        if (!target) {
-            state.onWarning({category: "double_tap_target_missing", detail: hit});
-            return;
-        }
+        const target = findDoubleTapTarget(entityType);
+        if (!target) return;
 
         state.transitionLock = true;
         try {
-            await animateZoomTo(target.zoom);
-            await activate(target, "double_tap", node);
+            // Only assert the target elevation's scene state if we're not
+            // already there. Re-running a layout we're already in would
+            // reposition every node under the user and feel jarring — and
+            // within the same elevation, the tapped node is already in its
+            // expanded form.
+            if (target !== state.activeElevation) {
+                await activate(target, "double_tap");
+            }
+            // Smoothly fly the viewport to the (possibly repositioned) node.
+            await animateViewportTo(target.zoom, node);
+            // Pin the zoom watcher to the landing zoom so a small scroll
+            // doesn't instantly revert the commanded elevation.
+            state.anchorZoom = cy.zoom();
         } finally {
             state.transitionLock = false;
         }
     }
 
-    function animateZoomTo(targetZoom) {
+    const COMMANDED_FIT_PADDING = 60;
+
+    function animateViewportTo(targetZoom, centerNode) {
         return new Promise((resolve) => {
-            cy.animate(
-                {zoom: targetZoom},
-                {duration: 350, easing: "ease-in-out", complete: resolve}
-            );
+            const opts = centerNode
+                ? {fit: {eles: centerNode, padding: COMMANDED_FIT_PADDING}}
+                : {zoom: targetZoom};
+            cy.animate(opts, {duration: 350, easing: "ease-in-out", complete: resolve});
         });
     }
 

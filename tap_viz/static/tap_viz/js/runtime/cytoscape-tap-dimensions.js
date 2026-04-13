@@ -136,7 +136,15 @@
 
         // Real children = direct children minus any anchors we may have added.
         var realChildren = parent.children().not("." + ANCHOR_CLASS);
-        if (realChildren.length === 0) return;
+        if (realChildren.length === 0) {
+            // No real content left. Strip any anchors we previously attached so
+            // this node stops being a :parent and reverts to a leaf at the
+            // default cytoscape bbox. Also drop the declared dims so later
+            // elevations can reuse this node from a clean slate.
+            this._stripAnchors(parentId);
+            delete this._declared[parentId];
+            return;
+        }
 
         var declaredW = declared.width || 0;
         var declaredH = declared.height || 0;
@@ -217,6 +225,14 @@
                 y: row * cellH + cellH / 2,
             });
         });
+    };
+
+    TapDimensions.prototype._stripAnchors = function (parentId) {
+        var cy = this._cy;
+        var tlId = ANCHOR_PREFIX_TL + parentId;
+        var brId = ANCHOR_PREFIX_BR + parentId;
+        cy.getElementById(tlId).remove();
+        cy.getElementById(brId).remove();
     };
 
     TapDimensions.prototype._ensureAnchors = function (parentId, x1, y1, x2, y2) {
