@@ -112,7 +112,7 @@
                 {
                   "name": "character-view",
                   "description": "Zoomed view on a single character showing their wielded artifacts.",
-                  "zoom": 1.4,
+                  "zoom": 0.9,
                   "tap_layouts": [
                     {
                       "name": "character-view",

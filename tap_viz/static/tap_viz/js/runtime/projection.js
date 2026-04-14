@@ -40,9 +40,28 @@ export async function initProjection(cy, projection, opts = {}) {
         // immediately override it. Cleared when the user zooms far enough
         // away from the anchor to warrant a real transition.
         anchorZoom: null,
+        // Latest cursor position in cy-container-local rendered coordinates.
+        // Used as the anchor target for hero-node viewport preservation
+        // during scroll-zoom elevation transitions — the user's visual
+        // frame of reference is the cursor, not the viewport center.
+        cursor: null,
         destroyed: false,
         listeners: [],
+        domListeners: [],
     };
+
+    // Track cursor position on the cy container so zoom_transition activations
+    // can anchor on where the user is actually pointing.
+    const onMouseMove = (e) => {
+        const r = cy.container().getBoundingClientRect();
+        state.cursor = {x: e.clientX - r.left, y: e.clientY - r.top};
+    };
+    const onMouseLeave = () => {
+        state.cursor = null;
+    };
+    cy.container().addEventListener("mousemove", onMouseMove);
+    cy.container().addEventListener("mouseleave", onMouseLeave);
+    state.domListeners.push(["mousemove", onMouseMove], ["mouseleave", onMouseLeave]);
 
     const elevations = [...projection.elevations].sort((a, b) => a.zoom - b.zoom);
 
@@ -90,40 +109,73 @@ export async function initProjection(cy, projection, opts = {}) {
         };
 
         // Scroll-driven elevation transitions preserve the user's visual
-        // frame of reference: record the node closest to the viewport center
-        // before the layout runs, then re-pan after so that same node lands
-        // at the same rendered position. Without this, layoutRecursive
-        // shuffles compounds out from under the viewport and the user ends
-        // up looking at some unrelated part of the scene.
-        let hero = null;
-        let heroBefore = null;
+        // frame of reference: find the node closest to the cursor (or
+        // viewport center as fallback) before layoutRecursive runs, then
+        // re-pan after so that node ends up at the same rendered point.
+        //
+        // We anchor on the cursor rather than the viewport center because
+        // cytoscape's wheel zoom keeps the cursor-model-point fixed — the
+        // user's visual intent is "the thing under my cursor should stay
+        // under my cursor." The viewport center drifts toward the cursor
+        // during a scroll and isn't a reliable reference.
+        //
+        // Because the layout may hide or remove the deepest leaf (e.g.
+        // saga-stage hides artifacts on zoom-out), we also snapshot the
+        // hero's ancestor chain. Post-layout, if the hero is no longer a
+        // valid anchor (removed, hidden, or translated somewhere stale)
+        // we walk up to the nearest still-valid ancestor.
+        let anchorTarget = null;
+        let ancestorChain = null;
         if (triggerReason === "zoom_transition") {
-            hero = findHeroNode();
-            if (hero) heroBefore = {...hero.renderedPosition()};
+            anchorTarget = state.cursor || _viewportCenter();
+            const hero = findHeroNode(anchorTarget);
+            if (hero) ancestorChain = _buildAncestorChain(hero);
         }
 
         await runLayoutsSerially(elevation, context);
 
-        if (hero && heroBefore && !hero.removed()) {
-            const zoom = cy.zoom();
-            const modelNow = hero.position();
-            cy.pan({
-                x: heroBefore.x - modelNow.x * zoom,
-                y: heroBefore.y - modelNow.y * zoom,
-            });
+        if (ancestorChain && anchorTarget) {
+            const stable = ancestorChain.find(_isValidAnchorNode);
+            if (stable) {
+                const zoom = cy.zoom();
+                const modelNow = stable.position();
+                cy.pan({
+                    x: anchorTarget.x - modelNow.x * zoom,
+                    y: anchorTarget.y - modelNow.y * zoom,
+                });
+            }
         }
     }
 
-    function findHeroNode() {
-        const containerRect = cy.container().getBoundingClientRect();
-        const cxR = containerRect.width / 2;
-        const cyR = containerRect.height / 2;
+    function _buildAncestorChain(leaf) {
+        const chain = [leaf];
+        let cur = leaf;
+        // eslint-disable-next-line no-cond-assign
+        while ((cur = cur.parent()).length > 0) {
+            chain.push(cur[0]);
+        }
+        return chain;
+    }
+
+    function _isValidAnchorNode(n) {
+        if (!n || n.removed()) return false;
+        if (n.hasClass("tap-elevation-hidden")) return false;
+        if (n.hasClass("tap-dim-anchor")) return false;
+        return true;
+    }
+
+    function _viewportCenter() {
+        const r = cy.container().getBoundingClientRect();
+        return {x: r.width / 2, y: r.height / 2};
+    }
+
+    function findHeroNode(origin) {
         let best = null;
         let bestDist = Infinity;
         cy.nodes(":visible").not(".tap-dim-anchor").forEach((n) => {
             if (n.isParent()) return; // prefer leaf nodes — they move less on layout
             const rp = n.renderedPosition();
-            const d = Math.hypot(rp.x - cxR, rp.y - cyR);
+            const d = Math.hypot(rp.x - origin.x, rp.y - origin.y);
             if (d < bestDist) {
                 bestDist = d;
                 best = n;
@@ -240,6 +292,8 @@ export async function initProjection(cy, projection, opts = {}) {
             state.destroyed = true;
             state.listeners.forEach(([ev, fn]) => cy.off(ev, fn));
             state.listeners.length = 0;
+            state.domListeners.forEach(([ev, fn]) => cy.container().removeEventListener(ev, fn));
+            state.domListeners.length = 0;
         },
     };
 }

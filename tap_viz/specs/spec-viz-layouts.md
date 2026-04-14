@@ -2,485 +2,343 @@
 
 ## Philosophy
 
-Viz layouts are the canonical TAP artifacts that define how graph data is gathered and presented in a viz panel. A layout is not merely a renderer algorithm name or a saved list of coordinates. It is an ordered, declarative recipe that retrieves graph data, shapes it into a working graph view, applies containment and placement logic, and emits a renderer-ready scene.
+Tap layouts are executable TAP Viz layout functions. They are not raw Cytoscape built-in layouts such as `grid`, `cose`, or `breadthfirst`, and they are not TAP-owned declarative layout recipes stored entirely in JSON. A tap layout is a deterministic JavaScript module that can fetch data, add graph members, apply nesting, invoke Cytoscape layouts, position nodes manually, and adjust styling or scaling as needed to produce a meaningful scene.
 
-The purpose of the layout system is to retain graph-native power while making the visible result legible to humans. That requires a contract that is richer than raw Cytoscape JSON but still more structured and safer than arbitrary executable code stored in the database.
+Tap layouts exist because the graph views TAP wants to build are richer than what can be expressed cleanly through static configuration alone. A serious visual system needs to combine multiple behaviors in one execution: search, grouping, nesting, built-in Cytoscape layouts, manual positioning, and scene-specific logic. Treating layouts as executable code keeps that complexity in files where it can be tested, evolved, and reused.
+
+Tap layouts are Cytoscape-oriented. Cytoscape remains the graph runtime that tap layouts control. A tap layout may call built-in Cytoscape layouts as one tool among several, but a tap layout is a TAP Viz runtime contract rather than a Cytoscape plugin contract.
 
 ## Goals
 
 |   |   |   |
 | :---: | --- | --- |
-| 1. | Declarative | Layouts must be TAP-owned declarative definitions rather than raw renderer-native config as the primary artifact. |
-| 2. | Search-Driven | Layouts must retrieve graph data through ordered search execution based on TAP Search entities. |
-| 3. | Ordered | Layout behavior must execute through a deterministic ordered pipeline. |
-| 4. | Hierarchical | Layouts must reserve room for containment behavior without making it part of the smallest initial default contract. |
-| 5. | Extensible | Layouts must support controlled extension points such as plugin formatters without falling back to code blobs in storage. |
+| 1. | Executable | Layouts are executable code assets rather than purely declarative database payloads. |
+| 2. | Cytoscape Oriented | Layout execution is built for the Cytoscape runtime and may leverage built-in Cytoscape layouts. |
+| 3. | Deterministic | Given the same context and underlying graph state, a layout should execute predictably. |
+| 4. | Comprehensive | A layout may gather data, nest objects, position nodes, and refine the scene in one pass. |
+| 5. | Reusable | Layouts can be reused across projections, pages, and other TAP Viz hosts. |
+| 6. | File Based | Complex layout logic lives in JavaScript files shipped through TAP or plugin static assets rather than in DB code blobs. |
+| 7. | Evolvable | The v0 layout contract should be minimal but strong enough to support future helpers, testing, and alternate hosts. |
 
-## Requirements
+## Requirement Status
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-viz-layout-entity | [Layout Entity](#layout-entity) | Proposed | Defines the layout as a first-class TAP object |
-| req-viz-layout-definition | [Layout Definition](#layout-definition) | Proposed | Defines the canonical TAP-owned layout payload |
-| req-viz-layout-inputs | [Layout Inputs](#layout-inputs) | Proposed | Layouts may declare and consume runtime inputs |
-| req-viz-layout-search-steps | [Search Steps](#search-steps) | Proposed | Ordered search steps retrieve graph data |
-| req-viz-layout-pipeline-order | [Pipeline Order](#pipeline-order) | Proposed | Layout execution order is deterministic |
-| req-viz-layout-graph-merge | [Graph Merge](#graph-merge) | Proposed | Search results merge into a working graph state |
-| req-viz-layout-containment | [Containment](#containment) | Proposed | Parent-child graph relationships are part of the layout contract |
-| req-viz-layout-placement | [Placement](#placement) | Proposed | Placement actions position graph elements in the scene |
-| req-viz-layout-style-rules | [Style Rules](#style-rules) | Proposed | Layouts define normalized presentation rules using shape hints and the existing icon system |
-| req-viz-layout-plugin-formatters | [Plugin Formatters](#plugin-formatters) | Proposed | Extension is registry-based, not code-in-DB |
-| req-viz-layout-renderer-ready-scene | [Renderer-Ready Scene](#renderer-ready-scene) | Proposed | Execution output is a renderer-ready graph scene |
-| req-viz-layout-legacy-cytoscape-deprecation | [Legacy Cytoscape Deprecation](#legacy-cytoscape-deprecation) | Proposed | Raw Cytoscape layout storage is transitional |
+| req-viz-layout-artifact | [Layout Artifact](#layout-artifact) | Implemented | A tap layout is a TAP-managed artifact with a file-backed implementation |
+| req-viz-layout-shape | [Layout Shape](#layout-shape) | Implemented | V0 tap layouts contain name, description, and js file reference |
+| req-viz-layout-module-contract | [Module Contract](#module-contract) | Implemented | Tap layout JS modules export a standard async execute entrypoint |
+| req-viz-layout-runtime-context | [Runtime Context](#runtime-context) | Implemented | Layouts receive a locked-in minimal runtime context; `trigger_node` is an optional hint, not a core operand |
+| req-viz-layout-capabilities | [Layout Capabilities](#layout-capabilities) | Implemented | Layouts may fetch, mutate, nest, and position the Cytoscape graph; assert scene invariants on entry |
+| req-viz-layout-execution | [Execution Model](#execution-model) | Implemented | Layouts execute serially under a host but failures do not block later layouts |
+| req-viz-layout-runtime-modules | [Runtime Modules](#runtime-modules) | Implemented | Shared TAP Viz runtime utilities live in `tap_viz/static/tap_viz/js/runtime/` and are imported directly |
+| req-viz-layout-warnings-errors | [Warnings And Errors](#warnings-and-errors) | Implemented | Layout runtime distinguishes warnings from errors via `onWarning` / `onError` callbacks |
+| req-viz-layout-lotr-example | [LOTR Worked Example](#lotr-worked-example) | Implemented | LOTR saga-stage layout demonstrates the v0 executable layout contract |
 
-### Layout Entity
+## Requirements
+
+### Layout Artifact
 ----
-RID: `req-viz-layout-entity`
-Status: `Proposed`
+RID: `req-viz-layout-artifact`
+Status: `Implemented`
 
-A viz layout is a first-class TAP entity with metadata and a declarative definition payload.
-
-#### Status Details
-This requirement replaces the narrow idea of a “saved Cytoscape layout” with a richer TAP-owned layout artifact.
+A tap layout is a TAP-managed layout artifact with a file-backed implementation.
 
 #### Implementation
-The canonical layout object stores:
+
+A tap layout is a TAP Viz concept that references a JavaScript file stored in TAP or plugin static assets. The executable code lives in the file, not in the database payload itself.
+
+#### Development
+
+This keeps complex layout behavior versioned, testable, and shippable through normal TAP and plugin file mechanisms.
+
+#### Future
+
+Define how tap layouts should later relate to graph-managed layout nodes and other reusable artifact shapes.
+
+
+### Layout Shape
+----
+RID: `req-viz-layout-shape`
+Status: `Implemented`
+
+The v0 tap layout object is intentionally minimal.
+
+#### Implementation
+
+The v0 tap layout shape contains exactly:
 
 - `name`
 - `description`
-- `definition`
-- optional lifecycle metadata such as version or status in future work
+- `js_file`
 
-The layout object is reusable and independent of any one panel instance.
-
-#### Development
-Keeping layouts first-class and reusable allows the same view logic to be applied in multiple pages, panels, or future clients.
-
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-entity-1 | First-Class Layout Artifact | Proposed | Layouts are specified as their own TAP-managed artifacts. | |
-| req-viz-layout-entity-2 | Metadata Stored With Definition | Proposed | Layouts include human-readable metadata plus a definition payload. | |
-| req-viz-layout-entity-3 | Layout Is Reusable | Proposed | A layout may be referenced by multiple panel instances. | |
-
-#### Future
-Define explicit versioning, drafts, and publication workflow in a later spec.
-
-
-### Layout Definition
-----
-RID: `req-viz-layout-definition`
-Status: `Proposed`
-
-The canonical persisted layout payload is a TAP-owned `definition` object rather than raw renderer-native JSON.
-
-#### Status Details
-This requirement is the core architectural shift for the viz subsystem.
-
-#### Implementation
-The layout `definition` object is expected to contain structured sections such as:
-
-- `inputs`
-- `steps`
-- `presentation`
-- `interactions`
-
-These are TAP-level concepts, not renderer-native fields.
+`js_file` references a static asset path under the TAP or plugin JavaScript tree.
 
 #### Development
-The layout definition should be specific enough to support deterministic execution and future editor tooling, but narrow enough to avoid becoming a code-storage escape hatch.
 
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-definition-1 | TAP-Owned Payload | Proposed | The canonical persisted layout payload is TAP-owned rather than raw Cytoscape config. | |
-| req-viz-layout-definition-2 | Structured Sections | Proposed | The layout definition exposes structured sections for inputs, steps, presentation, and interactions. | |
-| req-viz-layout-definition-3 | Renderer Independence Preserved | Proposed | Layout definition structure is not defined in terms of renderer-native configuration fields. | |
+The first layout shape should stay minimal until real working layouts force additional structure.
 
 #### Future
-Define a machine-validated schema once the runtime and editor requirements settle further.
+
+Add more layout metadata only when real runtime needs justify it.
 
 
-### Layout Inputs
+### Module Contract
 ----
-RID: `req-viz-layout-inputs`
-Status: `Proposed`
+RID: `req-viz-layout-module-contract`
+Status: `Implemented`
 
-Layouts may declare inputs and bind panel-resolved runtime values into search and layout execution.
-
-#### Status Details
-This requirement makes layouts first-class participants in the page/panel input model without forcing page-level naming into layout definitions.
+Tap layout JavaScript modules export a standard async entrypoint.
 
 #### Implementation
-- A layout may declare named inputs.
-- Panel-resolved input values may be mapped into those layout inputs.
-- Search steps may consume layout inputs as execution inputs.
-- Layout execution reruns deterministically for a given input state.
 
-#### Development
-Keep page-variable mapping in the page/panel layer. The layout should only know its own local input names and defaults.
+The v0 tap layout module contract is:
 
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-inputs-1 | Layout Input Names Declared | Proposed | Layouts may declare their own local runtime input names. | |
-| req-viz-layout-inputs-2 | Panel Inputs Bind Into Layout | Proposed | Viz panel runtime may bind resolved panel inputs into layout inputs. | |
-| req-viz-layout-inputs-3 | Search Steps Consume Bound Inputs | Proposed | Search execution inputs may be derived from layout input values. | |
-| req-viz-layout-inputs-4 | Rerun Deterministic | Proposed | The same layout definition plus the same input state produces deterministic execution ordering. | |
-
-#### Future
-If input schemas become important, add JSON Schema or typed validation in a later iteration.
-
-
-### Search Steps
-----
-RID: `req-viz-layout-search-steps`
-Status: `Proposed`
-
-Layouts retrieve graph data through ordered search steps that reference TAP Search entities.
-
-#### Status Details
-This requirement keeps data retrieval aligned with the existing TAP search system.
-
-#### Implementation
-- A `search` step references a saved Search entity.
-- A search step may define:
-  - input bindings
-  - result inclusion rules
-  - step-local naming or grouping metadata
-- Search steps return canonical graph envelopes which feed the layout pipeline.
-
-#### Development
-Search steps should remain references to TAP-managed searches, not inline query code or inline ORM definitions inside the layout.
-
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-search-steps-1 | Search Entity Reference | Proposed | Search steps reference TAP Search entities. | |
-| req-viz-layout-search-steps-2 | Canonical Result Envelope Used | Proposed | Search steps contribute canonical graph envelopes to layout execution. | |
-| req-viz-layout-search-steps-3 | Inline Query Logic Excluded | Proposed | Layout definitions do not store their own arbitrary search implementation logic. | |
-
-#### Future
-If search composition patterns become common, specify them as more explicit step types rather than overloading search steps.
-
-
-### Pipeline Order
-----
-RID: `req-viz-layout-pipeline-order`
-Status: `Proposed`
-
-Layout execution follows a deterministic ordered pipeline.
-
-#### Status Details
-This requirement exists because layouts will eventually combine multiple searches and multiple actions. Without a defined execution order, layouts become ambiguous and difficult to reason about.
-
-#### Implementation
-The canonical execution order is:
-
-1. Resolve layout inputs
-2. Execute ordered search steps
-3. Merge graph envelopes into working graph state
-4. Apply filtering and derivation steps
-5. Apply containment
-6. Apply ordered placement actions
-7. Apply style rules such as shape and icon behavior
-8. Emit renderer-ready scene output
-
-#### Development
-Keeping the pipeline explicit makes future editor tooling and debugging far easier than relying on implied order or renderer behavior.
-
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-pipeline-order-1 | Canonical Order Defined | Proposed | The spec defines a canonical ordered layout execution pipeline. | |
-| req-viz-layout-pipeline-order-2 | Placement Happens After Containment | Proposed | Placement actions execute after containment derivation is known. | |
-| req-viz-layout-pipeline-order-3 | Style Happens After Placement Inputs Are Ready | Proposed | Style rules such as shape and icon behavior execute after the working scene structure is established. | |
-
-#### Future
-If pre-merge or post-render hooks are needed, define them explicitly rather than allowing arbitrary execution phases.
-
-
-### Graph Merge
-----
-RID: `req-viz-layout-graph-merge`
-Status: `Proposed`
-
-Results from multiple search steps merge into a single working graph state for the layout pipeline.
-
-#### Status Details
-This requirement is necessary because useful layouts will often be composed from more than one search.
-
-#### Implementation
-- The working graph state consists of nodes and edges plus execution metadata.
-- Multiple search results merge into that working graph state.
-- Merge semantics must be deterministic and avoid duplicate graph members in the working set.
-- Warnings may be accumulated during merge.
-
-#### Development
-The working graph state is the right intermediate representation for layout execution. It is more stable than renderer-specific node/edge payloads and richer than raw search output.
-
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-graph-merge-1 | Single Working Graph State | Proposed | Multiple search results merge into a single working graph state for the layout. | |
-| req-viz-layout-graph-merge-2 | Duplicate Handling Defined | Proposed | Merge behavior handles duplicate graph members deterministically. | |
-| req-viz-layout-graph-merge-3 | Warning Accumulation Allowed | Proposed | Non-fatal merge issues may be accumulated as warnings. | |
-
-#### Future
-Define richer graph derivation and grouping semantics once advanced layouts appear.
-
-
-### Containment
-----
-RID: `req-viz-layout-containment`
-Status: `Proposed`
-
-Containment is a reserved layout concern used to represent graph objects that are visually inside other graph objects when a layout explicitly opts into it.
-
-#### Status Details
-This requirement keeps room for parent-child and “inside” relationships without forcing the smallest initial layouts to use compound structures.
-
-#### Implementation
-- Layout execution may support parent-child relationships in the working graph state when a layout explicitly uses containment.
-- No model-level containment hint is part of the smallest initial display-hints contract.
-- Layout definitions own containment behavior when containment is used in v1.
-- Containment examples include:
-  - ports inside network interfaces
-  - applications inside servers
-  - servers inside network segments
-
-#### Development
-Containment is intentionally not part of the simplest layout path. When used, it must be resolved before placement and styling can fully reason about parent objects and child bounds.
-
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-containment-1 | Parent-Child Supported | Proposed | Layout execution supports parent-child graph relationships as part of the scene model. | |
-| req-viz-layout-containment-2 | Layout-Owned In V1 | Proposed | When containment is used in v1, the layout definition owns that behavior directly. | |
-| req-viz-layout-containment-3 | Simplest Layout May Skip Containment | Proposed | A valid initial layout may omit containment entirely. | |
-
-#### Future
-Define compound-edge presentation and more advanced nesting rules separately once needed.
-
-
-### Placement
-----
-RID: `req-viz-layout-placement`
-Status: `Proposed`
-
-Placement actions position graph members in the layout scene after the working graph structure and containment are known.
-
-#### Status Details
-This requirement turns “layout” into an explicit ordered action system rather than a single renderer algorithm name.
-
-#### Implementation
-Supported v1 placement modes include:
-
-- `cytoscape:grid`
-- `cytoscape:cose`
-- `cytoscape:preset`
-- `model:micro-layout`
-- `plugin:<scoped-key>`
-
-Placement actions may apply to:
-- the whole working graph
-- a subset of nodes
-- children within a parent object
-
-#### Development
-The smallest viable layout path should not require micro-layout. More advanced placement behaviors can be layered in later without changing the basic layout contract.
-
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-placement-1 | Ordered Placement Actions | Proposed | Layout definitions may contain ordered placement actions. | |
-| req-viz-layout-placement-2 | Canonical Built-In Modes | Proposed | The spec defines a canonical initial set of built-in placement modes. | |
-| req-viz-layout-placement-3 | Micro-Layout Reserved | Proposed | The placement system reserves room for future micro-layout behavior without making it part of the smallest required default path. | |
-| req-viz-layout-placement-4 | Subgraph Placement Allowed | Proposed | Placement actions may target subsets of the working graph rather than only the whole scene. | |
-
-#### Future
-Define richer geometric constraints or alignment semantics only when real layout cases demand them.
-
-
-### Style Rules
-----
-RID: `req-viz-layout-style-rules`
-Status: `Proposed`
-
-Layouts define normalized presentation rules, with the smallest initial model-default contract limited to node shape under namespaced viz display metadata. Icon rendering reuses the existing grid icon system.
-
-#### Status Details
-This requirement captures human-facing visual semantics without binding them to renderer-native style syntax, while keeping the initial default surface intentionally small and avoiding duplication of the existing grid icon contract.
-
-#### Implementation
-The canonical rule layer includes:
-
-- shapes:
-  - `square`
-  - `rounded-square`
-  - `rectangle`
-- icon behavior:
-  - optional icon display when the canonical grid icon contract resolves an icon for the node type
-  - text-label fallback when no icon is available
-
-Sizing, label modes, and parent-specific presentation rules are deferred.
-
-The canonical source for a model-level default shape is the model display metadata namespace:
-
-```json
-{
-  "tap_viz": {
-    "shape": "rounded-square"
-  }
+```javascript
+export async function execute(context) {
+  // layout logic
 }
 ```
 
+Each layout module exports exactly one layout entrypoint named `execute`.
+
 #### Development
-This keeps the initial display-hints and layout-style contract narrow enough that early defaults are unlikely to require refactoring.
 
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-style-rules-1 | Normalized Shape Set | Proposed | Layouts use a normalized shape vocabulary rather than raw renderer style values as the canonical contract. | |
-| req-viz-layout-style-rules-2 | Icon Contract Reused | Proposed | Layout icon rendering reuses the canonical grid icon contract with safe fallback behavior when no icon resolves. | |
-| req-viz-layout-style-rules-3 | Shape Hint Namespaced | Proposed | Model-level default shapes are sourced from a namespaced `tap_viz.shape` display hint. | |
-| req-viz-layout-style-rules-4 | Advanced Presentation Deferred | Proposed | Size tiers, label modes, and parent-specific presentation rules are explicitly deferred. | |
+This keeps module resolution and runtime invocation simple for the first pass.
 
 #### Future
-Add richer typography, stroke, and semantic coloring rules only after stable use cases emerge.
+
+If multiple exports become useful later, define that explicitly rather than loosening the v0 contract implicitly.
 
 
-### Plugin Formatters
+### Runtime Context
 ----
-RID: `req-viz-layout-plugin-formatters`
-Status: `Proposed`
+RID: `req-viz-layout-runtime-context`
+Status: `Implemented`
 
-Layouts may use plugin-defined formatters, but extension is registry-based rather than code stored directly in layout definitions.
-
-#### Status Details
-This requirement allows custom behavior without opening the door to arbitrary JavaScript stored in the database.
+Tap layouts receive a locked-in minimal runtime context.
 
 #### Implementation
-- A plugin formatter is referenced by a scoped registry key.
-- The formatter receives a defined input contract from layout execution.
-- The formatter returns deterministic placement and/or presentation output.
-- Inline arbitrary JavaScript stored in the layout object is not part of the v1 contract.
+
+The v0 layout runtime context contains:
+
+- `cy`
+- `projection`
+- `elevation`
+- `trigger_reason`
+- `trigger_node`
+
+Field meanings:
+
+- `cy`
+  The active Cytoscape instance.
+- `projection`
+  The active projection definition when the layout is running under a projection host, otherwise `null`.
+- `elevation`
+  The active elevation definition when the layout is running under a projection host, otherwise `null`.
+- `trigger_reason`
+  Why this layout execution was initiated, such as:
+  - `initial_load`
+  - `zoom_transition`
+  - `double_tap`
+- `trigger_node`
+  Optional hint passed through from the runtime when an elevation transition was triggered by a user gesture aimed at a specific node. Layouts **should not** depend on it for core operation — elevation layouts are scene-wide and must assert their target scene state for every applicable node, not just a trigger target. Carried in the context for advanced uses (e.g. highlighting) and for backward compatibility.
+
+`projection`, `elevation`, and `trigger_node` are nullable so layouts may be reused outside projection-driven hosts.
 
 #### Development
-Registry-based extension is consistent with the rest of TAP and is far safer than code-in-DB for a first serious layout system.
 
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-plugin-formatters-1 | Registry-Based Extension | Proposed | Plugin layout extensions are referenced through registry keys rather than code blobs. | |
-| req-viz-layout-plugin-formatters-2 | Deterministic Formatter Contract | Proposed | Formatter output is expected to be deterministic for a given input state. | |
-| req-viz-layout-plugin-formatters-3 | Inline JS Excluded | Proposed | Arbitrary inline JavaScript stored on layout entities is not part of the v1 spec. | |
+Keeping the context small makes the runtime contract more stable and pushes reusable functionality into shared imported modules rather than callback parameter sprawl.
 
 #### Future
-Define the exact plugin formatter interface in a dedicated sub-spec once the core layout runtime is settled.
+
+Add more context fields only when concrete runtime experience shows they are necessary.
 
 
-### Renderer-Ready Scene
+### Layout Capabilities
 ----
-RID: `req-viz-layout-renderer-ready-scene`
-Status: `Proposed`
+RID: `req-viz-layout-capabilities`
+Status: `Implemented`
 
-Layout execution emits a renderer-ready scene that can be consumed by a renderer adapter such as Cytoscape.
-
-#### Status Details
-This requirement defines the handoff between TAP-owned layout logic and renderer-specific rendering.
+Tap layouts may perform all scene work needed to get the desired pieces onto the Cytoscape board and put them in place.
 
 #### Implementation
-- The output of layout execution is a renderer-ready scene model.
-- That scene contains enough information for the renderer adapter to construct visible nodes, edges, containment, placement, and presentation.
-- Renderer adapters are responsible for converting the scene into renderer-native runtime configuration.
+
+In v0, a tap layout may:
+
+- fetch additional graph data
+- add or update nodes and edges
+- hide or un-hide existing nodes and edges (via the `.tap-elevation-hidden` class convention described in `spec-viz-projection.md`)
+- apply or change nesting
+- invoke one or more built-in Cytoscape layouts
+- position nodes manually
+- adjust styling or scaling
+- inspect the whole active Cytoscape graph
+
+Layouts are authoritative for nesting decisions during their execution.
+
+Under a projection host, layouts are also responsible for **asserting scene invariants on entry**: each layout should put the scene into the state its elevation requires regardless of what the previous elevation left behind. There is no separate exit hook — teardown is handled implicitly by the next elevation's entry assertion. This keeps each layout's behavior self-contained and lets the runtime stay oblivious to elevation-specific cleanup rules.
+
+When a layout uses nesting, it should do so through the standard TAP Viz nesting process defined in `spec-viz-nesting.md`. That process uses the Gryphon-like nesting relationship format as the canonical expression for layout-owned nesting.
+
+If a layout changes an existing nesting relationship and re-nests an object elsewhere, the runtime must emit a `layout_nesting_override` warning.
 
 #### Development
-This keeps the renderer boundary explicit and makes future renderer changes possible without redefining the layout language.
 
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-renderer-ready-scene-1 | Explicit Execution Output | Proposed | Layout execution emits a renderer-ready scene artifact. | |
-| req-viz-layout-renderer-ready-scene-2 | Adapter Consumes Scene | Proposed | Renderer adapters consume the scene artifact rather than canonical layout storage directly. | |
+This requirement reflects the central design decision of the new layout model: one layout does whatever work it needs to do to make its scene real.
 
 #### Future
-Define the exact scene schema when implementation work begins.
+
+- Add viewport-aware optimization helpers for very large graph scenes.
 
 
-### Legacy Cytoscape Deprecation
+### Execution Model
 ----
-RID: `req-viz-layout-legacy-cytoscape-deprecation`
-Status: `Proposed`
+RID: `req-viz-layout-execution`
+Status: `Implemented`
 
-Raw Cytoscape layout storage is transitional and should not remain the canonical persisted layout contract.
-
-#### Status Details
-Current `cytoscape_config` storage is useful as current-state functionality, but it is too renderer-specific and too low-level to be the long-term TAP layout model.
+Tap layouts execute serially under a host runtime, but a failed layout does not block later layouts from running.
 
 #### Implementation
-- Existing raw Cytoscape config may be preserved temporarily for compatibility.
-- Import/export compatibility with Cytoscape-native data may be supported.
-- Future layout implementation should target the TAP-owned `definition` model first.
+
+Under a projection elevation or another TAP Viz host, tap layouts:
+
+- execute serially in the order defined by the host
+- mutate `cy` directly
+- signal completion by promise resolution
+
+If a layout throws or rejects:
+
+- the runtime records an error for that layout
+- the failed layout stops
+- later layouts in the same host sequence still run
+
+This behavior exists so partially successful visual progress remains visible and debuggable even when one layout fails.
 
 #### Development
-This requirement provides a clean architectural direction without requiring immediate deletion of current working behavior.
 
-#### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-viz-layout-legacy-cytoscape-deprecation-1 | Raw Cytoscape Config Not Canonical | Proposed | The spec treats raw Cytoscape config as transitional rather than canonical. | |
-| req-viz-layout-legacy-cytoscape-deprecation-2 | Compatibility Allowed | Proposed | Import/export or migration compatibility may exist for Cytoscape-native layout data. | |
-| req-viz-layout-legacy-cytoscape-deprecation-3 | New Work Targets Definition Model | Proposed | Future layout implementation targets the TAP-owned declarative definition model. | |
+These are visuals, not mission-critical transactions. It is more valuable to preserve visible progress and inspect partial success than to abort the whole rendering pipeline at the first failure.
 
 #### Future
-Specify concrete migration and compatibility mechanics once the new layout system is implemented.
 
-## Deferred Areas
+Define richer runtime reporting and visualization of per-layout execution state.
 
-The following items are explicitly deferred from this specification:
 
-- layout editor
-- adjacent-layout pivots
-- path overlays
-- legend behavior
-- runtime drilldown navigation
-- arbitrary inline code execution
+### Runtime Modules
+----
+RID: `req-viz-layout-runtime-modules`
+Status: `Implemented`
 
-## Initial Validation Dataset
+Shared TAP Viz runtime utilities live in static JavaScript modules and are imported directly by layout files.
 
-The initial validation dataset for viz icon rendering should be the existing LOTR plugin dataset because it already exercises the canonical grid icon system across several entity types, including `character`, `location`, `artifact`, and `race`.
+#### Implementation
 
-## Status Vocabulary
+Shared utilities are not passed in `context`. Layout implementations import them directly from TAP Viz-owned static JavaScript modules.
 
-| Status States |  |
-| --- | --- |
-| Proposed |  |
-| Approved for Development | Requirement is accepted and ready to be implemented |
-| In Development |  |
-| Implemented |  |
-| Verified |  |
-| Refactoring |  |
-| Deprecating |  |
-| Deprecated | Not part of the current architecture and should not be implemented |
+The v0 path namespaces are:
 
-## RID Format
+- `tap_viz/static/tap_viz/js/projections/`
+  executable projection and layout files
+- `tap_viz/static/tap_viz/js/runtime/`
+  shared TAP Viz runtime modules
 
-`req-<application>-<specification>-<feature>-<sub-feature>`
+Plugin-shipped layout files may also live under corresponding plugin static paths while following the same conceptual split between executable layout modules and shared runtime support.
 
-## Requirements Format
+#### Development
 
-`RID: \`...\``
-`Status: \`...\``
+This keeps the runtime context small and lets utility code evolve as normal JavaScript modules rather than callback payload baggage.
+
+#### Future
+
+Define plugin-specific path conventions more explicitly once the first plugin layouts are moved into place.
+
+
+### Warnings And Errors
+----
+RID: `req-viz-layout-warnings-errors`
+Status: `Implemented`
+
+Tap layout runtime distinguishes warnings from errors.
+
+#### Implementation
+
+Warnings represent recoverable issues where execution may continue.
+
+Errors represent a thrown exception or rejected promise from a layout execution.
+
+The runtime should support both warning and error reporting and should record them at layout granularity.
+
+The v0 warning category `layout_nesting_override` means:
+
+- a layout changed an existing nesting relationship for an object
+- the object was re-nested elsewhere
+- execution continued
+
+#### Development
+
+Keeping warnings and errors separate makes layout failures easier to reason about and keeps recoverable scene oddities from being treated as fatal execution failures.
+
+#### Future
+
+Integrate layout warnings and errors into TAP's richer runtime diagnostics once those systems are defined.
+
+
+### LOTR Worked Example
+----
+RID: `req-viz-layout-lotr-example`
+Status: `Implemented`
+
+The LOTR saga-stage layout should be the first worked example of the executable tap layout contract.
+
+#### Implementation
+
+Representative module shape:
+
+```javascript
+import { executeSearch } from "/static/tap_viz/js/runtime/search.js";
+import { applyNesting } from "/static/tap_viz/js/runtime/nesting.js";
+
+export async function execute(context) {
+  const { cy, projection, elevation, trigger_reason, trigger_node } = context;
+
+  if (trigger_reason !== "initial_load") {
+    return;
+  }
+
+  const result = await executeSearch({
+    query: "lotr saga realm/locations/characters/artifacts union search"
+  });
+
+  // Add or update graph members in Cytoscape.
+  // Apply realm -> location -> character nesting for this layout.
+  // Use built-in Cytoscape grid behavior where helpful.
+  // Adjust positions until the saga scene is presentable.
+
+  applyNesting(cy, {
+    relationships: [
+      "realm contains location",
+      "location contains character"
+    ]
+  });
+
+  // Normal completion is promise resolution.
+  void projection;
+  void elevation;
+  void trigger_node;
+}
+```
+
+This example is illustrative rather than normative in its exact module internals, but it should demonstrate:
+
+- direct imports from TAP Viz runtime modules
+- the standard `execute(context)` contract
+- the `initial_load` trigger reason
+- whole-graph Cytoscape access
+- fetching, nesting, and positioning inside one layout execution
+
+#### Development
+
+The LOTR example is the proving ground for the v0 layout model and should be treated as the place where the contract is validated before the model grows.
+
+#### Future
+
+Replace illustrative placeholder paths and helper names with the real plugin-backed LOTR layout module once implementation is finalized.

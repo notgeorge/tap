@@ -89,7 +89,7 @@ Proposed process:
 5. Panel View Handlers (`tap_web/views.py`) — panels served at `/panel/<slug>--<uuid>/`; UUID parsed to look up the `Panel`; `render(request, panel.view)` renders the declared template; exceptions return the panel error fragment
 6. Layout CSS — CSS Grid; column/row key numeric suffixes (`col-1`, `row-2`) map to grid `order` values. `col_span` and `row_span` from the layout schema apply via `grid-column: span N` / `grid-row: span N`
 
-Panels rely on asset manifests declared in the panel spec so page rendering can gather, dedupe, and emit static CSS/JS before panel fragments are requested.
+Panels rely on asset manifests declared on the **panel type class** (not the panel instance) so page rendering can gather, dedupe, and emit static CSS/JS before panel fragments are requested. The aggregator resolves each panel to its registered type via the panel's `view` field and reads `js` / `css` class attributes from the type.
 
 #### Acceptance Criteria
 
@@ -105,7 +105,7 @@ Panels rely on asset manifests declared in the panel spec so page rendering can 
 RID: `req-web-render-panel`
 Status: `Implemented`
 
-Panels are rendered via HTMX calls from the page template. Each Panel object stores a `view` (template path string) and lists of static assets (`js`, `css`). The page template emits the full deduped asset set before HTMX calls are made; HTMX then fills each layout slot with the rendered panel fragment.
+Panels are rendered via HTMX calls from the page template. Each Panel object stores a `view` (template path string); the panel type class matching that view declares the static asset lists (`js`, `css`). The page template emits the full deduped asset set (collected from every panel's type) before HTMX calls are made; HTMX then fills each layout slot with the rendered panel fragment.
 
 #### Panel Endpoint
 
@@ -143,7 +143,7 @@ Behavior:
 - the shell includes the required graph context preview defined in `spec-web-editor.md`
 - panels may render an object-specific preview showing what the panel looks like
 - the typed editor region renders the panel's declared `editor_view`
-- editor page emits deduped editor CSS and JS using `editor_css` and `editor_js`
+- editor page emits deduped editor CSS and JS using the panel type's `editor_css` / `editor_js` class attributes
 - preview and save are separate actions
 - preview applies current draft editor state without persistence
 - edit submissions post back to the panel edit endpoint
@@ -158,7 +158,7 @@ Panels supply panel-specific editor content and optional object-preview behavior
 | req-web-render-panel-edit-2 | UUID Lookup | Implemented | Edit route resolves the panel by UUID using the decorative slug pattern. | |
 | req-web-render-panel-edit-3 | Generic Editor Shell Used | Implemented | Panel edit pages are assembled through the generic web editor shell. | `panel_edit_view` renders `tap_web/editor.html` |
 | req-web-render-panel-edit-4 | Panel Editor Uses Declared Template | Implemented | The typed editor region renders the panel's declared `editor_view`. | |
-| req-web-render-panel-edit-5 | Editor Assets Emitted | Implemented | Editor page emits `editor_css` in the head and `editor_js` at the end of the body. | |
+| req-web-render-panel-edit-5 | Editor Assets Emitted | Implemented | Editor page emits `editor_css` in the head and `editor_js` at the end of the body. | Sourced from the panel type class. |
 | req-web-render-panel-edit-6 | Preview Separate From Save | Backlog | Preview is deferred; save + history-revert is the v1 undo strategy. | |
 | req-web-render-panel-edit-7 | Preview Applies Draft State | Backlog | Preview is deferred; see `req-web-editor-preview-exec`. | |
 | req-web-render-panel-edit-8 | Edit Posts To Edit Endpoint | Implemented | Edit submissions target the panel edit endpoint rather than the normal view endpoint. | |

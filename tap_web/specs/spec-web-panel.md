@@ -42,7 +42,7 @@ Sanitized - Are sanitized using Django's built-in rendering functions, no unsafe
 RID: `req-web-panel-obj`
 Status: `Implemented`
 
-A Panel object is the backing entity for a data-display component. It declares its view renderer, optional editor renderer, configuration object, static assets, and display metadata.
+A Panel object is the backing entity for a data-display component. It declares its view renderer, optional editor renderer, configuration object, and display metadata. Static assets are owned by the **panel type** (the Python class matching `view`), not the panel instance — see the Asset Ownership section below.
 
 #### Fields
 
@@ -51,14 +51,28 @@ A Panel object is the backing entity for a data-display component. It declares i
 | `slug` | CharField (kebab-case) | Yes | Human-readable label used in the panel HTMX URL alongside the entity UUID. No uniqueness constraint — the UUID disambiguates. |
 | `name` | CharField | Yes | Human-readable name shown in the UI. Canonical entity metadata term per `req-grid-entity-metadata`. |
 | `description` | TextField | No | What the panel is for |
-| `view` | CharField | Yes | Template path string for normal panel rendering. |
+| `view` | CharField | Yes | Template path string for normal panel rendering. Also identifies the panel type — the registered panel type class whose `view` attribute matches is considered the owner and is the source of static assets and editor defaults. |
 | `editor_view` | CharField | No | Template path string for the panel editor UI. Optional until a panel supports editing. |
 | `config` | JSONField (object) | Yes | Panel-specific configuration object. Default: `{}`. |
-| `js` | JSONField (list) | No | Flat list of static-relative JS paths used by normal panel rendering. Default: `[]`. |
-| `css` | JSONField (list) | No | Flat list of static-relative CSS paths used by normal panel rendering. Default: `[]`. |
-| `editor_js` | JSONField (list) | No | Flat list of static-relative JS paths used by panel edit mode. Default: `[]`. |
-| `editor_css` | JSONField (list) | No | Flat list of static-relative CSS paths used by panel edit mode. Default: `[]`. |
 | `input_vars` | JSONField (list) | No | Declared panel input variable names expected by the panel at runtime. Default: `[]`. |
+
+#### Asset Ownership
+
+Panel instances do **not** carry `js`, `css`, `editor_js`, or `editor_css` fields. These were removed in v0 because every legitimate use case for instance-level asset overrides turned out to be duplication of the panel type's declared lists, and the dedup-based aggregator silently masked drift between the two sources.
+
+Static assets for a panel are now resolved exclusively through the registered panel type class:
+
+```python
+class GraphPanelType:
+    slug = "graph"
+    view = "tap_viz/panels/graph_panel.html"
+    js = ["tap_viz/js/lib/cytoscape.min.js", "tap_viz/js/panel-graph.js", ...]
+    css = ["tap_viz/css/panel-graph.css"]
+    editor_js: list[str] = []
+    editor_css: list[str] = []
+```
+
+The page rendering aggregator (`tap_web/views.py`) walks the panels on a page, resolves each to its panel type via the `view` field, and collects the type's `js` / `css` lists. The panel editor render path similarly reads `editor_js` / `editor_css` from the type. Panel instances have no way to add, remove, or override these lists.
 
 Panels do not define or own `panel-id`. `panel-id` is a page-local slot identity defined in the page spec and used by page layout, page-panel links, and rendering.
 
@@ -76,10 +90,10 @@ The `slug` portion is the Panel's `slug` field value. The UUID is the Panel's `e
 
 #### Implementation
 
-`Panel` model in `tap_web/models.py` declares the fields above. The generic panel view handler in `tap_web/views.py` receives a request, looks up the Panel by entity UUID extracted from the URL, and calls `django.shortcuts.render(request, panel.view)` to render the panel's declared template. Panel edit mode uses `editor_view` plus `editor_js` and `editor_css` when the panel supports editing. `config` stores panel-specific configuration with default `{}`. The panel error fragment is returned on any exception so the HTMX swap completes and the slot shows "Panel Error" rather than leaving the page broken.
+`Panel` model in `tap_web/models.py` declares the fields above. The generic panel view handler in `tap_web/views.py` receives a request, looks up the Panel by entity UUID extracted from the URL, and calls `django.shortcuts.render(request, panel.view)` to render the panel's declared template. Panel edit mode reads `editor_view` from the panel instance and `editor_js` / `editor_css` from the resolved panel type class. `config` stores panel-specific configuration with default `{}`. The panel error fragment is returned on any exception so the HTMX swap completes and the slot shows "Panel Error" rather than leaving the page broken.
 
-Asset list semantics:
-- `js`, `css`, `editor_js`, and `editor_css` contain static-relative asset paths, not code blobs.
+Asset source semantics:
+- Static assets are declared by the panel type class (see Asset Ownership above), not the panel instance.
 - Panel-specific client behavior should live in shipped static files such as `js/panel-*.js`.
 - Third-party libraries vendored into TAP should also be served as static files, for example under `js/lib/`.
 - Inline JavaScript embedded directly into panel HTML is not part of the panel contract.
@@ -88,9 +102,9 @@ Asset list semantics:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-obj-1 | Panel Fields | Implemented | Panel declares `slug`, `name`, `description`, `view`, `editor_view`, `config`, `js`, `css`, `editor_js`, `editor_css`, and `input_vars` as described above. | |
+| req-web-panel-obj-1 | Panel Fields | Implemented | Panel declares `slug`, `name`, `description`, `view`, `editor_view`, `config`, and `input_vars` as described above. | Static asset fields were removed in migration 0009. |
 | req-web-panel-obj-2 | View Is Template Path | Implemented | `view` stores a template path string. The generic panel view handler renders it with `render(request, panel.view)`. | |
-| req-web-panel-obj-3 | Asset Lists Default Empty | Implemented | `js`, `css`, `editor_js`, and `editor_css` default to `[]` when not set. | `editor_js` and `editor_css` are newly specified. |
+| req-web-panel-obj-3 | Assets From Panel Type | Implemented | Static asset lists (`js`, `css`, `editor_js`, `editor_css`) are declared by the panel type class matching the panel's `view`, not by the panel instance. | |
 | req-web-panel-obj-4 | Panel URL Format | Implemented | Panel HTMX endpoint is `/panel/<slug>--<entity-uuid>/`. UUID is used for lookup; slug is decorative. | |
 | req-web-panel-obj-5 | Panel Error Fragment | Implemented | If the panel view raises any exception, the endpoint returns an HTML error fragment (HTTP 200) so HTMX swap completes with a "Panel Error" slot. | |
 | req-web-panel-obj-6 | Web Dimension | Implemented | Panel carries `DEFAULT_DIMENSIONS = {"tap.graph": "web"}` (already implemented). | |
@@ -148,8 +162,8 @@ Panels may support edit mode through the generic TAP Web editor shell. Panel edi
 This requirement now formalizes only the panel-specific portion of edit mode. Shared editor-shell behavior is defined in `spec-web-editor.md`. Route and panel rendering integration details remain in `spec-web-rendering.md`.
 
 #### Implementation
-- Normal panel rendering uses `view` plus `js` and `css`.
-- Panel edit mode uses optional `editor_view` plus `editor_js` and `editor_css`.
+- Normal panel rendering uses the instance's `view` plus the panel type's `js` / `css` class attributes.
+- Panel edit mode uses optional `editor_view` plus the panel type's `editor_js` / `editor_css` class attributes.
 - Panel edit mode is hosted inside the shared generic editor shell defined in `spec-web-editor.md`.
 - Panel edit mode operates on panel-owned metadata and configuration:
   - `name` (canonical entity instance metadata)
@@ -168,7 +182,7 @@ Keep panel edit mode lightweight. `config` remains the generic extension surface
 | --- | --- | :---: | --- | --- |
 | req-web-panel-edit-1 | Panel Uses Generic Editor Shell | Proposed | Panel edit mode is hosted inside the generic web editor shell defined in `spec-web-editor.md`. | |
 | req-web-panel-edit-2 | Editor Template Declared | Implemented | Panels that support custom typed editing declare `editor_view`. | |
-| req-web-panel-edit-3 | Separate Editor Assets | Implemented | Panels may declare `editor_js` and `editor_css` separately from normal `js` and `css`. | |
+| req-web-panel-edit-3 | Separate Editor Assets | Implemented | Panel types declare `editor_js` / `editor_css` class attributes separately from `js` / `css`. | Declared on the panel type class, not the panel instance. |
 | req-web-panel-edit-4 | Edit Mode Targets Panel Object | Implemented | Panel edit mode edits the Panel object itself, not page-specific bindings. | |
 | req-web-panel-edit-5 | Panel Edit Scope | Proposed | Panel edit mode covers panel-owned fields such as `name`, `description`, and `config`. | |
 | req-web-panel-edit-6 | Panel May Provide Object Preview | Proposed | Panels may render an object-specific preview showing what the panel looks like. | Cross-ref `req-web-editor-object-preview`. |
