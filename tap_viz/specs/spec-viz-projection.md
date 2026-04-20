@@ -34,7 +34,7 @@ Projections should also be self-contained. A projection must be able to define a
 | req-viz-projection-incremental-loading | [Incremental Loading](#incremental-loading) | Implemented | `character-view.js` demonstrates runtime sub-search via `runtime/search.js` |
 | req-viz-projection-self-contained | [Self-Contained Execution](#self-contained-execution) | Implemented | LOTR saga projection defines nesting, dimensions, and layout without model-level hints |
 | req-viz-projection-lotr-monolith | [LOTR Monolithic Example](#lotr-monolithic-example) | Implemented | Wired in `plugins/lotr/grift/web.grift.json` + saga-stage / character-view modules |
-| req-viz-projection-viewport-preservation | [Viewport Preservation](#viewport-preservation) | Implemented | Cursor-tracked hero-node anchoring with ancestor fallback across scroll-driven elevation transitions |
+| req-viz-projection-viewport-preservation | [Viewport Preservation](#viewport-preservation) | Deprecating | Transitional cursor-tracked hero-node anchoring that compensates for geometry discontinuities; see `spec-viz-nested-projection.md` |
 | req-viz-projection-elevation-invariants | [Elevation Invariants](#elevation-invariants) | Implemented | Layouts assert scene state on entry; elevation-hidden class lets transient content survive across transitions without re-fetching |
 | req-viz-projection-viewport-scoped-expansion | [Viewport-Scoped Expansion](#viewport-scoped-expansion) | Backlog | Per-visible-viewport elevation expansion for large graphs |
 
@@ -321,9 +321,13 @@ Split LOTR projection pieces into reusable referenced artifacts only after the m
 ### Viewport Preservation
 ----
 RID: `req-viz-projection-viewport-preservation`
-Status: `Implemented`
+Status: `Deprecating`
 
 Scroll-driven elevation transitions preserve the user's visual frame of reference across the layout change that the transition triggers.
+
+#### Status Details
+
+This behavior is still live in the current runtime, but it is now considered compensating machinery rather than target architecture. The newer direction is defined in `tap_viz/specs/spec-viz-nested-projection.md`: stable outer node geometry plus nested viewport projection should remove much of the need for hero-node anchoring and post-layout pan correction.
 
 #### Implementation
 

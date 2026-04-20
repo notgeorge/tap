@@ -1,70 +1,79 @@
 /**
  * LOTR character-view tap layout.
  *
- * Asserts the character-view scene state: every character in cy is expanded
- * into a compound node containing the artifacts they wield.
+ * Asserts the character-view scene state using the bounded-layer nested
+ * projection model. This is additive over saga-stage — all higher-level
+ * nesting (realm → location → character) remains visible, and the
+ * character → artifact layer is added on top.
+ *
+ * Full nesting chain at this elevation:
+ *   realm (viewport parent)
+ *     └── location (viewport parent)
+ *           └── character (viewport parent at this elevation)
+ *                 └── artifact (leaf)
  *
  * This is the "magnify and enhance" behavior — when the user crosses the
  * character-view zoom threshold (by scroll OR by double-tap commanded
- * animation), all applicable characters expand in lockstep, not just a
- * single tapped target.
+ * animation), all applicable characters expand in lockstep.
  *
- * Re-entry reuses prior state: artifacts added on a previous visit are
- * hidden + un-nested by saga-stage when the user zooms back out; this
- * layout unhides and re-nests them instead of re-fetching.
+ * Re-entry reuses prior state: artifacts hidden by saga-stage are unhidden
+ * here instead of re-fetching from the API.
  */
 
-import {applyNesting} from "/static/tap_viz/js/runtime/nesting.js";
+import {projectNested, ELEVATION_HIDDEN_CLASS} from "/static/tap_viz/js/runtime/nested-projection.js";
 import {executeSearch} from "/static/tap_viz/js/runtime/search.js";
-import "/static/tap_viz/js/runtime/cytoscape-tap-dimensions.js";
 
 // "Characters and Their Artifacts" — one-hop ORM search that returns every
 // character plus their wielded artifacts and the WIELDS edges. Referenced
 // by entity_id from plugins/lotr/grift/searches.grift.json.
 const WIELDS_SEARCH_ID = "019d657d-cc50-71e9-a77b-e7dcd0332e8f";
 
-const NESTING_CONFIG = {
-    clear_existing: false,
-    relationships: [
-        {
-            name: "character-contains-artifact",
-            description: "Nest artifacts inside their wielder.",
-            gryphon: "(parent:character)-[:WIELDS]->(child:artifact)",
-        },
-    ],
-};
-
-const CHARACTER_DIMENSIONS = {width: 360, height: 240, padding: 24};
-
 export async function execute(context) {
     const {cy} = context;
 
     // Step 1. Reuse hidden artifacts from a prior visit, else fetch.
-    const hiddenArtifacts = cy.nodes('[entity_type="artifact"].tap-elevation-hidden');
+    const hiddenArtifacts = cy.nodes('[entity_type="artifact"].' + ELEVATION_HIDDEN_CLASS);
     if (hiddenArtifacts.length > 0) {
-        hiddenArtifacts.removeClass("tap-elevation-hidden");
-        cy.edges('[edge_type="WIELDS"].tap-elevation-hidden').removeClass("tap-elevation-hidden");
+        hiddenArtifacts.removeClass(ELEVATION_HIDDEN_CLASS);
+        cy.edges('[edge_type="WIELDS"].' + ELEVATION_HIDDEN_CLASS).removeClass(ELEVATION_HIDDEN_CLASS);
     } else {
         await _fetchAndAddArtifacts(cy);
     }
 
-    // Step 2. Apply character→artifact nesting. Idempotent.
-    const {warnings} = applyNesting(cy, NESTING_CONFIG);
-    warnings.forEach((w) => console.warn("[character-view]", w.category, w.message));
-
-    // Step 3. Declare dimensions on every character that is now a parent.
-    const td = cy.tapDimensions();
-    cy.nodes('[entity_type="character"]')
-        .not(".tap-dim-anchor")
-        .forEach((c) => td.set(c.id(), CHARACTER_DIMENSIONS));
-
-    // Step 4. Post-order recursive layout over the whole scene so the new
-    //         character compounds find clean positions.
-    td.clearWarnings();
-    td.layoutRecursive({
-        defaultLayout: {name: "grid", spacingFactor: 1.2},
+    // Step 2. Declare the full 4-level nesting chain.
+    //         This is additive over saga-stage — realm/location structure
+    //         remains visible, character now becomes a viewport parent with
+    //         artifacts inside.
+    const {warnings} = await projectNested(cy, {
+        relationships: [
+            {
+                name: "realm-contains-location",
+                gryphon: "(parent:realm)-[:CONTAINS]->(child:location)",
+            },
+            {
+                name: "location-contains-location",
+                gryphon: "(parent:location)-[:CONTAINS]->(child:location)",
+            },
+            {
+                name: "location-contains-character",
+                gryphon: "(parent:location)<-[:LOCATED_IN]-(child:character)",
+            },
+            {
+                name: "character-contains-artifact",
+                gryphon: "(parent:character)-[:WIELDS]->(child:artifact)",
+            },
+        ],
+        baseSizes: {
+            realm: {width: 600, height: 400},
+            location: {width: 160, height: 120},
+            character: {width: 50, height: 50},
+            artifact: {width: 30, height: 30},
+        },
+        padding: 6,
+        innerLayout: "grid",
     });
-    td.warnings().forEach((w) => console.warn("[character-view]", w.category, w));
+
+    warnings.forEach((w) => console.warn("[character-view]", w.category, w.message));
 }
 
 async function _fetchAndAddArtifacts(cy) {

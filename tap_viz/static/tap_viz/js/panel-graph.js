@@ -191,7 +191,9 @@ TapVizNestingResolver.prototype.resolve = function () {
 
 
 // ---------------------------------------------------------------------------
-// TapParentLabelOverlay — lightweight HTML label positioner for parent nodes.
+// TapParentLabelOverlay — LEGACY: used only by non-projection panels that
+// still use compound-node nesting. Projection panels use the bounded-layer
+// model with .tap-viewport-parent native Cytoscape labels instead.
 //
 // The cytoscape-node-html-label plugin cannot reliably position compound node
 // labels because its one("render") bootstrap fires before layout, when
@@ -472,7 +474,7 @@ function initGraph(panelId) {
                 },
             },
             {
-                // Compound parent nodes (nesting containers).
+                // Compound parent nodes (legacy nesting containers).
                 // Normal text label and background-image icon are suppressed;
                 // parent-label HTML overlay handles icon + text rendering.
                 selector: ":parent",
@@ -483,6 +485,27 @@ function initGraph(panelId) {
                     "border-color": "#94a3b8",
                     "padding": "30px",
                     "label": "",
+                },
+            },
+            {
+                // Bounded-layer viewport parents (nested projection model).
+                // Container visual: subtle background, top-aligned label,
+                // icon suppressed. Children are positioned inside via
+                // projectNested runtime.
+                selector: ".tap-viewport-parent",
+                style: {
+                    "background-color": "#f1f5f9",
+                    "background-image": "none",
+                    "background-opacity": 1,
+                    "border-width": 2,
+                    "border-color": "#94a3b8",
+                    "border-opacity": 0.6,
+                    "label": "data(label)",
+                    "text-valign": "top",
+                    "text-halign": "center",
+                    "text-margin-y": 6,
+                    "font-size": "10px",
+                    "color": "#475569",
                 },
             },
             {
@@ -536,9 +559,6 @@ function initGraph(panelId) {
         import("/static/tap_viz/js/runtime/projection.js")
             .then(function (mod) {
                 return mod.initProjection(cy, projection, {});
-            })
-            .then(function () {
-                _installProjectionParentLabels(cy);
             })
             .catch(function (err) {
                 console.error("[TAP projection] init failed", err);
@@ -603,7 +623,6 @@ function initGraph(panelId) {
 
     cy.on("tap", "node", function (evt) {
         var node = evt.target;
-        if (node.hasClass("tap-dim-anchor")) return;
 
         var entityType = node.data("entity_type");
         var urlId = node.data("url_id");
@@ -649,7 +668,7 @@ function _findNodeAtRenderedPosition(cy, x, y) {
     // the child, not the compound parent. Walk in reverse so topmost-painted
     // wins when overlaps occur.
     var hits = [];
-    cy.nodes(":visible").not(".tap-dim-anchor").forEach(function (n) {
+    cy.nodes(":visible").forEach(function (n) {
         var rpos = n.renderedPosition();
         var rw = n.renderedWidth() / 2;
         var rh = n.renderedHeight() / 2;
@@ -664,24 +683,6 @@ function _findNodeAtRenderedPosition(cy, x, y) {
     return hits[hits.length - 1];
 }
 
-function _installProjectionParentLabels(cy) {
-    var parents = cy.nodes(":parent").not(".tap-dim-anchor");
-    if (parents.length === 0) return;
-    var labelData = {};
-    parents.forEach(function (p) {
-        labelData[p.id()] = {
-            label: p.data("label") || p.data("entity_type") || p.id(),
-            icon_url: p.data("icon_url") || "",
-            config: {
-                horizontal_alignment: "center",
-                vertical_alignment: "top",
-                inside_or_outside: "outside",
-            },
-        };
-    });
-    var overlay = new TapParentLabelOverlay(cy, labelData);
-    overlay.init();
-}
 
 function _buildLayout(placement) {
     if (placement === "cytoscape:grid") {

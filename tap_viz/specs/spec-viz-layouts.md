@@ -168,7 +168,7 @@ In v0, a tap layout may:
 - fetch additional graph data
 - add or update nodes and edges
 - hide or un-hide existing nodes and edges (via the `.tap-elevation-hidden` class convention described in `spec-viz-projection.md`)
-- apply or change nesting
+- declare nested projection via `projectNested` (see `spec-viz-nested-projection.md`)
 - invoke one or more built-in Cytoscape layouts
 - position nodes manually
 - adjust styling or scaling
@@ -178,7 +178,7 @@ Layouts are authoritative for nesting decisions during their execution.
 
 Under a projection host, layouts are also responsible for **asserting scene invariants on entry**: each layout should put the scene into the state its elevation requires regardless of what the previous elevation left behind. There is no separate exit hook — teardown is handled implicitly by the next elevation's entry assertion. This keeps each layout's behavior self-contained and lets the runtime stay oblivious to elevation-specific cleanup rules.
 
-When a layout uses nesting, it should do so through the standard TAP Viz nesting process defined in `spec-viz-nesting.md`. That process uses the Gryphon-like nesting relationship format as the canonical expression for layout-owned nesting.
+When a layout uses nesting, it should call `projectNested` from `tap_viz/static/tap_viz/js/runtime/nested-projection.js`. That module uses the Gryphon-like nesting relationship format as the canonical expression for layout-owned nesting and handles viewport derivation, scale computation, and constrained layout execution.
 
 If a layout changes an existing nesting relationship and re-nests an object elsewhere, the runtime must emit a `layout_nesting_override` warning.
 
@@ -294,36 +294,35 @@ The LOTR saga-stage layout should be the first worked example of the executable 
 Representative module shape:
 
 ```javascript
-import { executeSearch } from "/static/tap_viz/js/runtime/search.js";
-import { applyNesting } from "/static/tap_viz/js/runtime/nesting.js";
+import { projectNested } from "/static/tap_viz/js/runtime/nested-projection.js";
 
 export async function execute(context) {
-  const { cy, projection, elevation, trigger_reason, trigger_node } = context;
+  const { cy, trigger_reason } = context;
 
-  if (trigger_reason !== "initial_load") {
-    return;
-  }
+  // Hide artifacts from prior character-view (re-entry cache pattern).
+  cy.nodes('[entity_type="artifact"]').addClass("tap-elevation-hidden");
+  cy.edges('[edge_type="WIELDS"]').addClass("tap-elevation-hidden");
 
-  const result = await executeSearch({
-    query: "lotr saga realm/locations/characters/artifacts union search"
-  });
-
-  // Add or update graph members in Cytoscape.
-  // Apply realm -> location -> character nesting for this layout.
-  // Use built-in Cytoscape grid behavior where helpful.
-  // Adjust positions until the saga scene is presentable.
-
-  applyNesting(cy, {
+  // Declare nested projection: realm → location → character.
+  // Runtime handles viewport derivation, scale, and constrained layout.
+  await projectNested(cy, {
     relationships: [
-      "realm contains location",
-      "location contains character"
-    ]
+      { name: "realm-contains-location", gryphon: "(parent:realm)-[:CONTAINS]->(child:location)" },
+      { name: "location-contains-character", gryphon: "(parent:location)<-[:LOCATED_IN]-(child:character)" }
+    ],
+    baseSizes: {
+      realm:     { width: 300, height: 200 },
+      location:  { width: 80, height: 60 },
+      character: { width: 40, height: 40 }
+    },
+    padding: 10,
+    innerLayout: "grid"
   });
 
-  // Normal completion is promise resolution.
-  void projection;
-  void elevation;
-  void trigger_node;
+  // Fit on initial load only; scroll re-entry preserves user viewport.
+  if (trigger_reason === "initial_load") {
+    cy.fit(cy.nodes(":visible"), 40);
+  }
 }
 ```
 
@@ -331,9 +330,10 @@ This example is illustrative rather than normative in its exact module internals
 
 - direct imports from TAP Viz runtime modules
 - the standard `execute(context)` contract
+- the `projectNested` API for declaring nesting, sizes, and layout in one call
 - the `initial_load` trigger reason
+- the elevation-hidden re-entry cache pattern
 - whole-graph Cytoscape access
-- fetching, nesting, and positioning inside one layout execution
 
 #### Development
 

@@ -10,6 +10,11 @@
  *     runs
  *   - layout execution is serial, failures are isolated per layout
  *
+ * Under the bounded-layer nested projection model, viewport-preservation
+ * (hero-node anchoring, cursor tracking, ancestor fallback) is removed.
+ * Stable outer geometry eliminates the geometry discontinuities those
+ * mechanisms were compensating for.
+ *
  * Spec: tap_viz/specs/spec-viz-projection.md
  */
 
@@ -40,28 +45,9 @@ export async function initProjection(cy, projection, opts = {}) {
         // immediately override it. Cleared when the user zooms far enough
         // away from the anchor to warrant a real transition.
         anchorZoom: null,
-        // Latest cursor position in cy-container-local rendered coordinates.
-        // Used as the anchor target for hero-node viewport preservation
-        // during scroll-zoom elevation transitions — the user's visual
-        // frame of reference is the cursor, not the viewport center.
-        cursor: null,
         destroyed: false,
         listeners: [],
-        domListeners: [],
     };
-
-    // Track cursor position on the cy container so zoom_transition activations
-    // can anchor on where the user is actually pointing.
-    const onMouseMove = (e) => {
-        const r = cy.container().getBoundingClientRect();
-        state.cursor = {x: e.clientX - r.left, y: e.clientY - r.top};
-    };
-    const onMouseLeave = () => {
-        state.cursor = null;
-    };
-    cy.container().addEventListener("mousemove", onMouseMove);
-    cy.container().addEventListener("mouseleave", onMouseLeave);
-    state.domListeners.push(["mousemove", onMouseMove], ["mouseleave", onMouseLeave]);
 
     const elevations = [...projection.elevations].sort((a, b) => a.zoom - b.zoom);
 
@@ -70,7 +56,7 @@ export async function initProjection(cy, projection, opts = {}) {
     }
 
     function elevationForZoom(zoomLevel) {
-        // Active elevation = one with largest zoom value ≤ current zoom.
+        // Active elevation = one with largest zoom value <= current zoom.
         let chosen = elevations[0];
         for (const e of elevations) {
             if (e.zoom <= zoomLevel) chosen = e;
@@ -108,85 +94,12 @@ export async function initProjection(cy, projection, opts = {}) {
             inputs: state.inputs,
         };
 
-        // Scroll-driven elevation transitions preserve the user's visual
-        // frame of reference: find the node closest to the cursor (or
-        // viewport center as fallback) before layoutRecursive runs, then
-        // re-pan after so that node ends up at the same rendered point.
-        //
-        // We anchor on the cursor rather than the viewport center because
-        // cytoscape's wheel zoom keeps the cursor-model-point fixed — the
-        // user's visual intent is "the thing under my cursor should stay
-        // under my cursor." The viewport center drifts toward the cursor
-        // during a scroll and isn't a reliable reference.
-        //
-        // Because the layout may hide or remove the deepest leaf (e.g.
-        // saga-stage hides artifacts on zoom-out), we also snapshot the
-        // hero's ancestor chain. Post-layout, if the hero is no longer a
-        // valid anchor (removed, hidden, or translated somewhere stale)
-        // we walk up to the nearest still-valid ancestor.
-        let anchorTarget = null;
-        let ancestorChain = null;
-        if (triggerReason === "zoom_transition") {
-            anchorTarget = state.cursor || _viewportCenter();
-            const hero = findHeroNode(anchorTarget);
-            if (hero) ancestorChain = _buildAncestorChain(hero);
-        }
-
         await runLayoutsSerially(elevation, context);
-
-        if (ancestorChain && anchorTarget) {
-            const stable = ancestorChain.find(_isValidAnchorNode);
-            if (stable) {
-                const zoom = cy.zoom();
-                const modelNow = stable.position();
-                cy.pan({
-                    x: anchorTarget.x - modelNow.x * zoom,
-                    y: anchorTarget.y - modelNow.y * zoom,
-                });
-            }
-        }
-    }
-
-    function _buildAncestorChain(leaf) {
-        const chain = [leaf];
-        let cur = leaf;
-        // eslint-disable-next-line no-cond-assign
-        while ((cur = cur.parent()).length > 0) {
-            chain.push(cur[0]);
-        }
-        return chain;
-    }
-
-    function _isValidAnchorNode(n) {
-        if (!n || n.removed()) return false;
-        if (n.hasClass("tap-elevation-hidden")) return false;
-        if (n.hasClass("tap-dim-anchor")) return false;
-        return true;
-    }
-
-    function _viewportCenter() {
-        const r = cy.container().getBoundingClientRect();
-        return {x: r.width / 2, y: r.height / 2};
-    }
-
-    function findHeroNode(origin) {
-        let best = null;
-        let bestDist = Infinity;
-        cy.nodes(":visible").not(".tap-dim-anchor").forEach((n) => {
-            if (n.isParent()) return; // prefer leaf nodes — they move less on layout
-            const rp = n.renderedPosition();
-            const d = Math.hypot(rp.x - origin.x, rp.y - origin.y);
-            if (d < bestDist) {
-                bestDist = d;
-                best = n;
-            }
-        });
-        return best;
     }
 
     // ---- Zoom watcher ----
     // log-ratio distance from the anchor required to release the pin.
-    // ln(1.6) ≈ 0.47 → need to zoom to less than ~62% or more than ~160%
+    // ln(1.6) ~ 0.47 -> need to zoom to less than ~62% or more than ~160%
     // of the anchor before the watcher resumes normal elevation activation.
     const ANCHOR_RELEASE_LOG_RATIO = 0.47;
 
@@ -197,10 +110,8 @@ export async function initProjection(cy, projection, opts = {}) {
         if (state.anchorZoom != null) {
             const drift = Math.abs(Math.log(zoom / state.anchorZoom));
             if (drift < ANCHOR_RELEASE_LOG_RATIO) {
-                // Small movement inside the hysteresis window — stay put.
                 return;
             }
-            // User zoomed far enough to "leave" the commanded elevation.
             state.anchorZoom = null;
         }
 
@@ -213,10 +124,6 @@ export async function initProjection(cy, projection, opts = {}) {
     state.listeners.push(["zoom", onZoom]);
 
     // ---- Double-tap watcher ----
-    // panel-graph.js detects double-taps via a manual two-tap timer and fires
-    // a `tap-double` custom cytoscape event on the target node. We subscribe
-    // to that rather than cytoscape's built-in `dbltap`, which is not
-    // reliably emitted across pointer configurations in 3.30.x.
     function onNodeDblTap(evt) {
         if (state.destroyed) return;
         const node = evt.target;
@@ -228,9 +135,7 @@ export async function initProjection(cy, projection, opts = {}) {
 
     /**
      * Look up the target elevation for a given entity type across *all*
-     * elevations' double_tap_targets. Model: double-tap is a property of
-     * the entity type, not the source elevation — double-tapping a character
-     * always drills into character-view regardless of where you started.
+     * elevations' double_tap_targets.
      */
     function findDoubleTapTarget(entityType) {
         for (const elev of projection.elevations) {
@@ -248,18 +153,10 @@ export async function initProjection(cy, projection, opts = {}) {
 
         state.transitionLock = true;
         try {
-            // Only assert the target elevation's scene state if we're not
-            // already there. Re-running a layout we're already in would
-            // reposition every node under the user and feel jarring — and
-            // within the same elevation, the tapped node is already in its
-            // expanded form.
             if (target !== state.activeElevation) {
                 await activate(target, "double_tap");
             }
-            // Smoothly fly the viewport to the (possibly repositioned) node.
             await animateViewportTo(target.zoom, node);
-            // Pin the zoom watcher to the landing zoom so a small scroll
-            // doesn't instantly revert the commanded elevation.
             state.anchorZoom = cy.zoom();
         } finally {
             state.transitionLock = false;
@@ -292,8 +189,6 @@ export async function initProjection(cy, projection, opts = {}) {
             state.destroyed = true;
             state.listeners.forEach(([ev, fn]) => cy.off(ev, fn));
             state.listeners.length = 0;
-            state.domListeners.forEach(([ev, fn]) => cy.container().removeEventListener(ev, fn));
-            state.domListeners.length = 0;
         },
     };
 }
