@@ -18,7 +18,7 @@ class Realm(BaseModel):
     ENTITY_ICON: ClassVar[str] = ""
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
-            "shape": "hexagon",
+            "shape": "rectangle",
             "nesting": {
                 "parent": [
                     {
@@ -36,7 +36,7 @@ class Realm(BaseModel):
         }
     }
 
-    FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": _NAME_SCHEMA,
         "description": {"type": "string"},
     }

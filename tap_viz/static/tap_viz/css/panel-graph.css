@@ -69,7 +69,7 @@
 
 /* Fullscreen overrides */
 [id^="tap-graph-container-"]:fullscreen {
-    background: #0f172a;
+    background: #18181b;
     border: none;
     border-radius: 0;
     height: 100% !important;

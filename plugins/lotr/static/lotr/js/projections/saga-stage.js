@@ -46,7 +46,7 @@ export async function execute(context) {
             },
         ],
         baseSizes: {
-            realm: {width: 600, height: 400},
+            realm: {width: 800, height: 800},
             location: {width: 160, height: 120},
             character: {width: 50, height: 50},
         },

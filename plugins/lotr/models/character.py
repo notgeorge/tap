@@ -17,7 +17,7 @@ class Character(BaseModel):
     ENTITY_DESCRIPTION: ClassVar[str] = "A being in Middle-earth."
     ENTITY_ICON: ClassVar[str] = "character"
 
-    FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": _NAME_SCHEMA,
         "bio": {"type": "string"},
     }
@@ -25,7 +25,7 @@ class Character(BaseModel):
     REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "bio"]
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
-            "shape": "ellipse",
+            "shape": "round-rectangle",
             "nesting": {
                 "parent": [
                     {

@@ -269,7 +269,7 @@ class TestBatchResolveDisplay:
     def test_returns_display_from_default_display(self):
         result = batch_resolve_display({"character"})
         assert "character" in result
-        assert result["character"].get("shape", "ellipse") == "ellipse"
+        assert result["character"].get("shape") == "round-rectangle"
 
     def test_unknown_type_defaults_to_empty_dict(self):
         result = batch_resolve_display({"nonexistent_xyz"})
