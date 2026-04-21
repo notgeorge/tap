@@ -1,0 +1,142 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "01965b01-4000-7000-8000-000000000007",
+        "entity_type": "batch",
+        "name": "Genericom pages v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom pages v0.1.0",
+        "description": "Genericom demo landing page, graph panel, layout, and seed search."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000700000001",
+            "entity_type": "search",
+            "name": "Genericom Landing Slice",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Genericom Landing Slice",
+            "description": "Minimal Genericom projection slice: account, VPC, subnets, EC2, RDS, plus ALB and Route 53 for the demo landing page.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": [
+                "MATCH (v:aws_vpc)-[e1:BELONGS_TO]->(a:aws_account)",
+                "MATCH (v2:aws_vpc)-[e2:CONTAINS]->(s:aws_subnet)",
+                "MATCH (ec:aws_ec2_instance)-[e3:RESIDES_IN]->(s2:aws_subnet)",
+                "MATCH (rds:aws_rds_instance)-[e4:RESIDES_IN]->(s3:aws_subnet)",
+                "MATCH (alb:aws_alb)-[e5:RESIDES_IN]->(s4:aws_subnet)",
+                "MATCH (z:aws_route53_zone)-[e6:BELONGS_TO]->(a2:aws_account)",
+                "MATCH (z2:aws_route53_zone)-[e7:ROUTES_TO]->(alb2:aws_alb)"
+              ]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000700000002",
+            "entity_type": "layout",
+            "name": "Genericom Landing Layout",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Genericom Landing Layout",
+            "description": "Placeholder layout for the Genericom demo landing page — cytoscape:cose placement; swapped for a projection next.",
+            "definition": {
+              "inputs": [],
+              "steps": [{"type": "search", "search-id": "main"}],
+              "presentation": {"placement": "cytoscape:cose"},
+              "interactions": {}
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000700000003",
+            "entity_type": "panel",
+            "name": "Genericom Landing Graph",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "genericom-landing-graph",
+            "name": "Genericom Landing Graph",
+            "view": "tap_viz/panels/graph_panel.html",
+            "editor_view": "",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000700000004",
+            "entity_type": "page",
+            "name": "Genericom",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Genericom",
+            "slug": "/genericom",
+            "layout": {
+              "columns": {
+                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "main"}}}
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0007f0000001",
+            "entity_type": "edge",
+            "name": "Layout USES_SEARCH Landing Slice",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000700000002",
+            "to_entity_id": "01965b01-4000-7000-8000-000700000001",
+            "edge_type": "USES_SEARCH",
+            "properties": {"search-id": "main"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0007f0000002",
+            "entity_type": "edge",
+            "name": "Panel USES_LAYOUT Landing Layout",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000700000003",
+            "to_entity_id": "01965b01-4000-7000-8000-000700000002",
+            "edge_type": "USES_LAYOUT",
+            "properties": {"layout-id": "default"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0007f0000003",
+            "entity_type": "edge",
+            "name": "Page USES_PANEL Landing Graph",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000700000004",
+            "to_entity_id": "01965b01-4000-7000-8000-000700000003",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "main"}}
+          }
+        }
+      ]
+    }
+  ]
+}
