@@ -28,12 +28,12 @@ _counter = itertools.count()
 
 
 def make_instance(schemas=None, internal_only=False):
-    """Create a fake BaseModel-like instance with SERVICE_SCHEMAS (not FLIP_CONFIG)."""
+    """Create a fake BaseModel-like instance with SERVICE_CRUD_SCHEMA (not FLIP_CONFIG)."""
     cls = type(
         f"FakeModel_{next(_counter)}",
         (),
         {
-            "SERVICE_SCHEMAS": schemas or {},
+            "SERVICE_CRUD_SCHEMA": schemas or {},
             "INTERNAL_ONLY": internal_only,
         },
     )
@@ -59,11 +59,13 @@ class TestUpdateFlipMapNoOp:
         assert update_flip_map(instance, ["status"], "batch-123") is False
 
     def test_returns_false_when_no_properties_in_schemas(self):
-        instance = make_instance({
-            "create": {"type": "object"},
-            "patch": {"type": "object"},
-            "replace": {"type": "object"},
-        })
+        instance = make_instance(
+            {
+                "create": {"type": "object"},
+                "patch": {"type": "object"},
+                "replace": {"type": "object"},
+            }
+        )
         assert update_flip_map(instance, ["status"], "batch-123") is False
 
     def test_returns_false_for_internal_only(self):
@@ -79,9 +81,11 @@ class TestUpdateFlipMapNoOp:
 
     def test_no_mutation_for_internal_only(self):
         instance = make_instance(
-            {"create": {"type": "object", "properties": {"status": {"type": "string"}}},
-             "patch": {"type": "object", "properties": {"status": {"type": "string"}}},
-             "replace": {"type": "object", "properties": {"status": {"type": "string"}}}},
+            {
+                "create": {"type": "object", "properties": {"status": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"status": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"status": {"type": "string"}}},
+            },
             internal_only=True,
         )
         update_flip_map(instance, ["status"], "batch-123")
@@ -92,21 +96,25 @@ class TestUpdateFlipMapNoBatch:
     """No batch_id: returns False silently (no error, no stamping)."""
 
     def test_returns_false_when_no_batch_id(self):
-        instance = make_instance({
-            "create": {"type": "object", "properties": {"status": {"type": "string"}}},
-            "patch": {"type": "object", "properties": {"status": {"type": "string"}}},
-            "replace": {"type": "object", "properties": {"status": {"type": "string"}}},
-        })
+        instance = make_instance(
+            {
+                "create": {"type": "object", "properties": {"status": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"status": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"status": {"type": "string"}}},
+            }
+        )
         result = update_flip_map(instance, ["status"], None)
         assert result is False
 
     def test_no_exception_when_no_batch_id(self):
         """Default-on FLIP does not raise when no batch_id is present."""
-        instance = make_instance({
-            "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
-            "create": {"type": "object", "properties": {"name": {"type": "string"}}},
-            "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
-        })
+        instance = make_instance(
+            {
+                "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "create": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
+            }
+        )
         # Should not raise NoBatchContextError
         result = update_flip_map(instance, None, None)
         assert result is False
@@ -116,41 +124,49 @@ class TestUpdateFlipMapPartialSave:
     """update_flip_map stamps only fields in both changed_fields and the tracked set."""
 
     def test_stamps_tracked_changed_field(self):
-        instance = make_instance({
-            "create": {"type": "object", "properties": {"status": {"type": "string"}, "name": {"type": "string"}}},
-            "patch": {"type": "object", "properties": {"status": {"type": "string"}, "name": {"type": "string"}}},
-            "replace": {"type": "object", "properties": {"status": {"type": "string"}, "name": {"type": "string"}}},
-        })
+        instance = make_instance(
+            {
+                "create": {"type": "object", "properties": {"status": {"type": "string"}, "name": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"status": {"type": "string"}, "name": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"status": {"type": "string"}, "name": {"type": "string"}}},
+            }
+        )
         result = update_flip_map(instance, ["status"], "batch-abc")
         assert result is True
         assert instance.flip_map == {"status": "batch-abc"}
 
     def test_ignores_untracked_changed_fields(self):
-        """Fields not in SERVICE_SCHEMAS are not stamped."""
-        instance = make_instance({
-            "create": {"type": "object", "properties": {"status": {"type": "string"}}},
-            "patch": {"type": "object", "properties": {"status": {"type": "string"}}},
-            "replace": {"type": "object", "properties": {"status": {"type": "string"}}},
-        })
+        """Fields not in SERVICE_CRUD_SCHEMA are not stamped."""
+        instance = make_instance(
+            {
+                "create": {"type": "object", "properties": {"status": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"status": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"status": {"type": "string"}}},
+            }
+        )
         result = update_flip_map(instance, ["internal_field", "description"], "batch-abc")
         assert result is False
         assert instance.flip_map == {}
 
     def test_stamps_multiple_tracked_fields(self):
-        instance = make_instance({
-            "create": {"type": "object", "properties": {"a": {}, "b": {}, "c": {}}},
-            "patch": {"type": "object", "properties": {"a": {}, "b": {}, "c": {}}},
-            "replace": {"type": "object", "properties": {"a": {}, "b": {}, "c": {}}},
-        })
+        instance = make_instance(
+            {
+                "create": {"type": "object", "properties": {"a": {}, "b": {}, "c": {}}},
+                "patch": {"type": "object", "properties": {"a": {}, "b": {}, "c": {}}},
+                "replace": {"type": "object", "properties": {"a": {}, "b": {}, "c": {}}},
+            }
+        )
         update_flip_map(instance, ["a", "b"], "batch-xyz")
         assert instance.flip_map == {"a": "batch-xyz", "b": "batch-xyz"}
 
     def test_returns_false_when_no_overlap(self):
-        instance = make_instance({
-            "create": {"type": "object", "properties": {"status": {"type": "string"}}},
-            "patch": {"type": "object", "properties": {"status": {"type": "string"}}},
-            "replace": {"type": "object", "properties": {"status": {"type": "string"}}},
-        })
+        instance = make_instance(
+            {
+                "create": {"type": "object", "properties": {"status": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"status": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"status": {"type": "string"}}},
+            }
+        )
         result = update_flip_map(instance, ["name"], "batch-abc")
         assert result is False
 
@@ -159,11 +175,13 @@ class TestUpdateFlipMapFullSave:
     """When changed_fields is None (full save), all service-writeable fields are stamped."""
 
     def test_stamps_all_schema_fields_on_full_save(self):
-        instance = make_instance({
-            "create": {"type": "object", "properties": {"a": {}, "b": {}}},
-            "patch": {"type": "object", "properties": {"a": {}, "b": {}}},
-            "replace": {"type": "object", "properties": {"a": {}, "b": {}}},
-        })
+        instance = make_instance(
+            {
+                "create": {"type": "object", "properties": {"a": {}, "b": {}}},
+                "patch": {"type": "object", "properties": {"a": {}, "b": {}}},
+                "replace": {"type": "object", "properties": {"a": {}, "b": {}}},
+            }
+        )
         result = update_flip_map(instance, None, "batch-full")
         assert result is True
         assert instance.flip_map == {"a": "batch-full", "b": "batch-full"}
@@ -173,21 +191,25 @@ class TestUpdateFlipMapOverwrite:
     """Subsequent writes overwrite prior batch IDs for the same field."""
 
     def test_overwrites_previous_batch_id(self):
-        instance = make_instance({
-            "create": {"type": "object", "properties": {"status": {}}},
-            "patch": {"type": "object", "properties": {"status": {}}},
-            "replace": {"type": "object", "properties": {"status": {}}},
-        })
+        instance = make_instance(
+            {
+                "create": {"type": "object", "properties": {"status": {}}},
+                "patch": {"type": "object", "properties": {"status": {}}},
+                "replace": {"type": "object", "properties": {"status": {}}},
+            }
+        )
         instance.flip_map = {"status": "old-batch"}
         update_flip_map(instance, ["status"], "new-batch")
         assert instance.flip_map["status"] == "new-batch"
 
     def test_preserves_unrelated_flip_entries(self):
-        instance = make_instance({
-            "create": {"type": "object", "properties": {"status": {}, "name": {}}},
-            "patch": {"type": "object", "properties": {"status": {}, "name": {}}},
-            "replace": {"type": "object", "properties": {"status": {}, "name": {}}},
-        })
+        instance = make_instance(
+            {
+                "create": {"type": "object", "properties": {"status": {}, "name": {}}},
+                "patch": {"type": "object", "properties": {"status": {}, "name": {}}},
+                "replace": {"type": "object", "properties": {"status": {}, "name": {}}},
+            }
+        )
         instance.flip_map = {"name": "prior-batch"}
         update_flip_map(instance, ["status"], "new-batch")
         assert instance.flip_map["name"] == "prior-batch"
@@ -228,7 +250,7 @@ class TestUpdateFlipMapIntegration:
         assert char.flip_map.get("bio") == batch_id2
 
     def test_untracked_field_not_in_flip_map(self):
-        """System-managed fields (not in SERVICE_SCHEMAS) are absent from flip_map."""
+        """System-managed fields (not in SERVICE_CRUD_SCHEMA) are absent from flip_map."""
         from plugins.lotr.models import Character
         from tap_grid.services import create_entity
 

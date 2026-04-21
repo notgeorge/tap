@@ -1,0 +1,374 @@
+"""Tests for the plugin validation service.
+
+Tests validate_plugin() against real plugin directories (LOTR, administrivia)
+and synthetic fixtures to cover error paths.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import textwrap
+from pathlib import Path
+
+import pytest
+
+from tap_plugins.validate.service import (
+    KNOWN_LEVELS,
+    SUPPORTED_LEVELS,
+    UnsupportedLevelError,
+    ValidationResult,
+    validate_plugin,
+)
+
+PLUGINS_ROOT = Path(__file__).resolve().parent.parent.parent / "plugins"
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_plugin(tmp_path: Path, *, toml: str, extra_files: dict[str, str] | None = None) -> Path:
+    """Create a minimal plugin directory from a TOML string."""
+    plugin_dir = tmp_path / "test_plugin"
+    plugin_dir.mkdir()
+    (plugin_dir / "tap-plugin.toml").write_text(textwrap.dedent(toml))
+    (plugin_dir / "__init__.py").write_text("")
+    (plugin_dir / "apps.py").write_text(
+        'from tap_plugins.base import TapPluginConfig\n\n\nclass TestPluginConfig(TapPluginConfig):\n    pass\n'
+    )
+    if extra_files:
+        for rel_path, content in extra_files.items():
+            full = plugin_dir / rel_path
+            full.parent.mkdir(parents=True, exist_ok=True)
+            full.write_text(content)
+    return plugin_dir
+
+
+# ---------------------------------------------------------------------------
+# Real plugin tests
+# ---------------------------------------------------------------------------
+
+
+class TestRealPlugins:
+    """Validate existing plugins in the repo to confirm the service works end-to-end."""
+
+    def test_lotr_passes(self):
+        result = validate_plugin(PLUGINS_ROOT / "lotr")
+        assert result.ok, result.to_human()
+        assert result.level == "structure"
+        assert not result.strict
+
+    def test_administrivia_passes(self):
+        result = validate_plugin(PLUGINS_ROOT / "administrivia")
+        assert result.ok, result.to_human()
+
+    def test_lotr_json_output_validates(self):
+        result = validate_plugin(PLUGINS_ROOT / "lotr")
+        json_str = result.to_json()
+        doc = json.loads(json_str)
+        assert doc["ok"] is True
+        assert doc["level"] == "structure"
+        assert isinstance(doc["checks"], list)
+        assert len(doc["checks"]) > 0
+
+    def test_lotr_human_output(self):
+        result = validate_plugin(PLUGINS_ROOT / "lotr")
+        human = result.to_human()
+        assert "PASS" in human
+        assert "lotr" in human.lower() or "Lord of the Rings" in human
+
+
+# ---------------------------------------------------------------------------
+# Level handling
+# ---------------------------------------------------------------------------
+
+
+class TestLevels:
+    def test_default_level_is_structure(self, tmp_path):
+        plugin_dir = _make_plugin(tmp_path, toml="""\
+            manifest_version = "0"
+            plugin_version = "0.1.0"
+            slug = "test"
+            name = "Test"
+        """)
+        result = validate_plugin(plugin_dir)
+        assert result.level == "structure"
+
+    def test_unknown_level_raises_value_error(self, tmp_path):
+        plugin_dir = _make_plugin(tmp_path, toml="""\
+            manifest_version = "0"
+            plugin_version = "0.1.0"
+            slug = "test"
+            name = "Test"
+        """)
+        with pytest.raises(ValueError, match="Unknown validation level"):
+            validate_plugin(plugin_dir, level="bogus")
+
+    def test_loads_level_accepted(self):
+        result = validate_plugin(PLUGINS_ROOT / "lotr", level="loads")
+        assert result.ok, result.to_human()
+        assert result.level == "loads"
+
+    @pytest.mark.django_db
+    def test_runs_level_accepted(self):
+        result = validate_plugin(PLUGINS_ROOT / "lotr", level="runs")
+        assert result.ok, result.to_human()
+        assert result.level == "runs"
+
+
+# ---------------------------------------------------------------------------
+# Strict mode
+# ---------------------------------------------------------------------------
+
+
+class TestStrictMode:
+    def test_strict_promotes_warnings(self, tmp_path):
+        """An undeclared edge file causes a warning; strict promotes it to failure."""
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
+                manifest_version = "0"
+                plugin_version = "0.1.0"
+                slug = "test"
+                name = "Test"
+            """,
+            extra_files={
+                "edges/STRAY.edge.json": json.dumps({
+                    "slug": "STRAY",
+                    "name": "Stray",
+                    "description": "An undeclared edge.",
+                }),
+            },
+        )
+        # Non-strict: passes with warning
+        result_normal = validate_plugin(plugin_dir, strict=False)
+        assert result_normal.ok
+        undeclared = [c for c in result_normal.checks if c.id == "undeclared-files"]
+        assert len(undeclared) == 1
+        assert undeclared[0].status == "warn"
+
+        # Strict: warning promoted to failure
+        result_strict = validate_plugin(plugin_dir, strict=True)
+        assert not result_strict.ok
+        undeclared_strict = [c for c in result_strict.checks if c.id == "undeclared-files"]
+        assert undeclared_strict[0].status == "fail"
+
+
+# ---------------------------------------------------------------------------
+# Structural failure cases
+# ---------------------------------------------------------------------------
+
+
+class TestStructuralFailures:
+    def test_nonexistent_plugin_root(self, tmp_path):
+        result = validate_plugin(tmp_path / "nope")
+        assert not result.ok
+        failed = [c for c in result.checks if c.status == "fail"]
+        assert len(failed) >= 1
+
+    def test_missing_manifest(self, tmp_path):
+        plugin_dir = tmp_path / "empty_plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "__init__.py").write_text("")
+        (plugin_dir / "apps.py").write_text("")
+        result = validate_plugin(plugin_dir)
+        assert not result.ok
+
+    def test_invalid_toml(self, tmp_path):
+        plugin_dir = tmp_path / "bad_toml"
+        plugin_dir.mkdir()
+        (plugin_dir / "__init__.py").write_text("")
+        (plugin_dir / "apps.py").write_text("")
+        (plugin_dir / "tap-plugin.toml").write_text("this is not [valid toml")
+        result = validate_plugin(plugin_dir)
+        assert not result.ok
+
+    def test_missing_required_field(self, tmp_path):
+        plugin_dir = _make_plugin(tmp_path, toml="""\
+            manifest_version = "0"
+            plugin_version = "0.1.0"
+            slug = "test"
+        """)
+        result = validate_plugin(plugin_dir)
+        assert not result.ok
+
+    def test_unknown_top_level_key(self, tmp_path):
+        plugin_dir = _make_plugin(tmp_path, toml="""\
+            manifest_version = "0"
+            plugin_version = "0.1.0"
+            slug = "test"
+            name = "Test"
+            bogus = "surprise"
+        """)
+        result = validate_plugin(plugin_dir)
+        assert not result.ok
+
+    def test_missing_models_dir_when_models_declared(self, tmp_path):
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
+                manifest_version = "0"
+                plugin_version = "0.1.0"
+                slug = "test"
+                name = "Test"
+
+                [models]
+                widget = "test_plugin.models.widget.Widget"
+            """,
+        )
+        result = validate_plugin(plugin_dir)
+        assert not result.ok
+        # May fail at manifest-parse (load_manifest checks dirs) or convention-dirs
+        failed = [c for c in result.checks if c.status == "fail"]
+        assert len(failed) >= 1
+
+    def test_no_models_dir_ok_when_no_models_declared(self, tmp_path):
+        plugin_dir = _make_plugin(tmp_path, toml="""\
+            manifest_version = "0"
+            plugin_version = "0.1.0"
+            slug = "test"
+            name = "Test"
+        """)
+        result = validate_plugin(plugin_dir)
+        assert result.ok, result.to_human()
+
+    def test_missing_grift_dir_when_grift_declared(self, tmp_path):
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
+                manifest_version = "0"
+                plugin_version = "0.1.0"
+                slug = "test"
+                name = "Test"
+
+                [grift]
+                seed = "grift/seed.grift.json"
+            """,
+        )
+        # No grift/ directory — manifest parse should fail
+        result = validate_plugin(plugin_dir)
+        assert not result.ok
+
+
+# ---------------------------------------------------------------------------
+# Summary and output
+# ---------------------------------------------------------------------------
+
+
+class TestSummary:
+    def test_summary_counts(self, tmp_path):
+        plugin_dir = _make_plugin(tmp_path, toml="""\
+            manifest_version = "0"
+            plugin_version = "0.1.0"
+            slug = "test"
+            name = "Test"
+        """)
+        result = validate_plugin(plugin_dir)
+        s = result.summary
+        assert s["checks_total"] == len(result.checks)
+        assert s["checks_total"] > 0
+        assert s["checks_passed"] + s["checks_warned"] + s["checks_failed"] == s["checks_total"]
+
+    def test_json_round_trips(self, tmp_path):
+        plugin_dir = _make_plugin(tmp_path, toml="""\
+            manifest_version = "0"
+            plugin_version = "0.1.0"
+            slug = "test"
+            name = "Test"
+        """)
+        result = validate_plugin(plugin_dir)
+        doc = json.loads(result.to_json())
+        assert doc["ok"] is True
+        assert doc["level"] == "structure"
+        assert "checks" in doc
+        assert "summary" in doc
+
+
+# ---------------------------------------------------------------------------
+# Loads-level tests (require Django app registry)
+# ---------------------------------------------------------------------------
+
+
+class TestLoadsLevel:
+    def test_lotr_loads_passes(self):
+        result = validate_plugin(PLUGINS_ROOT / "lotr", level="loads")
+        assert result.ok, result.to_human()
+        check_ids = {c.id for c in result.checks}
+        assert "model-classes" in check_ids
+        assert "editor-classes" in check_ids
+        assert "search-callables" in check_ids
+
+    def test_aws_core_loads_passes(self):
+        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="loads")
+        assert result.ok, result.to_human()
+        model_check = next(c for c in result.checks if c.id == "model-classes")
+        assert model_check.status == "pass"
+        # 37 models should produce 37 info messages
+        info_msgs = [m for m in model_check.messages if m.severity == "info"]
+        assert len(info_msgs) == 37
+
+    def test_administrivia_loads_passes(self):
+        result = validate_plugin(PLUGINS_ROOT / "administrivia", level="loads")
+        assert result.ok, result.to_human()
+
+    def test_loads_includes_structure_checks(self):
+        result = validate_plugin(PLUGINS_ROOT / "lotr", level="loads")
+        check_ids = {c.id for c in result.checks}
+        # Structure checks should still be present
+        assert "plugin-root" in check_ids
+        assert "core-files" in check_ids
+        assert "manifest-parse" in check_ids
+
+
+# ---------------------------------------------------------------------------
+# Runs-level tests (require Django + database)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestRunsLevel:
+    def test_lotr_runs_passes(self):
+        result = validate_plugin(PLUGINS_ROOT / "lotr", level="runs")
+        assert result.ok, result.to_human()
+        check_ids = {c.id for c in result.checks}
+        assert "create-nodes" in check_ids
+        assert "create-edges" in check_ids
+        assert "grift-import" in check_ids
+
+    def test_aws_core_runs_passes(self):
+        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="runs")
+        assert result.ok, result.to_human()
+        node_check = next(c for c in result.checks if c.id == "create-nodes")
+        assert node_check.status == "pass"
+        # All 37 models should succeed
+        ok_msgs = [m for m in node_check.messages if "OK" in m.text]
+        assert len(ok_msgs) == 37
+
+    def test_runs_includes_loads_and_structure(self):
+        result = validate_plugin(PLUGINS_ROOT / "lotr", level="runs")
+        check_ids = {c.id for c in result.checks}
+        # Structure checks
+        assert "plugin-root" in check_ids
+        assert "manifest-parse" in check_ids
+        # Loads checks
+        assert "model-classes" in check_ids
+        # Runs checks
+        assert "create-nodes" in check_ids
+
+    def test_runs_rollback_leaves_no_data(self):
+        """Verify that runs-level validation doesn't persist any entities."""
+        from tap_grid.models import Entity
+
+        count_before = Entity.objects.count()
+        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="runs")
+        assert result.ok, result.to_human()
+        count_after = Entity.objects.count()
+        assert count_after == count_before
+
+    def test_runs_json_output(self):
+        result = validate_plugin(PLUGINS_ROOT / "lotr", level="runs")
+        doc = json.loads(result.to_json())
+        assert doc["ok"] is True
+        assert doc["level"] == "runs"

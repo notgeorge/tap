@@ -58,7 +58,7 @@ Before any mutation begins, the importer must complete a full-file preflight pas
 2. Validate the top-level document and container structure against the GRIFT schemas.
 3. Validate every batch, node, and edge wrapper shape.
 4. Validate typed payloads against the local TAP model registry and field contract:
-   - field shapes from `FIELD_SCHEMA`
+   - field shapes from `FIELD_CRUD_SCHEMA`
    - required fields from `REPLACE_REQUIRED` if declared, otherwise `CREATE_REQUIRED`
    - patch-only fields excluded
 5. Detect duplicate `entity_id` values across the entire file.

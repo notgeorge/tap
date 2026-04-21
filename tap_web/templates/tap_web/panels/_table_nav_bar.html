@@ -1,0 +1,45 @@
+{# Reusable table navigation bar — included above and below the table. #}
+{# Expects: panel, table_meta, nav_align ("right" or "left") in context. #}
+{% if table_meta %}
+<div class="tap-table-nav flex items-center gap-4 text-sm text-slate-600"
+     style="justify-content: {% if nav_align == 'left' %}flex-start{% else %}flex-end{% endif %}"
+     data-tap-table-footer
+     data-tap-panel-slug="{{ panel.slug }}"
+     data-tap-panel-id="{{ panel.entity_id }}">
+
+    <span class="tap-table-nav__count">
+        Showing {{ table_meta.showing }} of {{ table_meta.total_count }}
+    </span>
+
+    <label class="tap-table-nav__page-size flex items-center gap-1">
+        <span>Rows:</span>
+        <select class="tap-table-page-size-select rounded border border-slate-300 bg-white px-2 py-0.5 text-sm"
+                data-tap-page-size-select>
+            {% for opt in table_meta.page_size_options %}
+            <option value="{{ opt.value }}" {% if opt.selected %}selected{% endif %}>{{ opt.label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+
+    {% if table_meta.has_prev or table_meta.has_next %}
+    <div class="tap-table-nav__arrows flex items-center gap-2">
+        <button class="tap-table-pagination__btn rounded border border-slate-300 bg-white px-2 py-0.5 text-sm {% if table_meta.has_prev %}hover:bg-slate-50{% else %}opacity-40 cursor-not-allowed{% endif %}"
+                {% if table_meta.has_prev %}
+                hx-get="/panel/{{ panel.slug }}--{{ panel.entity_id }}/?offset={{ table_meta.prev_offset }}&page_size={{ table_meta.page_size }}"
+                hx-target="closest .tap-panel--table"
+                hx-swap="outerHTML"
+                {% else %}disabled{% endif %}>
+            &larr; Prev
+        </button>
+        <button class="tap-table-pagination__btn rounded border border-slate-300 bg-white px-2 py-0.5 text-sm {% if table_meta.has_next %}hover:bg-slate-50{% else %}opacity-40 cursor-not-allowed{% endif %}"
+                {% if table_meta.has_next %}
+                hx-get="/panel/{{ panel.slug }}--{{ panel.entity_id }}/?offset={{ table_meta.next_offset }}&page_size={{ table_meta.page_size }}"
+                hx-target="closest .tap-panel--table"
+                hx-swap="outerHTML"
+                {% else %}disabled{% endif %}>
+            Next &rarr;
+        </button>
+    </div>
+    {% endif %}
+</div>
+{% endif %}

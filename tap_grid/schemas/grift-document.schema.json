@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tap:grift:v0:document",
+  "title": "GRIFT Document v0",
+  "description": "TAP Grid Interchange Format document. See tap_grid/specs/spec-grift-v0.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["metadata", "_reserved", "batches"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grift_version"],
+      "properties": {
+        "grift_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "_reserved": {
+      "type": "object"
+    },
+    "batches": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GriftBatchContainer"
+      }
+    }
+  },
+  "$defs": {
+    "GriftEntityEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "entity_type", "dimensions"],
+      "properties": {
+        "entity_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "entity_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deleted_at": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time"
+            }
+          ]
+        }
+      }
+    },
+    "GriftNodeObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity", "node"],
+      "properties": {
+        "entity": {
+          "$ref": "#/$defs/GriftEntityEnvelope"
+        },
+        "node": {
+          "type": "object"
+        }
+      }
+    },
+    "GriftEdgePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_entity_id", "to_entity_id", "edge_type", "properties"],
+      "properties": {
+        "from_entity_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "to_entity_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "edge_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "properties": {
+          "type": "object"
+        }
+      }
+    },
+    "GriftEdgeObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity", "edge"],
+      "properties": {
+        "entity": {
+          "$ref": "#/$defs/GriftEntityEnvelope"
+        },
+        "edge": {
+          "$ref": "#/$defs/GriftEdgePayload"
+        }
+      }
+    },
+    "GriftBatchContainer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["batch_entity", "batch_node", "nodes", "edges"],
+      "properties": {
+        "batch_entity": {
+          "$ref": "#/$defs/GriftEntityEnvelope"
+        },
+        "batch_node": {
+          "type": "object"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GriftNodeObject"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GriftEdgeObject"
+          }
+        }
+      }
+    }
+  }
+}

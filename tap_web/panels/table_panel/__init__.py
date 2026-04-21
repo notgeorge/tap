@@ -49,7 +49,7 @@ TABLE_CONFIG_SCHEMA: dict[str, Any] = {
             "type": "string",
             "enum": ["common_metadata"],
         },
-        "default_limit": {
+        "default_page_size": {
             "type": "integer",
             "minimum": 1,
             "maximum": 500,
@@ -57,8 +57,11 @@ TABLE_CONFIG_SCHEMA: dict[str, Any] = {
     },
 }
 
-_DEFAULT_LIMIT = 25
+_DEFAULT_PAGE_SIZE = 100
 _DEFAULT_COLUMN_MODE = "common_metadata"
+
+# Fixed breakpoints for page-size selector; "All" is appended dynamically.
+_PAGE_SIZE_STEPS = [25, 50, 100, 200, 500]
 
 
 def _validate_table_config(config: dict[str, Any]) -> None:
@@ -90,13 +93,13 @@ class TablePanelEditForm(forms.Form):
         initial=_DEFAULT_COLUMN_MODE,
         label="Column Mode",
     )
-    default_limit = forms.IntegerField(
+    default_page_size = forms.IntegerField(
         required=False,
         min_value=1,
         max_value=500,
-        initial=_DEFAULT_LIMIT,
+        initial=_DEFAULT_PAGE_SIZE,
         label="Default Rows Per Page",
-        help_text="Number of rows shown per page. Clamped to the linked Search's max_limit.",
+        help_text="Initial page size before user selects a different value.",
     )
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -124,11 +127,11 @@ class TablePanelType:
     label = "Table Panel"
     view = "tap_web/panels/table_panel.html"
     editor_view = "tap_web/panels/table_panel_editor.html"
-    css: list[str] = ["css/lib/tabulator.min.css"]
-    js: list[str] = ["js/lib/tabulator.min.js", "js/panel-table.js"]
+    css: list[str] = ["tap_web/css/lib/tabulator.min.css"]
+    js: list[str] = ["tap_web/js/lib/tabulator.min.js", "tap_web/js/panel-table.js"]
     config_defaults: dict[str, Any] = {
         "column_mode": _DEFAULT_COLUMN_MODE,
-        "default_limit": _DEFAULT_LIMIT,
+        "default_page_size": _DEFAULT_PAGE_SIZE,
     }
     form_class = TablePanelEditForm
 
@@ -137,11 +140,11 @@ class TablePanelType:
         """Execute the linked Search and return results for template context.
 
         Returns a context dict with:
-          table_nodes      - list of node dicts from the search envelope
-          table_meta       - pagination metadata dict (empty if unpaginated)
-          table_search     - the linked Search instance, or None
-          table_nodes_json - JSON-encoded nodes string for safe embedding
-          table_error      - error string, or None on success
+          table_nodes        - list of node dicts from the search envelope
+          table_meta         - pagination / footer metadata dict
+          table_search       - the linked Search instance, or None
+          table_nodes_json   - JSON-encoded nodes string for safe embedding
+          table_error        - error string, or None on success
         """
         from tap_web.panel import get_panel_search
 
@@ -156,13 +159,22 @@ class TablePanelType:
             }
 
         config = panel.config or {}
-        limit = _safe_int(request.GET.get("limit"), config.get("default_limit", _DEFAULT_LIMIT))
+        default_ps = config.get("default_page_size", _DEFAULT_PAGE_SIZE)
+
+        # page_size=0 means "show all" (passed by the JS selector).
+        raw_ps = request.GET.get("page_size")
+        if raw_ps is not None and raw_ps == "0":
+            page_size = 0  # sentinel: no limit
+        else:
+            page_size = _safe_int(raw_ps, default_ps)
+
         offset = _safe_int(request.GET.get("offset"), 0)
+        effective_limit = page_size if page_size > 0 else None
 
         try:
             from tap_grid.search import execute_search
 
-            result = execute_search(search, limit=limit, offset=offset, layer="extended")
+            result = execute_search(search, limit=effective_limit, offset=offset, layer="extended")
         except Exception as exc:  # noqa: BLE001
             logger.exception("Table panel search execution failed for panel %s", panel.entity_id)
             return {
@@ -173,25 +185,27 @@ class TablePanelType:
                 "table_error": f"Search execution failed: {exc}",
             }
 
-        # Paginated envelope: {"count", "limit", "offset", "results": envelope}
+        # Extract nodes and total count from paginated or unpaginated envelope.
         if "results" in result:
             nodes: list[dict[str, Any]] = result["results"].get("nodes", [])
-            effective_limit: int = result["limit"]
-            effective_offset: int = result["offset"]
-            count: int = result["count"]
-            meta: dict[str, Any] = {
-                "count": count,
-                "limit": effective_limit,
-                "offset": effective_offset,
-                "has_prev": effective_offset > 0,
-                "has_next": effective_offset + effective_limit < count,
-                "prev_offset": max(0, effective_offset - effective_limit),
-                "next_offset": effective_offset + effective_limit,
-                "display_end": min(effective_offset + effective_limit, count),
-            }
+            total_count: int = result["results"].get("info", {}).get("total_count", result["count"])
         else:
             nodes = result.get("nodes", [])
-            meta = {}
+            total_count = result.get("info", {}).get("total_count", len(nodes))
+
+        showing = len(nodes)
+        page_size_options = _build_page_size_options(total_count, page_size)
+
+        meta: dict[str, Any] = {
+            "total_count": total_count,
+            "showing": showing,
+            "page_size": page_size,
+            "page_size_options": page_size_options,
+            "has_prev": offset > 0,
+            "has_next": effective_limit is not None and (offset + effective_limit) < total_count,
+            "prev_offset": max(0, offset - (effective_limit or 0)),
+            "next_offset": offset + (effective_limit or 0),
+        }
 
         return {
             "table_nodes": nodes,
@@ -217,7 +231,7 @@ class TablePanelType:
             "description": panel.description,
             "search_uuid": str(search.entity_id) if search else "",
             "column_mode": config.get("column_mode", _DEFAULT_COLUMN_MODE),
-            "default_limit": config.get("default_limit", _DEFAULT_LIMIT),
+            "default_page_size": config.get("default_page_size", _DEFAULT_PAGE_SIZE),
         }
 
     @classmethod
@@ -242,7 +256,7 @@ class TablePanelType:
 
         new_config: dict[str, Any] = {
             "column_mode": cleaned.get("column_mode") or _DEFAULT_COLUMN_MODE,
-            "default_limit": cleaned.get("default_limit") or _DEFAULT_LIMIT,
+            "default_page_size": cleaned.get("default_page_size") or _DEFAULT_PAGE_SIZE,
         }
         _validate_table_config(new_config)
         panel.config = new_config
@@ -269,10 +283,33 @@ class TablePanelType:
 
 
 
+def _build_page_size_options(total_count: int, current_page_size: int) -> list[dict[str, Any]]:
+    """Build dynamic page-size selector options based on total row count.
+
+    Only includes step values that are less than total_count.
+    Always appends an "All" option (value=0) representing the full set.
+    """
+    options: list[dict[str, Any]] = []
+    for step in _PAGE_SIZE_STEPS:
+        if step < total_count:
+            options.append({"value": step, "label": str(step), "selected": current_page_size == step})
+
+    # "All" option — selected when page_size is 0 or >= total_count.
+    all_selected = current_page_size == 0 or current_page_size >= total_count
+    options.append({"value": 0, "label": f"All ({total_count})", "selected": all_selected})
+
+    # If current_page_size doesn't match any option, mark the closest as selected
+    # (this handles the initial load when localStorage hasn't been set yet).
+    if not any(o["selected"] for o in options) and options:
+        options[0]["selected"] = True
+
+    return options
+
+
 def _safe_int(value: Any, default: int) -> int:
-    """Return int(value) if convertible and positive, otherwise default."""
+    """Return int(value) if convertible and non-negative, otherwise default."""
     try:
         result = int(value)
-        return result if result > 0 else default
-    except TypeError, ValueError:
+        return result if result >= 0 else default
+    except (TypeError, ValueError):
         return default

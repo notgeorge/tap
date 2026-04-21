@@ -225,7 +225,7 @@ Every public representation and capability contract in the service layer should 
 This formalizes schema publication as a required responsibility of model authors, not an optional convenience.
 
 #### Implementation
-Every concrete `BaseModel` subclass must declare inline `SERVICE_SCHEMAS` on the model class. At minimum, this publication point should include:
+Every concrete `BaseModel` subclass must declare inline `SERVICE_CRUD_SCHEMA` on the model class. At minimum, this publication point should include:
 
 - read payload schema
 - create payload schema
@@ -248,13 +248,13 @@ Schema identity uses stable versioned TAP IDs, for example:
 Shared schemas such as dimensions also receive their own IDs and are referenced from payload schemas rather than duplicated.
 
 #### Development
-Keeping `SERVICE_SCHEMAS` inline on the model class makes schema ownership explicit and keeps model/schema drift visible during development.
+Keeping `SERVICE_CRUD_SCHEMA` inline on the model class makes schema ownership explicit and keeps model/schema drift visible during development.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-service-schemas-1 | All BaseModel Subclasses Publish Schemas | Implemented | Every concrete `BaseModel` subclass must publish `SERVICE_SCHEMAS`. | |
+| req-grid-service-schemas-1 | All BaseModel Subclasses Publish Schemas | Implemented | Every concrete `BaseModel` subclass must publish `SERVICE_CRUD_SCHEMA`. | |
 | req-grid-service-schemas-2 | Missing Schemas Break Startup | Implemented | Missing required service schemas are treated as configuration errors during startup. | |
 | req-grid-service-schemas-3 | Registry Lookup Is Canonical | Implemented | Service-layer schema retrieval resolves model classes through the existing registry keyed by type slug. | |
 | req-grid-service-schemas-4 | Stable Versioned Schema IDs | Proposed | Every public service schema has a stable versioned TAP schema ID. | |

@@ -21,7 +21,7 @@ Write operations are where the TAP service layer earns its keep. The write contr
 | req-grid-service-write-surface | [Write Operation Surface](#write-operation-surface) | Implemented | Canonical public write verbs |
 | req-grid-service-write-payloads | [Write Payload Semantics](#write-payload-semantics) | Implemented | Slug-driven payload handling and strict rejection |
 | req-grid-service-write-internal | [Internal-Only Write Exclusion](#internal-only-write-exclusion) | Implemented | Default service-layer CRUD verbs reject internal-only model types |
-| req-grid-service-write-schema-cleanup | [Service Schema Simplification](#service-schema-simplification) | Implemented | Replace per-verb `SERVICE_SCHEMAS` with a simpler writable-field contract |
+| req-grid-service-write-schema-cleanup | [Service Schema Simplification](#service-schema-simplification) | Implemented | Replace per-verb `SERVICE_CRUD_SCHEMA` with a simpler writable-field contract |
 | req-grid-service-write-patch | [Patch And Replace Rules](#patch-and-replace-rules) | Implemented | Deep merge and immutable edge type rules |
 | req-grid-service-write-validate | [Write Validation Stack](#write-validation-stack) | Implemented | full_clean, constraints, hotlinks |
 | req-grid-service-write-results | [Write Result Envelopes](#write-result-envelopes) | Implemented | Minimal, standard, verbose |
@@ -68,25 +68,25 @@ Decide whether any thin generic write wrapper is needed in addition to the expli
 RID: `req-grid-service-write-schema-cleanup`
 Status: `Implemented`
 
-The per-model write surface is declared via four concise ClassVars on `BaseModel` subclasses. `SERVICE_SCHEMAS` is synthesized from these at class definition time and remains available for service-layer consumption and introspection.
+The per-model write surface is declared via four concise ClassVars on `BaseModel` subclasses. `SERVICE_CRUD_SCHEMA` is synthesized from these at class definition time and remains available for service-layer consumption and introspection.
 
 #### Status Details
-Implemented. The three-verb `SERVICE_SCHEMAS` dict is no longer written by hand on any concrete model. All 16 concrete subclasses across `tap_grid`, `plugins/lotr`, `tap_web`, and `tap_viz` now use the new contract.
+Implemented. The three-verb `SERVICE_CRUD_SCHEMA` dict is no longer written by hand on any concrete model. All 16 concrete subclasses across `tap_grid`, `plugins/lotr`, `tap_web`, and `tap_viz` now use the new contract.
 
 #### Implementation
 Concrete `BaseModel` subclasses declare:
 
-1. `FIELD_SCHEMA: ClassVar[dict[str, dict]]` — field name to JSON Schema fragment; the complete writable field surface.
+1. `FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]]` — field name to JSON Schema fragment; the complete writable field surface.
 2. `CREATE_REQUIRED: ClassVar[list[str]]` — fields required for `create_node`/`create_edge`. Defaults to `[]`.
 3. `REPLACE_REQUIRED: ClassVar[list[str]]` — fields required for `replace_node`/`replace_edge`. Defaults to `CREATE_REQUIRED` if not declared.
-4. `PATCH_EXTRA_FIELDS: ClassVar[dict[str, dict]]` — verb-specific fields patchable but absent from FIELD_SCHEMA (e.g., lifecycle fields like `status`). Defaults to `{}`.
+4. `PATCH_EXTRA_FIELDS: ClassVar[dict[str, dict]]` — verb-specific fields patchable but absent from FIELD_CRUD_SCHEMA (e.g., lifecycle fields like `status`). Defaults to `{}`.
 
-`BaseModel.__init_subclass__` calls `_check_service_contract()` to validate these at class definition time, then calls `_build_service_schemas()` to synthesize and assign `cls.SERVICE_SCHEMAS`. The service pipeline (`_execute_write_pipeline`) and `describe_node_type()` continue to read `SERVICE_SCHEMAS` unchanged.
+`BaseModel.__init_subclass__` calls `_check_service_contract()` to validate these at class definition time, then calls `_build_service_schemas()` to synthesize and assign `cls.SERVICE_CRUD_SCHEMA`. The service pipeline (`_execute_write_pipeline`) and `describe_node_type()` continue to read `SERVICE_CRUD_SCHEMA` unchanged.
 
 #### Development
 The cleanup resolved two mixed concerns that existed in the old design:
 
-- **which fields** are writable (now declared in `FIELD_SCHEMA`)
+- **which fields** are writable (now declared in `FIELD_CRUD_SCHEMA`)
 - **what each verb requires** (now declared in `CREATE_REQUIRED` / `REPLACE_REQUIRED`)
 
 Patch semantics (all fields optional, extra lifecycle fields allowed) and replace semantics (reset-to-default for absent optional fields) remain in the service layer.
@@ -95,7 +95,7 @@ Patch semantics (all fields optional, extra lifecycle fields allowed) and replac
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-service-write-schema-cleanup-1 | Simpler Writable Field Contract | Implemented | `FIELD_SCHEMA` replaces the three-verb `SERVICE_SCHEMAS` as the per-model writable-field declaration. `SERVICE_SCHEMAS` is synthesized automatically. | |
+| req-grid-service-write-schema-cleanup-1 | Simpler Writable Field Contract | Implemented | `FIELD_CRUD_SCHEMA` replaces the three-verb `SERVICE_CRUD_SCHEMA` as the per-model writable-field declaration. `SERVICE_CRUD_SCHEMA` is synthesized automatically. | |
 | req-grid-service-write-schema-cleanup-2 | Sane Defaults On Create | Implemented | Models with no `CREATE_REQUIRED` (e.g., `Edge`, `Batch`, `LandingPage`) create instances with sane field defaults. | |
 | req-grid-service-write-schema-cleanup-3 | Required-On-Create Supported | Implemented | `CREATE_REQUIRED` and `REPLACE_REQUIRED` provide explicit required-field control per verb. Previously deferred; now implemented as part of this cleanup. | |
 

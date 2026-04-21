@@ -114,7 +114,7 @@ Status: `Implemented`
 FLIP is a default-on capability for service-writeable model types. It applies to all service-writeable fields rather than requiring per-model enablement or explicit allow-lists.
 
 #### Status Details
-Implemented. `update_flip_map()` in `tap_grid/flip.py` derives tracked fields from `SERVICE_SCHEMAS` (union of create/patch/replace properties) rather than a per-model allow-list. Internal-only types are excluded. If no batch_id is active, stamping is silently skipped rather than raising an error. `is_flip_enabled()` returns True for any model with service-writeable fields that is not internal-only.
+Implemented. `update_flip_map()` in `tap_grid/flip.py` derives tracked fields from `SERVICE_CRUD_SCHEMA` (union of create/patch/replace properties) rather than a per-model allow-list. Internal-only types are excluded. If no batch_id is active, stamping is silently skipped rather than raising an error. `is_flip_enabled()` returns True for any model with service-writeable fields that is not internal-only.
 
 #### Implementation
 The FLIP coverage contract is:
@@ -143,8 +143,8 @@ If TAP later finds a real need for exceptions, configuration can return as a del
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-grid-flip-default-1 | Default On For Service-Writeable Types | Implemented | FLIP applies by default to model types writable through the standard service layer. | No per-model config needed |
-| req-grid-flip-default-2 | All Service-Writeable Fields Stamped | Implemented | FLIP covers all service-writeable fields rather than an explicit allow-list. | Derived from `SERVICE_SCHEMAS` properties |
-| req-grid-flip-default-3 | System Fields Excluded | Implemented | Service-managed/internal fields are excluded from default FLIP stamping. | `entity`, `batch_id`, `flip_map` etc. are never in `SERVICE_SCHEMAS` |
+| req-grid-flip-default-2 | All Service-Writeable Fields Stamped | Implemented | FLIP covers all service-writeable fields rather than an explicit allow-list. | Derived from `SERVICE_CRUD_SCHEMA` properties |
+| req-grid-flip-default-3 | System Fields Excluded | Implemented | Service-managed/internal fields are excluded from default FLIP stamping. | `entity`, `batch_id`, `flip_map` etc. are never in `SERVICE_CRUD_SCHEMA` |
 | req-grid-flip-default-4 | Patch Replace Create Semantics Defined | Implemented | FLIP stamping behavior for create, patch, and replace follows the service-write surface rather than ad hoc save behavior. | `changed_fields` controls partial vs full stamping |
 
 #### Future
@@ -176,7 +176,7 @@ This is a cleanup move. The old config shape looks increasingly like a holdover 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-grid-flip-config-depr-1 | Per-Model FLIP Enablement Deprecated | Implemented | The specification no longer requires per-model FLIP on/off configuration for ordinary service-writeable types. | `FLIP_CONFIG` removed from all models |
-| req-grid-flip-config-depr-2 | Field Allow-List Config Deprecated | Implemented | The specification no longer requires per-model FLIP field allow-lists for ordinary service-writeable fields. | Fields derived from `SERVICE_SCHEMAS` |
+| req-grid-flip-config-depr-2 | Field Allow-List Config Deprecated | Implemented | The specification no longer requires per-model FLIP field allow-lists for ordinary service-writeable fields. | Fields derived from `SERVICE_CRUD_SCHEMA` |
 | req-grid-flip-config-depr-3 | Reintroduction Requires New Requirement | Implemented | Any future return of explicit FLIP config must be justified by a new requirement rather than by keeping dormant config as the default architecture. | Legacy config infrastructure deleted |
 
 #### Future

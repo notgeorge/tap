@@ -389,13 +389,17 @@ class TestCreateEdgePipeline:
     def test_edge_type_immutable_on_patch(self):
         from_result = create_node("character", {"name": "Frodo"})
         to_result = create_node("location", {"name": "Shire"})
-        edge_result = write_batch([WriteOperation(
-            verb="create_edge",
-            from_target=from_result.entity_id,
-            to_target=to_result.entity_id,
-            edge_type="LOCATED_IN",
-            payload={},
-        )])
+        edge_result = write_batch(
+            [
+                WriteOperation(
+                    verb="create_edge",
+                    from_target=from_result.entity_id,
+                    to_target=to_result.entity_id,
+                    edge_type="LOCATED_IN",
+                    payload={},
+                )
+            ]
+        )
         edge = Edge.objects.get(from_entity_id=from_result.entity_id, to_entity_id=to_result.entity_id)
         patch_result = patch_edge(edge.entity_id, {"edge_type": "RULES"})
         assert not patch_result.success
@@ -404,13 +408,17 @@ class TestCreateEdgePipeline:
     def test_no_edges_between_edges(self):
         a = create_node("character", {"name": "Frodo"})
         b = create_node("location", {"name": "Shire"})
-        edge_result = write_batch([WriteOperation(
-            verb="create_edge",
-            from_target=a.entity_id,
-            to_target=b.entity_id,
-            edge_type="LOCATED_IN",
-            payload={},
-        )])
+        edge_result = write_batch(
+            [
+                WriteOperation(
+                    verb="create_edge",
+                    from_target=a.entity_id,
+                    to_target=b.entity_id,
+                    edge_type="LOCATED_IN",
+                    payload={},
+                )
+            ]
+        )
         edge = Edge.objects.get(from_entity_id=a.entity_id, to_entity_id=b.entity_id)
         # Try to use the edge's entity as an endpoint
         c = create_node("character", {"name": "Sam"})
@@ -432,7 +440,9 @@ class TestWriteBatch:
 
     def test_multi_op_batch_commits(self):
         op1 = WriteOperation(verb="create_node", type_slug="character", payload={"name": "Frodo", "bio": "A hobbit"})
-        op2 = WriteOperation(verb="create_node", type_slug="character", payload={"name": "Sam", "bio": "Another hobbit"})
+        op2 = WriteOperation(
+            verb="create_node", type_slug="character", payload={"name": "Sam", "bio": "Another hobbit"}
+        )
         result = write_batch([op1, op2])
         assert result.success
         assert len(result.results) == 2
@@ -505,7 +515,15 @@ class TestServiceErrorTaxonomy:
         """ServiceError accepts all seven defined error codes without type error."""
         from tap_grid.service_types import ServiceError
 
-        codes = ["validation_error", "constraint_violation", "authz_failure", "not_found", "conflict", "unsupported_operation", "internal_error"]
+        codes = [
+            "validation_error",
+            "constraint_violation",
+            "authz_failure",
+            "not_found",
+            "conflict",
+            "unsupported_operation",
+            "internal_error",
+        ]
         for code in codes:
             err = ServiceError(code=code, message="test")  # type: ignore[arg-type]
             assert err.code == code
@@ -532,7 +550,14 @@ class TestServiceErrorTaxonomy:
             ServiceValidationError,
         )
 
-        for exc_cls in [ServiceValidationError, ServiceConstraintError, ServiceNotFoundError, ServiceAuthzError, ServiceConflictError, ServiceUnsupportedOperationError]:
+        for exc_cls in [
+            ServiceValidationError,
+            ServiceConstraintError,
+            ServiceNotFoundError,
+            ServiceAuthzError,
+            ServiceConflictError,
+            ServiceUnsupportedOperationError,
+        ]:
             instance = exc_cls("test")
             assert str(instance) == "test"
 

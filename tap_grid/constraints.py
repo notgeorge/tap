@@ -441,13 +441,11 @@ def validate_edge(from_type: str, to_type: str, edge_type: str) -> None:
             if constraints.outbound and edge_type in constraints.outbound:
                 allowed_targets = constraints.outbound[edge_type]
                 raise InvalidEdgeError(
-                    f"{from_type} cannot create '{edge_type}' edge to {to_type}. "
-                    f"Allowed targets: {allowed_targets}"
+                    f"{from_type} cannot create '{edge_type}' edge to {to_type}. " f"Allowed targets: {allowed_targets}"
                 )
             elif constraints.outbound:
                 raise InvalidEdgeError(
-                    f"{from_type} cannot create '{edge_type}' edges. "
-                    f"Allowed: {set(constraints.outbound.keys())}"
+                    f"{from_type} cannot create '{edge_type}' edges. " f"Allowed: {set(constraints.outbound.keys())}"
                 )
         raise InvalidEdgeError(f"{from_type} cannot create '{edge_type}' edge to {to_type}")
 
@@ -467,7 +465,6 @@ def validate_edge(from_type: str, to_type: str, edge_type: str) -> None:
                 )
             elif constraints.inbound:
                 raise InvalidEdgeError(
-                    f"{to_type} cannot receive '{edge_type}' edges. "
-                    f"Allowed: {set(constraints.inbound.keys())}"
+                    f"{to_type} cannot receive '{edge_type}' edges. " f"Allowed: {set(constraints.inbound.keys())}"
                 )
         raise InvalidEdgeError(f"{to_type} cannot receive '{edge_type}' edge from {from_type}")

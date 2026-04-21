@@ -1,0 +1,840 @@
+"""Plugin validation service.
+
+Implements req-plugin-validate-* from spec-plugin-validation.md.
+
+The service validates one plugin root at a time using TAP's real manifest
+parsing and validation codepaths.  Three cumulative levels:
+
+- ``structure``: manifest parsing, path checks, edge files. No Django required.
+- ``loads``: structure + class-path validation via Django imports. Requires Django.
+- ``runs``: loads + service-layer smoke tests. Requires Django + database.
+  Runs inside a rollback transaction so no data is persisted.
+
+Public API:
+    validate_plugin(plugin_root, *, level, strict) -> ValidationResult
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import jsonschema
+
+logger = logging.getLogger(__name__)
+
+SUPPORTED_LEVELS = {"structure", "loads", "runs"}
+DJANGO_REQUIRED_LEVELS = {"loads", "runs"}
+KNOWN_LEVELS = {"structure", "loads", "runs"}
+
+_SCHEMA_PATH = Path(__file__).parent / "plugin-validation-result.schema.json"
+
+
+@dataclass
+class Message:
+    severity: str  # "info", "warning", "error"
+    text: str
+    path: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {"severity": self.severity, "text": self.text}
+        if self.path is not None:
+            d["path"] = self.path
+        return d
+
+
+@dataclass
+class CheckResult:
+    id: str
+    name: str
+    status: str = "pass"  # "pass", "warn", "fail"
+    messages: list[Message] = field(default_factory=list)
+    details: dict[str, Any] | None = None
+
+    def fail(self, text: str, *, path: str | None = None) -> None:
+        self.status = "fail"
+        self.messages.append(Message(severity="error", text=text, path=path))
+
+    def warn(self, text: str, *, path: str | None = None) -> None:
+        if self.status != "fail":
+            self.status = "warn"
+        self.messages.append(Message(severity="warning", text=text, path=path))
+
+    def info(self, text: str, *, path: str | None = None) -> None:
+        self.messages.append(Message(severity="info", text=text, path=path))
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "id": self.id,
+            "name": self.name,
+            "status": self.status,
+            "messages": [m.to_dict() for m in self.messages],
+        }
+        if self.details is not None:
+            d["details"] = self.details
+        return d
+
+
+@dataclass
+class ValidationResult:
+    ok: bool
+    level: str
+    plugin_path: str
+    strict: bool
+    checks: list[CheckResult] = field(default_factory=list)
+
+    @property
+    def summary(self) -> dict[str, int]:
+        passed = sum(1 for c in self.checks if c.status == "pass")
+        warned = sum(1 for c in self.checks if c.status == "warn")
+        failed = sum(1 for c in self.checks if c.status == "fail")
+        warnings_total = sum(
+            1 for c in self.checks for m in c.messages if m.severity == "warning"
+        )
+        errors_total = sum(
+            1 for c in self.checks for m in c.messages if m.severity == "error"
+        )
+        return {
+            "checks_total": len(self.checks),
+            "checks_passed": passed,
+            "checks_warned": warned,
+            "checks_failed": failed,
+            "warnings_total": warnings_total,
+            "errors_total": errors_total,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "level": self.level,
+            "plugin_path": self.plugin_path,
+            "strict": self.strict,
+            "summary": self.summary,
+            "checks": [c.to_dict() for c in self.checks],
+        }
+
+    def to_json(self) -> str:
+        doc = self.to_dict()
+        schema = _load_schema()
+        jsonschema.validate(doc, schema)
+        return json.dumps(doc, indent=2)
+
+    def to_human(self) -> str:
+        lines: list[str] = []
+        status_icon = "PASS" if self.ok else "FAIL"
+        lines.append(f"Plugin validation: {status_icon}")
+        lines.append(f"  Path:   {self.plugin_path}")
+        lines.append(f"  Level:  {self.level}")
+        lines.append(f"  Strict: {self.strict}")
+        lines.append("")
+
+        s = self.summary
+        lines.append(
+            f"  Checks: {s['checks_total']} total, "
+            f"{s['checks_passed']} passed, "
+            f"{s['checks_warned']} warned, "
+            f"{s['checks_failed']} failed"
+        )
+        lines.append("")
+
+        for check in self.checks:
+            icon = {"pass": "OK", "warn": "WARN", "fail": "FAIL"}[check.status]
+            lines.append(f"  [{icon}] {check.name}")
+            for msg in check.messages:
+                prefix = {"info": "     ", "warning": "     WARN:", "error": "     ERR:"}[
+                    msg.severity
+                ]
+                path_suffix = f" ({msg.path})" if msg.path else ""
+                lines.append(f"{prefix} {msg.text}{path_suffix}")
+
+        lines.append("")
+        return "\n".join(lines)
+
+
+def _load_schema() -> dict[str, Any]:
+    with open(_SCHEMA_PATH) as fh:
+        return json.load(fh)
+
+
+class UnsupportedLevelError(Exception):
+    """Raised when a validation level is not yet implemented."""
+
+
+def validate_plugin(
+    plugin_root: Path,
+    *,
+    level: str = "structure",
+    strict: bool = False,
+) -> ValidationResult:
+    """Validate a single plugin root directory.
+
+    Args:
+        plugin_root: Absolute path to the plugin root.
+        level: Validation level — ``"structure"``, ``"loads"``, or ``"runs"``.
+        strict: If True, warnings are promoted to failures.
+
+    Returns:
+        A ValidationResult with per-check detail.
+
+    Raises:
+        UnsupportedLevelError: If *level* is a known but unimplemented level.
+        ValueError: If *level* is not a recognized level name.
+    """
+    if level not in KNOWN_LEVELS:
+        raise ValueError(f"Unknown validation level: {level!r}")
+    if level not in SUPPORTED_LEVELS:
+        raise UnsupportedLevelError(
+            f"Validation level {level!r} is not yet implemented"
+        )
+
+    result = ValidationResult(
+        ok=True,
+        level=level,
+        plugin_path=str(plugin_root),
+        strict=strict,
+    )
+
+    # Structure checks (always run)
+    manifest = _run_structure_checks(plugin_root, result)
+
+    # Loads checks (cumulative — requires Django)
+    if level in ("loads", "runs") and manifest is not None:
+        _run_loads_checks(manifest, result)
+
+    # Runs checks (cumulative — requires Django + database)
+    if level == "runs" and manifest is not None:
+        # Only run if all prior checks passed — no point smoke-testing
+        # a plugin whose classes don't even import.
+        if all(c.status != "fail" for c in result.checks):
+            _run_runs_checks(manifest, result)
+
+    if strict:
+        for check in result.checks:
+            if check.status == "warn":
+                check.status = "fail"
+                for msg in check.messages:
+                    if msg.severity == "warning":
+                        msg.severity = "error"
+
+    result.ok = all(c.status != "fail" for c in result.checks)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Structure-level checks
+# ---------------------------------------------------------------------------
+
+
+def _run_structure_checks(plugin_root: Path, result: ValidationResult) -> Any:
+    """Run all structure-level validation checks. Returns manifest or None."""
+    _check_plugin_root(plugin_root, result)
+    _check_core_files(plugin_root, result)
+    manifest = _check_manifest_parse(plugin_root, result)
+    if manifest is not None:
+        _check_convention_dirs(manifest, result)
+        _check_edge_files(manifest, result)
+        _check_grift_paths(manifest, result)
+        _check_undeclared_files(manifest, result)
+        _check_tests_dir(manifest, result)
+    return manifest
+
+
+def _check_plugin_root(plugin_root: Path, result: ValidationResult) -> None:
+    check = CheckResult(id="plugin-root", name="Plugin root directory exists")
+    if not plugin_root.is_dir():
+        check.fail(f"Plugin root is not a directory: {plugin_root}")
+    else:
+        check.info(f"Plugin root: {plugin_root}")
+    result.checks.append(check)
+
+
+def _check_core_files(plugin_root: Path, result: ValidationResult) -> None:
+    check = CheckResult(id="core-files", name="Core required files exist")
+
+    for filename in ("__init__.py", "apps.py", "tap-plugin.toml"):
+        path = plugin_root / filename
+        if path.exists():
+            check.info(f"Found {filename}")
+        else:
+            check.fail(f"Missing required file: {filename}", path=filename)
+
+    result.checks.append(check)
+
+
+def _check_manifest_parse(
+    plugin_root: Path, result: ValidationResult
+) -> Any:
+    """Parse and structurally validate the manifest. Returns PluginManifest or None."""
+    from tap_plugins.manifest import PluginManifestError, load_manifest
+
+    check = CheckResult(id="manifest-parse", name="Manifest parses and validates")
+
+    manifest_path = plugin_root / "tap-plugin.toml"
+    if not manifest_path.exists():
+        check.fail("tap-plugin.toml not found")
+        result.checks.append(check)
+        return None
+
+    try:
+        manifest = load_manifest(plugin_root)
+    except PluginManifestError as exc:
+        check.fail(str(exc))
+        result.checks.append(check)
+        return None
+
+    check.info(f"Plugin: {manifest.name} (slug={manifest.slug})")
+    check.info(f"Version: {manifest.plugin_version}")
+    surface_parts = []
+    if manifest.models:
+        surface_parts.append(f"{len(manifest.models)} model(s)")
+    if manifest.edges:
+        surface_parts.append(f"{len(manifest.edges)} edge(s)")
+    if manifest.editors:
+        surface_parts.append(f"{len(manifest.editors)} editor(s)")
+    if manifest.searches:
+        surface_parts.append(f"{len(manifest.searches)} search(es)")
+    if manifest.grift:
+        surface_parts.append(f"{len(manifest.grift)} grift bundle(s)")
+    if surface_parts:
+        check.info(f"Surfaces: {', '.join(surface_parts)}")
+    else:
+        check.info("No TAP surfaces declared")
+
+    result.checks.append(check)
+    return manifest
+
+
+def _check_convention_dirs(manifest: Any, result: ValidationResult) -> None:
+    check = CheckResult(id="convention-dirs", name="Convention directories present")
+
+    required_when_declared = [
+        (manifest.models, "models"),
+        (manifest.edges, "edges"),
+        (manifest.searches, "searches"),
+        (manifest.grift, "grift"),
+    ]
+
+    for entries, dirname in required_when_declared:
+        dir_path = manifest.plugin_root / dirname
+        if entries:
+            if dir_path.is_dir():
+                check.info(f"{dirname}/ exists")
+            else:
+                check.fail(
+                    f"[{dirname}] declared but {dirname}/ directory missing",
+                    path=dirname,
+                )
+        elif dir_path.is_dir():
+            check.info(f"{dirname}/ exists (no [{dirname}] declared)")
+
+    result.checks.append(check)
+
+
+def _check_edge_files(manifest: Any, result: ValidationResult) -> None:
+    if not manifest.edges:
+        return
+
+    check = CheckResult(id="edge-files", name="Edge definition files valid")
+    for edge in manifest.edges:
+        check.info(
+            f"Edge {edge.slug}: {edge.name} "
+            f"(sources={edge.sources or 'any'}, targets={edge.targets or 'any'})"
+        )
+    result.checks.append(check)
+
+
+def _check_grift_paths(manifest: Any, result: ValidationResult) -> None:
+    if not manifest.grift:
+        return
+
+    check = CheckResult(id="grift-paths", name="GRIFT bundle paths exist")
+    for entry in manifest.grift:
+        full_path = manifest.plugin_root / entry.path
+        if full_path.exists():
+            check.info(f"Bundle '{entry.name}': {entry.path}")
+        else:
+            check.fail(f"Bundle '{entry.name}' path not found: {entry.path}", path=entry.path)
+    result.checks.append(check)
+
+
+def _check_undeclared_files(manifest: Any, result: ValidationResult) -> None:
+    from tap_plugins.manifest import PluginManifest
+
+    assert isinstance(manifest, PluginManifest)
+
+    check = CheckResult(id="undeclared-files", name="No undeclared convention files")
+
+    declared_grift_paths = {entry.path for entry in manifest.grift}
+    declared_edge_paths = {entry.file_path for entry in manifest.edges}
+
+    grift_dir = manifest.plugin_root / "grift"
+    if grift_dir.is_dir():
+        for grift_file in grift_dir.rglob("*.grift.json"):
+            rel = str(grift_file.relative_to(manifest.plugin_root))
+            if rel not in declared_grift_paths:
+                check.warn(f"Undeclared GRIFT file: {rel}", path=rel)
+
+    edges_dir = manifest.plugin_root / "edges"
+    if edges_dir.is_dir():
+        for edge_file in edges_dir.glob("*.edge.json"):
+            rel = str(edge_file.relative_to(manifest.plugin_root))
+            if rel not in declared_edge_paths:
+                check.warn(f"Undeclared edge file: {rel}", path=rel)
+
+    if check.status == "pass":
+        check.info("All convention files are declared in the manifest")
+
+    result.checks.append(check)
+
+
+def _check_tests_dir(manifest: Any, result: ValidationResult) -> None:
+    check = CheckResult(id="tests-dir", name="Tests directory exists")
+    tests_dir = manifest.plugin_root / "tests"
+    if tests_dir.is_dir():
+        check.info("tests/ exists")
+    else:
+        check.warn("Missing tests/ directory", path="tests")
+    result.checks.append(check)
+
+
+# ---------------------------------------------------------------------------
+# Loads-level checks (requires Django app registry)
+# ---------------------------------------------------------------------------
+
+
+def _run_loads_checks(manifest: Any, result: ValidationResult) -> None:
+    """Run loads-level checks: class-path validation via Django imports."""
+    _check_model_classes(manifest, result)
+    _check_model_icons(manifest, result)
+    _check_editor_classes(manifest, result)
+    _check_search_callables(manifest, result)
+
+
+def _check_model_classes(manifest: Any, result: ValidationResult) -> None:
+    if not manifest.models:
+        return
+
+    check = CheckResult(id="model-classes", name="Model classes import and validate")
+
+    from tap_plugins.manifest import PluginManifestError, validate_manifest_classes
+
+    from django.utils.module_loading import import_string
+
+    for entry in manifest.models:
+        try:
+            cls = import_string(entry.class_path)
+        except ImportError as exc:
+            check.fail(
+                f"Cannot import '{entry.class_path}': {exc}",
+                path=entry.class_path,
+            )
+            continue
+        except Exception as exc:
+            check.fail(
+                f"'{entry.class_path}' raised {type(exc).__name__}: {exc}",
+                path=entry.class_path,
+            )
+            continue
+
+        entity_type = getattr(cls, "ENTITY_TYPE", None)
+        if entity_type != entry.slug:
+            check.fail(
+                f"'{entry.class_path}' ENTITY_TYPE='{entity_type}' "
+                f"does not match manifest slug='{entry.slug}'",
+                path=entry.class_path,
+            )
+            continue
+
+        check.info(f"Model {entry.slug}: {entry.class_path}")
+
+    result.checks.append(check)
+
+
+def _check_model_icons(manifest: Any, result: ValidationResult) -> None:
+    """Validate that models with ENTITY_ICON have valid keys and existing SVG files."""
+    if not manifest.models:
+        return
+
+    check = CheckResult(id="model-icons", name="Model icons exist")
+
+    from django.contrib.staticfiles import finders
+    from django.utils.module_loading import import_string
+
+    from tap_grid.icon import validate_icon_key
+
+    seen_keys: set[str] = set()
+
+    for entry in manifest.models:
+        try:
+            cls = import_string(entry.class_path)
+        except Exception:
+            continue  # already reported by model-classes check
+
+        icon_key = getattr(cls, "ENTITY_ICON", "")
+        if not icon_key:
+            continue
+
+        # Deduplicate — multiple models may share an icon key
+        if icon_key in seen_keys:
+            continue
+        seen_keys.add(icon_key)
+
+        if not validate_icon_key(icon_key):
+            check.fail(
+                f"'{entry.slug}' ENTITY_ICON='{icon_key}' is not valid kebab-case",
+                path=entry.class_path,
+            )
+            continue
+
+        static_path = f"{manifest.slug}/icons/{icon_key}.svg"
+        if finders.find(static_path):
+            check.info(f"Icon '{icon_key}': {static_path}")
+        else:
+            check.fail(
+                f"Icon '{icon_key}' SVG not found at {static_path}",
+                path=static_path,
+            )
+
+    if not seen_keys:
+        check.info("No models declare ENTITY_ICON")
+
+    result.checks.append(check)
+
+
+def _check_editor_classes(manifest: Any, result: ValidationResult) -> None:
+    if not manifest.editors:
+        return
+
+    check = CheckResult(id="editor-classes", name="Editor classes import and validate")
+
+    from django.utils.module_loading import import_string
+
+    from tap_web.editor import EditorDescriptor
+
+    for entry in manifest.editors:
+        try:
+            cls = import_string(entry.class_path)
+            instance = cls()
+        except ImportError as exc:
+            check.fail(f"Cannot import '{entry.class_path}': {exc}", path=entry.class_path)
+            continue
+        except Exception as exc:
+            check.fail(f"Cannot instantiate '{entry.class_path}': {exc}", path=entry.class_path)
+            continue
+
+        if not isinstance(instance, EditorDescriptor):
+            check.fail(
+                f"'{entry.class_path}' is not an EditorDescriptor subclass",
+                path=entry.class_path,
+            )
+            continue
+
+        if instance.entity_type != entry.entity_type:
+            check.fail(
+                f"'{entry.class_path}' entity_type='{instance.entity_type}' "
+                f"does not match manifest key='{entry.entity_type}'",
+                path=entry.class_path,
+            )
+            continue
+
+        check.info(f"Editor {entry.entity_type}: {entry.class_path}")
+
+    result.checks.append(check)
+
+
+def _check_search_callables(manifest: Any, result: ValidationResult) -> None:
+    if not manifest.searches:
+        return
+
+    check = CheckResult(id="search-callables", name="Search callables import and validate")
+
+    from django.utils.module_loading import import_string
+
+    for entry in manifest.searches:
+        try:
+            obj = import_string(entry.callable_path)
+        except ImportError as exc:
+            check.fail(f"Cannot import '{entry.callable_path}': {exc}", path=entry.callable_path)
+            continue
+        except Exception as exc:
+            check.fail(
+                f"'{entry.callable_path}' raised {type(exc).__name__}: {exc}",
+                path=entry.callable_path,
+            )
+            continue
+
+        if not callable(obj):
+            check.fail(
+                f"'{entry.callable_path}' is not callable",
+                path=entry.callable_path,
+            )
+            continue
+
+        check.info(f"Search {entry.runner_key}: {entry.callable_path}")
+
+    result.checks.append(check)
+
+
+# ---------------------------------------------------------------------------
+# Runs-level checks (requires Django + database, uses rollback transaction)
+# ---------------------------------------------------------------------------
+
+
+def _run_runs_checks(manifest: Any, result: ValidationResult) -> None:
+    """Run runs-level checks inside a transaction that is always rolled back."""
+    from django.db import transaction
+
+    from tap_grid.batch import create_batch
+    from tap_grid.caller_context import CallerContext
+
+    class _RollbackValidation(Exception):
+        """Sentinel to force transaction rollback after validation completes."""
+
+    try:
+        with transaction.atomic():
+            batch = create_batch(
+                source=f"validate_plugin:{manifest.slug}",
+                name=f"Plugin validation: {manifest.slug}",
+                description=f"Smoke-test batch created by validate_plugin --level runs "
+                f"for '{manifest.slug}'. Rolled back on completion.",
+            )
+            ctx = CallerContext(batch_id=str(batch.entity_id))
+
+            _check_create_nodes(manifest, result, caller_context=ctx)
+            _check_create_edges(manifest, result, caller_context=ctx)
+            _check_grift_import(manifest, result)
+
+            raise _RollbackValidation()
+    except _RollbackValidation:
+        pass
+
+
+def _generate_payload(model_cls: type) -> dict[str, Any]:
+    """Auto-generate a minimal valid payload for create_node from FIELD_CRUD_SCHEMA + CREATE_REQUIRED."""
+    field_schema: dict[str, dict] = getattr(model_cls, "FIELD_CRUD_SCHEMA", {})
+    create_required: list[str] = getattr(model_cls, "CREATE_REQUIRED", [])
+
+    payload: dict[str, Any] = {}
+    for field_name in create_required:
+        schema = field_schema.get(field_name, {})
+        payload[field_name] = _synthetic_value(schema)
+
+    return payload
+
+
+def _synthetic_value(schema: dict[str, Any]) -> Any:
+    """Generate a synthetic value from a JSON Schema type declaration."""
+    type_decl = schema.get("type", "string")
+
+    # Handle nullable types like ["string", "null"]
+    if isinstance(type_decl, list):
+        type_decl = next((t for t in type_decl if t != "null"), "string")
+
+    if type_decl == "string":
+        min_length = schema.get("minLength", 1)
+        enum = schema.get("enum")
+        if enum:
+            return enum[0]
+        return "t" * max(min_length, 1)
+    elif type_decl == "integer":
+        return 1
+    elif type_decl == "boolean":
+        return False
+    elif type_decl == "object":
+        return {}
+    elif type_decl == "array":
+        return []
+    elif type_decl == "number":
+        return 1.0
+    else:
+        return "test"
+
+
+def _generate_edge_properties(property_schema: dict[str, Any]) -> dict[str, Any]:
+    """Auto-generate edge properties from a property_schema with required fields."""
+    properties: dict[str, Any] = {}
+    required = property_schema.get("required", [])
+    schema_props = property_schema.get("properties", {})
+
+    for field_name in required:
+        field_schema = schema_props.get(field_name, {})
+        properties[field_name] = _synthetic_value(field_schema)
+
+    return properties
+
+
+def _check_create_nodes(
+    manifest: Any, result: ValidationResult, *, caller_context: Any = None
+) -> None:
+    if not manifest.models:
+        return
+
+    check = CheckResult(id="create-nodes", name="create_node succeeds for declared models")
+
+    from django.utils.module_loading import import_string
+
+    from tap_grid.services import create_node
+
+    for entry in manifest.models:
+        try:
+            cls = import_string(entry.class_path)
+        except ImportError:
+            check.fail(f"Cannot import '{entry.class_path}'", path=entry.class_path)
+            continue
+
+        payload = _generate_payload(cls)
+
+        try:
+            write_result = create_node(entry.slug, payload, caller_context=caller_context)
+        except Exception as exc:
+            check.fail(
+                f"create_node('{entry.slug}') raised: {exc}",
+                path=entry.slug,
+            )
+            continue
+
+        if write_result.success:
+            check.info(f"create_node('{entry.slug}') OK")
+        else:
+            error_msgs = "; ".join(
+                f"{e.field}: {e.message}" if e.field else e.message
+                for e in write_result.errors
+            )
+            check.fail(
+                f"create_node('{entry.slug}') failed: {error_msgs}",
+                path=entry.slug,
+            )
+
+    result.checks.append(check)
+
+
+def _check_create_edges(
+    manifest: Any, result: ValidationResult, *, caller_context: Any = None
+) -> None:
+    if not manifest.edges:
+        return
+
+    # Only test edges that have both explicit sources and targets
+    testable_edges = [e for e in manifest.edges if e.sources and e.targets]
+    if not testable_edges:
+        return
+
+    check = CheckResult(id="create-edges", name="create_edge succeeds for constrained edge types")
+
+    from django.utils.module_loading import import_string
+
+    from tap_grid.models import Entity
+    from tap_grid.registry import get_model_class
+    from tap_grid.services import create_edge, create_node
+
+    # Build a cache of entities we've already created for source/target types
+    entity_cache: dict[str, Entity] = {}
+
+    def _ensure_entity(type_slug: str) -> Entity | None:
+        if type_slug in entity_cache:
+            return entity_cache[type_slug]
+        try:
+            model_cls = get_model_class(type_slug)
+        except KeyError:
+            return None
+        payload = _generate_payload(model_cls)
+        try:
+            wr = create_node(type_slug, payload, caller_context=caller_context)
+        except Exception:
+            return None
+        if not wr.success or wr.entity_id is None:
+            return None
+        entity = Entity.objects.get(pk=wr.entity_id)
+        entity_cache[type_slug] = entity
+        return entity
+
+    for edge in testable_edges:
+        source_type = edge.sources[0]
+        target_type = edge.targets[0]
+
+        source_entity = _ensure_entity(source_type)
+        if source_entity is None:
+            check.fail(
+                f"Cannot create source entity '{source_type}' for edge '{edge.slug}'",
+                path=edge.slug,
+            )
+            continue
+
+        target_entity = _ensure_entity(target_type)
+        if target_entity is None:
+            check.fail(
+                f"Cannot create target entity '{target_type}' for edge '{edge.slug}'",
+                path=edge.slug,
+            )
+            continue
+
+        # Auto-generate edge properties if the edge has a property_schema with required fields
+        properties = _generate_edge_properties(edge.property_schema) if edge.property_schema else None
+
+        try:
+            edge_obj = create_edge(source_entity, target_entity, edge.slug, properties=properties)
+            check.info(
+                f"create_edge('{source_type}' -> '{target_type}', '{edge.slug}') OK"
+            )
+        except Exception as exc:
+            check.fail(
+                f"create_edge('{source_type}' -> '{target_type}', '{edge.slug}') "
+                f"raised: {exc}",
+                path=edge.slug,
+            )
+
+    result.checks.append(check)
+
+
+def _check_grift_import(manifest: Any, result: ValidationResult) -> None:
+    if not manifest.grift:
+        return
+
+    check = CheckResult(id="grift-import", name="GRIFT bundles import successfully")
+
+    import json as json_mod
+
+    try:
+        from tap_grid.grift import grift_import
+    except ImportError:
+        check.fail("tap_grid.grift not available")
+        result.checks.append(check)
+        return
+
+    for entry in manifest.grift:
+        grift_path = manifest.plugin_root / entry.path
+        try:
+            with open(grift_path) as fh:
+                document = json_mod.load(fh)
+            import_result = grift_import(document, dangling_edge_mode="warn", actor=None)
+        except Exception as exc:
+            check.fail(
+                f"GRIFT bundle '{entry.name}' import raised: {exc}",
+                path=entry.path,
+            )
+            continue
+
+        if import_result.success:
+            counts = import_result.counts
+            check.info(
+                f"Bundle '{entry.name}': {counts.nodes_imported} node(s), "
+                f"{counts.edges_imported} edge(s)"
+            )
+            for w in import_result.warnings:
+                check.warn(
+                    f"Bundle '{entry.name}' [{w.phase}]: {w.message}",
+                    path=entry.path,
+                )
+        else:
+            error_msgs = "; ".join(
+                f"[{e.phase}] {e.path}: {e.message}" for e in import_result.errors
+            )
+            check.fail(
+                f"Bundle '{entry.name}' import failed: {error_msgs}",
+                path=entry.path,
+            )
+
+    result.checks.append(check)

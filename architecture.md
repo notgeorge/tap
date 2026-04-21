@@ -20,6 +20,8 @@ Core Concepts
 * Edge: a directed, typed relationship between two entities. Edge is a first-class TAP object with its own table and a backing Entity on the spine.
 * Dimensions: a flat JSON object stored on Entity used to scope, partition, and interpret TAP-managed graph objects.
 * Service Layer: the canonical contract between applications and TAP-managed graph data. Node and edge reads/writes, batch-backed writes, discovery, constraints, and future security enforcement go through the service layer.
+* Gryphon: TAP's graph query / traversal language for read-only graph-shaped search and neighborhood retrieval.
+* GRIFT: the Grid Interchange Format, TAP's canonical JSON contract for graph interchange. GRIFT defines batch-oriented file interchange and the canonical subgraph member shapes used for portable node/edge responses.
 * System: a bounded collection of entities and edges representing something being managed (ala a cloud SAAS service)
 * Plugin: a module that introduces to TAP new entity types, edge types, constraints, and behaviors and which may depend on other plugins
 * Grid:  the totality of the data that is modeled on the sql-based graph implementation.
@@ -31,6 +33,8 @@ History, FLIP, and (in the near future) perspectives are core grid concepts of T
 Fundamental Design Choices / Key differentiatiors that distinguish TAP from exsiting CRM, compliance, systems-management tools and are critical for the success of the project.
 
 1. Graph-capabilities in a standard SQL database - these will be implemented using an entity table spine and a dedicated edge table to support directed graphs across the domain.  This approach provides the strong type, security, ACID guarantees of SQL which most graph dbs lack, while still being able to implement the useful parts of graph models for traversals (potentially using recursive CTE calls on postgres). An essential capability will be data history to the point of field-level-information-provenance (FLIP) which will require a careful balance of both graph and sql concepts (this is not audit logs, this is per-data-item history / change-log).
+
+1a. Query and interchange should be first-class graph concepts - TAP should have a native graph query surface and a native graph interchange surface rather than treating both as ad hoc payloads. Gryphon is the read/query language for graph-native search and neighborhood traversal. GRIFT is the canonical JSON interchange and subgraph serialization format for nodes and edges.
 
 2. Visualization - capabilites for humans to view and interact with the data in a graphical way, think google maps meets visio.  
 
@@ -48,6 +52,7 @@ TAP Runtime Loop (Conceptual)
 * Ingest or discover facts about a system
 * Normalize them into entities and edges
 * Route node and edge reads / writes through the service layer
+* Express graph-native reads through Search / Gryphon and exchange graph data through GRIFT-shaped subgraphs where portable graph responses are needed
 * Record provenance at field level
 * Evaluate relationships and constraints
 * Accept recommendations or actions
@@ -70,6 +75,8 @@ Critical, essential elements of TAP:
 12. Supports federation as a distant target
 13. Node and edge operations are expected to go through the TAP service layer rather than direct ORM access
 14. TAP-managed types should be discoverable through registry-backed service-layer discovery rather than only through Python imports
+15. TAP should have one canonical graph interchange contract for portable node and edge responses; GRIFT and GRIFT-defined subgraphs are that contract
+16. Graph-native read/query behavior should be expressed through TAP search capabilities, including Gryphon for traversal-oriented reads, rather than proliferating one-off graph query helpers
 
 
 What TAP is definitely not
@@ -100,6 +107,8 @@ Step-wise Priority Goals for v0
 4. tab_web - Assets and helpers for building expressive dashboards and UIs which plugins will extend, once this is baked we can refactor the plugin from built in step 2 to include some pages to see things
 5. tap_viz - Visualization - present views of the data in visual graphical format (cytoscape), once we can see web pages we'll add cool visuals that will be a joyful thing to see
 6. tap_ai - Initial RAG / LLM Surfaces - read-only graph traversal, summarization, and suggestion helpers, the super-awesome stretch goal which takes this whole project to the next level
+
+Cross-cutting expectation: graph serialization, graph search, and graph interchange should converge on TAP-owned canonical contracts rather than app-specific ad hoc payloads. In practice this means service/search graph results should move toward Gryphon-backed reads and GRIFT-shaped node/edge responses where complete portable graph data is intended.
 
 Once V0 is complete we'll move on to:
 1.  Rampart plugin set

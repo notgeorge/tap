@@ -126,6 +126,9 @@
    * @param {HTMLElement} mountEl  - div[data-tap-table-mount]
    */
   function mountTablePanel(mountEl) {
+    // Skip if already initialized (prevents double-init on full-document re-scan).
+    if (mountEl.getAttribute("data-tap-table-mounted")) return;
+
     var panelId = mountEl.getAttribute("data-tap-table-panel-id");
     if (!panelId) return;
 
@@ -174,6 +177,7 @@
 
     /* global Tabulator */
     new Tabulator(mountEl, tableOptions);
+    mountEl.setAttribute("data-tap-table-mounted", "true");
   }
 
   /**
@@ -198,7 +202,103 @@
   }
 
   // Re-mount after HTMX swaps (panel fragment reload, pagination).
-  document.addEventListener("htmx:afterSwap", function (evt) {
-    mountAll(evt.detail.target);
+  // Use htmx:afterSettle (fires after DOM is stable) and search from
+  // document — outerHTML swaps remove the original target from the DOM,
+  // so evt.detail.target may be stale.
+  document.addEventListener("htmx:afterSettle", function () {
+    mountAll(document);
+    mountPageSizeSelectors(document);
   });
+
+  // --- Page-size selector with localStorage persistence ---
+
+  var STORAGE_KEY = "tap-table-page-size";
+
+  function getStoredPageSize() {
+    try {
+      var val = localStorage.getItem(STORAGE_KEY);
+      return val !== null ? val : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function storePageSize(value) {
+    try {
+      localStorage.setItem(STORAGE_KEY, value);
+    } catch (e) {
+      // Silently ignore storage failures.
+    }
+  }
+
+  /**
+   * Wire up page-size <select> elements within a root.
+   * On change, persist to localStorage and reload the panel via HTMX.
+   * The nav bar appears twice (above + below table); both selectors are
+   * wired but only one triggers the localStorage-restore reload.
+   */
+  function mountPageSizeSelectors(root) {
+    var selects = (root || document).querySelectorAll("[data-tap-page-size-select]");
+    var reloadTriggered = false;
+
+    selects.forEach(function (sel) {
+      // Skip already-wired selectors.
+      if (sel.getAttribute("data-tap-mounted")) return;
+      sel.setAttribute("data-tap-mounted", "true");
+
+      // On first load, if localStorage has a stored value and it differs from
+      // the server-rendered selection, trigger a reload with the stored value.
+      // Only one selector needs to trigger this (the reload replaces both).
+      if (!reloadTriggered) {
+        var stored = getStoredPageSize();
+        if (stored !== null && sel.value !== stored) {
+          var hasOption = Array.from(sel.options).some(function (o) {
+            return o.value === stored;
+          });
+          if (hasOption) {
+            sel.value = stored;
+            reloadTriggered = true;
+            reloadPanel(sel, stored);
+            return;
+          }
+        }
+      }
+
+      sel.addEventListener("change", function () {
+        var newSize = sel.value;
+        storePageSize(newSize);
+        reloadPanel(sel, newSize);
+      });
+    });
+  }
+
+  /**
+   * Reload the panel fragment via HTMX with the given page_size.
+   */
+  function reloadPanel(selectEl, pageSize) {
+    var footer = selectEl.closest("[data-tap-table-footer]");
+    if (!footer) return;
+    var slug = footer.getAttribute("data-tap-panel-slug");
+    var panelId = footer.getAttribute("data-tap-panel-id");
+    if (!slug || !panelId) return;
+
+    var panelEl = footer.closest(".tap-panel--table");
+    if (!panelEl) return;
+
+    var url = "/panel/" + slug + "--" + panelId + "/?page_size=" + pageSize + "&offset=0";
+
+    /* global htmx */
+    if (typeof htmx !== "undefined") {
+      htmx.ajax("GET", url, { target: panelEl, swap: "outerHTML" });
+    }
+  }
+
+  // Initial mount for page-size selectors.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      mountPageSizeSelectors(document);
+    });
+  } else {
+    mountPageSizeSelectors(document);
+  }
 })();

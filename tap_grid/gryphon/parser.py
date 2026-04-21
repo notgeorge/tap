@@ -186,8 +186,14 @@ class _ASTTransformer(Transformer):
             elif isinstance(a, dict):
                 props = a
         # direction is set by the parent edge_pattern rule
-        return EdgePattern(variable=variable, edge_type=edge_type, direction="any",
-                           min_hops=min_hops, max_hops=max_hops, inline_props=props)
+        return EdgePattern(
+            variable=variable,
+            edge_type=edge_type,
+            direction="any",
+            min_hops=min_hops,
+            max_hops=max_hops,
+            inline_props=props,
+        )
 
     def hop_range(self, lo: Token, hi: Token) -> tuple[int, int]:
         return int(lo), int(hi)

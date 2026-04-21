@@ -1,6 +1,5 @@
 """Tests for FLIP default-on behavior (tap_grid.flip)."""
 
-
 from tap_grid.flip import is_flip_enabled, update_flip_map
 from tap_grid.history import is_history_enabled
 
@@ -9,10 +8,10 @@ class TestIsFlipEnabled:
     """is_flip_enabled is True for models with service-writeable fields."""
 
     def test_returns_true_for_model_with_service_schemas(self):
-        """Model with SERVICE_SCHEMAS properties is FLIP-enabled."""
+        """Model with SERVICE_CRUD_SCHEMA properties is FLIP-enabled."""
 
         class NodeModel:
-            SERVICE_SCHEMAS = {
+            SERVICE_CRUD_SCHEMA = {
                 "create": {"type": "object", "properties": {"name": {"type": "string"}}},
                 "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
                 "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
@@ -21,7 +20,7 @@ class TestIsFlipEnabled:
         assert is_flip_enabled(NodeModel) is True
 
     def test_returns_false_for_model_without_service_schemas(self):
-        """Model with no SERVICE_SCHEMAS is not FLIP-enabled."""
+        """Model with no SERVICE_CRUD_SCHEMA is not FLIP-enabled."""
 
         class NoSchemaModel:
             pass
@@ -29,10 +28,10 @@ class TestIsFlipEnabled:
         assert is_flip_enabled(NoSchemaModel) is False
 
     def test_returns_false_for_model_with_empty_service_schemas(self):
-        """Model with SERVICE_SCHEMAS but no properties is not FLIP-enabled."""
+        """Model with SERVICE_CRUD_SCHEMA but no properties is not FLIP-enabled."""
 
         class EmptyModel:
-            SERVICE_SCHEMAS = {
+            SERVICE_CRUD_SCHEMA = {
                 "create": {"type": "object"},
                 "patch": {"type": "object"},
                 "replace": {"type": "object"},
@@ -45,7 +44,7 @@ class TestIsFlipEnabled:
 
         class InternalModel:
             INTERNAL_ONLY = True
-            SERVICE_SCHEMAS = {
+            SERVICE_CRUD_SCHEMA = {
                 "create": {"type": "object", "properties": {"name": {"type": "string"}}},
                 "patch": {"type": "object", "properties": {}},
                 "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
@@ -57,7 +56,7 @@ class TestIsFlipEnabled:
         """FLIP is enabled if at least one schema key has properties."""
 
         class PatchOnlyFields:
-            SERVICE_SCHEMAS = {
+            SERVICE_CRUD_SCHEMA = {
                 "create": {"type": "object"},
                 "patch": {"type": "object", "properties": {"status": {"type": "string"}}},
                 "replace": {"type": "object"},
@@ -83,44 +82,54 @@ class TestIsHistoryEnabled:
 
 
 class TestUpdateFlipMapDefaultOn:
-    """update_flip_map derives tracked fields from SERVICE_SCHEMAS by default."""
+    """update_flip_map derives tracked fields from SERVICE_CRUD_SCHEMA by default."""
 
     def _make(self, schemas=None, internal_only=False):
-        cls = type("TestModel", (), {
-            "SERVICE_SCHEMAS": schemas or {},
-            "INTERNAL_ONLY": internal_only,
-        })
+        cls = type(
+            "TestModel",
+            (),
+            {
+                "SERVICE_CRUD_SCHEMA": schemas or {},
+                "INTERNAL_ONLY": internal_only,
+            },
+        )
         instance = object.__new__(cls)
         instance.flip_map = {}
         return instance
 
     def test_stamps_service_writeable_fields_on_full_save(self):
-        instance = self._make({
-            "create": {"type": "object", "properties": {"name": {"type": "string"}}},
-            "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
-            "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
-        })
+        instance = self._make(
+            {
+                "create": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
+            }
+        )
         result = update_flip_map(instance, None, "batch-abc")
         assert result is True
         assert instance.flip_map == {"name": "batch-abc"}
 
     def test_stamps_only_changed_fields_on_partial_save(self):
-        instance = self._make({
-            "create": {"type": "object", "properties": {"name": {"type": "string"}, "bio": {"type": "string"}}},
-            "patch": {"type": "object", "properties": {"name": {"type": "string"}, "bio": {"type": "string"}}},
-            "replace": {"type": "object", "properties": {"name": {"type": "string"}, "bio": {"type": "string"}}},
-        })
+        instance = self._make(
+            {
+                "create": {"type": "object", "properties": {"name": {"type": "string"}, "bio": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"name": {"type": "string"}, "bio": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"name": {"type": "string"}, "bio": {"type": "string"}}},
+            }
+        )
         result = update_flip_map(instance, ["name"], "batch-123")
         assert result is True
         assert instance.flip_map == {"name": "batch-123"}
         assert "bio" not in instance.flip_map
 
     def test_returns_false_with_no_batch_id(self):
-        instance = self._make({
-            "create": {"type": "object", "properties": {"name": {"type": "string"}}},
-            "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
-            "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
-        })
+        instance = self._make(
+            {
+                "create": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
+            }
+        )
         result = update_flip_map(instance, None, None)
         assert result is False
         assert instance.flip_map == {}
@@ -145,21 +154,28 @@ class TestUpdateFlipMapDefaultOn:
 
     def test_union_of_all_schema_properties(self):
         """Fields from create, patch, and replace are all tracked."""
-        instance = self._make({
-            "create": {"type": "object", "properties": {"title": {"type": "string"}}},
-            "patch": {"type": "object", "properties": {"description": {"type": "string"}}},
-            "replace": {"type": "object", "properties": {"title": {"type": "string"}, "source": {"type": "string"}}},
-        })
+        instance = self._make(
+            {
+                "create": {"type": "object", "properties": {"title": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"description": {"type": "string"}}},
+                "replace": {
+                    "type": "object",
+                    "properties": {"title": {"type": "string"}, "source": {"type": "string"}},
+                },
+            }
+        )
         result = update_flip_map(instance, None, "batch-xyz")
         assert result is True
         assert set(instance.flip_map.keys()) == {"title", "description", "source"}
 
     def test_overwrites_previous_batch_id(self):
-        instance = self._make({
-            "create": {"type": "object", "properties": {"name": {"type": "string"}}},
-            "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
-            "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
-        })
+        instance = self._make(
+            {
+                "create": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "patch": {"type": "object", "properties": {"name": {"type": "string"}}},
+                "replace": {"type": "object", "properties": {"name": {"type": "string"}}},
+            }
+        )
         instance.flip_map = {"name": "old-batch"}
         update_flip_map(instance, ["name"], "new-batch")
         assert instance.flip_map["name"] == "new-batch"

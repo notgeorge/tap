@@ -62,8 +62,7 @@ class Registry(Generic[T]):
                 self._data[key] = self._merge_fn(self._data[key], value)
                 return
             raise ImproperlyConfigured(
-                f"Registry '{self._name}': key '{key}' is already registered. "
-                "Remove the duplicate registration."
+                f"Registry '{self._name}': key '{key}' is already registered. " "Remove the duplicate registration."
             )
         self._data[key] = value
 
@@ -133,8 +132,7 @@ class ScopedRegistry(Generic[T]):
         module: str | None = getattr(value, "__module__", None)
         if not module:
             raise ValueError(
-                f"ScopedRegistry '{self._name}': cannot infer scope for {value!r}. "
-                "Pass scope= explicitly."
+                f"ScopedRegistry '{self._name}': cannot infer scope for {value!r}. " "Pass scope= explicitly."
             )
         return module
 
@@ -165,17 +163,12 @@ class ScopedRegistry(Generic[T]):
         if scope is not None:
             scope_data = self._data.get(scope, {})
             if key not in scope_data:
-                raise KeyError(
-                    f"ScopedRegistry '{self._name}': key '{scope}:{key}' not found."
-                )
+                raise KeyError(f"ScopedRegistry '{self._name}': key '{scope}:{key}' not found.")
             return scope_data[key]
 
         matches = {s: d[key] for s, d in self._data.items() if key in d}
         if not matches:
-            raise KeyError(
-                f"ScopedRegistry '{self._name}': no value for key '{key}'. "
-                f"All keys: {self.keys()}"
-            )
+            raise KeyError(f"ScopedRegistry '{self._name}': no value for key '{key}'. " f"All keys: {self.keys()}")
         if len(matches) > 1:
             candidates = sorted(f"{s}:{key}" for s in matches)
             raise KeyError(

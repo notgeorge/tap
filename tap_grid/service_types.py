@@ -19,7 +19,7 @@ class WriteOperation:
               create_edge | patch_edge | replace_edge | delete_edge.
         type_slug: Entity type slug, required for create_node.
         target: Entity UUID (str or uuid.UUID) for patch / replace / delete verbs.
-        payload: JSON-safe field values validated against SERVICE_SCHEMAS.
+        payload: JSON-safe field values validated against SERVICE_CRUD_SCHEMA.
         from_target: Source entity UUID for create_edge.
         to_target: Destination entity UUID for create_edge.
         edge_type: Edge type string for create_edge.

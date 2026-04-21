@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import jsonschema
+
 logger = logging.getLogger(__name__)
 
 _ALLOWED_TOP_KEYS = {
@@ -32,15 +34,17 @@ _ALLOWED_TOP_KEYS = {
 }
 _REQUIRED_TOP_KEYS = {"manifest_version", "plugin_version", "slug", "name"}
 
-_ALLOWED_EDGE_FILE_KEYS = {
-    "slug",
-    "name",
-    "description",
-    "sources",
-    "targets",
-    "property_schema",
-    "default_dimensions",
-}
+_EDGE_SCHEMA_PATH = Path(__file__).resolve().parent.parent / "tap_grid" / "schemas" / "edge-definition.schema.json"
+_edge_schema_cache: dict[str, Any] | None = None
+
+
+def _load_edge_schema() -> dict[str, Any]:
+    """Load and cache the edge definition JSON Schema."""
+    global _edge_schema_cache
+    if _edge_schema_cache is None:
+        with open(_EDGE_SCHEMA_PATH) as fh:
+            _edge_schema_cache = json.load(fh)
+    return _edge_schema_cache
 
 
 class PluginManifestError(Exception):
@@ -154,7 +158,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
         plugin_root=plugin_root,
     )
 
-    _validate_models_dir(manifest)
+    _validate_convention_dirs(manifest)
     _validate_grift_paths(manifest)
 
     return manifest
@@ -228,53 +232,31 @@ def _load_edge_file(
     if not isinstance(data, dict):
         raise PluginManifestError(f"Edge file '{rel_path}' must be a JSON object")
 
-    unknown = set(data.keys()) - _ALLOWED_EDGE_FILE_KEYS
-    if unknown:
-        raise PluginManifestError(f"Unknown keys in edge file '{rel_path}': {sorted(unknown)}")
+    # Validate against the edge definition JSON Schema.
+    schema = _load_edge_schema()
+    try:
+        jsonschema.validate(instance=data, schema=schema)
+    except jsonschema.ValidationError as exc:
+        raise PluginManifestError(
+            f"Edge file '{rel_path}' schema validation failed: {exc.message}"
+        ) from exc
 
-    file_slug = data.get("slug")
-    if not isinstance(file_slug, str) or not file_slug:
-        raise PluginManifestError(f"Edge file '{rel_path}' missing required 'slug' field")
+    # Slug must match the manifest key.
+    file_slug = data["slug"]
     if file_slug != manifest_slug:
         raise PluginManifestError(
             f"Edge file '{rel_path}' slug '{file_slug}' does not match manifest key '{manifest_slug}'"
         )
 
-    name = data.get("name")
-    if not isinstance(name, str) or not name:
-        raise PluginManifestError(f"Edge file '{rel_path}' missing required 'name' field")
-
-    description = data.get("description")
-    if not isinstance(description, str) or not description:
-        raise PluginManifestError(f"Edge file '{rel_path}' missing required 'description' field")
-
-    sources = data.get("sources")
-    if sources is not None:
-        if not isinstance(sources, list) or not all(isinstance(s, str) for s in sources):
-            raise PluginManifestError(f"Edge file '{rel_path}' 'sources' must be an array of strings")
-
-    targets = data.get("targets")
-    if targets is not None:
-        if not isinstance(targets, list) or not all(isinstance(t, str) for t in targets):
-            raise PluginManifestError(f"Edge file '{rel_path}' 'targets' must be an array of strings")
-
-    property_schema = data.get("property_schema")
-    if property_schema is not None and not isinstance(property_schema, dict):
-        raise PluginManifestError(f"Edge file '{rel_path}' 'property_schema' must be an object")
-
-    default_dimensions = data.get("default_dimensions")
-    if default_dimensions is not None and not isinstance(default_dimensions, dict):
-        raise PluginManifestError(f"Edge file '{rel_path}' 'default_dimensions' must be an object")
-
     return EdgeEntry(
         slug=file_slug,
         file_path=rel_path,
-        name=name,
-        description=description,
-        sources=sources,
-        targets=targets,
-        property_schema=property_schema,
-        default_dimensions=default_dimensions,
+        name=data["name"],
+        description=data["description"],
+        sources=data.get("sources"),
+        targets=data.get("targets"),
+        property_schema=data.get("property_schema"),
+        default_dimensions=data.get("default_dimensions"),
     )
 
 
@@ -350,14 +332,23 @@ def _validate_top_level(raw: dict[str, Any], manifest_path: Path) -> None:
         )
 
 
-def _validate_models_dir(manifest: PluginManifest) -> None:
-    if not manifest.models:
-        return
-    models_dir = manifest.plugin_root / "models"
-    if not models_dir.is_dir():
-        raise PluginManifestError(
-            f"Plugin '{manifest.slug}' is missing required 'models/' directory at {manifest.plugin_root}"
-        )
+def _validate_convention_dirs(manifest: PluginManifest) -> None:
+    """Validate that convention directories exist when the corresponding surface is declared."""
+    checks = [
+        (manifest.models, "models"),
+        (manifest.edges, "edges"),
+        (manifest.searches, "searches"),
+        (manifest.grift, "grift"),
+    ]
+    for entries, dirname in checks:
+        if not entries:
+            continue
+        dir_path = manifest.plugin_root / dirname
+        if not dir_path.is_dir():
+            raise PluginManifestError(
+                f"Plugin '{manifest.slug}' declares [{dirname}] but is missing "
+                f"required '{dirname}/' directory at {manifest.plugin_root}"
+            )
 
 
 def _validate_grift_paths(manifest: PluginManifest) -> None:

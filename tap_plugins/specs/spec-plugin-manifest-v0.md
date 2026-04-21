@@ -27,13 +27,13 @@ The manifest is not a general package descriptor. It is TAP-specific metadata fo
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-plugin-manifest-v0-scaffold | [Plugin Package Scaffold](#plugin-package-scaffold) | Implemented | Minimum required files and Django AppConfig conventions |
-| req-plugin-manifest-v0-file | [Manifest File And Format](#manifest-file-and-format) | Proposed | Fixed file name and TOML format |
-| req-plugin-manifest-v0-top | [Top-Level Fields](#top-level-fields) | Proposed | Exact required and optional root fields |
+| req-plugin-manifest-v0-file | [Manifest File And Format](#manifest-file-and-format) | Implemented | Fixed file name and TOML format |
+| req-plugin-manifest-v0-top | [Top-Level Fields](#top-level-fields) | Implemented | Exact required and optional root fields |
 | req-plugin-manifest-v0-models | [Model Mappings](#model-mappings) | Implemented | Exact slug-to-class mapping for declared TAP model types |
-| req-plugin-manifest-v0-edges | [Edge Mappings](#edge-mappings) | Proposed | Exact slug-to-file mapping for declared edge types |
-| req-plugin-manifest-v0-edge-file | [Edge Definition File](#edge-definition-file) | Proposed | Strict JSON shape for individual edge definition files |
-| req-plugin-manifest-v0-editors | [Editor Mappings](#editor-mappings) | Proposed | Exact entity-type-to-descriptor mapping for declared editors |
-| req-plugin-manifest-v0-searches | [Search Mappings](#search-mappings) | Proposed | Exact runner-key-to-callable mapping for declared search runners |
+| req-plugin-manifest-v0-edges | [Edge Mappings](#edge-mappings) | Implemented | Exact slug-to-file mapping for declared edge types |
+| req-plugin-manifest-v0-edge-file | [Edge Definition File](#edge-definition-file) | Implemented | Strict JSON shape for individual edge definition files |
+| req-plugin-manifest-v0-editors | [Editor Mappings](#editor-mappings) | Implemented | Exact entity-type-to-descriptor mapping for declared editors |
+| req-plugin-manifest-v0-searches | [Search Mappings](#search-mappings) | Implemented | Exact runner-key-to-callable mapping for declared search runners |
 | req-plugin-manifest-v0-grift | [GRIFT Mappings](#grift-mappings) | Implemented | Bundle-to-file mapping for declared GRIFT bundles; auto-imported on plugin load |
 | req-plugin-manifest-v0-paths | [Path Rules And Conventions](#path-rules-and-conventions) | Implemented | Required directories, relative paths, data/ subdirectory support |
 | req-plugin-manifest-v0-validation | [Validation Rules](#validation-rules) | Implemented | Strict validation and loader checks |
@@ -101,7 +101,7 @@ If TAP adds a plugin scaffolding CLI command, it should generate these three fil
 ### Manifest File And Format
 ----
 RID: `req-plugin-manifest-v0-file`
-Status: `Proposed`
+Status: `Implemented`
 
 The plugin manifest is a TOML file with a fixed name.
 
@@ -122,10 +122,10 @@ The loader reads `tap-plugin.toml` as the canonical declaration file for plugin 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-file-1 | Fixed File Name | Proposed | The plugin manifest file is named `tap-plugin.toml`. | |
-| req-plugin-manifest-v0-file-2 | Plugin Root Location | Proposed | The manifest lives at the plugin root. | |
-| req-plugin-manifest-v0-file-3 | TOML Format | Proposed | The manifest is encoded as TOML. | |
-| req-plugin-manifest-v0-file-4 | Declarative Only | Proposed | The manifest contains declarations only, not loader hooks or executable behavior. | |
+| req-plugin-manifest-v0-file-1 | Fixed File Name | Implemented | The plugin manifest file is named `tap-plugin.toml`. | |
+| req-plugin-manifest-v0-file-2 | Plugin Root Location | Implemented | The manifest lives at the plugin root. | |
+| req-plugin-manifest-v0-file-3 | TOML Format | Implemented | The manifest is encoded as TOML. | |
+| req-plugin-manifest-v0-file-4 | Declarative Only | Implemented | The manifest contains declarations only, not loader hooks or executable behavior. | |
 
 #### Future
 Later work may define how the plugin root is discovered or whether manifests can be generated, but v0 assumes a direct file at the plugin root.
@@ -133,7 +133,7 @@ Later work may define how the plugin root is discovered or whether manifests can
 ### Top-Level Fields
 ----
 RID: `req-plugin-manifest-v0-top`
-Status: `Proposed`
+Status: `Implemented`
 
 The v0 manifest has a small, explicit top-level shape.
 
@@ -188,11 +188,11 @@ description = "Middle-earth example plugin."
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-top-1 | Required Identity Fields | Proposed | The manifest requires `manifest_version`, `plugin_version`, `slug`, and `name`. | |
-| req-plugin-manifest-v0-top-2 | Optional Description | Proposed | `description` is optional. | |
-| req-plugin-manifest-v0-top-3 | Optional Sections | Proposed | `models`, `edges`, `editors`, `searches`, and `grift` sections may be omitted when empty. | |
-| req-plugin-manifest-v0-top-4 | Unknown Top-Level Keys Rejected | Proposed | Unknown top-level keys are invalid. | |
-| req-plugin-manifest-v0-top-5 | Manifest Version Fixed | Proposed | v0 manifests use `manifest_version = "0"`. | |
+| req-plugin-manifest-v0-top-1 | Required Identity Fields | Implemented | The manifest requires `manifest_version`, `plugin_version`, `slug`, and `name`. | |
+| req-plugin-manifest-v0-top-2 | Optional Description | Implemented | `description` is optional. | |
+| req-plugin-manifest-v0-top-3 | Optional Sections | Implemented | `models`, `edges`, `editors`, `searches`, and `grift` sections may be omitted when empty. | |
+| req-plugin-manifest-v0-top-4 | Unknown Top-Level Keys Rejected | Implemented | Unknown top-level keys are invalid. | |
+| req-plugin-manifest-v0-top-5 | Manifest Version Fixed | Implemented | v0 manifests use `manifest_version = "0"`. | |
 
 #### Future
 Later versions may add compatibility ranges, authorship, licensing, dependencies, or capability flags.
@@ -200,7 +200,7 @@ Later versions may add compatibility ranges, authorship, licensing, dependencies
 ### Edge Mappings
 ----
 RID: `req-plugin-manifest-v0-edges`
-Status: `Proposed`
+Status: `Implemented`
 
 The manifest declares plugin-defined edge types explicitly as slug-to-file mappings.
 
@@ -240,14 +240,14 @@ Duplicate edge file paths inside one manifest are invalid.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-edges-1 | Mapping Table | Proposed | Edge declarations use an `[edges]` TOML table. | |
-| req-plugin-manifest-v0-edges-2 | Slug To File Shape | Proposed | Each `[edges]` entry maps an edge type slug to a relative edge definition file path. | |
-| req-plugin-manifest-v0-edges-3 | One File Per Edge | Proposed | Each edge type is declared in its own file. | |
-| req-plugin-manifest-v0-edges-4 | Edge Directory Required | Proposed | Edge definition files live under an `edges/` directory at the plugin root. | |
-| req-plugin-manifest-v0-edges-5 | Canonical Edge Extension | Proposed | Edge definition files use the `.edge.json` extension. | |
-| req-plugin-manifest-v0-edges-6 | Loader Validates Slug Match | Proposed | The loader validates that the edge file's `slug` matches the manifest key. | |
-| req-plugin-manifest-v0-edges-7 | Duplicate Slugs Impossible | Proposed | The TOML table structure prevents duplicate edge slug keys within one manifest. | |
-| req-plugin-manifest-v0-edges-8 | Duplicate Paths Invalid | Proposed | Duplicate edge definition file paths in one manifest are invalid. | |
+| req-plugin-manifest-v0-edges-1 | Mapping Table | Implemented | Edge declarations use an `[edges]` TOML table. | |
+| req-plugin-manifest-v0-edges-2 | Slug To File Shape | Implemented | Each `[edges]` entry maps an edge type slug to a relative edge definition file path. | |
+| req-plugin-manifest-v0-edges-3 | One File Per Edge | Implemented | Each edge type is declared in its own file. | |
+| req-plugin-manifest-v0-edges-4 | Edge Directory Required | Implemented | Edge definition files live under an `edges/` directory at the plugin root. | |
+| req-plugin-manifest-v0-edges-5 | Canonical Edge Extension | Implemented | Edge definition files use the `.edge.json` extension. | |
+| req-plugin-manifest-v0-edges-6 | Loader Validates Slug Match | Implemented | The loader validates that the edge file's `slug` matches the manifest key. | |
+| req-plugin-manifest-v0-edges-7 | Duplicate Slugs Impossible | Implemented | The TOML table structure prevents duplicate edge slug keys within one manifest. | |
+| req-plugin-manifest-v0-edges-8 | Duplicate Paths Invalid | Implemented | Duplicate edge definition file paths in one manifest are invalid. | |
 
 #### Future
 Later versions may allow shared schema fragments or richer target selectors, but v0 keeps one strict JSON object per edge type.
@@ -255,7 +255,7 @@ Later versions may allow shared schema fragments or richer target selectors, but
 ### Edge Definition File
 ----
 RID: `req-plugin-manifest-v0-edge-file`
-Status: `Proposed`
+Status: `Implemented`
 
 Each declared edge path points to one strict JSON object describing a single edge type.
 
@@ -310,12 +310,12 @@ Example:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-edge-file-1 | Strict Json Object | Proposed | Each edge definition file is one JSON object. | |
-| req-plugin-manifest-v0-edge-file-2 | Required Core Fields | Proposed | Each edge definition file requires `slug`, `name`, and `description`. | |
-| req-plugin-manifest-v0-edge-file-3 | Simplified Endpoint Arrays | Proposed | `sources` and `targets`, when present, are arrays of TAP type slug strings. | |
-| req-plugin-manifest-v0-edge-file-4 | Optional Property Schema | Proposed | `property_schema` may be declared as an object. | |
-| req-plugin-manifest-v0-edge-file-5 | Optional Default Dimensions | Proposed | `default_dimensions` may be declared as an object. | |
-| req-plugin-manifest-v0-edge-file-6 | Unknown Keys Rejected | Proposed | Unknown keys in an edge definition file are invalid. | |
+| req-plugin-manifest-v0-edge-file-1 | Strict Json Object | Implemented | Each edge definition file is one JSON object. | |
+| req-plugin-manifest-v0-edge-file-2 | Required Core Fields | Implemented | Each edge definition file requires `slug`, `name`, and `description`. | |
+| req-plugin-manifest-v0-edge-file-3 | Simplified Endpoint Arrays | Implemented | `sources` and `targets`, when present, are arrays of TAP type slug strings. | |
+| req-plugin-manifest-v0-edge-file-4 | Optional Property Schema | Implemented | `property_schema` may be declared as an object. | |
+| req-plugin-manifest-v0-edge-file-5 | Optional Default Dimensions | Implemented | `default_dimensions` may be declared as an object. | |
+| req-plugin-manifest-v0-edge-file-6 | Unknown Keys Rejected | Implemented | Unknown keys in an edge definition file are invalid. | |
 
 #### Future
 If TAP later needs richer endpoint selectors, it can introduce them in a later manifest version without forcing them into v0.
@@ -323,7 +323,7 @@ If TAP later needs richer endpoint selectors, it can introduce them in a later m
 ### Editor Mappings
 ----
 RID: `req-plugin-manifest-v0-editors`
-Status: `Proposed`
+Status: `Implemented`
 
 The manifest declares editor descriptors explicitly as entity-type-to-class mappings.
 
@@ -361,13 +361,13 @@ Templates used by editor descriptors are not declared in the manifest in v0. The
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-editors-1 | Mapping Table | Proposed | Editor declarations use an `[editors]` TOML table. | |
-| req-plugin-manifest-v0-editors-2 | Entity Type To Descriptor Shape | Proposed | Each `[editors]` entry maps an entity type slug to a concrete editor descriptor class path. | |
-| req-plugin-manifest-v0-editors-3 | Optional Editors Directory | Proposed | `editors/` is optional and is only needed when a plugin declares editors. | |
-| req-plugin-manifest-v0-editors-4 | One Editor Per Entity Type | Proposed | v0 allows at most one editor per entity type within a plugin. | |
-| req-plugin-manifest-v0-editors-5 | Loader Validates Descriptor Class | Proposed | The loader validates that each declared editor class resolves to a concrete `EditorDescriptor`. | |
-| req-plugin-manifest-v0-editors-6 | Loader Validates Entity Type Match | Proposed | The loader validates that each declared editor descriptor matches the manifest entity type key. | |
-| req-plugin-manifest-v0-editors-7 | Templates Stay Implicit | Proposed | Templates referenced by editor descriptors are not separately declared in the manifest in v0. | |
+| req-plugin-manifest-v0-editors-1 | Mapping Table | Implemented | Editor declarations use an `[editors]` TOML table. | |
+| req-plugin-manifest-v0-editors-2 | Entity Type To Descriptor Shape | Implemented | Each `[editors]` entry maps an entity type slug to a concrete editor descriptor class path. | |
+| req-plugin-manifest-v0-editors-3 | Optional Editors Directory | Implemented | `editors/` is optional and is only needed when a plugin declares editors. | |
+| req-plugin-manifest-v0-editors-4 | One Editor Per Entity Type | Implemented | v0 allows at most one editor per entity type within a plugin. | |
+| req-plugin-manifest-v0-editors-5 | Loader Validates Descriptor Class | Implemented | The loader validates that each declared editor class resolves to a concrete `EditorDescriptor`. | |
+| req-plugin-manifest-v0-editors-6 | Loader Validates Entity Type Match | Implemented | The loader validates that each declared editor descriptor matches the manifest entity type key. | |
+| req-plugin-manifest-v0-editors-7 | Templates Stay Implicit | Implemented | Templates referenced by editor descriptors are not separately declared in the manifest in v0. | |
 
 #### Future
 If TAP later introduces non-web editor surfaces or multiple editor variants per type, the manifest can grow a more structured editor declaration model.
@@ -375,7 +375,7 @@ If TAP later introduces non-web editor surfaces or multiple editor variants per 
 ### Search Mappings
 ----
 RID: `req-plugin-manifest-v0-searches`
-Status: `Proposed`
+Status: `Implemented`
 
 The manifest declares search runners explicitly as runner-key-to-callable mappings.
 
@@ -411,12 +411,12 @@ Duplicate runner keys are structurally impossible within one TOML table.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-searches-1 | Mapping Table | Proposed | Search declarations use a `[searches]` TOML table. | |
-| req-plugin-manifest-v0-searches-2 | Runner Key To Callable Shape | Proposed | Each `[searches]` entry maps a short runner key to a concrete callable path. | |
-| req-plugin-manifest-v0-searches-3 | Searches Directory Convention | Proposed | `searches/` is the required directory for search runner modules when a plugin declares searches. | |
-| req-plugin-manifest-v0-searches-4 | One Runner Per Key | Proposed | v0 allows at most one search runner per runner key within a plugin. | |
-| req-plugin-manifest-v0-searches-5 | Loader Validates Callable | Proposed | The loader validates that each declared search target resolves to a callable. | |
-| req-plugin-manifest-v0-searches-6 | Scoped Registration Contract | Proposed | The loader registers manifest-declared search runners using TAP's scoped search runner registry so persisted searches may use the fully qualified runner key form. | |
+| req-plugin-manifest-v0-searches-1 | Mapping Table | Implemented | Search declarations use a `[searches]` TOML table. | |
+| req-plugin-manifest-v0-searches-2 | Runner Key To Callable Shape | Implemented | Each `[searches]` entry maps a short runner key to a concrete callable path. | |
+| req-plugin-manifest-v0-searches-3 | Searches Directory Convention | Implemented | `searches/` is the required directory for search runner modules when a plugin declares searches. | |
+| req-plugin-manifest-v0-searches-4 | One Runner Per Key | Implemented | v0 allows at most one search runner per runner key within a plugin. | |
+| req-plugin-manifest-v0-searches-5 | Loader Validates Callable | Implemented | The loader validates that each declared search target resolves to a callable. | |
+| req-plugin-manifest-v0-searches-6 | Scoped Registration Contract | Implemented | The loader registers manifest-declared search runners using TAP's scoped search runner registry so persisted searches may use the fully qualified runner key form. | |
 
 #### Future
 If TAP later adds richer search metadata, the manifest may grow optional display or parameter-description fields without changing the core runner mapping concept.
@@ -424,7 +424,7 @@ If TAP later adds richer search metadata, the manifest may grow optional display
 ### Model Mappings
 ----
 RID: `req-plugin-manifest-v0-models`
-Status: `Proposed`
+Status: `Implemented`
 
 The manifest declares TAP-managed plugin model types explicitly as slug-to-class mappings.
 
@@ -454,12 +454,12 @@ Duplicate model slugs are structurally impossible within one TOML table.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-models-1 | Mapping Table | Proposed | Model declarations use a `[models]` TOML table. | |
-| req-plugin-manifest-v0-models-2 | Slug To Class Shape | Proposed | Each `[models]` entry maps a TAP type slug to a concrete class path. | |
-| req-plugin-manifest-v0-models-3 | Concrete Class Path | Proposed | Each mapping value names a concrete Python class path, not just a module path. | |
-| req-plugin-manifest-v0-models-4 | Loader Validates Class | Proposed | The loader validates that each declared class exists and is a concrete TAP-managed model. | |
-| req-plugin-manifest-v0-models-5 | Loader Validates Slug Match | Proposed | The loader validates that each declared class matches the declared TAP type slug key. | |
-| req-plugin-manifest-v0-models-6 | Duplicate Slugs Impossible | Proposed | The TOML table structure prevents duplicate model slug keys within one manifest. | |
+| req-plugin-manifest-v0-models-1 | Mapping Table | Implemented | Model declarations use a `[models]` TOML table. | |
+| req-plugin-manifest-v0-models-2 | Slug To Class Shape | Implemented | Each `[models]` entry maps a TAP type slug to a concrete class path. | |
+| req-plugin-manifest-v0-models-3 | Concrete Class Path | Implemented | Each mapping value names a concrete Python class path, not just a module path. | |
+| req-plugin-manifest-v0-models-4 | Loader Validates Class | Implemented | The loader validates that each declared class exists and is a concrete TAP-managed model. | |
+| req-plugin-manifest-v0-models-5 | Loader Validates Slug Match | Implemented | The loader validates that each declared class matches the declared TAP type slug key. | |
+| req-plugin-manifest-v0-models-6 | Duplicate Slugs Impossible | Implemented | The TOML table structure prevents duplicate model slug keys within one manifest. | |
 
 #### Future
 Later versions may add optional display metadata here or may source more of that data from the model class itself.
@@ -521,16 +521,16 @@ Status: `In Development`
 The manifest requires specific directories and supports `grift/` subdirectory organization without requiring sub-paths to be declared.
 
 #### Status Details
-Updated from Proposed: `models/` is now a required directory, not a convention. `grift/` allows optional sub-directories as an organizational convenience that does not change loader semantics.
+Updated: convention directories are required only when the plugin declares the corresponding manifest surface. A plugin that does not declare `[models]` does not need a `models/` directory. `grift/` allows optional sub-directories as an organizational convenience that does not change loader semantics.
 
 #### Implementation
 In v0:
 
-- `models/` is a **required** directory at the plugin root. TAP-managed model code must live under `models/`. A plugin without a `models/` directory is invalid.
-- `edges/` is the required directory for edge definition files. Plugin edge declarations point to files under `edges/`.
-- `editors/` is an optional directory for editor descriptor and Django form class code when a plugin declares editors.
-- `searches/` is the required directory for search runner modules when a plugin declares searches.
-- `grift/` is the required directory for GRIFT files. Plugin GRIFT bundles are declared with paths relative to the plugin root (e.g. `grift/core-data.grift.json`).
+- `models/` is required at the plugin root when the plugin declares a `[models]` section. A plugin without `[models]` may omit `models/` entirely.
+- `edges/` is required at the plugin root when the plugin declares an `[edges]` section.
+- `editors/` is optional; needed only when a plugin declares `[editors]`.
+- `searches/` is required at the plugin root when the plugin declares a `[searches]` section.
+- `grift/` is required at the plugin root when the plugin declares a `[grift]` section.
 
 `grift/` sub-directories are allowed as a convenience for organizing large or multi-category data sets (e.g. `grift/nodes/characters.grift.json`, `grift/edges.grift.json`). Sub-directory paths are declared explicitly in the manifest `[grift]` table the same way as top-level paths. TAP does not require that sub-directories be declared separately; only file-level GRIFT entries are declarable.
 
@@ -547,15 +547,15 @@ If files exist in `models/`, `edges/`, `editors/`, `searches/`, or `grift/` (inc
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-paths-1 | Required Directories Defined | Implemented | v0 defines `models/`, `edges/`, and `grift/` as required plugin directories for their declared surfaces, and `editors/` plus `searches/` as optional locations for declared behavior. | |
+| req-plugin-manifest-v0-paths-1 | Required Directories Defined | Implemented | Convention directories (`models/`, `edges/`, `grift/`, `searches/`) are required only when the plugin declares the corresponding manifest surface. `editors/` is optional even when declared. | |
 | req-plugin-manifest-v0-paths-2 | No Implicit Autoload | Implemented | Files in `models/`, `edges/`, `editors/`, `searches/`, or `grift/` are not loaded solely because they are present. | |
 | req-plugin-manifest-v0-paths-3 | Relative To Plugin Root | Implemented | Manifest paths are resolved relative to the plugin root. | |
 | req-plugin-manifest-v0-paths-4 | Undeclared Files Warn | Implemented | Undeclared files in convention directories produce warnings, not startup errors. | |
 | req-plugin-manifest-v0-paths-5 | Grift Subdirectories Allowed | Implemented | `grift/` may contain sub-directories for organizational convenience without requiring sub-path declarations. | |
-| req-plugin-manifest-v0-paths-6 | Models Directory Required | Implemented | A plugin missing a `models/` directory at its root is invalid. | |
-| req-plugin-manifest-v0-paths-7 | Edges Directory Required | Proposed | A plugin missing an `edges/` directory at its root is invalid when it declares edges. | |
-| req-plugin-manifest-v0-paths-8 | Editors Directory Optional | Proposed | A plugin may omit `editors/` entirely unless it declares editors. | |
-| req-plugin-manifest-v0-paths-9 | Searches Directory Optional | Proposed | A plugin may omit `searches/` entirely unless it declares search runners. | |
+| req-plugin-manifest-v0-paths-6 | Models Directory Conditional | Implemented | `models/` is required only when the plugin declares `[models]`. | |
+| req-plugin-manifest-v0-paths-7 | Edges Directory Conditional | Implemented | `edges/` is required only when the plugin declares `[edges]`. | |
+| req-plugin-manifest-v0-paths-8 | Editors Directory Optional | Implemented | A plugin may omit `editors/` entirely even when it declares editors. | |
+| req-plugin-manifest-v0-paths-9 | Searches Directory Conditional | Implemented | `searches/` is required only when the plugin declares `[searches]`. | |
 
 #### Future
 Later tooling may scaffold these directories automatically or offer commands to reconcile undeclared files with manifest entries. Sub-directory conventions within `grift/` may be standardized if patterns emerge across plugins.
@@ -563,7 +563,7 @@ Later tooling may scaffold these directories automatically or offer commands to 
 ### Validation Rules
 ----
 RID: `req-plugin-manifest-v0-validation`
-Status: `Proposed`
+Status: `Implemented`
 
 The v0 manifest is intentionally strict.
 
@@ -621,15 +621,15 @@ The manifest spec is strict by default and does not define a `_reserved` escape 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-manifest-v0-validation-1 | TOML Parse Required | Proposed | The manifest must parse as valid TOML. | |
-| req-plugin-manifest-v0-validation-2 | Required Strings Present | Proposed | Required fields must exist and be non-empty strings. | |
-| req-plugin-manifest-v0-validation-3 | Unknown Keys Rejected Everywhere | Proposed | Unknown keys are rejected at the top level and in section entries. | |
-| req-plugin-manifest-v0-validation-4 | Plugin-Root Path Safety | Proposed | Declared edge and GRIFT paths may not escape the plugin root. | |
-| req-plugin-manifest-v0-validation-5 | Model Resolution Enforced | Proposed | Declared model class paths must resolve to valid concrete TAP-managed model classes. | |
-| req-plugin-manifest-v0-validation-6 | Edge Resolution Enforced | Proposed | Declared edge file paths must resolve to valid strict edge definition files with matching slugs. | |
-| req-plugin-manifest-v0-validation-7 | Editor Resolution Enforced | Proposed | Declared editor class paths must resolve to valid concrete editor descriptors with matching entity types. | |
-| req-plugin-manifest-v0-validation-8 | Search Resolution Enforced | Proposed | Declared search callable paths must resolve to valid callables and register through the scoped runner contract. | |
-| req-plugin-manifest-v0-validation-9 | Strict By Default | Proposed | v0 does not define a generic reserved or future-extension section. | |
+| req-plugin-manifest-v0-validation-1 | TOML Parse Required | Implemented | The manifest must parse as valid TOML. | |
+| req-plugin-manifest-v0-validation-2 | Required Strings Present | Implemented | Required fields must exist and be non-empty strings. | |
+| req-plugin-manifest-v0-validation-3 | Unknown Keys Rejected Everywhere | Implemented | Unknown keys are rejected at the top level and in section entries. | |
+| req-plugin-manifest-v0-validation-4 | Plugin-Root Path Safety | Implemented | Declared edge and GRIFT paths may not escape the plugin root. | |
+| req-plugin-manifest-v0-validation-5 | Model Resolution Enforced | Implemented | Declared model class paths must resolve to valid concrete TAP-managed model classes. | |
+| req-plugin-manifest-v0-validation-6 | Edge Resolution Enforced | Implemented | Declared edge file paths must resolve to valid strict edge definition files with matching slugs. | |
+| req-plugin-manifest-v0-validation-7 | Editor Resolution Enforced | Implemented | Declared editor class paths must resolve to valid concrete editor descriptors with matching entity types. | |
+| req-plugin-manifest-v0-validation-8 | Search Resolution Enforced | Implemented | Declared search callable paths must resolve to valid callables and register through the scoped runner contract. | |
+| req-plugin-manifest-v0-validation-9 | Strict By Default | Implemented | v0 does not define a generic reserved or future-extension section. | |
 
 #### Future
 If v1 needs smoother evolution, it may introduce controlled extension points after more real plugins exist.

@@ -17,7 +17,7 @@ class Artifact(BaseModel):
     ENTITY_DESCRIPTION: ClassVar[str] = "A significant object of power."
     ENTITY_ICON: ClassVar[str] = "artifact"
 
-    FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": _NAME_SCHEMA,
         "power": {"type": "string"},
         "origin": {"type": "string"},

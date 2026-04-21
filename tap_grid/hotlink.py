@@ -27,15 +27,17 @@ if TYPE_CHECKING:
 # Hotlink definition schema (req-grid-hotlink-model)
 # ---------------------------------------------------------------------------
 
-_HOTLINK_REQUIRED_KEYS: frozenset[str] = frozenset({
-    "name",
-    "field",
-    "selector_type",
-    "selector",
-    "edge_direction",
-    "edge_type",
-    "mode",
-})
+_HOTLINK_REQUIRED_KEYS: frozenset[str] = frozenset(
+    {
+        "name",
+        "field",
+        "selector_type",
+        "selector",
+        "edge_direction",
+        "edge_type",
+        "mode",
+    }
+)
 
 _VALID_SELECTOR_TYPES: frozenset[str] = frozenset({"simple_path"})
 _VALID_EDGE_DIRECTIONS: frozenset[str] = frozenset({"outbound", "inbound"})
@@ -60,9 +62,7 @@ def _check_hotlinks(cls: type) -> None:
     hotlinks: list = cls.__dict__.get("HOTLINKS", [])
 
     if not isinstance(hotlinks, list):
-        raise ImproperlyConfigured(
-            f"{cls.__name__}.HOTLINKS must be a list, got {type(hotlinks).__name__}."
-        )
+        raise ImproperlyConfigured(f"{cls.__name__}.HOTLINKS must be a list, got {type(hotlinks).__name__}.")
 
     seen_names: set[str] = set()
 
@@ -70,15 +70,11 @@ def _check_hotlinks(cls: type) -> None:
         prefix = f"{cls.__name__}.HOTLINKS[{i}]"
 
         if not isinstance(defn, dict):
-            raise ImproperlyConfigured(
-                f"{prefix}: each entry must be a dict, got {type(defn).__name__}."
-            )
+            raise ImproperlyConfigured(f"{prefix}: each entry must be a dict, got {type(defn).__name__}.")
 
         missing = _HOTLINK_REQUIRED_KEYS - set(defn.keys())
         if missing:
-            raise ImproperlyConfigured(
-                f"{prefix}: missing required keys: {sorted(missing)}."
-            )
+            raise ImproperlyConfigured(f"{prefix}: missing required keys: {sorted(missing)}.")
 
         name = defn["name"]
         if not isinstance(name, str) or not name:
@@ -104,14 +100,14 @@ def _check_hotlinks(cls: type) -> None:
         mode = defn["mode"]
         if mode not in _VALID_MODES:
             raise ImproperlyConfigured(
-                f"{prefix}: 'mode' {mode!r} is not supported. "
-                f"Valid values: {sorted(_VALID_MODES)}."
+                f"{prefix}: 'mode' {mode!r} is not supported. " f"Valid values: {sorted(_VALID_MODES)}."
             )
 
 
 # ---------------------------------------------------------------------------
 # Selector backends (req-grid-hotlink-selector)
 # ---------------------------------------------------------------------------
+
 
 def _simple_path_extract(value: Any, selector: str) -> set[str]:
     """Extract identifiers using a TAP simple-path selector.
@@ -180,6 +176,7 @@ def extract_identifiers(field_value: Any, selector_type: str, selector: str) -> 
 # Hotlink validation (req-grid-hotlink-validation)
 # ---------------------------------------------------------------------------
 
+
 def validate_hotlinks(instance: BaseModel) -> None:
     """Validate hotlink consistency for a model instance.
 
@@ -239,10 +236,7 @@ def validate_hotlinks(instance: BaseModel) -> None:
         edge_value_counts: Counter[str] = Counter()
         for edge in edge_qs:
             hotlink_data = (edge.properties or {}).get("hotlink", {})
-            if (
-                hotlink_data.get("model") == entity_type_slug
-                and hotlink_data.get("spec") == name
-            ):
+            if hotlink_data.get("model") == entity_type_slug and hotlink_data.get("spec") == name:
                 v = hotlink_data.get("value")
                 if v is not None:
                     edge_value_counts[str(v)] += 1
@@ -259,9 +253,7 @@ def validate_hotlinks(instance: BaseModel) -> None:
                     parts.append(f"missing edges for: {sorted(missing_edges)}")
                 if extra_edges:
                     parts.append(f"extra edges with no matching reference: {sorted(extra_edges)}")
-                errors.setdefault(field, []).append(
-                    f"Hotlink '{name}' ({mode}): {'; '.join(parts)}."
-                )
+                errors.setdefault(field, []).append(f"Hotlink '{name}' ({mode}): {'; '.join(parts)}.")
 
         elif mode == "exists":
             missing = extracted - edge_values
@@ -279,9 +271,7 @@ def validate_hotlinks(instance: BaseModel) -> None:
             if duplicates:
                 parts.append(f"multiple edges found for: {sorted(duplicates)}")
             if parts:
-                errors.setdefault(field, []).append(
-                    f"Hotlink '{name}' ({mode}): {'; '.join(parts)}."
-                )
+                errors.setdefault(field, []).append(f"Hotlink '{name}' ({mode}): {'; '.join(parts)}.")
 
     if errors:
         raise ValidationError(errors)

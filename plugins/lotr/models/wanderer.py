@@ -20,7 +20,7 @@ class Wanderer(BaseModel):
     ENTITY_NAME: ClassVar[str] = "Wanderer"
     ENTITY_DESCRIPTION: ClassVar[str] = "An unconstrained traveler."
 
-    FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": _NAME_SCHEMA,
         "journey": {"type": "string"},
     }

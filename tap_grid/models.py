@@ -20,11 +20,11 @@ from tap_grid.history import _get_history_user
 
 
 def dangerously_ignore_validator(fn: Any) -> Any:
-    """Mark a validate_<field>() method as intentionally excluded from FIELD_SCHEMAS.
+    """Mark a validate_<field>() method as intentionally excluded from FIELD_VALIDATION_SCHEMA.
 
     Suppresses the startup invariant check that would otherwise raise
     ImproperlyConfigured when a validate_<field>() method exists but the field
-    is not listed in FIELD_SCHEMAS. Use this to pre-stage validation logic
+    is not listed in FIELD_VALIDATION_SCHEMA. Use this to pre-stage validation logic
     without fully activating it.
 
     The name is deliberately alarming — a validator that exists but never runs
@@ -35,18 +35,18 @@ def dangerously_ignore_validator(fn: Any) -> Any:
 
 
 # Django model methods that start with "validate_" but are not field validators.
-# Overriding these in a subclass should not trigger the FIELD_SCHEMAS check.
+# Overriding these in a subclass should not trigger the FIELD_VALIDATION_SCHEMA check.
 _DJANGO_VALIDATE_METHODS: frozenset[str] = frozenset({"validate_unique", "validate_constraints"})
 
 
 def _check_field_schemas(cls: type) -> None:
-    """Enforce FIELD_SCHEMAS startup invariants at class definition time.
+    """Enforce FIELD_VALIDATION_SCHEMA startup invariants at class definition time.
 
     Checks performed (matching req-grid-entity-validation ACIDs 2–5):
       2. Every entry has "validation": "jsonschema" or "function".
       3. "jsonschema" entries include a "schema" key.
       4. "function" entries have a matching validate_<field>() method.
-      5. No validate_<field>() method in cls.__dict__ is missing from FIELD_SCHEMAS
+      5. No validate_<field>() method in cls.__dict__ is missing from FIELD_VALIDATION_SCHEMA
          (unless decorated with @dangerously_ignore_validator).
 
     Note: ACID-6 ("keys are real fields") is deferred to full_validate() because
@@ -55,21 +55,21 @@ def _check_field_schemas(cls: type) -> None:
 
     Raises ImproperlyConfigured immediately on any violation.
     """
-    schemas: dict[str, dict] = cls.__dict__.get("FIELD_SCHEMAS", {})
+    schemas: dict[str, dict] = cls.__dict__.get("FIELD_VALIDATION_SCHEMA", {})
 
     for field_name, entry in schemas.items():
         # ACID-2: valid "validation" key
         validation = entry.get("validation")
         if validation not in ("jsonschema", "function"):
             raise ImproperlyConfigured(
-                f"{cls.__name__}.FIELD_SCHEMAS['{field_name}']: "
+                f"{cls.__name__}.FIELD_VALIDATION_SCHEMA['{field_name}']: "
                 f'"validation" must be "jsonschema" or "function", got {validation!r}.'
             )
 
         # ACID-3: jsonschema entries must include "schema"
         if validation == "jsonschema" and "schema" not in entry:
             raise ImproperlyConfigured(
-                f"{cls.__name__}.FIELD_SCHEMAS['{field_name}']: "
+                f"{cls.__name__}.FIELD_VALIDATION_SCHEMA['{field_name}']: "
                 f'"jsonschema" entry is missing required "schema" key.'
             )
 
@@ -78,17 +78,17 @@ def _check_field_schemas(cls: type) -> None:
             method = getattr(cls, f"validate_{field_name}", None)
             if not callable(method):
                 raise ImproperlyConfigured(
-                    f"{cls.__name__}.FIELD_SCHEMAS['{field_name}']: "
+                    f"{cls.__name__}.FIELD_VALIDATION_SCHEMA['{field_name}']: "
                     f'"function" validation requires a validate_{field_name}() method on the class.'
                 )
 
-    # ACID-5: every validate_<field>() defined directly on this class must be in FIELD_SCHEMAS
+    # ACID-5: every validate_<field>() defined directly on this class must be in FIELD_VALIDATION_SCHEMA
     for attr_name in cls.__dict__:
         if not attr_name.startswith("validate_"):
             continue
         if attr_name in _DJANGO_VALIDATE_METHODS:
             continue
-        field_name = attr_name[len("validate_"):]
+        field_name = attr_name[len("validate_") :]
         if not field_name:
             continue
         method = getattr(cls, attr_name, None)
@@ -99,38 +99,36 @@ def _check_field_schemas(cls: type) -> None:
         if field_name not in schemas:
             raise ImproperlyConfigured(
                 f"{cls.__name__}.{attr_name}() is defined but '{field_name}' is not in "
-                f"FIELD_SCHEMAS. Add it to FIELD_SCHEMAS or use @dangerously_ignore_validator."
+                f"FIELD_VALIDATION_SCHEMA. Add it to FIELD_VALIDATION_SCHEMA or use @dangerously_ignore_validator."
             )
 
 
 def _check_service_contract(cls: type) -> None:
-    """Enforce FIELD_SCHEMA startup invariants for concrete BaseModel subclasses.
+    """Enforce FIELD_CRUD_SCHEMA startup invariants for concrete BaseModel subclasses.
 
     Skips abstract intermediates (classes without ENTITY_TYPE in their own __dict__).
     For concrete subclasses raises ImproperlyConfigured if:
-      - FIELD_SCHEMA is not declared in cls.__dict__
-      - FIELD_SCHEMA is not a dict, or any entry value is not a dict
-      - Any CREATE_REQUIRED / REPLACE_REQUIRED entry is not a key in FIELD_SCHEMA
+      - FIELD_CRUD_SCHEMA is not declared in cls.__dict__
+      - FIELD_CRUD_SCHEMA is not a dict, or any entry value is not a dict
+      - Any CREATE_REQUIRED / REPLACE_REQUIRED entry is not a key in FIELD_CRUD_SCHEMA
       - Any PATCH_EXTRA_FIELDS entry value is not a dict
     """
     if "ENTITY_TYPE" not in cls.__dict__:
         return
 
-    if "FIELD_SCHEMA" not in cls.__dict__:
+    if "FIELD_CRUD_SCHEMA" not in cls.__dict__:
         raise ImproperlyConfigured(
-            f"{cls.__name__} declares ENTITY_TYPE but is missing FIELD_SCHEMA. "
-            f"All concrete BaseModel subclasses must declare FIELD_SCHEMA."
+            f"{cls.__name__} declares ENTITY_TYPE but is missing FIELD_CRUD_SCHEMA. "
+            f"All concrete BaseModel subclasses must declare FIELD_CRUD_SCHEMA."
         )
 
-    field_schema: dict = cls.__dict__["FIELD_SCHEMA"]
+    field_schema: dict = cls.__dict__["FIELD_CRUD_SCHEMA"]
     if not isinstance(field_schema, dict):
-        raise ImproperlyConfigured(
-            f"{cls.__name__}.FIELD_SCHEMA must be a dict, got {type(field_schema).__name__}."
-        )
+        raise ImproperlyConfigured(f"{cls.__name__}.FIELD_CRUD_SCHEMA must be a dict, got {type(field_schema).__name__}.")
     for fname, fschema in field_schema.items():
         if not isinstance(fschema, dict):
             raise ImproperlyConfigured(
-                f"{cls.__name__}.FIELD_SCHEMA['{fname}'] must be a dict, got {type(fschema).__name__}."
+                f"{cls.__name__}.FIELD_CRUD_SCHEMA['{fname}'] must be a dict, got {type(fschema).__name__}."
             )
 
     for req_attr in ("CREATE_REQUIRED", "REPLACE_REQUIRED"):
@@ -138,7 +136,7 @@ def _check_service_contract(cls: type) -> None:
             for fname in cls.__dict__[req_attr]:
                 if fname not in field_schema:
                     raise ImproperlyConfigured(
-                        f"{cls.__name__}.{req_attr} references '{fname}' which is not in FIELD_SCHEMA."
+                        f"{cls.__name__}.{req_attr} references '{fname}' which is not in FIELD_CRUD_SCHEMA."
                     )
 
     if "PATCH_EXTRA_FIELDS" in cls.__dict__:
@@ -150,15 +148,17 @@ def _check_service_contract(cls: type) -> None:
 
 
 def _build_service_schemas(cls: type) -> dict[str, dict]:
-    """Synthesize SERVICE_SCHEMAS from FIELD_SCHEMA, CREATE_REQUIRED, REPLACE_REQUIRED, PATCH_EXTRA_FIELDS.
+    """Synthesize SERVICE_CRUD_SCHEMA from FIELD_CRUD_SCHEMA, CREATE_REQUIRED, REPLACE_REQUIRED, PATCH_EXTRA_FIELDS.
 
     patch — all fields optional; PATCH_EXTRA_FIELDS appended.
-    create — FIELD_SCHEMA fields; CREATE_REQUIRED enforced.
-    replace — FIELD_SCHEMA fields; REPLACE_REQUIRED enforced (defaults to CREATE_REQUIRED).
+    create — FIELD_CRUD_SCHEMA fields; CREATE_REQUIRED enforced.
+    replace — FIELD_CRUD_SCHEMA fields; REPLACE_REQUIRED enforced (defaults to CREATE_REQUIRED).
     """
-    props: dict[str, dict] = dict(cls.FIELD_SCHEMA)
+    props: dict[str, dict] = dict(cls.FIELD_CRUD_SCHEMA)
     create_req: list[str] = list(getattr(cls, "CREATE_REQUIRED", []))
-    replace_req: list[str] = list(cls.__dict__["REPLACE_REQUIRED"]) if "REPLACE_REQUIRED" in cls.__dict__ else create_req
+    replace_req: list[str] = (
+        list(cls.__dict__["REPLACE_REQUIRED"]) if "REPLACE_REQUIRED" in cls.__dict__ else create_req
+    )
     patch_extra: dict[str, dict] = dict(getattr(cls, "PATCH_EXTRA_FIELDS", {}))
 
     def _schema(properties: dict, required: list[str]) -> dict:
@@ -298,7 +298,7 @@ class BaseModel(models.Model):
 
     FLIP integration:
         FLIP is default-on. Every service-writeable field (declared in
-        FIELD_SCHEMA) is automatically stamped with the active batch_id on
+        FIELD_CRUD_SCHEMA) is automatically stamped with the active batch_id on
         save. Set INTERNAL_ONLY = True to exclude a model type from both
         generic CRUD and FLIP stamping.
 
@@ -309,14 +309,14 @@ class BaseModel(models.Model):
 
     ENTITY_TYPE: ClassVar[str]
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]]
-    FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {}
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {}
     # Write surface declarations — concrete subclasses override these.
-    # SERVICE_SCHEMAS is synthesized from them at class definition time.
-    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {}
+    # SERVICE_CRUD_SCHEMA is synthesized from them at class definition time.
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {}
     CREATE_REQUIRED: ClassVar[list[str]] = []
     # REPLACE_REQUIRED: not declared here; synthesizer falls back to CREATE_REQUIRED.
     PATCH_EXTRA_FIELDS: ClassVar[dict[str, dict]] = {}
-    SERVICE_SCHEMAS: ClassVar[dict[str, dict]] = {}
+    SERVICE_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {}
     HOTLINKS: ClassVar[list[dict]] = []
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {}
     INTERNAL_ONLY: ClassVar[bool] = False
@@ -356,19 +356,20 @@ class BaseModel(models.Model):
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
 
-        # FIELD_SCHEMAS invariants run first — before any registry side effects.
+        # FIELD_VALIDATION_SCHEMA invariants run first — before any registry side effects.
         # If these raise, nothing has been registered and the failure is clean.
         _check_field_schemas(cls)
 
-        # FIELD_SCHEMA contract — concrete subclasses must declare FIELD_SCHEMA.
-        # SERVICE_SCHEMAS is synthesized from it.
+        # FIELD_CRUD_SCHEMA contract — concrete subclasses must declare FIELD_CRUD_SCHEMA.
+        # SERVICE_CRUD_SCHEMA is synthesized from it.
         _check_service_contract(cls)
         if "ENTITY_TYPE" in cls.__dict__:
-            cls.SERVICE_SCHEMAS = _build_service_schemas(cls)
+            cls.SERVICE_CRUD_SCHEMA = _build_service_schemas(cls)
 
         # HOTLINKS invariants — only validate if this class declares HOTLINKS directly.
         if "HOTLINKS" in cls.__dict__:
             from tap_grid.hotlink import _check_hotlinks
+
             _check_hotlinks(cls)
 
         # Register in the entity model registry if this subclass declares ENTITY_TYPE
@@ -388,7 +389,6 @@ class BaseModel(models.Model):
             from tap_grid.constraints import register_constraints
 
             register_constraints(constraint_type, outbound, inbound)
-
 
     def get_name(self) -> str:
         """Return the name for the auto-created Entity.
@@ -423,7 +423,7 @@ class BaseModel(models.Model):
         """
 
     def full_validate(self) -> None:
-        """Run all declared FIELD_SCHEMAS validators and the whole-record hook.
+        """Run all declared FIELD_VALIDATION_SCHEMA validators and the whole-record hook.
 
         Collects every error before raising so callers see the complete picture.
         Can be called without saving (req-grid-entity-validation-11).
@@ -431,7 +431,7 @@ class BaseModel(models.Model):
         Raises ValidationError({field: [messages]}) if any checks fail.
         """
         errors: dict[str, list[str]] = {}
-        schemas: dict[str, dict] = self.__class__.FIELD_SCHEMAS
+        schemas: dict[str, dict] = self.__class__.FIELD_VALIDATION_SCHEMA
 
         for field_name, entry in schemas.items():
             # ACID-6 (deferred): verify the key is actually an attribute on this instance.
@@ -439,8 +439,7 @@ class BaseModel(models.Model):
             # due to Django metaclass ordering; we catch it here instead.
             if not hasattr(self, field_name):
                 raise ImproperlyConfigured(
-                    f"{self.__class__.__name__}.FIELD_SCHEMAS: '{field_name}' is not an "
-                    f"attribute of this model."
+                    f"{self.__class__.__name__}.FIELD_VALIDATION_SCHEMA: '{field_name}' is not an " f"attribute of this model."
                 )
 
             validation = entry["validation"]
@@ -504,9 +503,7 @@ class BaseModel(models.Model):
 
         entity_type = getattr(self.__class__, "ENTITY_TYPE", None)
         if entity_type is None:
-            raise ImproperlyConfigured(
-                f"{self.__class__.__name__} must declare ENTITY_TYPE: ClassVar[str]."
-            )
+            raise ImproperlyConfigured(f"{self.__class__.__name__} must declare ENTITY_TYPE: ClassVar[str].")
 
         # FLIP: propagate batch_id from CallerContext and update flip_map.
         # Both happen before the DB write so they are atomic with field changes.
@@ -557,7 +554,7 @@ class Edge(BaseModel):
 
     # from_entity, to_entity, and edge_type are dedicated create_edge() parameters,
     # not payload fields. Replace must not include edge_type (immutable once set).
-    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {
         "properties": {"type": "object"},
     }
 
@@ -600,13 +597,9 @@ class Edge(BaseModel):
         """
         if self.entity_id is None:
             if not Entity.objects.filter(pk=self.from_entity_id).exists():
-                raise ValueError(
-                    f"Edge.from_entity {self.from_entity_id} does not exist on the spine."
-                )
+                raise ValueError(f"Edge.from_entity {self.from_entity_id} does not exist on the spine.")
             if not Entity.objects.filter(pk=self.to_entity_id).exists():
-                raise ValueError(
-                    f"Edge.to_entity {self.to_entity_id} does not exist on the spine."
-                )
+                raise ValueError(f"Edge.to_entity {self.to_entity_id} does not exist on the spine.")
 
             # Apply edge type's own default dimensions (req-grid-dimension-dc-4)
             from tap_grid.constraints import get_edge_default_dimensions
@@ -641,7 +634,7 @@ class Dimension(BaseModel):
     ENTITY_TYPE: ClassVar[str] = "dimension"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.meta": "dimension"}
 
-    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {
         "name": {"type": "string", "minLength": 1},
         "description": {"type": "string"},
     }
@@ -672,7 +665,7 @@ class Search(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "search"
 
-    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {
         "name": {"type": "string", "minLength": 1},
         "description": {"type": "string"},
         "search_type": {"type": "string", "enum": ["module", "orm", "gryphon"]},
@@ -685,7 +678,7 @@ class Search(BaseModel):
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name", "search_type", "root"]
 
-    FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {
         "name": {
             "validation": "jsonschema",
             "schema": {"type": "string", "minLength": 1},
@@ -727,7 +720,7 @@ class Search(BaseModel):
     def validate(self) -> None:
         """Cross-field invariants between search_type and definition."""
         if not isinstance(self.definition, dict):
-            # FIELD_SCHEMAS already flagged the type error; skip cross-field checks.
+            # FIELD_VALIDATION_SCHEMA already flagged the type error; skip cross-field checks.
             return
 
         if self.search_type == "module":
@@ -821,7 +814,7 @@ class Batch(BaseModel):
         ]
     }
 
-    FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {
         "description_json": {
             "validation": "jsonschema",
             "schema": _DESCRIPTION_JSON_SCHEMA,
@@ -830,7 +823,7 @@ class Batch(BaseModel):
 
     # actor and closed_at are managed by service methods, not user payload.
     # started_at is auto_now_add; status/error_message managed via close_batch/fail_batch.
-    FIELD_SCHEMA: ClassVar[dict[str, dict]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {
         "name": {"type": "string"},
         "description": {"type": "string"},
         "description_json": {"oneOf": [{"type": "null"}, {"type": "object"}]},

@@ -529,11 +529,11 @@ Unknown keys are invalid.
 
 `batch_node` is validated as a full-object payload against the `batch` model field contract:
 
-- validate field shapes using the model's `FIELD_SCHEMA`
+- validate field shapes using the model's `FIELD_CRUD_SCHEMA`
 - required fields are `REPLACE_REQUIRED` if declared, otherwise `CREATE_REQUIRED`
 - patch-only fields are excluded from GRIFT payload validation
 
-In current TAP implementations this may be realized by validating against the synthesized `SERVICE_SCHEMAS["replace"]` schema, but that is an implementation detail rather than the canonical GRIFT contract.
+In current TAP implementations this may be realized by validating against the synthesized `SERVICE_CRUD_SCHEMA["replace"]` schema, but that is an implementation detail rather than the canonical GRIFT contract.
 
 ### Batch Field Semantics
 
@@ -608,11 +608,11 @@ Unknown keys are invalid.
 
 `node` is validated as a full-object payload against the model's field contract:
 
-- validate field shapes using the model's `FIELD_SCHEMA`
+- validate field shapes using the model's `FIELD_CRUD_SCHEMA`
 - required fields are `REPLACE_REQUIRED` if declared, otherwise `CREATE_REQUIRED`
 - `PATCH_EXTRA_FIELDS` are excluded from GRIFT payload validation
 
-In current TAP implementations this may be realized by validating against the synthesized `SERVICE_SCHEMAS["replace"]` schema.
+In current TAP implementations this may be realized by validating against the synthesized `SERVICE_CRUD_SCHEMA["replace"]` schema.
 
 ### Example Node Object
 
@@ -667,7 +667,7 @@ Unknown keys are invalid.
 - patch-only fields are excluded from GRIFT payload validation
 - `entity.entity_type` must be `"edge"`
 
-In current TAP implementations this may be realized by validating `properties` against the synthesized `SERVICE_SCHEMAS["replace"]` schema for the edge model.
+In current TAP implementations this may be realized by validating `properties` against the synthesized `SERVICE_CRUD_SCHEMA["replace"]` schema for the edge model.
 
 ### Example Edge Object
 

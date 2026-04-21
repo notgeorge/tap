@@ -79,7 +79,7 @@ def _coerce_uuid(value: str | uuid.UUID | None) -> uuid.UUID | None:
 
 
 def _verb_to_schema_key(verb: str) -> str:
-    """Map a write verb to its SERVICE_SCHEMAS key."""
+    """Map a write verb to its SERVICE_CRUD_SCHEMA key."""
     if verb in ("create_node", "create_edge"):
         return "create"
     if verb in ("patch_node", "patch_edge"):
@@ -119,10 +119,10 @@ def _apply_patch(instance: Any, payload: dict[str, Any]) -> None:
 def _apply_replace(instance: Any, payload: dict[str, Any], model_cls: type) -> None:
     """Apply replace payload to an instance.
 
-    Sets every field listed in SERVICE_SCHEMAS["replace"]["properties"] to
+    Sets every field listed in SERVICE_CRUD_SCHEMA["replace"]["properties"] to
     the payload value. Missing optional fields are reset to model defaults.
     """
-    schema_props = model_cls.SERVICE_SCHEMAS.get("replace", {}).get("properties", {})
+    schema_props = model_cls.SERVICE_CRUD_SCHEMA.get("replace", {}).get("properties", {})
     for field_name in schema_props:
         if field_name in payload:
             setattr(instance, field_name, payload[field_name])
@@ -146,7 +146,11 @@ def _django_errors_to_service_errors(exc: DjangoValidationError) -> list[Service
     try:
         for field_name, messages in exc.message_dict.items():
             for msg in messages:
-                errors.append(ServiceError(code="validation_error", message=str(msg), field=field_name if field_name != "__all__" else None))
+                errors.append(
+                    ServiceError(
+                        code="validation_error", message=str(msg), field=field_name if field_name != "__all__" else None
+                    )
+                )
     except AttributeError:
         for msg in exc.messages:
             errors.append(ServiceError(code="validation_error", message=str(msg)))
@@ -313,7 +317,7 @@ def _execute_write_pipeline(
         # Steps 4 & 5: Schema validation (additionalProperties:False handles strict rejection).
         if not is_delete:
             verb_key = _verb_to_schema_key(op.verb)
-            schema = model_cls.SERVICE_SCHEMAS.get(verb_key, {})
+            schema = model_cls.SERVICE_CRUD_SCHEMA.get(verb_key, {})
             try:
                 jsonschema.validate(instance=payload, schema=schema)
             except jsonschema.ValidationError as exc:
@@ -414,7 +418,14 @@ def _execute_write_pipeline(
             object_summary=summary,
         )
 
-    except (ServiceValidationError, ServiceConstraintError, ServiceNotFoundError, ServiceAuthzError, ServiceConflictError, ServiceUnsupportedOperationError) as exc:
+    except (
+        ServiceValidationError,
+        ServiceConstraintError,
+        ServiceNotFoundError,
+        ServiceAuthzError,
+        ServiceConflictError,
+        ServiceUnsupportedOperationError,
+    ) as exc:
         code_map = {
             ServiceValidationError: "validation_error",
             ServiceConstraintError: "constraint_violation",
@@ -474,15 +485,6 @@ def write_batch(
     else:
         effective_batch_id = str(uuid.uuid7())
 
-    # Pre-create the Batch entity so record_batch_event() can find it.
-    # This happens outside the main transaction so the row is visible
-    # even if the main transaction rolls back (the Batch persists as an
-    # audit record of the attempt).
-    try:
-        _ensure_batch(effective_batch_id, user)
-    except Exception:
-        logger.exception("Failed to ensure Batch entity for batch_id=%s", effective_batch_id)
-
     # Thread CallerContext so BaseModel.save() stamps batch_id on all writes.
     prior_ctx = get_caller_context()
     set_caller_context(CallerContext(user=user, batch_id=effective_batch_id))
@@ -492,6 +494,13 @@ def write_batch(
 
     try:
         with transaction.atomic():
+            # Ensure the Batch entity exists inside the transaction so it
+            # participates in rollback (e.g. dry_run, validation savepoints).
+            try:
+                _ensure_batch(effective_batch_id, user)
+            except Exception:
+                logger.exception("Failed to ensure Batch entity for batch_id=%s", effective_batch_id)
+
             for op in operations:
                 result = _execute_write_pipeline(
                     op,
@@ -538,7 +547,7 @@ def create_node(
 
     Args:
         type_slug: Registered entity type slug (e.g. "character").
-        payload: Field values validated against SERVICE_SCHEMAS["create"].
+        payload: Field values validated against SERVICE_CRUD_SCHEMA["create"].
         caller_context: Optional actor identity and batch scope.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
@@ -548,7 +557,11 @@ def create_node(
     """
     op = WriteOperation(verb="create_node", type_slug=type_slug, payload=payload)
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
-    return batch_result.results[0] if batch_result.results else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    return (
+        batch_result.results[0]
+        if batch_result.results
+        else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    )
 
 
 def patch_node(
@@ -565,7 +578,7 @@ def patch_node(
 
     Args:
         target: Entity UUID of the object to patch.
-        payload: Field values validated against SERVICE_SCHEMAS["patch"].
+        payload: Field values validated against SERVICE_CRUD_SCHEMA["patch"].
         caller_context: Optional actor identity and batch scope.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
@@ -575,7 +588,11 @@ def patch_node(
     """
     op = WriteOperation(verb="patch_node", target=target, payload=payload)
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
-    return batch_result.results[0] if batch_result.results else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    return (
+        batch_result.results[0]
+        if batch_result.results
+        else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    )
 
 
 def replace_node(
@@ -588,12 +605,12 @@ def replace_node(
 ) -> WriteResult:
     """Fully replace the user-writable fields of a domain object (PUT semantics).
 
-    All fields declared in SERVICE_SCHEMAS["replace"]["properties"] are
+    All fields declared in SERVICE_CRUD_SCHEMA["replace"]["properties"] are
     replaced. Fields on the Entity spine are not affected.
 
     Args:
         target: Entity UUID of the object to replace.
-        payload: Field values validated against SERVICE_SCHEMAS["replace"].
+        payload: Field values validated against SERVICE_CRUD_SCHEMA["replace"].
         caller_context: Optional actor identity and batch scope.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
@@ -603,7 +620,11 @@ def replace_node(
     """
     op = WriteOperation(verb="replace_node", target=target, payload=payload)
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
-    return batch_result.results[0] if batch_result.results else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    return (
+        batch_result.results[0]
+        if batch_result.results
+        else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    )
 
 
 def delete_node(
@@ -628,7 +649,11 @@ def delete_node(
     """
     op = WriteOperation(verb="delete_node", target=target)
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
-    return batch_result.results[0] if batch_result.results else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    return (
+        batch_result.results[0]
+        if batch_result.results
+        else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    )
 
 
 def patch_edge(
@@ -645,7 +670,7 @@ def patch_edge(
 
     Args:
         target: Entity UUID of the Edge to patch.
-        payload: Field values validated against Edge.SERVICE_SCHEMAS["patch"].
+        payload: Field values validated against Edge.SERVICE_CRUD_SCHEMA["patch"].
         caller_context: Optional actor identity and batch scope.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
@@ -655,7 +680,11 @@ def patch_edge(
     """
     op = WriteOperation(verb="patch_edge", target=target, payload=payload)
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
-    return batch_result.results[0] if batch_result.results else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    return (
+        batch_result.results[0]
+        if batch_result.results
+        else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    )
 
 
 def replace_edge(
@@ -672,7 +701,7 @@ def replace_edge(
 
     Args:
         target: Entity UUID of the Edge to replace.
-        payload: Field values validated against Edge.SERVICE_SCHEMAS["replace"].
+        payload: Field values validated against Edge.SERVICE_CRUD_SCHEMA["replace"].
         caller_context: Optional actor identity and batch scope.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
@@ -682,7 +711,11 @@ def replace_edge(
     """
     op = WriteOperation(verb="replace_edge", target=target, payload=payload)
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
-    return batch_result.results[0] if batch_result.results else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    return (
+        batch_result.results[0]
+        if batch_result.results
+        else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    )
 
 
 def delete_edge_by_entity(
@@ -705,7 +738,11 @@ def delete_edge_by_entity(
     """
     op = WriteOperation(verb="delete_edge", target=target)
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
-    return batch_result.results[0] if batch_result.results else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    return (
+        batch_result.results[0]
+        if batch_result.results
+        else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -842,7 +879,7 @@ def describe_node_type(type_slug: str) -> NodeTypeDescription:
     except KeyError:
         raise ServiceNotFoundError(f"Unknown entity type: '{type_slug}'.")
 
-    schemas: dict[str, Any] = dict(getattr(model_cls, "SERVICE_SCHEMAS", {}))
+    schemas: dict[str, Any] = dict(getattr(model_cls, "SERVICE_CRUD_SCHEMA", {}))
     hotlinks: list[dict[str, Any]] = list(getattr(model_cls, "HOTLINKS", []))
 
     constraints = get_constraints(type_slug)
@@ -909,8 +946,26 @@ def describe_service_capabilities() -> ServiceCapabilities:
     return ServiceCapabilities(
         node_types=list_node_types(),
         edge_types=list_edge_types(),
-        write_verbs=["create_node", "patch_node", "replace_node", "delete_node", "create_edge", "patch_edge", "replace_edge", "delete_edge"],
-        read_functions=["get_object", "get_node", "get_edge", "resolve_entity", "list_node_types", "describe_node_type", "list_edge_types", "describe_edge_type"],
+        write_verbs=[
+            "create_node",
+            "patch_node",
+            "replace_node",
+            "delete_node",
+            "create_edge",
+            "patch_edge",
+            "replace_edge",
+            "delete_edge",
+        ],
+        read_functions=[
+            "get_object",
+            "get_node",
+            "get_edge",
+            "resolve_entity",
+            "list_node_types",
+            "describe_node_type",
+            "list_edge_types",
+            "describe_edge_type",
+        ],
     )
 
 

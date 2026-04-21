@@ -16,7 +16,7 @@ class Faction(BaseModel):
     ENTITY_NAME: ClassVar[str] = "Faction"
     ENTITY_DESCRIPTION: ClassVar[str] = "A group or alliance."
 
-    FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": _NAME_SCHEMA,
         "purpose": {"type": "string"},
     }

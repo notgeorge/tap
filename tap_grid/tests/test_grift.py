@@ -6,11 +6,9 @@ from typing import Any
 import pytest
 
 from tap_grid.grift import (
-    GriftImportResult,
     grift_import,
 )
 from tap_grid.models import Batch, Edge, Entity
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -51,7 +49,8 @@ def _batch_container(
             "name": "Test batch",
             "dimensions": {},
         },
-        "batch_node": batch_node or {
+        "batch_node": batch_node
+        or {
             "name": "Test batch",
             "description": "",
             "description_json": None,
@@ -136,6 +135,7 @@ class TestGriftDocumentSchema:
 
     def test_bytes_input_parsed(self):
         import json
+
         result = grift_import(json.dumps(_minimal_doc()).encode())
         assert result.success
 
@@ -210,7 +210,10 @@ class TestGriftEnvelopeValidation:
         container["batch_entity"]["name"] = ""
         result = grift_import(_minimal_doc([container]))
         assert not result.success
-        assert any("name" in e.message for e in result.errors)
+        assert any(
+            "name" in e.message or "non-empty" in e.message or "too short" in e.message
+            for e in result.errors
+        )
 
     def test_dimensions_non_string_value_rejected(self):
         bid = _batch_entity_id()
@@ -500,7 +503,9 @@ class TestGriftIdentitySanity:
         assert result1.success
 
         bid2 = _batch_entity_id()
-        result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[_character_node(nid, name="Frodo Updated")])]))
+        result2 = grift_import(
+            _minimal_doc([_batch_container(bid2, nodes=[_character_node(nid, name="Frodo Updated")])])
+        )
         assert result2.success
 
 
@@ -517,10 +522,12 @@ class TestGriftMultiBatch:
         nid1 = _node_entity_id()
         nid2 = _node_entity_id()
 
-        doc = _minimal_doc([
-            _batch_container(bid1, nodes=[_character_node(nid1, name="Frodo")]),
-            _batch_container(bid2, nodes=[_character_node(nid2, name="Sam")]),
-        ])
+        doc = _minimal_doc(
+            [
+                _batch_container(bid1, nodes=[_character_node(nid1, name="Frodo")]),
+                _batch_container(bid2, nodes=[_character_node(nid2, name="Sam")]),
+            ]
+        )
 
         result = grift_import(doc)
         assert result.success
@@ -538,11 +545,15 @@ class TestGriftMultiBatch:
         doc1 = _minimal_doc([_batch_container(bid2, nodes=[_character_node(nid2, name="Sam")])])
         grift_import(doc1)
 
-        doc2 = _minimal_doc([
-            _batch_container(bid1, nodes=[_character_node(nid1, name="Frodo")]),
-            _batch_container(bid2, nodes=[_character_node(nid2, name="Sam")]),
-        ])
+        doc2 = _minimal_doc(
+            [
+                _batch_container(bid1, nodes=[_character_node(nid1, name="Frodo")]),
+                _batch_container(bid2, nodes=[_character_node(nid2, name="Sam")]),
+            ]
+        )
         result = grift_import(doc2)
         assert result.success
         assert result.counts.batches_imported == 1
         assert result.counts.batches_skipped == 1
+
+

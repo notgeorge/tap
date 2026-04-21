@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tap:grid:edge-definition:v0",
+  "title": "TAP Edge Definition v0",
+  "description": "Edge type definition file (.edge.json). See tap_plugins/specs/spec-plugin-manifest-v0.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["slug", "name", "description"],
+  "properties": {
+    "slug": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Edge type slug. Must match the manifest key."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable edge type name."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable description of what this edge represents."
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "TAP entity type slugs allowed as edge source. Omit for wildcard."
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "TAP entity type slugs allowed as edge target. Omit for wildcard."
+    },
+    "property_schema": {
+      "type": "object",
+      "description": "JSON Schema for structured edge properties."
+    },
+    "default_dimensions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Dimensions applied to edges of this type on creation."
+    }
+  }
+}

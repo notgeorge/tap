@@ -17,7 +17,7 @@ class Location(BaseModel):
     ENTITY_DESCRIPTION: ClassVar[str] = "A place in Middle-earth."
     ENTITY_ICON: ClassVar[str] = "location"
 
-    FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": _NAME_SCHEMA,
         "description": {"type": "string"},
         "realm": {"type": "string"},

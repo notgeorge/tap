@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tap_plugins/validate/plugin-validation-result.schema.json",
+  "title": "Plugin Validation Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ok",
+    "level",
+    "plugin_path",
+    "strict",
+    "summary",
+    "checks"
+  ],
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "level": {
+      "type": "string",
+      "enum": ["structure", "loads", "runs"]
+    },
+    "plugin_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "strict": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checks_total",
+        "checks_passed",
+        "checks_warned",
+        "checks_failed",
+        "warnings_total",
+        "errors_total"
+      ],
+      "properties": {
+        "checks_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks_passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks_warned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks_failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warnings_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors_total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/check_result"
+      }
+    }
+  },
+  "$defs": {
+    "check_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "status",
+        "messages"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pass", "warn", "fail"]
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/message"
+          }
+        },
+        "details": {
+          "type": "object"
+        }
+      }
+    },
+    "message": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "severity",
+        "text"
+      ],
+      "properties": {
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warning", "error"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

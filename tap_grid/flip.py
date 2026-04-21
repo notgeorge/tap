@@ -2,13 +2,13 @@
 
 FLIP (Field-Level Information Provenance) is default-on for all service-writeable
 model types. It stamps every service-writeable field with the batch_id responsible
-for the current canonical value, derived from the model's SERVICE_SCHEMAS rather
+for the current canonical value, derived from the model's SERVICE_CRUD_SCHEMA rather
 than a per-model allow-list.
 
 Rules:
 - Internal-only model types (INTERNAL_ONLY = True) are excluded from FLIP.
 - Service-writeable fields are the union of properties declared in
-  SERVICE_SCHEMAS["create"], ["patch"], and ["replace"].
+  SERVICE_CRUD_SCHEMA["create"], ["patch"], and ["replace"].
 - If no CallerContext batch_id is active, FLIP stamping is silently skipped.
   Direct ORM saves outside the service layer simply do not record provenance.
 - The batch_id is read from tap_grid.context (set by the service layer when a
@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 
 
 def _get_service_writeable_fields(model_class: type) -> set[str]:
-    """Return the union of field names declared across all SERVICE_SCHEMAS payloads."""
-    schemas = getattr(model_class, "SERVICE_SCHEMAS", {})
+    """Return the union of field names declared across all SERVICE_CRUD_SCHEMA payloads."""
+    schemas = getattr(model_class, "SERVICE_CRUD_SCHEMA", {})
     fields: set[str] = set()
     for key in ("create", "patch", "replace"):
         props = schemas.get(key, {}).get("properties", {})
@@ -49,7 +49,7 @@ def clear_registry() -> None:
 def update_flip_map(instance: BaseModel, changed_fields: list[str] | None, batch_id: str | None) -> bool:
     """Mutate instance.flip_map in memory for all service-writeable fields.
 
-    Default-on: derives tracked fields from SERVICE_SCHEMAS rather than an
+    Default-on: derives tracked fields from SERVICE_CRUD_SCHEMA rather than an
     explicit allow-list. Internal-only model types are excluded.
 
     Should be called before save() so the mutation is included in the same

@@ -46,14 +46,14 @@ def serialize_entity_envelope(entity: Entity) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Node payload — typed model fields from FIELD_SCHEMA
+# Node payload — typed model fields from FIELD_CRUD_SCHEMA
 # ---------------------------------------------------------------------------
 
 
 def serialize_node_payload(typed_model: BaseModel) -> dict[str, Any]:
-    """Extract typed model fields declared in FIELD_SCHEMA."""
+    """Extract typed model fields declared in FIELD_CRUD_SCHEMA."""
     result: dict[str, Any] = {}
-    for field_name in typed_model.FIELD_SCHEMA:
+    for field_name in typed_model.FIELD_CRUD_SCHEMA:
         value = getattr(typed_model, field_name, None)
         if isinstance(value, uuid.UUID):
             value = str(value)

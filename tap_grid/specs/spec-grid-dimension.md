@@ -146,6 +146,8 @@ Default dimensions applied at creation are not enforced after that point. They m
 
 #### Future
 
+TAP should move toward a stricter future where every TAP-managed type defines at least one meaningful default dimension. In that future, dimension-less models or edge types should be treated as a design error to justify explicitly rather than an acceptable default.
+
 
 ### Dimension Node
 ----

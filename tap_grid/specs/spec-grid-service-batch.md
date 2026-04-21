@@ -385,6 +385,8 @@ If a committed batch fails validation or persistence for any operation, the batc
 #### Future
 Revisit partial commit models only if a concrete operational need emerges; they are not part of the v1 batch contract.
 
+**Note — caller-managed rollback (2026-04-10):** Plugin validation (`validate_plugin --level runs`) needs to exercise the full write pipeline and then discard all side effects, including auto-created Batch entities. This is handled today by the validation system wrapping its checks in a caller-owned `transaction.atomic()` block that always rolls back. The batch system itself does not offer a built-in "disposable" or "rollback" mode because the decision to discard results is a caller-level concern, not a batch-level one. `_ensure_batch` was moved inside the service layer's `transaction.atomic()` so that it participates in rollback rather than leaking orphan Batch rows. If a second caller emerges with the same execute-then-discard need, consider extracting a shared `rollback_transaction()` context manager as a utility — but do not add rollback semantics to the batch model itself.
+
 
 ## Status Vocabulary
 

@@ -23,6 +23,8 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
 | req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Implemented | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
 | req-grid-entity-internal | [Internal-Only Model Types](#internal-only-model-types) | Implemented | Some model types are graph-native but not writable through the default service-layer CRUD surface |
+| req-grid-entity-crud | [Service-Layer CRUD Schema](#service-layer-crud-schema) | Implemented | `FIELD_CRUD_SCHEMA` declares the service-layer write surface; dual schema requirement with `FIELD_VALIDATION_SCHEMA` |
+| req-grid-entity-constraints | [Known Model Constraints](#known-model-constraints) | Implemented | Documented field name collisions and other BaseModel authoring constraints |
 | req-grid-entity-metadata | [Canonical Entity Metadata](#canonical-entity-metadata) | In Development | Platform-level canonical metadata contract for entity instances: `name`, `description`, `description_json`. `name` is fully implemented; `description` and `description_json` are pending. |
 | req-grid-entity-display | [Display Metadata](#display-metadata) | In Development | `DEFAULT_DISPLAY` class attribute implemented on `BaseModel`; instance-level `display` JSONField deferred |
 | req-grid-entity-cascade | [Edge-Directed Cascade Deletion](#edge-directed-cascade-deletion) | Backlog | When an entity is deleted, cascades should be expressible in terms of edge relationships, not just Django's raw FK CASCADE |
@@ -402,9 +404,9 @@ Status: `Implemented`
 
 Allows any `BaseModel` subclass (node or edge) to declare enhanced validation rules on top of Django's built-in field type coercion. The validation concerns **fields defined on the derived model** (e.g. `Concept.summary`, `Precept.statement`), not the BaseModel infrastructure fields (`entity_id`, `ENTITY_TYPE`, etc.), which BaseModel already guards internally.
 
-#### `FIELD_SCHEMAS` — the single source of truth
+#### `FIELD_VALIDATION_SCHEMA` — the single source of truth
 
-`FIELD_SCHEMAS: ClassVar[dict[str, dict]]` is the explicit registry of validated fields. It has two responsibilities:
+`FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]]` is the explicit registry of validated fields. It has two responsibilities:
 
 1. **Declare which fields are validated.** Any field not listed is completely ignored by `full_validate()`.
 2. **Declare how each field is validated.** Each entry is a typed descriptor with a required `"validation"` key.
@@ -414,7 +416,7 @@ Two validation types are supported:
 **`"jsonschema"`** — validate the field's value against a JSON Schema:
 
 ```python
-FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
+FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {
     "summary": {
         "validation": "jsonschema",
         "schema": {"type": "string", "minLength": 1, "maxLength": 5000},
@@ -431,7 +433,7 @@ Schema authors control nullability via `{"type": ["string", "null"]}` or `anyOf`
 **`"function"`** — validate the field via an instance method named `validate_<fieldname>(self) -> None`. The method reads `self.<fieldname>` directly and raises `django.core.exceptions.ValidationError` on failure:
 
 ```python
-FIELD_SCHEMAS: ClassVar[dict[str, dict]] = {
+FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {
     "tags": {"validation": "function"},
 }
 
@@ -459,23 +461,23 @@ class DateRangeNode(BaseModel):
 
 | Check | Error condition |
 | --- | --- |
-| Valid `"validation"` key | An entry in `FIELD_SCHEMAS` has a `"validation"` value other than `"jsonschema"` or `"function"` |
+| Valid `"validation"` key | An entry in `FIELD_VALIDATION_SCHEMA` has a `"validation"` value other than `"jsonschema"` or `"function"` |
 | Schema present for jsonschema entries | An entry with `"validation": "jsonschema"` is missing the `"schema"` key |
 | Method present for function entries | An entry with `"validation": "function"` has no corresponding `validate_<field>()` method on the class |
-| No undeclared validators | A `validate_<field>()` method exists but `field` is not listed in `FIELD_SCHEMAS` |
-| Keys are real fields | A `FIELD_SCHEMAS` key does not correspond to a field declared on the derived model |
+| No undeclared validators | A `validate_<field>()` method exists but `field` is not listed in `FIELD_VALIDATION_SCHEMA` |
+| Keys are real fields | A `FIELD_VALIDATION_SCHEMA` key does not correspond to a field declared on the derived model |
 
-The last two checks enforce bidirectional consistency: `FIELD_SCHEMAS` and `validate_*` methods must always be in sync. There is no silent fallback.
+The last two checks enforce bidirectional consistency: `FIELD_VALIDATION_SCHEMA` and `validate_*` methods must always be in sync. There is no silent fallback.
 
 #### Escape hatch — `@dangerously_ignore_validator`
 
-A method named `validate_<something>` that is intentionally not yet wired into `FIELD_SCHEMAS` must be decorated with `@dangerously_ignore_validator`. This suppresses the "undeclared validator" startup check for that method, allowing authors to pre-stage validation code without fully activating it:
+A method named `validate_<something>` that is intentionally not yet wired into `FIELD_VALIDATION_SCHEMA` must be decorated with `@dangerously_ignore_validator`. This suppresses the "undeclared validator" startup check for that method, allowing authors to pre-stage validation code without fully activating it:
 
 ```python
 class Concept(BaseModel):
     @dangerously_ignore_validator
     def validate_tags(self) -> None:
-        # pre-staged but not yet in FIELD_SCHEMAS — suppresses startup error
+        # pre-staged but not yet in FIELD_VALIDATION_SCHEMA — suppresses startup error
         ...
 ```
 
@@ -485,7 +487,7 @@ class Concept(BaseModel):
 
 `BaseModel.full_validate(self) -> None` runs all declared validators and collects every error before raising:
 
-1. For each field in `FIELD_SCHEMAS`:
+1. For each field in `FIELD_VALIDATION_SCHEMA`:
    - If `"validation": "jsonschema"`: call `jsonschema.validate(field_value, schema)`; collect any violation message keyed by field name.
    - If `"validation": "function"`: call `validate_<field>(self)`; merge any raised `ValidationError` into the error dict.
 2. Call `validate(self)` (whole-record hook); merge its errors.
@@ -510,12 +512,12 @@ concept.save(skip_validation=True)  # validation skipped
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-entity-validation-1 | FIELD_SCHEMAS Declaration | Implemented | A BaseModel subclass may declare `FIELD_SCHEMAS: ClassVar[dict[str, dict]]`; default is `{}`. Fields not listed are ignored by `full_validate()`. | |
-| req-grid-entity-validation-2 | Typed Validation Entries | Implemented | Each entry in `FIELD_SCHEMAS` must have `"validation": "jsonschema"` or `"validation": "function"`. Any other value raises `ImproperlyConfigured` at class definition time. | |
+| req-grid-entity-validation-1 | FIELD_VALIDATION_SCHEMA Declaration | Implemented | A BaseModel subclass may declare `FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]]`; default is `{}`. Fields not listed are ignored by `full_validate()`. | |
+| req-grid-entity-validation-2 | Typed Validation Entries | Implemented | Each entry in `FIELD_VALIDATION_SCHEMA` must have `"validation": "jsonschema"` or `"validation": "function"`. Any other value raises `ImproperlyConfigured` at class definition time. | |
 | req-grid-entity-validation-3 | jsonschema Entry Requires Schema Key | Implemented | An entry with `"validation": "jsonschema"` that lacks a `"schema"` key raises `ImproperlyConfigured` at class definition time. | |
 | req-grid-entity-validation-4 | function Entry Requires Method | Implemented | An entry with `"validation": "function"` that has no matching `validate_<field>()` method on the class raises `ImproperlyConfigured` at class definition time. | |
-| req-grid-entity-validation-5 | Undeclared Validator Raises | Implemented | A `validate_<field>()` method (without `@dangerously_ignore_validator`) whose field is not in `FIELD_SCHEMAS` raises `ImproperlyConfigured` at class definition time. | |
-| req-grid-entity-validation-6 | FIELD_SCHEMAS Keys Are Real Fields | Implemented | A `FIELD_SCHEMAS` key that does not match a field declared on the derived model raises `ImproperlyConfigured` at class definition time. | |
+| req-grid-entity-validation-5 | Undeclared Validator Raises | Implemented | A `validate_<field>()` method (without `@dangerously_ignore_validator`) whose field is not in `FIELD_VALIDATION_SCHEMA` raises `ImproperlyConfigured` at class definition time. | |
+| req-grid-entity-validation-6 | FIELD_VALIDATION_SCHEMA Keys Are Real Fields | Implemented | A `FIELD_VALIDATION_SCHEMA` key that does not match a field declared on the derived model raises `ImproperlyConfigured` at class definition time. | |
 | req-grid-entity-validation-7 | JSON Schema Validation | Implemented | `full_validate()` runs `jsonschema.validate(field_value, schema)` for each `"jsonschema"` entry. Violations are collected keyed by field name. | |
 | req-grid-entity-validation-8 | Function Validation | Implemented | `full_validate()` calls `validate_<field>(self)` for each `"function"` entry. Raised `ValidationError` messages are merged into the error dict. | |
 | req-grid-entity-validation-9 | Whole-Record Hook | Implemented | `full_validate()` calls `self.validate()` after per-field checks. Base implementation is a no-op. Raised errors are merged into the collection. | |
@@ -534,6 +536,88 @@ Consider exposing `full_validate()` as a Ninja API endpoint so frontends can per
 
 ---
 
+### Service-Layer CRUD Schema
+----
+RID: `req-grid-entity-crud`
+Status: `Implemented`
+
+Every concrete `BaseModel` subclass must declare `FIELD_CRUD_SCHEMA` alongside `FIELD_VALIDATION_SCHEMA`. These are two separate schema systems that serve different purposes.
+
+#### Implementation
+
+**`FIELD_CRUD_SCHEMA`** (`ClassVar[dict[str, dict]]`) is the service-layer write surface. It declares which fields are writable via the TAP service layer (`create_node`, `replace_node`, `patch_node`) and provides plain JSON Schema for each field. The service layer synthesizes `SERVICE_SCHEMAS` from this at class definition time.
+
+```python
+FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
+    "name": {"type": "string", "minLength": 1},
+    "status": {"type": "string"},
+    "count": {"type": ["integer", "null"]},
+    "configuration": {"type": "object"},
+}
+```
+
+**`FIELD_VALIDATION_SCHEMA`** (`ClassVar[dict[str, dict]]`) is the model-level validation surface. It wraps each validated field in a `{"validation": "jsonschema", "schema": {...}}` (or `"function"`) envelope and is enforced by `full_validate()` on every save. See `req-grid-entity-validation` for the full validation contract.
+
+```python
+FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, Any]] = {
+    "name": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}},
+    "status": {"validation": "jsonschema", "schema": {"type": "string"}},
+    "count": {"validation": "jsonschema", "schema": {"type": ["integer", "null"]}},
+    "configuration": {"validation": "jsonschema", "schema": {"type": "object"}},
+}
+```
+
+**Both are required.** Omitting `FIELD_CRUD_SCHEMA` raises `ImproperlyConfigured` at class definition time.
+
+**`CREATE_REQUIRED`** (`ClassVar[list[str]]`) lists fields that must be present in a `create_node` payload. All entries must be keys in `FIELD_CRUD_SCHEMA`.
+
+**`REPLACE_REQUIRED`** (`ClassVar[list[str]]`, optional) lists fields required for `replace_node`. If not declared, defaults to `CREATE_REQUIRED`.
+
+**Nullable fields** in the Django model (`null=True`) must use nullable JSON Schema types in both schemas: `{"type": ["string", "null"]}` or `{"type": ["integer", "null"]}`.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-entity-crud-1 | FIELD_CRUD_SCHEMA Required | Implemented | Every concrete BaseModel subclass must declare `FIELD_CRUD_SCHEMA`. | Enforced at class definition time via `__init_subclass__` |
+| req-grid-entity-crud-2 | SERVICE_SCHEMAS Synthesized | Implemented | `SERVICE_SCHEMAS` for create, replace, and patch verbs are synthesized from `FIELD_CRUD_SCHEMA` at class definition time. | |
+| req-grid-entity-crud-3 | Dual Schema Requirement | Implemented | Both `FIELD_CRUD_SCHEMA` and `FIELD_VALIDATION_SCHEMA` must be declared. They serve different purposes and are not interchangeable. | |
+| req-grid-entity-crud-4 | CREATE_REQUIRED Validated | Implemented | All entries in `CREATE_REQUIRED` must be keys in `FIELD_CRUD_SCHEMA`. | Enforced at class definition time |
+| req-grid-entity-crud-5 | Nullable Types Consistent | Implemented | Fields using `null=True` on the Django model must use nullable JSON Schema types in both schemas. | |
+
+---
+
+### Known Model Constraints
+----
+RID: `req-grid-entity-constraints`
+Status: `Implemented`
+
+Documents known constraints and field name collisions that affect `BaseModel` subclass authoring.
+
+#### Implementation
+
+**django-simple-history field name collision:** The field name `instance_type` is reserved by django-simple-history's `HistoricalRecord` model. Declaring a Django field named `instance_type` on any `BaseModel` subclass causes a `TypeError` at runtime when the historical record attempts to save:
+
+```
+TypeError: HistoricalMyModel() got unexpected keyword arguments: 'instance_type'
+```
+
+This collision occurs because django-simple-history uses `instance_type` internally to reference the content type of the tracked model. Models that would naturally use this field name must choose an alternative (e.g. `ec2_type`, `node_type`, `endpoint_instance_type`).
+
+The TAP plugin validation system's `runs` level detects this collision by exercising the full write pipeline including history recording.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-entity-constraints-1 | instance_type Reserved | Implemented | `instance_type` must not be used as a Django field name on BaseModel subclasses due to django-simple-history collision. | |
+| req-grid-entity-constraints-2 | Collision Detected By Validator | Implemented | The plugin validation system's `runs` level catches this collision via the full write pipeline. | |
+
+#### Future
+
+If additional field name collisions are discovered, document them here. Consider adding a startup check that validates field names against a known-reserved list.
+
+---
 
 ### Entities Are Entities
 ----

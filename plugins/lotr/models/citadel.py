@@ -16,7 +16,7 @@ class Citadel(BaseModel):
     ENTITY_NAME: ClassVar[str] = "Citadel"
     ENTITY_DESCRIPTION: ClassVar[str] = "A fortified place (inbound block test)."
 
-    FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": _NAME_SCHEMA,
         "fortification": {"type": "string"},
     }

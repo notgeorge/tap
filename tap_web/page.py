@@ -110,4 +110,4 @@ def parse_panel_url_id(panel_url_id: str) -> str | None:
     idx = panel_url_id.rfind(separator)
     if idx == -1:
         return None
-    return panel_url_id[idx + len(separator):]
+    return panel_url_id[idx + len(separator) :]

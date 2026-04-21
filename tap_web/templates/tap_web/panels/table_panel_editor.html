@@ -67,20 +67,20 @@
 </div>
 
 <div>
-    <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ form.default_limit.id_for_label }}">
+    <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ form.default_page_size.id_for_label }}">
         Default Rows Per Page
     </label>
-    <p class="text-xs text-slate-500 mb-1">{{ form.default_limit.help_text }}</p>
-    {% if form.default_limit.errors %}
+    <p class="text-xs text-slate-500 mb-1">{{ form.default_page_size.help_text }}</p>
+    {% if form.default_page_size.errors %}
     <ul class="text-red-600 text-xs mb-1 list-none p-0">
-        {% for error in form.default_limit.errors %}<li>{{ error }}</li>{% endfor %}
+        {% for error in form.default_page_size.errors %}<li>{{ error }}</li>{% endfor %}
     </ul>
     {% endif %}
-    <input id="{{ form.default_limit.id_for_label }}"
-           name="{{ form.default_limit.html_name }}"
+    <input id="{{ form.default_page_size.id_for_label }}"
+           name="{{ form.default_page_size.html_name }}"
            type="number"
-           value="{{ form.default_limit.value|default:25 }}"
+           value="{{ form.default_page_size.value|default:100 }}"
            min="1"
            max="500"
-           class="w-32 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 {% if form.default_limit.errors %}border-red-400{% else %}border-slate-300{% endif %}">
+           class="w-32 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 {% if form.default_page_size.errors %}border-red-400{% else %}border-slate-300{% endif %}">
 </div>

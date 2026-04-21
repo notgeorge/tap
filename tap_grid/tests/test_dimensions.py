@@ -35,6 +35,7 @@ def _batch_ctx(source: str = "test") -> Generator[str]:
     finally:
         set_caller_context(prev)
 
+
 # ---------------------------------------------------------------------------
 # req-grid-dimension-em: Dimensions on Entity Model
 # ---------------------------------------------------------------------------

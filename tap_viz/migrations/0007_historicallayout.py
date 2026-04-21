@@ -9,33 +9,77 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('tap_grid', '0013_batch_historicalbatch_historicaldimension_and_more'),
-        ('tap_viz', '0006_layout_flip_map_alter_layout_batch_id'),
+        ("tap_grid", "0013_batch_historicalbatch_historicaldimension_and_more"),
+        ("tap_viz", "0006_layout_flip_map_alter_layout_batch_id"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='HistoricalLayout',
+            name="HistoricalLayout",
             fields=[
-                ('id', models.BigIntegerField(auto_created=True, blank=True, db_index=True, verbose_name='ID')),
-                ('batch_id', models.CharField(blank=True, db_index=True, default='', help_text='UUIDv7 of the batch this change was included in.', max_length=36)),
-                ('flip_map', models.JSONField(blank=True, default=dict, help_text='FLIP field-path-to-batch-id map: tracks which batch last set each provenance-tracked field.')),
-                ('name', models.CharField(max_length=255)),
-                ('description', models.TextField(blank=True, default='')),
-                ('definition', models.JSONField(blank=True, default=dict, help_text='TAP-owned declarative layout payload: inputs, steps, presentation, interactions.')),
-                ('history_id', models.AutoField(primary_key=True, serialize=False)),
-                ('history_date', models.DateTimeField(db_index=True)),
-                ('history_change_reason', models.CharField(max_length=100, null=True)),
-                ('history_type', models.CharField(choices=[('+', 'Created'), ('~', 'Changed'), ('-', 'Deleted')], max_length=1)),
-                ('entity', models.ForeignKey(blank=True, db_constraint=False, null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='+', to='tap_grid.entity')),
-                ('history_user', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to=settings.AUTH_USER_MODEL)),
+                ("id", models.BigIntegerField(auto_created=True, blank=True, db_index=True, verbose_name="ID")),
+                (
+                    "batch_id",
+                    models.CharField(
+                        blank=True,
+                        db_index=True,
+                        default="",
+                        help_text="UUIDv7 of the batch this change was included in.",
+                        max_length=36,
+                    ),
+                ),
+                (
+                    "flip_map",
+                    models.JSONField(
+                        blank=True,
+                        default=dict,
+                        help_text="FLIP field-path-to-batch-id map: tracks which batch last set each provenance-tracked field.",
+                    ),
+                ),
+                ("name", models.CharField(max_length=255)),
+                ("description", models.TextField(blank=True, default="")),
+                (
+                    "definition",
+                    models.JSONField(
+                        blank=True,
+                        default=dict,
+                        help_text="TAP-owned declarative layout payload: inputs, steps, presentation, interactions.",
+                    ),
+                ),
+                ("history_id", models.AutoField(primary_key=True, serialize=False)),
+                ("history_date", models.DateTimeField(db_index=True)),
+                ("history_change_reason", models.CharField(max_length=100, null=True)),
+                (
+                    "history_type",
+                    models.CharField(choices=[("+", "Created"), ("~", "Changed"), ("-", "Deleted")], max_length=1),
+                ),
+                (
+                    "entity",
+                    models.ForeignKey(
+                        blank=True,
+                        db_constraint=False,
+                        null=True,
+                        on_delete=django.db.models.deletion.DO_NOTHING,
+                        related_name="+",
+                        to="tap_grid.entity",
+                    ),
+                ),
+                (
+                    "history_user",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="+",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'historical layout',
-                'verbose_name_plural': 'historical layouts',
-                'ordering': ('-history_date', '-history_id'),
-                'get_latest_by': ('history_date', 'history_id'),
+                "verbose_name": "historical layout",
+                "verbose_name_plural": "historical layouts",
+                "ordering": ("-history_date", "-history_id"),
+                "get_latest_by": ("history_date", "history_id"),
             },
             bases=(simple_history.models.HistoricalChanges, models.Model),
         ),

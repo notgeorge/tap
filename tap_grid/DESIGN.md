@@ -2,7 +2,7 @@
 
 ## Purpose
 
-tap_grid defines the foundational data model: Entity, Edge, EntityType, BaseModel, and User.
+tap_grid defines the foundational data model and graph contracts: Entity, Edge, EntityType, BaseModel, User, graph query surfaces, and canonical graph interchange helpers.
 
 ## Key Decisions
 
@@ -23,6 +23,10 @@ tap_grid defines the foundational data model: Entity, Edge, EntityType, BaseMode
 **No unique constraint on Edge.** Multiple edges of the same type between entities are valid. Uniqueness enforced at service layer if needed.
 
 **Realm/Environment deferred.** These are tap_flip concerns (step 6). BaseModel is the extension point.
+
+**Gryphon is the graph-native read language.** Traversal- and neighborhood-oriented read behavior should be expressed through TAP search execution, with Gryphon as the graph query surface for read-only graph retrieval.
+
+**GRIFT is the canonical graph interchange contract.** Portable node/edge serialization, subgraph serialization, and graph interchange should converge on GRIFT-defined envelopes and member shapes rather than parallel app-specific serializers.
 
 
 ## Edge Constraints
@@ -95,7 +99,7 @@ The `{"type": "..."}` structure (rather than plain strings) enables future exten
 
 ## What Lives Here vs Other Apps
 
-- **tap_grid**: Entity, Edge, EntityType, BaseModel, User, Grid identity
+- **tap_grid**: Entity, Edge, EntityType, BaseModel, User, Grid identity, graph search execution, Gryphon, GRIFT canonical graph serialization/interchange
 - **tap_plugins**: Type registration, plugin discovery, plugin-defined domain models
 - **tap_api**: API routing, versioning, auth middleware
 - **tap_web**: Templates, static assets, dashboards

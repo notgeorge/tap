@@ -17,7 +17,7 @@ class Race(BaseModel):
     ENTITY_DESCRIPTION: ClassVar[str] = "A race of beings."
     ENTITY_ICON: ClassVar[str] = "race"
 
-    FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": _NAME_SCHEMA,
         "homeland": {"type": "string"},
         "traits": {"type": "string"},

@@ -12,7 +12,6 @@ and calls grift_import on each one using strict upsert semantics.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
@@ -86,11 +85,7 @@ class Command(BaseCommand):
         all_plugins: bool,
         plugin_slugs: list[str],
     ) -> list[TapPluginConfig]:
-        tap_configs = [
-            app_config
-            for app_config in apps.get_app_configs()
-            if isinstance(app_config, TapPluginConfig)
-        ]
+        tap_configs = [app_config for app_config in apps.get_app_configs() if isinstance(app_config, TapPluginConfig)]
 
         if all_plugins:
             return tap_configs
@@ -125,9 +120,7 @@ class Command(BaseCommand):
             bundles = [b for b in bundles if b.name == bundle_name]
             if not bundles:
                 self.stderr.write(
-                    self.style.ERROR(
-                        f"  [{manifest.slug}] Bundle '{bundle_name}' not declared in manifest; skipping."
-                    )
+                    self.style.ERROR(f"  [{manifest.slug}] Bundle '{bundle_name}' not declared in manifest; skipping.")
                 )
                 return 0, 1
 

@@ -130,9 +130,7 @@ class TapPluginConfig(AppConfig):
         try:
             validate_manifest_classes(manifest)
         except PluginManifestError as exc:
-            raise RuntimeError(
-                f"Plugin '{self.name}' manifest class validation failed: {exc}"
-            ) from exc
+            raise RuntimeError(f"Plugin '{self.name}' manifest class validation failed: {exc}") from exc
 
         warn_undeclared_convention_files(manifest)
         self._manifest = manifest
@@ -153,12 +151,8 @@ class TapPluginConfig(AppConfig):
         )
 
         for edge in self._manifest.edges:
-            sources = (
-                [{"type": s} for s in edge.sources] if edge.sources is not None else None
-            )
-            targets = (
-                [{"type": t} for t in edge.targets] if edge.targets is not None else None
-            )
+            sources = [{"type": s} for s in edge.sources] if edge.sources is not None else None
+            targets = [{"type": t} for t in edge.targets] if edge.targets is not None else None
 
             if sources is not None or targets is not None:
                 register_edge_type_constraints(edge.slug, sources, targets)
@@ -206,7 +200,7 @@ class TapPluginConfig(AppConfig):
                     },
                 )
 
-        except (OperationalError, ProgrammingError):
+        except OperationalError, ProgrammingError:
             logger.debug("EntityType table not ready; skipping type registration.")
 
     # ---------------------------------------------------------------------------
@@ -303,5 +297,5 @@ class TapPluginConfig(AppConfig):
                             err.path,
                             err.message,
                         )
-        except (OperationalError, ProgrammingError):
+        except OperationalError, ProgrammingError:
             logger.debug("Database not ready; skipping GRIFT import for plugin '%s'.", self.name)

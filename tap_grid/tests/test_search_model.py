@@ -212,44 +212,60 @@ class TestCrossFieldValidation:
         assert "definition" in exc_info.value.message_dict
 
     def test_orm_hops_max_one(self):
-        s = Search(**_minimal_orm(definition={
-            "filters": {},
-            "hops": [
-                {"direction": "out", "edge_type": "DEPENDS_ON"},
-                {"direction": "in", "edge_type": "APPLIES_TO"},
-            ],
-        }))
+        s = Search(
+            **_minimal_orm(
+                definition={
+                    "filters": {},
+                    "hops": [
+                        {"direction": "out", "edge_type": "DEPENDS_ON"},
+                        {"direction": "in", "edge_type": "APPLIES_TO"},
+                    ],
+                }
+            )
+        )
         with pytest.raises(ValidationError) as exc_info:
             s.full_validate()
         msgs = " ".join(exc_info.value.message_dict.get("definition", []))
         assert "one hop" in msgs
 
     def test_orm_hop_direction_required(self):
-        s = Search(**_minimal_orm(definition={
-            "filters": {},
-            "hops": [{"edge_type": "DEPENDS_ON"}],
-        }))
+        s = Search(
+            **_minimal_orm(
+                definition={
+                    "filters": {},
+                    "hops": [{"edge_type": "DEPENDS_ON"}],
+                }
+            )
+        )
         with pytest.raises(ValidationError) as exc_info:
             s.full_validate()
         msgs = " ".join(exc_info.value.message_dict.get("definition", []))
         assert "direction" in msgs
 
     def test_orm_hop_edge_type_required(self):
-        s = Search(**_minimal_orm(definition={
-            "filters": {},
-            "hops": [{"direction": "out"}],
-        }))
+        s = Search(
+            **_minimal_orm(
+                definition={
+                    "filters": {},
+                    "hops": [{"direction": "out"}],
+                }
+            )
+        )
         with pytest.raises(ValidationError) as exc_info:
             s.full_validate()
         msgs = " ".join(exc_info.value.message_dict.get("definition", []))
         assert "edge_type" in msgs
 
     def test_orm_valid_with_hop(self):
-        s = Search(**_minimal_orm(definition={
-            "filters": {"entity_type": "concept"},
-            "hops": [{"direction": "out", "edge_type": "DEPENDS_ON"}],
-            "order_by": ["id"],
-        }))
+        s = Search(
+            **_minimal_orm(
+                definition={
+                    "filters": {"entity_type": "concept"},
+                    "hops": [{"direction": "out", "edge_type": "DEPENDS_ON"}],
+                    "order_by": ["id"],
+                }
+            )
+        )
         s.full_validate()  # should not raise
 
     def test_orm_order_by_must_be_list(self):

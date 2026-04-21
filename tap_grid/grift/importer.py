@@ -12,6 +12,7 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import jsonschema
@@ -31,6 +32,8 @@ if TYPE_CHECKING:
 
 GRIFT_VERSION = "0"
 IMPORT_MODE = "upsert"
+_GRIFT_SCHEMA_PATH = Path(__file__).parent.parent / "schemas" / "grift-document.schema.json"
+_grift_schema_cache: dict[str, Any] | None = None
 
 # ---------------------------------------------------------------------------
 # Result types (mirror the JSON schema in spec-grid-import-grift.md)
@@ -476,7 +479,7 @@ def _validate_node_payload(
         )
         return False
 
-    replace_schema = model_cls.SERVICE_SCHEMAS.get("replace", {})
+    replace_schema = model_cls.SERVICE_CRUD_SCHEMA.get("replace", {})
     if replace_schema:
         try:
             jsonschema.validate(instance=payload, schema=replace_schema)
@@ -593,6 +596,33 @@ def _validate_edge_payload(
 # ---------------------------------------------------------------------------
 
 
+def _load_grift_schema() -> dict[str, Any]:
+    """Load and cache the GRIFT document JSON Schema."""
+    global _grift_schema_cache
+    if _grift_schema_cache is None:
+        with open(_GRIFT_SCHEMA_PATH) as fh:
+            _grift_schema_cache = json.load(fh)
+    return _grift_schema_cache
+
+
+def _validate_document_schema(document: dict[str, Any], issues: list[GriftIssue]) -> bool:
+    """Validate document against the GRIFT JSON Schema. Returns True if valid."""
+    schema = _load_grift_schema()
+    try:
+        jsonschema.validate(instance=document, schema=schema)
+        return True
+    except jsonschema.ValidationError as exc:
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"GRIFT document schema validation failed: {exc.message}",
+                "schema",
+                exc.json_path if hasattr(exc, "json_path") else "$",
+            )
+        )
+        return False
+
+
 def _run_preflight(
     document: dict[str, Any],
     *,
@@ -601,6 +631,12 @@ def _run_preflight(
 ) -> _PreflightResult:
     """Full-file preflight pass. No mutations — returns a _PreflightResult."""
     issues: list[GriftIssue] = []
+
+    # --- JSON Schema structural validation ---
+    if not _validate_document_schema(document, issues):
+        return _PreflightResult(
+            ok=False, batches_to_import=[], batches_to_skip=[], dangling_edge_ids=set(), issues=issues
+        )
 
     # --- Top-level structure ---
     for key in document:
@@ -774,7 +810,7 @@ def _run_preflight(
         else:
             from tap_grid.models import Batch
 
-            replace_schema = Batch.SERVICE_SCHEMAS.get("replace", {})
+            replace_schema = Batch.SERVICE_CRUD_SCHEMA.get("replace", {})
             if replace_schema:
                 try:
                     jsonschema.validate(instance=batch_container["batch_node"], schema=replace_schema)

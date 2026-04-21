@@ -16,6 +16,6 @@ class TapCoreConfig(AppConfig):
                 slug="search",
                 defaults={"name": "Search", "plugin_name": "tap_grid", "icon": "search"},
             )
-        except (OperationalError, ProgrammingError):
+        except OperationalError, ProgrammingError:
             # DB not ready yet (e.g. during initial migrate).
             pass

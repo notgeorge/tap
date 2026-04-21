@@ -105,8 +105,8 @@
 {% endblock %}
 
 {% block body_extras %}
-<script src="{% static 'tap_viz/js/cytoscape.min.js' %}"></script>
-<script src="{% static 'tap_viz/js/cytoscape-grid-guide.js' %}"></script>
+<script src="{% static 'tap_viz/js/lib/cytoscape.min.js' %}"></script>
+<script src="{% static 'tap_viz/js/lib/cytoscape-grid-guide.js' %}"></script>
 <script src="{% static 'tap_viz/js/panel-graph.js' %}"></script>
 {% for js_path in editor_js_assets %}
 <script src="{% static js_path %}"></script>

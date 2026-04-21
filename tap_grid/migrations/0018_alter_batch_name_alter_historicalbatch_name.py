@@ -6,18 +6,18 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('tap_grid', '0017_rename_batch_title_to_name'),
+        ("tap_grid", "0017_rename_batch_title_to_name"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='batch',
-            name='name',
-            field=models.CharField(blank=True, default='', help_text='Human-readable batch name.', max_length=255),
+            model_name="batch",
+            name="name",
+            field=models.CharField(blank=True, default="", help_text="Human-readable batch name.", max_length=255),
         ),
         migrations.AlterField(
-            model_name='historicalbatch',
-            name='name',
-            field=models.CharField(blank=True, default='', help_text='Human-readable batch name.', max_length=255),
+            model_name="historicalbatch",
+            name="name",
+            field=models.CharField(blank=True, default="", help_text="Human-readable batch name.", max_length=255),
         ),
     ]

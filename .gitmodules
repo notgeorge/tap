@@ -1,0 +1,3 @@
+[submodule "plugins/aws_core"]
+	path = plugins/aws_core
+	url = https://github.com/notgeorge/tap-plugin-aws.git

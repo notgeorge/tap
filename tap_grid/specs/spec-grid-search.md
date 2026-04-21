@@ -57,7 +57,7 @@ Current Search implementation still uses `title` as a field name, but that shoul
 | `max_limit` | IntegerField | No | Maximum page size enforced at execution time. Null means uncapped. |
 
 #### Status Details
-`Search` model implemented in `tap_grid/models.py` with all fields, `FIELD_SCHEMAS` validation, and cross-field `validate()` hook. Migration `0007_search.py` applied. Tests in `tap_grid/tests/test_search_model.py`.
+`Search` model implemented in `tap_grid/models.py` with all fields, `FIELD_VALIDATION_SCHEMA` validation, and cross-field `validate()` hook. Migration `0007_search.py` applied. Tests in `tap_grid/tests/test_search_model.py`.
 
 #### Implementation
 A Search is a TAP-managed model derived from `BaseModel`, and therefore hangs off the entity spine like other first-class grid objects.

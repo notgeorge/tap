@@ -18,7 +18,6 @@ class Migration(migrations.Migration):
             sql="DELETE FROM web_page; DELETE FROM web_panel; DELETE FROM web_landing_page;",
             reverse_sql=migrations.RunSQL.noop,
         ),
-
         # --- Page fields ---
         migrations.AddField(
             model_name="page",
@@ -47,7 +46,6 @@ class Migration(migrations.Migration):
                 help_text="Nested grid layout schema (columns → rows → panel-id slots).",
             ),
         ),
-
         # --- Panel fields ---
         migrations.AddField(
             model_name="panel",
@@ -91,7 +89,6 @@ class Migration(migrations.Migration):
                 help_text="Flat list of static-relative CSS paths.",
             ),
         ),
-
         # --- LandingPage fields ---
         migrations.AddField(
             model_name="landingpage",

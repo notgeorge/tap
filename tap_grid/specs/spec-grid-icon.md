@@ -153,7 +153,8 @@ This requirement sets the semantic rendering contract without dictating specific
 - Icons are not load-bearing identity for an entity type.
 - Systems that render icons must also render associated textual identity elsewhere when object identity matters.
 - Missing icons must not make the object unusable or uninterpretable.
-- Icons should support CSS color inheritance, for example through `currentColor`.
+- TAP-authored icons should use `currentColor` for CSS color inheritance where practical.
+- Plugin icons that represent third-party branded services (e.g. AWS, GCP) may use the vendor's native brand colors rather than `currentColor`. The rendering pipeline treats SVGs as image assets, so multi-color icons display correctly.
 - V1 icon rendering should treat icons as image assets rather than inline executable markup.
 
 #### Development
@@ -166,7 +167,7 @@ Keep icon semantics conservative. They are visual affordances, not the canonical
 | req-grid-icon-render-1 | Decorative By Default | Implemented | Icons are decorative visual cues rather than the sole carrier of meaning. | Graph nodes always render label text alongside icon |
 | req-grid-icon-render-2 | Text Identity Still Required | Implemented | Consumers that need object identity also render associated textual identity elsewhere. | `label: data(label)` always shown beneath node |
 | req-grid-icon-render-3 | Missing Icon Safe Fallback | Implemented | Missing icons do not make the object unusable or uninterpretable. | Nodes without `icon_url` fall back to solid-color ellipse |
-| req-grid-icon-render-4 | Theming Through Color Inheritance | Implemented | The icon standard supports CSS color inheritance for theming. | SVG icons use `currentColor` in shipped assets |
+| req-grid-icon-render-4 | Theming Through Color Inheritance | Implemented | TAP-authored icons use `currentColor` for theming. Plugin icons for third-party branded services may use native brand colors. | Rendering pipeline treats SVGs as image assets; multi-color icons work correctly |
 
 #### Future
 Define more specific accessibility guidance if TAP later introduces UIs where an icon may appear without adjacent text.

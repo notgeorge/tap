@@ -25,6 +25,7 @@ from tap_grid.models import BaseModel, Edge
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _cls(hotlinks):
     """Return a bare class whose __dict__ contains HOTLINKS — for _check_hotlinks tests."""
     return type("FakeModel", (), {"HOTLINKS": hotlinks})
@@ -43,6 +44,7 @@ def _make_page_panel_edge(page_entity, panel_entity, panel_id: str) -> Edge:
 # ---------------------------------------------------------------------------
 # req-grid-hotlink-selector: simple_path extraction
 # ---------------------------------------------------------------------------
+
 
 class TestSimplePathExtract:
     """Unit tests for _simple_path_extract — no DB required."""
@@ -85,8 +87,7 @@ class TestSimplePathExtract:
         assert _simple_path_extract({"a": "x"}, "b") == set()
 
     def test_missing_nested_key_skips_silently(self):
-        data = {"columns": {"col-1": {"rows": {"row-1": {}}}}
-        }
+        data = {"columns": {"col-1": {"rows": {"row-1": {}}}}}
         result = _simple_path_extract(data, "columns.*.rows.*.panel-id")
         assert result == set()
 
@@ -124,6 +125,7 @@ class TestExtractIdentifiersDispatch:
 # ---------------------------------------------------------------------------
 # req-grid-hotlink-model: _check_hotlinks startup validation
 # ---------------------------------------------------------------------------
+
 
 class TestCheckHotlinks:
     """Startup invariant checks — no DB required."""
@@ -196,7 +198,7 @@ class TestCheckHotlinks:
                     related_name="+",
                 )
                 ENTITY_TYPE: ClassVar[str] = "bad_page_type_x"
-                FIELD_SCHEMA: ClassVar[dict[str, dict]] = {}
+                FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {}
                 HOTLINKS: ClassVar[list[dict]] = [
                     {
                         "name": "x",
@@ -216,6 +218,7 @@ class TestCheckHotlinks:
 # ---------------------------------------------------------------------------
 # req-grid-hotlink-validation: validate_hotlinks (DB integration)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.django_db
 class TestValidateHotlinksExactMode:
@@ -480,6 +483,7 @@ class TestValidateHotlinksUniqueMode:
 # req-grid-hotlink-edge-data: edge properties.hotlink structure
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.django_db
 class TestHotlinkEdgeData:
     """Edges carry the canonical properties.hotlink object."""
@@ -488,9 +492,11 @@ class TestHotlinkEdgeData:
         """Edge created with hotlink format retains all three fields."""
         from tap_web.models import Page, Panel
 
-        page = Page.objects.create(name="P", slug="/hl-edge-test", layout={
-            "columns": {"col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "main"}}}}
-        })
+        page = Page.objects.create(
+            name="P",
+            slug="/hl-edge-test",
+            layout={"columns": {"col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "main"}}}}},
+        )
         panel = Panel.objects.create(slug="hl-panel", name="HL Panel", view="tap_web/panel_error.html")
         edge = _make_page_panel_edge(page.entity, panel.entity, "main")
 

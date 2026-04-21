@@ -88,7 +88,7 @@ HOTLINKS = [
 This declaration does not change the existing read path. It only formalizes the contract that the service layer can enforce.
 
 #### Development
-Keeping `HOTLINKS` separate from `FIELD_SCHEMAS` is intentional. `FIELD_SCHEMAS` governs field shape and field-level validation. Hotlinks govern graph consistency between a node payload and materialized edges. Mixing the two would blur schema validation and relationship validation.
+Keeping `HOTLINKS` separate from `FIELD_VALIDATION_SCHEMA` is intentional. `FIELD_VALIDATION_SCHEMA` governs field shape and field-level validation. Hotlinks govern graph consistency between a node payload and materialized edges. Mixing the two would blur schema validation and relationship validation.
 
 #### Acceptance Criteria
 
@@ -100,7 +100,7 @@ Keeping `HOTLINKS` separate from `FIELD_SCHEMAS` is intentional. `FIELD_SCHEMAS`
 | req-grid-hotlink-model-4 | Multiple Definitions Supported | Implemented | A model may declare more than one hotlink definition when multiple embedded reference systems exist. | |
 
 #### Future
-Startup validation of `HOTLINKS` declarations is now implemented alongside `FIELD_SCHEMAS` via `_check_hotlinks` in `__init_subclass__`.
+Startup validation of `HOTLINKS` declarations is now implemented alongside `FIELD_VALIDATION_SCHEMA` via `_check_hotlinks` in `__init_subclass__`.
 
 
 ### Hotlink Edge Instance Data
@@ -259,7 +259,7 @@ Hotlink validation is graph-consistency validation. It does not replace schema v
 #### Development
 This separation of concerns is important:
 
-- `FIELD_SCHEMAS` or equivalent validators answer: "Is the field structurally valid?"
+- `FIELD_VALIDATION_SCHEMA` or equivalent validators answer: "Is the field structurally valid?"
 - `HOTLINKS` answer: "Does this field's embedded reference contract agree with the graph?"
 
 The system should validate against the node's current persisted edges at save time. That keeps the first implementation simple and allows existing models to adopt hotlinks declaratively.

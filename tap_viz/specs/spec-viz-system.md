@@ -182,7 +182,7 @@ If layouts later compose searches more richly, that composition should still be 
 RID: `req-viz-system-display-hints`
 Status: `In Development`
 
-Models may expose display hints that provide the smallest viz-specific default visualization guidance for node shape. Icon ownership remains part of TAP's canonical grid icon system. Viz-specific display metadata is namespaced under a `tap_viz` object within the broader model display metadata surface.
+Models may expose display hints that provide the smallest viz-specific default visualization guidance for node shape, color, and label size. Icon ownership remains part of TAP's canonical grid icon system. Viz-specific display metadata is namespaced under a `tap_viz` object within the broader model display metadata surface.
 
 #### Status Details
 This requirement formalizes the smallest useful set of viz-specific model-owned defaults without duplicating the canonical icon contract that already exists at the grid layer.
@@ -192,23 +192,27 @@ This requirement formalizes the smallest useful set of viz-specific model-owned 
 - Viz-specific display hints live under a namespaced `tap_viz` object in model display metadata so they do not interfere with non-viz consumers.
 - Display hints may define:
   - `shape`
+  - `color`
+  - `label_size`
 - Icon selection does not live in viz display hints in v1.
 - Icons are resolved through the canonical grid icon contract and icon service.
 - Layouts may override display hints for a specific layout instance.
 - Display hints do not replace layout definitions; they supply defaults.
 
 #### Development
-This lets a server, interface, or port model carry a stable default node shape while relying on the existing grid icon system for icon ownership and resolution, and it does so without polluting future display metadata consumers that may need different namespaced hints.
+This lets a server, interface, or port model carry stable default node shape, color, and label-size hints while relying on the existing grid icon system for icon ownership and resolution, and it does so without polluting future display metadata consumers that may need different namespaced hints.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-viz-system-display-hints-1 | Shape Hint Is Model-Level | Implemented | `DEFAULT_DISPLAY["tap_viz"]["shape"]` on `BaseModel` subclasses; graph panel enrichment reads it per node. | |
-| req-viz-system-display-hints-2 | Viz Hints Are Namespaced | Implemented | Viz hints live under the `tap_viz` key in `DEFAULT_DISPLAY`. | |
-| req-viz-system-display-hints-3 | Icons Reuse Grid Contract | Implemented | `_enrich_nodes_with_icons` uses `resolve_icon_url(EntityType)` from `tap_grid.icon_service`. | |
-| req-viz-system-display-hints-4 | Layout Overrides Allowed | Backlog | Deferred; layout-level shape override not yet implemented. | |
-| req-viz-system-display-hints-5 | Hints Remain Defaults | Implemented | Shape defaults to `"ellipse"` when no hint is present; layout pipeline is not replaced. | |
+| req-viz-system-display-hints-2 | Color Hint Is Model-Level | Proposed | `DEFAULT_DISPLAY["tap_viz"]["color"]` may provide the default node color for viz rendering. | |
+| req-viz-system-display-hints-3 | Label Size Hint Is Model-Level | Proposed | `DEFAULT_DISPLAY["tap_viz"]["label_size"]` may provide the default label-size tier for viz rendering. | |
+| req-viz-system-display-hints-4 | Viz Hints Are Namespaced | Implemented | Viz hints live under the `tap_viz` key in `DEFAULT_DISPLAY`. | |
+| req-viz-system-display-hints-5 | Icons Reuse Grid Contract | Implemented | `_enrich_nodes_with_icons` uses `resolve_icon_url(EntityType)` from `tap_grid.icon_service`. | |
+| req-viz-system-display-hints-6 | Layout Overrides Allowed | Backlog | Deferred; layout-level shape, color, or label-size override wiring not yet implemented. | |
+| req-viz-system-display-hints-7 | Hints Remain Defaults | Implemented | Shape defaults to `"ellipse"` when no hint is present; display hints remain defaults and do not replace the layout pipeline. | |
 
 #### Future
 Define the detailed display-hints schema in a dedicated viz sub-spec.

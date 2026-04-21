@@ -16,7 +16,7 @@ class Sentinel(BaseModel):
     ENTITY_NAME: ClassVar[str] = "Sentinel"
     ENTITY_DESCRIPTION: ClassVar[str] = "A watcher (wildcard test)."
 
-    FIELD_SCHEMA: ClassVar[dict[str, Any]] = {
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": _NAME_SCHEMA,
         "watch_domain": {"type": "string"},
     }

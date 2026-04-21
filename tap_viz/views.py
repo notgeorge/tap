@@ -1,2 +1,1 @@
 """tap_viz views."""
-
