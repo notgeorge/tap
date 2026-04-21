@@ -1,0 +1,110 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "01965b01-4000-7000-8000-000000000004",
+        "entity_type": "batch",
+        "name": "Genericom DNS v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom DNS v0.1.0",
+        "description": "Public hosted zone for genericom.com and the ACM certificate terminating TLS at the ALB."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000400000001",
+            "entity_type": "aws_route53_zone",
+            "name": "genericom.com",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom.com",
+            "hosted_zone_id": "Z08451273GENERICOM9Q2",
+            "record_count": 2,
+            "private_zone": false,
+            "configuration": {
+              "arn": "arn:aws:route53:::hostedzone/Z08451273GENERICOM9Q2",
+              "apex_records": [
+                {
+                  "type": "A",
+                  "name": "genericom.com",
+                  "target_alias": "genericom-prod-web-alb-184472991.us-west-1.elb.amazonaws.com",
+                  "note": "Apex alias to ALB; record-level modeling deferred to AWS Core (see req-genericom-demo-gaps-1)."
+                },
+                {
+                  "type": "AAAA",
+                  "name": "genericom.com",
+                  "target_alias": "genericom-prod-web-alb-184472991.us-west-1.elb.amazonaws.com",
+                  "note": "Apex alias to ALB; record-level modeling deferred to AWS Core (see req-genericom-demo-gaps-1)."
+                }
+              ]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000400000002",
+            "entity_type": "aws_acm_certificate",
+            "name": "genericom-prod-genericom-com-cert",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-genericom-com-cert",
+            "certificate_arn": "arn:aws:acm:us-west-1:482761905314:certificate/98c40b84-f6ad-4e8c-b6d3-87b93f7112c4",
+            "domain_name": "genericom.com",
+            "status": "ISSUED",
+            "type": "AMAZON_ISSUED",
+            "configuration": {
+              "age_relative": "about 11 months old"
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0004f0000001",
+            "entity_type": "edge",
+            "name": "Route 53 zone belongs to account",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000400000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000200000001",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0004f0000002",
+            "entity_type": "edge",
+            "name": "ACM cert belongs to account",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000400000002",
+            "to_entity_id": "01965b01-4000-7000-8000-000200000001",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}

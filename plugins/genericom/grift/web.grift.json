@@ -1,0 +1,298 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {
+    "finding_intent": [
+      {
+        "slug": "genericom-alb-public-http-80",
+        "target_entity_id": "01965b01-4000-7000-8000-000500000001",
+        "summary": "ALB exposes a public HTTP :80 listener (redirects to :443 but the port is still publicly reachable).",
+        "spec_ref": "req-genericom-demo-findings-1"
+      },
+      {
+        "slug": "genericom-alb-internal-http",
+        "target_entity_id": "01965b01-4000-7000-8000-000500000002",
+        "summary": "ALB forwards internally to the web tier over unencrypted HTTP :80; target group and EC2 instances effectively serve on TCP :80.",
+        "spec_ref": "req-genericom-demo-findings-2"
+      }
+    ]
+  },
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "01965b01-4000-7000-8000-000000000005",
+        "entity_type": "batch",
+        "name": "Genericom web tier v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom web tier v0.1.0",
+        "description": "Internet-facing ALB, target group, and two private Django EC2 instances."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000500000001",
+            "entity_type": "aws_alb",
+            "name": "genericom-prod-web-alb",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-web-alb",
+            "lb_arn": "arn:aws:elasticloadbalancing:us-west-1:482761905314:loadbalancer/app/genericom-prod-web-alb/3c7f5b92d1e84aa1",
+            "dns_name": "genericom-prod-web-alb-184472991.us-west-1.elb.amazonaws.com",
+            "scheme": "internet-facing",
+            "state": "active",
+            "configuration": {
+              "listeners": [
+                {"protocol": "HTTP", "port": 80, "action": "redirect-to-https-443"},
+                {"protocol": "HTTPS", "port": 443, "action": "forward-to-target-group", "ssl_policy_cert_arn": "arn:aws:acm:us-west-1:482761905314:certificate/98c40b84-f6ad-4e8c-b6d3-87b93f7112c4"}
+              ]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000500000002",
+            "entity_type": "aws_target_group",
+            "name": "genericom-prod-web-tg",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-web-tg",
+            "target_group_arn": "arn:aws:elasticloadbalancing:us-west-1:482761905314:targetgroup/genericom-prod-web-tg/c2f96b8d70a4e2f1",
+            "protocol": "HTTP",
+            "port": 80,
+            "target_type": "instance",
+            "health_check_path": "",
+            "configuration": {
+              "health_check": "intentionally left unspecified in v0"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000500000003",
+            "entity_type": "aws_ec2_instance",
+            "name": "genericom-prod-web-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-web-a",
+            "instance_id": "i-0b7d5a1c8e44f2193",
+            "ec2_type": "m6i.2xlarge",
+            "state": "running",
+            "private_ip": "10.0.10.21",
+            "public_ip": null,
+            "ami_id": "ami-genericom-al2023-2023-5-20240916",
+            "configuration": {
+              "arn": "arn:aws:ec2:us-west-1:482761905314:instance/i-0b7d5a1c8e44f2193",
+              "subnet_id": "subnet-0d92c6b4a17ef8102",
+              "availability_zone": "us-west-1a",
+              "operating_system": "Amazon Linux 2023",
+              "os_release": "2023.5.20240916",
+              "web_framework": "Django",
+              "django_version": "5.1.3",
+              "openssl_version": "3.0.12",
+              "app_listen_port": "80/tcp",
+              "age_relative": "about 9 months old"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000500000004",
+            "entity_type": "aws_ec2_instance",
+            "name": "genericom-prod-web-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-web-c",
+            "instance_id": "i-03f2ce198bd47aa60",
+            "ec2_type": "m6i.2xlarge",
+            "state": "running",
+            "private_ip": "10.0.11.21",
+            "public_ip": null,
+            "ami_id": "ami-genericom-al2023-2023-5-20240916",
+            "configuration": {
+              "arn": "arn:aws:ec2:us-west-1:482761905314:instance/i-03f2ce198bd47aa60",
+              "subnet_id": "subnet-0aa53ef819c274d66",
+              "availability_zone": "us-west-1c",
+              "operating_system": "Amazon Linux 2023",
+              "os_release": "2023.5.20240916",
+              "web_framework": "Django",
+              "django_version": "5.1.3",
+              "openssl_version": "3.0.12",
+              "app_listen_port": "80/tcp",
+              "age_relative": "about 9 months old"
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0005f0000001",
+            "entity_type": "edge",
+            "name": "ALB resides in public-alb-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000011",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0005f0000002",
+            "entity_type": "edge",
+            "name": "ALB resides in public-alb-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000012",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0005f0000003",
+            "entity_type": "edge",
+            "name": "ALB backed by ACM cert",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000400000002",
+            "edge_type": "BACKED_BY",
+            "properties": {
+              "relationship": "tls-termination"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0005f0000004",
+            "entity_type": "edge",
+            "name": "ALB routes to target group",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000500000002",
+            "edge_type": "ROUTES_TO",
+            "properties": {
+              "port": 80
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0005f0000005",
+            "entity_type": "edge",
+            "name": "Route 53 zone routes to ALB",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000400000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000500000001",
+            "edge_type": "ROUTES_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0005f0000006",
+            "entity_type": "edge",
+            "name": "EC2 web-a resides in private-web-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000003",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000013",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0005f0000007",
+            "entity_type": "edge",
+            "name": "EC2 web-c resides in private-web-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000004",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000014",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0005f0000008",
+            "entity_type": "edge",
+            "name": "Target group backed by EC2 web-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000002",
+            "to_entity_id": "01965b01-4000-7000-8000-000500000003",
+            "edge_type": "BACKED_BY",
+            "properties": {
+              "relationship": "target"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0005f0000009",
+            "entity_type": "edge",
+            "name": "Target group backed by EC2 web-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000002",
+            "to_entity_id": "01965b01-4000-7000-8000-000500000004",
+            "edge_type": "BACKED_BY",
+            "properties": {
+              "relationship": "target"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

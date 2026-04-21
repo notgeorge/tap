@@ -557,3 +557,74 @@ class TestGriftMultiBatch:
         assert result.counts.batches_skipped == 1
 
 
+# ---------------------------------------------------------------------------
+# Envelope dimensions merged onto imported entities (req-grid-dimension-dc-5)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestGriftEnvelopeDimensions:
+    """GRIFT imports honor envelope.dimensions on create (req-grid-dimension-dc-5)."""
+
+    def _dimension_node(self, entity_id: str, envelope_dims: dict[str, str]) -> dict[str, Any]:
+        return {
+            "entity": {
+                "entity_id": entity_id,
+                "entity_type": "dimension",
+                "name": "scoped-dim",
+                "dimensions": envelope_dims,
+            },
+            "node": {"name": "scoped-dim", "description": ""},
+        }
+
+    def test_envelope_dims_merged_with_model_defaults(self):
+        """Envelope dimensions merge with DEFAULT_DIMENSIONS; non-overlapping keys both present."""
+        batch_id = _batch_entity_id()
+        node_id = _node_entity_id()
+        doc = _minimal_doc(
+            [
+                _batch_container(
+                    batch_id,
+                    nodes=[self._dimension_node(node_id, {"tap.env": "genericom-prod"})],
+                )
+            ]
+        )
+        result = grift_import(doc)
+        assert result.success, result.issues
+
+        entity = Entity.objects.get(pk=uuid.UUID(node_id))
+        assert entity.dimensions == {"tap.meta": "dimension", "tap.env": "genericom-prod"}
+
+    def test_envelope_dims_override_model_defaults(self):
+        """Envelope key wins over colliding DEFAULT_DIMENSIONS key."""
+        batch_id = _batch_entity_id()
+        node_id = _node_entity_id()
+        doc = _minimal_doc(
+            [
+                _batch_container(
+                    batch_id,
+                    nodes=[self._dimension_node(node_id, {"tap.meta": "overridden"})],
+                )
+            ]
+        )
+        result = grift_import(doc)
+        assert result.success
+
+        entity = Entity.objects.get(pk=uuid.UUID(node_id))
+        assert entity.dimensions == {"tap.meta": "overridden"}
+
+    def test_empty_envelope_dims_leaves_only_model_defaults(self):
+        """Empty envelope dimensions still applies DEFAULT_DIMENSIONS."""
+        batch_id = _batch_entity_id()
+        node_id = _node_entity_id()
+        doc = _minimal_doc(
+            [_batch_container(batch_id, nodes=[self._dimension_node(node_id, {})])]
+        )
+        result = grift_import(doc)
+        assert result.success
+
+        entity = Entity.objects.get(pk=uuid.UUID(node_id))
+        assert entity.dimensions == {"tap.meta": "dimension"}
+
+
+

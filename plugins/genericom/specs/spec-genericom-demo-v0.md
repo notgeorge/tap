@@ -24,6 +24,7 @@ The v0 specification starts with the minimum AWS footprint necessary to show a b
 | req-genericom-demo-topology | [Production Topology](#production-topology) | Proposed | Defines the concrete AWS architecture to model first |
 | req-genericom-demo-runtime | [Application Runtime Details](#application-runtime-details) | Proposed | Pins versions, classes, addresses, and operating details |
 | req-genericom-demo-findings | [Intentional Future Findings](#intentional-future-findings) | Proposed | Preserves misconfiguration intent without defining finding models yet |
+| req-genericom-demo-finding-stash | [Finding-Intent Stash](#finding-intent-stash) | Backlog | Machine-readable finding-intent block shipped in GRIFT; removed once first-class finding models land |
 | req-genericom-demo-future | [Named Future Expansions](#named-future-expansions) | Proposed | Lists the next domains the plugin should grow into |
 | req-genericom-demo-gaps | [Core Modeling Follow-Up](#core-modeling-follow-up) | Proposed | Calls out AWS Core and Computing Core work needed later |
 
@@ -58,13 +59,13 @@ The first spec includes only these primary AWS components:
 - two EC2 web instances running Django
 - one multi-AZ RDS PostgreSQL instance
 - one VPC with six subnets
+- one internet gateway attached to the VPC
 
 The first spec explicitly defers:
 
 - additional AWS accounts
 - security groups
 - route tables
-- internet gateways
 - NAT gateways
 - autoscaling groups
 - formal finding and exception models
@@ -105,6 +106,13 @@ The primary network container is:
 - VPC id: `vpc-0f4e3b8c2a1d9e76b`
 - VPC ARN: `arn:aws:ec2:us-west-1:482761905314:vpc/vpc-0f4e3b8c2a1d9e76b`
 - CIDR: `10.0.0.0/16`
+
+The internet gateway attached to the VPC is:
+
+- IGW name: `genericom-prod-igw`
+- IGW id: `igw-0a3f82b71c6d4e519`
+- IGW ARN: `arn:aws:ec2:us-west-1:482761905314:internet-gateway/igw-0a3f82b71c6d4e519`
+- attached VPC: `genericom-prod-vpc`
 
 The six subnets are:
 
@@ -195,10 +203,11 @@ The request and dependency path is:
 | req-genericom-demo-topology-2 | Concrete DNS and ALB | Proposed | The spec pins the hosted zone, apex alias records, ALB identity, and listener behavior. | |
 | req-genericom-demo-topology-3 | Private Web Tier | Proposed | The spec states both EC2 web instances are private-only and includes concrete private IPs. | |
 | req-genericom-demo-topology-4 | Multi-AZ Database | Proposed | The spec states the RDS PostgreSQL backend is multi-AZ primary/standby and private-only. | |
+| req-genericom-demo-topology-5 | Internet Gateway Attached | Proposed | The spec pins an internet gateway attached to the production VPC. | |
 
 #### Future
 
-Add internet gateway, NAT, route tables, and security groups as a follow-on network-expansion pass.
+Add NAT, route tables, and security groups as a follow-on network-expansion pass.
 
 ### Application Runtime Details
 ----
@@ -303,6 +312,58 @@ The key requirement is preservation of intent:
 #### Future
 
 Add first-class finding, exception, and signal models in a separate follow-on push rather than mixing them into the infrastructure spec.
+
+### Finding-Intent Stash
+----
+RID: `req-genericom-demo-finding-stash`
+Status: `Backlog`
+
+Until first-class finding models exist, the Genericom GRIFT seed ships a machine-readable finding-intent block inside the `_reserved` object so future tooling can rediscover the intentional misconfigurations without re-reading the spec.
+
+#### Status Details
+
+This is a temporary scaffold. Its only job is to preserve the linkage between "we said this was a planned finding" and "here is the concrete entity that carries the condition." It is not an attempt at a finding model — it has no severity, no state, no lifecycle.
+
+#### Implementation
+
+Each GRIFT file that defines nodes carrying future-finding conditions includes a `_reserved.finding_intent` entry shaped roughly as:
+
+```json
+"finding_intent": [
+  {
+    "slug": "genericom-alb-public-http-80",
+    "target_entity_id": "<alb-entity-id>",
+    "summary": "ALB exposes public HTTP :80 listener (redirects to :443 but still publicly reachable).",
+    "spec_ref": "req-genericom-demo-findings-1"
+  }
+]
+```
+
+Required fields:
+
+- `slug` — stable short identifier for the intent
+- `target_entity_id` — the `entity_id` of the node the intent attaches to
+- `summary` — human-readable one-liner
+- `spec_ref` — ACID this intent was promised in
+
+The v0 finding intents are:
+
+- `genericom-alb-public-http-80` → ALB (`req-genericom-demo-findings-1`)
+- `genericom-alb-internal-http` → target group / ALB-to-EC2 path (`req-genericom-demo-findings-2`)
+- `genericom-rds-unencrypted-at-rest` → RDS instance (`req-genericom-demo-findings-3`)
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-genericom-demo-finding-stash-1 | Intent Block Present | Backlog | GRIFT files shipping finding-bearing nodes include a `_reserved.finding_intent` array with one entry per intentional misconfiguration. | |
+| req-genericom-demo-finding-stash-2 | Intents Link To Entities | Backlog | Each finding-intent entry references an `entity_id` that exists in the same GRIFT document. | |
+| req-genericom-demo-finding-stash-3 | Intents Link To Spec | Backlog | Each finding-intent entry cites the acceptance-criterion ID from `req-genericom-demo-findings` it preserves. | |
+| req-genericom-demo-finding-stash-4 | Stash Removed When Findings Land | Backlog | When first-class finding entities exist and Genericom's intents have been promoted to real findings, this requirement and its `_reserved.finding_intent` blocks are deleted from the plugin. | Removal itself closes out this requirement. |
+
+#### Future
+
+Delete this entire section, its ACIDs, and every `_reserved.finding_intent` block from Genericom's GRIFT files once first-class finding models exist and the three v0 conditions have been represented as real finding entities.
 
 ### Named Future Expansions
 ----

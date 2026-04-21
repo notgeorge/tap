@@ -646,6 +646,9 @@ class Dimension(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "tap_dimension"
 
+    def get_name(self) -> str:
+        return self.name
+
     def __str__(self) -> str:
         return self.name
 

@@ -23,6 +23,10 @@ class WriteOperation:
         from_target: Source entity UUID for create_edge.
         to_target: Destination entity UUID for create_edge.
         edge_type: Edge type string for create_edge.
+        entity_id: Pre-specified entity_id for create verbs (e.g. GRIFT upsert).
+        dimensions: Caller-supplied dimensions for create verbs. Merged over the
+            model class's DEFAULT_DIMENSIONS (caller wins on conflicting keys).
+            Applied on both create_node and create_edge paths.
     """
 
     verb: str
@@ -32,7 +36,8 @@ class WriteOperation:
     from_target: str | uuid.UUID | None = None
     to_target: str | uuid.UUID | None = None
     edge_type: str | None = None
-    entity_id: str | uuid.UUID | None = None  # Pre-specified entity_id for create verbs (e.g. GRIFT upsert).
+    entity_id: str | uuid.UUID | None = None
+    dimensions: dict[str, str] | None = None
 
 
 @dataclass

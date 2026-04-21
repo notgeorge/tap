@@ -113,7 +113,7 @@ Having pages in a separate dimension is helpful because that distinction meets o
 In order to simplify / standardize that we'll define a `DEFAULT_DIMENSIONS` field that will be applied whenever an entity is created.
 
 #### Status Details
-Implemented in `tap_grid/models.py`. `BaseModel.save()` merges `DEFAULT_DIMENSIONS` with `_initial_dimensions` on the auto-creation path. `Edge.save()` looks up the edge type in `_EDGE_DEFAULT_DIMENSIONS_REGISTRY` and applies those dimensions before delegating. Tests in `tap_grid/tests/test_dimensions.py` under `TestDefaultDimensions` and `TestEdgeDefaultDimensions`.
+Implemented in `tap_grid/models.py`. `BaseModel.save()` merges `DEFAULT_DIMENSIONS` with `_initial_dimensions` on the auto-creation path. `Edge.save()` looks up the edge type in `_EDGE_DEFAULT_DIMENSIONS_REGISTRY` and applies those dimensions before delegating. `tap_grid/services.py` applies the same merge on the prespecified-entity-id create path used by GRIFT imports. Tests in `tap_grid/tests/test_dimensions.py` under `TestDefaultDimensions` and `TestEdgeDefaultDimensions`.
 
 #### Implementation
 `DEFAULT_DIMENSIONS` is a `ClassVar[dict[str, str]]` declared on a `BaseModel` subclass. It is applied during the auto-Entity creation path inside `BaseModel.save()` — the branch that fires when `entity_id` is `None`.
@@ -130,6 +130,8 @@ Entity.objects.create(..., dimensions=dimensions)
 
 **Edge default dimensions**: Edge types declare `default_dimensions` in `TapPluginConfig.edge_types`. At startup, `TapPluginConfig._register_edge_constraints()` loads these into `_EDGE_DEFAULT_DIMENSIONS_REGISTRY` in `tap_grid/constraints.py`. When an Edge is created, `Edge.save()` calls `get_edge_default_dimensions(edge_type)` and merges the result with any caller-supplied `_initial_dimensions` using the same explicit-wins rule.
 
+**Prespecified-entity-id create path**: the TAP service layer also supports creating nodes and edges with caller-specified `entity_id` values (used by GRIFT imports). `WriteOperation.dimensions` carries caller-supplied dimensions into this path. `tap_grid/services.py` merges them with the type's defaults (`DEFAULT_DIMENSIONS` for nodes, edge-type `default_dimensions` for edges) using the same explicit-wins rule before creating the Entity row. The merge result matches the auto-creation path for the same inputs.
+
 Default dimensions applied at creation are not enforced after that point. They may be changed or removed without a validation error.
 
 #### Development
@@ -142,6 +144,7 @@ Default dimensions applied at creation are not enforced after that point. They m
 | req-grid-dimension-dc-2 | Defaults Are Not Mandatory | Implemented | After creation, default dimensions may be changed or removed without causing a validation error. | |
 | req-grid-dimension-dc-3 | Explicit Wins on Merge | Implemented | When a caller supplies dimensions at create time, explicit keys override matching keys from `DEFAULT_DIMENSIONS`. Non-overlapping keys from both are present in the result. | |
 | req-grid-dimension-dc-4 | Edge Default Dimensions | Implemented | Creating an `Edge` applies the `default_dimensions` registered for its edge type in `_EDGE_DEFAULT_DIMENSIONS_REGISTRY`, with the same merge semantics. Edge types declare `default_dimensions` in `TapPluginConfig.edge_types`. | |
+| req-grid-dimension-dc-5 | Prespecified-Id Path Honors Merge | Implemented | Creating a node or edge with a caller-specified `entity_id` (e.g. via GRIFT import) merges `WriteOperation.dimensions` over the type's defaults using the same explicit-wins rule as the auto-creation path. | Closes a prior gap where the prespecified-id path ignored caller dimensions and edge-type defaults. |
 
 
 #### Future

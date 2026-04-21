@@ -20,7 +20,8 @@ from tap_grid.constraints import (
     register_edge_default_dimensions,
 )
 from tap_grid.models import Dimension, Edge, Entity
-from tap_grid.services import create_entity
+from tap_grid.service_types import WriteOperation
+from tap_grid.services import create_entity, write_batch
 
 
 @contextmanager
@@ -178,6 +179,150 @@ class TestEdgeDefaultDimensions:
         register_edge_default_dimensions("DUP_EDGE", {"tap.graph": "web"})
         with pytest.raises(ImproperlyConfigured, match="already registered"):
             register_edge_default_dimensions("DUP_EDGE", {"tap.graph": "other"})
+
+
+# ---------------------------------------------------------------------------
+# req-grid-dimension-dc-5: Prespecified-Entity-Id Create Path Honors Merge
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPrespecifiedIdDimensionMerge:
+    """req-grid-dimension-dc-5: GRIFT-style prespecified entity_id creates merge
+    WriteOperation.dimensions over DEFAULT_DIMENSIONS / edge default_dimensions
+    using the same explicit-wins rule as the auto-creation path.
+    """
+
+    @pytest.fixture(autouse=True)
+    def isolate_registry(self) -> None:
+        saved = _edge_default_dimensions_registry.all()
+        _edge_default_dimensions_registry._reset_for_testing()
+        yield
+        _edge_default_dimensions_registry._reset_for_testing(saved)
+
+    def test_node_prespecified_id_merges_defaults_with_envelope(self):
+        """Node create with prespecified id merges DEFAULT_DIMENSIONS + op.dimensions (dc-5)."""
+        import uuid
+
+        entity_id = str(uuid.uuid7())
+        op = WriteOperation(
+            verb="create_node",
+            type_slug="dimension",
+            payload={"name": "prespec-node", "description": ""},
+            entity_id=entity_id,
+            dimensions={"tap.env": "genericom-prod"},
+        )
+        result = write_batch([op])
+        assert result.success, result.errors or [r.errors for r in result.results]
+
+        entity = Entity.objects.get(pk=uuid.UUID(entity_id))
+        assert entity.dimensions == {"tap.meta": "dimension", "tap.env": "genericom-prod"}
+
+    def test_node_prespecified_id_envelope_overrides_default(self):
+        """Envelope key wins when it collides with a DEFAULT_DIMENSIONS key (dc-5)."""
+        import uuid
+
+        entity_id = str(uuid.uuid7())
+        op = WriteOperation(
+            verb="create_node",
+            type_slug="dimension",
+            payload={"name": "override-node", "description": ""},
+            entity_id=entity_id,
+            dimensions={"tap.meta": "custom-override"},
+        )
+        result = write_batch([op])
+        assert result.success
+
+        entity = Entity.objects.get(pk=uuid.UUID(entity_id))
+        assert entity.dimensions == {"tap.meta": "custom-override"}
+
+    def test_node_prespecified_id_no_envelope_dims_uses_defaults(self):
+        """Without envelope dimensions, prespecified-id path applies only DEFAULT_DIMENSIONS (dc-5)."""
+        import uuid
+
+        entity_id = str(uuid.uuid7())
+        op = WriteOperation(
+            verb="create_node",
+            type_slug="dimension",
+            payload={"name": "bare-node", "description": ""},
+            entity_id=entity_id,
+        )
+        result = write_batch([op])
+        assert result.success
+
+        entity = Entity.objects.get(pk=uuid.UUID(entity_id))
+        assert entity.dimensions == {"tap.meta": "dimension"}
+
+    def test_edge_prespecified_id_merges_edge_defaults_with_envelope(self):
+        """Edge create with prespecified id merges edge default_dimensions + op.dimensions (dc-5)."""
+        import uuid
+
+        register_edge_default_dimensions("GENERIC_EDGE", {"tap.cloud": "aws"})
+        source = Wanderer.objects.create(journey="src")
+        target = Wanderer.objects.create(journey="dst")
+
+        edge_entity_id = str(uuid.uuid7())
+        op = WriteOperation(
+            verb="create_edge",
+            from_target=str(source.entity_id),
+            to_target=str(target.entity_id),
+            edge_type="GENERIC_EDGE",
+            payload={"properties": {}},
+            entity_id=edge_entity_id,
+            dimensions={"tap.env": "genericom-prod"},
+        )
+        result = write_batch([op])
+        assert result.success, result.errors or [r.errors for r in result.results]
+
+        entity = Entity.objects.get(pk=uuid.UUID(edge_entity_id))
+        assert entity.dimensions == {"tap.cloud": "aws", "tap.env": "genericom-prod"}
+
+    def test_edge_prespecified_id_envelope_overrides_edge_default(self):
+        """Envelope edge dimension wins over edge-type default_dimensions (dc-5)."""
+        import uuid
+
+        register_edge_default_dimensions("OVERRIDE_EDGE", {"tap.cloud": "aws"})
+        source = Wanderer.objects.create(journey="src")
+        target = Wanderer.objects.create(journey="dst")
+
+        edge_entity_id = str(uuid.uuid7())
+        op = WriteOperation(
+            verb="create_edge",
+            from_target=str(source.entity_id),
+            to_target=str(target.entity_id),
+            edge_type="OVERRIDE_EDGE",
+            payload={"properties": {}},
+            entity_id=edge_entity_id,
+            dimensions={"tap.cloud": "onprem"},
+        )
+        result = write_batch([op])
+        assert result.success
+
+        entity = Entity.objects.get(pk=uuid.UUID(edge_entity_id))
+        assert entity.dimensions == {"tap.cloud": "onprem"}
+
+    def test_edge_prespecified_id_no_envelope_dims_uses_edge_defaults(self):
+        """Without envelope dimensions, edge prespecified-id path applies only edge defaults (dc-5)."""
+        import uuid
+
+        register_edge_default_dimensions("BARE_EDGE", {"tap.cloud": "aws"})
+        source = Wanderer.objects.create(journey="src")
+        target = Wanderer.objects.create(journey="dst")
+
+        edge_entity_id = str(uuid.uuid7())
+        op = WriteOperation(
+            verb="create_edge",
+            from_target=str(source.entity_id),
+            to_target=str(target.entity_id),
+            edge_type="BARE_EDGE",
+            payload={"properties": {}},
+            entity_id=edge_entity_id,
+        )
+        result = write_batch([op])
+        assert result.success
+
+        entity = Entity.objects.get(pk=uuid.UUID(edge_entity_id))
+        assert entity.dimensions == {"tap.cloud": "aws"}
 
 
 # ---------------------------------------------------------------------------

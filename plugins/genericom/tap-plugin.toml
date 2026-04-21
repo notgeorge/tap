@@ -1,0 +1,13 @@
+manifest_version = "0"
+plugin_version = "0.1.0"
+slug = "genericom"
+name = "Genericom"
+description = "Demonstration AWS environment — a fictional customer-facing web application stack used to exercise TAP visualization, pan, zoom, and future alert-badge features."
+
+[grift]
+dimension = "grift/dimension.grift.json"
+account = "grift/account.grift.json"
+network = "grift/network.grift.json"
+dns = "grift/dns.grift.json"
+web = "grift/web.grift.json"
+data = "grift/data.grift.json"

@@ -1,0 +1,431 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "01965b01-4000-7000-8000-000000000003",
+        "entity_type": "batch",
+        "name": "Genericom network v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom network v0.1.0",
+        "description": "Genericom production VPC, six subnets, and the attached internet gateway."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000300000001",
+            "entity_type": "aws_vpc",
+            "name": "genericom-prod-vpc",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-vpc",
+            "vpc_id": "vpc-0f4e3b8c2a1d9e76b",
+            "cidr_block": "10.0.0.0/16",
+            "state": "available",
+            "is_default": false,
+            "configuration": {
+              "arn": "arn:aws:ec2:us-west-1:482761905314:vpc/vpc-0f4e3b8c2a1d9e76b",
+              "region": "us-west-1"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000300000002",
+            "entity_type": "aws_internet_gateway",
+            "name": "genericom-prod-igw",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-igw",
+            "igw_id": "igw-0a3f82b71c6d4e519",
+            "state": "attached",
+            "configuration": {
+              "arn": "arn:aws:ec2:us-west-1:482761905314:internet-gateway/igw-0a3f82b71c6d4e519",
+              "attached_vpc_id": "vpc-0f4e3b8c2a1d9e76b"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000300000011",
+            "entity_type": "aws_subnet",
+            "name": "genericom-prod-public-alb-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-public-alb-a",
+            "subnet_id": "subnet-07c1a2f4e8b63d101",
+            "cidr_block": "10.0.0.0/24",
+            "availability_zone": "us-west-1a",
+            "public": true,
+            "configuration": {
+              "arn": "arn:aws:ec2:us-west-1:482761905314:subnet/subnet-07c1a2f4e8b63d101",
+              "tier": "public-alb"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000300000012",
+            "entity_type": "aws_subnet",
+            "name": "genericom-prod-public-alb-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-public-alb-c",
+            "subnet_id": "subnet-01b8d7ce4f922aa34",
+            "cidr_block": "10.0.1.0/24",
+            "availability_zone": "us-west-1c",
+            "public": true,
+            "configuration": {
+              "arn": "arn:aws:ec2:us-west-1:482761905314:subnet/subnet-01b8d7ce4f922aa34",
+              "tier": "public-alb"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000300000013",
+            "entity_type": "aws_subnet",
+            "name": "genericom-prod-private-web-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-private-web-a",
+            "subnet_id": "subnet-0d92c6b4a17ef8102",
+            "cidr_block": "10.0.10.0/24",
+            "availability_zone": "us-west-1a",
+            "public": false,
+            "configuration": {
+              "arn": "arn:aws:ec2:us-west-1:482761905314:subnet/subnet-0d92c6b4a17ef8102",
+              "tier": "private-web"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000300000014",
+            "entity_type": "aws_subnet",
+            "name": "genericom-prod-private-web-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-private-web-c",
+            "subnet_id": "subnet-0aa53ef819c274d66",
+            "cidr_block": "10.0.11.0/24",
+            "availability_zone": "us-west-1c",
+            "public": false,
+            "configuration": {
+              "arn": "arn:aws:ec2:us-west-1:482761905314:subnet/subnet-0aa53ef819c274d66",
+              "tier": "private-web"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000300000015",
+            "entity_type": "aws_subnet",
+            "name": "genericom-prod-private-db-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-private-db-a",
+            "subnet_id": "subnet-02ce59ab417ed9f42",
+            "cidr_block": "10.0.20.0/24",
+            "availability_zone": "us-west-1a",
+            "public": false,
+            "configuration": {
+              "arn": "arn:aws:ec2:us-west-1:482761905314:subnet/subnet-02ce59ab417ed9f42",
+              "tier": "private-database"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000300000016",
+            "entity_type": "aws_subnet",
+            "name": "genericom-prod-private-db-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-private-db-c",
+            "subnet_id": "subnet-0619de74bc3285af1",
+            "cidr_block": "10.0.21.0/24",
+            "availability_zone": "us-west-1c",
+            "public": false,
+            "configuration": {
+              "arn": "arn:aws:ec2:us-west-1:482761905314:subnet/subnet-0619de74bc3285af1",
+              "tier": "private-database"
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f0000001",
+            "entity_type": "edge",
+            "name": "VPC belongs to account",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000200000001",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f0000002",
+            "entity_type": "edge",
+            "name": "Region contains VPC",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b00-1000-7000-8000-000000000033",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f0000003",
+            "entity_type": "edge",
+            "name": "VPC contains public-alb-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000011",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f0000004",
+            "entity_type": "edge",
+            "name": "VPC contains public-alb-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000012",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f0000005",
+            "entity_type": "edge",
+            "name": "VPC contains private-web-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000013",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f0000006",
+            "entity_type": "edge",
+            "name": "VPC contains private-web-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000014",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f0000007",
+            "entity_type": "edge",
+            "name": "VPC contains private-db-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000015",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f0000008",
+            "entity_type": "edge",
+            "name": "VPC contains private-db-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000016",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f0000009",
+            "entity_type": "edge",
+            "name": "IGW attached to VPC",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000002",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "edge_type": "ATTACHED_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f000000a",
+            "entity_type": "edge",
+            "name": "public-alb-a resides in us-west-1a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000011",
+            "to_entity_id": "01965b00-2000-7000-8000-000000000102",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f000000b",
+            "entity_type": "edge",
+            "name": "public-alb-c resides in us-west-1c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000012",
+            "to_entity_id": "01965b00-2000-7000-8000-000000000104",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f000000c",
+            "entity_type": "edge",
+            "name": "private-web-a resides in us-west-1a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000013",
+            "to_entity_id": "01965b00-2000-7000-8000-000000000102",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f000000d",
+            "entity_type": "edge",
+            "name": "private-web-c resides in us-west-1c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000014",
+            "to_entity_id": "01965b00-2000-7000-8000-000000000104",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f000000e",
+            "entity_type": "edge",
+            "name": "private-db-a resides in us-west-1a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000015",
+            "to_entity_id": "01965b00-2000-7000-8000-000000000102",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0003f000000f",
+            "entity_type": "edge",
+            "name": "private-db-c resides in us-west-1c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000300000016",
+            "to_entity_id": "01965b00-2000-7000-8000-000000000104",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}

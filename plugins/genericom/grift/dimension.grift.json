@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "01965b01-4000-7000-8000-000000000001",
+        "entity_type": "batch",
+        "name": "Genericom dimension v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom dimension v0.1.0",
+        "description": "Dimension node anchoring the tap.env=genericom-prod dimension."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000100000001",
+            "entity_type": "dimension",
+            "name": "tap.env: genericom-prod",
+            "dimensions": {
+              "tap.meta": "dimension"
+            }
+          },
+          "node": {
+            "name": "tap.env: genericom-prod",
+            "description": "The Genericom production environment dimension. All Genericom-owned nodes and edges are tagged with {\"tap.env\": \"genericom-prod\"} so the demonstration environment can be sliced out of the graph. Genericom is a fictional customer-facing web application stack used to exercise TAP visualization features; it does not represent a real AWS account."
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

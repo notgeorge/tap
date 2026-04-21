@@ -81,6 +81,10 @@ INSTALLED_APPS = [
     "plugins.administrivia.apps.AdministriviaConfig",
     # LOTR plugin — Middle-earth entities for constraint testing
     "plugins.lotr.apps.LotrConfig",
+    # AWS Core plugin — resource-type models for AWS cloud infrastructure
+    "plugins.aws_core.apps.AwsCoreConfig",
+    # Genericom plugin — demonstration AWS environment built on aws_core
+    "plugins.genericom.apps.GenericomConfig",
     # API layer — last so ready() discovers all plugin routers
     "tap_api",
     # Web interface

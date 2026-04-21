@@ -1233,6 +1233,7 @@ def _execute_grift_batch(
             for node_idx, node_obj in enumerate(batch_container.get("nodes", [])):
                 node_entity_id = node_obj["entity"]["entity_id"]
                 entity_type = node_obj["entity"]["entity_type"]
+                envelope_dims = node_obj["entity"].get("dimensions") or {}
                 payload = node_obj["node"]
                 node_path = f"{batch_path}.nodes[{node_idx}]"
 
@@ -1241,7 +1242,11 @@ def _execute_grift_batch(
                 else:
                     ops.append(
                         WriteOperation(
-                            verb="create_node", type_slug=entity_type, payload=payload, entity_id=node_entity_id
+                            verb="create_node",
+                            type_slug=entity_type,
+                            payload=payload,
+                            entity_id=node_entity_id,
+                            dimensions=envelope_dims,
                         )
                     )
                 op_meta.append(
@@ -1251,6 +1256,7 @@ def _execute_grift_batch(
             for edge_idx, edge_obj in enumerate(batch_container.get("edges", [])):
                 edge_entity_id = edge_obj["entity"]["entity_id"]
                 edge = edge_obj["edge"]
+                envelope_dims = edge_obj["entity"].get("dimensions") or {}
                 edge_path = f"{batch_path}.edges[{edge_idx}]"
 
                 if edge_entity_id in dangling_edge_ids:
@@ -1286,6 +1292,7 @@ def _execute_grift_batch(
                             edge_type=edge["edge_type"],
                             payload={"properties": properties},
                             entity_id=edge_entity_id,
+                            dimensions=envelope_dims,
                         )
                     )
                 op_meta.append({"path": edge_path, "entity_id": edge_entity_id, "entity_type": "edge", "kind": "edge"})

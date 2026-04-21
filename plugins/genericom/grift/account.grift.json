@@ -1,0 +1,42 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "01965b01-4000-7000-8000-000000000002",
+        "entity_type": "batch",
+        "name": "Genericom account v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom account v0.1.0",
+        "description": "The Genericom production AWS account."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000200000001",
+            "entity_type": "aws_account",
+            "name": "genericom-prod",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod",
+            "account_id": "482761905314",
+            "status": "ACTIVE",
+            "configuration": {
+              "purpose": "customer-facing production web application"
+            }
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

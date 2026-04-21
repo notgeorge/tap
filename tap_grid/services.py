@@ -309,6 +309,12 @@ def _execute_write_pipeline(
                     "entity_tombstoned",
                 )
 
+        # Thread caller-supplied dimensions onto the instance so the non-prespecified-id
+        # path (BaseModel.save() / Edge.save()) can merge them with type defaults.
+        # The prespecified-id branch below applies the same merge explicitly before save().
+        if is_create and op.dimensions:
+            instance._initial_dimensions = dict(op.dimensions)
+
         # Step 8 (early): edge_type immutability — checked before schema validation so the
         # error code is "constraint_violation" rather than "validation_error".
         if op.verb in ("patch_edge", "replace_edge") and "edge_type" in payload:
@@ -366,12 +372,19 @@ def _execute_write_pipeline(
         # and before save() so save() takes the explicit-entity path.
         if is_create and op.entity_id is not None and instance.entity_id is None:
             prespecified_id = _coerce_uuid(op.entity_id)
-            base_dims = dict(getattr(model_cls, "DEFAULT_DIMENSIONS", {}))
+            if op.verb == "create_edge":
+                from tap_grid.constraints import get_edge_default_dimensions
+
+                base_dims = dict(get_edge_default_dimensions(op.edge_type))  # type: ignore[arg-type]
+            else:
+                base_dims = dict(getattr(model_cls, "DEFAULT_DIMENSIONS", {}))
+            caller_dims: dict[str, str] = getattr(instance, "_initial_dimensions", {}) or {}
+            merged_dims = {**base_dims, **caller_dims}
             instance.entity = Entity.objects.create(
                 id=prespecified_id,
                 entity_type=model_cls.ENTITY_TYPE,
                 name=instance.get_name(),
-                dimensions=base_dims,
+                dimensions=merged_dims,
             )
 
         snapshot_entity: Entity | None = None
