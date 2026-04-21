@@ -34,3 +34,7 @@ Thumbs.db
 
 # Docker
 # Note: docker-compose.yml IS committed (it's dev config, not secrets)
+
+# Vendored third-party assets (AWS icon pack, etc.) — stashed locally, raided for
+# individually relicensed icons copied into plugin static dirs.
+vendor/
