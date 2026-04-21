@@ -4,30 +4,67 @@
  * Bounded-layer nested projection for the minimal AWS slice:
  *
  *   aws_account (viewport parent)
- *     ├── aws_route53_zone (leaf at this elevation)
+ *     ├── aws_route53_zone (leaf — account-scoped service)
  *     └── aws_vpc (viewport parent)
+ *           ├── aws_alb (leaf — VPC-scoped service, ENIs span subnets)
+ *           ├── aws_rds_instance (leaf — VPC-scoped service, multi-AZ placement)
  *           └── aws_subnet (viewport parent)
- *                 └── aws_ec2_instance | aws_rds_instance | aws_alb (leaf)
+ *                 └── aws_ec2_instance (leaf — actually lives in one subnet)
  *
- * Punt rule for multi-home resources (RDS with RESIDES_IN to two subnets):
- * keep the first RESIDES_IN out-edge active for the resolver; shadow the
- * rest with a non-matching edge_type so the resolver ignores them. The
- * visible edge label stays "RESIDES_IN" so the non-primary subnet remains
- * wired on screen.
+ * VPC-scoped services (ALB, RDS) don't live in any single subnet in AWS:
+ * they have ENIs in two or more subnets across AZs, and the load balancer /
+ * database itself is a VPC-scoped abstraction. We model this visually by
+ * synthesizing a hidden containment edge from each such resource to its VPC
+ * so the nesting resolver places them as siblings of subnets. Their original
+ * RESIDES_IN edges to individual subnets stay visible on screen, so viewers
+ * can still see which subnets the resource is wired to.
  */
 
 import {projectNested} from "/static/tap_viz/js/runtime/nested-projection.js";
 
-const MULTIHOME_TYPES = ["aws_rds_instance", "aws_alb"];
+// Resources whose canonical AWS placement is the VPC, not a single subnet.
+const VPC_SCOPED_TYPES = ["aws_alb", "aws_rds_instance"];
 
-function applyPrimaryPlacementPuntRule(cy) {
-    MULTIHOME_TYPES.forEach((type) => {
-        cy.nodes(`[entity_type="${type}"]`).forEach((node) => {
-            const residesOut = node.connectedEdges().filter((e) =>
-                e.source().id() === node.id() && e.data("label") === "RESIDES_IN"
-            );
-            residesOut.toArray().slice(1).forEach((e) => {
-                e.data("edge_type", "RESIDES_IN_SECONDARY");
+// Custom edge_type for the synthetic VPC-containment edges. The nesting rule
+// below matches on this so these resources nest inside the VPC rather than
+// any single subnet. The edges themselves are hidden.
+const VPC_SCOPED_EDGE_TYPE = "_VPC_SCOPED";
+const SYNTH_EDGE_ID_PREFIX = "__logical_vpc_edge:";
+
+function addVpcScopedContainmentEdges(cy) {
+    VPC_SCOPED_TYPES.forEach((type) => {
+        cy.nodes(`[entity_type="${type}"]`).forEach((resource) => {
+            // Find any RESIDES_IN edge out of this resource to locate a subnet
+            // (resource is the source; subnet is the target).
+            const residesEdge = resource
+                .connectedEdges()
+                .filter((e) => e.source().id() === resource.id() && e.data("label") === "RESIDES_IN")
+                .first();
+            if (residesEdge.length === 0) return;
+
+            const subnet = residesEdge.target();
+
+            // Subnet's inbound CONTAINS edge comes from its VPC.
+            const vpcEdge = subnet
+                .connectedEdges()
+                .filter((e) => e.target().id() === subnet.id() && e.data("label") === "CONTAINS")
+                .first();
+            if (vpcEdge.length === 0) return;
+
+            const vpc = vpcEdge.source();
+            const synthId = SYNTH_EDGE_ID_PREFIX + resource.id();
+            if (cy.getElementById(synthId).length > 0) return;
+
+            cy.add({
+                group: "edges",
+                data: {
+                    id: synthId,
+                    source: resource.id(),
+                    target: vpc.id(),
+                    label: "",
+                    edge_type: VPC_SCOPED_EDGE_TYPE,
+                },
+                classes: "tap-nesting-hidden",
             });
         });
     });
@@ -36,7 +73,7 @@ function applyPrimaryPlacementPuntRule(cy) {
 export async function execute(context) {
     const {cy, trigger_reason} = context;
 
-    applyPrimaryPlacementPuntRule(cy);
+    addVpcScopedContainmentEdges(cy);
 
     const {warnings} = await projectNested(cy, {
         relationships: [
@@ -53,16 +90,16 @@ export async function execute(context) {
                 gryphon: "(parent:aws_vpc)-[:CONTAINS]->(child:aws_subnet)",
             },
             {
+                name: "vpc-contains-alb",
+                gryphon: `(parent:aws_vpc)<-[:${VPC_SCOPED_EDGE_TYPE}]-(child:aws_alb)`,
+            },
+            {
+                name: "vpc-contains-rds",
+                gryphon: `(parent:aws_vpc)<-[:${VPC_SCOPED_EDGE_TYPE}]-(child:aws_rds_instance)`,
+            },
+            {
                 name: "subnet-contains-ec2",
                 gryphon: "(parent:aws_subnet)<-[:RESIDES_IN]-(child:aws_ec2_instance)",
-            },
-            {
-                name: "subnet-contains-rds",
-                gryphon: "(parent:aws_subnet)<-[:RESIDES_IN]-(child:aws_rds_instance)",
-            },
-            {
-                name: "subnet-contains-alb",
-                gryphon: "(parent:aws_subnet)<-[:RESIDES_IN]-(child:aws_alb)",
             },
         ],
         baseSizes: {
@@ -81,6 +118,6 @@ export async function execute(context) {
     warnings.forEach((w) => console.warn("[aws-top-level]", w.category, w.message));
 
     if (trigger_reason === "initial_load") {
-        cy.fit(cy.nodes(":visible"), 40);
+        cy.fit(cy.nodes(":visible").filter((n) => !n.data("_is_badge")), 40);
     }
 }
