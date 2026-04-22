@@ -457,6 +457,84 @@ class TestGriftProvenance:
         assert data["import_mode"] == "upsert"
         assert data["source_batch_entity_id"] == bid
 
+    def test_custom_format_preserved_importer_metadata_nested(self):
+        """Incoming batch with a non-importer format keeps its format; importer
+        metadata nests under reserved key `_tap_grift_import`."""
+        bid = _batch_entity_id()
+        batch_node = {
+            "name": "Caller batch",
+            "description": "",
+            "description_json": {
+                "format": "example.caller.v1",
+                "data": {"caller_key": "caller_value", "nested": {"k": 1}},
+            },
+            "source": "test",
+            "metadata": {},
+        }
+        container = _batch_container(bid, batch_node=batch_node)
+        result = grift_import(_minimal_doc([container]))
+        assert result.success
+
+        batch = Batch.objects.get(entity_id=bid)
+        assert batch.description_json["format"] == "example.caller.v1"
+        data = batch.description_json["data"]
+        # Caller-owned keys survive.
+        assert data["caller_key"] == "caller_value"
+        assert data["nested"] == {"k": 1}
+        # Importer metadata lives under the reserved key.
+        importer = data["_tap_grift_import"]
+        assert importer["importer"] == "grift"
+        assert importer["grift_version"] == "0"
+        assert importer["import_mode"] == "upsert"
+        assert importer["source_batch_entity_id"] == bid
+
+    def test_legacy_importer_format_is_overwritten(self):
+        """Incoming format `tap.grift.import.v0` is overwritten entirely — no
+        nested duplicates."""
+        bid = _batch_entity_id()
+        batch_node = {
+            "name": "Replay batch",
+            "description": "",
+            "description_json": {
+                "format": "tap.grift.import.v0",
+                "data": {"importer": "stale", "imported_at": "1970-01-01T00:00:00Z"},
+            },
+            "source": "test",
+            "metadata": {},
+        }
+        container = _batch_container(bid, batch_node=batch_node)
+        result = grift_import(_minimal_doc([container]))
+        assert result.success
+
+        batch = Batch.objects.get(entity_id=bid)
+        assert batch.description_json["format"] == "tap.grift.import.v0"
+        data = batch.description_json["data"]
+        # Fresh importer data present, stale timestamp gone.
+        assert data["importer"] == "grift"
+        assert data["imported_at"] != "1970-01-01T00:00:00Z"
+        # No nested _tap_grift_import — the whole block was overwritten, not nested.
+        assert "_tap_grift_import" not in data
+
+    def test_malformed_description_json_falls_back_to_importer_format(self):
+        """Incoming description_json with non-dict data falls back to
+        importer-only output instead of crashing."""
+        bid = _batch_entity_id()
+        batch_node = {
+            "name": "Malformed batch",
+            "description": "",
+            "description_json": {"format": "example.bad", "data": "not an object"},
+            "source": "test",
+            "metadata": {},
+        }
+        container = _batch_container(bid, batch_node=batch_node)
+        result = grift_import(_minimal_doc([container]))
+        assert result.success
+
+        batch = Batch.objects.get(entity_id=bid)
+        assert batch.description_json["format"] == "tap.grift.import.v0"
+        data = batch.description_json["data"]
+        assert data["importer"] == "grift"
+
     def test_result_import_mode_is_upsert(self):
         result = grift_import(_minimal_doc())
         assert result.import_mode == "upsert"

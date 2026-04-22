@@ -190,11 +190,13 @@ The importer should record importer metadata in the local batch `description_jso
 Rules:
 
 - importer metadata uses `format == "tap.grift.import.v0"`
-- if the incoming batch already carries `description_json`, the importer preserves it and merges importer metadata into the local batch description data
+- if the incoming batch already carries `description_json` with a format other than `tap.grift.import.v0`, the importer preserves the caller's `format` string verbatim at the top level and nests importer metadata under the reserved key `data._tap_grift_import` to avoid collision with caller-owned data keys
 - if the imported batch metadata already uses `format == "tap.grift.import.v0"`, the importer may overwrite that format block with the new local import metadata rather than nesting ambiguous duplicate copies
+- if the incoming batch carries no `description_json`, has an empty one, or has a malformed shape, the importer emits `{"format": "tap.grift.import.v0", "data": <importer metadata>}`
+- the reserved key `_tap_grift_import` inside `description_json.data` is owned by the importer; callers must not use it for their own content
 - source batch timestamps from the GRIFT payload must be preserved in importer metadata rather than treated as the local batch creation timestamps
 - local batch lifecycle timestamps remain local infrastructure timestamps owned by the importing grid
-- when present in the GRIFT batch payload or batch envelope, source batch timestamps must be copied into `description_json.data` under source-prefixed keys
+- when present in the GRIFT batch payload or batch envelope, source batch timestamps must be copied into the importer metadata block (either flat at `description_json.data` when the importer owns the whole block, or nested at `description_json.data._tap_grift_import` when preserving a caller format) under source-prefixed keys
 - the importer must not assign GRIFT-provided source batch timestamps to the local `Batch.started_at` or `Batch.closed_at` fields
 
 Recommended preserved source timestamp keys:

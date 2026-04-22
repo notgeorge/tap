@@ -1201,13 +1201,25 @@ def _execute_grift_batch(
         if batch_node.get(src_key):
             importer_data[dest_key] = batch_node[src_key]
 
+    # Merge importer metadata into description_json per spec-grid-import-grift
+    # req-grid-import-grift-provenance. Four cases:
+    #   1. incoming missing/empty/malformed -> emit importer format alone
+    #   2. incoming already tap.grift.import.v0 -> overwrite (avoid nested duplicates)
+    #   3. incoming has a custom format with dict data -> preserve caller format and
+    #      nest importer metadata under reserved key `_tap_grift_import` to avoid
+    #      key collisions with caller-owned data
+    #   4. incoming has a format but data shape is wrong -> fall back to case 1
     incoming_desc = batch_node.get("description_json") or {}
-    if isinstance(incoming_desc, dict) and incoming_desc.get("format") == "tap.grift.import.v0":
-        # Overwrite prior grift import metadata with this run's metadata.
-        merged_desc_json: dict[str, Any] = {"format": "tap.grift.import.v0", "data": importer_data}
-    elif isinstance(incoming_desc, dict) and isinstance(incoming_desc.get("data"), dict):
-        merged_data = {**incoming_desc["data"], **importer_data}
-        merged_desc_json = {"format": "tap.grift.import.v0", "data": merged_data}
+    merged_desc_json: dict[str, Any]
+    if not isinstance(incoming_desc, dict) or not incoming_desc:
+        merged_desc_json = {"format": "tap.grift.import.v0", "data": importer_data}
+    elif incoming_desc.get("format") == "tap.grift.import.v0":
+        merged_desc_json = {"format": "tap.grift.import.v0", "data": importer_data}
+    elif isinstance(incoming_desc.get("format"), str) and isinstance(
+        incoming_desc.get("data"), dict
+    ):
+        merged_data = {**incoming_desc["data"], "_tap_grift_import": importer_data}
+        merged_desc_json = {"format": incoming_desc["format"], "data": merged_data}
     else:
         merged_desc_json = {"format": "tap.grift.import.v0", "data": importer_data}
 
