@@ -26,7 +26,7 @@
           },
           "node": {
             "name": "Genericom Landing Slice",
-            "description": "Minimal Genericom projection slice: account, VPC, subnets, EC2, RDS, plus ALB and Route 53 for the demo landing page.",
+            "description": "Minimal Genericom projection slice: account, VPC, subnets, EC2, RDS, ElastiCache, ALB, and Route 53 for the demo landing page.",
             "search_type": "gryphon",
             "root": "node",
             "definition": {
@@ -35,6 +35,7 @@
                 "MATCH (v2:aws_vpc)-[e2:CONTAINS]->(s:aws_subnet)",
                 "MATCH (ec:aws_ec2_instance)-[e3:RESIDES_IN]->(s2:aws_subnet)",
                 "MATCH (rds:aws_rds_instance)-[e4:RESIDES_IN]->(s3:aws_subnet)",
+                "MATCH (cache:aws_elasticache_cluster)-[e8:RESIDES_IN]->(s5:aws_subnet)",
                 "MATCH (alb:aws_alb)-[e5:RESIDES_IN]->(s4:aws_subnet)",
                 "MATCH (z:aws_route53_zone)-[e6:BELONGS_TO]->(a2:aws_account)",
                 "MATCH (z2:aws_route53_zone)-[e7:ROUTES_TO]->(alb2:aws_alb)"

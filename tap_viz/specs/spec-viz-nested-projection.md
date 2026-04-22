@@ -2,13 +2,15 @@
 
 ## Philosophy
 
-The core geometric rule for nested TAP Viz scenes is simple: a node's outer size is identity, not state. A node must not become visually larger merely because it gains children at a deeper elevation. The childless rendering and the child-bearing rendering are two views of the same outer box.
+The core geometric rule for nested TAP Viz scenes is simple: leaves are true-sized, containers grow to fit them. Each entity type declares a base size; leaves render at that size always, and containers (nodes that host nested children) resize to enclose their children's laid-out bounding box plus padding. A container with three subnets is visibly larger than one with one subnet — size reflects content, honestly.
 
-Once that rule holds, nesting stops needing compensating camera tricks. The parent's already-visible box becomes a local viewport for its child scene. Children are projected into that viewport by scale, laid out within that constrained area, and rendered without changing the parent's world position or outer dimensions. Zoom remains the control that chooses which scene depth is active, but the awkward work of hiding geometry changes behind pan, fit, and hero-node anchoring can go away.
+This inverts a prior model in which parents had authoritative fixed sizes and children were scaled down to fit. Under the prior model, every added child made siblings smaller; at typical data densities, leaf compute nodes would shrink below legibility. Bottom-up natural sizing removes scale-to-fit compression entirely: leaves keep their declared sizes and containers adjust.
 
 TAP nested projection does not use Cytoscape's compound-node system. All nodes remain flat peers in the Cytoscape graph. Visual containment is achieved through positional placement: children are positioned within the model-space bounding box of their parent node, rendered on top via z-index, and moved in lockstep with the parent by the runtime. Edges that express the containment relationship are hidden. This bounded-layer model avoids compound auto-sizing, compound-specific style rules, and the awkward anchor-child machinery that was needed to force compound nodes to specific dimensions.
 
-The runtime owns the geometry work. Layout authors declare nesting relationships, base sizes, and layout preferences. The runtime resolves nesting, computes viewports, derives scale factors, and executes constrained layouts recursively. This keeps layout modules focused on scene intent rather than coordinate arithmetic.
+Sizing is deterministic. Given the nesting tree, the `baseSizes` declaration, and each container's inner-layout choice, every node's size is a function of the data — the same scene rendered twice yields the same layout. Container `baseSizes` entries act as minimum floors, so sparse containers still render at a sensible minimum.
+
+The runtime owns the geometry work via a two-pass algorithm: a measure pass resolves sizes bottom-up, then a position pass places children relative to each parent's center top-down. Layout authors declare nesting relationships, base sizes, and inner-layout choices; the runtime does the arithmetic.
 
 This specification defines the geometry contract and the runtime projection API. It complements the projection spec (orchestration and elevation) and the nesting spec (relationship resolution and edge hiding).
 
@@ -16,71 +18,81 @@ This specification defines the geometry contract and the runtime projection API.
 
 |   |   |   |
 | :---: | --- | --- |
-| 1. | Stable Geometry | A node keeps the same outer bounding box whether it is childless or acting as a parent. |
+| 1. | Natural Sizing | Leaves are true-sized; containers grow to fit their children plus padding. |
 | 2. | Bounded Layers | Visual containment is positional, not structural. No Cytoscape compound nodes. |
-| 3. | Runtime Owned | The projection runtime owns viewport derivation, scale computation, and constrained layout execution. |
-| 4. | Scale Load-Bearing | Child geometry, labels, and icons scale to fit the viewport rather than forcing parent resize or overflow. |
+| 3. | Deterministic Geometry | Sizes are a function of the nesting tree and `baseSizes`, not of runtime viewport state. |
+| 4. | Two-Pass Resolution | Measure bottom-up, then position top-down — the standard flexbox-family shape. |
 | 5. | Additive Elevations | Deeper elevations add nesting layers without removing higher-level structure. |
-| 6. | Simpler Runtime | Camera-preservation code that exists to hide geometry discontinuities is transitional and targeted for removal. |
+| 6. | Simpler Runtime | Scale-fit compression, hero-node anchoring, and camera compensation are retired. |
 
 ## Requirement Status
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-viz-nested-projection-stable-box | [Stable Outer Bounding Box](#stable-outer-bounding-box) | Approved for Development | Childless and child-bearing renderings share one outer box |
-| req-viz-nested-projection-bounded-layer | [Bounded-Layer Model](#bounded-layer-model) | Approved for Development | No Cytoscape compounds; positional containment with z-ordering |
-| req-viz-nested-projection-screen-viewport | [Screen-Derived Parent Viewport](#screen-derived-parent-viewport) | Approved for Development | Parent viewport derived from model-space bbox minus padding |
-| req-viz-nested-projection-scale-fit | [Scale-To-Fit Projection](#scale-to-fit-projection) | Approved for Development | Nested scenes scale uniformly into the viewport with no overflow |
-| req-viz-nested-projection-layout-order | [Viewport-Constrained Layout Order](#viewport-constrained-layout-order) | Approved for Development | Child sizes established before layout runs inside the viewport |
-| req-viz-nested-projection-runtime-api | [Runtime Projection API](#runtime-projection-api) | Approved for Development | `projectNested` runtime module owns the geometry pipeline |
-| req-viz-nested-projection-container-visual | [Container Visual Switch](#container-visual-switch) | Approved for Development | Viewport parents switch to container rendering automatically |
+| req-viz-nested-projection-natural-sizing | [Natural Sizing Model](#natural-sizing-model) | Implemented | Leaves true-sized from baseSizes; containers grow to fit children + padding |
+| req-viz-nested-projection-bounded-layer | [Bounded-Layer Model](#bounded-layer-model) | Implemented | No Cytoscape compounds; positional containment with z-ordering |
+| req-viz-nested-projection-container-size-from-children | [Container Size From Children](#container-size-from-children) | Implemented | Container outer box derived from children's laid-out bbox plus padding |
+| req-viz-nested-projection-no-leaf-compression | [No Leaf Compression](#no-leaf-compression) | Implemented | Leaves never shrink; scale-to-fit removed. Supersedes scale-to-fit. |
+| req-viz-nested-projection-two-pass | [Two-Pass Measure/Position](#two-pass-measureposition) | Implemented | Measure bottom-up; position top-down. Supersedes viewport-constrained layout order. |
+| req-viz-nested-projection-natural-layouts | [Natural Layouts](#natural-layouts) | Implemented | Built-in natural layouts: `grid`, `stack-vertical`, `tiered-rows` |
+| req-viz-nested-projection-runtime-api | [Runtime Projection API](#runtime-projection-api) | Implemented | `projectNested` runtime module owns the geometry pipeline |
+| req-viz-nested-projection-container-visual | [Container Visual Switch](#container-visual-switch) | Implemented | Viewport parents switch to container rendering automatically |
 | req-viz-nested-projection-additive-elevations | [Additive Elevation Nesting](#additive-elevation-nesting) | Approved for Development | Deeper elevations extend the nesting chain without collapsing higher levels |
 | req-viz-nested-projection-scene-activation | [Scene-Wide Elevation Activation](#scene-wide-elevation-activation) | Approved for Development | Whole-scene elevation switching remains the v1 model |
 | req-viz-nested-projection-runtime-simplification | [Runtime Simplification Direction](#runtime-simplification-direction) | Approved for Development | Hero-node anchoring and camera choreography are transitional |
 
 ## Requirements
 
-### Stable Outer Bounding Box
+### Natural Sizing Model
 ----
-RID: `req-viz-nested-projection-stable-box`
-Status: `Approved for Development`
+RID: `req-viz-nested-projection-natural-sizing`
+Status: `Implemented`
 
-A node's childless rendering and child-bearing rendering must share the same outer bounding box.
+Nodes in a nested projection scene have two roles, derived from the nesting tree: leaves are true-sized from `baseSizes`, and containers grow to fit their children plus padding.
 
 #### Implementation
 
-For a given active scene, a node already has a displayed size as a normal Cytoscape node (set by the layout's `baseSizes` declaration). When a deeper elevation causes that node to host children, the runtime preserves that outer box rather than substituting a larger "parent version" of the node.
+The role is structural, not declared: a node that has nested children is a container; a node that has none is a leaf. Role assignment follows from the nesting tree built by `resolveNesting`.
 
-Rules:
+Leaf sizing:
 
-- the outer box is determined by the `baseSizes` declaration in the layout's `projectNested` call
-- the node's world position remains stable across the elevation transition
-- becoming a viewport parent must not trigger any size change
-- if a node has no visible children at the active elevation, it still retains the same outer box it would use as a parent
+- Each leaf's outer width and height come directly from `baseSizes[entity_type]`.
+- Leaves are never shrunk to fit a parent. There is no scale compression.
+- Shadow nodes (`_is_shadow === true`) carry their primary's `entity_type` and are sized from the same `baseSizes` lookup — no separate shadow-size config.
 
-This requirement applies to the outer node geometry only. The inner viewport (available space for children) is derived by subtracting padding.
+Container sizing:
+
+- A container's inner bbox is the natural bounding box of its laid-out children (see Container Size From Children).
+- The container's outer size is `max(inner + 2 * padding, baseSizes[entity_type])`.
+- Thus `baseSizes[container_type]` acts as a minimum floor, not an authoritative outer size.
+
+This model applies uniformly at every nesting depth. At any level, the nodes at that level have been sized (leaves directly from `baseSizes`, containers from deeper levels already measured).
 
 #### Development
 
-This is the key invariant that removes the need for camera compensation. If the parent box does not change identity when children appear, then the user is no longer being asked to visually swallow a hidden resize event during drilldown.
+This inverts the v0 model where containers had fixed outer sizes and children were scaled down to fit. In practice, the v0 model made leaves progressively unreadable as scenes grew denser. Natural sizing makes the scene size track the data size — a larger account is a larger box.
+
+The tradeoff is that sibling containers at the same nesting level may differ in size (e.g., a subnet with three EC2 instances is wider than one with one). This is the honest reflection of the data.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-nested-projection-stable-box-1 | Same Outer Box Across States | Approved for Development | A node uses the same outer bounding box when childless and when hosting children. | |
-| req-viz-nested-projection-stable-box-2 | Parent Position Stable | Approved for Development | Entering a deeper elevation does not move the parent's world position merely because it gained children. | Layouts may still reposition the wider scene intentionally. |
-| req-viz-nested-projection-stable-box-3 | No Auto-Expansion | Approved for Development | Nested content may not enlarge the parent's outer box. Guaranteed by the bounded-layer model (no compound auto-sizing). | |
+| req-viz-nested-projection-natural-sizing-1 | Leaves Use baseSizes Directly | Implemented | Each leaf's width and height equal `baseSizes[entity_type]`. | |
+| req-viz-nested-projection-natural-sizing-2 | No Leaf Compression | Implemented | Leaves are not scaled to fit any parent. | |
+| req-viz-nested-projection-natural-sizing-3 | Role From Tree | Implemented | A node is a container iff it has children in the resolved nesting tree. | |
+| req-viz-nested-projection-natural-sizing-4 | baseSizes As Floor | Implemented | `baseSizes[container_type]` is a minimum; a container may be larger when its contents require. | |
+| req-viz-nested-projection-natural-sizing-5 | Deterministic Sizes | Implemented | Given the nesting tree, `baseSizes`, padding, and inner-layout choices, every node's size is reproducible. | |
 
 #### Future
 
-Later work may define authoring-time visualization tools that make this invariant easier to preview.
+Allow per-leaf size overrides via node data (e.g. for zoom-responsive "important" nodes).
 
 
 ### Bounded-Layer Model
 ----
 RID: `req-viz-nested-projection-bounded-layer`
-Status: `Approved for Development`
+Status: `Implemented`
 
 TAP nested projection uses positional containment rather than Cytoscape's compound-node system.
 
@@ -126,10 +138,10 @@ The compound-node system in Cytoscape is designed for a different use case: auto
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-nested-projection-bounded-layer-1 | No Compound Parents | Approved for Development | No node in a TAP nested projection scene is assigned as a Cytoscape compound parent. | |
-| req-viz-nested-projection-bounded-layer-2 | Positional Containment | Approved for Development | Children are contained by being positioned within the parent's bbox by the constrained layout. | |
-| req-viz-nested-projection-bounded-layer-3 | Z-Index Layering | Approved for Development | Children render on top of parents via z-index depth assignment. | |
-| req-viz-nested-projection-bounded-layer-4 | Data Stamping | Approved for Development | Children carry `_viewport_parent` data identifying their containing node. | |
+| req-viz-nested-projection-bounded-layer-1 | No Compound Parents | Implemented | No node in a TAP nested projection scene is assigned as a Cytoscape compound parent. | |
+| req-viz-nested-projection-bounded-layer-2 | Positional Containment | Implemented | Children are contained by being positioned within the parent's bbox by the position pass. | |
+| req-viz-nested-projection-bounded-layer-3 | Z-Index Layering | Implemented | Children render on top of parents via z-index depth assignment. | |
+| req-viz-nested-projection-bounded-layer-4 | Data Stamping | Implemented | Children carry `_viewport_parent` data identifying their containing node. | |
 | req-viz-nested-projection-bounded-layer-5 | Drag Follows Parent | Implemented | Dragging a viewport parent moves all descendants in lockstep via `drag-group.js`. Child-only drag moves only the child. | |
 
 #### Future
@@ -137,123 +149,217 @@ The compound-node system in Cytoscape is designed for a different use case: auto
 Consider allowing children to extend beyond parent perimeter for specialized layouts (network interfaces, ports).
 
 
-### Screen-Derived Parent Viewport
+### Container Size From Children
 ----
-RID: `req-viz-nested-projection-screen-viewport`
-Status: `Approved for Development`
+RID: `req-viz-nested-projection-container-size-from-children`
+Status: `Implemented`
 
-The parent viewport is derived from the node's model-space bounding box.
+A container's outer bounding box is derived from its children's laid-out bbox plus padding.
 
 #### Implementation
 
-When the runtime projects children inside a parent node:
+A natural layout function takes an array of pre-sized children — each `{node, width, height}` — and returns `{width, height, placements}`, where:
 
-1. the runtime reads the parent's model-space bounding box (position + width/height as set by `baseSizes`)
-2. the runtime subtracts configured padding from that box to derive an inner viewport rect
-3. that inner viewport is the effective bounding box in which child content is scaled and laid out
+- `width`/`height` is the tight bounding box enclosing all children as arranged by the layout
+- `placements` is an array of `{node, dx, dy}` — per-child offsets from the bbox center
 
-"Model-space" means the coordinate system Cytoscape uses internally. The on-screen rendering is `model * zoom`. The viewport is stable in model coordinates — zooming makes everything uniformly larger/smaller on screen without changing the viewport rect.
+The runtime calls the layout function once per container during the measure pass. The returned bbox is inflated by `2 * padding` and floored against `baseSizes[container_type]` to produce the container's outer size. The placements are cached for the position pass.
 
-V1 uses padding only. Header carve-outs, label bands, and other richer box-model concepts are deferred.
+This inverts the v0 model. The container no longer has an authoritative outer box that defines an inner viewport — the container's outer box is a consequence of its children plus padding.
+
+"Model-space" coordinates still apply. Cytoscape's zoom scales the whole resolved scene uniformly on screen.
+
+V1 provides three natural layouts — `grid`, `stack-vertical`, and `tiered-rows` — specified in [Natural Layouts](#natural-layouts). Plugins may register additional natural layouts by providing a function matching the contract above.
+
+Per-container-type layout choice is supported via `innerLayouts: {entity_type: "grid" | "stack-vertical" | "tiered-rows" | {name, ...opts}}`, with a default `innerLayout` for the rest.
 
 #### Development
 
-This keeps concerns separated cleanly. The layout declares how big a node is via `baseSizes`. The runtime reuses that already-declared size to derive the viewport for children, without a second geometry contract.
+Expressing layout as "measure then place" keeps each natural layout testable in isolation — a pure function from child sizes to bbox + placements. The projection runtime only orchestrates traversal; layout algorithms don't have to know about padding, floors, or the outer size contract.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-nested-projection-screen-viewport-1 | Model-Space Box Is Source | Approved for Development | Parent viewport derivation starts from the node's model-space bbox. | |
-| req-viz-nested-projection-screen-viewport-2 | Padding Creates Inner Viewport | Approved for Development | V1 derives an inner viewport by subtracting padding from the outer box. | |
-| req-viz-nested-projection-screen-viewport-3 | No Alternate Parent Box Required | Approved for Development | No separate larger per-parent size declaration is needed for parent mode. The same `baseSizes` entry is used. | |
+| req-viz-nested-projection-container-size-from-children-1 | Bbox + Padding = Size | Implemented | A container's outer width/height equals `natural_bbox + 2 * padding`, floored by `baseSizes[type]`. | |
+| req-viz-nested-projection-container-size-from-children-2 | Layout Returns Placements | Implemented | Natural layout functions return per-child `{dx, dy}` offsets from the bbox center. | |
+| req-viz-nested-projection-container-size-from-children-3 | Per-Type Layout Choice | Implemented | Layout algorithm is selectable per container entity_type via `innerLayouts`. | |
+| req-viz-nested-projection-container-size-from-children-4 | Empty Container Falls To Floor | Implemented | A container with no visible children renders at its `baseSizes` entry. | |
 
 #### Future
 
-If TAP later needs richer parent chrome, add explicit box-model sub-areas without revoking the rule that the outer box comes from `baseSizes`.
+- Additional natural layouts: horizontal stack, row-packed grid, hierarchical clustering.
+- Header/label carve-outs (space reserved at top of a container for label band that doesn't count against child area).
 
 
-### Scale-To-Fit Projection
+### No Leaf Compression
 ----
-RID: `req-viz-nested-projection-scale-fit`
-Status: `Approved for Development`
+RID: `req-viz-nested-projection-no-leaf-compression`
+Status: `Implemented`
 
-Child scenes are projected into the parent viewport by uniform scale-to-fit.
+Leaves render at their declared `baseSizes` at every nesting depth. The runtime does not scale leaf geometry to fit a parent.
 
 #### Implementation
 
-Nested child content must fit inside the parent viewport. Resizing the parent, allowing overflow, or introducing scrolling is not allowed in v1.
+Under the bottom-up model there is no scale-to-fit step. Each leaf's final width and height are taken directly from `baseSizes[entity_type]`. Shadow nodes carry their primary's `entity_type`, so the same lookup gives them the same size as their primary automatically. Because containers resize to fit their children, there is no mechanism that would require a leaf to shrink.
 
-Rules:
+Scale compounding across nesting depth is also removed. A leaf at depth 3 renders at the same size as a leaf of the same type at depth 1, assuming both are visible at the same elevation.
 
-- child nodes, labels, icons, and related nested scene geometry scale uniformly
-- the scale factor is derived at runtime from the parent viewport dimensions and the natural extent of the child scene (determined by child count, base sizes, and layout algorithm)
-- `baseSizes` defines the "full-scale" size for each entity type; the runtime computes a scale factor that makes the laid-out children fit within the viewport
-- scale is multiplicative across nesting levels: a node nested 2 levels deep has its base size multiplied by both the outer and inner scale factors
-- labels are allowed to become small in v1; later readability policy may refine this
-- if a layout produces children that would overfill the viewport at any scale > 0, the runtime should log a warning (sign to the layout author that the scene needs a different approach)
+Overfill cannot occur under this model: a container always grows to its children, so children always fit. The v0 overfill warning is retired; scene density is expressed by container size, not by warning.
+
+On-screen sizing is still modulated by Cytoscape's zoom (users pan and zoom the whole resolved scene), but that is uniform across all elements. Per-node projection scaling is gone.
 
 #### Development
 
-Uniform scale keeps the visual contract honest. The child scene should feel like the same scene viewed through a smaller local window, not a different hand-tuned set of arbitrary exceptions.
+This is the single biggest reason the new model exists. Under v0, a VPC with four subnets each containing a handful of instances produced EC2 icons too small to read. The workaround would have been to hand-tune per-type `baseSizes` for every scene density, which doesn't scale. Natural sizing eliminates the problem by making the scene grow with the data.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-nested-projection-scale-fit-1 | Uniform Scale Applied | Approved for Development | Nested node bodies, labels, icons, and other child scene geometry use one projection scale per nesting level. | |
-| req-viz-nested-projection-scale-fit-2 | Fit Required | Approved for Development | Nested content fits within the parent viewport. Overflow and scrolling are not allowed. | |
-| req-viz-nested-projection-scale-fit-3 | Multiplicative Across Levels | Approved for Development | Scale compounds across nesting depth. A node 2 levels deep applies both scale factors. | |
-| req-viz-nested-projection-scale-fit-4 | Overfill Warning | Approved for Development | If children cannot reasonably fit, the runtime logs a warning rather than failing silently. | |
+| req-viz-nested-projection-no-leaf-compression-1 | Leaf Size Equals baseSizes | Implemented | Every leaf's final width/height equals `baseSizes[entity_type]`. | Shadows inherit their primary's entity_type and so match its size. |
+| req-viz-nested-projection-no-leaf-compression-2 | No Per-Depth Scale Factor | Implemented | The runtime does not apply a depth-dependent scale multiplier to any node. | |
+| req-viz-nested-projection-no-leaf-compression-3 | No Overfill Warning | Implemented | Overfill is structurally impossible; the v0 overfill warning is removed. | |
 
 #### Future
 
-Future work may define semantic label suppression, minimum-readable-size thresholds, or projection-aware icon policies once the first implementation proves out.
+If a future scene wants zoom-responsive leaf sizing (e.g. "grow important nodes when the user zooms out"), that belongs in a separate layer above natural sizing rather than inside the projection runtime.
 
 
-### Viewport-Constrained Layout Order
+### Two-Pass Measure/Position
 ----
-RID: `req-viz-nested-projection-layout-order`
-Status: `Approved for Development`
+RID: `req-viz-nested-projection-two-pass`
+Status: `Implemented`
 
-Child sizes are established before the child layout runs, and the layout runs inside the parent viewport constraint.
+Projection resolves in two passes: a bottom-up measure pass that sizes every node and caches child placements, then a top-down position pass that sets absolute coordinates.
 
 #### Implementation
 
-The runtime follows this order for each nesting level:
+**Measure pass (bottom-up).** The runtime processes containers in topological order — deepest first. At each container:
 
-1. determine the parent viewport from the parent's model-space bbox and padding
-2. determine the base sizes of child nodes from `baseSizes` declarations
-3. compute the scale factor that makes the natural child scene extent fit within the viewport
-4. apply scaled sizes to child nodes
-5. run the declared inner layout with Cytoscape's `boundingBox` option set to the parent viewport rect
-6. render the resulting child scene positioned within the parent's outer box
+1. Collect visible children. Each child already has a size: a leaf got its size directly from `baseSizes`, a container got its size from a deeper measure iteration.
+2. Call the container's natural layout function with the pre-sized children. Receive `{width, height, placements}` where placements are `{node, dx, dy}` offsets from the bbox center.
+3. Compute the container's outer size: `max(width + 2 * padding, baseSizes[type])` (same for height).
+4. Cache the placements keyed by container id.
 
-This means layouts operate against the viewport they actually have, using the scaled sizes that will really be displayed. The runtime uses Cytoscape's built-in `boundingBox`-constrained layout behavior.
+After the measure pass every node has a resolved width and height, and every container has a cached placement list.
 
-For the recursive case (multiple nesting levels), the runtime processes from outermost parents inward: position parents first, then project their children, then recursively project children-of-children.
+**Position pass (top-down).** The runtime places root containers using a natural layout on the root set (centered at origin). Then for each container, it walks children and applies the cached placements relative to the container's center position. Recursion handles deeper levels.
+
+Because placements are cached during measure, the position pass does zero layout work — it just translates offsets into absolute positions.
+
+**Why two passes.** Sizes depend on children (bottom-up), but positions depend on parents (top-down). One pass cannot satisfy both dependencies. Splitting them also keeps the layout functions pure — a natural layout only needs to know child sizes, not container positions.
 
 #### Development
 
-Running layout after scaled sizes are known avoids "flying giants" and other geometry discontinuities where the layout solves for one set of dimensions but the user sees another.
+The shape mirrors HTML/flexbox's intrinsic measurement phase followed by fragment positioning. The difference is that TAP layouts always return an explicit placement list rather than mutating child positions — this keeps them side-effect-free and unit-testable.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-nested-projection-layout-order-1 | Sizes Before Layout | Approved for Development | Child sizes are resolved and scaled before the constrained child layout runs. | |
-| req-viz-nested-projection-layout-order-2 | Layout Uses Parent Viewport | Approved for Development | Child layout runs inside the effective parent viewport bounding box. | |
-| req-viz-nested-projection-layout-order-3 | Outer-In Recursion | Approved for Development | Multi-level nesting is processed from outermost parents inward. | |
+| req-viz-nested-projection-two-pass-1 | Topo Order Measure | Implemented | The measure pass processes containers in topological order: every child is measured before its parent. | |
+| req-viz-nested-projection-two-pass-2 | Placements Cached | Implemented | The measure pass caches per-container child placements; the position pass does not re-invoke layout functions. | |
+| req-viz-nested-projection-two-pass-3 | Top-Down Position | Implemented | The position pass walks roots first, then applies cached placements relative to each parent's center, recursing into children. | |
+| req-viz-nested-projection-two-pass-4 | Pure Layout Functions | Implemented | Natural layout functions do not mutate cy; they read child sizes and return a value. | |
 
 #### Future
 
-Add helper APIs so layout authors do not have to hand-roll the viewport and scale plumbing in every layout module.
+Expose the measure pass as a standalone API for "what would the layout look like if..." tooling.
+
+
+### Natural Layouts
+----
+RID: `req-viz-nested-projection-natural-layouts`
+Status: `Implemented`
+
+The runtime ships three built-in natural layouts. Each is a pure function `(children, opts) → {width, height, placements}`, selectable via `innerLayout` and `innerLayouts`.
+
+#### Implementation
+
+**`grid`** (default)
+
+Square-ish grid with uniform cell size taken from the largest child. Cells are arranged with a `spacing` multiplier (default `1.2`).
+
+Opts: `{spacing}`.
+
+Use when children are roughly homogeneous and visual ordering doesn't matter.
+
+**`stack-vertical`**
+
+Children are stacked top-to-bottom at uniform x; container width equals the widest child; height sums child heights plus `gap` between each.
+
+Opts: `{gap, typeOrder}`.
+
+`typeOrder` is an optional array of `entity_type` strings. Children whose `entity_type` appears earlier in the array are placed higher. Unlisted entity types come after, in input order. Omitting `typeOrder` preserves input order.
+
+Use when a container's children should stack in a declared order (e.g. in the AWS layout, an account's Route 53 zone on top, VPC below).
+
+**`tiered-rows`**
+
+Groups children into horizontal tiers by entity-type membership. Each tier renders as one row. Within a row, items matched via a descendant entity type (the "contained" side — typically subnets) come first; items matched via their own entity type (the "primary" side — typically leaves at this nesting level) come after. Items are tightly packed with `itemGap` spacing, and each row is centered horizontally within the layout's overall width. Narrower rows do not stretch to match wider rows — a small row with one primary does not push that primary to the far edge.
+
+Membership rule per child:
+
+1. Compute the child's effective entity types = `{self entity_type} ∪ descendant entity_types` (descendants are the child's direct nested children).
+2. Walk tiers in declared order. A tier matches if `tier.entityTypes ∩ effective ≠ ∅`. First match wins.
+3. If the match was via the child's own entity type, the child is a **primary** for that tier. Otherwise it's a **contained** item for that tier.
+
+Within each row, contained items and primaries are each sorted alphabetically by label, and rendered in order `[...contained, ...primaries]`.
+
+Children that match no tier are collected into a final row, alphabetized and centered. If some children are unassigned the projection continues — no warning is emitted in v1.
+
+Opts:
+
+| Key | Type | Default | Description |
+| --- | --- | :---: | --- |
+| `tiers` | array | required | Ordered tier declarations. Each tier is `{name, entityTypes: [string, ...]}`. Order is top-to-bottom. |
+| `rowGap` | number | `20` | Vertical gap between rows. |
+| `itemGap` | number | `12` | Horizontal gap between items within a row. |
+
+Use when a container expresses a tiered architecture and the visual story is "things on the left are grouped presences; things on the right are canonical artifacts." The canonical example is the AWS layout's VPC: `[alb, ec2, backend]` tiers with shadow-hosting subnets on the left and primary ALB/RDS/cache nodes on the right.
+
+#### Layout Function Contract
+
+A natural layout is a pure function:
+
+```
+(children, opts) → {width, height, placements}
+
+  children    : [{node, width, height}]  children already measured
+  opts        : layout-specific config
+  width/height: tight bounding box of the arrangement
+  placements  : [{node, dx, dy}]  per-child offset from bbox center
+```
+
+The function must not mutate `cy` state. The runtime handles size application and position application. A layout may call `node.cy()` to read sibling or descendant data when classification depends on it (as `tiered-rows` does).
+
+Plugins or projection authors may register additional natural layouts by extending the runtime's layout resolver. V1 supports the three built-ins listed above.
+
+#### Development
+
+Separating classification from placement lets authors add scene-specific layouts without needing to duplicate the bbox + padding + floor arithmetic. The primary/contained split in `tiered-rows` came out of the AWS three-tier architecture: the same shape appears in other domains (control plane vs data plane, ingress vs egress), so generalizing it was worth the 100 LoC.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-nested-projection-natural-layouts-1 | Grid Layout | Implemented | `grid` packs children into a square-ish grid with cells sized to the largest child. | |
+| req-viz-nested-projection-natural-layouts-2 | Stack-Vertical Layout | Implemented | `stack-vertical` stacks children top-to-bottom with optional `typeOrder`. | |
+| req-viz-nested-projection-natural-layouts-3 | Tiered-Rows Layout | Implemented | `tiered-rows` groups children by tier with contained/primary split and alphabetical sort. | |
+| req-viz-nested-projection-natural-layouts-4 | Pure Function Contract | Implemented | All natural layouts are side-effect-free `(children, opts) → {width, height, placements}`. | |
+
+#### Future
+
+- Horizontal-stack, row-packed, circular, and force-directed natural layouts.
+- Plugin-author registration API for custom natural layouts.
+- Warn on unassigned children in `tiered-rows` when the projection expects full coverage.
 
 
 ### Runtime Projection API
 ----
 RID: `req-viz-nested-projection-runtime-api`
-Status: `Approved for Development`
+Status: `Implemented`
 
 The `projectNested` runtime module owns the geometry pipeline for nested scenes.
 
@@ -281,12 +387,15 @@ export async function execute(context) {
       }
     ],
     baseSizes: {
-      realm:     { width: 300, height: 200 },
-      location:  { width: 80, height: 60 },
-      character: { width: 40, height: 40 }
+      realm:     { width: 800, height: 800 },  // minimum floor for this container
+      location:  { width: 160, height: 120 },  // minimum floor for this container
+      character: { width: 50, height: 50 }     // true size for this leaf
     },
-    padding: 10,
-    innerLayout: "grid"
+    padding: 20,
+    innerLayout: "grid",
+    innerLayouts: {
+      realm: {name: "stack-vertical", gap: 12}  // per-type override
+    }
   });
 
   if (trigger_reason === "initial_load") {
@@ -297,62 +406,65 @@ export async function execute(context) {
 
 The runtime performs:
 
-1. **Resolve nesting**: Parse Gryphon patterns, match edges in cy, determine parent-child assignments. Same resolver logic as `resolveNesting` but stamps `_viewport_parent` data instead of setting Cytoscape `.parent()`.
+1. **Resolve nesting**: Parse Gryphon patterns, match edges, determine parent-child assignments. Stamps `_viewport_parent` on children and applies `.tap-hidden-containment` to consumed edges.
 
-2. **Hide containment edges**: Apply `.tap-hidden-containment` class to consumed edges.
+2. **Derive roles**: A node with children in the resolved tree is a container; all others are leaves.
 
-3. **Apply base sizes**: Set `width` and `height` on all nodes according to `baseSizes` keyed by `entity_type`.
+3. **Measure pass (bottom-up)**:
+   - Leaves: `resolvedSize[id] = baseSizes[entity_type]`. Shadow nodes inherit the primary's `entity_type` (see the shadow-nodes runtime), so the same lookup produces the shadow's size automatically.
+   - Containers in topological order (deepest first): invoke the inner layout function with pre-sized children → `{width, height, placements}`. Cache placements. Set `resolvedSize[id] = max(width + 2*padding, baseSizes[type]_width)` (same for height).
 
-4. **Recursive descent projection**: Starting from outermost parents (nodes that have children but no `_viewport_parent` themselves), work inward:
-   - Read parent model-space bbox
-   - Subtract padding → inner viewport rect
-   - Collect children (nodes with `_viewport_parent` == this parent's id)
-   - Compute scale factor: `min(viewport.w / naturalExtent.w, viewport.h / naturalExtent.h)` where natural extent is derived from child base sizes and the layout algorithm's expected arrangement
-   - Apply scaled dimensions to children: `baseSize * scale`
-   - Run the inner layout with `boundingBox` set to the viewport rect
-   - Recurse into any children that themselves have children
+4. **Apply sizes**: Set `width`/`height` styles on every non-hidden node from `resolvedSize`.
 
-5. **Container visual switch**: Add `.tap-viewport-parent` class to any node that has children positioned inside it. Remove the class from nodes with no children at this elevation.
+5. **Container visual switch**: Diff `.tap-viewport-parent` — add to new containers, remove from nodes that are no longer containers.
 
-6. **Z-ordering**: Assign z-index by nesting depth. Depth 0 nodes get the lowest z-index, depth 1 higher, etc.
+6. **Root placement**: Run the default inner layout over top-level nodes (those without a `_viewport_parent`) centered at origin.
 
-7. **Warnings**: Emit warnings for overfill situations, multiple-parent conflicts, and cycles (same categories as the nesting resolver).
+7. **Position pass (top-down)**: For each container, apply its cached placements relative to its center. Recurse.
+
+8. **Z-index by depth**: Depth 0 = lowest z-index, each level adds 10.
+
+9. **Optional fit**: If `config.fit`, call `cy.fit()` after projection.
+
+10. **Warnings**: Emit warnings for multiple-parent conflicts, cycles, and unparseable gryphon patterns. (Overfill warnings were retired — natural sizing makes overfill impossible.)
 
 #### Config Shape
 
 | Field | Type | Required | Description |
 | --- | --- | :---: | --- |
 | `relationships` | array | Yes | Ordered nesting relationship declarations with `name` and `gryphon` fields. |
-| `baseSizes` | object | Yes | Map of `entity_type` → `{width, height}`. Defines full-scale base size for each type. |
-| `padding` | number | Yes | Pixels subtracted from parent bbox to derive inner viewport. Applied uniformly on all sides. |
-| `innerLayout` | string or object | Yes | Cytoscape layout name (e.g. `"grid"`) or layout options object passed to `cy.layout()`. Used for child arrangement within each viewport. |
-| `innerLayouts` | object | No | Optional per-entity-type layout overrides. Map of parent `entity_type` → layout name/options. Falls back to `innerLayout`. |
-| `fit` | boolean | No | If true, fit the viewport to the full scene after projection. Default: false. |
+| `baseSizes` | object | Yes | Map of `entity_type` → `{width, height}`. True size for leaves; minimum floor for containers. |
+| `padding` | number | Yes | Default padding inflated around each container's child bbox. |
+| `paddings` | object | No | Per-parent-type padding override. Map of container `entity_type` → number. |
+| `innerLayout` | string or object | Yes | Default natural layout: `"grid"`, `"stack-vertical"`, or an object `{name, ...opts}`. Also used for root placement. |
+| `innerLayouts` | object | No | Per-entity-type layout override. Map of container `entity_type` → layout spec. |
+| `fit` | boolean | No | If true, fit viewport to the scene after projection. Default: false. |
 
 #### Development
 
-Centralizing the geometry pipeline in one runtime module keeps layout code declarative and minimal. Layout authors express what they want (relationships + sizes + layout algorithm), not how to compute viewports and scale factors. This makes writing new layouts significantly easier and eliminates the class of bugs where layouts implement subtly different coordinate arithmetic.
+Centralizing the geometry pipeline in one runtime module keeps layout code declarative. Layout authors express what they want (relationships + sizes + layout algorithm). New natural layouts are pure functions matching `(children) → {width, height, placements}` and plug in via the `innerLayout`/`innerLayouts` config.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-nested-projection-runtime-api-1 | Single Entry Point | Approved for Development | `projectNested(cy, config)` is the primary API layouts use for nested scene projection. | |
-| req-viz-nested-projection-runtime-api-2 | Resolver Integration | Approved for Development | Nesting resolution uses the same Gryphon-subset parsing as the existing resolver but stamps data instead of compounds. | |
-| req-viz-nested-projection-runtime-api-3 | Recursive Descent | Approved for Development | The runtime processes multi-level nesting from outermost parents inward. | |
-| req-viz-nested-projection-runtime-api-4 | Scale Computation | Approved for Development | Scale factors are computed automatically from viewport size and child scene extent. | |
-| req-viz-nested-projection-runtime-api-5 | Constrained Layout | Approved for Development | Inner layouts run with `boundingBox` set to the parent viewport rect. | |
-| req-viz-nested-projection-runtime-api-6 | Warnings Emitted | Approved for Development | Overfill, multiple-parent, and cycle warnings are logged. | |
+| req-viz-nested-projection-runtime-api-1 | Single Entry Point | Implemented | `projectNested(cy, config)` is the primary API layouts use for nested scene projection. | |
+| req-viz-nested-projection-runtime-api-2 | Resolver Integration | Implemented | Nesting resolution uses Gryphon-subset parsing and stamps `_viewport_parent` data. | |
+| req-viz-nested-projection-runtime-api-3 | Two-Pass Execution | Implemented | The runtime runs a measure pass then a position pass. | Supersedes the earlier outer-in recursion ACID. |
+| req-viz-nested-projection-runtime-api-4 | Per-Type Layout Choice | Implemented | `innerLayouts` selects natural-layout algorithm per container type. | |
+| req-viz-nested-projection-runtime-api-5 | Shadow Sizing | Implemented | Shadow nodes size themselves from `baseSizes[entity_type]` like any other leaf, inheriting the primary's entity_type. | |
+| req-viz-nested-projection-runtime-api-6 | Warnings Emitted | Implemented | Multiple-parent conflicts, cycles, and unparseable patterns produce warnings. | |
 
 #### Future
 
-Add per-parent layout override support if different parent types need fundamentally different child arrangement algorithms. Consider exposing the scale factor to layouts for advanced use cases.
+- Plugin-registered natural layouts (user code adds `horizontal-stack`, `packed-grid`, etc.).
+- Expose the measure pass so tooling can preview layouts without applying them.
 
 
 ### Container Visual Switch
 ----
 RID: `req-viz-nested-projection-container-visual`
-Status: `Approved for Development`
+Status: `Implemented`
 
 Nodes that host children automatically switch to a container visual style.
 
@@ -379,10 +491,10 @@ Switching to container mode automatically means layout authors don't have to man
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-nested-projection-container-visual-1 | Class Added Automatically | Approved for Development | `.tap-viewport-parent` is added by the runtime when a node has children projected inside it. | |
-| req-viz-nested-projection-container-visual-2 | Class Removed On Clear | Approved for Development | `.tap-viewport-parent` is removed when the node no longer hosts children at the active elevation. | |
-| req-viz-nested-projection-container-visual-3 | Default Container Style | Approved for Development | Container nodes show a subtle background, suppressed icon, and top-positioned label by default. | |
-| req-viz-nested-projection-container-visual-4 | Revert On Remove | Approved for Development | Removing the class reverts the node to its normal leaf visual. | |
+| req-viz-nested-projection-container-visual-1 | Class Added Automatically | Implemented | `.tap-viewport-parent` is added by the runtime when a node has children projected inside it. | |
+| req-viz-nested-projection-container-visual-2 | Class Removed On Clear | Implemented | `.tap-viewport-parent` is removed when the node no longer hosts children at the active elevation. | |
+| req-viz-nested-projection-container-visual-3 | Default Container Style | Implemented | Container nodes show a subtle background, suppressed icon, and top-positioned label by default. | |
+| req-viz-nested-projection-container-visual-4 | Revert On Remove | Implemented | Removing the class reverts the node to its normal leaf visual. | |
 
 #### Future
 

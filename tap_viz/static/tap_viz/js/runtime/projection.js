@@ -88,6 +88,13 @@ export async function initProjection(cy, projection, opts = {}) {
         if (!elevation) return;
         state.activeElevation = elevation;
         const nodeStyle = projection.node_style || "default";
+
+        // Hide the canvas before layout to prevent flash of unpositioned
+        // nodes. The cascade reveal will unhide and animate them in.
+        if (triggerReason === "initial_load") {
+            cy.container().style.visibility = "hidden";
+        }
+
         const context = {
             cy,
             projection,
@@ -123,6 +130,12 @@ export async function initProjection(cy, projection, opts = {}) {
         }
         const {enableDragGroup} = await import("./drag-group.js");
         state.dragGroupHandle = enableDragGroup(cy);
+
+        // Cascade reveal on initial load — nodes pop in layer by layer.
+        if (triggerReason === "initial_load") {
+            const {cascadeReveal} = await import("./cascade-reveal.js");
+            await cascadeReveal(cy);
+        }
     }
 
     // ---- Zoom watcher ----

@@ -23,7 +23,7 @@ import {projectNested} from "/static/tap_viz/js/runtime/nested-projection.js";
 import {createShadows, initShadowInteraction} from "/static/tap_viz/js/runtime/shadow-nodes.js";
 
 // Resources whose canonical AWS placement is the VPC, not a single subnet.
-const VPC_SCOPED_TYPES = ["aws_alb", "aws_rds_instance"];
+const VPC_SCOPED_TYPES = ["aws_alb", "aws_rds_instance", "aws_elasticache_cluster"];
 
 // One-off label cleanup for the Genericom demo: every resource name in the
 // seed data starts with "genericom-" which is visual noise. Strip the prefix
@@ -128,6 +128,10 @@ export async function execute(context) {
                 gryphon: `(parent:aws_vpc)<-[:${VPC_SCOPED_EDGE_TYPE}]-(child:aws_rds_instance)`,
             },
             {
+                name: "vpc-contains-elasticache",
+                gryphon: `(parent:aws_vpc)<-[:${VPC_SCOPED_EDGE_TYPE}]-(child:aws_elasticache_cluster)`,
+            },
+            {
                 name: "subnet-contains-ec2",
                 gryphon: "(parent:aws_subnet)<-[:RESIDES_IN]-(child:aws_ec2_instance)",
             },
@@ -140,16 +144,36 @@ export async function execute(context) {
             aws_account: {width: 850, height: 340},
             aws_vpc: {width: 760, height: 520},
             aws_subnet: {width: 220, height: 160},
-            aws_ec2_instance: {width: 188, height: 87},
-            aws_rds_instance: {width: 188, height: 87},
-            aws_alb: {width: 188, height: 87},
-            aws_route53_zone: {width: 188, height: 87},
+            aws_ec2_instance: {width: 113, height: 53},
+            aws_rds_instance: {width: 113, height: 53},
+            aws_alb: {width: 53, height: 53},
+            aws_elasticache_cluster: {width: 53, height: 53},
+            aws_route53_zone: {width: 113, height: 53},
         },
-        shadowBaseSizes: {width: 113, height: 53},
         padding: 16,
         innerLayout: "grid",
         innerLayouts: {
-            aws_account: {name: "stack-vertical"},
+            // Route 53 sits at the top (it's the front door — what the customer
+            // hits first); the VPC below.
+            aws_account: {
+                name: "stack-vertical",
+                // Wider gap so the VPC's outside-top label has clearance
+                // from the Route 53 node above it.
+                gap: 40,
+                typeOrder: ["aws_route53_zone", "aws_vpc"],
+            },
+            // Three-tier architecture rows inside the VPC:
+            //   1. ALB tier: public subnets (with ALB shadows) + ALB primaries on right
+            //   2. EC2 tier: web subnets (with EC2 instances) — centered, no primaries
+            //   3. Backend tier: db subnets (with RDS/cache shadows) + primaries on right
+            aws_vpc: {
+                name: "tiered-rows",
+                tiers: [
+                    {name: "alb", entityTypes: ["aws_alb"]},
+                    {name: "ec2", entityTypes: ["aws_ec2_instance"]},
+                    {name: "backend", entityTypes: ["aws_rds_instance", "aws_elasticache_cluster"]},
+                ],
+            },
         },
     });
 

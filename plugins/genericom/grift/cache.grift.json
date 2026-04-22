@@ -1,0 +1,133 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "01965b01-4000-7000-8000-000000000009",
+        "entity_type": "batch",
+        "name": "Genericom cache tier v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom cache tier v0.1.0",
+        "description": "Multi-AZ ElastiCache Redis cluster for Django session and cache."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-000800000001",
+            "entity_type": "aws_elasticache_cluster",
+            "name": "genericom-prod-redis",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom-prod-redis",
+            "cluster_id": "genericom-prod-redis",
+            "engine": "redis",
+            "engine_version": "7.1",
+            "node_type": "cache.r7g.large",
+            "num_nodes": 2,
+            "status": "available",
+            "configuration": {
+              "arn": "arn:aws:elasticache:us-west-1:482761905314:replicationgroup:genericom-prod-redis",
+              "port": 6379,
+              "primary_endpoint": "genericom-prod-redis.abc123.ng.0001.usw1.cache.amazonaws.com",
+              "primary_az": "us-west-1a",
+              "replica_az": "us-west-1c",
+              "transit_encryption": true,
+              "at_rest_encryption": true
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0008f0000001",
+            "entity_type": "edge",
+            "name": "Redis belongs to account",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000800000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000200000001",
+            "edge_type": "BELONGS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0008f0000002",
+            "entity_type": "edge",
+            "name": "Redis resides in private-db-a",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000800000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000015",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0008f0000003",
+            "entity_type": "edge",
+            "name": "Redis resides in private-db-c",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000800000001",
+            "to_entity_id": "01965b01-4000-7000-8000-000300000016",
+            "edge_type": "RESIDES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0008f0000004",
+            "entity_type": "edge",
+            "name": "EC2 web-a caches in Redis",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000003",
+            "to_entity_id": "01965b01-4000-7000-8000-000800000001",
+            "edge_type": "CACHES_IN",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01965b01-4000-7000-8000-0008f0000005",
+            "entity_type": "edge",
+            "name": "EC2 web-c caches in Redis",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000004",
+            "to_entity_id": "01965b01-4000-7000-8000-000800000001",
+            "edge_type": "CACHES_IN",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}

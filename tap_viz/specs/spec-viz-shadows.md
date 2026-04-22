@@ -98,7 +98,7 @@ Shadow nodes are reduced-fidelity visual copies placed inside hosting locations.
 - Shadow nodes render with a dashed border (2px, slate gray) to further distinguish them from primary nodes.
 - Shadow nodes display the same label as their primary.
 - Shadow nodes display the same type icon badge as their primary (when `node_style` is `"icon-badge"`).
-- Shadow nodes are smaller than their primary. Size is controlled by `shadowBaseSizes` passed to `projectNested`, applied in the base size step before layout computation.
+- Shadow nodes are sized identically to their primary. They inherit the primary's `entity_type`, so the shared `baseSizes[entity_type]` lookup in `projectNested` sizes them the same way. Visual distinction between primary and shadow is carried by opacity and dashed border, not size.
 - Shadow node IDs use the format `shadow:<primary_id>:<container_id>`.
 - Shadow node data includes:
   - `_shadow_group`: the group identifier (matches primary's entity ID)
@@ -113,7 +113,7 @@ Shadow nodes are reduced-fidelity visual copies placed inside hosting locations.
 
 #### Development
 
-The reduced visual treatment (opacity + dashed border + smaller size) follows established UI patterns for "reference" or "alias" representations. The viewer should learn that a dashed, translucent node means "this entity lives here but is represented elsewhere."
+The reduced visual treatment (opacity + dashed border) follows established UI patterns for "reference" or "alias" representations. The viewer should learn that a dashed, translucent node means "this entity lives here but is represented elsewhere." Size matches the primary — a shadow is the same entity rendered with lower visual weight.
 
 #### Acceptance Criteria
 
@@ -122,7 +122,7 @@ The reduced visual treatment (opacity + dashed border + smaller size) follows es
 | req-viz-shadows-shadow-node-1 | Reduced Opacity | In Development | Shadow nodes render at 0.5 opacity. | `node[_is_shadow]` style selector |
 | req-viz-shadows-shadow-node-2 | Dashed Border | In Development | Shadow nodes render with a dashed border style. | `border-style: "dashed"` in style |
 | req-viz-shadows-shadow-node-3 | Same Label | In Development | Shadow nodes display the same label as their primary. | Copied from primary data at creation |
-| req-viz-shadows-shadow-node-4 | Smaller Size | In Development | Shadow nodes are sized via `shadowBaseSizes` config, smaller than primary. | Applied in `projectNested` step 4 before layout |
+| req-viz-shadows-shadow-node-4 | Size Matches Primary | In Development | Shadow nodes inherit their primary's `entity_type` and are sized via the same `baseSizes` lookup, producing identical dimensions. | No separate shadow-size config |
 | req-viz-shadows-shadow-node-5 | Shadow Data Fields | In Development | Shadow nodes carry `_shadow_group`, `_shadow_role`, `_shadow_primary`, `_shadow_host`, `_is_shadow`. | Set by `createShadows()` |
 
 
@@ -206,7 +206,7 @@ Shadow nodes participate in the bounded-layer nesting model through their host c
 - The nesting resolver assigns each shadow's `_viewport_parent` to its host container through normal single-parent resolution.
 - Shadows move with their host container when the container is dragged (via the existing drag-group mechanism).
 - Dragging the primary node does NOT move its shadows (they belong to different viewport parents).
-- Shadow base sizes are passed via `config.shadowBaseSizes` to `projectNested`, which applies them in the base-size step (step 4) before layout computation. This ensures shadows are smaller than primaries and that parent containers account for their presence when computing available viewport space.
+- Shadow sizes are resolved by the same `baseSizes[entity_type]` lookup that primaries use. Because `createShadows` copies the primary's `entity_type` onto each shadow node, shadows and primaries of the same entity type share dimensions. No separate shadow-size config is needed.
 
 #### Development
 
@@ -221,7 +221,7 @@ This follows naturally from the existing bounded-layer nesting model. A shadow i
 | req-viz-shadows-nesting-3 | Viewport Parent is Host | In Development | Shadow node's `_viewport_parent` is its host container after nesting resolution. | Natural result of placement edge matching nesting rule |
 | req-viz-shadows-nesting-4 | Drag Follows Host | In Development | Shadows move when their host container is dragged. | Inherits from drag-group.js via `_viewport_parent` chain |
 | req-viz-shadows-nesting-5 | Primary Drag Independent | In Development | Dragging the primary does not move shadows. | Different viewport parents in nesting tree |
-| req-viz-shadows-nesting-6 | Shadow Size in Layout | In Development | `shadowBaseSizes` controls shadow dimensions during layout computation. | `projectNested` step 4 checks `_is_shadow` flag |
+| req-viz-shadows-nesting-6 | Shadow Size From baseSizes | In Development | Shadow dimensions come from the shared `baseSizes[entity_type]` lookup, matching the primary of the same type. | No `_is_shadow` branch in the sizing step |
 
 
 ### Layout Integration
@@ -240,7 +240,6 @@ Layouts declare which entities produce shadow nodes and where those shadows are 
     - `edgeType`: which edge type connects entities to host containers (e.g. `"RESIDES_IN"`)
     - `placementEdgeType`: synthetic edge type for nesting resolution (e.g. `"_SHADOW_PLACEMENT"`)
   - Adding a nesting rule in the `projectNested` relationships for the placement edge type.
-  - Passing `shadowBaseSizes` to `projectNested` to control shadow dimensions.
   - Optionally calling `initShadowInteraction(cy)` after layout to wire up hover. The projection runtime also handles this automatically when shadow nodes are detected.
 - The runtime utility module `shadow-nodes.js` provides:
   - `createShadows(cy, config)` — creates shadow nodes, placement edges, and shadow links. Returns `{shadowGroups}`.
