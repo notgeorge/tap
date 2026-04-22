@@ -1,3 +1,6 @@
 [submodule "plugins/aws_core"]
 	path = plugins/aws_core
 	url = https://github.com/notgeorge/tap-plugin-aws.git
+[submodule "plugins/computing_core"]
+	path = plugins/computing_core
+	url = https://github.com/notgeorge/tap-plugin-computing-core.git
