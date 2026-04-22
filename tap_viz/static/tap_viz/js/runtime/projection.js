@@ -123,18 +123,33 @@ export async function initProjection(cy, projection, opts = {}) {
             state.shadowInteractionHandle = initShadowInteraction(cy);
         }
 
-        // Enable parent-drags-children after nesting is stamped.
+        // Enable parent-drags-children after nesting is stamped
+        // (skip if nodes are locked — no dragging allowed).
         if (state.dragGroupHandle) {
             state.dragGroupHandle.destroy();
             state.dragGroupHandle = null;
         }
-        const {enableDragGroup} = await import("./drag-group.js");
-        state.dragGroupHandle = enableDragGroup(cy);
+        if (!projection.lock_nodes) {
+            const {enableDragGroup} = await import("./drag-group.js");
+            state.dragGroupHandle = enableDragGroup(cy);
+        }
+
+        // Lock all nodes in place if configured.
+        if (projection.lock_nodes) {
+            cy.nodes().lock();
+        }
 
         // Cascade reveal on initial load — nodes pop in layer by layer.
         if (triggerReason === "initial_load") {
             const {cascadeReveal} = await import("./cascade-reveal.js");
             await cascadeReveal(cy);
+
+            // Pin minimum zoom to the post-fit level if configured.
+            if (projection.min_zoom === "fit") {
+                cy.minZoom(cy.zoom());
+            } else if (typeof projection.min_zoom === "number") {
+                cy.minZoom(projection.min_zoom);
+            }
         }
     }
 

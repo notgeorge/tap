@@ -1,7 +1,7 @@
 {% extends "tap_web/base.html" %}
 {% load static %}
 
-{% block title %}Edit: {{ panel.name }} — TAP{% endblock %}
+{% block title %}Edit: {{ panel.name }} — {{ product_name }}{% endblock %}
 
 {% block head_extras %}
 {% for css_path in editor_css_assets %}

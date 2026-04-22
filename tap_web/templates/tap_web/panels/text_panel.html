@@ -1,4 +1,4 @@
 <div class="tap-panel tap-panel--text">
-    {% include "tap_web/panel_header.html" %}
+    {% if not panel.config.hide_header %}{% include "tap_web/panel_header.html" %}{% endif %}
     <div class="text-slate-700 whitespace-pre-wrap">{{ panel.config.text }}</div>
 </div>

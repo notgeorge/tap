@@ -62,6 +62,9 @@ if "runserver" in sys.argv:
             "Then add the generated value to your docker-compose.yml environment.\n"
         )
 
+# User-facing product name. Override to rebrand the UI (e.g. "Rampart").
+TAP_PRODUCT_NAME = os.environ.get("TAP_PRODUCT_NAME", "TAP")
+
 # =============================================================================
 # Application Definition
 # =============================================================================
@@ -118,6 +121,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "tap_web.context_processors.branding",
             ],
         },
     },

@@ -1,7 +1,7 @@
 {% extends "tap_web/base.html" %}
 {% load static %}
 
-{% block title %}{{ page.name }} — TAP{% endblock %}
+{% block title %}{{ page.name }} — {{ product_name }}{% endblock %}
 
 {% block head_extras %}
 {% for css_path in css_assets %}
@@ -9,8 +9,11 @@
 {% endfor %}
 {% endblock %}
 
+{% block header_title %}
+&nbsp;&nbsp;<span class="text-xl font-bold">{{ page.name }}</span>
+{% endblock %}
+
 {% block content %}
-<h1 class="text-2xl font-bold mb-4">{{ page.name }}</h1>
 
 {% if processed_columns %}
 {% comment %}

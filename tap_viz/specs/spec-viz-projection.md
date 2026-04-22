@@ -37,6 +37,8 @@ Projections should also be self-contained. A projection must be able to define a
 | req-viz-projection-viewport-preservation | [Viewport Preservation](#viewport-preservation) | Deprecating | Transitional cursor-tracked hero-node anchoring that compensates for geometry discontinuities; see `spec-viz-nested-projection.md` |
 | req-viz-projection-elevation-invariants | [Elevation Invariants](#elevation-invariants) | Implemented | Layouts assert scene state on entry; elevation-hidden class lets transient content survive across transitions without re-fetching |
 | req-viz-projection-viewport-scoped-expansion | [Viewport-Scoped Expansion](#viewport-scoped-expansion) | Backlog | Per-visible-viewport elevation expansion for large graphs |
+| req-viz-projection-min-zoom | [Minimum Zoom](#minimum-zoom) | Implemented | Optional floor on zoom-out; `"fit"` pins to post-layout zoom level |
+| req-viz-projection-lock-nodes | [Lock Nodes](#lock-nodes) | Implemented | Optional flag to freeze all node positions after layout |
 
 ## Requirements
 
@@ -415,3 +417,64 @@ Capture the cost model in concrete numbers before designing this: what is the fe
 #### Future
 
 Define an API for layouts to declare "which node type I expand" so the runtime can compute viewport membership without the layout having to.
+
+
+### Minimum Zoom
+----
+RID: `req-viz-projection-min-zoom`
+Status: `Implemented`
+
+A projection may declare a minimum zoom level to prevent users from zooming out beyond the meaningful extent of the scene.
+
+#### Implementation
+
+- The `min_zoom` property is an optional field on the projection definition.
+- Accepted values:
+  - `"fit"` — after the initial layout and fit, the current zoom level becomes the floor. Users can zoom in but not back out past the initial view.
+  - A positive number — sets an explicit minimum zoom level.
+- When `min_zoom` is `"fit"`, the runtime calls `cy.minZoom(cy.zoom())` after the cascade reveal completes on initial load.
+- When `min_zoom` is a number, the runtime calls `cy.minZoom(value)` after the cascade reveal completes on initial load.
+- The `_PROJECTION_DEFINITION_SCHEMA` in `tap_viz/models.py` validates `min_zoom` as either `"fit"` or a positive number.
+- When omitted, Cytoscape's default minimum zoom applies (no restriction).
+
+#### Development
+
+The `"fit"` mode is the common case: the layout computes the ideal framing, and there is no reason for the user to zoom out past it into empty space. An explicit numeric value is available for projections that need a specific floor independent of the layout result.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-projection-min-zoom-1 | Fit Mode | Implemented | `min_zoom: "fit"` pins the minimum zoom to the post-layout zoom level. | `cy.minZoom(cy.zoom())` after cascade reveal |
+| req-viz-projection-min-zoom-2 | Numeric Mode | Implemented | `min_zoom: <number>` sets the minimum zoom to the given value. | Direct `cy.minZoom(value)` call |
+| req-viz-projection-min-zoom-3 | Schema Validation | Implemented | `min_zoom` is validated as `"fit"` or a positive number by the projection definition schema. | `oneOf` in `_PROJECTION_DEFINITION_SCHEMA` |
+| req-viz-projection-min-zoom-4 | Optional | Implemented | Omitting `min_zoom` applies no restriction. | Cytoscape default behavior preserved |
+
+
+### Lock Nodes
+----
+RID: `req-viz-projection-lock-nodes`
+Status: `Implemented`
+
+A projection may declare that all node positions are frozen after layout completes.
+
+#### Implementation
+
+- The `lock_nodes` property is an optional boolean on the projection definition, defaulting to `false`.
+- When `true`, the runtime calls `cy.nodes().lock()` after layout, badges, and shadow interaction setup complete.
+- When `true`, the drag-group behavior is not initialized — no dragging of any kind is permitted.
+- The `_PROJECTION_DEFINITION_SCHEMA` in `tap_viz/models.py` validates `lock_nodes` as a boolean.
+- Node locking applies to all nodes including badge nodes, shadow nodes, and container nodes.
+
+#### Development
+
+Locking nodes is appropriate for presentation-oriented projections where the layout algorithm has produced a definitive arrangement and user rearrangement would degrade the visual. It also simplifies interaction in demos and read-only dashboards where accidental drags are a distraction.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-projection-lock-nodes-1 | All Nodes Locked | Implemented | When `lock_nodes: true`, all nodes are locked after layout. | `cy.nodes().lock()` in `activate()` |
+| req-viz-projection-lock-nodes-2 | No Drag Group | Implemented | When `lock_nodes: true`, drag-group behavior is not initialized. | `enableDragGroup` skipped |
+| req-viz-projection-lock-nodes-3 | Schema Validation | Implemented | `lock_nodes` is validated as a boolean by the projection definition schema. | `{"type": "boolean"}` in schema |
+| req-viz-projection-lock-nodes-4 | Optional Default | Implemented | Omitting `lock_nodes` defaults to unlocked (normal drag behavior). | Falsy check in runtime |

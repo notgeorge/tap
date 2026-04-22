@@ -27,8 +27,10 @@ export function cascadeReveal(cy, opts = {}) {
     const fadeDuration = opts.fadeDuration ?? 300;
 
     // Collect visible nodes grouped by z-index.
+    // Badge nodes are excluded — they fade in with their host node.
     const layerMap = {};
     cy.nodes(":visible").forEach((n) => {
+        if (n.data("_is_badge")) return;
         const z = parseInt(n.style("z-index"), 10) || 0;
         if (!layerMap[z]) layerMap[z] = [];
         layerMap[z].push(n);
@@ -61,10 +63,19 @@ export function cascadeReveal(cy, opts = {}) {
                 if (nodeEnd > totalTime) totalTime = nodeEnd;
 
                 setTimeout(() => {
+                    const targetOpacity = node.data("_is_shadow") ? 0.5 : 1;
                     node.animate(
-                        {style: {opacity: node.data("_is_shadow") ? 0.5 : 1}},
+                        {style: {opacity: targetOpacity}},
                         {duration: fadeDuration, easing: "ease-out"}
                     );
+                    // Fade in the badge alongside its host node.
+                    const badge = cy.getElementById("badge:" + node.id());
+                    if (badge.length > 0) {
+                        badge.animate(
+                            {style: {opacity: 1}},
+                            {duration: fadeDuration, easing: "ease-out"}
+                        );
+                    }
                 }, nodeStart);
             });
         });

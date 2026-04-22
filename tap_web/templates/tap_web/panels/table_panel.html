@@ -1,5 +1,5 @@
 <div class="tap-panel tap-panel--table">
-    {% include "tap_web/panel_header.html" %}
+    {% if not panel.config.hide_header %}{% include "tap_web/panel_header.html" %}{% endif %}
 
     {% if table_error %}
     <div class="tap-panel-error rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

@@ -686,6 +686,10 @@ function initGraph(panelId) {
     }
 
     if (projection) {
+        // Hide the graph element immediately so the raw graph never flashes
+        // before the projection runtime takes over with cascade reveal.
+        cyEl.style.visibility = "hidden";
+
         // Projection-hosted panel: hand off to the client runtime instead of
         // running a single top-level layout. The runtime orchestrates
         // elevations, tap layouts, and zoom-driven transitions.

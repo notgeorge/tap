@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}TAP{% endblock %}</title>
+    <title>{% block title %}{{ product_name }}{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="{% static 'tap_web/favicon.ico' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/tailwind.css' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/panels.css' %}">
@@ -15,12 +15,30 @@
     <nav class="bg-slate-800 text-white">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
-                <div class="flex items-center">
-                    <a href="/" class="text-xl font-bold">TAP</a>
+                <div class="flex items-center space-x-2">
+                    <a href="/" class="text-xl font-bold">{{ product_name }}</a>
+                    {% block header_title %}{% endblock %}
                 </div>
-                <div class="flex items-center space-x-4">
-                    <a href="/api/v1/docs" class="text-sm text-gray-300 hover:text-white">API Docs</a>
-                    <a href="/admin/" class="text-sm text-gray-300 hover:text-white">Admin</a>
+                <div class="flex items-center" style="gap: 0.75rem;">
+                    <a href="#" class="text-gray-300 hover:text-white" title="History">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </a>
+                    <a href="#" class="text-gray-300 hover:text-white" title="Layers">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                            <polyline points="2 17 12 22 22 17"/>
+                            <polyline points="2 12 12 17 22 12"/>
+                        </svg>
+                    </a>
+                    <a href="/admin/" class="text-gray-300 hover:text-white" title="Admin">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="8" r="4"/>
+                            <path d="M20 21a8 8 0 1 0-16 0"/>
+                        </svg>
+                    </a>
                 </div>
             </div>
         </div>
@@ -32,11 +50,6 @@
         </div>
     </main>
 
-    <footer class="bg-slate-100 border-t border-slate-200">
-        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-            <p class="text-center text-sm text-slate-500">TAP - The Analogy Platform</p>
-        </div>
-    </footer>
     {% block body_extras %}{% endblock %}
 </body>
 </html>

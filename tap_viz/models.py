@@ -51,6 +51,13 @@ _PROJECTION_DEFINITION_SCHEMA: dict = {
             "type": "string",
             "enum": ["default", "icon-badge"],
         },
+        "min_zoom": {
+            "oneOf": [
+                {"type": "string", "enum": ["fit"]},
+                {"type": "number", "exclusiveMinimum": 0},
+            ],
+        },
+        "lock_nodes": {"type": "boolean"},
         "default_elevation": {"type": "string", "minLength": 1},
         "elevations": {
             "type": "array",
