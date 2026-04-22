@@ -153,6 +153,7 @@ export function resolveNesting(cy, relationships) {
  * @param {Object<string, number>} [config.paddings] - Per-parent-type padding overrides
  * @param {string|Object} config.innerLayout - Cytoscape layout name or options
  * @param {Object<string, string|Object>} [config.innerLayouts] - Per-parent-type overrides
+ * @param {{width: number, height: number}} [config.shadowBaseSizes] - Override size for shadow nodes
  * @param {boolean} [config.fit] - Fit viewport after projection
  * @returns {Promise<{warnings: Array}>}
  */
@@ -160,6 +161,7 @@ export async function projectNested(cy, config) {
     const {relationships, baseSizes, padding, innerLayout} = config;
     const paddings = config.paddings || {};
     const innerLayouts = config.innerLayouts || {};
+    const shadowBaseSizes = config.shadowBaseSizes || null;
     const warnings = [];
 
     if (!relationships || !baseSizes || padding == null || !innerLayout) {
@@ -186,9 +188,14 @@ export async function projectNested(cy, config) {
         if (!edge.empty()) edge.addClass(HIDDEN_CONTAINMENT_CLASS);
     });
 
-    // Step 4: Apply base sizes to all nodes.
+    // Step 4: Apply base sizes to all nodes. Shadow nodes use the override
+    // size if provided, so they render smaller than their primary.
     cy.nodes().forEach((node) => {
         if (node.hasClass(ELEVATION_HIDDEN_CLASS)) return;
+        if (shadowBaseSizes && node.data("_is_shadow")) {
+            node.style({"width": shadowBaseSizes.width, "height": shadowBaseSizes.height});
+            return;
+        }
         const entityType = node.data("entity_type") || "";
         const size = baseSizes[entityType];
         if (size) {
@@ -345,7 +352,7 @@ export async function projectNested(cy, config) {
             };
 
             const layoutOpts = _resolveLayoutOpts(parentNode, innerLayout, innerLayouts);
-            _runConstrainedLayout(cy, childNodes, vpBBox, layoutOpts);
+            _runConstrainedLayout(cy, childNodes, vpBBox, layoutOpts, baseSizes, shadowBaseSizes);
         }
     }
 
@@ -397,13 +404,18 @@ function _resolveLayoutOpts(parentNode, defaultLayout, perTypeLayouts) {
     return typeof defaultLayout === "string" ? {name: defaultLayout} : {...defaultLayout};
 }
 
-function _runConstrainedLayout(cy, childNodes, vpBBox, layoutOpts) {
-    // Manual grid positioning: compute cell positions directly within the
-    // parent viewport bbox. This replaces Cytoscape's grid layout to ensure
-    // children are truly centered inside the parent's visual bounds.
+function _runConstrainedLayout(cy, childNodes, vpBBox, layoutOpts, baseSizes, shadowBaseSizes) {
     const count = childNodes.length;
     if (count === 0) return;
 
+    if (layoutOpts.name === "stack-vertical") {
+        _runStackVerticalLayout(childNodes, vpBBox, baseSizes, shadowBaseSizes);
+        return;
+    }
+
+    // Manual grid positioning: compute cell positions directly within the
+    // parent viewport bbox. This replaces Cytoscape's grid layout to ensure
+    // children are truly centered inside the parent's visual bounds.
     const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
     const rows = Math.max(1, Math.ceil(count / cols));
 
@@ -416,6 +428,63 @@ function _runConstrainedLayout(cy, childNodes, vpBBox, layoutOpts) {
         const x = vpBBox.x1 + cellW * (col + 0.5);
         const y = vpBBox.y1 + cellH * (row + 0.5);
         node.position({x, y});
+    });
+}
+
+/**
+ * Vertical stack layout: children are stacked top-to-bottom. Leaf nodes
+ * (those without children in the nesting tree) get a fixed-height slice
+ * equal to their scaled node height plus a small gap. Container nodes
+ * split the remaining vertical space equally.
+ */
+function _runStackVerticalLayout(childNodes, vpBBox, baseSizes, shadowBaseSizes) {
+    if (childNodes.length === 0) return;
+
+    function baseH(node) {
+        if (shadowBaseSizes && node.data("_is_shadow")) return shadowBaseSizes.height;
+        const et = node.data("entity_type") || "";
+        return (baseSizes[et] || {height: 40}).height;
+    }
+
+    // Partition into leaves (small nodes) and containers (large nodes that
+    // will themselves have children nested inside at a deeper depth).
+    // Heuristic: a node whose base height is less than 30% of the viewport
+    // height is treated as a leaf for stacking purposes.
+    const leafThreshold = vpBBox.h * 0.3;
+    const leaves = [];
+    const containers = [];
+    childNodes.forEach((n) => {
+        if (baseH(n) < leafThreshold) leaves.push(n);
+        else containers.push(n);
+    });
+
+    // Sort leaves first (top), then containers.
+    const ordered = [...leaves, ...containers];
+
+    // Leaves get a fixed slice: their actual rendered height + gap.
+    const LEAF_GAP = 8;
+    let leafTotal = 0;
+    leaves.forEach((n) => {
+        const h = parseFloat(n.style("height")) || baseH(n);
+        leafTotal += h + LEAF_GAP;
+    });
+
+    const containerSpace = vpBBox.h - leafTotal;
+    const containerSlice = containers.length > 0 ? containerSpace / containers.length : 0;
+
+    let yOffset = vpBBox.y1;
+    ordered.forEach((node) => {
+        const isLeaf = leaves.includes(node);
+        const h = parseFloat(node.style("height")) || baseH(node);
+        const sliceH = isLeaf ? h + LEAF_GAP : containerSlice;
+        const x = vpBBox.x1 + vpBBox.w / 2;
+        // Leaves center in their slice; containers top-align so they
+        // sit right below the leaves without a centering gap.
+        const y = isLeaf
+            ? yOffset + sliceH / 2
+            : yOffset + h / 2;
+        node.position({x, y});
+        yOffset += sliceH;
     });
 }
 

@@ -24,7 +24,7 @@ The first version of this specification intentionally focuses on runtime behavio
 | req-viz-system-panel-native | [Panel-Native Runtime](#panel-native-runtime) | Proposed | Viz runs through TAP panels rather than a standalone page model |
 | req-viz-system-layout-entity | [Layouts As First-Class Entities](#layouts-as-first-class-entities) | Proposed | Layouts are reusable TAP entities |
 | req-viz-system-search-backed | [Search-Backed Execution](#search-backed-execution) | Proposed | Layout execution is built on TAP Search entities and canonical graph envelopes |
-| req-viz-system-display-hints | [Display Hints](#display-hints) | In Development | Shape hints via `DEFAULT_DISPLAY["tap_viz"]["shape"]` implemented; layout overrides deferred |
+| req-viz-system-display-hints | [Display Hints](#display-hints) | In Development | Shape and color hints via `DEFAULT_DISPLAY["tap_viz"]` implemented; label-size and layout overrides deferred |
 | req-viz-system-renderer-adapter | [Renderer Adapter Model](#renderer-adapter-model) | Proposed | Cytoscape is the initial renderer adapter, not the canonical storage format |
 | req-viz-system-readonly-runtime | [Read-Only Runtime](#read-only-runtime) | Proposed | The viz runtime is view-oriented and non-mutating in v1 |
 | req-viz-system-legacy-layout-deprecation | [Legacy Layout Deprecation](#legacy-layout-deprecation) | Proposed | Existing raw Cytoscape layout storage is transitional |
@@ -192,7 +192,8 @@ This requirement formalizes the smallest useful set of viz-specific model-owned 
 - Viz-specific display hints live under a namespaced `tap_viz` object in model display metadata so they do not interfere with non-viz consumers.
 - Display hints may define:
   - `shape`
-  - `color`
+  - `colors` — a nested object with `fill`, `border`, and `label` hex color strings
+  - `label` — a nested object positioning the node's text label: `valign` (`top` / `center` / `bottom`), `halign` (`left` / `center` / `right`), `position` (`outside` / `inside`)
   - `label_size`
 - Icon selection does not live in viz display hints in v1.
 - Icons are resolved through the canonical grid icon contract and icon service.
@@ -207,8 +208,9 @@ This lets a server, interface, or port model carry stable default node shape, co
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-viz-system-display-hints-1 | Shape Hint Is Model-Level | Implemented | `DEFAULT_DISPLAY["tap_viz"]["shape"]` on `BaseModel` subclasses; graph panel enrichment reads it per node. | |
-| req-viz-system-display-hints-2 | Color Hint Is Model-Level | Proposed | `DEFAULT_DISPLAY["tap_viz"]["color"]` may provide the default node color for viz rendering. | |
+| req-viz-system-display-hints-2 | Color Hint Is Model-Level | Implemented | `DEFAULT_DISPLAY["tap_viz"]["colors"]` is a nested object with `fill`, `border`, and `label` hex color strings. Graph panel reads each value per node and applies them as the Cytoscape `background-color`, `border-color`, and text `color` respectively. Hints remain optional — nodes without `colors` fall back to default renderer styling. | |
 | req-viz-system-display-hints-3 | Label Size Hint Is Model-Level | Proposed | `DEFAULT_DISPLAY["tap_viz"]["label_size"]` may provide the default label-size tier for viz rendering. | |
+| req-viz-system-display-hints-8 | Label Position Hint Is Model-Level | Implemented | `DEFAULT_DISPLAY["tap_viz"]["label"]` is a nested object with `valign` (`top`/`center`/`bottom`), `halign` (`left`/`center`/`right`), and `position` (`outside`/`inside`). Graph panel reads these and applies them as Cytoscape `text-valign`, `text-halign`, and a computed `text-margin-y` (negative for outside-top, positive for inside-top, inverted for bottom). | |
 | req-viz-system-display-hints-4 | Viz Hints Are Namespaced | Implemented | Viz hints live under the `tap_viz` key in `DEFAULT_DISPLAY`. | |
 | req-viz-system-display-hints-5 | Icons Reuse Grid Contract | Implemented | `_enrich_nodes_with_icons` uses `resolve_icon_url(EntityType)` from `tap_grid.icon_service`. | |
 | req-viz-system-display-hints-6 | Layout Overrides Allowed | Backlog | Deferred; layout-level shape, color, or label-size override wiring not yet implemented. | |

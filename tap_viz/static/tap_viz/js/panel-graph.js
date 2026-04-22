@@ -388,6 +388,8 @@ function initGraph(panelId) {
     // Build Cytoscape elements from GRIFT extended node/edge envelopes.
     const cyNodes = nodes.map(function (n) {
         var ent = n.entity || {};
+        var disp = n.display || {};
+        var colors = disp.colors || {};
         var data = {
             id: ent.entity_id,
             label: ent.name || ent.entity_type || ent.entity_id,
@@ -396,6 +398,24 @@ function initGraph(panelId) {
             shape: n.shape || "ellipse",
             url_id: n.url_id || "",
         };
+        if (colors.fill) data.fill_color = colors.fill;
+        if (colors.border) data.border_color = colors.border;
+        if (colors.label) data.label_color = colors.label;
+
+        // Label-position hint: valign/halign + inside/outside -> Cytoscape
+        // text-valign, text-halign, text-margin-y (inside uses positive margin,
+        // outside uses negative — pushing the label off the container edge).
+        var label = disp.label || {};
+        if (label.valign && label.halign) {
+            data.label_valign = label.valign;
+            data.label_halign = label.halign;
+            var outsideMargin = 6;
+            var sign = label.position === "outside" ? -1 : 1;
+            if (label.valign === "top") data.label_margin_y = sign * outsideMargin;
+            else if (label.valign === "bottom") data.label_margin_y = -sign * outsideMargin;
+            else data.label_margin_y = 0;
+        }
+
         if (nesting.parentByChildId[ent.entity_id]) {
             data.parent = nesting.parentByChildId[ent.entity_id];
         }
@@ -557,6 +577,80 @@ function initGraph(panelId) {
                 },
             },
             {
+                // Model-level topo colors from DEFAULT_DISPLAY.tap_viz.colors.
+                // Applied after the viewport-parent and badge-host defaults so
+                // the per-model palette wins; nodes without the hint keep the
+                // default indigo fill and slate border behavior.
+                selector: "node[fill_color]",
+                style: {
+                    "background-color": "data(fill_color)",
+                    "border-color": "data(border_color)",
+                    "border-width": 2,
+                    "color": "data(label_color)",
+                },
+            },
+            {
+                // Model-level label-position hint from DEFAULT_DISPLAY.tap_viz.label.
+                // Placed after tap-viewport-parent + badge-host rules so it
+                // overrides their baked-in text alignment.
+                selector: "node[label_valign][label_halign]",
+                style: {
+                    "text-valign": "data(label_valign)",
+                    "text-halign": "data(label_halign)",
+                    "text-margin-y": "data(label_margin_y)",
+                },
+            },
+            {
+                // Shadow nodes: reduced opacity, dashed border to signal
+                // "this entity is present here but represented elsewhere."
+                selector: "node[_is_shadow]",
+                style: {
+                    "opacity": 0.5,
+                    "border-style": "dashed",
+                    "border-width": 2,
+                    "border-color": "#94a3b8",
+                },
+            },
+            {
+                // Shadow links: dashed visual-only edges connecting shadows
+                // to their primary. No arrows, neutral color, non-interactive.
+                selector: "edge[_is_shadow_link]",
+                style: {
+                    "line-style": "dashed",
+                    "line-color": "#cbd5e1",
+                    "line-dash-pattern": [6, 4],
+                    "width": 1.5,
+                    "target-arrow-shape": "none",
+                    "label": "",
+                    "events": "no",
+                    "z-index": 0,
+                },
+            },
+            {
+                // Shadow group hover highlight: increased opacity on shadows,
+                // brighter link color, subtle outline on primary.
+                selector: "node[_is_shadow].tap-shadow-highlight",
+                style: {
+                    "opacity": 0.9,
+                    "border-color": "#6366f1",
+                    "border-width": 3,
+                },
+            },
+            {
+                selector: "node[_shadow_role='primary'].tap-shadow-highlight",
+                style: {
+                    "border-color": "#6366f1",
+                    "border-width": 3,
+                },
+            },
+            {
+                selector: "edge[_is_shadow_link].tap-shadow-highlight",
+                style: {
+                    "line-color": "#6366f1",
+                    "width": 2.5,
+                },
+            },
+            {
                 selector: ":selected",
                 style: {
                     "background-color": "#7c3aed",
@@ -662,7 +756,7 @@ function initGraph(panelId) {
 
     cy.on("tap", "node", function (evt) {
         var node = evt.target;
-        if (node.data("_is_badge")) return;
+        if (node.data("_is_badge") || node.data("_is_shadow")) return;
 
         var entityType = node.data("entity_type");
         var urlId = node.data("url_id");
@@ -709,7 +803,7 @@ function _findNodeAtRenderedPosition(cy, x, y) {
     // wins when overlaps occur.
     var hits = [];
     cy.nodes(":visible").forEach(function (n) {
-        if (n.data("_is_badge")) return;
+        if (n.data("_is_badge") || n.data("_is_shadow")) return;
         var rpos = n.renderedPosition();
         var rw = n.renderedWidth() / 2;
         var rh = n.renderedHeight() / 2;

@@ -40,6 +40,7 @@ export async function initProjection(cy, projection, opts = {}) {
         onError: opts.onError || ((e) => console.error("[projection]", e)),
         activeElevation: null,
         transitionLock: false,
+        shadowInteractionHandle: null,
         // After a commanded transition, anchorZoom pins the zoom watcher to
         // the current elevation so small user scroll movements don't
         // immediately override it. Cleared when the user zooms far enough
@@ -103,6 +104,16 @@ export async function initProjection(cy, projection, opts = {}) {
         if (nodeStyle === "icon-badge") {
             const {applyBadgeNodes} = await import("./badge-nodes.js");
             applyBadgeNodes(cy);
+        }
+
+        // Re-init shadow interaction listeners after layout.
+        if (state.shadowInteractionHandle) {
+            state.shadowInteractionHandle.destroy();
+            state.shadowInteractionHandle = null;
+        }
+        if (cy.nodes("[_is_shadow]").length > 0) {
+            const {initShadowInteraction} = await import("./shadow-nodes.js");
+            state.shadowInteractionHandle = initShadowInteraction(cy);
         }
 
         // Enable parent-drags-children after nesting is stamped.
@@ -206,6 +217,10 @@ export async function initProjection(cy, projection, opts = {}) {
             state.destroyed = true;
             state.listeners.forEach(([ev, fn]) => cy.off(ev, fn));
             state.listeners.length = 0;
+            if (state.shadowInteractionHandle) {
+                state.shadowInteractionHandle.destroy();
+                state.shadowInteractionHandle = null;
+            }
             if (state.dragGroupHandle) {
                 state.dragGroupHandle.destroy();
                 state.dragGroupHandle = null;

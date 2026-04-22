@@ -6,30 +6,47 @@
  *   aws_account (viewport parent)
  *     ├── aws_route53_zone (leaf — account-scoped service)
  *     └── aws_vpc (viewport parent)
- *           ├── aws_alb (leaf — VPC-scoped service, ENIs span subnets)
- *           ├── aws_rds_instance (leaf — VPC-scoped service, multi-AZ placement)
+ *           ├── aws_alb (primary — VPC-scoped, shadows in subnets)
+ *           ├── aws_rds_instance (primary — VPC-scoped, shadows in subnets)
  *           └── aws_subnet (viewport parent)
- *                 └── aws_ec2_instance (leaf — actually lives in one subnet)
+ *                 ├── aws_ec2_instance (leaf — actually lives in one subnet)
+ *                 └── shadow nodes for ALB/RDS presence
  *
- * VPC-scoped services (ALB, RDS) don't live in any single subnet in AWS:
- * they have ENIs in two or more subnets across AZs, and the load balancer /
- * database itself is a VPC-scoped abstraction. We model this visually by
- * synthesizing a hidden containment edge from each such resource to its VPC
- * so the nesting resolver places them as siblings of subnets. Their original
- * RESIDES_IN edges to individual subnets stay visible on screen, so viewers
- * can still see which subnets the resource is wired to.
+ * VPC-scoped services (ALB, RDS) have ENIs in multiple subnets across AZs.
+ * Rather than placing them in any single subnet, the primary node stays at
+ * VPC-level and lightweight shadow copies appear inside each subnet where
+ * the entity has a presence. Shadow links (dashed visual-only edges) connect
+ * each shadow back to its primary.
  */
 
 import {projectNested} from "/static/tap_viz/js/runtime/nested-projection.js";
+import {createShadows, initShadowInteraction} from "/static/tap_viz/js/runtime/shadow-nodes.js";
 
 // Resources whose canonical AWS placement is the VPC, not a single subnet.
 const VPC_SCOPED_TYPES = ["aws_alb", "aws_rds_instance"];
+
+// One-off label cleanup for the Genericom demo: every resource name in the
+// seed data starts with "genericom-" which is visual noise. Strip the prefix
+// in-place on node labels. Not generalized — demo-specific kludge.
+const GENERICOM_PREFIX = "genericom-";
+
+function stripGenericomPrefix(cy) {
+    cy.nodes().forEach((n) => {
+        const label = n.data("label") || "";
+        if (label.startsWith(GENERICOM_PREFIX)) {
+            n.data("label", label.slice(GENERICOM_PREFIX.length));
+        }
+    });
+}
 
 // Custom edge_type for the synthetic VPC-containment edges. The nesting rule
 // below matches on this so these resources nest inside the VPC rather than
 // any single subnet. The edges themselves are hidden.
 const VPC_SCOPED_EDGE_TYPE = "_VPC_SCOPED";
 const SYNTH_EDGE_ID_PREFIX = "__logical_vpc_edge:";
+
+// Synthetic edge type for shadow node nesting placement.
+const SHADOW_PLACEMENT_EDGE_TYPE = "_SHADOW_PLACEMENT";
 
 function addVpcScopedContainmentEdges(cy) {
     VPC_SCOPED_TYPES.forEach((type) => {
@@ -73,8 +90,21 @@ function addVpcScopedContainmentEdges(cy) {
 export async function execute(context) {
     const {cy, trigger_reason} = context;
 
+    stripGenericomPrefix(cy);
+
+    // Step 1: Promote VPC-scoped resources to VPC level (primary nodes).
     addVpcScopedContainmentEdges(cy);
 
+    // Step 2: Create shadow nodes inside each subnet where VPC-scoped
+    // resources have a presence. Must run BEFORE projectNested so shadows
+    // participate in nesting resolution and influence subnet sizing.
+    createShadows(cy, {
+        entityTypes: VPC_SCOPED_TYPES,
+        edgeType: "RESIDES_IN",
+        placementEdgeType: SHADOW_PLACEMENT_EDGE_TYPE,
+    });
+
+    // Step 3: Run nesting resolution with shadow placement rule.
     const {warnings} = await projectNested(cy, {
         relationships: [
             {
@@ -101,23 +131,34 @@ export async function execute(context) {
                 name: "subnet-contains-ec2",
                 gryphon: "(parent:aws_subnet)<-[:RESIDES_IN]-(child:aws_ec2_instance)",
             },
+            {
+                name: "subnet-contains-shadow",
+                gryphon: `(parent:aws_subnet)<-[:${SHADOW_PLACEMENT_EDGE_TYPE}]-(child)`,
+            },
         ],
         baseSizes: {
-            aws_account: {width: 1000, height: 700},
+            aws_account: {width: 850, height: 340},
             aws_vpc: {width: 760, height: 520},
             aws_subnet: {width: 220, height: 160},
-            aws_ec2_instance: {width: 50, height: 50},
-            aws_rds_instance: {width: 50, height: 50},
-            aws_alb: {width: 50, height: 50},
-            aws_route53_zone: {width: 50, height: 50},
+            aws_ec2_instance: {width: 188, height: 87},
+            aws_rds_instance: {width: 188, height: 87},
+            aws_alb: {width: 188, height: 87},
+            aws_route53_zone: {width: 188, height: 87},
         },
+        shadowBaseSizes: {width: 113, height: 53},
         padding: 16,
         innerLayout: "grid",
+        innerLayouts: {
+            aws_account: {name: "stack-vertical"},
+        },
     });
+
+    // Step 4: Wire up hover highlighting for shadow groups.
+    initShadowInteraction(cy);
 
     warnings.forEach((w) => console.warn("[aws-top-level]", w.category, w.message));
 
     if (trigger_reason === "initial_load") {
-        cy.fit(cy.nodes(":visible").filter((n) => !n.data("_is_badge")), 40);
+        cy.fit(cy.nodes(":visible").filter((n) => !n.data("_is_badge") && !n.data("_is_shadow")), 40);
     }
 }
