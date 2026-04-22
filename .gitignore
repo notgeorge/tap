@@ -38,3 +38,9 @@ Thumbs.db
 # Vendored third-party assets (AWS icon pack, etc.) — stashed locally, raided for
 # individually relicensed icons copied into plugin static dirs.
 vendor/
+
+# In-flight debugging screenshots. Convention: save ad-hoc screenshots to
+# screenshots/ so they don't clutter the repo root. Contents are transient.
+screenshots/
+# Playwright MCP cache directory (auto-generated page snapshots).
+.playwright-mcp/
