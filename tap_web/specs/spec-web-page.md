@@ -223,6 +223,7 @@ Layout validation and output-safety requirements extracted from `req-web-page-ob
     - `panel-id` (required, defined by `req-web-page-panel-id`)
     - `row_span` (optional integer >= 1, default 1)
     - `col_span` (optional integer >= 1, default 1)
+    - `height` (optional) — same allowlist as column `width` (`auto`, `1fr`..`12fr`). Drives the row's vertical sizing inside its column. When omitted, rows take their intrinsic (content-driven) height — the legacy default.
     - `tags` (optional object map with kebab-case keys/values)
 - Ordering and identity semantics:
   - Ordering is implied by numeric key prefix in `col-<n>` and `row-<n>`.
@@ -237,7 +238,13 @@ Layout validation and output-safety requirements extracted from `req-web-page-ob
 #### Development
 Use schema validation as the first gate for structural and value constraints. Runtime rendering behavior is defined in `spec-web-rendering.md`.
 
-Layout rendering uses **CSS Grid**. Column and row key numeric prefixes (`col-1`, `row-2`) drive `order`. `col_span` and `row_span` map to `grid-column: span N` and `grid-row: span N`.
+Layout rendering uses **CSS Grid** for column placement. Column and row key numeric prefixes (`col-1`, `row-2`) drive `order`. `col_span` and `row_span` map to `grid-column: span N` and `grid-row: span N`.
+
+Within each column, rows render as vertical flex items. The row `height` field drives the flex-basis of each slot:
+- `auto` (or omitted) → `flex: 0 0 auto` — intrinsic content height (legacy default).
+- `Nfr` → `flex: N 1 0` — the row takes a share of the remaining vertical space proportional to `N`.
+
+For `Nfr` rows to distribute meaningfully, the page content wrapper must have a concrete height. The base template stretches its max-width wrapper to fill `<main>` (`flex-1`), so `1fr` rows fill the viewport minus nav, footer, and any preceding intrinsic-height content (e.g. the page title). Pages without any `Nfr` rows render identically to the legacy layout.
 
 #### Layout JSON Schema (Draft)
 
@@ -296,6 +303,10 @@ Layout rendering uses **CSS Grid**. Column and row key numeric prefixes (`col-1`
                   "type": "integer",
                   "minimum": 1,
                   "default": 1
+                },
+                "height": {
+                  "type": "string",
+                  "enum": ["auto", "1fr", "2fr", "3fr", "4fr", "5fr", "6fr", "7fr", "8fr", "9fr", "10fr", "11fr", "12fr"]
                 },
                 "tags": {
                   "type": "object",

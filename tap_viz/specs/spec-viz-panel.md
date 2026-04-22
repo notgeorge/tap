@@ -83,6 +83,7 @@ This keeps a clean separation between panel instance concerns and reusable proje
 #### Implementation
 The canonical panel config shape in v1 includes:
 
+- `height` optional string. Drives the graph container height. Accepts `"100%"` (fill the enclosing layout slot; requires the slot to have an explicit `height` via the page layout row `height` field) or a pixel literal matching `^[1-9][0-9]{0,3}px$` (e.g. `"420px"`). Any other value is treated as unset and the panel falls back to the default `"420px"`.
 - `initial_viewport` optional
 - `chrome` optional object:
   - toolbar enabled

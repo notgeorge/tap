@@ -72,7 +72,7 @@
             "name": "Genericom Landing Graph",
             "view": "tap_viz/panels/graph_panel.html",
             "editor_view": "",
-            "config": {}
+            "config": {"height": "100%"}
           }
         },
         {
@@ -87,7 +87,7 @@
             "slug": "/genericom",
             "layout": {
               "columns": {
-                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "main"}}}
+                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "main", "height": "1fr"}}}
               }
             }
           }

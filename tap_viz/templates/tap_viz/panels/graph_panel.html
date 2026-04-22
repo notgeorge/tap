@@ -1,5 +1,16 @@
 {% load static %}
+{% comment %}
+  When the panel is placed in a layout slot with an explicit height (row
+  `height` = `Nfr`, and panel `config.height` = `"100%"`), the panel root
+  becomes a flex column so the graph container can claim the remaining
+  space after the header. Otherwise `graph_height` is a fixed pixel value
+  (default 420px) and the panel keeps its intrinsic height.
+{% endcomment %}
+{% if graph_height == "100%" %}
+<div class="tap-panel tap-panel--graph h-full flex flex-col min-h-0">
+{% else %}
 <div class="tap-panel tap-panel--graph">
+{% endif %}
 {% include "tap_web/panel_header.html" %}
 
 {% if graph_error %}
@@ -9,8 +20,8 @@
 {% else %}
 
 <div id="tap-graph-container-{{ panel.entity_id }}"
-     class="relative w-full border border-slate-200 rounded-lg"
-     style="height: 420px;"
+     class="relative w-full border border-slate-200 rounded-lg {% if graph_height == '100%' %}flex-1 min-h-0{% endif %}"
+     style="height: {{ graph_height }};"
      data-placement="{{ graph_placement }}"
      data-nesting="{{ graph_nesting_enabled|yesno:'true,false' }}">
     <div id="tap-graph-{{ panel.entity_id }}" class="w-full h-full overflow-hidden rounded-lg"></div>

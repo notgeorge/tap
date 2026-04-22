@@ -87,7 +87,7 @@ Proposed process:
 3. Page Service (`tap_web/page_service.py`) — `get_page_by_slug(slug)` returns the `Page` object and its ordered `USES_PANEL` edge set; `get_landing_page()` returns the landing-page-referenced `Page`
 4. Page Template (`tap_web/templates/tap_web/page.html`) — renders the CSS Grid layout by looping over the `layout` JSONField; inserts HTMX `<div hx-get="/panel/<slug>--<uuid>/">` stubs per slot; emits deduped CSS from all panels at `<head>`, deduped JS at end of `<body>`
 5. Panel View Handlers (`tap_web/views.py`) — panels served at `/panel/<slug>--<uuid>/`; UUID parsed to look up the `Panel`; `render(request, panel.view)` renders the declared template; exceptions return the panel error fragment
-6. Layout CSS — CSS Grid; column/row key numeric suffixes (`col-1`, `row-2`) map to grid `order` values. `col_span` and `row_span` from the layout schema apply via `grid-column: span N` / `grid-row: span N`
+6. Layout CSS — CSS Grid for column placement; column/row key numeric suffixes (`col-1`, `row-2`) map to grid `order` values. `col_span` and `row_span` from the layout schema apply via `grid-column: span N` / `grid-row: span N`. Rows render as vertical flex items inside each column; row `height` maps to `flex` values (`auto` → `flex: 0 0 auto`, `Nfr` → `flex: N 1 0`) so `Nfr` rows distribute the remaining viewport height after the base template wrapper stretches to fill `<main>`.
 
 Panels rely on asset manifests declared on the **panel type class** (not the panel instance) so page rendering can gather, dedupe, and emit static CSS/JS before panel fragments are requested. The aggregator resolves each panel to its registered type via the panel's `view` field and reads `js` / `css` class attributes from the type.
 

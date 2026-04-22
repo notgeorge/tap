@@ -13,21 +13,32 @@
 <h1 class="text-2xl font-bold mb-4">{{ page.name }}</h1>
 
 {% if processed_columns %}
-{# Build the CSS Grid column template from column widths #}
+{% comment %}
+  Build the CSS Grid column template from column widths. The grid fills its
+  parent's height so row `height: Nfr` values distribute the remaining viewport
+  (parent is given h-full by base.html). Rows inside each column become flex
+  items whose flex-basis is driven by their `height` field:
+    auto          -> flex: 0 0 auto   (intrinsic height; legacy default)
+    Nfr           -> flex: N 1 0      (share of remaining vertical space)
+  Column children remain a vertical flex stack so existing multi-row pages
+  keep rendering unchanged when no row height is declared.
+{% endcomment %}
 {% with grid_cols=processed_columns %}
-<div class="tap-page-grid"
-     style="display: grid; grid-template-columns: {% for col in grid_cols %}{{ col.width }}{% if not forloop.last %} {% endif %}{% endfor %}; gap: 1rem;">
+<div class="tap-page-grid h-full"
+     style="display: grid; grid-template-columns: {% for col in grid_cols %}{{ col.width }}{% if not forloop.last %} {% endif %}{% endfor %}; gap: 1rem; min-height: 0;">
   {% for col in processed_columns %}
-  <div class="tap-col" style="display: flex; flex-direction: column; gap: 1rem;">
+  <div class="tap-col" style="display: flex; flex-direction: column; gap: 1rem; min-height: 0;">
     {% for row in col.rows %}
     <div class="tap-panel-slot"
-         style="grid-row: span {{ row.row_span }}; grid-column: span {{ row.col_span }};">
+         data-row-height="{{ row.height }}"
+         style="grid-row: span {{ row.row_span }}; grid-column: span {{ row.col_span }};{% if row.height == 'auto' %} flex: 0 0 auto;{% else %} flex: {{ row.height|slice:':-2' }} 1 0; min-height: 0;{% endif %}">
       {% if not row.panel_url_id %}
       <div class="text-slate-400 text-sm p-4 border border-dashed border-slate-300 rounded">
         No panel linked to slot <code>{{ row.panel_id }}</code>.
       </div>
       {% else %}
-      <div hx-get="/panel/{{ row.panel_url_id }}/{% if query_params %}?{{ query_params.urlencode }}{% endif %}"
+      <div class="{% if row.height != 'auto' %}h-full{% endif %}"
+           hx-get="/panel/{{ row.panel_url_id }}/{% if query_params %}?{{ query_params.urlencode }}{% endif %}"
            hx-trigger="load"
            hx-swap="innerHTML">
         <div class="text-slate-400 text-sm p-4">Loading…</div>

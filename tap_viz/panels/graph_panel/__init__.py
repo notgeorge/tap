@@ -22,9 +22,24 @@ Read-only: no graph or layout mutation occurs in this panel.
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from tap_web.utils import safe_json
+
+# Accept only a narrow set of height values from panel config so the value can
+# be emitted into an inline style attribute safely. Allowed:
+#   - "100%"
+#   - an integer-px value like "420px" (1..9999)
+# Anything else falls back to the default (legacy 420px behaviour).
+_ALLOWED_PANEL_HEIGHT = re.compile(r"^(100%|[1-9][0-9]{0,3}px)$")
+_DEFAULT_PANEL_HEIGHT = "420px"
+
+
+def _sanitize_panel_height(raw: Any) -> str:
+    if isinstance(raw, str) and _ALLOWED_PANEL_HEIGHT.match(raw):
+        return raw
+    return _DEFAULT_PANEL_HEIGHT
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -115,6 +130,7 @@ class GraphPanelType:
             "graph_projection_json": safe_json(None),
             "graph_placement": placement,
             "graph_nesting_enabled": nesting_enabled,
+            "graph_height": _sanitize_panel_height((panel.config or {}).get("height")),
             "graph_error": None,
         }
 
@@ -163,6 +179,7 @@ class GraphPanelType:
             "graph_projection_json": safe_json(projection.definition),
             "graph_placement": "projection",
             "graph_nesting_enabled": False,
+            "graph_height": _sanitize_panel_height((panel.config or {}).get("height")),
             "graph_error": None,
         }
 
@@ -281,5 +298,6 @@ def _error_ctx(message: str) -> dict[str, Any]:
         "graph_edges_json": safe_json([]),
         "graph_projection_json": safe_json(None),
         "graph_placement": "cytoscape:cose",
+        "graph_height": _DEFAULT_PANEL_HEIGHT,
         "graph_error": message,
     }

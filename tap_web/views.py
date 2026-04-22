@@ -536,6 +536,7 @@ def _process_layout(layout: dict, panels_by_id: dict[str, str]) -> list[dict]:
                     "panel_url_id": panels_by_id.get(panel_id),
                     "row_span": row_data.get("row_span", 1),
                     "col_span": row_data.get("col_span", 1),
+                    "height": row_data.get("height", "auto"),
                 }
             )
 
