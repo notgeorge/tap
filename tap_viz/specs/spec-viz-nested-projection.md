@@ -106,7 +106,17 @@ Benefits of this model over Cytoscape compounds:
 
 #### Position Coupling
 
-In v1, projection scenes are non-interactive for drag. Layouts place all nodes and the user navigates via zoom/pan only. Position coupling (children follow parent on drag) is deferred.
+When a viewport parent is dragged, all of its descendants (found by walking the `_viewport_parent` chain) move in lockstep. Dragging a child moves only that child — group movement is parent-only.
+
+The runtime module `tap_viz/static/tap_viz/js/runtime/drag-group.js` implements this by:
+- building a `childrenByParent` map from `_viewport_parent` stamps after layout completes
+- snapshotting each parent's position for delta computation
+- listening for `position` events on parent nodes and applying the delta recursively to all descendants
+- using a propagation guard so descendant moves don't re-trigger the handler
+
+Badge nodes follow automatically because `badge-nodes.js` already listens for position events on `_badge_active` hosts.
+
+The drag-group listener is activated by `projection.js` after each elevation's layouts complete and is torn down before re-layout or on projection destroy.
 
 #### Development
 
@@ -120,11 +130,11 @@ The compound-node system in Cytoscape is designed for a different use case: auto
 | req-viz-nested-projection-bounded-layer-2 | Positional Containment | Approved for Development | Children are contained by being positioned within the parent's bbox by the constrained layout. | |
 | req-viz-nested-projection-bounded-layer-3 | Z-Index Layering | Approved for Development | Children render on top of parents via z-index depth assignment. | |
 | req-viz-nested-projection-bounded-layer-4 | Data Stamping | Approved for Development | Children carry `_viewport_parent` data identifying their containing node. | |
-| req-viz-nested-projection-bounded-layer-5 | Drag Deferred | Approved for Development | Position coupling for user drag is deferred in v1. Scenes are zoom/pan only. | |
+| req-viz-nested-projection-bounded-layer-5 | Drag Follows Parent | Implemented | Dragging a viewport parent moves all descendants in lockstep via `drag-group.js`. Child-only drag moves only the child. | |
 
 #### Future
 
-Add drag-follows-parent behavior when interactive projection scenes are needed. Consider allowing children to extend beyond parent perimeter for specialized layouts (network interfaces, ports).
+Consider allowing children to extend beyond parent perimeter for specialized layouts (network interfaces, ports).
 
 
 ### Screen-Derived Parent Viewport

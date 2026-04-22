@@ -47,6 +47,7 @@ export async function initProjection(cy, projection, opts = {}) {
         anchorZoom: null,
         destroyed: false,
         listeners: [],
+        dragGroupHandle: null,
     };
 
     const elevations = [...projection.elevations].sort((a, b) => a.zoom - b.zoom);
@@ -85,6 +86,7 @@ export async function initProjection(cy, projection, opts = {}) {
     async function activate(elevation, triggerReason, triggerNode = null) {
         if (!elevation) return;
         state.activeElevation = elevation;
+        const nodeStyle = projection.node_style || "default";
         const context = {
             cy,
             projection,
@@ -92,9 +94,24 @@ export async function initProjection(cy, projection, opts = {}) {
             trigger_reason: triggerReason,
             trigger_node: triggerNode,
             inputs: state.inputs,
+            node_style: nodeStyle,
         };
 
         await runLayoutsSerially(elevation, context);
+
+        // Apply type icon badges after layout settles positions.
+        if (nodeStyle === "icon-badge") {
+            const {applyBadgeNodes} = await import("./badge-nodes.js");
+            applyBadgeNodes(cy);
+        }
+
+        // Enable parent-drags-children after nesting is stamped.
+        if (state.dragGroupHandle) {
+            state.dragGroupHandle.destroy();
+            state.dragGroupHandle = null;
+        }
+        const {enableDragGroup} = await import("./drag-group.js");
+        state.dragGroupHandle = enableDragGroup(cy);
     }
 
     // ---- Zoom watcher ----
@@ -189,6 +206,10 @@ export async function initProjection(cy, projection, opts = {}) {
             state.destroyed = true;
             state.listeners.forEach(([ev, fn]) => cy.off(ev, fn));
             state.listeners.length = 0;
+            if (state.dragGroupHandle) {
+                state.dragGroupHandle.destroy();
+                state.dragGroupHandle = null;
+            }
         },
     };
 }

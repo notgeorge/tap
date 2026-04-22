@@ -115,3 +115,30 @@ class TestProjection:
         p = Projection(name="x", definition={"default_elevation": "a"})
         with pytest.raises(ValidationError):
             p.full_validate()
+
+    def test_node_style_icon_badge_accepted(self):
+        d = _valid_projection_definition()
+        d["node_style"] = "icon-badge"
+        p = Projection(name="badges", definition=d)
+        p.full_validate()
+        p.save()
+        assert p.definition["node_style"] == "icon-badge"
+
+    def test_node_style_default_accepted(self):
+        d = _valid_projection_definition()
+        d["node_style"] = "default"
+        p = Projection(name="badges", definition=d)
+        p.full_validate()
+
+    def test_node_style_invalid_rejected(self):
+        d = _valid_projection_definition()
+        d["node_style"] = "bogus"
+        p = Projection(name="badges", definition=d)
+        with pytest.raises(ValidationError):
+            p.full_validate()
+
+    def test_node_style_omitted_accepted(self):
+        d = _valid_projection_definition()
+        assert "node_style" not in d
+        p = Projection(name="no-style", definition=d)
+        p.full_validate()

@@ -47,6 +47,10 @@ _PROJECTION_DEFINITION_SCHEMA: dict = {
     "required": ["default_elevation", "elevations"],
     "additionalProperties": True,
     "properties": {
+        "node_style": {
+            "type": "string",
+            "enum": ["default", "icon-badge"],
+        },
         "default_elevation": {"type": "string", "minLength": 1},
         "elevations": {
             "type": "array",

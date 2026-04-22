@@ -22,9 +22,9 @@ Badge sets are the related grouping mechanism, but they remain future work. TAP 
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-viz-badges-terminology | [Badge Terminology](#badge-terminology) | Proposed | Defines the vocabulary for badge, type icon badge, and badge set |
-| req-viz-badges-type-icon | [Type Icon Badge](#type-icon-badge) | Proposed | Upper-left circular badge that indicates node type |
-| req-viz-badges-body-preservation | [Node Body Preservation](#node-body-preservation) | Proposed | Badge placement must preserve the node body for primary content |
+| req-viz-badges-terminology | [Badge Terminology](#badge-terminology) | Implemented | Defines the vocabulary for badge, type icon badge, and badge set |
+| req-viz-badges-type-icon | [Type Icon Badge](#type-icon-badge) | Implemented | Upper-left circular badge that indicates node type |
+| req-viz-badges-body-preservation | [Node Body Preservation](#node-body-preservation) | Implemented | Badge placement must preserve the node body for primary content |
 | req-viz-badges-badge-set | [Badge Set](#badge-set) | Backlog | Grouped badges with a shared purpose and shared location |
 | req-viz-badges-status-future | [Status Badge Sets](#status-badge-sets) | Backlog | Future info, warning, and alert groupings |
 
@@ -33,7 +33,7 @@ Badge sets are the related grouping mechanism, but they remain future work. TAP 
 ### Badge Terminology
 ----
 RID: `req-viz-badges-terminology`
-Status: `Proposed`
+Status: `Implemented`
 
 TAP Viz uses a small vocabulary for node-attached markers.
 
@@ -56,7 +56,7 @@ Add more badge subclasses only when they represent clearly distinct semantics an
 ### Type Icon Badge
 ----
 RID: `req-viz-badges-type-icon`
-Status: `Proposed`
+Status: `Implemented`
 
 Nodes may render a type icon badge: a small circular badge anchored to the upper-left corner that indicates node type for both parent and leaf nodes.
 
@@ -74,6 +74,24 @@ This is the first canonical badge pattern for TAP Viz. It replaces the need to c
   - parent nodes
   - child nodes nested within parent nodes
 - Missing type icons must fail safely by omitting the badge rather than making the node unusable.
+- Badge rendering is controlled by a projection-wide `node_style` field. When `node_style` is `"icon-badge"`, all nodes in the projection receive badge treatment.
+- Badges are implemented as separate Cytoscape nodes (not HTML overlays or background-image layers) so they protrude from the host node body and scale proportionally with zoom.
+- Badge nodes are non-interactive (`"events": "no"`) and locked in position.
+- All badges at a given elevation share a single uniform diameter. The runtime
+  derives that diameter using the "smallest host wins" rule: scan every
+  badge-eligible host, take the smallest `Math.min(w, h)`, multiply by the
+  badge ratio (default `0.35`), and clamp to a floor of 24 model units. Every
+  badge in the scene is then sized to that single value. This prevents large
+  containers from producing badges that visually dominate the scene, and keeps
+  badges readable even when recursive-scaling collapses leaf hosts in model
+  coordinates.
+- Badge bubbles render with a fully transparent background and no border by
+  default, so the host's type icon reads as a free-floating glyph rather than
+  inside a visible frame. A future setting may restore a visible bubble
+  (see the Future section).
+- The host node's icon is stashed and cleared when badges are applied, and restored on cleanup.
+- Badge creation runs after layout completion so host positions and dimensions are stable.
+- The runtime module is `tap_viz/static/tap_viz/js/runtime/badge-nodes.js`.
 
 #### Development
 
@@ -83,21 +101,28 @@ The value of the pattern is consistency. A viewer should learn that the upper-le
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-badges-type-icon-1 | Shared Pattern Across Node Kinds | Proposed | Parent and leaf nodes use the same type icon badge concept. | |
-| req-viz-badges-type-icon-2 | Upper-Left Anchor | Proposed | The type icon badge anchor is the node's upper-left corner. | |
-| req-viz-badges-type-icon-3 | Circular Badge Form | Proposed | The type icon badge renders as a small circle. | |
-| req-viz-badges-type-icon-4 | Grid Icon Contract Reused | Proposed | The badge reuses the canonical node type icon rather than introducing a second icon source. | |
-| req-viz-badges-type-icon-5 | Missing Icon Safe Fallback | Proposed | Nodes without an icon remain usable and simply omit the badge. | |
+| req-viz-badges-type-icon-1 | Shared Pattern Across Node Kinds | Implemented | Parent and leaf nodes use the same type icon badge concept. | `applyBadgeNodes` iterates all nodes with `icon_url` regardless of parent/leaf status |
+| req-viz-badges-type-icon-2 | Upper-Left Anchor | Implemented | The type icon badge anchor is the node's upper-left corner. | Badge positioned at `(pos.x - w/2, pos.y - h/2)` |
+| req-viz-badges-type-icon-3 | Circular Badge Form | Implemented | The type icon badge renders as a small circle. | `node[_is_badge]` style: `shape: "ellipse"` |
+| req-viz-badges-type-icon-4 | Grid Icon Contract Reused | Implemented | The badge reuses the canonical node type icon rather than introducing a second icon source. | Badge reads `icon_url` from host node data |
+| req-viz-badges-type-icon-5 | Missing Icon Safe Fallback | Implemented | Nodes without an icon remain usable and simply omit the badge. | Filtered by `icon_url` presence check |
 
 #### Future
 
-Define exact sizing, overlap, and scaling rules once the first implementation is exercised across several layouts.
+- Define exact sizing, overlap, and scaling rules once the first implementation is exercised across several layouts.
+- Expose badge bubble appearance as a configurable setting (background fill,
+  border color, border width) on the projection or on a per-elevation basis
+  so layouts that want a visible frame can opt in. Today the fully transparent
+  borderless form is hard-coded as the default.
+- Consider a per-projection override for the badge sizing rule (e.g. "smallest
+  host wins" vs "fixed fraction of viewport") once more layouts exercise the
+  current default.
 
 
 ### Node Body Preservation
 ----
 RID: `req-viz-badges-body-preservation`
-Status: `Proposed`
+Status: `Implemented`
 
 Badge placement must preserve the node body for the node's primary content.
 
@@ -116,9 +141,9 @@ This is the main practical reason for adopting the type icon badge pattern. It l
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-badges-body-preservation-1 | Parent Body Preserved | Proposed | Parent nodes retain usable body space for children. | |
-| req-viz-badges-body-preservation-2 | Leaf Body Preserved | Proposed | Leaf nodes retain usable body space for their names. | |
-| req-viz-badges-body-preservation-3 | Icon No Longer Center-Bound | Proposed | The type icon no longer needs to occupy the center of the node body. | |
+| req-viz-badges-body-preservation-1 | Parent Body Preserved | Implemented | Parent nodes retain usable body space for children. | Badge is a separate node outside host bounds |
+| req-viz-badges-body-preservation-2 | Leaf Body Preserved | Implemented | Leaf nodes retain usable body space for their names. | `_badge_active` style centers text label in body |
+| req-viz-badges-body-preservation-3 | Icon No Longer Center-Bound | Implemented | The type icon no longer needs to occupy the center of the node body. | Icon moved to external badge node |
 
 #### Future
 

@@ -518,6 +518,45 @@ function initGraph(panelId) {
                 style: { "display": "none" },
             },
             {
+                // Badge nodes: small transparent disks anchored to host node's
+                // upper-left corner, letting the host's type icon show through
+                // with no visible bubble or border. Non-interactive.
+                //
+                // The fully-transparent default trades the visible badge frame
+                // for a cleaner icon-only read. A configurable bubble/border
+                // appearance is deferred to future work.
+                selector: "node[_is_badge]",
+                style: {
+                    "shape": "ellipse",
+                    "background-color": "#ffffff",
+                    "background-opacity": 0,
+                    "background-image": "data(icon_url)",
+                    "background-fit": "none",
+                    "background-width": "100%",
+                    "background-height": "100%",
+                    "background-position-x": "50%",
+                    "background-position-y": "50%",
+                    "background-clip": "none",
+                    "background-image-opacity": 1,
+                    "border-width": 0,
+                    "label": "",
+                    "events": "no",
+                    "z-index": 999,
+                },
+            },
+            {
+                // Host nodes in badge mode: icon removed from body, label centered.
+                selector: "node[_badge_active]",
+                style: {
+                    "background-color": "#e0e7ff",
+                    "background-image": "none",
+                    "text-valign": "center",
+                    "text-halign": "center",
+                    "text-margin-y": 0,
+                    "font-size": "9px",
+                },
+            },
+            {
                 selector: ":selected",
                 style: {
                     "background-color": "#7c3aed",
@@ -623,6 +662,7 @@ function initGraph(panelId) {
 
     cy.on("tap", "node", function (evt) {
         var node = evt.target;
+        if (node.data("_is_badge")) return;
 
         var entityType = node.data("entity_type");
         var urlId = node.data("url_id");
@@ -669,6 +709,7 @@ function _findNodeAtRenderedPosition(cy, x, y) {
     // wins when overlaps occur.
     var hits = [];
     cy.nodes(":visible").forEach(function (n) {
+        if (n.data("_is_badge")) return;
         var rpos = n.renderedPosition();
         var rw = n.renderedWidth() / 2;
         var rh = n.renderedHeight() / 2;
