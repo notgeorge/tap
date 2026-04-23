@@ -756,12 +756,15 @@ function initGraph(panelId) {
 
     // Node tap / double-tap handling.
     //
-    // Single-tap drives navigation to the object viewer. Double-tap is the
-    // projection runtime's drilldown gesture. Projection panels delay
-    // navigation by DBL_TAP_WINDOW_MS so a second tap can cancel it.
+    // Single-tap opens the status-badge info window when the target has one
+    // (a badge itself, or a node with active status badges). Double-tap is
+    // the projection runtime's drilldown gesture. Host taps are delayed by
+    // DBL_TAP_WINDOW_MS so a second tap can cancel the info-window open;
+    // badge taps fire immediately since badges are not double-tap targets.
     //
-    // Two detection channels run in parallel so cytoscape's pointer
-    // translation quirks can't silently break drilldown across browsers:
+    // Two detection channels run in parallel for double-tap so cytoscape's
+    // pointer translation quirks can't silently break drilldown across
+    // browsers:
     //
     //   1. Manual two-tap timer on cytoscape `tap` events. Works reliably
     //      in Chrome; timing varies in Firefox.
@@ -771,9 +774,12 @@ function initGraph(panelId) {
     //
     // Both channels funnel through _fireDoubleTap, which dedupes by node+
     // timestamp so rapid double-fires become one.
+    //
+    // Click semantics spec: tap_viz/specs/spec-viz-panel.md
+    //   req-viz-panel-click-semantics
     var DBL_TAP_WINDOW_MS = 400;
     var DBL_FIRE_DEDUP_MS = 500;
-    var pendingNavTimer = null;
+    var pendingActionTimer = null;
     var lastTapTime = 0;
     var lastTapNodeId = null;
     var lastFiredNodeId = null;
@@ -789,42 +795,59 @@ function initGraph(panelId) {
         lastFiredTime = now;
         lastTapTime = 0;
         lastTapNodeId = null;
-        clearTimeout(pendingNavTimer);
-        pendingNavTimer = null;
+        clearTimeout(pendingActionTimer);
+        pendingActionTimer = null;
         node.trigger("tap-double");
+    }
+
+    function _openInfoWindowForHost(host) {
+        if (!projection || !projection.status_badges) return;
+        import("/static/tap_viz/js/runtime/info-window.js")
+            .then(function (mod) {
+                mod.openInfoWindow(cy, container, host, projection.status_badges);
+            })
+            .catch(function (err) {
+                console.warn("[TAP info-window] import failed", err);
+            });
     }
 
     cy.on("tap", "node", function (evt) {
         var node = evt.target;
         if (node.data("_is_badge") || node.data("_is_shadow")) return;
 
-        var entityType = node.data("entity_type");
-        var urlId = node.data("url_id");
-        var nodeId = node.id();
-        var now = Date.now();
-
-        var go = function () {
-            if (entityType && urlId) {
-                window.location.href = "/object/" + entityType + "/" + urlId + "/";
+        // Status badge tap → open info window for the host; badges are not
+        // double-tap targets, so fire immediately.
+        if (node.data("_is_status_badge")) {
+            var hostId = node.data("_status_host");
+            var badgeHost = hostId ? cy.getElementById(hostId) : null;
+            if (badgeHost && badgeHost.length > 0) {
+                clearTimeout(pendingActionTimer);
+                pendingActionTimer = null;
+                _openInfoWindowForHost(badgeHost);
             }
-        };
-
-        if (!projection) {
-            go();
             return;
         }
 
-        // Second tap within the window on the same node → double-tap.
+        // Host node without active status badges → no-op (unbadged hosts
+        // have no single-click action in v0).
+        if (!node.data("_status_host_active")) {
+            return;
+        }
+
+        // Host node with active status badges → schedule info-window open,
+        // debounced so a double-tap can cancel and drilldown instead.
+        var nodeId = node.id();
+        var now = Date.now();
         if (nodeId === lastTapNodeId && (now - lastTapTime) < DBL_TAP_WINDOW_MS) {
             _fireDoubleTap(node);
             return;
         }
-
-        // First tap → remember and schedule delayed navigation.
         lastTapTime = now;
         lastTapNodeId = nodeId;
-        clearTimeout(pendingNavTimer);
-        pendingNavTimer = setTimeout(go, DBL_TAP_WINDOW_MS);
+        clearTimeout(pendingActionTimer);
+        pendingActionTimer = setTimeout(function () {
+            _openInfoWindowForHost(node);
+        }, DBL_TAP_WINDOW_MS);
     });
 
     // Firefox fallback: native dblclick with pointer→node hit test.

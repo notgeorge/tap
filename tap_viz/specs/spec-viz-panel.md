@@ -27,7 +27,8 @@ The viz panel owns host/runtime concerns such as receiving resolved page inputs,
 | req-viz-panel-layout-reference | [Layout Reference](#layout-reference) | Deprecated | `USES_LAYOUT` is deprecated for graph panels in favor of `USES_PROJECTION` |
 | req-viz-panel-runtime-nav | [Runtime Navigation](#runtime-navigation) | Implemented | Pan, zoom, and fit are required runtime behaviors |
 | req-viz-panel-runtime-selection | [Runtime Selection](#runtime-selection) | Implemented | Selection is part of the core runtime contract |
-| req-viz-panel-node-nav | [Node Navigation](#node-navigation) | Implemented | Clicking a graph node navigates to the TAP object viewer for that entity |
+| req-viz-panel-node-nav | [Node Navigation](#node-navigation) | Deprecated | Superseded by `req-viz-panel-click-semantics`; single click no longer navigates to the object viewer |
+| req-viz-panel-click-semantics | [Click Semantics](#click-semantics) | Implemented | Formalizes single-click and double-click behavior on nodes, badges, and edges |
 | req-viz-panel-runtime-popover | [Runtime Popovers](#runtime-popovers) | Proposed | Popovers are an optional but standardized runtime behavior |
 | req-viz-panel-landing-default | [Landing Page Default](#landing-page-default) | Implemented | Default landing page should host a viz panel showing the graph in grid layout |
 | req-viz-panel-readonly | [Read-Only Runtime](#read-only-runtime) | Implemented | Viz panel runtime is read-only in v1 |
@@ -273,30 +274,72 @@ If multi-select becomes important, define it as a deliberate extension rather th
 ### Node Navigation
 ----
 RID: `req-viz-panel-node-nav`
-Status: `Implemented`
+Status: `Deprecated`
 
-Clicking a graph node navigates to the TAP object viewer for that entity.
+Single-click-to-navigate on nodes is removed in favor of in-panel inspection surfaces. Superseded by [`req-viz-panel-click-semantics`](#click-semantics).
 
-#### Implementation
-- Node click (tap) triggers a browser navigation to `/object/{entity_type}/{url_id}/`.
-- `url_id` is a `{slug}--{entity_id}` string serialized into every node payload by `_serialize_entity`.
-- The slug is derived from the entity name via `django.utils.text.slugify`.
-- Edge clicks do not navigate; only node taps are wired.
-- Navigation replaces the current page (`window.location.href`).
+#### Status Details
 
-#### Development
-Node navigation is read-only and requires no graph mutation. It uses the same viewer URL contract as any other TAP object viewer entrypoint.
+The original behavior — tap a node, go to `/object/{entity_type}/{url_id}/` — conflicts with the status badge info window, which takes single click as its open-trigger ([spec-viz-status-badge-info.md](spec-viz-status-badge-info.md)). Rather than layer conditional logic on top of the old navigation, the navigation is removed and the click slot is reclaimed.
+
+- The `url_id` node payload field is retained. It remains usable for explicit links, row actions, or future navigation surfaces.
+- The delayed-tap debounce infrastructure in `panel-graph.js` is retained; only the navigation side-effect is removed.
+- Object viewer navigation is still reachable via any explicit link that carries a `url_id`-derived URL (breadcrumbs, inspector rows, etc.).
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-panel-node-nav-1 | Node Tap Navigates | Implemented | Tapping a graph node navigates to `/object/{entity_type}/{url_id}/`. | `panel-graph.js` `cy.on("tap", "node", ...)` |
-| req-viz-panel-node-nav-2 | URL ID In Node Payload | Implemented | Every serialized node carries a `url_id` field usable as the viewer URL segment. | `_serialize_entity` in `orm_compiler.py` |
-| req-viz-panel-node-nav-3 | Edge Tap Does Not Navigate | Implemented | Clicking an edge does not trigger viewer navigation. | |
+| req-viz-panel-node-nav-1 | Node Tap Navigates | Deprecated | Tapping a graph node no longer navigates to `/object/{entity_type}/{url_id}/`. | Removed in the click-semantics refactor |
+| req-viz-panel-node-nav-2 | URL ID In Node Payload | Implemented | Every serialized node still carries a `url_id` field usable as the viewer URL segment. | `_serialize_entity` in `orm_compiler.py` |
+| req-viz-panel-node-nav-3 | Edge Tap Does Not Navigate | Implemented | Clicking an edge does not trigger viewer navigation. | Retained — edges remain non-navigating |
+
+
+### Click Semantics
+----
+RID: `req-viz-panel-click-semantics`
+Status: `Implemented`
+
+Formal definition of what single and double clicks do on graph objects.
+
+#### Implementation
+
+Single click behavior depends on the click target:
+
+- **Status badge** (`[_is_status_badge]`): opens the info window for the host node ([spec-viz-status-badge-info.md](spec-viz-status-badge-info.md)). Clicking the same badge while the window is open closes it.
+- **Node with at least one active status badge** (`[_status_host_active]`): opens the same info window as a badge click on that host.
+- **Node without active status badges**: default Cytoscape selection behavior; no navigation, no window.
+- **Edge**: no action. Edges are not clickable for navigation or popover purposes in v0.
+- **Empty canvas**: default Cytoscape behavior (deselect).
+
+Double click behavior is unchanged and scoped to nodes in projection-hosted panels:
+
+- **Node**: in a projection panel, a node double-tap triggers the projection's elevation transition (see [spec-viz-projection.md](spec-viz-projection.md)).
+- **Node in a non-projection panel**: no action in v0.
+- **Non-node targets**: no action on double-click in v0.
+
+The existing debounce machinery in `panel-graph.js` (400ms single-tap delay, 500ms double-tap dedup) is preserved: single-click actions resolve on the delayed path so a genuine double-tap is not pre-empted. Firefox's native `dblclick` fallback is also preserved.
+
+#### Development
+
+- Removing navigation-on-tap gives the single-click slot a single clear purpose: in-panel inspection. That's a better use of the gesture than cross-page navigation, which is reachable via explicit links elsewhere.
+- Consolidating semantics into one requirement here (rather than scattering click rules across per-feature specs) gives future interaction work a single cross-reference point.
+- Badge and host both triggering the same window is intentional: the badge is a small hit target at low zoom, and the host is discoverable when the badge is not. Together they make the window reachable at any reasonable zoom level.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-panel-click-semantics-1 | Badge Click Opens Info Window | Implemented | Single click on a status badge opens the host's info window. | Wired in `panel-graph.js` tap handler |
+| req-viz-panel-click-semantics-2 | Badged Host Click Opens Info Window | Implemented | Single click on a node with active status badges opens the info window. | Check `[_status_host_active]` data |
+| req-viz-panel-click-semantics-3 | Unbadged Host Click Is No-Op | Implemented | Single click on a node with no active status badges takes no navigation or window action. | Default selection still applies |
+| req-viz-panel-click-semantics-4 | Navigation Removed | Implemented | The previous `/object/...` navigation on node tap is fully removed. | `panel-graph.js` `go()` branch deleted |
+| req-viz-panel-click-semantics-5 | Double Tap Unchanged | Implemented | Double-tap on a node in a projection panel continues to trigger the projection elevation transition. | `tap-double` event on nodes |
+| req-viz-panel-click-semantics-6 | Edge Click Is No-Op | Implemented | Clicking an edge takes no action in v0. | |
 
 #### Future
-If richer in-panel inspection (popovers, side panels) is later implemented, node tap behavior may be overridden by that contract.
+
+- A broader click registry (explicit binding of click → behavior per projection) would let plugins override these defaults. v0 hardcodes the rules above.
 
 
 ### Runtime Popovers

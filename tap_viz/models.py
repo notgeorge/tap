@@ -66,6 +66,22 @@ _PROJECTION_DEFINITION_SCHEMA: dict = {
                             "name": {"type": "string", "minLength": 1},
                             "color": {"type": "string", "minLength": 1},
                             "text_color": {"type": "string", "minLength": 1},
+                            "info_window": {
+                                "type": "object",
+                                "required": ["search_id"],
+                                "additionalProperties": False,
+                                "properties": {
+                                    "search_id": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "UUID of a stored Search that returns rows of {entity_id, name} for the detail panel opened on badge/host click.",
+                                    },
+                                    "inputs": {
+                                        "type": "object",
+                                        "description": "Static inputs forwarded to the Search's $var bindings.",
+                                    },
+                                },
+                            },
                             "population": {
                                 "type": "object",
                                 "required": ["type"],
