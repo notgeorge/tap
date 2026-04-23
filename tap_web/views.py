@@ -39,6 +39,24 @@ def page_view(request: HttpRequest, page_slug: str) -> HttpResponse:
     return _render_page(request, page)
 
 
+def parameterized_page_view(
+    request: HttpRequest,
+    page_slug: str,
+    **kwargs: Any,
+) -> HttpResponse:
+    """Render a Page by slug with URL path segments injected as search inputs.
+
+    Captures like ``entity_id`` from URL patterns are merged into query
+    parameters so panel seed searches receive them as ``$entity_id`` inputs.
+    """
+    slug = f"/{page_slug}"
+    page = get_page_by_slug(slug)
+    if page is None:
+        raise Http404(f"Page '{slug}' not found.")
+    extra = {k: str(v) for k, v in kwargs.items()}
+    return _render_page(request, page, extra_query_params=extra)
+
+
 # ---------------------------------------------------------------------------
 # Panel views
 # ---------------------------------------------------------------------------

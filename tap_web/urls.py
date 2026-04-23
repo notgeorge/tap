@@ -23,5 +23,12 @@ urlpatterns = [
     path("object/<str:entity_type>/<str:object_url_id>/edit/", views.object_edit_view, name="object-edit"),
     path("object/<str:entity_type>/<str:object_url_id>/", views.object_view, name="object-view"),
     path("", views.landing_view, name="landing"),
+    # Parameterized pages — path segments become search inputs.
+    path(
+        "genericom/instance/<uuid:entity_id>",
+        views.parameterized_page_view,
+        {"page_slug": "genericom/instance"},
+        name="genericom-instance",
+    ),
     path("<path:page_slug>", views.page_view, name="page"),
 ]
