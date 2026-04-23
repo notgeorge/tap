@@ -88,6 +88,8 @@ INSTALLED_APPS = [
     "plugins.aws_core.apps.AwsCoreConfig",
     # Genericom plugin — demonstration AWS environment built on aws_core
     "plugins.genericom.apps.GenericomConfig",
+    # FedRAMP 20x KSI plugin — Key Security Indicator catalog
+    "plugins.fedramp_20x_ksi.apps.Fedramp20xKsiConfig",
     # API layer — last so ready() discovers all plugin routers
     "tap_api",
     # Web interface
