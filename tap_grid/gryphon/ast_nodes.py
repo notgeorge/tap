@@ -173,10 +173,31 @@ class WhereClause:
 
 @dataclass(frozen=True)
 class ReturnItem:
-    """A single item in a RETURN clause: `field_path AS alias`."""
+    """A RETURN item that projects a field path: `field_path [AS alias]`."""
 
     path: FieldPath
     alias: str | None
+
+
+@dataclass(frozen=True)
+class AggregateCall:
+    """An aggregate function call in a RETURN projection.
+
+    `function` is the aggregate name (currently only `"count"` is supported).
+    `argument` is a FieldPath. A bare `COUNT(var)` parses as a FieldPath with
+    no steps; `COUNT(var.field)` parses as a FieldPath with one or more steps.
+    """
+
+    function: Literal["count"]
+    argument: FieldPath
+
+
+@dataclass(frozen=True)
+class AggregateReturnItem:
+    """A RETURN item that's an aggregate call; alias is required."""
+
+    aggregate: AggregateCall
+    alias: str
 
 
 @dataclass(frozen=True)
@@ -184,10 +205,24 @@ class ReturnClause:
     """A RETURN clause.
 
     items=None means the RETURN was omitted — TAP returns a graph envelope by default.
-    items=[...] means the caller wants row projection of the listed fields.
+    items=[...] carries the projection list; entries may be field projections
+    (ReturnItem) or aggregate projections (AggregateReturnItem).
     """
 
-    items: tuple[ReturnItem, ...] | None
+    items: tuple[ReturnItem | AggregateReturnItem, ...] | None
+
+
+@dataclass(frozen=True)
+class NotExistsClause:
+    """A NOT EXISTS correlated subquery block.
+
+    Contains an inner MATCH and optional WHERE. Variables declared in the outer
+    query are in scope inside the block; variables declared inside are scoped
+    to the block.
+    """
+
+    match_clause: "MatchClause"
+    where_clause: "WhereClause | None"
 
 
 # ---------------------------------------------------------------------------
@@ -202,22 +237,31 @@ class GryphonAST:
     match_clauses: tuple[MatchClause, ...]
     where_clause: WhereClause | None
     return_clause: ReturnClause
+    not_exists_clauses: tuple[NotExistsClause, ...] = ()
 
     def required_params(self) -> frozenset[str]:
         """Return the set of $var names referenced anywhere in this AST."""
         params: set[str] = set()
         _collect_params_from_predicate(self.where_clause.predicate if self.where_clause else None, params)
         for mc in self.match_clauses:
-            for pattern in mc.patterns:
-                for node in pattern.nodes:
-                    for v in node.inline_props.values():
-                        if isinstance(v, ParamRef):
-                            params.add(v.name)
-                for edge in pattern.edges:
-                    for v in edge.inline_props.values():
-                        if isinstance(v, ParamRef):
-                            params.add(v.name)
+            _collect_params_from_match(mc, params)
+        for nec in self.not_exists_clauses:
+            _collect_params_from_match(nec.match_clause, params)
+            if nec.where_clause is not None:
+                _collect_params_from_predicate(nec.where_clause.predicate, params)
         return frozenset(params)
+
+
+def _collect_params_from_match(mc: MatchClause, out: set[str]) -> None:
+    for pattern in mc.patterns:
+        for node in pattern.nodes:
+            for v in node.inline_props.values():
+                if isinstance(v, ParamRef):
+                    out.add(v.name)
+        for edge in pattern.edges:
+            for v in edge.inline_props.values():
+                if isinstance(v, ParamRef):
+                    out.add(v.name)
 
 
 def _collect_params_from_predicate(pred: Predicate | None, out: set[str]) -> None:

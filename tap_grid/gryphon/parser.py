@@ -11,6 +11,8 @@ from typing import Any
 from lark import Lark, Token, Transformer, UnexpectedInput, v_args
 
 from tap_grid.gryphon.ast_nodes import (
+    AggregateCall,
+    AggregateReturnItem,
     AndPred,
     Comparison,
     DotStep,
@@ -21,6 +23,7 @@ from tap_grid.gryphon.ast_nodes import (
     KeyStep,
     MatchClause,
     NodePattern,
+    NotExistsClause,
     NotPred,
     OrPred,
     ParamRef,
@@ -64,6 +67,25 @@ class GryphonParseError(Exception):
 
 
 # ---------------------------------------------------------------------------
+# Transformer-internal markers
+# ---------------------------------------------------------------------------
+#
+# node_body and edge_body parse into a handful of optional children — variable
+# name, label, inline props, hop range — and lark flattens identically-typed
+# children, so we need a way to distinguish "NAME that appeared BEFORE the
+# colon" from "NAME that appeared AFTER the colon" in the transformer. These
+# marker str-subclasses carry that distinction out of the sub-rule.
+
+
+class _VarMarker(str):
+    """A NAME token that appeared in the variable position of a node/edge body."""
+
+
+class _LabelMarker(str):
+    """A NAME token that appeared in the label/type position (after the colon)."""
+
+
+# ---------------------------------------------------------------------------
 # Lark transformer
 # ---------------------------------------------------------------------------
 
@@ -78,6 +100,7 @@ class _ASTTransformer(Transformer):
         match_clauses = [c for c in clauses if isinstance(c, MatchClause)]
         where_clauses = [c for c in clauses if isinstance(c, WhereClause)]
         return_clauses = [c for c in clauses if isinstance(c, ReturnClause)]
+        not_exists_clauses = [c for c in clauses if isinstance(c, NotExistsClause)]
 
         if not match_clauses:
             raise GryphonParseError("At least one MATCH clause is required.")
@@ -89,6 +112,7 @@ class _ASTTransformer(Transformer):
             match_clauses=tuple(match_clauses),
             where_clause=where,
             return_clause=ret,
+            not_exists_clauses=tuple(not_exists_clauses),
         )
 
     def clause(self, inner: Any) -> Any:
@@ -130,14 +154,19 @@ class _ASTTransformer(Transformer):
         label: str | None = None
         props: dict[str, Any] = {}
         for a in args:
-            if isinstance(a, Token) and a.type == "NAME":
-                if variable is None:
-                    variable = str(a)
-                else:
-                    label = str(a)
+            if isinstance(a, _VarMarker):
+                variable = str(a)
+            elif isinstance(a, _LabelMarker):
+                label = str(a)
             elif isinstance(a, dict):
                 props = a
         return NodePattern(variable=variable, label=label, inline_props=props)
+
+    def node_body_var(self, name: Token) -> _VarMarker:
+        return _VarMarker(str(name))
+
+    def node_body_label(self, name: Token) -> _LabelMarker:
+        return _LabelMarker(str(name))
 
     def outbound_edge(self, body: Any) -> EdgePattern:
         return EdgePattern(
@@ -176,11 +205,10 @@ class _ASTTransformer(Transformer):
         max_hops = 1
         props: dict[str, Any] = {}
         for a in args:
-            if isinstance(a, Token) and a.type == "NAME":
-                if variable is None:
-                    variable = str(a)
-                else:
-                    edge_type = str(a)
+            if isinstance(a, _VarMarker):
+                variable = str(a)
+            elif isinstance(a, _LabelMarker):
+                edge_type = str(a)
             elif isinstance(a, tuple):  # hop_range
                 min_hops, max_hops = a
             elif isinstance(a, dict):
@@ -194,6 +222,12 @@ class _ASTTransformer(Transformer):
             max_hops=max_hops,
             inline_props=props,
         )
+
+    def edge_body_var(self, name: Token) -> _VarMarker:
+        return _VarMarker(str(name))
+
+    def edge_body_type(self, name: Token) -> _LabelMarker:
+        return _LabelMarker(str(name))
 
     def hop_range(self, lo: Token, hi: Token) -> tuple[int, int]:
         return int(lo), int(hi)
@@ -247,15 +281,32 @@ class _ASTTransformer(Transformer):
     def wildcard_step(self, _star: Token) -> WildcardStep:
         return WildcardStep()
 
+    # -- NOT EXISTS --
+
+    def not_exists_clause(self, *args: Any) -> NotExistsClause:
+        mc = next((a for a in args if isinstance(a, MatchClause)), None)
+        wc = next((a for a in args if isinstance(a, WhereClause)), None)
+        if mc is None:
+            raise GryphonParseError("NOT EXISTS block requires a MATCH clause.")
+        return NotExistsClause(match_clause=mc, where_clause=wc)
+
     # -- RETURN --
 
     def return_clause(self, *items: Any) -> ReturnClause:
         return ReturnClause(items=tuple(items))
 
-    def return_item(self, *args: Any) -> ReturnItem:
+    def field_item(self, *args: Any) -> ReturnItem:
         path = args[0]
         alias = str(args[1]) if len(args) > 1 else None
         return ReturnItem(path=path, alias=alias)
+
+    def aggregate_item(self, aggregate: AggregateCall, alias: Any) -> AggregateReturnItem:
+        return AggregateReturnItem(aggregate=aggregate, alias=str(alias))
+
+    def aggregate_call(self, path: FieldPath) -> AggregateCall:
+        # Only COUNT is supported in v1; the _COUNT_KW terminal is discarded
+        # by lark so the only child here is the field_path argument.
+        return AggregateCall(function="count", argument=path)
 
     # -- Values --
 

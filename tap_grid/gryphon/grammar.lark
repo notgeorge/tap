@@ -10,6 +10,13 @@ start: clause+
 clause: match_clause
       | where_clause
       | return_clause
+      | not_exists_clause
+
+// ---------------------------------------------------------------------------
+// NOT EXISTS subquery (correlated anti-join)
+// ---------------------------------------------------------------------------
+
+not_exists_clause: _NOT_KW _EXISTS_KW "{" match_clause where_clause? "}"
 
 // ---------------------------------------------------------------------------
 // MATCH
@@ -22,7 +29,9 @@ path_var: NAME "="
 pattern: node_pattern (edge_pattern node_pattern)*
 
 node_pattern: "(" node_body ")"
-node_body: NAME? (":" NAME)? inline_props?
+node_body: node_body_var? node_body_label? inline_props?
+node_body_var:   NAME
+node_body_label: ":" NAME
 
 edge_pattern: outbound_edge
             | inbound_edge
@@ -32,7 +41,9 @@ outbound_edge:   "-[" edge_body "]->"
 inbound_edge:    "<-[" edge_body "]-"
 undirected_edge: "-[" edge_body "]-"
 
-edge_body: NAME? (":" NAME)? hop_range? inline_props?
+edge_body: edge_body_var? edge_body_type? hop_range? inline_props?
+edge_body_var:  NAME
+edge_body_type: ":" NAME
 hop_range: "*" INT ".." INT
 
 inline_props: "{" prop_pair ("," prop_pair)* "}"
@@ -69,7 +80,10 @@ COMPARE_OP: "=" | "!=" | "<=" | ">=" | "<" | ">"
 
 return_clause: _RETURN_KW return_item ("," return_item)*
 
-return_item: field_path (_AS_KW NAME)?
+return_item: aggregate_call _AS_KW NAME   -> aggregate_item
+           | field_path (_AS_KW NAME)?    -> field_item
+
+aggregate_call: _COUNT_KW "(" field_path ")"
 
 // ---------------------------------------------------------------------------
 // Values
@@ -95,6 +109,8 @@ _AND_KW:    /AND/i
 _OR_KW:     /OR/i
 _NOT_KW:    /NOT/i
 _AS_KW:     /AS/i
+_EXISTS_KW: /EXISTS/i
+_COUNT_KW:  /COUNT/i
 
 // ---------------------------------------------------------------------------
 // Terminals

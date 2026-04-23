@@ -86,7 +86,14 @@ export function applyStatusBadges(cy, statusBadgesConfig, opts = {}) {
         intervalId: null,
     };
 
-    _renderPass(state);
+    // Kick off the initial render pass. Population may be async (search-backed),
+    // so the initial call is promise-based and the stale marker engages on failure.
+    _renderPass(state)
+        .then(() => _setStale(state, false))
+        .catch((err) => {
+            console.warn("[status-badges] initial render failed:", err);
+            _setStale(state, true);
+        });
 
     function onHostPosition(evt) {
         const host = evt.target;
@@ -96,9 +103,9 @@ export function applyStatusBadges(cy, statusBadgesConfig, opts = {}) {
     cy.on("position", "node[_status_host_active]", onHostPosition);
 
     if (refreshSeconds > 0) {
-        state.intervalId = setInterval(() => {
+        state.intervalId = setInterval(async () => {
             try {
-                _renderPass(state);
+                await _renderPass(state);
                 _setStale(state, false);
             } catch (err) {
                 console.warn("[status-badges] refresh failed:", err);
@@ -119,16 +126,20 @@ export function applyStatusBadges(cy, statusBadgesConfig, opts = {}) {
     };
 }
 
-function _renderPass(state) {
+async function _renderPass(state) {
     const {cy, orderedSets, statusSize} = state;
 
-    // Population pass per set → [{setIdx, name, cfg, counts: {nodeId: count}}].
-    const setPops = orderedSets.map((cfg, setIdx) => ({
-        setIdx,
-        name: cfg.name,
-        cfg,
-        counts: _runPopulation(cy, cfg.population || {}),
-    }));
+    // Population pass per set — run in parallel so search-backed sets don't
+    // block static ones. Any population throws on failure; the caller engages
+    // the stale marker and leaves existing badges in place.
+    const setPops = await Promise.all(
+        orderedSets.map(async (cfg, setIdx) => ({
+            setIdx,
+            name: cfg.name,
+            cfg,
+            counts: await _runPopulation(cy, cfg.population || {}),
+        })),
+    );
 
     _removeStatusBadges(cy);
 
@@ -203,7 +214,7 @@ function _renderPass(state) {
     }
 }
 
-function _runPopulation(cy, population) {
+async function _runPopulation(cy, population) {
     if (!population || typeof population !== "object") return {};
     const {type} = population;
     if (type === "static_by_node_type") {
@@ -223,8 +234,54 @@ function _runPopulation(cy, population) {
         });
         return counts;
     }
+    if (type === "search") {
+        return await _runSearchPopulation(population);
+    }
     console.warn("[status-badges] unknown population.type:", type);
     return {};
+}
+
+async function _runSearchPopulation(population) {
+    const searchId = population.search_id;
+    if (!searchId) {
+        console.warn("[status-badges] search population missing search_id");
+        return {};
+    }
+    const inputs = population.inputs || {};
+    const url = `/api/v1/searches/${searchId}/execute`;
+    const csrfToken = _readCsrfCookie();
+    const headers = {"Content-Type": "application/json"};
+    if (csrfToken) headers["X-CSRFToken"] = csrfToken;
+
+    const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({inputs}),
+        credentials: "same-origin",
+    });
+    if (!res.ok) {
+        throw new Error(`search fetch ${searchId} returned HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    const counts = {};
+    for (const row of rows) {
+        const eid = row.entity_id;
+        const c = Number(row.count);
+        if (eid && Number.isFinite(c) && c >= 0) {
+            counts[String(eid)] = Math.floor(c);
+        }
+    }
+    return counts;
+}
+
+function _readCsrfCookie() {
+    const cookies = (document.cookie || "").split(";");
+    for (const c of cookies) {
+        const [k, v] = c.trim().split("=");
+        if (k === "csrftoken") return decodeURIComponent(v || "");
+    }
+    return null;
 }
 
 function _repositionHostBadges(state, host) {

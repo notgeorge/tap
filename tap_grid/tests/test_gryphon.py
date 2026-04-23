@@ -727,3 +727,160 @@ class TestGryphonUnion:
         assert str(mordor.pk) in node_ids
         assert str(frodo.pk) in node_ids
         assert str(ring.pk) in node_ids
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonV2Extensions — multi-hop-aggregation spec coverage
+#   - NOT EXISTS grammar and correlation
+#   - COUNT aggregation + implicit GROUP BY
+#   - Edge pattern without a variable: -[:TYPE]-> (regression)
+#   - rows envelope field
+# ---------------------------------------------------------------------------
+
+
+class TestGryphonV2ParserExtensions:
+    """Parser coverage for the multi-hop-aggregation extension."""
+
+    def test_edge_pattern_without_variable_parses_as_edge_type(self):
+        """-[:TYPE]-> (no variable) must bind edge_type, not variable."""
+        ast = parse_gryphon("MATCH (a)-[:CONTAINS]->(b)")
+        edge = ast.match_clauses[0].patterns[0].edges[0]
+        assert edge.variable is None
+        assert edge.edge_type == "CONTAINS"
+        assert edge.direction == "out"
+
+    def test_count_aggregate_in_return(self):
+        """COUNT(var) AS alias produces an AggregateReturnItem."""
+        from tap_grid.gryphon.ast_nodes import AggregateReturnItem
+
+        ast = parse_gryphon(
+            "MATCH (a)-[:R]->(b) RETURN a.entity_id AS id, COUNT(b) AS n"
+        )
+        items = ast.return_clause.items
+        assert items is not None and len(items) == 2
+        assert any(isinstance(i, AggregateReturnItem) for i in items)
+        agg = next(i for i in items if isinstance(i, AggregateReturnItem))
+        assert agg.aggregate.function == "count"
+        assert agg.aggregate.argument.variable == "b"
+        assert agg.alias == "n"
+
+    def test_not_exists_clause_parses(self):
+        """NOT EXISTS { MATCH ... WHERE ... } is a recognized top-level clause."""
+        q = (
+            "MATCH (a)-[:R1]->(b) "
+            "NOT EXISTS { MATCH (c)-[:R2]->(b) WHERE c.entity_type = \"character\" } "
+            "RETURN a.entity_id, COUNT(b) AS n"
+        )
+        ast = parse_gryphon(q)
+        assert len(ast.not_exists_clauses) == 1
+        nec = ast.not_exists_clauses[0]
+        assert len(nec.match_clause.patterns) == 1
+        assert nec.where_clause is not None
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonV2Executor:
+    """Executor coverage for COUNT + GROUP BY, NOT EXISTS, and the rows envelope."""
+
+    def _setup_wielders(self):
+        """Three characters wielding artifacts (some multi-wielders), for GROUP BY tests."""
+        import uuid
+
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Edge, Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+
+        frodo = Entity.objects.create(entity_type="character", name="Frodo")
+        sam = Entity.objects.create(entity_type="character", name="Sam")
+        aragorn = Entity.objects.create(entity_type="character", name="Aragorn")
+
+        ring = Entity.objects.create(entity_type="artifact", name="One Ring")
+        sting = Entity.objects.create(entity_type="artifact", name="Sting")
+        anduril = Entity.objects.create(entity_type="artifact", name="Anduril")
+
+        for src, tgt in [(frodo, ring), (frodo, sting), (sam, sting), (aragorn, anduril)]:
+            Edge.objects.create(
+                entity=Entity.objects.create(entity_type="edge"),
+                from_entity=src,
+                to_entity=tgt,
+                edge_type="WIELDS",
+            )
+        return frodo, sam, aragorn, ring, sting, anduril
+
+    def test_count_with_group_by_produces_rows(self):
+        """COUNT(artifact) grouped by wielder produces one row per wielder with correct count."""
+        frodo, sam, aragorn, *_ = self._setup_wielders()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="wielder-counts",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[:WIELDS]->(a:artifact) "
+                    "RETURN c.entity_id AS wielder, COUNT(a) AS count"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        assert "rows" in result
+        rows = {r["wielder"]: r["count"] for r in result["rows"]}
+        assert rows[str(frodo.pk)] == 2  # ring + sting
+        assert rows[str(sam.pk)] == 1  # sting
+        assert rows[str(aragorn.pk)] == 1  # anduril
+
+    def test_not_exists_excludes_correlated_rows(self):
+        """NOT EXISTS filters out outer rows whose shared var matches an inner pattern."""
+        frodo, sam, aragorn, ring, sting, anduril = self._setup_wielders()
+
+        # Find characters wielding artifacts that Sam does NOT also wield.
+        # Sam wields Sting. So expected: Frodo (wields ring AND sting; sting excluded → only ring)
+        # and Aragorn (wields anduril, Sam doesn't). Sam himself is not returned because of
+        # the anti-join — but actually the anti-join filters on shared artifact not on character.
+        # Redo: the query asks "for each outer (c, a) where c wields a, exclude if Sam also
+        # wields a." So Frodo-Ring stays (Sam doesn't wield ring), Frodo-Sting excluded,
+        # Sam-Sting excluded, Aragorn-Anduril stays.
+        # Grouped by c: Frodo=1 (ring), Aragorn=1 (anduril). Sam has no surviving artifacts.
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="not-wielded-by-sam",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[:WIELDS]->(a:artifact) "
+                    "NOT EXISTS { "
+                    "  MATCH (sam:character)-[:WIELDS]->(a) "
+                    "  WHERE sam.name = \"Sam\" "
+                    "} "
+                    "RETURN c.entity_id AS wielder, COUNT(a) AS count"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        rows = {r["wielder"]: r["count"] for r in result["rows"]}
+        assert rows.get(str(frodo.pk)) == 1
+        assert rows.get(str(aragorn.pk)) == 1
+        # Sam is excluded entirely — his only wield (Sting) was anti-joined out.
+        assert str(sam.pk) not in rows
+
+    def test_envelope_contains_rows_key(self):
+        """Aggregating queries surface the `rows` key in the canonical envelope."""
+        self._setup_wielders()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="aggregate",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[:WIELDS]->(a:artifact) "
+                    "RETURN c.entity_id AS wielder, COUNT(a) AS count"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        assert "rows" in result
+        assert isinstance(result["rows"], list)
+        assert all("wielder" in r and "count" in r for r in result["rows"])

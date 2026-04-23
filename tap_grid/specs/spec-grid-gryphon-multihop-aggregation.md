@@ -24,18 +24,18 @@ The extension is scoped tight on purpose. `COUNT` is the only aggregate; `SUM`/`
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-grid-gryphon-multihop | [Multi-Hop Pattern Execution](#multi-hop-pattern-execution) | Proposed | Executor accepts N-hop chains that the grammar already parses |
-| req-grid-gryphon-not-exists | [NOT EXISTS Subqueries](#not-exists-subqueries) | Proposed | New grammar production for correlated anti-join subqueries |
-| req-grid-gryphon-count | [COUNT Aggregation and Implicit GROUP BY](#count-aggregation-and-implicit-group-by) | Proposed | `COUNT(var)` in RETURN, implicit GROUP BY on non-aggregated columns |
-| req-grid-gryphon-rows | [Rows Result Envelope](#rows-result-envelope) | Proposed | Canonical envelope gains a `rows` key populated by aggregating queries |
-| req-grid-gryphon-compat | [Backward Compatibility](#backward-compatibility) | Proposed | Existing queries parse, execute, and return identical results |
+| req-grid-gryphon-multihop | [Multi-Hop Pattern Execution](#multi-hop-pattern-execution) | In Development | Grammar and parser accept N-hop chains today; **executor rejects multi-hop with a clear error pending follow-up**. Landed: variable-length rejection and single-hop parity. |
+| req-grid-gryphon-not-exists | [NOT EXISTS Subqueries](#not-exists-subqueries) | Implemented | New grammar production for correlated anti-join subqueries |
+| req-grid-gryphon-count | [COUNT Aggregation and Implicit GROUP BY](#count-aggregation-and-implicit-group-by) | Implemented | `COUNT(var)` in RETURN, implicit GROUP BY on non-aggregated columns |
+| req-grid-gryphon-rows | [Rows Result Envelope](#rows-result-envelope) | Implemented | Canonical envelope gains a `rows` key populated by aggregating queries |
+| req-grid-gryphon-compat | [Backward Compatibility](#backward-compatibility) | Implemented | Existing queries parse, execute, and return identical results |
 
 ---
 
 ### Multi-Hop Pattern Execution
 ----
 RID: `req-grid-gryphon-multihop`
-Status: `Proposed`
+Status: `In Development`
 
 The executor must accept `MATCH` patterns with more than one edge hop, producing results that join each declared hop by shared variable.
 
@@ -57,11 +57,11 @@ Multi-hop is the largest of the three language changes in this spec because it s
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-gryphon-multihop-1 | N-Hop Chains | Proposed | The executor accepts and correctly joins MATCH patterns with two or more edge hops. | |
-| req-grid-gryphon-multihop-2 | Directionality Per Hop | Proposed | Each hop's direction (`->`, `<-`, `-`) is respected independently. | |
-| req-grid-gryphon-multihop-3 | Optional Intermediate Labels | Proposed | Intermediate node patterns with no label are treated as any-type and still bind their variable. | |
-| req-grid-gryphon-multihop-4 | Variable-Length Still Rejected | Proposed | `-[:E*m..n]->` patterns continue to be rejected at the executor with an unsupported-feature error. | Grammar parses them; deferred to a future iteration |
-| req-grid-gryphon-multihop-5 | Single-Hop Results Unchanged | Proposed | Queries with exactly one hop produce identical results to the pre-extension executor. | See `req-grid-gryphon-compat` |
+| req-grid-gryphon-multihop-1 | N-Hop Chains | Proposed | The executor accepts and correctly joins MATCH patterns with two or more edge hops. | Grammar + parser accept; executor currently rejects with a clear error |
+| req-grid-gryphon-multihop-2 | Directionality Per Hop | Proposed | Each hop's direction (`->`, `<-`, `-`) is respected independently. | Waits on ACID-1 |
+| req-grid-gryphon-multihop-3 | Optional Intermediate Labels | Proposed | Intermediate node patterns with no label are treated as any-type and still bind their variable. | Waits on ACID-1 |
+| req-grid-gryphon-multihop-4 | Variable-Length Still Rejected | Implemented | `-[:E*m..n]->` patterns continue to be rejected at the executor with an unsupported-feature error. | Grammar parses them; deferred to a future iteration |
+| req-grid-gryphon-multihop-5 | Single-Hop Results Unchanged | Implemented | Queries with exactly one hop produce identical results to the pre-extension executor. | See `req-grid-gryphon-compat` |
 
 #### Future
 
@@ -74,7 +74,7 @@ Multi-hop is the largest of the three language changes in this spec because it s
 ### NOT EXISTS Subqueries
 ----
 RID: `req-grid-gryphon-not-exists`
-Status: `Proposed`
+Status: `Implemented`
 
 Gryphon gains a `NOT EXISTS { ... }` block that expresses correlated anti-join subqueries: "match the outer pattern where there *does not exist* a corresponding inner pattern."
 
@@ -106,12 +106,12 @@ The motivating query for this requirement — "findings not covered by an active
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-gryphon-not-exists-1 | Grammar Support | Proposed | The parser accepts `NOT EXISTS { MATCH ... WHERE ... }` as a top-level clause. | |
-| req-grid-gryphon-not-exists-2 | Variable Correlation | Proposed | Variables declared in the outer MATCH are in scope inside a `NOT EXISTS` block. | |
-| req-grid-gryphon-not-exists-3 | Anti-Join Semantics | Proposed | Outer rows are excluded if the inner pattern has any match under their bindings. | |
-| req-grid-gryphon-not-exists-4 | Bare EXISTS Rejected | Proposed | `EXISTS { ... }` without `NOT` is rejected at the executor with an unsupported-feature error. | Deferred to a future iteration |
-| req-grid-gryphon-not-exists-5 | No Nested Anti-Joins | Proposed | `NOT EXISTS` blocks that themselves contain `NOT EXISTS` are rejected at parse with a clear error. | |
-| req-grid-gryphon-not-exists-6 | Multiple Sibling Blocks | Proposed | A query may contain multiple sibling `NOT EXISTS` blocks; each is applied as an additional anti-join filter. | |
+| req-grid-gryphon-not-exists-1 | Grammar Support | Implemented | The parser accepts `NOT EXISTS { MATCH ... WHERE ... }` as a top-level clause. | |
+| req-grid-gryphon-not-exists-2 | Variable Correlation | Implemented | Variables declared in the outer MATCH are in scope inside a `NOT EXISTS` block. | |
+| req-grid-gryphon-not-exists-3 | Anti-Join Semantics | Implemented | Outer rows are excluded if the inner pattern has any match under their bindings. | |
+| req-grid-gryphon-not-exists-4 | Bare EXISTS Rejected | Implemented | `EXISTS { ... }` without `NOT` is rejected at the executor with an unsupported-feature error. | Deferred to a future iteration |
+| req-grid-gryphon-not-exists-5 | No Nested Anti-Joins | Implemented | `NOT EXISTS` blocks that themselves contain `NOT EXISTS` are rejected at parse with a clear error. | |
+| req-grid-gryphon-not-exists-6 | Multiple Sibling Blocks | Implemented | A query may contain multiple sibling `NOT EXISTS` blocks; each is applied as an additional anti-join filter. | |
 
 #### Future
 
@@ -124,7 +124,7 @@ The motivating query for this requirement — "findings not covered by an active
 ### COUNT Aggregation and Implicit GROUP BY
 ----
 RID: `req-grid-gryphon-count`
-Status: `Proposed`
+Status: `Implemented`
 
 Gryphon gains a single aggregate function, `COUNT`, usable in `RETURN` projections. Non-aggregated RETURN items implicitly form the GROUP BY key set.
 
@@ -169,12 +169,12 @@ The scope of this requirement is deliberately narrow. Numeric aggregates (`SUM`,
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-gryphon-count-1 | COUNT In RETURN | Proposed | `COUNT(var)` and `COUNT(field_path)` are accepted in RETURN projections. | |
-| req-grid-gryphon-count-2 | AS Alias Required For Aggregates | Proposed | Every aggregate RETURN item must carry an `AS alias`; parse fails otherwise. | |
-| req-grid-gryphon-count-3 | Implicit GROUP BY | Proposed | Non-aggregate RETURN items become GROUP BY keys when any aggregate is present. | |
-| req-grid-gryphon-count-4 | All-Aggregate Returns Single Row | Proposed | Queries whose RETURN contains only aggregates produce exactly one result row. | |
-| req-grid-gryphon-count-5 | COUNT Is The Only Aggregate | Proposed | `SUM`, `AVG`, `MIN`, `MAX`, `COUNT(*)`, and `COUNT(DISTINCT ...)` are rejected with an unsupported-feature error. | Each has a future-iteration upgrade path |
-| req-grid-gryphon-count-6 | Integer Result | Proposed | Count results are integers in the rows envelope. | |
+| req-grid-gryphon-count-1 | COUNT In RETURN | Implemented | `COUNT(var)` and `COUNT(field_path)` are accepted in RETURN projections. | |
+| req-grid-gryphon-count-2 | AS Alias Required For Aggregates | Implemented | Every aggregate RETURN item must carry an `AS alias`; parse fails otherwise. | |
+| req-grid-gryphon-count-3 | Implicit GROUP BY | Implemented | Non-aggregate RETURN items become GROUP BY keys when any aggregate is present. | |
+| req-grid-gryphon-count-4 | All-Aggregate Returns Single Row | Implemented | Queries whose RETURN contains only aggregates produce exactly one result row. | |
+| req-grid-gryphon-count-5 | COUNT Is The Only Aggregate | Implemented | `SUM`, `AVG`, `MIN`, `MAX`, `COUNT(*)`, and `COUNT(DISTINCT ...)` are rejected with an unsupported-feature error. | Each has a future-iteration upgrade path |
+| req-grid-gryphon-count-6 | Integer Result | Implemented | Count results are integers in the rows envelope. | |
 
 #### Future
 
@@ -188,7 +188,7 @@ The scope of this requirement is deliberately narrow. Numeric aggregates (`SUM`,
 ### Rows Result Envelope
 ----
 RID: `req-grid-gryphon-rows`
-Status: `Proposed`
+Status: `Implemented`
 
 The canonical search result envelope gains a `rows` field. Aggregating queries populate `rows` as their primary output.
 
@@ -224,12 +224,12 @@ The decision to *not* populate `rows` for non-aggregating queries in v1 is inten
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-gryphon-rows-1 | Envelope Key Added | Proposed | The result envelope contains a `rows` field alongside `nodes`, `edges`, `info`, `warnings`. | |
-| req-grid-gryphon-rows-2 | Always Present | Proposed | `rows` is always present in the envelope, even when the value is `[]`. | |
-| req-grid-gryphon-rows-3 | Aggregating Queries Populate `rows` | Proposed | Queries with any aggregate in RETURN populate `rows` with one object per GROUP BY key. | |
-| req-grid-gryphon-rows-4 | Entity Reference By ID | Proposed | Whole-entity RETURN items referenced in aggregate queries appear in `rows` as `entity_id` values, with full entity records in `nodes`. | |
-| req-grid-gryphon-rows-5 | Primitive Row Values | Proposed | Row object values are primitives only — no nested objects, no arrays — in v1. | |
-| req-grid-gryphon-rows-6 | Non-Aggregating Queries Unchanged | Proposed | Non-aggregating queries preserve existing envelope behavior (empty `rows`, populated `nodes`/`edges`). | See `req-grid-gryphon-compat` |
+| req-grid-gryphon-rows-1 | Envelope Key Added | Implemented | The result envelope contains a `rows` field alongside `nodes`, `edges`, `info`, `warnings`. | |
+| req-grid-gryphon-rows-2 | Always Present | Implemented | `rows` is always present in the envelope, even when the value is `[]`. | |
+| req-grid-gryphon-rows-3 | Aggregating Queries Populate `rows` | Implemented | Queries with any aggregate in RETURN populate `rows` with one object per GROUP BY key. | |
+| req-grid-gryphon-rows-4 | Entity Reference By ID | Implemented | Whole-entity RETURN items referenced in aggregate queries appear in `rows` as `entity_id` values, with full entity records in `nodes`. | |
+| req-grid-gryphon-rows-5 | Primitive Row Values | Implemented | Row object values are primitives only — no nested objects, no arrays — in v1. | |
+| req-grid-gryphon-rows-6 | Non-Aggregating Queries Unchanged | Implemented | Non-aggregating queries preserve existing envelope behavior (empty `rows`, populated `nodes`/`edges`). | See `req-grid-gryphon-compat` |
 
 #### Future
 
@@ -242,7 +242,7 @@ The decision to *not* populate `rows` for non-aggregating queries in v1 is inten
 ### Backward Compatibility
 ----
 RID: `req-grid-gryphon-compat`
-Status: `Proposed`
+Status: `Implemented`
 
 Every query that parses and executes before this extension lands continues to parse, execute, and return results with the same shape and content after.
 
@@ -258,10 +258,10 @@ Every query that parses and executes before this extension lands continues to pa
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-gryphon-compat-1 | Single-Hop Parity | Proposed | Single-hop queries produce identical `nodes` and `edges` collections before and after the extension. | |
-| req-grid-gryphon-compat-2 | Existing Test Suite Passes | Proposed | The pre-extension gryphon test suite passes unchanged. | |
-| req-grid-gryphon-compat-3 | Envelope Additive | Proposed | New `rows` field is additive; existing envelope keys retain their shape and semantics. | |
-| req-grid-gryphon-compat-4 | Error Codes Stable | Proposed | Structured error codes for existing rejection cases are unchanged. | Error message *strings* may be updated |
+| req-grid-gryphon-compat-1 | Single-Hop Parity | Implemented | Single-hop queries produce identical `nodes` and `edges` collections before and after the extension. | |
+| req-grid-gryphon-compat-2 | Existing Test Suite Passes | Implemented | The pre-extension gryphon test suite passes unchanged. | |
+| req-grid-gryphon-compat-3 | Envelope Additive | Implemented | New `rows` field is additive; existing envelope keys retain their shape and semantics. | |
+| req-grid-gryphon-compat-4 | Error Codes Stable | Implemented | Structured error codes for existing rejection cases are unchanged. | Error message *strings* may be updated |
 
 ---
 
@@ -290,7 +290,7 @@ Every query that parses and executes before this extension lands continues to pa
 
 | Status States |  |
 | --- | --- |
-| Proposed |  |
+| Implemented |  |
 | Approved for Development | Requirement is accepted and ready to be implemented |
 | In Development |  |
 | Implemented |  |

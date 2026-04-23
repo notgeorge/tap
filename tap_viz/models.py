@@ -73,7 +73,7 @@ _PROJECTION_DEFINITION_SCHEMA: dict = {
                                 "properties": {
                                     "type": {
                                         "type": "string",
-                                        "enum": ["static_by_node_type"],
+                                        "enum": ["static_by_node_type", "search"],
                                     },
                                     "rules": {
                                         "type": "array",
@@ -86,6 +86,15 @@ _PROJECTION_DEFINITION_SCHEMA: dict = {
                                                 "count": {"type": "integer", "minimum": 0},
                                             },
                                         },
+                                    },
+                                    "search_id": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "UUID of a stored Search whose rows return {entity_id, count} pairs. Used when type=search.",
+                                    },
+                                    "inputs": {
+                                        "type": "object",
+                                        "description": "Runtime inputs forwarded to the Search's $var bindings. Used when type=search.",
                                     },
                                 },
                             },

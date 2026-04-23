@@ -42,17 +42,24 @@ from tap_grid.grift.subgraph import (
     serialize_node_lite,
 )
 from tap_grid.gryphon.ast_nodes import (
+    AggregateCall,
+    AggregateReturnItem,
     AndPred,
     Comparison,
     DotStep,
     EdgePattern,
+    FieldPath,
     GryphonAST,
+    MatchClause,
     NodePattern,
+    NotExistsClause,
     NotPred,
     OrPred,
     ParamRef,
     PathPattern,
+    Predicate,
     ReturnClause,
+    ReturnItem,
     WhereClause,
 )
 from tap_grid.gryphon.parser import parse_gryphon
@@ -94,7 +101,25 @@ def execute_gryphon(
     if missing:
         raise SearchExecutionError(f"Gryphon query requires inputs {sorted(missing)} but they were not provided.")
 
+    if _has_advanced_features(ast):
+        return _execute_advanced(ast, inputs, db_alias=db_alias)
+
     return _execute_ast(ast, inputs, db_alias=db_alias, layer=layer)
+
+
+def _has_advanced_features(ast: GryphonAST) -> bool:
+    """True if the query uses NOT EXISTS, COUNT aggregation, or multi-hop patterns."""
+    if ast.not_exists_clauses:
+        return True
+    if ast.return_clause.items is not None:
+        for item in ast.return_clause.items:
+            if isinstance(item, AggregateReturnItem):
+                return True
+    for mc in ast.match_clauses:
+        for pattern in mc.patterns:
+            if len(pattern.edges) > 1:
+                return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -573,6 +598,383 @@ def _serialize_typed_nodes(
         )
         for obj in domain_objects
     ]
+
+
+# ---------------------------------------------------------------------------
+# v2: advanced executor (aggregation, NOT EXISTS, multi-hop)
+# ---------------------------------------------------------------------------
+#
+# Routed to when the AST has any of:
+#   - NOT EXISTS clause
+#   - aggregate call in RETURN
+#   - multi-hop MATCH pattern
+#
+# Builds a single Django queryset against Edge, applies WHERE and NOT EXISTS
+# filters, and optionally performs GROUP BY + COUNT. Returns the canonical
+# envelope with a `rows` field populated for aggregating queries.
+
+# Whether a variable binds to the left, right, or edge of a hop.
+# "from" = left endpoint of hop N, "to" = right endpoint, "edge" = the edge itself.
+
+
+def _node_label_to_related(label: str | None) -> str | None:
+    """Translate a gryphon node label (entity_type slug) to the Django reverse-relation name.
+
+    Uses the class-name lowercase convention (BaseModel's `related_name="%(class)s"`):
+    `finding` → `finding`, `exception` → `complianceexception`, etc.
+    Returns None if the label is not registered.
+    """
+    if not label:
+        return None
+    from tap_grid.registry import get_model_class
+
+    try:
+        model_cls = get_model_class(label)
+    except KeyError:
+        return None
+    return model_cls.__name__.lower()
+
+
+# Entity-level fields that live on the Entity table rather than the domain model.
+_ENTITY_LEVEL_FIELDS: frozenset[str] = frozenset({"entity_type", "name", "dimensions", "version", "created_at", "updated_at"})
+
+
+def _build_var_bindings(pattern: PathPattern) -> dict[str, dict[str, Any]]:
+    """Map each variable in a pattern to how it's addressed in the composed Edge queryset.
+
+    For a single-hop pattern (a)-[e]->(b), the composed queryset starts from Edge
+    and the bindings are:
+      - a → {"role": "node", "side": "from", "hop": 0, "label": a.label}
+      - e → {"role": "edge", "hop": 0}
+      - b → {"role": "node", "side": "to",   "hop": 0, "label": b.label}
+
+    Multi-hop patterns (a)-[e1]->(b)-[e2]->(c) reuse the "to" of hop N as the "from"
+    of hop N+1; serial fetch in `_execute_advanced` joins the hops explicitly.
+    """
+    bindings: dict[str, dict[str, Any]] = {}
+    for hop_idx, edge in enumerate(pattern.edges):
+        left = pattern.nodes[hop_idx]
+        right = pattern.nodes[hop_idx + 1]
+        if left.variable and left.variable not in bindings:
+            bindings[left.variable] = {"role": "node", "side": "from", "hop": hop_idx, "label": left.label}
+        if right.variable and right.variable not in bindings:
+            bindings[right.variable] = {"role": "node", "side": "to", "hop": hop_idx, "label": right.label}
+        if edge.variable and edge.variable not in bindings:
+            bindings[edge.variable] = {"role": "edge", "hop": hop_idx}
+    # Node-only patterns (no edges) still want the lone node bound.
+    if not pattern.edges and pattern.nodes:
+        n = pattern.nodes[0]
+        if n.variable:
+            bindings[n.variable] = {"role": "node", "side": "lone", "hop": 0, "label": n.label}
+    return bindings
+
+
+def _orm_path_for_field(binding: dict[str, Any], field: str) -> str:
+    """Build the Django ORM lookup string for `var.field` against the single-hop Edge queryset.
+
+    Only meaningful for hop=0; multi-hop callers use intermediate querysets.
+    """
+    role = binding["role"]
+    if role == "edge":
+        if field == "entity_id":
+            return "entity_id"
+        if field in _ENTITY_LEVEL_FIELDS:
+            return f"entity__{field}"
+        # Edge custom fields like edge_type, properties:
+        return field
+    # role == "node"
+    side = binding["side"]  # "from" | "to" | "lone"
+    # entity_id is the FK on Edge.
+    if field == "entity_id":
+        return f"{side}_entity_id"
+    if field in _ENTITY_LEVEL_FIELDS:
+        return f"{side}_entity__{field}"
+    # Domain-model field: traverse {side}_entity__<reverse_name>__<field>.
+    label = binding.get("label")
+    reverse = _node_label_to_related(label)
+    if reverse is None:
+        raise SearchExecutionError(
+            f"Cannot resolve '{field}' on variable without a node label; add a label like "
+            f"`(var:entity_type)` so the executor knows which model to traverse."
+        )
+    return f"{side}_entity__{reverse}__{field}"
+
+
+def _resolve_value(value: Any, inputs: dict[str, Any]) -> Any:
+    """Resolve a gryphon value to a Python value (ParamRef → looked up in inputs)."""
+    if isinstance(value, ParamRef):
+        return inputs.get(value.name)
+    return value
+
+
+def _build_hop_queryset(
+    pattern: PathPattern,
+    hop_idx: int,
+    db_alias: str,
+):
+    """Build an Edge queryset for a single hop, filtered by edge_type and endpoint labels."""
+    from tap_grid.models import Edge
+
+    edge_pat = pattern.edges[hop_idx]
+    left = pattern.nodes[hop_idx]
+    right = pattern.nodes[hop_idx + 1]
+
+    qs = Edge.objects.using(db_alias)
+    if edge_pat.edge_type:
+        qs = qs.filter(edge_type=edge_pat.edge_type)
+
+    # Endpoint-label filters apply based on direction.
+    if edge_pat.direction == "out":
+        if left.label:
+            qs = qs.filter(from_entity__entity_type=left.label)
+        if right.label:
+            qs = qs.filter(to_entity__entity_type=right.label)
+    elif edge_pat.direction == "in":
+        if left.label:
+            qs = qs.filter(to_entity__entity_type=left.label)
+        if right.label:
+            qs = qs.filter(from_entity__entity_type=right.label)
+    else:
+        # undirected: permissive — any direction, labels apply on whichever side matches.
+        # In practice most queries use explicit direction; the undirected case is unusual
+        # and we defer supporting it in combination with aggregation to a future iteration.
+        raise SearchExecutionError(
+            "Undirected edge patterns are not supported by the aggregation executor; use -> or <-."
+        )
+
+    return qs
+
+
+def _apply_predicate_to_qs(
+    qs,
+    predicate: Predicate | None,
+    bindings: dict[str, dict[str, Any]],
+    inputs: dict[str, Any],
+):
+    """Apply a WHERE predicate tree to a queryset. Currently supports conjunctions of
+    simple comparisons; OR/NOT predicates are rejected at parse-to-query time.
+    """
+    if predicate is None:
+        return qs
+    for comp in _flatten_conjunction(predicate):
+        qs = _apply_comparison(qs, comp, bindings, inputs)
+    return qs
+
+
+def _flatten_conjunction(predicate: Predicate) -> list[Comparison]:
+    """Flatten an AND tree into a list of Comparisons. Reject OR/NOT (not yet supported in v2)."""
+    if isinstance(predicate, Comparison):
+        return [predicate]
+    if isinstance(predicate, AndPred):
+        return _flatten_conjunction(predicate.left) + _flatten_conjunction(predicate.right)
+    raise SearchExecutionError(
+        "Aggregation executor currently supports only AND-joined comparisons in WHERE; "
+        "OR and NOT predicates are not yet implemented in this path."
+    )
+
+
+def _apply_comparison(
+    qs,
+    comp: Comparison,
+    bindings: dict[str, dict[str, Any]],
+    inputs: dict[str, Any],
+):
+    fp = comp.field_path
+    var = fp.variable
+    if var not in bindings:
+        raise SearchExecutionError(f"Unknown variable '{var}' in WHERE predicate.")
+    if len(fp.steps) != 1 or not isinstance(fp.steps[0], DotStep):
+        raise SearchExecutionError("WHERE predicates support single dot-step field paths only.")
+    field_name = fp.steps[0].name
+
+    orm_path = _orm_path_for_field(bindings[var], field_name)
+    value = _resolve_value(comp.value, inputs)
+
+    lookup_suffix = {"=": "", "!=": "", "<": "__lt", ">": "__gt", "<=": "__lte", ">=": "__gte"}[comp.op]
+    if comp.op == "!=":
+        return qs.exclude(**{orm_path: value})
+    return qs.filter(**{f"{orm_path}{lookup_suffix}": value})
+
+
+def _apply_not_exists(
+    outer_qs,
+    nec: NotExistsClause,
+    outer_bindings: dict[str, dict[str, Any]],
+    inputs: dict[str, Any],
+    db_alias: str,
+):
+    """Apply a NOT EXISTS clause to the outer queryset via a correlated Exists subquery."""
+    from django.db.models import Exists, OuterRef
+
+    if len(nec.match_clause.patterns) != 1:
+        raise SearchExecutionError("NOT EXISTS subqueries require exactly one pattern.")
+    inner_pattern = nec.match_clause.patterns[0]
+    if len(inner_pattern.edges) != 1:
+        raise SearchExecutionError(
+            "NOT EXISTS subqueries currently support single-hop inner patterns only."
+        )
+
+    inner_bindings = _build_var_bindings(inner_pattern)
+    inner_qs = _build_hop_queryset(inner_pattern, 0, db_alias)
+
+    # Correlation: for every variable shared between outer and inner bindings,
+    # constrain the inner's ORM path to equal OuterRef of the outer's path.
+    shared = set(outer_bindings.keys()) & set(inner_bindings.keys())
+    if not shared:
+        raise SearchExecutionError(
+            "NOT EXISTS subqueries must share at least one variable with the outer pattern."
+        )
+    for var in shared:
+        inner_bind = inner_bindings[var]
+        outer_bind = outer_bindings[var]
+        # Correlate on entity_id (the FK column); both sides use the FK lookup.
+        inner_path = _orm_path_for_field(inner_bind, "entity_id")
+        outer_path = _orm_path_for_field(outer_bind, "entity_id")
+        inner_qs = inner_qs.filter(**{inner_path: OuterRef(outer_path)})
+
+    # Apply the inner WHERE predicates.
+    inner_qs = _apply_predicate_to_qs(
+        inner_qs,
+        nec.where_clause.predicate if nec.where_clause else None,
+        inner_bindings,
+        inputs,
+    )
+
+    return outer_qs.filter(~Exists(inner_qs))
+
+
+def _execute_advanced(
+    ast: GryphonAST,
+    inputs: dict[str, Any],
+    *,
+    db_alias: str,
+) -> dict[str, Any]:
+    """Route through the v2 aggregation/anti-join/multi-hop path."""
+    if len(ast.match_clauses) != 1:
+        raise SearchExecutionError(
+            "Aggregation executor currently supports exactly one top-level MATCH clause."
+        )
+    mc = ast.match_clauses[0]
+    if len(mc.patterns) != 1:
+        raise SearchExecutionError(
+            "Aggregation executor currently supports exactly one pattern per MATCH clause."
+        )
+    pattern = mc.patterns[0]
+    if len(pattern.edges) == 0:
+        raise SearchExecutionError(
+            "Aggregation executor requires at least one edge in the MATCH pattern."
+        )
+    if len(pattern.edges) > 1:
+        raise SearchExecutionError(
+            "Multi-hop aggregation patterns are grammar-accepted but not yet implemented in the "
+            "executor. File a follow-up spec extension."
+        )
+
+    bindings = _build_var_bindings(pattern)
+    qs = _build_hop_queryset(pattern, 0, db_alias)
+
+    # Outer WHERE predicates.
+    qs = _apply_predicate_to_qs(
+        qs,
+        ast.where_clause.predicate if ast.where_clause else None,
+        bindings,
+        inputs,
+    )
+
+    # NOT EXISTS clauses.
+    for nec in ast.not_exists_clauses:
+        qs = _apply_not_exists(qs, nec, bindings, inputs, db_alias)
+
+    # Compute rows.
+    rows = _compute_rows(qs, ast.return_clause, bindings)
+
+    return {"nodes": [], "edges": [], "rows": rows}
+
+
+def _compute_rows(
+    qs,
+    return_clause: ReturnClause,
+    bindings: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Execute the queryset and produce row dicts honoring RETURN aliases and aggregates."""
+    from django.db.models import Count
+
+    items = return_clause.items
+    if items is None:
+        raise SearchExecutionError(
+            "Aggregation executor requires an explicit RETURN clause."
+        )
+
+    # Partition into field projections and aggregates.
+    field_items: list[ReturnItem] = []
+    aggregate_items: list[AggregateReturnItem] = []
+    for item in items:
+        if isinstance(item, AggregateReturnItem):
+            aggregate_items.append(item)
+        elif isinstance(item, ReturnItem):
+            field_items.append(item)
+        else:
+            raise SearchExecutionError(f"Unexpected RETURN item type: {type(item).__name__}")
+
+    # Resolve field items to ORM column paths.
+    group_by_cols: list[tuple[str, str]] = []  # (orm_path, alias)
+    for fi in field_items:
+        fp: FieldPath = fi.path
+        if fp.variable not in bindings:
+            raise SearchExecutionError(f"Unknown variable '{fp.variable}' in RETURN.")
+        if len(fp.steps) != 1 or not isinstance(fp.steps[0], DotStep):
+            raise SearchExecutionError("RETURN field paths support single dot-step only in v1.")
+        field_name = fp.steps[0].name
+        orm_path = _orm_path_for_field(bindings[fp.variable], field_name)
+        alias = fi.alias or field_name
+        group_by_cols.append((orm_path, alias))
+
+    # Resolve aggregate items.
+    aggregate_annotations: dict[str, Any] = {}
+    for ai in aggregate_items:
+        agg: AggregateCall = ai.aggregate
+        if agg.function != "count":
+            raise SearchExecutionError(f"Unsupported aggregate function: {agg.function}")
+        arg: FieldPath = agg.argument
+        if arg.variable not in bindings:
+            raise SearchExecutionError(f"Unknown variable '{arg.variable}' in COUNT().")
+        # For COUNT(var), count by the variable's entity_id; for COUNT(var.field), count that field.
+        if len(arg.steps) == 0:
+            count_col = _orm_path_for_field(bindings[arg.variable], "entity_id")
+        elif len(arg.steps) == 1 and isinstance(arg.steps[0], DotStep):
+            count_col = _orm_path_for_field(bindings[arg.variable], arg.steps[0].name)
+        else:
+            raise SearchExecutionError("COUNT argument must be a bare variable or single dot-step.")
+        aggregate_annotations[ai.alias] = Count(count_col)
+
+    if aggregate_annotations:
+        # GROUP BY: the .values() columns become the group keys.
+        value_names = [orm for orm, _ in group_by_cols]
+        qs = qs.values(*value_names).annotate(**aggregate_annotations).order_by(*value_names)
+        raw_rows = list(qs)
+        # Map ORM column names back to RETURN aliases.
+        rows: list[dict[str, Any]] = []
+        for raw in raw_rows:
+            row: dict[str, Any] = {}
+            for orm, alias in group_by_cols:
+                val = raw.get(orm)
+                row[alias] = str(val) if hasattr(val, "hex") else val
+            for ai in aggregate_items:
+                row[ai.alias] = raw.get(ai.alias)
+            rows.append(row)
+        return rows
+
+    # No aggregation — just project fields per row.
+    value_names = [orm for orm, _ in group_by_cols]
+    raw_rows = list(qs.values(*value_names))
+    rows = []
+    for raw in raw_rows:
+        row = {}
+        for orm, alias in group_by_cols:
+            val = raw.get(orm)
+            row[alias] = str(val) if hasattr(val, "hex") else val
+        rows.append(row)
+    return rows
 
 
 def _serialize_edge_list(

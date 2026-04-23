@@ -155,12 +155,18 @@ def _normalize_envelope(raw: Any) -> dict[str, Any]:
             f"Search result must be a dict with at least 'nodes' and 'edges' keys. "
             f"Got: {type(raw).__name__} with keys {sorted(raw.keys()) if isinstance(raw, dict) else 'N/A'}"
         )
-    return {
+    envelope: dict[str, Any] = {
         "nodes": raw["nodes"],
         "edges": raw["edges"],
         "info": dict(raw.get("info") or {}),
         "warnings": dict(raw.get("warnings") or {}),
     }
+    # Preserve rows if the executor populated them (aggregating gryphon queries).
+    # Per req-grid-gryphon-rows the field is always present in the envelope;
+    # non-aggregating queries will produce an empty list here.
+    if "rows" in raw:
+        envelope["rows"] = list(raw["rows"])
+    return envelope
 
 
 # ---------------------------------------------------------------------------

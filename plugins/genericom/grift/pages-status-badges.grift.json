@@ -6,9 +6,9 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01965b01-4000-7000-8000-00000000000e",
+        "entity_id": "01965b01-4000-7000-8000-00000000000f",
         "entity_type": "batch",
-        "name": "Genericom projection v0.3.4",
+        "name": "Genericom projection v0.4.0",
         "dimensions": {}
       },
       "batch_node": {
@@ -55,12 +55,9 @@
                     "color": "#9E3A3A",
                     "text_color": "#F5E6E3",
                     "population": {
-                      "type": "static_by_node_type",
-                      "rules": [
-                        {"entity_type": "aws_ec2_instance", "count": 5},
-                        {"entity_type": "aws_rds_instance", "count": 2},
-                        {"entity_type": "aws_elasticache_cluster", "count": 1}
-                      ]
+                      "type": "search",
+                      "search_id": "0197fed0-0000-7000-8000-000c00000001",
+                      "inputs": {}
                     }
                   },
                   {

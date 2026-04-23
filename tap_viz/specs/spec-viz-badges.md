@@ -250,8 +250,12 @@ Refresh and stale state:
 Runtime module:
 - The runtime extends `tap_viz/static/tap_viz/js/runtime/badge-nodes.js` so a single post-layout pass handles the type icon badge and each configured status badge set for every eligible host.
 
-Future search-backed population:
-- A follow-on iteration is expected to introduce `population.type: "search"`, referencing a stored Search by id and posting to the existing JSON search endpoint at `POST /api/v1/searches/{search_id}/execute` (see [tap_api/routers/searches.py](../../tap_api/routers/searches.py)). Result rows will be grouped by host node to produce counts. This mechanism is the anticipated home for the broader alert-collection story and is out of scope for this requirement.
+Search-backed population (`population.type: "search"`):
+- Landed. Each eligible set may specify `population: {type: "search", search_id: "<uuid>", inputs: {...}}`.
+- At render time the client POSTs to `POST /api/v1/searches/{search_id}/execute` with the `inputs` payload and reads the aggregating-query `rows` field from the response envelope (enabled by `spec-grid-gryphon-multihop-aggregation.md`).
+- Each row is expected to carry `{entity_id, count}`; the client builds a `{entity_id: count}` map and renders badges per-node using the existing sizing/positioning logic.
+- Multiple sets with search populations run in parallel (Promise.all); static and search populations coexist on the same projection.
+- Fetch failures engage the stale-border marker (`req-viz-badges-status-sets-7`) without clearing the previously rendered counts, so the scene stays informative when the backend is momentarily unreachable.
 
 #### Development
 
@@ -277,7 +281,7 @@ Only one status set (typically `alert`) is expected in the first seed demo. The 
 #### Future
 
 - **Click behavior**: open an alert summary popup or side panel on click, with links to individual alert detail pages.
-- **Search-backed population**: `population.type: "search"` binding set counts to a stored Search via the existing JSON search endpoint; this replaces hand-populated rules with live counts from Gryphon-backed searches.
+- **Elevation-level status badge overrides**: allow per-elevation `status_badges` that override the projection-level default. Projection-level is sufficient for v1 demos but narrower scenes would benefit from different counts at different zoom levels.
 - **Per-set refresh cadence**: allow individual sets to override the top-level `refresh_seconds` when different population mechanisms need different cadences.
 - **Severity-aware rendering**: beyond color-per-set, shape or emphasis variations based on count thresholds.
 - **Count overflow presentation** (e.g. `99+`) once real data exercises the limits of a small badge.
