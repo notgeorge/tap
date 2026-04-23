@@ -1126,3 +1126,109 @@ class TestGryphonV2Executor:
         )
         with pytest.raises(SearchExecutionError, match="[Vv]ariable-length"):
             execute_search(search, inputs={})
+
+    def test_two_hop_no_return_graph_envelope(self):
+        """req-grid-gryphon-multihop-envelope-1: omitted RETURN returns all nodes and edges."""
+        e = self._setup_three_layer_chain()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="envelope-all",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location)"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+
+        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        # All 9 entities in the chain should be present.
+        for name in ("frodo", "aragorn", "shire", "gondor", "arnor",
+                      "hobbiton", "buckland", "minas_tirith", "annuminas"):
+            assert str(e[name].pk) in node_ids, f"{name} missing from nodes"
+
+        # Edges: 3 OWNS + 4 CONTAINS = 7
+        assert len(result["edges"]) == 7
+        edge_types = {edg["edge"]["edge_type"] for edg in result["edges"]}
+        assert edge_types == {"OWNS", "CONTAINS"}
+
+        # rows should be empty for graph envelope
+        assert result.get("rows", []) == []
+
+    def test_two_hop_bare_variable_return_graph_envelope(self):
+        """req-grid-gryphon-multihop-envelope-2: RETURN with bare variables returns named entities."""
+        e = self._setup_three_layer_chain()
+
+        # Only request the character and location — skip the intermediate realm.
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="envelope-selected",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location) "
+                    "RETURN c, l"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+
+        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        # Characters and locations should be present.
+        assert str(e["frodo"].pk) in node_ids
+        assert str(e["aragorn"].pk) in node_ids
+        assert str(e["hobbiton"].pk) in node_ids
+        # Realms should NOT be in nodes (not requested).
+        assert str(e["shire"].pk) not in node_ids
+
+        # Edges should still be returned (connecting edges included automatically).
+        assert len(result["edges"]) == 7
+
+    def test_two_hop_graph_envelope_with_where_anchor(self):
+        """req-grid-gryphon-multihop-envelope: WHERE anchor scopes the subgraph."""
+        e = self._setup_three_layer_chain()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="envelope-anchored",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location) "
+                    "WHERE c.name = \"Frodo\""
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+
+        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        # Only Frodo's chain: Frodo, Shire, Hobbiton, Buckland
+        assert str(e["frodo"].pk) in node_ids
+        assert str(e["shire"].pk) in node_ids
+        assert str(e["hobbiton"].pk) in node_ids
+        assert str(e["buckland"].pk) in node_ids
+        # Aragorn's chain should not appear.
+        assert str(e["aragorn"].pk) not in node_ids
+        assert str(e["gondor"].pk) not in node_ids
+
+    def test_two_hop_graph_envelope_deduplication(self):
+        """Nodes appearing at multiple positions in the chain are deduplicated."""
+        e = self._setup_three_layer_chain()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="envelope-dedup",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location)"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+
+        entity_ids = [n["entity"]["entity_id"] for n in result["nodes"]]
+        # No duplicates.
+        assert len(entity_ids) == len(set(entity_ids))

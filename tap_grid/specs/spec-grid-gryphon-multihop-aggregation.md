@@ -28,6 +28,7 @@ The extension is scoped tight on purpose. `COUNT` is the only aggregate; `SUM`/`
 | req-grid-gryphon-not-exists | [NOT EXISTS Subqueries](#not-exists-subqueries) | Implemented | New grammar production for correlated anti-join subqueries |
 | req-grid-gryphon-count | [COUNT Aggregation and Implicit GROUP BY](#count-aggregation-and-implicit-group-by) | Implemented | `COUNT(var)` in RETURN, implicit GROUP BY on non-aggregated columns |
 | req-grid-gryphon-rows | [Rows Result Envelope](#rows-result-envelope) | Implemented | Canonical envelope gains a `rows` key populated by aggregating queries |
+| req-grid-gryphon-multihop-envelope | [Multi-Hop Graph Envelope](#multi-hop-graph-envelope) | Implemented | Multi-hop queries return graph envelope (nodes + edges) when RETURN is omitted or uses bare variables |
 | req-grid-gryphon-compat | [Backward Compatibility](#backward-compatibility) | Implemented | Existing queries parse, execute, and return identical results |
 
 ---
@@ -239,6 +240,35 @@ The decision to *not* populate `rows` for non-aggregating queries in v1 is inten
 - Universal `rows` population for non-aggregating queries (behind an opt-in flag, eventually default).
 - Nested object row values (e.g. full entity embedded) once a consumer needs it and we've decided how to reconcile with `nodes`.
 - Pagination hints on aggregating queries that produce large result sets.
+
+---
+
+### Multi-Hop Graph Envelope
+----
+RID: `req-grid-gryphon-multihop-envelope`
+Status: `Implemented`
+
+Multi-hop queries support graph envelope returns in addition to row projection, enabling multi-hop queries to feed graph visualizations directly.
+
+#### Implementation
+
+- The executor detects graph envelope mode based on the RETURN clause shape:
+  - **No RETURN clause** (omitted): all bound node and edge variables are collected and returned as a graph envelope.
+  - **Bare-variable RETURN** (all items are variable names with no field steps or aggregates, e.g. `RETURN c, l`): only the named variables are collected as graph objects. Edges connecting the chain are included automatically.
+  - **Field projections or aggregates in RETURN**: existing row projection path (unchanged).
+- Collection uses `.values_list()` on the chained Edge queryset to extract entity_id columns for each requested variable, then bulk-fetches `Entity` and `Edge` objects and serializes them through the existing GRIFT layer serializers.
+- The `layer` parameter (lite, full, extended) is respected, matching the behavior of the standard executor's graph envelope mode.
+- Deduplication is inherent: entity_id sets are collected before bulk-fetch.
+- The `rows` field is always present in the envelope (empty `[]` for graph envelope returns).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-gryphon-multihop-envelope-1 | No RETURN Graph Envelope | Implemented | Omitting RETURN on a multi-hop query returns all matched nodes and edges. | |
+| req-grid-gryphon-multihop-envelope-2 | Bare Variable RETURN | Implemented | `RETURN c, l` returns only the named node variables plus connecting edges. | |
+| req-grid-gryphon-multihop-envelope-3 | WHERE Anchor Scoping | Implemented | WHERE predicates scope the graph envelope to matching subgraph. | |
+| req-grid-gryphon-multihop-envelope-4 | Deduplication | Implemented | Entities appearing at multiple chain positions are returned exactly once. | |
 
 ---
 

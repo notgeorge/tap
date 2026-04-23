@@ -108,7 +108,7 @@ def execute_gryphon(
         raise SearchExecutionError(f"Gryphon query requires inputs {sorted(missing)} but they were not provided.")
 
     if _has_advanced_features(ast):
-        return _execute_advanced(ast, inputs, db_alias=db_alias)
+        return _execute_advanced(ast, inputs, db_alias=db_alias, layer=layer)
 
     return _execute_ast(ast, inputs, db_alias=db_alias, layer=layer)
 
@@ -985,11 +985,118 @@ def _apply_not_exists(
     return outer_qs.filter(~Exists(inner_qs))
 
 
+def _is_graph_envelope_return(return_clause: ReturnClause) -> bool:
+    """True when the RETURN clause requests a graph envelope rather than row projection.
+
+    Graph envelope is requested when:
+    - RETURN is omitted (items is None) — return all bound variables, or
+    - all RETURN items are bare variables (ReturnItem with no field steps or aggregates).
+    """
+    if return_clause.items is None:
+        return True
+    for item in return_clause.items:
+        if isinstance(item, AggregateReturnItem):
+            return False
+        if not isinstance(item, ReturnItem):
+            return False
+        if len(item.path.steps) > 0:
+            return False
+    return True
+
+
+def _collect_graph_envelope(
+    qs,
+    pattern: PathPattern,
+    return_clause: ReturnClause,
+    bindings: dict[str, dict[str, Any]],
+    *,
+    layer: SubgraphLayer,
+    db_alias: str,
+) -> dict[str, Any]:
+    """Collect a graph envelope (nodes + edges) from a multi-hop chain queryset.
+
+    When RETURN is omitted, all bound node and edge variables are collected.
+    When RETURN names bare variables, only those are collected.
+    """
+    # Determine which variables to collect.
+    if return_clause.items is None:
+        requested_vars = set(bindings.keys())
+    else:
+        requested_vars = {item.path.variable for item in return_clause.items if isinstance(item, ReturnItem)}
+
+    # Partition into node and edge variables and build values_list columns.
+    node_columns: list[tuple[str, str]] = []  # (var_name, orm_path)
+    edge_columns: list[tuple[str, str]] = []  # (var_name, orm_path)
+
+    for var in requested_vars:
+        if var not in bindings:
+            raise SearchExecutionError(f"Unknown variable '{var}' in RETURN.")
+        binding = bindings[var]
+        if binding["role"] == "node":
+            orm_path = _orm_path_for_field(binding, "entity_id")
+            node_columns.append((var, orm_path))
+        elif binding["role"] == "edge":
+            orm_path = _orm_path_for_field(binding, "entity_id")
+            edge_columns.append((var, orm_path))
+
+    # Also collect edges that aren't explicitly requested but connect requested
+    # nodes — when RETURN is omitted, this is already covered since all variables
+    # are requested. When bare-variable RETURN names only nodes, we still want
+    # the connecting edges for a useful graph envelope.
+    if return_clause.items is not None and not edge_columns:
+        for var, binding in bindings.items():
+            if binding["role"] == "edge":
+                orm_path = _orm_path_for_field(binding, "entity_id")
+                edge_columns.append((var, orm_path))
+
+    all_columns = node_columns + edge_columns
+    if not all_columns:
+        return {"nodes": [], "edges": [], "rows": []}
+
+    orm_paths = [path for _, path in all_columns]
+    rows = qs.values_list(*orm_paths, named=False)
+
+    # Collect distinct PKs.
+    node_pks: set[str] = set()
+    edge_entity_ids: set[str] = set()
+    node_count = len(node_columns)
+
+    for row in rows:
+        for i, val in enumerate(row):
+            if val is None:
+                continue
+            pk = str(val)
+            if i < node_count:
+                node_pks.add(pk)
+            else:
+                edge_entity_ids.add(pk)
+
+    from tap_grid.models import Edge, Entity
+
+    # Bulk-fetch entities and edges.
+    entities = list(Entity.objects.using(db_alias).filter(pk__in=node_pks)) if node_pks else []
+    edges = (
+        list(
+            Edge.objects.using(db_alias)
+            .filter(entity_id__in=edge_entity_ids)
+            .select_related("entity")
+        )
+        if edge_entity_ids
+        else []
+    )
+
+    nodes_out = _serialize_entity_nodes(entities, layer, db_alias)
+    edges_out = _serialize_edge_list(edges, layer, db_alias)
+
+    return {"nodes": nodes_out, "edges": edges_out, "rows": []}
+
+
 def _execute_advanced(
     ast: GryphonAST,
     inputs: dict[str, Any],
     *,
     db_alias: str,
+    layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Route through the v2 aggregation/anti-join/multi-hop path."""
     if len(ast.match_clauses) != 1:
@@ -1022,7 +1129,21 @@ def _execute_advanced(
     for nec in ast.not_exists_clauses:
         qs = _apply_not_exists(qs, nec, bindings, inputs, db_alias)
 
-    # Compute rows.
+    # Graph envelope mode: no RETURN or bare-variable RETURN.
+    if _is_graph_envelope_return(ast.return_clause):
+        envelope = _collect_graph_envelope(
+            qs, pattern, ast.return_clause, bindings, layer=layer, db_alias=db_alias,
+        )
+        if len(pattern.edges) > 1 and ast.where_clause is None:
+            envelope["warnings"] = {
+                "multi_hop_no_anchor": (
+                    "Multi-hop MATCH has no WHERE anchor; this may scan the full graph. "
+                    "Add a WHERE predicate or a LIMIT for better performance."
+                )
+            }
+        return envelope
+
+    # Row projection mode: field projections and/or aggregates.
     rows = _compute_rows(qs, ast.return_clause, bindings)
 
     envelope: dict[str, Any] = {"nodes": [], "edges": [], "rows": rows}
