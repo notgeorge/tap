@@ -24,7 +24,7 @@ The extension is scoped tight on purpose. `COUNT` is the only aggregate; `SUM`/`
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-grid-gryphon-multihop | [Multi-Hop Pattern Execution](#multi-hop-pattern-execution) | In Development | Grammar and parser accept N-hop chains today; **executor rejects multi-hop with a clear error pending follow-up**. Landed: variable-length rejection and single-hop parity. |
+| req-grid-gryphon-multihop | [Multi-Hop Pattern Execution](#multi-hop-pattern-execution) | Implemented | N-hop outer patterns executable; NOT EXISTS inner may also be multi-hop |
 | req-grid-gryphon-not-exists | [NOT EXISTS Subqueries](#not-exists-subqueries) | Implemented | New grammar production for correlated anti-join subqueries |
 | req-grid-gryphon-count | [COUNT Aggregation and Implicit GROUP BY](#count-aggregation-and-implicit-group-by) | Implemented | `COUNT(var)` in RETURN, implicit GROUP BY on non-aggregated columns |
 | req-grid-gryphon-rows | [Rows Result Envelope](#rows-result-envelope) | Implemented | Canonical envelope gains a `rows` key populated by aggregating queries |
@@ -35,31 +35,34 @@ The extension is scoped tight on purpose. `COUNT` is the only aggregate; `SUM`/`
 ### Multi-Hop Pattern Execution
 ----
 RID: `req-grid-gryphon-multihop`
-Status: `In Development`
+Status: `Implemented`
 
-The executor must accept `MATCH` patterns with more than one edge hop, producing results that join each declared hop by shared variable.
+The executor accepts `MATCH` patterns with more than one edge hop, producing results that join each declared hop by shared variable.
 
 #### Implementation
 
-- No grammar change required. The current `grammar.lark` already parses `pattern: node_pattern (edge_pattern node_pattern)*` as multi-hop. Today the executor rejects anything beyond one edge with the error `"Unsupported gryphon pattern: only single-hop patterns are supported."` This requirement is to remove that guard and implement the join path.
-- Semantics: each additional edge pattern composes the query by joining on the shared node variable. `MATCH (a)-[:E1]->(b)-[:E2]->(c)` produces the set of `(a, b, c)` triples where `a -E1-> b` and `b -E2-> c` both hold.
-- Directionality: each edge pattern's arrow is honored independently. `-[:E]->`, `<-[:E]-`, and `-[:E]-` each behave as in single-hop today.
-- Node labels on intermediate nodes may be omitted (`(b)` with no label) or present (`(b:node_type)`). Labels act as type filters where present, wildcard where absent.
-- Path variable binding (`path = MATCH (a)-[]->(b)`) remains parseable but out of scope for this requirement; queries using `path = ...` continue to be rejected by the executor with a targeted error message until a future iteration addresses path semantics.
-- Variable-length edges (`-[:E*1..3]->`) remain rejected. The grammar parses them; the executor returns a clear unsupported-feature error referencing the variable-length requirement as deferred.
-- Compilation targets Django ORM joins composed across `Edge` queryset filters; the existing ORM compiler (`orm_compiler.py`) gains N-hop join support. The compiler stays the single source of truth for translating AST → ORM plan.
+- No grammar change required. The grammar already parses `pattern: node_pattern (edge_pattern node_pattern)*` as multi-hop.
+- Executor composes a single `Edge` queryset with reverse-FK joins: each additional hop is reached via the previous hop's shared-node path plus `edges_out` (for `->`) or `edges_in` (for `<-`). All hop filters (edge_type, endpoint labels) are collapsed into one `.filter(**kwargs)` call so Django reuses a single JOIN per unique path.
+- Semantics: `MATCH (a)-[:E1]->(b)-[:E2]->(c)` produces the set of `(a, b, c)` triples where `a -E1-> b` and `b -E2-> c` both hold.
+- Directionality: each edge pattern's arrow is honored independently. `-[:E]->` and `<-[:E]-` each behave as in single-hop. Undirected `-[:E]-` remains rejected by the aggregation executor with a targeted error.
+- Node labels on intermediate nodes may be omitted (wildcard) or present (type filter).
+- RETURN projection columns and COUNT sources are pre-annotated via `F()` aliases so Django reuses JOIN aliases across filters, aggregates, and OuterRef correlations. Without this, COUNT on a multi-hop outer produces inflated counts because Django adds a duplicate LEFT OUTER JOIN for each reference to the reverse-FK path.
+- NOT EXISTS correlation with a multi-hop outer uses the same F-alias strategy: the outer's shared-variable entity_id is pre-annotated and `OuterRef` references the alias rather than the raw reverse-FK path.
+- Path variable binding (`path = MATCH (a)-[]->(b)`) remains parseable but executor-unsupported.
+- Variable-length edges (`-[:E*1..3]->`) remain executor-rejected with an unsupported-feature error.
+- Multi-hop queries with no outer WHERE clause emit a `multi_hop_no_anchor` warning in the envelope's `warnings` dict; callers should add an anchor or LIMIT.
 
 #### Development
 
-Multi-hop is the largest of the three language changes in this spec because it shifts the compiler from "one edge queryset" to "composed joins." The discipline here is to implement the simplest correct join path — one ORM join per hop, anchored by a WHERE predicate where one exists — and not reach for query-planner heuristics. Patterns with no WHERE anchor at all are expected to scan the full graph and should log an info-level warning in the result envelope; production callers should add a WHERE anchor or a LIMIT.
+Multi-hop is the largest of the three language changes in this spec because it shifts the compiler from "one edge queryset" to "composed joins." The discipline here is to implement the simplest correct join path — one ORM join per hop, anchored by a WHERE predicate where one exists — and not reach for query-planner heuristics. The JOIN-reuse trick via `F()` annotation aliases was necessary to prevent count inflation when COUNT arguments or OuterRef paths reference the same reverse-FK chain that filters already touched.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-gryphon-multihop-1 | N-Hop Chains | Proposed | The executor accepts and correctly joins MATCH patterns with two or more edge hops. | Grammar + parser accept; executor currently rejects with a clear error |
-| req-grid-gryphon-multihop-2 | Directionality Per Hop | Proposed | Each hop's direction (`->`, `<-`, `-`) is respected independently. | Waits on ACID-1 |
-| req-grid-gryphon-multihop-3 | Optional Intermediate Labels | Proposed | Intermediate node patterns with no label are treated as any-type and still bind their variable. | Waits on ACID-1 |
+| req-grid-gryphon-multihop-1 | N-Hop Chains | Implemented | The executor accepts and correctly joins MATCH patterns with two or more edge hops. | `_build_chain_queryset` + F-alias annotation pattern |
+| req-grid-gryphon-multihop-2 | Directionality Per Hop | Implemented | Each hop's direction (`->`, `<-`) is respected independently. | Undirected `-[:E]-` still rejected |
+| req-grid-gryphon-multihop-3 | Optional Intermediate Labels | Implemented | Intermediate node patterns with no label are treated as any-type and still bind their variable. | |
 | req-grid-gryphon-multihop-4 | Variable-Length Still Rejected | Implemented | `-[:E*m..n]->` patterns continue to be rejected at the executor with an unsupported-feature error. | Grammar parses them; deferred to a future iteration |
 | req-grid-gryphon-multihop-5 | Single-Hop Results Unchanged | Implemented | Queries with exactly one hop produce identical results to the pre-extension executor. | See `req-grid-gryphon-compat` |
 

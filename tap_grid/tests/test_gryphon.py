@@ -884,3 +884,245 @@ class TestGryphonV2Executor:
         assert "rows" in result
         assert isinstance(result["rows"], list)
         assert all("wielder" in r and "count" in r for r in result["rows"])
+
+    # ------------------------------------------------------------------
+    # Multi-hop executor coverage — req-grid-gryphon-multihop-{1,2,3}
+    # ------------------------------------------------------------------
+
+    def _setup_three_layer_chain(self):
+        """Characters own realms which contain locations — a 3-layer chain."""
+        import uuid
+
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Edge, Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+
+        frodo = Entity.objects.create(entity_type="character", name="Frodo")
+        aragorn = Entity.objects.create(entity_type="character", name="Aragorn")
+
+        shire = Entity.objects.create(entity_type="realm", name="Shire")
+        gondor = Entity.objects.create(entity_type="realm", name="Gondor")
+        arnor = Entity.objects.create(entity_type="realm", name="Arnor")
+
+        hobbiton = Entity.objects.create(entity_type="location", name="Hobbiton")
+        buckland = Entity.objects.create(entity_type="location", name="Buckland")
+        minas_tirith = Entity.objects.create(entity_type="location", name="Minas Tirith")
+        annuminas = Entity.objects.create(entity_type="location", name="Annuminas")
+
+        # Character OWNS realm.
+        for src, tgt in [(frodo, shire), (aragorn, gondor), (aragorn, arnor)]:
+            Edge.objects.create(
+                entity=Entity.objects.create(entity_type="edge"),
+                from_entity=src, to_entity=tgt, edge_type="OWNS",
+            )
+        # Realm CONTAINS location.
+        for src, tgt in [
+            (shire, hobbiton), (shire, buckland),
+            (gondor, minas_tirith),
+            (arnor, annuminas),
+        ]:
+            Edge.objects.create(
+                entity=Entity.objects.create(entity_type="edge"),
+                from_entity=src, to_entity=tgt, edge_type="CONTAINS",
+            )
+        return {
+            "frodo": frodo, "aragorn": aragorn,
+            "shire": shire, "gondor": gondor, "arnor": arnor,
+            "hobbiton": hobbiton, "buckland": buckland,
+            "minas_tirith": minas_tirith, "annuminas": annuminas,
+        }
+
+    def test_two_hop_chain_counts_leaf_per_root(self):
+        """req-grid-gryphon-multihop-1: 2-hop chain with COUNT groups correctly."""
+        e = self._setup_three_layer_chain()
+
+        # For each character, count locations reachable via owned realms.
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="two-hop",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
+                    "RETURN c.entity_id AS character, COUNT(l) AS locations"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        rows = {r["character"]: r["locations"] for r in result["rows"]}
+        # Frodo owns Shire (2 locations: Hobbiton, Buckland).
+        # Aragorn owns Gondor (1) + Arnor (1) = 2 locations total.
+        assert rows[str(e["frodo"].pk)] == 2
+        assert rows[str(e["aragorn"].pk)] == 2
+
+    def test_two_hop_chain_with_no_anchor_warning(self):
+        """req-grid-gryphon-multihop: no WHERE anchor on a multi-hop emits a warning."""
+        self._setup_three_layer_chain()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="no-anchor",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
+                    "RETURN c.entity_id AS id, COUNT(l) AS n"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        # Warning attached by the advanced executor (service layer promotes via envelope).
+        assert "multi_hop_no_anchor" in result.get("warnings", {})
+
+    def test_two_hop_intermediate_label_filters(self):
+        """req-grid-gryphon-multihop-3: intermediate label acts as a type filter."""
+        e = self._setup_three_layer_chain()
+
+        # Same chain but label the intermediate — results should be identical because
+        # every realm-typed entity is in fact a realm. Exercises the label pass-through.
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="labeled-middle",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
+                    "WHERE c.name = \"Frodo\" "
+                    "RETURN c.entity_id AS character, COUNT(l) AS locations"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        rows = {r["character"]: r["locations"] for r in result["rows"]}
+        assert rows[str(e["frodo"].pk)] == 2
+        assert str(e["aragorn"].pk) not in rows
+
+    def test_two_hop_with_mixed_directions(self):
+        """req-grid-gryphon-multihop-2: each hop's direction is honored independently.
+
+        Pattern: (l:location)<-[:CONTAINS]-(r:realm)<-[:OWNS]-(c:character)
+        Reads the same edges backwards — locations → realms → owning characters.
+        """
+        e = self._setup_three_layer_chain()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="mixed-dir",
+            definition={
+                "query": (
+                    "MATCH (l:location)<-[:CONTAINS]-(r:realm)<-[:OWNS]-(c:character) "
+                    "RETURN c.entity_id AS character, COUNT(l) AS locations"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        rows = {r["character"]: r["locations"] for r in result["rows"]}
+        assert rows[str(e["frodo"].pk)] == 2
+        assert rows[str(e["aragorn"].pk)] == 2
+
+    def test_two_hop_outer_with_not_exists_correlation(self):
+        """req-grid-gryphon-not-exists: NOT EXISTS correlated on a variable from a 2-hop outer."""
+        import uuid
+
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Edge, Entity
+
+        e = self._setup_three_layer_chain()
+
+        # Flag one location as "restricted" via an edge from a separate guard entity.
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        guard = Entity.objects.create(entity_type="character", name="Guard")
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=guard, to_entity=e["minas_tirith"], edge_type="RESTRICTS",
+        )
+
+        # Count per character the locations they reach via a realm — excluding any
+        # location restricted by some guard character.
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="two-hop-not-exists",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
+                    "NOT EXISTS { MATCH (g:character)-[:RESTRICTS]->(l) } "
+                    "RETURN c.entity_id AS character, COUNT(l) AS locations"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        rows = {r["character"]: r["locations"] for r in result["rows"]}
+        # Frodo: 2 (Shire contains Hobbiton, Buckland) — neither restricted.
+        assert rows[str(e["frodo"].pk)] == 2
+        # Aragorn: would be 2 (Minas Tirith, Annuminas) but Minas Tirith is restricted → 1.
+        assert rows[str(e["aragorn"].pk)] == 1
+
+    def test_multi_hop_inner_not_exists(self):
+        """req-grid-gryphon-not-exists: NOT EXISTS inner pattern itself is multi-hop."""
+        import uuid
+
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Edge, Entity
+
+        e = self._setup_three_layer_chain()
+
+        # Set up a 2-hop restriction chain: one guard → restriction → minas tirith.
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        high_guard = Entity.objects.create(entity_type="character", name="HighGuard")
+        restriction = Entity.objects.create(entity_type="realm", name="Restriction Seal")
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=high_guard, to_entity=restriction, edge_type="ISSUES",
+        )
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=restriction, to_entity=e["minas_tirith"], edge_type="SEALS",
+        )
+
+        # Outer single-hop: character owns realm. Inner NOT EXISTS is a 2-hop chain.
+        # Want: count characters whose owned realm contains NO location that is
+        # sealed via a 2-hop restriction chain.
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="multi-hop-inner-not-exists",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
+                    "NOT EXISTS { "
+                    "  MATCH (g:character)-[:ISSUES]->(sr:realm)-[:SEALS]->(l) "
+                    "} "
+                    "RETURN c.entity_id AS character, COUNT(l) AS locations"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        rows = {r["character"]: r["locations"] for r in result["rows"]}
+        # Frodo: 2 locations, none sealed → 2
+        assert rows[str(e["frodo"].pk)] == 2
+        # Aragorn: 2 locations, Minas Tirith sealed → 1
+        assert rows[str(e["aragorn"].pk)] == 1
+
+    def test_variable_length_edge_rejected(self):
+        """req-grid-gryphon-multihop-4: variable-length edges parse but executor rejects."""
+        self._setup_three_layer_chain()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="var-length",
+            definition={
+                "query": (
+                    "MATCH (c:character)-[:OWNS*1..3]->(r:realm) "
+                    "RETURN c.entity_id AS id, COUNT(r) AS n"
+                )
+            },
+        )
+        with pytest.raises(SearchExecutionError, match="[Vv]ariable-length"):
+            execute_search(search, inputs={})

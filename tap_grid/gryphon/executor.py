@@ -1,9 +1,7 @@
 """TAP gryphon executor — lowers a GryphonAST to ORM queries and returns a canonical envelope.
 
-V2 supported patterns
----------------------
-The v2 executor handles three pattern types, with UNION merge across multiple MATCH clauses:
-
+Supported patterns
+------------------
 Type scan (node-only):
     MATCH (c:character) RETURN c.entity_id, c.name, c.bio
 
@@ -17,10 +15,18 @@ Edge-type scan (one hop, no WHERE anchor):
     MATCH (r:realm)-[e:CONTAINS]->(l:location)
     MATCH (a:character)-[e:WIELDS]->(b:artifact)
 
-Multiple MATCH clauses are executed independently (UNION semantics) and results are merged
-with entity_id deduplication.
+Multi-hop chain with aggregation (advanced path):
+    MATCH (e)-[:HAS_FINDING]->(f:finding)-[:REFERS_TO]->(i:indicator)
+    WHERE f.status = "open"
+    RETURN e.entity_id AS entity_id, COUNT(f) AS count
 
-Patterns outside this set raise SearchExecutionError("Unsupported gryphon pattern").
+NOT EXISTS anti-join subquery:
+    MATCH (e)-[:HAS_FINDING]->(f:finding)
+    NOT EXISTS { MATCH (x:exception)-[:COVERS_FINDING]->(f) WHERE x.status = "active" }
+    RETURN e.entity_id AS entity_id, COUNT(f) AS count
+
+Multiple top-level MATCH clauses are executed independently (UNION semantics) with entity_id
+deduplication — advanced-path queries (NOT EXISTS, COUNT, multi-hop) require a single MATCH.
 """
 
 from __future__ import annotations
@@ -639,57 +645,155 @@ def _node_label_to_related(label: str | None) -> str | None:
 _ENTITY_LEVEL_FIELDS: frozenset[str] = frozenset({"entity_type", "name", "dimensions", "version", "created_at", "updated_at"})
 
 
+def _compute_hop_paths(pattern: PathPattern) -> list[dict[str, str]]:
+    """Compute per-hop ORM path prefixes for a chain rooted at `Edge` (hop 0).
+
+    For a chain ``(a)-[e0:R1]->(b)-[e1:R2]->(c)``:
+      - hop 0: edge_path="", from_path="from_entity", to_path="to_entity"
+      - hop 1: edge_path="to_entity__edges_out",
+               from_path="to_entity",
+               to_path="to_entity__edges_out__to_entity"
+
+    Each subsequent hop extends the previous hop's shared-node path by one of:
+      - ``__edges_out`` when the next hop is ``->``
+      - ``__edges_in``  when the next hop is ``<-``
+
+    The shared node between hop N and hop N+1 is the variable that appears on
+    the right of hop N's edge — which is hop N's ``to_entity`` for ``->`` and
+    ``from_entity`` for ``<-``.
+    """
+    if not pattern.edges:
+        return []
+
+    paths: list[dict[str, str]] = [{
+        "edge_path": "",
+        "from_path": "from_entity",
+        "to_path": "to_entity",
+    }]
+
+    for k in range(1, len(pattern.edges)):
+        prev = paths[k - 1]
+        prev_dir = pattern.edges[k - 1].direction
+        cur_dir = pattern.edges[k].direction
+
+        # Previous hop's right side — which holds the shared node between hops.
+        if prev_dir == "out":
+            shared = prev["to_path"]
+        else:  # "in"
+            shared = prev["from_path"]
+
+        if cur_dir == "out":
+            edge_path = f"{shared}__edges_out"
+            from_path = shared
+            to_path = f"{edge_path}__to_entity"
+        else:  # "in"
+            edge_path = f"{shared}__edges_in"
+            to_path = shared
+            from_path = f"{edge_path}__from_entity"
+
+        paths.append({
+            "edge_path": edge_path,
+            "from_path": from_path,
+            "to_path": to_path,
+        })
+
+    return paths
+
+
 def _build_var_bindings(pattern: PathPattern) -> dict[str, dict[str, Any]]:
-    """Map each variable in a pattern to how it's addressed in the composed Edge queryset.
+    """Map each variable in a pattern to ORM paths from the base Edge queryset.
 
-    For a single-hop pattern (a)-[e]->(b), the composed queryset starts from Edge
-    and the bindings are:
-      - a → {"role": "node", "side": "from", "hop": 0, "label": a.label}
-      - e → {"role": "edge", "hop": 0}
-      - b → {"role": "node", "side": "to",   "hop": 0, "label": b.label}
+    Each binding carries either:
+      - ``role="node"`` with ``entity_path`` (path to the Edge FK that points at
+        the node's Entity — e.g. ``"from_entity"``, ``"to_entity__edges_out__to_entity"``)
+      - ``role="edge"`` with ``edge_path`` (path from the Edge root to the hop's
+        Edge record — ``""`` for hop 0, ``"to_entity__edges_out"`` for hop 1, etc.)
 
-    Multi-hop patterns (a)-[e1]->(b)-[e2]->(c) reuse the "to" of hop N as the "from"
-    of hop N+1; serial fetch in `_execute_advanced` joins the hops explicitly.
+    Node-only patterns (no edges) bind the lone node with ``side="lone"`` — the
+    caller handles this via a domain-model scan rather than the chained Edge qs.
     """
     bindings: dict[str, dict[str, Any]] = {}
+
+    if not pattern.edges:
+        if pattern.nodes:
+            n = pattern.nodes[0]
+            if n.variable:
+                bindings[n.variable] = {
+                    "role": "node",
+                    "side": "lone",
+                    "label": n.label,
+                }
+        return bindings
+
+    hop_paths = _compute_hop_paths(pattern)
+
     for hop_idx, edge in enumerate(pattern.edges):
         left = pattern.nodes[hop_idx]
         right = pattern.nodes[hop_idx + 1]
+        hp = hop_paths[hop_idx]
+
+        if edge.direction == "out":
+            left_path = hp["from_path"]
+            right_path = hp["to_path"]
+        else:  # "in"
+            left_path = hp["to_path"]
+            right_path = hp["from_path"]
+
         if left.variable and left.variable not in bindings:
-            bindings[left.variable] = {"role": "node", "side": "from", "hop": hop_idx, "label": left.label}
+            bindings[left.variable] = {
+                "role": "node",
+                "entity_path": left_path,
+                "label": left.label,
+            }
         if right.variable and right.variable not in bindings:
-            bindings[right.variable] = {"role": "node", "side": "to", "hop": hop_idx, "label": right.label}
+            bindings[right.variable] = {
+                "role": "node",
+                "entity_path": right_path,
+                "label": right.label,
+            }
         if edge.variable and edge.variable not in bindings:
-            bindings[edge.variable] = {"role": "edge", "hop": hop_idx}
-    # Node-only patterns (no edges) still want the lone node bound.
-    if not pattern.edges and pattern.nodes:
-        n = pattern.nodes[0]
-        if n.variable:
-            bindings[n.variable] = {"role": "node", "side": "lone", "hop": 0, "label": n.label}
+            bindings[edge.variable] = {
+                "role": "edge",
+                "edge_path": hp["edge_path"],
+            }
+
     return bindings
 
 
 def _orm_path_for_field(binding: dict[str, Any], field: str) -> str:
-    """Build the Django ORM lookup string for `var.field` against the single-hop Edge queryset.
-
-    Only meaningful for hop=0; multi-hop callers use intermediate querysets.
-    """
+    """Build the Django ORM lookup string for ``var.field`` against the chained Edge queryset."""
     role = binding["role"]
+
     if role == "edge":
+        ep = binding["edge_path"]
+        prefix = f"{ep}__" if ep else ""
         if field == "entity_id":
-            return "entity_id"
+            return f"{prefix}entity_id" if prefix else "entity_id"
         if field in _ENTITY_LEVEL_FIELDS:
-            return f"entity__{field}"
-        # Edge custom fields like edge_type, properties:
-        return field
+            return f"{prefix}entity__{field}"
+        # Custom edge fields like edge_type, properties.
+        return f"{prefix}{field}" if prefix else field
+
     # role == "node"
-    side = binding["side"]  # "from" | "to" | "lone"
-    # entity_id is the FK on Edge.
+    # Node-only patterns bind with side="lone" and don't participate in Edge chains.
+    if binding.get("side") == "lone":
+        raise SearchExecutionError(
+            "Node-only patterns cannot be used in predicates or RETURN paths in the advanced executor."
+        )
+
+    ep = binding["entity_path"]
+
+    # entity_path always terminates in `from_entity` or `to_entity` (an FK on Edge).
+    # Resolve entity_id via the `_id` FK column so we avoid a redundant JOIN to
+    # the Entity table and sidestep the fact that Entity's primary key is `id`,
+    # not `entity_id`.
     if field == "entity_id":
-        return f"{side}_entity_id"
+        return f"{ep}_id"
+
     if field in _ENTITY_LEVEL_FIELDS:
-        return f"{side}_entity__{field}"
-    # Domain-model field: traverse {side}_entity__<reverse_name>__<field>.
+        return f"{ep}__{field}"
+
+    # Domain-model field: traverse {ep}__<reverse_name>__<field>.
     label = binding.get("label")
     reverse = _node_label_to_related(label)
     if reverse is None:
@@ -697,7 +801,7 @@ def _orm_path_for_field(binding: dict[str, Any], field: str) -> str:
             f"Cannot resolve '{field}' on variable without a node label; add a label like "
             f"`(var:entity_type)` so the executor knows which model to traverse."
         )
-    return f"{side}_entity__{reverse}__{field}"
+    return f"{ep}__{reverse}__{field}"
 
 
 def _resolve_value(value: Any, inputs: dict[str, Any]) -> Any:
@@ -707,40 +811,63 @@ def _resolve_value(value: Any, inputs: dict[str, Any]) -> Any:
     return value
 
 
-def _build_hop_queryset(
+def _build_chain_queryset(
     pattern: PathPattern,
-    hop_idx: int,
     db_alias: str,
 ):
-    """Build an Edge queryset for a single hop, filtered by edge_type and endpoint labels."""
+    """Build an Edge queryset that joins all hops of a (potentially multi-hop) pattern.
+
+    The queryset is rooted at hop 0's Edge and each subsequent hop is reached
+    via the shared-node reverse-FK relation (``edges_out`` / ``edges_in``). Edge
+    types and endpoint labels are applied as filter conditions on their
+    respective hop paths.
+
+    All hop filters are collapsed into a single ``.filter(**kwargs)`` call so
+    Django composes one JOIN per unique reverse-FK path — the standard trick
+    for avoiding the "multi-filter spawns separate joins" behavior.
+
+    Variable-length edges and undirected edges are rejected up front.
+    """
     from tap_grid.models import Edge
 
-    edge_pat = pattern.edges[hop_idx]
-    left = pattern.nodes[hop_idx]
-    right = pattern.nodes[hop_idx + 1]
+    for edge in pattern.edges:
+        if edge.min_hops != 1 or edge.max_hops != 1:
+            raise SearchExecutionError(
+                "Variable-length edge patterns (-[:E*m..n]->) are grammar-accepted but not "
+                "supported by the executor; defer to a future iteration."
+            )
+        if edge.direction == "any":
+            raise SearchExecutionError(
+                "Undirected edge patterns are not supported by the aggregation executor; use -> or <-."
+            )
 
+    hop_paths = _compute_hop_paths(pattern)
     qs = Edge.objects.using(db_alias)
-    if edge_pat.edge_type:
-        qs = qs.filter(edge_type=edge_pat.edge_type)
 
-    # Endpoint-label filters apply based on direction.
-    if edge_pat.direction == "out":
+    filters: dict[str, Any] = {}
+
+    for hop_idx, edge in enumerate(pattern.edges):
+        hp = hop_paths[hop_idx]
+        ep = hp["edge_path"]
+        prefix = f"{ep}__" if ep else ""
+
+        if edge.edge_type:
+            filters[f"{prefix}edge_type"] = edge.edge_type
+
+        left = pattern.nodes[hop_idx]
+        right = pattern.nodes[hop_idx + 1]
+        if edge.direction == "out":
+            left_path, right_path = hp["from_path"], hp["to_path"]
+        else:  # "in"
+            left_path, right_path = hp["to_path"], hp["from_path"]
+
         if left.label:
-            qs = qs.filter(from_entity__entity_type=left.label)
+            filters[f"{left_path}__entity_type"] = left.label
         if right.label:
-            qs = qs.filter(to_entity__entity_type=right.label)
-    elif edge_pat.direction == "in":
-        if left.label:
-            qs = qs.filter(to_entity__entity_type=left.label)
-        if right.label:
-            qs = qs.filter(from_entity__entity_type=right.label)
-    else:
-        # undirected: permissive — any direction, labels apply on whichever side matches.
-        # In practice most queries use explicit direction; the undirected case is unusual
-        # and we defer supporting it in combination with aggregation to a future iteration.
-        raise SearchExecutionError(
-            "Undirected edge patterns are not supported by the aggregation executor; use -> or <-."
-        )
+            filters[f"{right_path}__entity_type"] = right.label
+
+    if filters:
+        qs = qs.filter(**filters)
 
     return qs
 
@@ -806,16 +933,18 @@ def _apply_not_exists(
     """Apply a NOT EXISTS clause to the outer queryset via a correlated Exists subquery."""
     from django.db.models import Exists, OuterRef
 
+    from django.db.models import F
+
     if len(nec.match_clause.patterns) != 1:
         raise SearchExecutionError("NOT EXISTS subqueries require exactly one pattern.")
     inner_pattern = nec.match_clause.patterns[0]
-    if len(inner_pattern.edges) != 1:
+    if len(inner_pattern.edges) == 0:
         raise SearchExecutionError(
-            "NOT EXISTS subqueries currently support single-hop inner patterns only."
+            "NOT EXISTS subqueries require at least one edge in the inner pattern."
         )
 
     inner_bindings = _build_var_bindings(inner_pattern)
-    inner_qs = _build_hop_queryset(inner_pattern, 0, db_alias)
+    inner_qs = _build_chain_queryset(inner_pattern, db_alias)
 
     # Correlation: for every variable shared between outer and inner bindings,
     # constrain the inner's ORM path to equal OuterRef of the outer's path.
@@ -824,13 +953,26 @@ def _apply_not_exists(
         raise SearchExecutionError(
             "NOT EXISTS subqueries must share at least one variable with the outer pattern."
         )
+
+    # Pre-annotate outer qs with F-aliases for each shared variable's entity_id.
+    # Without this, OuterRef on a multi-hop reverse-FK path (e.g. "to_entity__
+    # edges_out__to_entity_id") causes Django to add a *second* JOIN rather than
+    # reuse the chain's existing one — duplicating rows in the outer count.
+    outer_alias_map: dict[str, str] = {}
+    outer_annotations: dict[str, Any] = {}
+    for var in shared:
+        outer_bind = outer_bindings[var]
+        outer_path = _orm_path_for_field(outer_bind, "entity_id")
+        alias = f"_corr_{var}_id"
+        outer_annotations[alias] = F(outer_path)
+        outer_alias_map[var] = alias
+    if outer_annotations:
+        outer_qs = outer_qs.annotate(**outer_annotations)
+
     for var in shared:
         inner_bind = inner_bindings[var]
-        outer_bind = outer_bindings[var]
-        # Correlate on entity_id (the FK column); both sides use the FK lookup.
         inner_path = _orm_path_for_field(inner_bind, "entity_id")
-        outer_path = _orm_path_for_field(outer_bind, "entity_id")
-        inner_qs = inner_qs.filter(**{inner_path: OuterRef(outer_path)})
+        inner_qs = inner_qs.filter(**{inner_path: OuterRef(outer_alias_map[var])})
 
     # Apply the inner WHERE predicates.
     inner_qs = _apply_predicate_to_qs(
@@ -864,14 +1006,9 @@ def _execute_advanced(
         raise SearchExecutionError(
             "Aggregation executor requires at least one edge in the MATCH pattern."
         )
-    if len(pattern.edges) > 1:
-        raise SearchExecutionError(
-            "Multi-hop aggregation patterns are grammar-accepted but not yet implemented in the "
-            "executor. File a follow-up spec extension."
-        )
 
     bindings = _build_var_bindings(pattern)
-    qs = _build_hop_queryset(pattern, 0, db_alias)
+    qs = _build_chain_queryset(pattern, db_alias)
 
     # Outer WHERE predicates.
     qs = _apply_predicate_to_qs(
@@ -888,7 +1025,19 @@ def _execute_advanced(
     # Compute rows.
     rows = _compute_rows(qs, ast.return_clause, bindings)
 
-    return {"nodes": [], "edges": [], "rows": rows}
+    envelope: dict[str, Any] = {"nodes": [], "edges": [], "rows": rows}
+
+    # Warn when a multi-hop query has no outer WHERE anchor — the chain may scan
+    # the full graph. Callers should add an anchor or a LIMIT. (spec-grid-gryphon-multihop)
+    if len(pattern.edges) > 1 and ast.where_clause is None:
+        envelope["warnings"] = {
+            "multi_hop_no_anchor": (
+                "Multi-hop MATCH has no WHERE anchor; this may scan the full graph. "
+                "Add a WHERE predicate or a LIMIT for better performance."
+            )
+        }
+
+    return envelope
 
 
 def _compute_rows(
@@ -896,8 +1045,15 @@ def _compute_rows(
     return_clause: ReturnClause,
     bindings: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Execute the queryset and produce row dicts honoring RETURN aliases and aggregates."""
-    from django.db.models import Count
+    """Execute the queryset and produce row dicts honoring RETURN aliases and aggregates.
+
+    All RETURN columns are first annotated as F-aliases on the queryset, then
+    referenced by alias in ``.values()`` / ``Count(...)``. This forces Django to
+    reuse the JOIN aliases established by ``_build_chain_queryset`` rather than
+    adding duplicate JOINs for each references — the fix for multi-hop COUNT
+    inflation.
+    """
+    from django.db.models import Count, F
 
     items = return_clause.items
     if items is None:
@@ -916,9 +1072,14 @@ def _compute_rows(
         else:
             raise SearchExecutionError(f"Unexpected RETURN item type: {type(item).__name__}")
 
-    # Resolve field items to ORM column paths.
-    group_by_cols: list[tuple[str, str]] = []  # (orm_path, alias)
-    for fi in field_items:
+    # Annotations are namespaced under internal aliases so user-facing RETURN
+    # aliases (which may be any NAME including model-field names like `id`)
+    # cannot collide with Django-internal annotation slots or model columns.
+    group_by_pairs: list[tuple[str, str]] = []  # (internal_alias, user_alias)
+    aggregate_pairs: list[tuple[str, str]] = []  # (internal_agg_alias, user_alias)
+    annotations: dict[str, Any] = {}
+
+    for idx, fi in enumerate(field_items):
         fp: FieldPath = fi.path
         if fp.variable not in bindings:
             raise SearchExecutionError(f"Unknown variable '{fp.variable}' in RETURN.")
@@ -926,53 +1087,58 @@ def _compute_rows(
             raise SearchExecutionError("RETURN field paths support single dot-step only in v1.")
         field_name = fp.steps[0].name
         orm_path = _orm_path_for_field(bindings[fp.variable], field_name)
-        alias = fi.alias or field_name
-        group_by_cols.append((orm_path, alias))
+        user_alias = fi.alias or field_name
+        internal = f"_g_col_{idx}"
+        annotations[internal] = F(orm_path)
+        group_by_pairs.append((internal, user_alias))
 
-    # Resolve aggregate items.
     aggregate_annotations: dict[str, Any] = {}
-    for ai in aggregate_items:
+    for idx, ai in enumerate(aggregate_items):
         agg: AggregateCall = ai.aggregate
         if agg.function != "count":
             raise SearchExecutionError(f"Unsupported aggregate function: {agg.function}")
         arg: FieldPath = agg.argument
         if arg.variable not in bindings:
             raise SearchExecutionError(f"Unknown variable '{arg.variable}' in COUNT().")
-        # For COUNT(var), count by the variable's entity_id; for COUNT(var.field), count that field.
         if len(arg.steps) == 0:
             count_col = _orm_path_for_field(bindings[arg.variable], "entity_id")
         elif len(arg.steps) == 1 and isinstance(arg.steps[0], DotStep):
             count_col = _orm_path_for_field(bindings[arg.variable], arg.steps[0].name)
         else:
             raise SearchExecutionError("COUNT argument must be a bare variable or single dot-step.")
-        aggregate_annotations[ai.alias] = Count(count_col)
+        src_alias = f"_g_count_src_{idx}"
+        agg_alias = f"_g_agg_{idx}"
+        annotations[src_alias] = F(count_col)
+        aggregate_annotations[agg_alias] = Count(src_alias)
+        aggregate_pairs.append((agg_alias, ai.alias))
+
+    if annotations:
+        qs = qs.annotate(**annotations)
+
+    group_by_internals = [i for i, _ in group_by_pairs]
 
     if aggregate_annotations:
-        # GROUP BY: the .values() columns become the group keys.
-        value_names = [orm for orm, _ in group_by_cols]
-        qs = qs.values(*value_names).annotate(**aggregate_annotations).order_by(*value_names)
+        qs = qs.values(*group_by_internals).annotate(**aggregate_annotations).order_by(*group_by_internals)
         raw_rows = list(qs)
-        # Map ORM column names back to RETURN aliases.
         rows: list[dict[str, Any]] = []
         for raw in raw_rows:
             row: dict[str, Any] = {}
-            for orm, alias in group_by_cols:
-                val = raw.get(orm)
-                row[alias] = str(val) if hasattr(val, "hex") else val
-            for ai in aggregate_items:
-                row[ai.alias] = raw.get(ai.alias)
+            for internal, user in group_by_pairs:
+                val = raw.get(internal)
+                row[user] = str(val) if hasattr(val, "hex") else val
+            for internal, user in aggregate_pairs:
+                row[user] = raw.get(internal)
             rows.append(row)
         return rows
 
-    # No aggregation — just project fields per row.
-    value_names = [orm for orm, _ in group_by_cols]
-    raw_rows = list(qs.values(*value_names))
+    # No aggregation — project group-by aliases as rows.
+    raw_rows = list(qs.values(*group_by_internals))
     rows = []
     for raw in raw_rows:
         row = {}
-        for orm, alias in group_by_cols:
-            val = raw.get(orm)
-            row[alias] = str(val) if hasattr(val, "hex") else val
+        for internal, user in group_by_pairs:
+            val = raw.get(internal)
+            row[user] = str(val) if hasattr(val, "hex") else val
         rows.append(row)
     return rows
 
