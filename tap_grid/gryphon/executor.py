@@ -1091,6 +1091,86 @@ def _collect_graph_envelope(
     return {"nodes": nodes_out, "edges": edges_out, "rows": []}
 
 
+def _filter_predicate_for_bindings(
+    predicate: Predicate | None,
+    bindings: dict[str, dict[str, Any]],
+) -> Predicate | None:
+    """Return only the parts of a predicate tree whose variables exist in bindings.
+
+    Comparisons referencing unknown variables are dropped. AND nodes are
+    reconstructed from surviving children; if both children are dropped the
+    AND itself is dropped. OR and NOT predicates with unknown variables are
+    dropped entirely (conservative — avoids incorrect disjunction scoping).
+    """
+    if predicate is None:
+        return None
+    if isinstance(predicate, Comparison):
+        if predicate.field_path.variable in bindings:
+            return predicate
+        return None
+    if isinstance(predicate, AndPred):
+        left = _filter_predicate_for_bindings(predicate.left, bindings)
+        right = _filter_predicate_for_bindings(predicate.right, bindings)
+        if left is not None and right is not None:
+            return AndPred(left, right)
+        return left or right
+    # OR / NOT with unknown variables: drop to avoid incorrect semantics.
+    if isinstance(predicate, OrPred):
+        left = _filter_predicate_for_bindings(predicate.left, bindings)
+        right = _filter_predicate_for_bindings(predicate.right, bindings)
+        if left is not None and right is not None:
+            return OrPred(left, right)
+        return None
+    if isinstance(predicate, NotPred):
+        inner = _filter_predicate_for_bindings(predicate.operand, bindings)
+        if inner is not None:
+            return NotPred(inner)
+        return None
+    return None
+
+
+def _build_clause_queryset(
+    mc: MatchClause,
+    ast: GryphonAST,
+    inputs: dict[str, Any],
+    db_alias: str,
+) -> tuple[Any, PathPattern, dict[str, dict[str, Any]]]:
+    """Build a filtered queryset for a single advanced MATCH clause.
+
+    WHERE predicates are filtered to include only comparisons whose variables
+    exist in this clause's bindings, allowing a shared WHERE to work across
+    UNION multi-hop clauses with different variable sets.
+
+    Returns (queryset, pattern, bindings).
+    """
+    if len(mc.patterns) != 1:
+        raise SearchExecutionError(
+            "Advanced executor requires exactly one pattern per MATCH clause."
+        )
+    pattern = mc.patterns[0]
+    if len(pattern.edges) == 0:
+        raise SearchExecutionError(
+            "Advanced executor requires at least one edge in the MATCH pattern."
+        )
+
+    bindings = _build_var_bindings(pattern)
+    qs = _build_chain_queryset(pattern, db_alias)
+
+    # Filter WHERE predicate to only include comparisons on variables bound
+    # in this clause. This allows UNION queries where each MATCH clause
+    # declares different variables but shares a global WHERE.
+    applicable_pred = _filter_predicate_for_bindings(
+        ast.where_clause.predicate if ast.where_clause else None,
+        bindings,
+    )
+    qs = _apply_predicate_to_qs(qs, applicable_pred, bindings, inputs)
+
+    for nec in ast.not_exists_clauses:
+        qs = _apply_not_exists(qs, nec, bindings, inputs, db_alias)
+
+    return qs, pattern, bindings
+
+
 def _execute_advanced(
     ast: GryphonAST,
     inputs: dict[str, Any],
@@ -1098,58 +1178,77 @@ def _execute_advanced(
     db_alias: str,
     layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
-    """Route through the v2 aggregation/anti-join/multi-hop path."""
-    if len(ast.match_clauses) != 1:
+    """Route through the v2 aggregation/anti-join/multi-hop path.
+
+    Supports multiple MATCH clauses with UNION semantics in graph envelope
+    mode. Row projection (field paths / aggregates) requires a single clause.
+    """
+    is_envelope = _is_graph_envelope_return(ast.return_clause)
+
+    # Row projection mode requires a single MATCH clause (bindings are clause-specific).
+    if not is_envelope and len(ast.match_clauses) != 1:
         raise SearchExecutionError(
-            "Aggregation executor currently supports exactly one top-level MATCH clause."
-        )
-    mc = ast.match_clauses[0]
-    if len(mc.patterns) != 1:
-        raise SearchExecutionError(
-            "Aggregation executor currently supports exactly one pattern per MATCH clause."
-        )
-    pattern = mc.patterns[0]
-    if len(pattern.edges) == 0:
-        raise SearchExecutionError(
-            "Aggregation executor requires at least one edge in the MATCH pattern."
+            "Row projection with field paths or aggregates requires exactly one "
+            "top-level MATCH clause in the advanced executor."
         )
 
-    bindings = _build_var_bindings(pattern)
-    qs = _build_chain_queryset(pattern, db_alias)
+    # --- Graph envelope with UNION across multiple MATCH clauses ---
+    if is_envelope:
+        from tap_grid.models import Edge, Entity
 
-    # Outer WHERE predicates.
-    qs = _apply_predicate_to_qs(
-        qs,
-        ast.where_clause.predicate if ast.where_clause else None,
-        bindings,
-        inputs,
-    )
+        all_node_pks: set[str] = set()
+        all_edge_entity_ids: set[str] = set()
 
-    # NOT EXISTS clauses.
-    for nec in ast.not_exists_clauses:
-        qs = _apply_not_exists(qs, nec, bindings, inputs, db_alias)
+        for mc in ast.match_clauses:
+            qs, pattern, bindings = _build_clause_queryset(mc, ast, inputs, db_alias)
+            envelope = _collect_graph_envelope(
+                qs, pattern, ast.return_clause, bindings, layer="lite", db_alias=db_alias,
+            )
+            # Collect PKs from the lite-layer results for dedup before final serialize.
+            for n in envelope["nodes"]:
+                all_node_pks.add(str(n["entity_id"]))
+            for e in envelope["edges"]:
+                all_edge_entity_ids.add(str(e["entity_id"]))
 
-    # Graph envelope mode: no RETURN or bare-variable RETURN.
-    if _is_graph_envelope_return(ast.return_clause):
-        envelope = _collect_graph_envelope(
-            qs, pattern, ast.return_clause, bindings, layer=layer, db_alias=db_alias,
+        # Bulk-fetch and serialize at the requested layer.
+        entities = list(Entity.objects.using(db_alias).filter(pk__in=all_node_pks)) if all_node_pks else []
+        edges = (
+            list(
+                Edge.objects.using(db_alias)
+                .filter(entity_id__in=all_edge_entity_ids)
+                .select_related("entity")
+            )
+            if all_edge_entity_ids
+            else []
         )
-        if len(pattern.edges) > 1 and ast.where_clause is None:
-            envelope["warnings"] = {
+
+        nodes_out = _serialize_entity_nodes(entities, layer, db_alias)
+        edges_out = _serialize_edge_list(edges, layer, db_alias)
+
+        result: dict[str, Any] = {"nodes": nodes_out, "edges": edges_out, "rows": []}
+
+        has_unanchored_multihop = any(
+            len(mc.patterns[0].edges) > 1
+            for mc in ast.match_clauses
+            if len(mc.patterns) == 1
+        ) and ast.where_clause is None
+        if has_unanchored_multihop:
+            result["warnings"] = {
                 "multi_hop_no_anchor": (
                     "Multi-hop MATCH has no WHERE anchor; this may scan the full graph. "
                     "Add a WHERE predicate or a LIMIT for better performance."
                 )
             }
-        return envelope
+        return result
 
-    # Row projection mode: field projections and/or aggregates.
+    # --- Single-clause row projection / aggregation ---
+    mc = ast.match_clauses[0]
+    qs, pattern, bindings = _build_clause_queryset(mc, ast, inputs, db_alias)
+
     rows = _compute_rows(qs, ast.return_clause, bindings)
 
     envelope: dict[str, Any] = {"nodes": [], "edges": [], "rows": rows}
 
-    # Warn when a multi-hop query has no outer WHERE anchor — the chain may scan
-    # the full graph. Callers should add an anchor or a LIMIT. (spec-grid-gryphon-multihop)
     if len(pattern.edges) > 1 and ast.where_clause is None:
         envelope["warnings"] = {
             "multi_hop_no_anchor": (
