@@ -55,7 +55,7 @@ function _darken(hex, factor) {
  * @param {number} [opts.uniformBadgeSize] Shared diameter; falls back to computing across all nodes.
  * @param {number} [opts.badgeRatio]
  * @param {number} [opts.minBadgeSize]
- * @returns {{ destroy: Function }}
+ * @returns {{ ready: Promise, destroy: Function }}
  */
 export function applyStatusBadges(cy, statusBadgesConfig, opts = {}) {
     const noop = {destroy: () => {}};
@@ -88,7 +88,9 @@ export function applyStatusBadges(cy, statusBadgesConfig, opts = {}) {
 
     // Kick off the initial render pass. Population may be async (search-backed),
     // so the initial call is promise-based and the stale marker engages on failure.
-    _renderPass(state)
+    // The ready promise is exposed so callers can await badge creation before
+    // running cascade reveal.
+    const readyPromise = _renderPass(state)
         .then(() => _setStale(state, false))
         .catch((err) => {
             console.warn("[status-badges] initial render failed:", err);
@@ -115,6 +117,7 @@ export function applyStatusBadges(cy, statusBadgesConfig, opts = {}) {
     }
 
     return {
+        ready: readyPromise,
         destroy: () => {
             cy.off("position", "node[_status_host_active]", onHostPosition);
             if (state.intervalId) {

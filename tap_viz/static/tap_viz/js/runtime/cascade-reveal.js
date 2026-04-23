@@ -68,10 +68,18 @@ export function cascadeReveal(cy, opts = {}) {
                         {style: {opacity: targetOpacity}},
                         {duration: fadeDuration, easing: "ease-out"}
                     );
-                    // Fade in the badge alongside its host node.
+                    // Fade in the type icon badge alongside its host node.
                     const badge = cy.getElementById("badge:" + node.id());
                     if (badge.length > 0) {
                         badge.animate(
+                            {style: {opacity: 1}},
+                            {duration: fadeDuration, easing: "ease-out"}
+                        );
+                    }
+                    // Fade in status badges alongside their host node.
+                    const statusBadges = cy.nodes(`[_status_host = "${node.id()}"]`);
+                    if (statusBadges.length > 0) {
+                        statusBadges.animate(
                             {style: {opacity: 1}},
                             {duration: fadeDuration, easing: "ease-out"}
                         );

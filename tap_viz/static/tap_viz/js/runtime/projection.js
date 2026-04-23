@@ -133,6 +133,11 @@ export async function initProjection(cy, projection, opts = {}) {
             state.statusBadgesHandle = applyStatusBadges(cy, projection.status_badges, {
                 uniformBadgeSize: sharedBadgeSize,
             });
+            // Wait for the initial population pass to complete so badges exist
+            // before cascade reveal zeros and animates all nodes.
+            if (triggerReason === "initial_load" && state.statusBadgesHandle.ready) {
+                await state.statusBadgesHandle.ready;
+            }
         }
 
         // Re-init shadow interaction listeners after layout.
