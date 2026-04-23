@@ -51,6 +51,49 @@ _PROJECTION_DEFINITION_SCHEMA: dict = {
             "type": "string",
             "enum": ["default", "icon-badge"],
         },
+        "status_badges": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "refresh_seconds": {"type": "number", "minimum": 0},
+                "badge_sets": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["name", "color", "population"],
+                        "additionalProperties": False,
+                        "properties": {
+                            "name": {"type": "string", "minLength": 1},
+                            "color": {"type": "string", "minLength": 1},
+                            "text_color": {"type": "string", "minLength": 1},
+                            "population": {
+                                "type": "object",
+                                "required": ["type"],
+                                "additionalProperties": True,
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "enum": ["static_by_node_type"],
+                                    },
+                                    "rules": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "required": ["entity_type", "count"],
+                                            "additionalProperties": False,
+                                            "properties": {
+                                                "entity_type": {"type": "string", "minLength": 1},
+                                                "count": {"type": "integer", "minimum": 0},
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
         "min_zoom": {
             "oneOf": [
                 {"type": "string", "enum": ["fit"]},

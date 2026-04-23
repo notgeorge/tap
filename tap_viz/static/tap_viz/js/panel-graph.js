@@ -565,6 +565,42 @@ function initGraph(panelId) {
                 },
             },
             {
+                // Status badges: filled circles at the upper-right corner of
+                // host nodes showing a numeric count. Fill, text, and border
+                // colors are driven per-set through data attributes set by
+                // status-badges.js. The border is a darker related shade of
+                // the fill, computed client-side. Non-interactive.
+                selector: "node[_is_status_badge]",
+                style: {
+                    "shape": "ellipse",
+                    "background-color": "data(_status_fill)",
+                    "background-opacity": 1,
+                    "background-image": "none",
+                    "border-width": 1,
+                    "border-color": "data(_status_border)",
+                    "border-style": "solid",
+                    "color": "data(_status_text)",
+                    "label": "data(_status_count_label)",
+                    "text-valign": "center",
+                    "text-halign": "center",
+                    "text-margin-x": 0,
+                    "text-margin-y": 0,
+                    "font-size": 11,
+                    "font-weight": "bold",
+                    "events": "no",
+                    "z-index": 999,
+                },
+            },
+            {
+                // Stale marker: dashed grey border overrides the default
+                // solid, set-colored border when a refresh has failed.
+                selector: "node[_is_status_badge][?_status_stale]",
+                style: {
+                    "border-style": "dashed",
+                    "border-color": "#94a3b8",
+                },
+            },
+            {
                 // Host nodes in badge mode: icon removed from body, label centered.
                 selector: "node[_badge_active]",
                 style: {

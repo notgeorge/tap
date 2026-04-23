@@ -41,6 +41,8 @@ export async function initProjection(cy, projection, opts = {}) {
         activeElevation: null,
         transitionLock: false,
         shadowInteractionHandle: null,
+        statusBadgesHandle: null,
+        typeBadgesHandle: null,
         // After a commanded transition, anchorZoom pins the zoom watcher to
         // the current elevation so small user scroll movements don't
         // immediately override it. Cleared when the user zooms far enough
@@ -108,9 +110,29 @@ export async function initProjection(cy, projection, opts = {}) {
         await runLayoutsSerially(elevation, context);
 
         // Apply type icon badges after layout settles positions.
+        if (state.typeBadgesHandle) {
+            state.typeBadgesHandle.destroy();
+            state.typeBadgesHandle = null;
+        }
+        let sharedBadgeSize = 0;
         if (nodeStyle === "icon-badge") {
             const {applyBadgeNodes} = await import("./badge-nodes.js");
-            applyBadgeNodes(cy);
+            state.typeBadgesHandle = applyBadgeNodes(cy);
+            sharedBadgeSize = state.typeBadgesHandle.uniformBadgeSize || 0;
+        }
+
+        // Apply status badges (alert, warn, ...) if configured on the
+        // projection. Independent of node_style; shares badge diameter with
+        // the type icon pass when that pass is active.
+        if (state.statusBadgesHandle) {
+            state.statusBadgesHandle.destroy();
+            state.statusBadgesHandle = null;
+        }
+        if (projection.status_badges) {
+            const {applyStatusBadges} = await import("./status-badges.js");
+            state.statusBadgesHandle = applyStatusBadges(cy, projection.status_badges, {
+                uniformBadgeSize: sharedBadgeSize,
+            });
         }
 
         // Re-init shadow interaction listeners after layout.
@@ -252,6 +274,14 @@ export async function initProjection(cy, projection, opts = {}) {
             if (state.dragGroupHandle) {
                 state.dragGroupHandle.destroy();
                 state.dragGroupHandle = null;
+            }
+            if (state.statusBadgesHandle) {
+                state.statusBadgesHandle.destroy();
+                state.statusBadgesHandle = null;
+            }
+            if (state.typeBadgesHandle) {
+                state.typeBadgesHandle.destroy();
+                state.typeBadgesHandle = null;
             }
         },
     };

@@ -15,6 +15,32 @@
 const BADGE_ID_PREFIX = "badge:";
 
 /**
+ * Compute the uniform badge diameter for a collection of host nodes using
+ * the "smallest host wins" rule. Exported so status badges can share the
+ * same diameter as type icon badges at a given elevation.
+ *
+ * @param {cytoscape.Collection} hosts
+ * @param {Object} [opts]
+ * @param {number} [opts.badgeRatio=0.35]
+ * @param {number} [opts.minBadgeSize=24]
+ * @returns {number}
+ */
+export function computeUniformBadgeSize(hosts, opts = {}) {
+    const badgeRatio = opts.badgeRatio || 0.35;
+    const minBadgeSize = opts.minBadgeSize || 24;
+    let smallestMin = Infinity;
+    hosts.forEach((host) => {
+        const w = host.width();
+        const h = host.height();
+        const hostMin = Math.min(w, h);
+        if (hostMin > 0 && hostMin < smallestMin) smallestMin = hostMin;
+    });
+    return smallestMin === Infinity
+        ? minBadgeSize
+        : Math.max(minBadgeSize, smallestMin * badgeRatio);
+}
+
+/**
  * Apply type icon badges to all visible nodes that have an icon_url.
  *
  * Call this AFTER layout completes so host node positions and dimensions
@@ -24,12 +50,9 @@ const BADGE_ID_PREFIX = "badge:";
  * @param {Object} [opts]
  * @param {number} [opts.badgeRatio=0.35] Badge diameter as fraction of the smallest host's shorter dimension.
  * @param {number} [opts.minBadgeSize=24] Minimum uniform badge diameter in model units.
- * @returns {{ destroy: Function }} Cleanup handle.
+ * @returns {{ destroy: Function, uniformBadgeSize: number }} Cleanup handle + computed diameter.
  */
 export function applyBadgeNodes(cy, opts = {}) {
-    const badgeRatio = opts.badgeRatio || 0.35;
-    const minBadgeSize = opts.minBadgeSize || 24;
-
     // Clean up any previous badge pass.
     _removeBadges(cy);
 
@@ -39,23 +62,11 @@ export function applyBadgeNodes(cy, opts = {}) {
         return url && url !== "" && !n.data("_is_badge");
     });
 
-    if (hosts.length === 0) return {destroy: () => _removeBadges(cy)};
+    if (hosts.length === 0) {
+        return {destroy: () => _removeBadges(cy), uniformBadgeSize: 0};
+    }
 
-    // Uniform sizing rule: all badges at a given elevation are the same size.
-    // The rule ("smallest host wins") picks the smallest host's shorter
-    // dimension and scales every badge off of that, so no badge visually
-    // dominates any host regardless of how big the outer containers are.
-    let smallestMin = Infinity;
-    hosts.forEach((host) => {
-        const w = host.width();
-        const h = host.height();
-        const hostMin = Math.min(w, h);
-        if (hostMin > 0 && hostMin < smallestMin) smallestMin = hostMin;
-    });
-    const uniformBadgeSize =
-        smallestMin === Infinity
-            ? minBadgeSize
-            : Math.max(minBadgeSize, smallestMin * badgeRatio);
+    const uniformBadgeSize = computeUniformBadgeSize(hosts, opts);
 
     const badgeElements = [];
 
@@ -121,6 +132,7 @@ export function applyBadgeNodes(cy, opts = {}) {
             cy.off("position", "node[_badge_active]", onHostPosition);
             _removeBadges(cy);
         },
+        uniformBadgeSize,
     };
 }
 
