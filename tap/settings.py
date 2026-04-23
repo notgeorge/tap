@@ -84,6 +84,8 @@ INSTALLED_APPS = [
     "plugins.administrivia.apps.AdministriviaConfig",
     # LOTR plugin — Middle-earth entities for constraint testing
     "plugins.lotr.apps.LotrConfig",
+    # Computing Core plugin — vendor-neutral computing primitives
+    "plugins.computing_core.apps.ComputingCoreConfig",
     # AWS Core plugin — resource-type models for AWS cloud infrastructure
     "plugins.aws_core.apps.AwsCoreConfig",
     # Genericom plugin — demonstration AWS environment built on aws_core
