@@ -26,7 +26,7 @@ This separation is deliberate. The file format should stay stable and portable, 
 | req-grid-import-grift-identity | [Identity And Matching](#identity-and-matching) | Implemented | Entity and batch identity rules |
 | req-grid-import-grift-batch | [Batch Execution](#batch-execution) | Implemented | Per-batch transactional import behavior |
 | req-grid-import-grift-force-reimport | [Force Re-Import](#force-re-import) | Proposed | Explicit bypass of the skip-if-exists batch guard, DEBUG-gated |
-| req-grid-import-grift-batch-scoped-sweep | [Batch-Scoped Sweep](#batch-scoped-sweep) | Proposed | Tombstone orphaned entities created by a force-reimported batch |
+| req-grid-import-grift-batch-scoped-sweep | [Batch-Scoped Sweep](#batch-scoped-sweep) | Proposed | Tombstone orphaned entities created by a force-reimported batch; optional strict mode aborts on any guardrail miss |
 | req-grid-import-grift-sweep-purge | [Sweep Purge](#sweep-purge) | Proposed | Hard-delete escalation of batch-scoped sweep, DEBUG-gated |
 | req-grid-import-grift-dangling | [Dangling Edge Modes](#dangling-edge-modes) | Implemented | Strict and permissive handling |
 | req-grid-import-grift-provenance | [Import-Side Provenance](#import-side-provenance) | Implemented | Local actor/history behavior |
@@ -162,9 +162,11 @@ This is the escape valve promised by *"Future versions may add content-hash or s
 
 ### Environment Gate
 
-- Force re-import must be refused outside `DEBUG=True` (or an equivalent settings flag controlled by the operator).
-- Refusal must surface as a clear error distinguishing "disabled in this environment" from "batch not found," so an operator can see what went wrong without guessing.
-- The gate is not a security boundary — an operator who can flip `DEBUG` can already read and write the database directly. The gate exists to prevent accidental use of dev ergonomics in production deploy scripts.
+**Invariant:** Force re-import is permitted if and only if Django's `DEBUG` setting is `True` at the moment of invocation. There is no alternate flag, override, settings key, environment variable, or command-line argument that enables it in any other configuration. This invariant is binding on every requirement that builds on force re-import (`req-grid-import-grift-batch-scoped-sweep`, `req-grid-import-grift-sweep-purge`).
+
+- When `DEBUG` is `False`, the importer must refuse the invocation with a dedicated error code (e.g. `force_reimport_refused_production`) distinct from "batch not found" or "invalid argument" errors, so the operator can see exactly why it was rejected.
+- The gate is not a security boundary — an operator who can flip `DEBUG` can already read and write the database directly. The gate exists solely to prevent accidental use of dev ergonomics in production deploy scripts. It is not a substitute for deployment discipline and must not be treated as one.
+- Future proposals to relax or conditionally bypass this gate (e.g. "staging environments should allow force re-import") must land as explicit, named requirements. This requirement does not anticipate such cases.
 
 ### Audit Trail
 
@@ -219,12 +221,34 @@ The two guardrails are independent. A candidate skipped by A is reported under r
 
 Swept entities are tombstoned via the service-layer delete path (`Entity.deleted_at`, with cascade to connected edges per the standard tombstone semantics). History rows are preserved. Edges attached to the swept entity that originated in this same batch are tombstoned in the cascade.
 
+### Strict Mode
+
+The importer must expose an optional `--sweep-strict` flag that changes when the sweep executes, not what it does. In strict mode, **any candidate that would fail either guardrail aborts the entire force re-import before any writes occur**.
+
+**Invocation:**
+
+- `--sweep-strict` is only meaningful alongside `--force-batches`. Passing it without force re-import is an invocation error.
+- Orthogonal to `--purge` — the two flags combine cleanly. `--force-batches=<id> --sweep-strict --purge` means *"hard-delete the orphans, but only if I can do so cleanly."*
+- Inherits the `DEBUG=True` invariant from `req-grid-import-grift-force-reimport`; no additional gate required.
+
+**Execution:**
+
+- Sweep candidates are computed and guardrails evaluated as usual.
+- If **any** candidate fails Guardrail A or Guardrail B, the entire force re-import aborts. No node upserts, no edge upserts, no tombstones, no purges are written. The database state is unchanged.
+- If all candidates pass both guardrails (or if there are no candidates), the force re-import proceeds exactly as it would have without `--sweep-strict`.
+- The abort surfaces as a dedicated error code (e.g. `sweep_strict_aborted`) with a structured report of every candidate that would have been skipped and its reason.
+
+**Rationale:**
+
+Default sweep behavior (skip-with-report) favors completing the operation and surfacing the skips afterward. That's the right default for normal iteration. Strict mode inverts the tradeoff: when the operator expects a clean sweep ("this batch is fully mine, nothing external has touched it"), a silent partial success is worse than no change at all, because it leaves the grid in an ambiguous half-applied state. Strict mode refuses to create that state and forces the operator to resolve ownership or reference issues first.
+
 ### Reporting
 
 The importer's force-reimport report must include:
 
 - `swept_entities`: list of `{entity_id, entity_type, reason: "orphaned"}` objects for entities tombstoned
 - `sweep_skipped`: list of `{entity_id, entity_type, reason}` objects for candidates that failed a guardrail, with reason codes from the guardrail text above
+- `sweep_strict_aborted`: boolean; `true` if `--sweep-strict` was set and the run aborted due to skipped candidates. When `true`, `swept_entities` must be empty and `sweep_skipped` carries the full list of offending candidates.
 
 ### Non-Goals
 
@@ -250,12 +274,15 @@ An optional escalation of `req-grid-import-grift-batch-scoped-sweep` that replac
 
 ### Environment Gate
 
-- `--purge` must be refused outside `DEBUG=True`, same as the force re-import gate. Refusal must be distinct from missing-flag errors.
-- `--purge` in production is never valid, regardless of flag combinations. The grid invariant that "history is preserved" is protected by this gate.
+**Invariant:** `--purge` is permitted if and only if Django's `DEBUG` setting is `True` at the moment of invocation. This is the same binding invariant as `req-grid-import-grift-force-reimport`'s environment gate, applied independently here so there is no ambiguity when reading this requirement in isolation. There is no alternate flag, override, settings key, environment variable, or command-line argument that enables `--purge` in any other configuration.
+
+- When `DEBUG` is `False`, passing `--purge` must surface a dedicated error code (e.g. `sweep_purge_refused_production`) distinct from other refusal or invocation errors.
+- The grid invariant that "history is preserved" is protected by this gate. `--purge` is the single exception to that invariant and is bounded by this requirement alone; no other requirement may delegate hard-delete behavior to this one without its own explicit gate.
+- Future proposals to relax this gate must land as explicit, named requirements. This requirement does not anticipate such cases.
 
 ### Guardrails
 
-The purge uses **exactly the same guardrails** as the default sweep (Ownership and Referential Integrity). Purge does not relax or bypass either. A candidate that fails a guardrail is skipped in both modes with the same reason code.
+The purge uses **exactly the same guardrails** as the default sweep (Ownership and Referential Integrity) and **exactly the same strict-mode semantics** if `--sweep-strict` is also set. Purge does not relax or bypass either guardrail, and does not alter strict-mode's abort behavior. A candidate that fails a guardrail is skipped in both modes with the same reason code; if `--sweep-strict` and `--purge` are both set and any candidate fails, the entire run aborts before any writes.
 
 ### Hard-Delete Action
 
