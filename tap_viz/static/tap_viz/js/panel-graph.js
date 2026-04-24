@@ -664,18 +664,20 @@ function initGraph(panelId) {
             },
             {
                 // Shadow group hover highlight: increased opacity on shadows,
-                // brighter link color, subtle outline on primary.
+                // thicker border on primary, brighter shadow-link edges. Node
+                // borders keep their own hue-matched data(border_color); only
+                // the connecting dashed lines shift to a neutral indigo to
+                // signal which group is active across differently-colored
+                // nodes.
                 selector: "node[_is_shadow].tap-shadow-highlight",
                 style: {
                     "opacity": 0.9,
-                    "border-color": "#6366f1",
                     "border-width": 3,
                 },
             },
             {
                 selector: "node[_shadow_role='primary'].tap-shadow-highlight",
                 style: {
-                    "border-color": "#6366f1",
                     "border-width": 3,
                 },
             },
