@@ -148,11 +148,10 @@ export async function execute(context) {
     });
 
     // --- Position interfaces (left column inside EC2) ---
+    // Interfaces are tall narrow containers with ports stacked vertically inside.
+    // Listening ports (solid circles) first, then a gap, then client ports (dashed).
     ifaces.forEach((iface, idx) => {
-        iface.style({width: 80, height: 140, "background-opacity": 0.15, "border-width": 1});
-        iface.position({x: L + 65, y: T + 90 + idx * 180});
-
-        // Find attached ports.
+        // Find attached ports first to size the interface.
         const ports = [];
         cy.edges(`[label = "ATTACHED_TO"]`).forEach((e) => {
             if (e.data("target") === iface.id() && relevant.has(e.data("source"))) {
@@ -162,26 +161,38 @@ export async function execute(context) {
         const listening = ports.filter((p) => p.data("port_number") != null)
             .sort((a, b) => (a.data("port_number") || 0) - (b.data("port_number") || 0));
         const client = ports.filter((p) => p.data("port_number") == null);
+        const totalPorts = listening.length + client.length;
+        const ifaceH = Math.max(80, totalPorts * 34 + (client.length > 0 ? 20 : 0) + 30);
+
+        iface.style({width: 55, height: ifaceH, "background-opacity": 0.12, "border-width": 1, "font-size": 9});
+        iface.position({x: L + 50, y: T + 80 + idx * (ifaceH + 30)});
 
         const px = iface.position().x;
-        let py = iface.position().y - 35;
-        listening.forEach((p, pi) => {
-            p.style({width: 26, height: 26, shape: "ellipse"});
-            p.position({x: px - 12 + pi * 32, y: py});
+        let py = iface.position().y - ifaceH / 2 + 24;
+
+        // Listening ports: solid circles, stacked vertically.
+        listening.forEach((p) => {
+            p.style({width: 24, height: 24, shape: "ellipse", "font-size": 8});
+            p.position({x: px, y: py});
+            py += 32;
         });
+
+        // Gap before client ports.
         if (client.length > 0) {
-            py += 55;
-            client.forEach((p, pi) => {
-                p.style({width: 22, height: 22, shape: "ellipse", "border-style": "dashed", "border-width": 2});
-                p.position({x: px - 12 + pi * 32, y: py});
+            py += 12;
+            client.forEach((p) => {
+                p.style({width: 20, height: 20, shape: "ellipse", "border-style": "dashed", "border-width": 2, "font-size": 7});
+                p.position({x: px, y: py});
+                py += 28;
             });
         }
     });
 
     // --- Position programs (center-top inside EC2) ---
+    // gunicorn at left-center, django at right-center, staggered vertically.
     programs.forEach((prog, idx) => {
-        prog.style({width: 120, height: 40, shape: "round-rectangle"});
-        prog.position({x: L + 260 + idx * 170, y: T + 80 + idx * 55});
+        prog.style({width: 130, height: 42, shape: "round-rectangle"});
+        prog.position({x: L + 220 + idx * 180, y: T + 70 + idx * 70});
     });
 
     // --- Position files (bottom row inside EC2) ---
@@ -249,12 +260,12 @@ export async function execute(context) {
     // --- TCP connections ---
     cy.nodes().filter((n) => n.data("entity_type") === "tcp_connection" && relevant.has(n.id()))
         .forEach((tcp) => {
-            tcp.style({width: 30, height: 30});
+            tcp.style({width: 28, height: 28});
             const name = (tcp.data("label") || "").toLowerCase();
             if (name.includes("alb")) {
-                tcp.position({x: EXT_L + 100, y: CY - 30});
+                tcp.position({x: EXT_L + 110, y: CY - 30});
             } else if (name.includes("gunicorn") && name.includes("django")) {
-                tcp.position({x: L + 340, y: T + 155});
+                tcp.position({x: L + 310, y: T + 120});
             } else if (name.includes("rds") || name.includes("5432")) {
                 tcp.position({x: EXT_R - 100, y: CY});
             } else if (name.includes("redis") || name.includes("6379")) {
@@ -288,13 +299,15 @@ export async function execute(context) {
         });
 
     // --- Edge styling: thick and dark for visibility ---
+    cy.edges().not(".tap-elevation-hidden").forEach((e) => {
+        e.data("label", "");  // Clear edge type label from data.
+    });
     cy.edges().not(".tap-elevation-hidden").style({
         width: 3,
         "line-color": "#334155",
         "target-arrow-color": "#334155",
         "target-arrow-shape": "triangle",
         "curve-style": "bezier",
-        "label": "",
     });
 
     // --- Fit viewport ---
