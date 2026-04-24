@@ -6,7 +6,7 @@
     "finding_intent": [
       {
         "slug": "genericom-alb-ec2-unencrypted-http",
-        "target_entity_id": "01980000-2000-7000-8000-000a00000006",
+        "target_entity_id": "01980000-2000-7000-8000-000a00000011",
         "summary": "TCP connection from ALB to EC2 web-a uses unencrypted HTTP on port 80.",
         "spec_ref": "req-genericom-demo-findings-2"
       }
@@ -17,13 +17,13 @@
       "batch_entity": {
         "entity_id": "01980000-2000-7000-8000-000000000001",
         "entity_type": "batch",
-        "name": "Genericom EC2 internals v0.1.0",
+        "name": "Genericom EC2 internals v0.2.0",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.genericom",
-        "name": "Genericom EC2 internals v0.1.0",
-        "description": "Computing-core internals for both Genericom EC2 web instances: interfaces, IPs, ports, programs, OpenSSL library, and TCP connections to ALB, RDS, and Redis."
+        "name": "Genericom EC2 internals v0.2.0",
+        "description": "Computing-core internals for both Genericom EC2 web instances: interfaces, IPs, ports (listening + client), programs (gunicorn + django), files (OpenSSL, config, TLS certs), crypto key pairs, and TCP connections."
       },
       "nodes": [
         {
@@ -46,6 +46,25 @@
         {
           "entity": {
             "entity_id": "01980000-2000-7000-8000-000a00000002",
+            "entity_type": "network_interface",
+            "name": "lo (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "lo",
+            "interface_name": "lo",
+            "mac_address": null,
+            "state": "up",
+            "configuration": {
+              "loopback": true
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a00000003",
             "entity_type": "ip_address",
             "name": "10.0.10.21",
             "dimensions": {
@@ -61,7 +80,23 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000a00000003",
+            "entity_id": "01980000-2000-7000-8000-000a00000004",
+            "entity_type": "ip_address",
+            "name": "127.0.0.1 (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "127.0.0.1",
+            "address": "127.0.0.1",
+            "version": 4,
+            "configuration": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a00000005",
             "entity_type": "port",
             "name": ":80/tcp (web-a)",
             "dimensions": {
@@ -78,7 +113,83 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000a00000004",
+            "entity_id": "01980000-2000-7000-8000-000a00000006",
+            "entity_type": "port",
+            "name": ":8000/tcp (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": ":8000/tcp",
+            "port_number": 8000,
+            "transport": "tcp",
+            "state": "listening",
+            "configuration": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a00000007",
+            "entity_type": "port",
+            "name": "client\u2192RDS (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "*/tcp",
+            "port_number": null,
+            "transport": "tcp",
+            "state": "connected",
+            "configuration": {
+              "description": "ephemeral client port to RDS"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a00000008",
+            "entity_type": "port",
+            "name": "client\u2192Redis (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "*/tcp",
+            "port_number": null,
+            "transport": "tcp",
+            "state": "connected",
+            "configuration": {
+              "description": "ephemeral client port to Redis"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a00000009",
+            "entity_type": "program",
+            "name": "gunicorn (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "gunicorn",
+            "program_name": "gunicorn",
+            "version": "22.0.0",
+            "path": "/opt/genericom/venv/bin/gunicorn",
+            "configuration": {
+              "workers": 4,
+              "bind": "0.0.0.0:80",
+              "wsgi_app": "genericom.wsgi:application"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a0000000a",
             "entity_type": "program",
             "name": "Django (web-a)",
             "dimensions": {
@@ -89,18 +200,17 @@
             "name": "Django",
             "program_name": "django",
             "version": "5.1.3",
-            "path": "/opt/genericom/venv/bin/gunicorn",
+            "path": "/opt/genericom/genericom/wsgi.py",
             "configuration": {
               "framework": "Django",
-              "wsgi": "gunicorn",
-              "workers": 4,
-              "bind": "0.0.0.0:80"
+              "settings_module": "genericom.settings",
+              "bind": "127.0.0.1:8000"
             }
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000a00000005",
+            "entity_id": "01980000-2000-7000-8000-000a0000000b",
             "entity_type": "file",
             "name": "libssl.so.3 (web-a)",
             "dimensions": {
@@ -121,7 +231,98 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000a00000006",
+            "entity_id": "01980000-2000-7000-8000-000a0000000c",
+            "entity_type": "file",
+            "name": "gunicorn.conf.py (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "gunicorn.conf.py",
+            "file_path": "/opt/genericom/gunicorn.conf.py",
+            "file_type": "configuration",
+            "version": "",
+            "configuration": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a0000000d",
+            "entity_type": "file",
+            "name": "genericom.com.crt (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom.com.crt",
+            "file_path": "/etc/pki/tls/certs/genericom.com.crt",
+            "file_type": "certificate",
+            "version": "",
+            "configuration": {
+              "subject": "CN=genericom.com",
+              "issuer": "Amazon RSA 2048 M03"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a0000000e",
+            "entity_type": "file",
+            "name": "genericom.com.key (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom.com.key",
+            "file_path": "/etc/pki/tls/private/genericom.com.key",
+            "file_type": "private-key",
+            "version": "",
+            "configuration": {
+              "permissions": "0600",
+              "owner": "root:root"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a0000000f",
+            "entity_type": "public_key",
+            "name": "genericom.com pubkey (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom.com pubkey",
+            "algorithm": "RSA",
+            "key_size": 2048,
+            "fingerprint": "SHA256:xK9m2...",
+            "configuration": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a00000010",
+            "entity_type": "private_key",
+            "name": "genericom.com privkey (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom.com privkey",
+            "algorithm": "RSA",
+            "key_size": 2048,
+            "fingerprint": "SHA256:xK9m2...",
+            "configuration": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a00000011",
             "entity_type": "tcp_connection",
             "name": "ALB \u2192 web-a:80 (HTTP)",
             "dimensions": {
@@ -140,7 +341,26 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000a00000007",
+            "entity_id": "01980000-2000-7000-8000-000a00000012",
+            "entity_type": "tcp_connection",
+            "name": "gunicorn \u2192 django (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "gunicorn \u2192 django",
+            "state": "established",
+            "configuration": {
+              "protocol": "WSGI",
+              "encrypted": false,
+              "description": "gunicorn proxies to Django over localhost"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000a00000013",
             "entity_type": "tcp_connection",
             "name": "web-a \u2192 RDS:5432",
             "dimensions": {
@@ -152,14 +372,13 @@
             "state": "established",
             "configuration": {
               "protocol": "PostgreSQL",
-              "encrypted": false,
-              "description": "Django connects to RDS PostgreSQL"
+              "encrypted": false
             }
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000a00000008",
+            "entity_id": "01980000-2000-7000-8000-000a00000014",
             "entity_type": "tcp_connection",
             "name": "web-a \u2192 Redis:6379",
             "dimensions": {
@@ -171,8 +390,7 @@
             "state": "established",
             "configuration": {
               "protocol": "Redis",
-              "encrypted": true,
-              "description": "Django connects to ElastiCache Redis with TLS"
+              "encrypted": true
             }
           }
         },
@@ -196,6 +414,25 @@
         {
           "entity": {
             "entity_id": "01980000-2000-7000-8000-000c00000002",
+            "entity_type": "network_interface",
+            "name": "lo (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "lo",
+            "interface_name": "lo",
+            "mac_address": null,
+            "state": "up",
+            "configuration": {
+              "loopback": true
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c00000003",
             "entity_type": "ip_address",
             "name": "10.0.11.21",
             "dimensions": {
@@ -211,7 +448,23 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000c00000003",
+            "entity_id": "01980000-2000-7000-8000-000c00000004",
+            "entity_type": "ip_address",
+            "name": "127.0.0.1 (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "127.0.0.1",
+            "address": "127.0.0.1",
+            "version": 4,
+            "configuration": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c00000005",
             "entity_type": "port",
             "name": ":80/tcp (web-c)",
             "dimensions": {
@@ -228,7 +481,83 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000c00000004",
+            "entity_id": "01980000-2000-7000-8000-000c00000006",
+            "entity_type": "port",
+            "name": ":8000/tcp (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": ":8000/tcp",
+            "port_number": 8000,
+            "transport": "tcp",
+            "state": "listening",
+            "configuration": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c00000007",
+            "entity_type": "port",
+            "name": "client\u2192RDS (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "*/tcp",
+            "port_number": null,
+            "transport": "tcp",
+            "state": "connected",
+            "configuration": {
+              "description": "ephemeral client port to RDS"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c00000008",
+            "entity_type": "port",
+            "name": "client\u2192Redis (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "*/tcp",
+            "port_number": null,
+            "transport": "tcp",
+            "state": "connected",
+            "configuration": {
+              "description": "ephemeral client port to Redis"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c00000009",
+            "entity_type": "program",
+            "name": "gunicorn (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "gunicorn",
+            "program_name": "gunicorn",
+            "version": "22.0.0",
+            "path": "/opt/genericom/venv/bin/gunicorn",
+            "configuration": {
+              "workers": 4,
+              "bind": "0.0.0.0:80",
+              "wsgi_app": "genericom.wsgi:application"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c0000000a",
             "entity_type": "program",
             "name": "Django (web-c)",
             "dimensions": {
@@ -239,18 +568,17 @@
             "name": "Django",
             "program_name": "django",
             "version": "5.1.3",
-            "path": "/opt/genericom/venv/bin/gunicorn",
+            "path": "/opt/genericom/genericom/wsgi.py",
             "configuration": {
               "framework": "Django",
-              "wsgi": "gunicorn",
-              "workers": 4,
-              "bind": "0.0.0.0:80"
+              "settings_module": "genericom.settings",
+              "bind": "127.0.0.1:8000"
             }
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000c00000005",
+            "entity_id": "01980000-2000-7000-8000-000c0000000b",
             "entity_type": "file",
             "name": "libssl.so.3 (web-c)",
             "dimensions": {
@@ -271,7 +599,98 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000c00000006",
+            "entity_id": "01980000-2000-7000-8000-000c0000000c",
+            "entity_type": "file",
+            "name": "gunicorn.conf.py (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "gunicorn.conf.py",
+            "file_path": "/opt/genericom/gunicorn.conf.py",
+            "file_type": "configuration",
+            "version": "",
+            "configuration": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c0000000d",
+            "entity_type": "file",
+            "name": "genericom.com.crt (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom.com.crt",
+            "file_path": "/etc/pki/tls/certs/genericom.com.crt",
+            "file_type": "certificate",
+            "version": "",
+            "configuration": {
+              "subject": "CN=genericom.com",
+              "issuer": "Amazon RSA 2048 M03"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c0000000e",
+            "entity_type": "file",
+            "name": "genericom.com.key (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom.com.key",
+            "file_path": "/etc/pki/tls/private/genericom.com.key",
+            "file_type": "private-key",
+            "version": "",
+            "configuration": {
+              "permissions": "0600",
+              "owner": "root:root"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c0000000f",
+            "entity_type": "public_key",
+            "name": "genericom.com pubkey (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom.com pubkey",
+            "algorithm": "RSA",
+            "key_size": 2048,
+            "fingerprint": "SHA256:xK9m2...",
+            "configuration": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c00000010",
+            "entity_type": "private_key",
+            "name": "genericom.com privkey (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "genericom.com privkey",
+            "algorithm": "RSA",
+            "key_size": 2048,
+            "fingerprint": "SHA256:xK9m2...",
+            "configuration": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c00000011",
             "entity_type": "tcp_connection",
             "name": "ALB \u2192 web-c:80 (HTTP)",
             "dimensions": {
@@ -290,7 +709,26 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000c00000007",
+            "entity_id": "01980000-2000-7000-8000-000c00000012",
+            "entity_type": "tcp_connection",
+            "name": "gunicorn \u2192 django (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "node": {
+            "name": "gunicorn \u2192 django",
+            "state": "established",
+            "configuration": {
+              "protocol": "WSGI",
+              "encrypted": false,
+              "description": "gunicorn proxies to Django over localhost"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-000c00000013",
             "entity_type": "tcp_connection",
             "name": "web-c \u2192 RDS:5432",
             "dimensions": {
@@ -302,14 +740,13 @@
             "state": "established",
             "configuration": {
               "protocol": "PostgreSQL",
-              "encrypted": false,
-              "description": "Django connects to RDS PostgreSQL"
+              "encrypted": false
             }
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-000c00000008",
+            "entity_id": "01980000-2000-7000-8000-000c00000014",
             "entity_type": "tcp_connection",
             "name": "web-c \u2192 Redis:6379",
             "dimensions": {
@@ -321,8 +758,7 @@
             "state": "established",
             "configuration": {
               "protocol": "Redis",
-              "encrypted": true,
-              "description": "Django connects to ElastiCache Redis with TLS"
+              "encrypted": true
             }
           }
         },
@@ -416,14 +852,14 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ea00000002",
             "entity_type": "edge",
-            "name": "EC2 web-a hosts Django",
+            "name": "EC2 web-a hosts lo",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
             "from_entity_id": "01965b01-4000-7000-8000-000500000003",
-            "to_entity_id": "01980000-2000-7000-8000-000a00000004",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000002",
             "edge_type": "HOSTS",
             "properties": {}
           }
@@ -432,14 +868,14 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ea00000003",
             "entity_type": "edge",
-            "name": "EC2 web-a hosts libssl",
+            "name": "EC2 web-a hosts gunicorn",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
             "from_entity_id": "01965b01-4000-7000-8000-000500000003",
-            "to_entity_id": "01980000-2000-7000-8000-000a00000005",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000009",
             "edge_type": "HOSTS",
             "properties": {}
           }
@@ -448,15 +884,15 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ea00000004",
             "entity_type": "edge",
-            "name": "eth0 web-a has IP 10.0.10.21",
+            "name": "EC2 web-a hosts django",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000a00000001",
-            "to_entity_id": "01980000-2000-7000-8000-000a00000002",
-            "edge_type": "HAS_IP",
+            "from_entity_id": "01965b01-4000-7000-8000-000500000003",
+            "to_entity_id": "01980000-2000-7000-8000-000a0000000a",
+            "edge_type": "HOSTS",
             "properties": {}
           }
         },
@@ -464,15 +900,15 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ea00000005",
             "entity_type": "edge",
-            "name": "port 80 web-a attached to eth0",
+            "name": "EC2 web-a hosts libssl",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000a00000003",
-            "to_entity_id": "01980000-2000-7000-8000-000a00000001",
-            "edge_type": "ATTACHED_TO",
+            "from_entity_id": "01965b01-4000-7000-8000-000500000003",
+            "to_entity_id": "01980000-2000-7000-8000-000a0000000b",
+            "edge_type": "HOSTS",
             "properties": {}
           }
         },
@@ -480,15 +916,15 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ea00000006",
             "entity_type": "edge",
-            "name": "Django web-a listens on port 80",
+            "name": "EC2 web-a hosts gunicorn.conf",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000a00000004",
-            "to_entity_id": "01980000-2000-7000-8000-000a00000003",
-            "edge_type": "LISTENS_ON",
+            "from_entity_id": "01965b01-4000-7000-8000-000500000003",
+            "to_entity_id": "01980000-2000-7000-8000-000a0000000c",
+            "edge_type": "HOSTS",
             "properties": {}
           }
         },
@@ -496,21 +932,261 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ea00000007",
             "entity_type": "edge",
-            "name": "Django web-a depends on libssl",
+            "name": "EC2 web-a hosts cert file",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000a00000004",
-            "to_entity_id": "01980000-2000-7000-8000-000a00000005",
-            "edge_type": "DEPENDS_ON",
+            "from_entity_id": "01965b01-4000-7000-8000-000500000003",
+            "to_entity_id": "01980000-2000-7000-8000-000a0000000d",
+            "edge_type": "HOSTS",
             "properties": {}
           }
         },
         {
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ea00000008",
+            "entity_type": "edge",
+            "name": "EC2 web-a hosts key file",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000003",
+            "to_entity_id": "01980000-2000-7000-8000-000a0000000e",
+            "edge_type": "HOSTS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea00000009",
+            "entity_type": "edge",
+            "name": "eth0 web-a has IP 10.0.10.21",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a00000001",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000003",
+            "edge_type": "HAS_IP",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea0000000a",
+            "entity_type": "edge",
+            "name": "lo web-a has IP 127.0.0.1",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a00000002",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000004",
+            "edge_type": "HAS_IP",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea0000000b",
+            "entity_type": "edge",
+            "name": "port 80 web-a attached to eth0",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a00000005",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000001",
+            "edge_type": "ATTACHED_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea0000000c",
+            "entity_type": "edge",
+            "name": "port 8000 web-a attached to lo",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a00000006",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000002",
+            "edge_type": "ATTACHED_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea0000000d",
+            "entity_type": "edge",
+            "name": "client port RDS web-a attached to eth0",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a00000007",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000001",
+            "edge_type": "ATTACHED_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea0000000e",
+            "entity_type": "edge",
+            "name": "client port Redis web-a attached to eth0",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a00000008",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000001",
+            "edge_type": "ATTACHED_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea0000000f",
+            "entity_type": "edge",
+            "name": "gunicorn web-a listens on :80",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a00000009",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000005",
+            "edge_type": "LISTENS_ON",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea00000010",
+            "entity_type": "edge",
+            "name": "django web-a listens on :8000",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a0000000a",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000006",
+            "edge_type": "LISTENS_ON",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea00000011",
+            "entity_type": "edge",
+            "name": "gunicorn web-a depends on libssl",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a00000009",
+            "to_entity_id": "01980000-2000-7000-8000-000a0000000b",
+            "edge_type": "DEPENDS_ON",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea00000012",
+            "entity_type": "edge",
+            "name": "django web-a depends on libssl",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a0000000a",
+            "to_entity_id": "01980000-2000-7000-8000-000a0000000b",
+            "edge_type": "DEPENDS_ON",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea00000013",
+            "entity_type": "edge",
+            "name": "gunicorn web-a depends on gunicorn.conf",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a00000009",
+            "to_entity_id": "01980000-2000-7000-8000-000a0000000c",
+            "edge_type": "DEPENDS_ON",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea00000014",
+            "entity_type": "edge",
+            "name": "pubkey paired with privkey (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a0000000f",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000010",
+            "edge_type": "PAIRED_WITH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea00000015",
+            "entity_type": "edge",
+            "name": "cert file contains pubkey (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a0000000d",
+            "to_entity_id": "01980000-2000-7000-8000-000a0000000f",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea00000016",
+            "entity_type": "edge",
+            "name": "key file contains privkey (web-a)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a0000000e",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000010",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea00000017",
             "entity_type": "edge",
             "name": "ALB connects to tcp(ALB\u2192web-a)",
             "dimensions": {
@@ -519,14 +1195,14 @@
           },
           "edge": {
             "from_entity_id": "01965b01-4000-7000-8000-000500000001",
-            "to_entity_id": "01980000-2000-7000-8000-000a00000006",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000011",
             "edge_type": "CONNECTS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-00ea00000009",
+            "entity_id": "01980000-2000-7000-8000-00ea00000018",
             "entity_type": "edge",
             "name": "tcp(ALB\u2192web-a) connects to port 80",
             "dimensions": {
@@ -534,31 +1210,63 @@
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000a00000006",
-            "to_entity_id": "01980000-2000-7000-8000-000a00000003",
+            "from_entity_id": "01980000-2000-7000-8000-000a00000011",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000005",
             "edge_type": "CONNECTS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-00ea0000000a",
+            "entity_id": "01980000-2000-7000-8000-00ea00000019",
             "entity_type": "edge",
-            "name": "Django web-a connects to tcp(\u2192RDS)",
+            "name": "gunicorn web-a connects to tcp(guni\u2192django)",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000a00000004",
-            "to_entity_id": "01980000-2000-7000-8000-000a00000007",
+            "from_entity_id": "01980000-2000-7000-8000-000a00000009",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000012",
             "edge_type": "CONNECTS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-00ea0000000b",
+            "entity_id": "01980000-2000-7000-8000-00ea0000001a",
+            "entity_type": "edge",
+            "name": "tcp(guni\u2192django) connects to port 8000",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a00000012",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000006",
+            "edge_type": "CONNECTS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea0000001b",
+            "entity_type": "edge",
+            "name": "django web-a connects to tcp(\u2192RDS)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000a0000000a",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000013",
+            "edge_type": "CONNECTS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ea0000001c",
             "entity_type": "edge",
             "name": "tcp(web-a\u2192RDS) connects to RDS port",
             "dimensions": {
@@ -566,7 +1274,7 @@
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000a00000007",
+            "from_entity_id": "01980000-2000-7000-8000-000a00000013",
             "to_entity_id": "01980000-2000-7000-8000-000d00000001",
             "edge_type": "CONNECTS_TO",
             "properties": {}
@@ -574,23 +1282,23 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-00ea0000000c",
+            "entity_id": "01980000-2000-7000-8000-00ea0000001d",
             "entity_type": "edge",
-            "name": "Django web-a connects to tcp(\u2192Redis)",
+            "name": "django web-a connects to tcp(\u2192Redis)",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000a00000004",
-            "to_entity_id": "01980000-2000-7000-8000-000a00000008",
+            "from_entity_id": "01980000-2000-7000-8000-000a0000000a",
+            "to_entity_id": "01980000-2000-7000-8000-000a00000014",
             "edge_type": "CONNECTS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-00ea0000000d",
+            "entity_id": "01980000-2000-7000-8000-00ea0000001e",
             "entity_type": "edge",
             "name": "tcp(web-a\u2192Redis) connects to Redis port",
             "dimensions": {
@@ -598,7 +1306,7 @@
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000a00000008",
+            "from_entity_id": "01980000-2000-7000-8000-000a00000014",
             "to_entity_id": "01980000-2000-7000-8000-000d00000003",
             "edge_type": "CONNECTS_TO",
             "properties": {}
@@ -624,14 +1332,14 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ec00000002",
             "entity_type": "edge",
-            "name": "EC2 web-c hosts Django",
+            "name": "EC2 web-c hosts lo",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
             "from_entity_id": "01965b01-4000-7000-8000-000500000004",
-            "to_entity_id": "01980000-2000-7000-8000-000c00000004",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000002",
             "edge_type": "HOSTS",
             "properties": {}
           }
@@ -640,14 +1348,14 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ec00000003",
             "entity_type": "edge",
-            "name": "EC2 web-c hosts libssl",
+            "name": "EC2 web-c hosts gunicorn",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
             "from_entity_id": "01965b01-4000-7000-8000-000500000004",
-            "to_entity_id": "01980000-2000-7000-8000-000c00000005",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000009",
             "edge_type": "HOSTS",
             "properties": {}
           }
@@ -656,15 +1364,15 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ec00000004",
             "entity_type": "edge",
-            "name": "eth0 web-c has IP 10.0.11.21",
+            "name": "EC2 web-c hosts django",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000c00000001",
-            "to_entity_id": "01980000-2000-7000-8000-000c00000002",
-            "edge_type": "HAS_IP",
+            "from_entity_id": "01965b01-4000-7000-8000-000500000004",
+            "to_entity_id": "01980000-2000-7000-8000-000c0000000a",
+            "edge_type": "HOSTS",
             "properties": {}
           }
         },
@@ -672,15 +1380,15 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ec00000005",
             "entity_type": "edge",
-            "name": "port 80 web-c attached to eth0",
+            "name": "EC2 web-c hosts libssl",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000c00000003",
-            "to_entity_id": "01980000-2000-7000-8000-000c00000001",
-            "edge_type": "ATTACHED_TO",
+            "from_entity_id": "01965b01-4000-7000-8000-000500000004",
+            "to_entity_id": "01980000-2000-7000-8000-000c0000000b",
+            "edge_type": "HOSTS",
             "properties": {}
           }
         },
@@ -688,15 +1396,15 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ec00000006",
             "entity_type": "edge",
-            "name": "Django web-c listens on port 80",
+            "name": "EC2 web-c hosts gunicorn.conf",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000c00000004",
-            "to_entity_id": "01980000-2000-7000-8000-000c00000003",
-            "edge_type": "LISTENS_ON",
+            "from_entity_id": "01965b01-4000-7000-8000-000500000004",
+            "to_entity_id": "01980000-2000-7000-8000-000c0000000c",
+            "edge_type": "HOSTS",
             "properties": {}
           }
         },
@@ -704,21 +1412,261 @@
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ec00000007",
             "entity_type": "edge",
-            "name": "Django web-c depends on libssl",
+            "name": "EC2 web-c hosts cert file",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000c00000004",
-            "to_entity_id": "01980000-2000-7000-8000-000c00000005",
-            "edge_type": "DEPENDS_ON",
+            "from_entity_id": "01965b01-4000-7000-8000-000500000004",
+            "to_entity_id": "01980000-2000-7000-8000-000c0000000d",
+            "edge_type": "HOSTS",
             "properties": {}
           }
         },
         {
           "entity": {
             "entity_id": "01980000-2000-7000-8000-00ec00000008",
+            "entity_type": "edge",
+            "name": "EC2 web-c hosts key file",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01965b01-4000-7000-8000-000500000004",
+            "to_entity_id": "01980000-2000-7000-8000-000c0000000e",
+            "edge_type": "HOSTS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec00000009",
+            "entity_type": "edge",
+            "name": "eth0 web-c has IP 10.0.11.21",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c00000001",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000003",
+            "edge_type": "HAS_IP",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec0000000a",
+            "entity_type": "edge",
+            "name": "lo web-c has IP 127.0.0.1",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c00000002",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000004",
+            "edge_type": "HAS_IP",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec0000000b",
+            "entity_type": "edge",
+            "name": "port 80 web-c attached to eth0",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c00000005",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000001",
+            "edge_type": "ATTACHED_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec0000000c",
+            "entity_type": "edge",
+            "name": "port 8000 web-c attached to lo",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c00000006",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000002",
+            "edge_type": "ATTACHED_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec0000000d",
+            "entity_type": "edge",
+            "name": "client port RDS web-c attached to eth0",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c00000007",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000001",
+            "edge_type": "ATTACHED_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec0000000e",
+            "entity_type": "edge",
+            "name": "client port Redis web-c attached to eth0",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c00000008",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000001",
+            "edge_type": "ATTACHED_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec0000000f",
+            "entity_type": "edge",
+            "name": "gunicorn web-c listens on :80",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c00000009",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000005",
+            "edge_type": "LISTENS_ON",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec00000010",
+            "entity_type": "edge",
+            "name": "django web-c listens on :8000",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c0000000a",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000006",
+            "edge_type": "LISTENS_ON",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec00000011",
+            "entity_type": "edge",
+            "name": "gunicorn web-c depends on libssl",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c00000009",
+            "to_entity_id": "01980000-2000-7000-8000-000c0000000b",
+            "edge_type": "DEPENDS_ON",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec00000012",
+            "entity_type": "edge",
+            "name": "django web-c depends on libssl",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c0000000a",
+            "to_entity_id": "01980000-2000-7000-8000-000c0000000b",
+            "edge_type": "DEPENDS_ON",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec00000013",
+            "entity_type": "edge",
+            "name": "gunicorn web-c depends on gunicorn.conf",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c00000009",
+            "to_entity_id": "01980000-2000-7000-8000-000c0000000c",
+            "edge_type": "DEPENDS_ON",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec00000014",
+            "entity_type": "edge",
+            "name": "pubkey paired with privkey (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c0000000f",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000010",
+            "edge_type": "PAIRED_WITH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec00000015",
+            "entity_type": "edge",
+            "name": "cert file contains pubkey (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c0000000d",
+            "to_entity_id": "01980000-2000-7000-8000-000c0000000f",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec00000016",
+            "entity_type": "edge",
+            "name": "key file contains privkey (web-c)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c0000000e",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000010",
+            "edge_type": "CONTAINS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec00000017",
             "entity_type": "edge",
             "name": "ALB connects to tcp(ALB\u2192web-c)",
             "dimensions": {
@@ -727,14 +1675,14 @@
           },
           "edge": {
             "from_entity_id": "01965b01-4000-7000-8000-000500000001",
-            "to_entity_id": "01980000-2000-7000-8000-000c00000006",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000011",
             "edge_type": "CONNECTS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-00ec00000009",
+            "entity_id": "01980000-2000-7000-8000-00ec00000018",
             "entity_type": "edge",
             "name": "tcp(ALB\u2192web-c) connects to port 80",
             "dimensions": {
@@ -742,31 +1690,63 @@
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000c00000006",
-            "to_entity_id": "01980000-2000-7000-8000-000c00000003",
+            "from_entity_id": "01980000-2000-7000-8000-000c00000011",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000005",
             "edge_type": "CONNECTS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-00ec0000000a",
+            "entity_id": "01980000-2000-7000-8000-00ec00000019",
             "entity_type": "edge",
-            "name": "Django web-c connects to tcp(\u2192RDS)",
+            "name": "gunicorn web-c connects to tcp(guni\u2192django)",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000c00000004",
-            "to_entity_id": "01980000-2000-7000-8000-000c00000007",
+            "from_entity_id": "01980000-2000-7000-8000-000c00000009",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000012",
             "edge_type": "CONNECTS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-00ec0000000b",
+            "entity_id": "01980000-2000-7000-8000-00ec0000001a",
+            "entity_type": "edge",
+            "name": "tcp(guni\u2192django) connects to port 8000",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c00000012",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000006",
+            "edge_type": "CONNECTS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec0000001b",
+            "entity_type": "edge",
+            "name": "django web-c connects to tcp(\u2192RDS)",
+            "dimensions": {
+              "tap.env": "genericom-prod"
+            }
+          },
+          "edge": {
+            "from_entity_id": "01980000-2000-7000-8000-000c0000000a",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000013",
+            "edge_type": "CONNECTS_TO",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-2000-7000-8000-00ec0000001c",
             "entity_type": "edge",
             "name": "tcp(web-c\u2192RDS) connects to RDS port",
             "dimensions": {
@@ -774,7 +1754,7 @@
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000c00000007",
+            "from_entity_id": "01980000-2000-7000-8000-000c00000013",
             "to_entity_id": "01980000-2000-7000-8000-000d00000001",
             "edge_type": "CONNECTS_TO",
             "properties": {}
@@ -782,23 +1762,23 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-00ec0000000c",
+            "entity_id": "01980000-2000-7000-8000-00ec0000001d",
             "entity_type": "edge",
-            "name": "Django web-c connects to tcp(\u2192Redis)",
+            "name": "django web-c connects to tcp(\u2192Redis)",
             "dimensions": {
               "tap.env": "genericom-prod"
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000c00000004",
-            "to_entity_id": "01980000-2000-7000-8000-000c00000008",
+            "from_entity_id": "01980000-2000-7000-8000-000c0000000a",
+            "to_entity_id": "01980000-2000-7000-8000-000c00000014",
             "edge_type": "CONNECTS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-2000-7000-8000-00ec0000000d",
+            "entity_id": "01980000-2000-7000-8000-00ec0000001e",
             "entity_type": "edge",
             "name": "tcp(web-c\u2192Redis) connects to Redis port",
             "dimensions": {
@@ -806,7 +1786,7 @@
             }
           },
           "edge": {
-            "from_entity_id": "01980000-2000-7000-8000-000c00000008",
+            "from_entity_id": "01980000-2000-7000-8000-000c00000014",
             "to_entity_id": "01980000-2000-7000-8000-000d00000003",
             "edge_type": "CONNECTS_TO",
             "properties": {}
