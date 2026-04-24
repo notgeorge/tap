@@ -687,13 +687,16 @@ function initGraph(panelId) {
                 },
             },
             {
-                // Node selection — lighten the existing fill by 30% so the hue
-                // is preserved (blue stays blue, purple stays purple) while
-                // clearly signalling "selected". No per-model highlight color
-                // needed; derived automatically from data(fill_color).
+                // Node selection — lighten the existing fill and thicken the
+                // border, both hue-preserving. The border bump to 4px sits
+                // one step above shadow-hover's 3px indigo so the two states
+                // stack legibly when a selected node is inside a hovered
+                // shadow group. border-color falls through to the node's own
+                // data(border_color) rather than being overridden to indigo.
                 selector: "node:selected",
                 style: {
                     "background-blacken": -0.3,
+                    "border-width": 4,
                 },
             },
             {
