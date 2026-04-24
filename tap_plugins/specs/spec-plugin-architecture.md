@@ -33,6 +33,7 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-skills | [Plugin Skills](#plugin-skills) | Implemented | Plugins may ship Claude Code skills for plugin-specific automation |
 | req-plugin-arch-runtime | [Runtime Boundaries](#runtime-boundaries) | Implemented | TAP-facing startup behavior flows through the plugin contract |
 | req-plugin-arch-tests | [Testing Requirements](#testing-requirements) | Implemented | Plugins include plugin-specific tests and participate in shared validation |
+| req-plugin-arch-iterative-dev | [Iterative Development](#iterative-development) | Proposed | Canonical patterns for revising GRIFT content during and after initial import |
 | req-plugin-arch-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Explicitly deferred concerns |
 
 ### Plugin Scope
@@ -309,6 +310,63 @@ This requirement exists even for simple plugins. A lightweight plugin may only n
 | req-plugin-arch-tests-1 | Tests Directory Required | Implemented | Every plugin includes a `tests/` directory. | |
 | req-plugin-arch-tests-2 | Plugin-Specific Tests Required | Implemented | Plugin authors include plugin-specific tests for plugin-owned behavior. | |
 | req-plugin-arch-tests-3 | Testing Spec Alignment | Implemented | Plugin tests follow the plugin testing specification. | |
+
+### Iterative Development
+----
+RID: `req-plugin-arch-iterative-dev`
+Status: `Proposed`
+
+GRIFT content is versioned and idempotent. Once a batch has been imported, editing the file in place and re-running the importer does nothing — the importer skips batches whose `batch_entity.entity_id` it has already seen (`req-grid-import-grift-identity`). Plugins must therefore pick one of two canonical paths when revising GRIFT content, and must never rely on silent re-import of edited content.
+
+#### Implementation
+
+**Path 1 — Version bump (durable, always valid).**
+
+Create a new batch to carry the change. The batch's `batch_entity.entity_id` is fresh (new UUID, commonly `uuid4()` or `uuid7()`), its name reflects the version (`"<topic> v0.5.0"` → `"<topic> v0.6.0"`), and its description names what changed in this revision. Node and edge `entity_id` values inside the batch stay stable — those are the TAP identities the importer upserts on. The new batch co-exists with the prior batch(es) in the grid's batch history; node/edge changes apply via upsert.
+
+This is the path for:
+
+- Every change that ships in a plugin release.
+- Recurring importers that pull authoritative data on a schedule (in which case a stable `batch_entity.entity_id` per source + force re-import on each pull, per the Future note in `spec-grid-import-grift.md`, handles absences as deletions).
+- Any environment where `DEBUG=False`.
+
+**Path 2 — Force re-import (dev iteration only, DEBUG-gated).**
+
+For rapid iteration on grift content during active development, the importer exposes `--force-batches=<id>[,<id>...]` to re-execute a batch whose id already exists locally. This is formally specified in `req-grid-import-grift-force-reimport` and its companion requirements:
+
+- `--force-batches=<id>` — re-apply the named batch. Upserts new/changed nodes and edges; leaves unchanged content untouched.
+- `--force-batches=<id> --sweep-strict` — only execute if the sweep can run cleanly (`req-grid-import-grift-batch-scoped-sweep` Strict Mode). Aborts before any writes if any candidate would be skipped by guardrails.
+- `--force-batches=<id> --purge` — hard-delete swept entities and their batch-scoped history rows instead of tombstoning (`req-grid-import-grift-sweep-purge`). Use when accumulated tombstones from rapid iteration would obscure rather than document the grid.
+- Combined: `--force-batches=<id> --sweep-strict --purge` — clean hard-delete or nothing.
+
+All four forms are permitted if and only if `DEBUG=True`. There is no alternate flag, override, settings key, environment variable, or command-line argument that enables force re-import, sweep purge, or their strict variant in any other configuration. The gate prevents dev ergonomics from leaking into production deploys; it is not a security boundary and is not a substitute for deployment discipline.
+
+#### Development
+
+The version-bump path is the answer for nearly every real change. Force re-import exists solely to remove the friction of generating a new UUID and bumping names twenty times an hour while authoring a grift file. Once content stabilizes, the final state should land as a durable version-bumped batch so the grid's batch history reads as a coherent release progression rather than a series of force overwrites.
+
+A common grift-authoring flow:
+
+1. Write the initial `plugins/<name>/grift/<topic>.grift.json` with a v0.1.0 batch.
+2. Import once to establish baseline.
+3. Iterate: edit content, `import_plugin_grift <name> --force-batches=<id>` (or add `--purge` if orphans accumulate) until the content settles.
+4. When done iterating, leave the batch's id alone if the content matches what will ship; otherwise, bump the batch's id + name for the next development wave.
+
+Avoid these patterns:
+
+- **Silent edits without a path**: editing grift content and re-running the importer with no flags. The edit will be ignored and the divergence will cause confusion an hour later. Always pick either path explicitly.
+- **Force re-import as a normal operation**: force re-import is a development tool, not a release mechanism. If the change needs to ship, it wants a version-bumped batch with a coherent name and description.
+- **Cross-plugin force re-import**: `--force-batches` names specific batch ids; there is no flag to force an entire plugin or file, by design. Don't synthesize one.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-iterative-dev-1 | Version Bump Documented | Proposed | Plugin authors must be able to find canonical guidance that a version-bumped batch is the durable path for revising grift content. | |
+| req-plugin-arch-iterative-dev-2 | Force Re-Import Documented | Proposed | Plugin authors must be able to find canonical guidance that `--force-batches` is the dev iteration path, DEBUG-gated, and scoped to specific batch ids. | |
+| req-plugin-arch-iterative-dev-3 | Sweep Semantics Named | Proposed | Plugin-scoped guidance references `req-grid-import-grift-batch-scoped-sweep` and its strict/purge variants rather than restating them. | Keeps one authoritative home for sweep rules |
+| req-plugin-arch-iterative-dev-4 | Anti-Pattern Called Out | Proposed | Plugin guidance explicitly warns against silent-edit-no-path and against force re-import as a release mechanism. | |
+
 
 ### v0 Non-Goals
 ----

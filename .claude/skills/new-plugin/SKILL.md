@@ -130,6 +130,17 @@ Read `tap_grid/specs/spec-grift-v0.md` for the format. Validate against `tap_gri
 
 Use deterministic entity IDs where repeated imports should upsert cleanly. If the repo does not yet have an approved pattern for the plugin, flag that gap rather than inventing an unstable ID scheme silently.
 
+### Iterating on GRIFT content
+
+GRIFT batches are idempotent by `batch_entity.entity_id` — editing a file in place and re-running the importer does nothing. When you need to revise content, pick one of two canonical paths:
+
+- **Version bump (always valid, required for release).** Create a new batch with a fresh `batch_entity.entity_id` and a bumped name (`v0.1.0` → `v0.2.0`). Node and edge entity_ids inside the batch stay stable so upsert applies. This is the path whenever the change ships, whenever you're outside `DEBUG=True`, and whenever you want the batch history to read as a coherent progression.
+- **Force re-import (dev iteration only, DEBUG-gated).** Use `import_plugin_grift <plugin> --force-batches=<batch_id>` to re-apply the same batch without changing its id. Add `--purge` to hard-delete ephemeral orphans. Add `--sweep-strict` to abort if any orphan can't be cleanly swept. All permitted if and only if `DEBUG=True`.
+
+Canonical guidance lives in [`tap_plugins/specs/spec-plugin-architecture.md`](../../tap_plugins/specs/spec-plugin-architecture.md) under *Iterative Development* (`req-plugin-arch-iterative-dev`). The underlying requirements — force re-import, batch-scoped sweep, sweep purge — are defined in [`tap_grid/specs/spec-grid-import-grift.md`](../../tap_grid/specs/spec-grid-import-grift.md).
+
+Do not silently edit grift content and re-run the importer without picking one of the two paths above; the edit will be ignored and you'll waste time debugging an absence of change.
+
 ## Step 8: Create Icons
 
 Read `tap_grid/specs/spec-grid-icon.md` for the full icon contract.
