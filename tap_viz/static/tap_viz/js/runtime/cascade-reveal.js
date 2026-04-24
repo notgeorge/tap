@@ -46,7 +46,10 @@ export function cascadeReveal(cy, opts = {}) {
     // This avoids a flash: the canvas becomes visible but everything
     // on it is opacity 0, then the cascade animates them in.
     cy.nodes().style("opacity", 0);
-    cy.edges().style("opacity", 0);
+    // Use a near-zero opacity instead of 0 so edges remain :visible
+    // in Cytoscape's selector engine. Cytoscape treats opacity:0 elements
+    // as :hidden, which prevents the edge fade-in from finding them.
+    cy.edges().style("opacity", 0.001);
     cy.container().style.visibility = "";
 
     return new Promise((resolve) => {

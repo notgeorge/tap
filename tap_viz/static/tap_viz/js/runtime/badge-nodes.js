@@ -67,6 +67,19 @@ export function applyBadgeNodes(cy, opts = {}) {
         return true;
     });
 
+    // Excluded types: clear icon so the node renders as a plain colored shape.
+    if (excludeSet.size > 0) {
+        cy.nodes().forEach((n) => {
+            if (n.data("_is_badge") || !excludeSet.has(n.data("entity_type"))) return;
+            const url = n.data("icon_url");
+            if (url && url !== "") {
+                n.data("_original_icon_url", url);
+                n.data("icon_url", "");
+                n.data("_badge_excluded", true);
+            }
+        });
+    }
+
     if (hosts.length === 0) {
         return {destroy: () => _removeBadges(cy), uniformBadgeSize: 0};
     }
@@ -153,6 +166,16 @@ function _removeBadges(cy) {
         }
         host.removeData("_original_icon_url");
         host.removeData("_badge_active");
+    });
+
+    // Restore stashed icons on excluded-type nodes.
+    cy.nodes("[_badge_excluded]").forEach((n) => {
+        const original = n.data("_original_icon_url");
+        if (original) {
+            n.data("icon_url", original);
+        }
+        n.removeData("_original_icon_url");
+        n.removeData("_badge_excluded");
     });
 
     // Remove badge nodes.

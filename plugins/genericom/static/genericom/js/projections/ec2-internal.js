@@ -100,12 +100,17 @@ export async function execute(context) {
         "border-color": "#2B5783",
         "border-width": 3,
         "background-color": "#5E89B2",
-        "background-opacity": 0.15,
+        "background-opacity": 0.08,
         "text-margin-y": -4,
         "font-size": 13,
         "z-index": 0,
+        "z-index-compare": "manual",
     });
     ec2.position({x: CX, y: CY});
+
+    // Force all other nodes and edges to render above the container.
+    cy.nodes().not(ec2).style({"z-index-compare": "manual", "z-index": 10});
+    cy.edges().style({"z-index-compare": "manual", "z-index": 20});
 
     // Set child z-index so cascade reveal processes them after the container
     // and they render above the EC2 background.
@@ -282,11 +287,14 @@ export async function execute(context) {
             }
         });
 
-    // --- Edge styling: thicker and more visible ---
-    cy.edges(":visible").not(".tap-elevation-hidden").style({
-        width: 2.5,
-        "line-color": "#64748b",
-        "target-arrow-color": "#64748b",
+    // --- Edge styling: thick and dark for visibility ---
+    cy.edges().not(".tap-elevation-hidden").style({
+        width: 3,
+        "line-color": "#334155",
+        "target-arrow-color": "#334155",
+        "target-arrow-shape": "triangle",
+        "curve-style": "bezier",
+        "label": "",
     });
 
     // --- Fit viewport ---
