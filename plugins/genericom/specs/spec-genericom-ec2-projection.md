@@ -25,7 +25,7 @@ The projection is built on the computing_core plugin's vendor-neutral primitives
 | req-genericom-ec2-page | [Instance Page Routing](#instance-page-routing) | Implemented | Dynamic URL at `/genericom/instance/<entity_id>` |
 | req-genericom-ec2-search | [Instance Internal Search](#instance-internal-search) | Implemented | Multi-hop gryphon search scoped to the target EC2 |
 | req-genericom-ec2-data | [Computing Core Seed Data](#computing-core-seed-data) | Implemented | Both Genericom EC2 instances seeded with computing-core internals |
-| req-genericom-ec2-projection | [Instance Projection Definition](#instance-projection-definition) | In Development | Projection with cose layout; placement refinement pending |
+| req-genericom-ec2-projection | [Instance Projection Definition](#instance-projection-definition) | In Development | Semantic zone layout with icon-badge exclude_types |
 | req-genericom-ec2-layout | [Instance Layout Strategy](#instance-layout-strategy) | Proposed | Refined layout with semantic placement and nesting |
 | req-genericom-ec2-findings | [Findings Panel](#findings-panel) | Proposed | Findings table below the projection showing alerts for this host |
 
@@ -126,19 +126,22 @@ The projection definition for the EC2 internal view.
 - Projection entity `EC2 Instance Internal Projection` defined in `plugins/genericom/grift/ec2-instance-page.grift.json`.
 - Single elevation `ec2-internal` with a cose layout as the initial starting point.
 - Layout JS at `plugins/genericom/static/genericom/js/projections/ec2-internal.js`.
+- `node_style` uses object form `{mode: "icon-badge", exclude_types: [...]}` to disable icon badges on small entities (ports, TCP connections, IPs, keys) while keeping them on programs, files, and AWS resources.
 
 #### Development
 
-The initial cose layout positions nodes via force-directed placement. This produces a readable but unsemantic layout — entities are spatially distributed but not grouped by role (network stack, application, connections). The next step is to refine the layout with semantic placement.
+The layout uses hard-coded positional placement with semantic zones: interfaces on the left edge with ports stacked vertically inside, programs in the center-top, files at the bottom, external services outside the EC2 container (ALB left, RDS right, Redis above). TCP connections are positioned near their traffic flow. Edges are styled thick (3px) and dark for visibility.
+
+A cascade-reveal bug was discovered during development: Cytoscape treats `opacity: 0` as `:hidden`, which prevented the edge fade-in timer from finding any edges. Fixed by using `opacity: 0.001` for the initial edge zero-out in `cascade-reveal.js`.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-genericom-ec2-projection-1 | Projection Renders | Implemented | The projection renders all computing-core entities in the Cytoscape panel. | |
-| req-genericom-ec2-projection-2 | Semantic Layout | Proposed | Entities are grouped by role: host internals, inbound connections, outbound connections. | |
-| req-genericom-ec2-projection-3 | Connection Direction Visible | Proposed | The layout makes inbound vs outbound traffic direction visually clear. | |
-| req-genericom-ec2-projection-4 | Finding Surfaces Visible | Proposed | Unencrypted HTTP connection and crypto library state are visually prominent. | |
+| req-genericom-ec2-projection-2 | Semantic Layout | Implemented | Entities are grouped by role: interfaces left, programs center, files bottom, services outside. | |
+| req-genericom-ec2-projection-3 | Connection Direction Visible | Implemented | Edges show directional arrows; inbound ALB left, outbound RDS right, Redis above. | |
+| req-genericom-ec2-projection-4 | Finding Surfaces Visible | In Development | Unencrypted HTTP connection visible but not yet highlighted; crypto library present. | |
 
 ---
 
