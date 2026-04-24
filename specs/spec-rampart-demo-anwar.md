@@ -24,20 +24,20 @@ For this specification the goals are:
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-demo-anwar-env | [Demo Environment Exists](#demo-environment-exists) | Proposed | A dedicated Rampart-friendly environment and dataset are available for the live demo. |
-| req-demo-anwar-landing | [Landing Page High-Level Projection](#landing-page-high-level-projection) | Proposed | Full-page account projection for the Genericom AWS environment. |
-| req-demo-anwar-alerts | [Alert Badges On High-Level Projection](#alert-badges-on-high-level-projection) | Proposed | Clickable badges on the EC2 instance summarize unencrypted HTTP findings. |
+| req-demo-anwar-env | [Demo Environment Exists](#demo-environment-exists) | In Development | A dedicated Rampart-friendly environment and dataset are available for the live demo. |
+| req-demo-anwar-landing | [Landing Page High-Level Projection](#landing-page-high-level-projection) | Implemented | Full-page account projection for the Genericom AWS environment. |
+| req-demo-anwar-alerts | [Alert Badges On High-Level Projection](#alert-badges-on-high-level-projection) | In Development | Clickable badges on the EC2 instance summarize unencrypted HTTP findings. |
 | req-demo-anwar-drilldown | [Instance Perspective Navigation](#instance-perspective-navigation) | Proposed | Double-clicking the EC2 instance opens a service-specific perspective page. |
-| req-demo-anwar-instance-view | [Instance Perspective Projection](#instance-perspective-projection) | Proposed | Service page shows a local projection centered on the application instance and related components. |
+| req-demo-anwar-instance-view | [Instance Perspective Projection](#instance-perspective-projection) | In Development | Service page shows a local projection centered on the application instance and related components. |
 | req-demo-anwar-scoreboard | [Service Compliance Table And Scorecard](#service-compliance-table-and-scorecard) | Proposed | Service page includes a live compliance table and summary score. |
-| req-demo-anwar-global-ksi | [Global KSI Page](#global-ksi-page) | Proposed | A page exists listing KSIs and a live summary across relevant entities. |
+| req-demo-anwar-global-ksi | [Global KSI Page](#global-ksi-page) | Implemented | A page exists listing KSIs and a live summary across relevant entities. |
 | req-demo-anwar-manuality | [Manual Demo Assembly Allowed](#manual-demo-assembly-allowed) | Proposed | Layouts and some projections may be assembled by hand for this demo. |
 | req-demo-anwar-nongoals | [Non-Goals And Deferrals](#non-goals-and-deferrals) | Proposed | Explicitly defines what is not required for the first demo. |
 
 ### Demo Environment Exists
 ----
 RID: `req-demo-anwar-env`
-Status: `Proposed`
+Status: `In Development`
 
 The demo must run in an environment that is stable, legible, and seeded with the Genericom dataset needed for the live walkthrough.
 
@@ -64,7 +64,7 @@ Formalize a repeatable demo seed/import workflow once the initial live demo shap
 ### Landing Page High-Level Projection
 ----
 RID: `req-demo-anwar-landing`
-Status: `Proposed`
+Status: `Implemented`
 
 The landing page loads with a full-page diagram projection of the Genericom AWS account infrastructure. The first demo only requires a single high-level view and does not require advanced scrolling, dynamic nesting, or automatic layout generation.
 
@@ -91,7 +91,7 @@ Replace manual positioning with richer placement and nesting behavior after the 
 ### Alert Badges On High-Level Projection
 ----
 RID: `req-demo-anwar-alerts`
-Status: `Proposed`
+Status: `In Development`
 
 Alert badges are applied to the EC2 instance on the landing page because of unencrypted HTTP findings. The badges are real interactive elements, and clicking them opens an infowindow summarizing the alerts.
 
@@ -144,7 +144,7 @@ Generalize navigation to support broader object and perspective routing across R
 ### Instance Perspective Projection
 ----
 RID: `req-demo-anwar-instance-view`
-Status: `Proposed`
+Status: `In Development`
 
 The instance page shows a projection of the EC2 instance and related components, including the host, ALB, customer, the internal application running on the host, the crypto library, and the connection to the Postgres database.
 
@@ -204,7 +204,7 @@ Support richer scoring models, trends, severity weighting, and broader KSI famil
 ### Global KSI Page
 ----
 RID: `req-demo-anwar-global-ksi`
-Status: `Proposed`
+Status: `Implemented`
 
 The demo includes a global KSI page listing KSIs for all entities in the graph and a live summary of the state of the represented instances.
 
