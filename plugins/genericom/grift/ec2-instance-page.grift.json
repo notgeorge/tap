@@ -38,12 +38,15 @@
             },
             "definition": {
               "query": [
-                "MATCH (ec2)-[h:HOSTS]->(iface:network_interface)-[hi:HAS_IP]->(ip:ip_address) WHERE ec2.entity_id = $entity_id",
-                "MATCH (ec2)-[h2:HOSTS]->(iface2:network_interface)<-[at:ATTACHED_TO]-(port:port) WHERE ec2.entity_id = $entity_id",
-                "MATCH (ec2)-[h3:HOSTS]->(prog:program)-[l:LISTENS_ON]->(port2:port) WHERE ec2.entity_id = $entity_id",
-                "MATCH (ec2)-[h4:HOSTS]->(prog2:program)-[d:DEPENDS_ON]->(f:file) WHERE ec2.entity_id = $entity_id",
-                "MATCH (ec2)-[h5:HOSTS]->(prog3:program)-[c:CONNECTS_TO]->(tcp:tcp_connection)-[c2:CONNECTS_TO]->(rport:port) WHERE ec2.entity_id = $entity_id",
-                "MATCH (src)-[c3:CONNECTS_TO]->(tcp2:tcp_connection)-[c4:CONNECTS_TO]->(port3:port) WHERE port3.entity_type = \"port\"",
+                "MATCH (ec2)-[h:HOSTS]->(child) WHERE ec2.entity_id = $entity_id",
+                "MATCH (ec2)-[h2:HOSTS]->(iface:network_interface)-[hi:HAS_IP]->(ip:ip_address) WHERE ec2.entity_id = $entity_id",
+                "MATCH (ec2)-[h3:HOSTS]->(iface2:network_interface)<-[at:ATTACHED_TO]-(port:port) WHERE ec2.entity_id = $entity_id",
+                "MATCH (ec2)-[h4:HOSTS]->(prog:program)-[l:LISTENS_ON]->(port2:port) WHERE ec2.entity_id = $entity_id",
+                "MATCH (ec2)-[h5:HOSTS]->(prog2:program)-[d:DEPENDS_ON]->(f:file) WHERE ec2.entity_id = $entity_id",
+                "MATCH (ec2)-[h6:HOSTS]->(prog3:program)-[c:CONNECTS_TO]->(tcp:tcp_connection)-[c2:CONNECTS_TO]->(rport:port) WHERE ec2.entity_id = $entity_id",
+                "MATCH (ec2)-[h7:HOSTS]->(f2:file)-[cn:CONTAINS]->(key) WHERE ec2.entity_id = $entity_id",
+                "MATCH (pub:public_key)-[pw:PAIRED_WITH]->(priv:private_key)",
+                "MATCH (src)-[c3:CONNECTS_TO]->(tcp2:tcp_connection)-[c4:CONNECTS_TO]->(port3:port)",
                 "MATCH (remote)-[rh:HOSTS]->(rport2:port)",
                 "MATCH (rport3:port)-[av:AVAILABLE_AT]->(rip:ip_address)"
               ]
@@ -61,6 +64,7 @@
             "name": "EC2 Instance Internal Projection",
             "description": "Computing-core internal view of an EC2 instance: network stack, programs, connections.",
             "definition": {
+              "node_style": "icon-badge",
               "default_elevation": "ec2-internal",
               "elevations": [
                 {

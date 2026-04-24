@@ -36,6 +36,15 @@ export async function execute(context) {
 
     // --- Build relevance set ---
     const relevant = new Set([anchorId, ...hosted]);
+
+    // Include ports attached to hosted interfaces and ports programs listen on.
+    cy.edges(`[label = "ATTACHED_TO"]`).forEach((e) => {
+        if (hosted.has(e.data("target"))) relevant.add(e.data("source"));
+    });
+    cy.edges(`[label = "LISTENS_ON"]`).forEach((e) => {
+        if (hosted.has(e.data("source"))) relevant.add(e.data("target"));
+    });
+
     for (let pass = 0; pass < 3; pass++) {
         cy.edges(`[label = "CONNECTS_TO"]`).forEach((e) => {
             const f = e.data("source"), t = e.data("target");
@@ -102,9 +111,6 @@ export async function execute(context) {
         }
     });
 
-    console.log("[ec2-internal] layout: hosted=" + hosted.size +
-        ", relevant=" + relevant.size +
-        ", visible=" + cy.nodes(":visible").not(".tap-elevation-hidden").length);
 
     const L = CX - EC2_W / 2;  // left edge
     const T = CY - EC2_H / 2;  // top edge
