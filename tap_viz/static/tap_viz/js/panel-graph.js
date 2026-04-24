@@ -687,9 +687,18 @@ function initGraph(panelId) {
                 },
             },
             {
-                selector: ":selected",
+                // Node selection — lighten the existing fill by 30% so the hue
+                // is preserved (blue stays blue, purple stays purple) while
+                // clearly signalling "selected". No per-model highlight color
+                // needed; derived automatically from data(fill_color).
+                selector: "node:selected",
                 style: {
-                    "background-color": "#7c3aed",
+                    "background-blacken": -0.3,
+                },
+            },
+            {
+                selector: "edge:selected",
+                style: {
                     "line-color": "#7c3aed",
                     "target-arrow-color": "#7c3aed",
                 },
