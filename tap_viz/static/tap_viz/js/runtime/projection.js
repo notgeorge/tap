@@ -89,7 +89,10 @@ export async function initProjection(cy, projection, opts = {}) {
     async function activate(elevation, triggerReason, triggerNode = null) {
         if (!elevation) return;
         state.activeElevation = elevation;
-        const nodeStyle = projection.node_style || "default";
+        const nodeStyleRaw = projection.node_style || "default";
+        // node_style can be a string ("icon-badge") or an object ({mode, exclude_types}).
+        const nodeStyle = typeof nodeStyleRaw === "object" ? (nodeStyleRaw.mode || "default") : nodeStyleRaw;
+        const badgeExcludeTypes = typeof nodeStyleRaw === "object" ? (nodeStyleRaw.exclude_types || []) : [];
 
         // Hide the canvas before layout to prevent flash of unpositioned
         // nodes. The cascade reveal will unhide and animate them in.
@@ -117,7 +120,7 @@ export async function initProjection(cy, projection, opts = {}) {
         let sharedBadgeSize = 0;
         if (nodeStyle === "icon-badge") {
             const {applyBadgeNodes} = await import("./badge-nodes.js");
-            state.typeBadgesHandle = applyBadgeNodes(cy);
+            state.typeBadgesHandle = applyBadgeNodes(cy, {excludeTypes: badgeExcludeTypes});
             sharedBadgeSize = state.typeBadgesHandle.uniformBadgeSize || 0;
         }
 

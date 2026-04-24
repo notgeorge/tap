@@ -48,8 +48,18 @@ _PROJECTION_DEFINITION_SCHEMA: dict = {
     "additionalProperties": True,
     "properties": {
         "node_style": {
-            "type": "string",
-            "enum": ["default", "icon-badge"],
+            "oneOf": [
+                {"type": "string", "enum": ["default", "icon-badge"]},
+                {
+                    "type": "object",
+                    "required": ["mode"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "mode": {"type": "string", "enum": ["default", "icon-badge"]},
+                        "exclude_types": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+            ],
         },
         "status_badges": {
             "type": "object",

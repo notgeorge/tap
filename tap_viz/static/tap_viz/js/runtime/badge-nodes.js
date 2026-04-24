@@ -50,16 +50,21 @@ export function computeUniformBadgeSize(hosts, opts = {}) {
  * @param {Object} [opts]
  * @param {number} [opts.badgeRatio=0.35] Badge diameter as fraction of the smallest host's shorter dimension.
  * @param {number} [opts.minBadgeSize=24] Minimum uniform badge diameter in model units.
+ * @param {string[]} [opts.excludeTypes=[]] Entity types to skip (no badge; icon stays on node body).
  * @returns {{ destroy: Function, uniformBadgeSize: number }} Cleanup handle + computed diameter.
  */
 export function applyBadgeNodes(cy, opts = {}) {
     // Clean up any previous badge pass.
     _removeBadges(cy);
 
+    const excludeSet = new Set(opts.excludeTypes || []);
+
     // Collect host nodes that qualify for a badge.
     const hosts = cy.nodes().filter((n) => {
         const url = n.data("icon_url");
-        return url && url !== "" && !n.data("_is_badge");
+        if (!url || url === "" || n.data("_is_badge")) return false;
+        if (excludeSet.size > 0 && excludeSet.has(n.data("entity_type"))) return false;
+        return true;
     });
 
     if (hosts.length === 0) {

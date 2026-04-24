@@ -98,7 +98,11 @@ export async function execute(context) {
         width: EC2_W,
         height: EC2_H,
         "border-color": "#2B5783",
-        "background-color": "#e8eff6",
+        "border-width": 3,
+        "background-color": "#5E89B2",
+        "background-opacity": 0.15,
+        "text-margin-y": -4,
+        "font-size": 13,
         "z-index": 0,
     });
     ec2.position({x: CX, y: CY});
@@ -176,15 +180,29 @@ export async function execute(context) {
     });
 
     // --- Position files (bottom row inside EC2) ---
-    files.sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
-    files.forEach((f, idx) => {
-        f.style({width: 95, height: 30});
-        f.position({x: L + 140 + idx * 120, y: T + EC2_H - 55});
+    // Files that contain keys become mini-containers with the key nested inside.
+    const fileContains = {};
+    cy.edges(`[label = "CONTAINS"]`).forEach((e) => {
+        if (relevant.has(e.data("source")) && relevant.has(e.data("target"))) {
+            fileContains[e.data("source")] = cy.getElementById(e.data("target"));
+        }
     });
 
-    // --- Position keys (below their containing files) ---
-    const allKeys = [...(byType["public_key"] || []), ...(byType["private_key"] || [])];
-    // Keys are not hosted by EC2 directly but are connected via CONTAINS from files.
+    files.sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
+    const fileBaseX = L + 140;
+    const fileBaseY = T + EC2_H - 55;
+    files.forEach((f, idx) => {
+        const hasChild = !!fileContains[f.id()];
+        if (hasChild) {
+            f.addClass("tap-viewport-parent");
+            f.style({width: 100, height: 50, "background-color": "#f5f0e0", "border-color": "#a89060", "z-index": 5});
+        } else {
+            f.style({width: 95, height: 30});
+        }
+        f.position({x: fileBaseX + idx * 120, y: fileBaseY});
+    });
+
+    // --- Position keys inside their containing files ---
     cy.nodes().filter((n) => (n.data("entity_type") === "public_key" || n.data("entity_type") === "private_key") && relevant.has(n.id()))
         .forEach((key) => {
             let parentFile = null;
@@ -194,11 +212,8 @@ export async function execute(context) {
                 }
             });
             if (parentFile && parentFile.length > 0) {
-                key.style({width: 22, height: 22});
-                key.position({x: parentFile.position().x, y: parentFile.position().y + 30});
-            } else {
-                key.style({width: 22, height: 22});
-                key.position({x: L + EC2_W - 60, y: T + EC2_H - 25});
+                key.style({width: 20, height: 20, "z-index": 15});
+                key.position({x: parentFile.position().x, y: parentFile.position().y + 8});
             }
         });
 
@@ -266,6 +281,13 @@ export async function execute(context) {
                 ip.position({x: CX + 200, y: EXT_T});
             }
         });
+
+    // --- Edge styling: thicker and more visible ---
+    cy.edges(":visible").not(".tap-elevation-hidden").style({
+        width: 2.5,
+        "line-color": "#64748b",
+        "target-arrow-color": "#64748b",
+    });
 
     // --- Fit viewport ---
     if (trigger_reason === "initial_load") {
