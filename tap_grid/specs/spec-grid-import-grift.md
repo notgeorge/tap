@@ -25,6 +25,9 @@ This separation is deliberate. The file format should stay stable and portable, 
 | req-grid-import-grift-time | [Reference Time](#reference-time) | Implemented | Single datetime comparison point per file |
 | req-grid-import-grift-identity | [Identity And Matching](#identity-and-matching) | Implemented | Entity and batch identity rules |
 | req-grid-import-grift-batch | [Batch Execution](#batch-execution) | Implemented | Per-batch transactional import behavior |
+| req-grid-import-grift-force-reimport | [Force Re-Import](#force-re-import) | Proposed | Explicit bypass of the skip-if-exists batch guard, DEBUG-gated |
+| req-grid-import-grift-batch-scoped-sweep | [Batch-Scoped Sweep](#batch-scoped-sweep) | Proposed | Tombstone orphaned entities created by a force-reimported batch |
+| req-grid-import-grift-sweep-purge | [Sweep Purge](#sweep-purge) | Proposed | Hard-delete escalation of batch-scoped sweep, DEBUG-gated |
 | req-grid-import-grift-dangling | [Dangling Edge Modes](#dangling-edge-modes) | Implemented | Strict and permissive handling |
 | req-grid-import-grift-provenance | [Import-Side Provenance](#import-side-provenance) | Implemented | Local actor/history behavior |
 | req-grid-import-grift-results | [Import Results](#import-results) | Implemented | Structured reporting expectations |
@@ -110,6 +113,7 @@ Status: `Implemented`
 - batch identity is the `entity_id` carried in `batch_entity`
 - if a local object with that ID exists but is not a batch, import must fail
 - if a local batch with that ID already exists, the importer assumes that batch has already been imported and skips it
+- the skip behavior may be bypassed explicitly via `req-grid-import-grift-force-reimport`; default behavior remains skip-if-exists
 
 Future versions may add content-hash or semantic batch comparison, but v0 does not.
 
@@ -133,6 +137,153 @@ Each GRIFT batch executes as its own import unit after successful file preflight
 ### Import Modes
 
 GRIFT itself is neutral about create, replace, patch, or upsert semantics. The importer may expose one or more execution modes, but whichever mode it chooses must operate on the canonical GRIFT identities and validated full-object payloads produced by preflight.
+
+## Force Re-Import
+----
+RID: `req-grid-import-grift-force-reimport`
+Status: `Proposed`
+
+The importer must expose an explicit, opt-in path to re-execute a batch whose `batch_entity.entity_id` is already present locally. Default behavior (skip-if-exists, per `req-grid-import-grift-identity`) is unchanged.
+
+This is the escape valve promised by *"Future versions may add content-hash or semantic batch comparison, but v0 does not."* It exists for development iteration on GRIFT files — editing content, re-running the importer, and seeing the new state reflected without generating a fresh `batch_entity.entity_id` and bumping plugin contracts.
+
+### Invocation
+
+- The command line or programmatic API must accept a `--force-batches=<batch_entity_id>[,<batch_entity_id>...]` argument. No flag is permitted to force an entire file or plugin in one call.
+- The argument names `batch_entity` identities explicitly. Anything not in the list follows normal skip-if-exists semantics.
+- An empty or missing `--force-batches` argument means the feature is inactive; the importer behaves as today.
+
+### Execution
+
+- For each named batch, the importer bypasses the skip check and runs the full batch execution path (`req-grid-import-grift-batch`).
+- The batch's node and edge writes go through the service layer with `CallerContext.batch_id = batch_entity.entity_id` — the **original** id, unchanged. Force re-import does not mint a new batch; it re-applies the existing one.
+- Upsert semantics apply: existing nodes with matching `entity_id` are updated; new nodes introduced in the revised content are created; unchanged nodes are no-ops.
+- Removals — entities that existed under this batch previously but are absent from the revised content — are NOT handled by this requirement. Removal behavior is defined by `req-grid-import-grift-batch-scoped-sweep`.
+
+### Environment Gate
+
+- Force re-import must be refused outside `DEBUG=True` (or an equivalent settings flag controlled by the operator).
+- Refusal must surface as a clear error distinguishing "disabled in this environment" from "batch not found," so an operator can see what went wrong without guessing.
+- The gate is not a security boundary — an operator who can flip `DEBUG` can already read and write the database directly. The gate exists to prevent accidental use of dev ergonomics in production deploy scripts.
+
+### Audit Trail
+
+- Each force re-import must emit a `BatchEvent` (or equivalently-structured event record) of type `FORCE_REIMPORT` against the batch, with:
+  - timestamp of the re-import
+  - actor (per `req-grid-import-grift-provenance`)
+  - count of nodes updated, nodes created, edges updated, edges created, entities swept (per `req-grid-import-grift-batch-scoped-sweep` when that applies)
+- The original ingestion's batch events remain untouched. The audit reads as a sequence: initial ingest → force re-import(s) → further activity.
+- A batch that has been force-reimported is still the same batch entity. It retains its original `entity_id`, batch metadata, and service-layer ownership semantics.
+
+### Non-Goals
+
+- Force re-import does not compare content hashes, compute semantic diffs, or flag drift proactively. It runs exactly when asked, and only when asked.
+- It does not bypass preflight validation. A force-reimported batch still passes through schema validation, reference analysis, and dangling-edge checks.
+
+## Batch-Scoped Sweep
+----
+RID: `req-grid-import-grift-batch-scoped-sweep`
+Status: `Proposed`
+
+When a batch is force re-imported (`req-grid-import-grift-force-reimport`), the revised content may omit nodes or edges that the original ingestion created. The sweep detects those orphans and tombstones them via the service-layer delete path, bounded strictly to entities this batch originally created.
+
+### Sweep Candidates
+
+A candidate for sweep is an entity meeting all of:
+
+- the entity's **creation history row** (first historical record) carries `batch_id == <the batch being force-reimported>`
+- the entity's current `entity_id` does not appear in the revised batch's node or edge set
+
+Candidates are computed after the revised batch's upserts have been staged (so the new node/edge set is known) but before any deletions are applied.
+
+### Guardrails
+
+A candidate is only swept if **both** guardrails pass:
+
+**Guardrail A — Ownership**
+
+No history row exists for this entity with `batch_id != <this batch>`. If any other batch has written to the entity (create, update, or delete), skip it. The entity has left this batch's exclusive ownership and the sweep must not reclaim it.
+
+**Guardrail B — Referential Integrity**
+
+After the sweep's proposed deletions are applied, no edge exists that is connected to this entity — in either direction. An edge survives the sweep and references the candidate if:
+
+- the edge exists in the current graph AND is not itself being swept, OR
+- the edge is newly created by the revised batch content and points at this candidate (a content bug in the revision — preflight should catch it, but the guardrail provides a second line of defense)
+
+If any such edge survives, skip the candidate. The entity remains structurally connected to the post-apply graph and must not be removed.
+
+The two guardrails are independent. A candidate skipped by A is reported under reason code `sweep_skipped_external_write`. A candidate skipped by B is reported under `sweep_skipped_referenced`. A candidate skipped by both is reported under A (ownership is the stronger signal).
+
+### Default Action
+
+Swept entities are tombstoned via the service-layer delete path (`Entity.deleted_at`, with cascade to connected edges per the standard tombstone semantics). History rows are preserved. Edges attached to the swept entity that originated in this same batch are tombstoned in the cascade.
+
+### Reporting
+
+The importer's force-reimport report must include:
+
+- `swept_entities`: list of `{entity_id, entity_type, reason: "orphaned"}` objects for entities tombstoned
+- `sweep_skipped`: list of `{entity_id, entity_type, reason}` objects for candidates that failed a guardrail, with reason codes from the guardrail text above
+
+### Non-Goals
+
+- The sweep does not touch entities whose creation history is not owned by this batch. Dimensional authority, cross-plugin cleanup, and importer-declared ownership over a dimension are out of scope and tracked as a future concern (see *Future* below).
+- The sweep does not re-tombstone already-tombstoned entities, and does not restore tombstoned entities.
+- The sweep does not observe edge-only creation records. Edges created by this batch that point at entities owned by other batches stay put unless the edge itself is absent from the revised content; in that case the edge is an ordinary upsert-delete target and handled by batch-standard cascade behavior, not by the sweep.
+
+### Future
+
+Authoritative-importer semantics — "this importer owns dimension X; sweep anything present in X not in this import" — is a related but distinct concern. The common case (a recurring AWS pull that wants its absences honored as deletions) is expected to be solvable by using a stable `batch_entity.entity_id` per source and force re-importing on each pull: the batch-scoped sweep then naturally handles absences. If a use case emerges that cannot be expressed this way, a separate `req-grid-import-grift-authoritative` extension can land.
+
+## Sweep Purge
+----
+RID: `req-grid-import-grift-sweep-purge`
+Status: `Proposed`
+
+An optional escalation of `req-grid-import-grift-batch-scoped-sweep` that replaces tombstone with hard-delete for swept entities. Intended for rapid development iteration where accumulated tombstones from ephemeral grift-file edits would obscure rather than document the grid's durable state.
+
+### Invocation
+
+- The command line or programmatic API must accept a `--purge` flag alongside `--force-batches`. `--purge` without `--force-batches` is an invocation error.
+- `--purge` applies to the entire force re-import invocation. There is no per-batch toggle; the operator decides purge-or-tombstone at the command level and it applies to every swept entity in the run.
+
+### Environment Gate
+
+- `--purge` must be refused outside `DEBUG=True`, same as the force re-import gate. Refusal must be distinct from missing-flag errors.
+- `--purge` in production is never valid, regardless of flag combinations. The grid invariant that "history is preserved" is protected by this gate.
+
+### Guardrails
+
+The purge uses **exactly the same guardrails** as the default sweep (Ownership and Referential Integrity). Purge does not relax or bypass either. A candidate that fails a guardrail is skipped in both modes with the same reason code.
+
+### Hard-Delete Action
+
+For each swept candidate, when `--purge` is set:
+
+- The entity row is hard-deleted from the database (not tombstoned).
+- Historical records for this entity with `batch_id == <the force-reimported batch>` are hard-deleted. These records are bounded to this batch's lifecycle by Guardrail A.
+- Historical records for this entity with `batch_id != <this batch>` must not exist per Guardrail A. If any are found during execution (a spec-bug case), the purge must abort with a loud error rather than deleting them.
+- Edges owned by this same batch that were connected to the swept entity are cascade-hard-deleted along with their `batch_id == <this batch>` history rows.
+- Edges owned by other batches would have triggered Guardrail B, so the candidate would have been skipped. If one is found during execution (a spec-bug case), the purge must abort with a loud error.
+
+### Audit Trail
+
+- The `BatchEvent` of type `FORCE_REIMPORT` records `purge: true` and lists the `purged_entities: [entity_id, ...]` ids.
+- The entities themselves are gone from the DB after purge, so the BatchEvent is the only remaining record that they existed. This is accepted for the narrow use case and cannot be expanded without re-specifying.
+- A batch whose purge has executed is still the same batch entity. The batch row and its event history persist; only its ephemeral content is removed.
+
+### Reporting
+
+The importer's force-reimport report must include:
+
+- `purged_entities`: list of `{entity_id, entity_type}` objects for entities hard-deleted (empty when `--purge` is not set)
+
+### Non-Goals
+
+- `--purge` does not enable deletion of entities created by other batches. Guardrail A still applies.
+- `--purge` does not purge batch metadata or other batches' records. Scope is strictly the sweep's output for this invocation.
+- `--purge` is not a general-purpose hard-delete tool. Any other hard-delete use case must be proposed as a separate requirement with its own gating.
 
 ## Dangling Edge Modes
 ----
