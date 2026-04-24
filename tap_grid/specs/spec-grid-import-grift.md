@@ -25,9 +25,9 @@ This separation is deliberate. The file format should stay stable and portable, 
 | req-grid-import-grift-time | [Reference Time](#reference-time) | Implemented | Single datetime comparison point per file |
 | req-grid-import-grift-identity | [Identity And Matching](#identity-and-matching) | Implemented | Entity and batch identity rules |
 | req-grid-import-grift-batch | [Batch Execution](#batch-execution) | Implemented | Per-batch transactional import behavior |
-| req-grid-import-grift-force-reimport | [Force Re-Import](#force-re-import) | Proposed | Explicit bypass of the skip-if-exists batch guard, DEBUG-gated |
-| req-grid-import-grift-batch-scoped-sweep | [Batch-Scoped Sweep](#batch-scoped-sweep) | Proposed | Tombstone orphaned entities created by a force-reimported batch; optional strict mode aborts on any guardrail miss |
-| req-grid-import-grift-sweep-purge | [Sweep Purge](#sweep-purge) | Proposed | Hard-delete escalation of batch-scoped sweep, DEBUG-gated |
+| req-grid-import-grift-force-reimport | [Force Re-Import](#force-re-import) | Implemented | Explicit bypass of the skip-if-exists batch guard, DEBUG-gated |
+| req-grid-import-grift-batch-scoped-sweep | [Batch-Scoped Sweep](#batch-scoped-sweep) | Implemented | Tombstone orphaned entities created by a force-reimported batch; optional strict mode aborts on any guardrail miss |
+| req-grid-import-grift-sweep-purge | [Sweep Purge](#sweep-purge) | Implemented | Hard-delete escalation of batch-scoped sweep, DEBUG-gated |
 | req-grid-import-grift-dangling | [Dangling Edge Modes](#dangling-edge-modes) | Implemented | Strict and permissive handling |
 | req-grid-import-grift-provenance | [Import-Side Provenance](#import-side-provenance) | Implemented | Local actor/history behavior |
 | req-grid-import-grift-results | [Import Results](#import-results) | Implemented | Structured reporting expectations |
@@ -141,7 +141,7 @@ GRIFT itself is neutral about create, replace, patch, or upsert semantics. The i
 ## Force Re-Import
 ----
 RID: `req-grid-import-grift-force-reimport`
-Status: `Proposed`
+Status: `Implemented`
 
 The importer must expose an explicit, opt-in path to re-execute a batch whose `batch_entity.entity_id` is already present locally. Default behavior (skip-if-exists, per `req-grid-import-grift-identity`) is unchanged.
 
@@ -185,7 +185,7 @@ This is the escape valve promised by *"Future versions may add content-hash or s
 ## Batch-Scoped Sweep
 ----
 RID: `req-grid-import-grift-batch-scoped-sweep`
-Status: `Proposed`
+Status: `Implemented`
 
 When a batch is force re-imported (`req-grid-import-grift-force-reimport`), the revised content may omit nodes or edges that the original ingestion created. The sweep detects those orphans and tombstones them via the service-layer delete path, bounded strictly to entities this batch originally created.
 
@@ -263,7 +263,7 @@ Authoritative-importer semantics — "this importer owns dimension X; sweep anyt
 ## Sweep Purge
 ----
 RID: `req-grid-import-grift-sweep-purge`
-Status: `Proposed`
+Status: `Implemented`
 
 An optional escalation of `req-grid-import-grift-batch-scoped-sweep` that replaces tombstone with hard-delete for swept entities. Intended for rapid development iteration where accumulated tombstones from ephemeral grift-file edits would obscure rather than document the grid's durable state.
 

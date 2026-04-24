@@ -915,6 +915,7 @@ class BatchEventType(models.TextChoices):
     DELETE = "delete", "Delete"
     LINK = "link", "Link (edge creation)"
     UNLINK = "unlink", "Unlink (edge deletion)"
+    FORCE_REIMPORT = "force_reimport", "Force Re-Import"
 
 
 class BatchEvent(models.Model):

@@ -706,3 +706,266 @@ class TestGriftEnvelopeDimensions:
 
 
 
+
+
+# ---------------------------------------------------------------------------
+# Force re-import + batch-scoped sweep + purge
+#   spec-grid-import-grift.md req-grid-import-grift-force-reimport
+#                             req-grid-import-grift-batch-scoped-sweep
+#                             req-grid-import-grift-sweep-purge
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestGriftForceReimport:
+    @pytest.fixture(autouse=True)
+    def _debug_on(self, settings):
+        """Most tests exercise force re-import, which requires DEBUG=True.
+        Individual tests that verify the gate flip DEBUG back to False locally."""
+        settings.DEBUG = True
+
+    def _initial_doc(self, batch_id: str, node_ids: list[str]) -> dict[str, Any]:
+        return _minimal_doc(
+            [
+                _batch_container(
+                    batch_id,
+                    nodes=[_character_node(nid, name=f"char-{i}") for i, nid in enumerate(node_ids)],
+                )
+            ]
+        )
+
+    def test_force_reimport_re_applies_edited_content(self):
+        """A revised batch passed via force_batches updates nodes that changed."""
+        from tap_grid.models import BatchEvent, BatchEventType
+
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        result = grift_import(self._initial_doc(bid, [nid]))
+        assert result.success
+
+        # Revise node payload and force re-import.
+        revised = _minimal_doc(
+            [_batch_container(bid, nodes=[_character_node(nid, name="Renamed", bio="New bio")])]
+        )
+        result2 = grift_import(revised, force_batches=[bid])
+        assert result2.success, result2.errors
+        assert result2.counts.batches_force_reimported == 1
+
+        # Payload updated in place.
+        from plugins.lotr.models import Character
+
+        c = Character.objects.get(entity_id=uuid.UUID(nid))
+        assert c.name == "Renamed"
+        assert c.bio == "New bio"
+
+        # FORCE_REIMPORT audit event landed.
+        evt = BatchEvent.objects.filter(
+            batch__entity_id=bid, event_type=BatchEventType.FORCE_REIMPORT
+        ).first()
+        assert evt is not None
+        assert evt.metadata.get("purge") is False
+
+    def test_force_reimport_refused_without_debug(self, settings):
+        """DEBUG=False rejects force re-import with a dedicated error code."""
+        settings.DEBUG = False
+        bid = _batch_entity_id()
+        doc = self._initial_doc(bid, [_node_entity_id()])
+        result = grift_import(doc, force_batches=[bid])
+        assert not result.success
+        assert any(e.code == "force_reimport_refused_production" for e in result.errors)
+
+    def test_purge_requires_force_batches(self):
+        """--purge without --force-batches is rejected at the API."""
+        result = grift_import(_minimal_doc([]), purge=True)
+        assert not result.success
+        assert any(e.code == "purge_requires_force_reimport" for e in result.errors)
+
+    def test_purge_refused_without_debug(self, settings):
+        """DEBUG=False rejects --purge even when --force-batches is passed."""
+        settings.DEBUG = False
+        bid = _batch_entity_id()
+        doc = self._initial_doc(bid, [_node_entity_id()])
+        result = grift_import(doc, force_batches=[bid], purge=True)
+        assert not result.success
+        # Both gates trip; purge-specific error is reported.
+        assert any(
+            e.code in ("sweep_purge_refused_production", "force_reimport_refused_production")
+            for e in result.errors
+        )
+
+    def test_sweep_tombstones_orphan_nodes(self):
+        """A revised batch dropping a node tombstones it via the sweep."""
+        bid = _batch_entity_id()
+        nid_keep = _node_entity_id()
+        nid_drop = _node_entity_id()
+        grift_import(self._initial_doc(bid, [nid_keep, nid_drop]))
+
+        revised = _minimal_doc(
+            [_batch_container(bid, nodes=[_character_node(nid_keep, name="char-0")])]
+        )
+        result = grift_import(revised, force_batches=[bid])
+        assert result.success, result.errors
+
+        # Swept entity reported.
+        batch_summary = result.imported_batches[0]
+        swept_ids = {s.entity_id for s in batch_summary.swept_entities}
+        assert nid_drop in swept_ids
+        assert nid_keep not in swept_ids
+
+        # Tombstone applied (entity present but soft-deleted).
+        dropped = Entity.objects.get(pk=uuid.UUID(nid_drop))
+        assert dropped.deleted_at is not None
+        kept = Entity.objects.get(pk=uuid.UUID(nid_keep))
+        assert kept.deleted_at is None
+
+    def test_sweep_skips_externally_written_entity(self):
+        """Guardrail A — an entity touched by a different batch is skipped."""
+        from tap_grid.batch import create_batch
+        from tap_grid.caller_context import CallerContext
+        from tap_grid.services import write_batch
+        from tap_grid.service_types import WriteOperation
+
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        grift_import(self._initial_doc(bid, [nid]))
+
+        # Another batch updates the node after initial import.
+        other_batch = create_batch(name="other")
+        ctx = CallerContext(user=None, batch_id=str(other_batch.entity_id))
+        write_batch(
+            [WriteOperation(verb="replace_node", target=nid, payload={"name": "Touched", "bio": "By other"})],
+            caller_context=ctx,
+        )
+
+        # Revise the batch to drop the node — sweep should skip via Guardrail A.
+        revised = _minimal_doc([_batch_container(bid, nodes=[])])
+        result = grift_import(revised, force_batches=[bid])
+        assert result.success, result.errors
+
+        summary = result.imported_batches[0]
+        assert len(summary.sweep_skipped) == 1
+        assert summary.sweep_skipped[0].reason == "sweep_skipped_external_write"
+        assert summary.sweep_skipped[0].entity_id == nid
+
+        # Entity survives.
+        kept = Entity.objects.get(pk=uuid.UUID(nid))
+        assert kept.deleted_at is None
+
+    def test_sweep_skips_referenced_entity(self):
+        """Guardrail B — a node candidate with a surviving edge is skipped."""
+        bid = _batch_entity_id()
+        wielder = _node_entity_id()
+        artifact = _node_entity_id()
+        edge_id = _edge_entity_id()
+
+        def _artifact_node(nid: str, name: str) -> dict[str, Any]:
+            return {
+                "entity": {
+                    "entity_id": nid,
+                    "entity_type": "artifact",
+                    "name": name,
+                    "dimensions": {},
+                },
+                "node": {"name": name, "power": "modest", "origin": "Valinor"},
+            }
+
+        initial = _minimal_doc(
+            [
+                _batch_container(
+                    bid,
+                    nodes=[_character_node(wielder, "Wielder"), _artifact_node(artifact, "Ring")],
+                    edges=[_wields_edge(edge_id, wielder, artifact)],
+                )
+            ]
+        )
+        r0 = grift_import(initial)
+        assert r0.success, r0.errors
+
+        # Revise to drop the artifact NODE but keep the edge referencing it.
+        # The edge's to_entity_id still points at a grid entity (artifact is
+        # present from the initial import), so preflight doesn't trip. After
+        # the upsert phase the artifact is a sweep candidate; Guardrail B
+        # sees the surviving edge and skips the sweep.
+        revised = _minimal_doc(
+            [
+                _batch_container(
+                    bid,
+                    nodes=[_character_node(wielder, "Wielder")],
+                    edges=[_wields_edge(edge_id, wielder, artifact)],
+                )
+            ]
+        )
+        result = grift_import(revised, force_batches=[bid])
+        assert result.success, result.errors
+        assert len(result.imported_batches) == 1
+        summary = result.imported_batches[0]
+        reasons = {s.reason for s in summary.sweep_skipped}
+        assert "sweep_skipped_referenced" in reasons
+        # Artifact should still be live (not tombstoned).
+        live = Entity.objects.get(pk=uuid.UUID(artifact))
+        assert live.deleted_at is None
+
+    def test_sweep_strict_aborts_on_guardrail_miss(self):
+        """--sweep-strict aborts the entire force re-import if any candidate fails."""
+        from tap_grid.batch import create_batch
+        from tap_grid.caller_context import CallerContext
+        from tap_grid.services import write_batch
+        from tap_grid.service_types import WriteOperation
+
+        bid = _batch_entity_id()
+        nid_keep = _node_entity_id()
+        nid_drop = _node_entity_id()
+        grift_import(self._initial_doc(bid, [nid_keep, nid_drop]))
+
+        # Another batch touches nid_drop so it fails Guardrail A.
+        other_batch = create_batch(name="external")
+        ctx = CallerContext(user=None, batch_id=str(other_batch.entity_id))
+        write_batch(
+            [WriteOperation(verb="replace_node", target=nid_drop, payload={"name": "Touched", "bio": "X"})],
+            caller_context=ctx,
+        )
+
+        # Strict-mode force re-import should abort — no writes applied.
+        revised = _minimal_doc(
+            [_batch_container(bid, nodes=[_character_node(nid_keep, name="Changed", bio="Y")])]
+        )
+        result = grift_import(revised, force_batches=[bid], sweep_strict=True)
+        assert not result.success
+        assert any(e.code == "sweep_strict_aborted" for e in result.errors)
+
+        # Name change on nid_keep was rolled back.
+        from plugins.lotr.models import Character
+
+        unchanged = Character.objects.get(entity_id=uuid.UUID(nid_keep))
+        assert unchanged.name == "char-0"  # original
+
+    def test_purge_hard_deletes_orphans(self):
+        """--purge removes the entity and its batch-scoped BatchEvent rows."""
+        from tap_grid.models import BatchEvent
+
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        grift_import(self._initial_doc(bid, [nid]))
+
+        # Confirm entity + its BatchEvent exist.
+        assert Entity.objects.filter(pk=uuid.UUID(nid)).exists()
+        assert BatchEvent.objects.filter(entity_id=uuid.UUID(nid)).exists()
+
+        # Revise to drop the node, purge enabled.
+        revised = _minimal_doc([_batch_container(bid, nodes=[])])
+        result = grift_import(revised, force_batches=[bid], purge=True)
+        assert result.success, result.errors
+
+        summary = result.imported_batches[0]
+        assert any(s.action == "purge" for s in summary.swept_entities)
+
+        # Entity and its BatchEvent rows are gone from the DB.
+        assert not Entity.objects.filter(pk=uuid.UUID(nid)).exists()
+        assert not BatchEvent.objects.filter(entity_id=uuid.UUID(nid)).exists()
+
+    def test_force_reimport_unnamed_batch_reports_not_found(self):
+        """force_batches naming an unknown id emits a diagnostic error."""
+        bogus = str(uuid.uuid4())
+        result = grift_import(_minimal_doc([]), force_batches=[bogus])
+        assert not result.success
+        assert any(e.code == "force_reimport_batch_not_found" for e in result.errors)

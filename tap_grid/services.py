@@ -417,6 +417,15 @@ def _execute_write_pipeline(
             instance.save(skip_validation=True)
             entity_id_out = instance.entity_id
             snapshot_entity = instance.entity
+            # Record provenance for non-delete writes too so the BatchEvent log
+            # is a complete history of batch-scoped activity. Without this,
+            # batch-scoped sweeps (req-grid-import-grift-batch-scoped-sweep)
+            # can't identify which entities a batch originally created.
+            if hasattr(instance, "entity") and instance.entity is not None:
+                try:
+                    _record_provenance(op.verb, instance.entity, batch_id, user)
+                except Exception:
+                    logger.exception("Provenance recording failed for batch %s", batch_id)
 
         # Step 12: Response shaping.
         summary = None

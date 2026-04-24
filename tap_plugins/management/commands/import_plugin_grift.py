@@ -50,12 +50,68 @@ class Command(BaseCommand):
             default=False,
             help="Parse and validate GRIFT files without writing to the database.",
         )
+        parser.add_argument(
+            "--force-batches",
+            dest="force_batches",
+            default="",
+            help=(
+                "Comma-separated list of batch_entity_id UUIDs to force re-import. "
+                "Bypasses the skip-if-exists guard for the named batches only. "
+                "Permitted if and only if DEBUG=True. See req-grid-import-grift-force-reimport."
+            ),
+        )
+        parser.add_argument(
+            "--sweep-strict",
+            dest="sweep_strict",
+            action="store_true",
+            default=False,
+            help=(
+                "With --force-batches, abort the run before any writes if any "
+                "sweep candidate fails a guardrail. See req-grid-import-grift-batch-scoped-sweep."
+            ),
+        )
+        parser.add_argument(
+            "--purge",
+            dest="purge",
+            action="store_true",
+            default=False,
+            help=(
+                "With --force-batches, hard-delete swept entities and their "
+                "batch-scoped history instead of tombstoning. Permitted if and "
+                "only if DEBUG=True. See req-grid-import-grift-sweep-purge."
+            ),
+        )
 
     def handle(self, *args, **options):
+        from django.conf import settings
+
         all_plugins = options["all_plugins"]
         plugin_slugs = options["plugin_slugs"]
         bundle_name = options["bundle_name"]
         dry_run = options["dry_run"]
+        force_batches_raw = options["force_batches"]
+        sweep_strict = options["sweep_strict"]
+        purge = options["purge"]
+
+        force_batches: list[str] = [
+            b.strip() for b in force_batches_raw.split(",") if b.strip()
+        ] if force_batches_raw else []
+
+        # Fail fast with operator-friendly errors before touching any files.
+        if (force_batches or purge) and not getattr(settings, "DEBUG", False):
+            raise CommandError(
+                "--force-batches and --purge are permitted if and only if DEBUG=True. "
+                "This invariant is enforced by req-grid-import-grift-force-reimport and "
+                "req-grid-import-grift-sweep-purge — refusing the invocation."
+            )
+        if purge and not force_batches:
+            raise CommandError(
+                "--purge requires --force-batches; name the batches to purge explicitly."
+            )
+        if sweep_strict and not force_batches:
+            raise CommandError(
+                "--sweep-strict requires --force-batches; it only affects sweeps on force re-import."
+            )
 
         plugin_configs = self._resolve_plugins(all_plugins, plugin_slugs)
 
@@ -64,12 +120,25 @@ class Command(BaseCommand):
 
         if dry_run:
             self.stdout.write(self.style.WARNING("Dry-run mode: no database writes."))
+        if force_batches:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Force re-import mode: {len(force_batches)} batch(es) named. "
+                    + ("Purge enabled. " if purge else "")
+                    + ("Strict sweep enabled. " if sweep_strict else "")
+                )
+            )
 
         total_imported = 0
         total_errors = 0
 
         for config in plugin_configs:
-            imported, errors = self._import_plugin(config, bundle_name, dry_run)
+            imported, errors = self._import_plugin(
+                config, bundle_name, dry_run,
+                force_batches=force_batches,
+                sweep_strict=sweep_strict,
+                purge=purge,
+            )
             total_imported += imported
             total_errors += errors
 
@@ -109,6 +178,10 @@ class Command(BaseCommand):
         config: TapPluginConfig,
         bundle_name: str | None,
         dry_run: bool,
+        *,
+        force_batches: list[str] | None = None,
+        sweep_strict: bool = False,
+        purge: bool = False,
     ) -> tuple[int, int]:
         manifest = config.manifest
         if manifest is None:
@@ -148,7 +221,12 @@ class Command(BaseCommand):
                 imported += 1
                 continue
 
-            result = self._run_import(document)
+            result = self._run_import(
+                document,
+                force_batches=force_batches or [],
+                sweep_strict=sweep_strict,
+                purge=purge,
+            )
             self._report_result(manifest.slug, bundle.name, result)
 
             if result.success:
@@ -158,13 +236,23 @@ class Command(BaseCommand):
 
         return imported, errors
 
-    def _run_import(self, document: dict) -> object:
+    def _run_import(
+        self,
+        document: dict,
+        *,
+        force_batches: list[str] | None = None,
+        sweep_strict: bool = False,
+        purge: bool = False,
+    ) -> object:
         from tap_grid.grift import grift_import
 
         return grift_import(
             document,
             dangling_edge_mode="warn",
             actor=None,
+            force_batches=force_batches or None,
+            sweep_strict=sweep_strict,
+            purge=purge,
         )
 
     def _dry_run_bundle(self, plugin_slug: str, bundle_name: str, document: dict) -> None:
@@ -200,6 +288,10 @@ class Command(BaseCommand):
                     f"{counts.batches_imported} batch(es), "
                     f"{counts.nodes_imported} node(s), "
                     f"{counts.edges_imported} edge(s) imported"
+                    + (f", {counts.batches_force_reimported} force-reimported" if counts.batches_force_reimported else "")
+                    + (f", {counts.entities_swept} swept" if counts.entities_swept else "")
+                    + (f" ({counts.entities_purged} purged)" if counts.entities_purged else "")
+                    + (f", {counts.sweep_skipped} sweep skip(s)" if counts.sweep_skipped else "")
                     + (f", {counts.edges_skipped} edge(s) skipped" if counts.edges_skipped else "")
                     + (f", {counts.warnings} warning(s)" if counts.warnings else "")
                     + "."
@@ -207,5 +299,5 @@ class Command(BaseCommand):
             )
         else:
             self.stderr.write(self.style.ERROR(f"    {label} FAILED:"))
-            for issue in result.issues:
-                self.stderr.write(f"      [{issue.phase}] {issue.path}: {issue.message}")
+            for issue in result.errors:
+                self.stderr.write(f"      [{issue.phase}] {issue.code} at {issue.path}: {issue.message}")

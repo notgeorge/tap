@@ -63,11 +63,34 @@ class GriftCounts:
 
     batches_imported: int = 0
     batches_skipped: int = 0
+    batches_force_reimported: int = 0
     nodes_imported: int = 0
     edges_imported: int = 0
     edges_skipped: int = 0
+    entities_swept: int = 0
+    entities_purged: int = 0
+    sweep_skipped: int = 0
     errors: int = 0
     warnings: int = 0
+
+
+@dataclass
+class GriftSweptEntity:
+    """Per-entity record for an entity tombstoned or purged by a batch-scoped sweep."""
+
+    entity_id: str
+    entity_type: str
+    action: Literal["tombstone", "purge"]
+    reason: str  # always "orphaned" for now; reserved for future taxonomy
+
+
+@dataclass
+class GriftSweepSkipped:
+    """Per-entity record for a sweep candidate that failed a guardrail."""
+
+    entity_id: str
+    entity_type: str
+    reason: Literal["sweep_skipped_external_write", "sweep_skipped_referenced"]
 
 
 @dataclass
@@ -81,6 +104,17 @@ class GriftImportedBatch:
     edges_skipped: int
     errors_count: int
     warnings_count: int
+    # Force-reimport specific fields (default empty for normal imports).
+    force_reimported: bool = False
+    swept_entities: list[GriftSweptEntity] = None  # type: ignore[assignment]
+    sweep_skipped: list[GriftSweepSkipped] = None  # type: ignore[assignment]
+    sweep_strict_aborted: bool = False
+
+    def __post_init__(self):
+        if self.swept_entities is None:
+            self.swept_entities = []
+        if self.sweep_skipped is None:
+            self.sweep_skipped = []
 
 
 @dataclass
@@ -156,6 +190,11 @@ _ERROR_CODES = frozenset(
         "entity_type_mismatch",
         "dangling_edge",  # hard error in strict mode; warning surfaced separately in permissive
         "execution_failed",
+        "force_reimport_refused_production",
+        "sweep_purge_refused_production",
+        "sweep_strict_aborted",
+        "force_reimport_batch_not_found",
+        "purge_requires_force_reimport",
     ]
 )
 
@@ -628,9 +667,16 @@ def _run_preflight(
     *,
     reference_time: datetime,
     dangling_edge_mode: Literal["strict", "permissive"],
+    force_batches: set[str] | None = None,
 ) -> _PreflightResult:
-    """Full-file preflight pass. No mutations — returns a _PreflightResult."""
+    """Full-file preflight pass. No mutations — returns a _PreflightResult.
+
+    When ``force_batches`` contains a batch's entity_id, the default
+    skip-if-exists guard is bypassed and that batch is added to
+    batches_to_import even when a Batch row already exists locally.
+    """
     issues: list[GriftIssue] = []
+    force_batches = force_batches or set()
 
     # --- JSON Schema structural validation ---
     if not _validate_document_schema(document, issues):
@@ -1013,12 +1059,21 @@ def _run_preflight(
             )
 
         # Check batch idempotency: already exists locally?
+        # req-grid-import-grift-force-reimport: bypass the skip-if-exists guard
+        # when this batch_entity_id is in the explicit force_batches set.
         from tap_grid.models import Batch
 
-        if Batch.all_objects.filter(entity_id=batch_entity_id).exists():
+        already_exists = Batch.all_objects.filter(entity_id=batch_entity_id).exists()
+
+        if already_exists and batch_entity_id not in force_batches:
             batches_to_skip.append(
                 GriftSkippedBatch(batch_entity_id=batch_entity_id, path=batch_path, reason="batch_already_imported")
             )
+        elif already_exists and batch_entity_id in force_batches:
+            # Force re-import: skip the guard and include this batch in
+            # batches_to_import. Execution-time code distinguishes force re-imports
+            # by checking whether a Batch row already exists.
+            batches_to_import.append((batch_idx, batch_container))
         elif Entity.objects.filter(pk=uuid.UUID(batch_entity_id)).exclude(entity_type="batch").exists():
             issues.append(
                 _issue(
@@ -1159,6 +1214,10 @@ class _BatchFailed(Exception):
     """Raised inside _execute_grift_batch to trigger atomic rollback."""
 
 
+class _SweepStrictAborted(Exception):
+    """Raised inside _execute_grift_batch when --sweep-strict + a guardrail miss."""
+
+
 def _execute_grift_batch(
     batch_container: dict[str, Any],
     *,
@@ -1167,17 +1226,29 @@ def _execute_grift_batch(
     actor: Any,
     reference_time: datetime,
     dangling_edge_mode: str,
+    force_batches: set[str] | None = None,
+    sweep_strict: bool = False,
+    purge: bool = False,
 ) -> tuple[GriftImportedBatch, list[GriftIssue]]:
     """Import one GRIFT batch atomically. Returns (batch_summary, issues)."""
+    from tap_grid.models import Batch
+
     batch_path = f"$.batches[{batch_idx}]"
     issues: list[GriftIssue] = []
     nodes_imported = 0
     edges_imported = 0
     edges_skipped = 0
+    swept_entities: list[GriftSweptEntity] = []
+    sweep_skipped: list[GriftSweepSkipped] = []
+    sweep_strict_aborted = False
 
     batch_entity = batch_container["batch_entity"]
     batch_node = batch_container["batch_node"]
     batch_entity_id = batch_entity["entity_id"]
+    force_batches = force_batches or set()
+    is_force_reimport = batch_entity_id in force_batches and Batch.all_objects.filter(
+        entity_id=batch_entity_id
+    ).exists()
 
     # Build importer provenance for description_json.
     importer_data: dict[str, Any] = {
@@ -1225,16 +1296,38 @@ def _execute_grift_batch(
 
     try:
         with transaction.atomic():
-            # Create the batch with the preserved entity_id.
-            batch = create_batch(
-                entity_id=batch_entity_id,
-                name=batch_node.get("name") or batch_entity.get("name") or "",
-                source=batch_node.get("source") or "",
-                description=batch_node.get("description") or "",
-                description_json=merged_desc_json,
-                metadata=batch_node.get("metadata") or {},
-                actor=actor,
-            )
+            if is_force_reimport:
+                # req-grid-import-grift-force-reimport: re-apply the existing
+                # batch's content in place. The Batch row and its Entity already
+                # exist; don't call create_batch (which would collide). We may
+                # refresh batch metadata (name, description) to reflect the
+                # revised content, but the identity stays fixed.
+                batch = Batch.all_objects.get(entity_id=batch_entity_id)
+                new_name = batch_node.get("name") or batch_entity.get("name") or batch.name
+                new_description = batch_node.get("description") or batch.description
+                if new_name != batch.name or new_description != batch.description:
+                    batch.name = new_name
+                    batch.description = new_description
+                    batch.save(update_fields=["name", "description"])
+                # If the batch was previously closed, reopen-then-reclose on
+                # success. Status is managed by close_batch at the bottom.
+                from tap_grid.models import BatchStatus
+
+                if batch.status != BatchStatus.OPEN:
+                    batch.status = BatchStatus.OPEN
+                    batch.closed_at = None
+                    batch.save(update_fields=["status", "closed_at"])
+            else:
+                # Normal path: create the batch with the preserved entity_id.
+                batch = create_batch(
+                    entity_id=batch_entity_id,
+                    name=batch_node.get("name") or batch_entity.get("name") or "",
+                    source=batch_node.get("source") or "",
+                    description=batch_node.get("description") or "",
+                    description_json=merged_desc_json,
+                    metadata=batch_node.get("metadata") or {},
+                    actor=actor,
+                )
 
             ctx = CallerContext(user=actor, batch_id=batch_entity_id)
 
@@ -1334,14 +1427,61 @@ def _execute_grift_batch(
                             )
                         raise _BatchFailed()
 
+            # req-grid-import-grift-batch-scoped-sweep: on force re-import,
+            # detect entities the previous ingestion of this batch created
+            # that are absent in the revised content, and tombstone (or purge)
+            # them via the service-layer delete path. Runs inside the
+            # transaction so a strict-mode abort rolls everything back.
+            if is_force_reimport:
+                swept_entities, sweep_skipped = _run_batch_scoped_sweep(
+                    batch_entity_id=batch_entity_id,
+                    batch_container=batch_container,
+                    caller_ctx=ctx,
+                    sweep_strict=sweep_strict,
+                    purge=purge,
+                )
+                # Emit the FORCE_REIMPORT batch event.
+                _emit_force_reimport_event(
+                    batch=batch,
+                    nodes_imported=nodes_imported,
+                    edges_imported=edges_imported,
+                    edges_skipped=edges_skipped,
+                    swept_entities=swept_entities,
+                    sweep_skipped=sweep_skipped,
+                    purge=purge,
+                    sweep_strict=sweep_strict,
+                    actor=actor,
+                )
+
             close_batch(batch)
 
     except _BatchFailed:
         pass  # Atomic block already rolled back; issues collected above.
+    except _SweepStrictAborted as exc:
+        # Strict mode: surface an error and keep the skipped list for the report.
+        sweep_strict_aborted = True
+        # exc.args[0] carries the list of skipped candidates assembled by
+        # _run_batch_scoped_sweep before it raised.
+        if exc.args and isinstance(exc.args[0], list):
+            sweep_skipped = exc.args[0]
+        # Any writes made in this atomic block rolled back with the exception.
+        nodes_imported = 0
+        edges_imported = 0
+        edges_skipped = 0
+        swept_entities = []
+        issues.append(
+            _issue(
+                "sweep_strict_aborted",
+                f"Strict sweep aborted: {len(sweep_skipped)} candidate(s) failed guardrails.",
+                "execution",
+                batch_path,
+                batch_entity_id=batch_entity_id,
+            )
+        )
     except Exception as exc:
         issues.append(_issue("execution_failed", str(exc), "execution", batch_path, batch_entity_id=batch_entity_id))
 
-    errors_count = sum(1 for i in issues if i.code == "execution_failed")
+    errors_count = sum(1 for i in issues if i.code in ("execution_failed", "sweep_strict_aborted"))
     warnings_count = sum(1 for i in issues if i.code == "dangling_edge")
 
     return (
@@ -1353,8 +1493,316 @@ def _execute_grift_batch(
             edges_skipped=edges_skipped,
             errors_count=errors_count,
             warnings_count=warnings_count,
+            force_reimported=is_force_reimport,
+            swept_entities=swept_entities,
+            sweep_skipped=sweep_skipped,
+            sweep_strict_aborted=sweep_strict_aborted,
         ),
         issues,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Batch-scoped sweep (req-grid-import-grift-batch-scoped-sweep / sweep-purge)
+# ---------------------------------------------------------------------------
+
+
+def _run_batch_scoped_sweep(
+    *,
+    batch_entity_id: str,
+    batch_container: dict[str, Any],
+    caller_ctx: CallerContext,
+    sweep_strict: bool,
+    purge: bool,
+) -> tuple[list[GriftSweptEntity], list[GriftSweepSkipped]]:
+    """Detect and remove entities the prior version of this batch created that
+    are absent in the revised content. Returns (swept_entities, sweep_skipped).
+
+    Raises ``_SweepStrictAborted`` with the skipped-candidate list if
+    ``sweep_strict`` is set and any candidate fails a guardrail. The
+    enclosing transaction rolls back, undoing all upserts applied by the
+    revised batch.
+
+    Guardrails:
+      A. Ownership — no BatchEvent exists for this entity with a different
+         batch_id. If another batch has written to the entity, skip it.
+      B. Referential integrity — no edge survives the sweep referencing the
+         candidate in either direction. An edge survives the sweep if it
+         exists and is not itself being swept, or if the revised batch's new
+         edge list points at the candidate.
+
+    If ``purge`` is set, surviving candidates are hard-deleted along with
+    their batch-scoped BatchEvent rows and domain-model history. Default is
+    tombstone via service-layer delete.
+    """
+    from django.db.models import Q
+
+    from tap_grid.models import BatchEvent, BatchEventType, Edge, Entity
+
+    # --- Build the new-version id sets (post-apply state). ---
+    new_node_ids: set[str] = {
+        n["entity"]["entity_id"] for n in batch_container.get("nodes", [])
+    }
+    new_edge_ids: set[str] = {
+        e["entity"]["entity_id"] for e in batch_container.get("edges", [])
+    }
+    new_edge_endpoints: list[tuple[str, str]] = [
+        (e["edge"]["from_entity_id"], e["edge"]["to_entity_id"])
+        for e in batch_container.get("edges", [])
+    ]
+
+    # --- Candidates: entities this batch CREATEd that are absent from the new sets. ---
+    create_events = BatchEvent.objects.filter(
+        batch__entity_id=batch_entity_id,
+        event_type=BatchEventType.CREATE,
+    ).values("entity_id", "entity_type")
+
+    candidate_entity_ids: list[tuple[str, str]] = []  # (entity_id, entity_type)
+    swept_node_ids: set[str] = set()
+    swept_edge_ids: set[str] = set()
+    for ev in create_events:
+        eid = str(ev["entity_id"])
+        etype = ev["entity_type"]
+        if etype == "edge" and eid not in new_edge_ids:
+            candidate_entity_ids.append((eid, etype))
+            swept_edge_ids.add(eid)
+        elif etype != "edge" and eid not in new_node_ids:
+            candidate_entity_ids.append((eid, etype))
+            swept_node_ids.add(eid)
+
+    if not candidate_entity_ids:
+        return [], []
+
+    swept: list[GriftSweptEntity] = []
+    skipped: list[GriftSweepSkipped] = []
+    cleared: list[tuple[str, str]] = []  # candidates that passed both guardrails
+
+    # --- Evaluate guardrails per candidate. ---
+    for entity_id_str, entity_type in candidate_entity_ids:
+        # Guardrail A — ownership. Any event for this entity from a different batch?
+        external_writes_exist = (
+            BatchEvent.objects.filter(entity_id=entity_id_str)
+            .exclude(batch__entity_id=batch_entity_id)
+            .exists()
+        )
+        if external_writes_exist:
+            skipped.append(
+                GriftSweepSkipped(
+                    entity_id=entity_id_str,
+                    entity_type=entity_type,
+                    reason="sweep_skipped_external_write",
+                )
+            )
+            continue
+
+        # Guardrail B — referential integrity (node candidates only).
+        # For an edge candidate, Guardrail B is implicit: the edge itself is
+        # being swept, so edges-referencing-edges doesn't apply (TAP's edge
+        # model rejects edge-as-endpoint). So we only check for nodes.
+        if entity_type != "edge":
+            candidate_uuid = uuid.UUID(entity_id_str)
+            # Existing edges that touch this node AND are not being swept.
+            surviving_existing = (
+                Edge.all_objects.filter(Q(from_entity_id=candidate_uuid) | Q(to_entity_id=candidate_uuid))
+                .filter(entity__deleted_at__isnull=True)
+                .exclude(entity_id__in=[uuid.UUID(e) for e in swept_edge_ids])
+            )
+            if surviving_existing.exists():
+                skipped.append(
+                    GriftSweepSkipped(
+                        entity_id=entity_id_str,
+                        entity_type=entity_type,
+                        reason="sweep_skipped_referenced",
+                    )
+                )
+                continue
+
+            # New-version edges that point at this candidate.
+            touched_by_new = any(
+                entity_id_str in (from_id, to_id) for from_id, to_id in new_edge_endpoints
+            )
+            if touched_by_new:
+                skipped.append(
+                    GriftSweepSkipped(
+                        entity_id=entity_id_str,
+                        entity_type=entity_type,
+                        reason="sweep_skipped_referenced",
+                    )
+                )
+                continue
+
+        cleared.append((entity_id_str, entity_type))
+
+    # --- Strict-mode abort: any skip cancels the entire force re-import. ---
+    if sweep_strict and skipped:
+        raise _SweepStrictAborted(skipped)
+
+    # --- Apply deletions. ---
+    if purge:
+        swept = _apply_sweep_purge(cleared, batch_entity_id)
+    else:
+        swept = _apply_sweep_tombstone(cleared, caller_ctx)
+
+    return swept, skipped
+
+
+def _apply_sweep_tombstone(
+    cleared: list[tuple[str, str]],
+    caller_ctx: CallerContext,
+) -> list[GriftSweptEntity]:
+    """Tombstone each cleared candidate via the service-layer delete path.
+
+    Routes through ``write_batch`` so tombstone cascade (to connected edges)
+    and batch-scoped provenance both fire via the standard pipeline.
+    """
+    from tap_grid.service_types import WriteOperation
+    from tap_grid.services import write_batch
+
+    ops: list[WriteOperation] = []
+    for eid, etype in cleared:
+        verb = "delete_edge" if etype == "edge" else "delete_node"
+        ops.append(WriteOperation(verb=verb, target=eid))
+    if ops:
+        write_batch(ops, caller_context=caller_ctx)
+
+    return [
+        GriftSweptEntity(
+            entity_id=eid,
+            entity_type=etype,
+            action="tombstone",
+            reason="orphaned",
+        )
+        for eid, etype in cleared
+    ]
+
+
+def _apply_sweep_purge(
+    cleared: list[tuple[str, str]],
+    batch_entity_id: str,
+) -> list[GriftSweptEntity]:
+    """Hard-delete each cleared candidate along with this batch's BatchEvent
+    rows and any domain-model history tied to the candidate.
+
+    Guardrail A guarantees the only history rows/events to delete are this
+    batch's own; if that assumption ever fails mid-run, we abort loudly
+    rather than touch anything we shouldn't.
+    """
+    from tap_grid.models import BatchEvent, Edge, Entity
+    from tap_grid.registry import get_model_class
+
+    swept: list[GriftSweptEntity] = []
+
+    for entity_id_str, entity_type in cleared:
+        candidate_uuid = uuid.UUID(entity_id_str)
+
+        # Verify Guardrail A one last time: no events with a foreign batch_id.
+        # If one appears here, we raise; the enclosing transaction rolls back
+        # the whole force re-import (including any prior purges in this run).
+        foreign_events = (
+            BatchEvent.objects.filter(entity_id=candidate_uuid)
+            .exclude(batch__entity_id=batch_entity_id)
+            .exists()
+        )
+        if foreign_events:
+            raise RuntimeError(
+                f"Purge integrity check failed for {entity_id_str}: foreign-batch events found. "
+                "Aborting the entire force re-import."
+            )
+
+        # Hard-delete this batch's events for the entity.
+        BatchEvent.objects.filter(
+            entity_id=candidate_uuid,
+            batch__entity_id=batch_entity_id,
+        ).delete()
+
+        # Hard-delete domain-model history rows for the entity, if the entity
+        # type has a registered model class with a HistoricalRecords manager.
+        if entity_type != "edge":
+            try:
+                model_cls = get_model_class(entity_type)
+            except KeyError:
+                model_cls = None
+            if model_cls is not None and hasattr(model_cls, "history"):
+                model_cls.history.filter(entity_id=candidate_uuid).delete()
+
+        # For node entities, cascade-hard-delete attached edges (the domain
+        # Edge rows, their BaseModel history, and their own Entity spines).
+        if entity_type != "edge":
+            from django.db.models import Q as _Q
+
+            attached_edges = list(
+                Edge.all_objects.filter(
+                    _Q(from_entity_id=candidate_uuid) | _Q(to_entity_id=candidate_uuid)
+                ).values_list("entity_id", flat=True)
+            )
+            if attached_edges:
+                # Edge history rows are on the Edge model.
+                Edge.history.filter(entity_id__in=attached_edges).delete()
+                BatchEvent.objects.filter(
+                    entity_id__in=attached_edges,
+                    batch__entity_id=batch_entity_id,
+                ).delete()
+                # Deleting the edge's Entity spine cascades the Edge row via
+                # the OneToOneField(on_delete=CASCADE) on BaseModel.
+                Entity.objects.filter(pk__in=attached_edges).delete()
+
+        # Finally, hard-delete the candidate Entity itself. For edge candidates,
+        # this removes the Edge row and its history via cascade; for node
+        # candidates, this removes the domain row + anything else referencing
+        # the Entity.
+        if entity_type == "edge":
+            Edge.history.filter(entity_id=candidate_uuid).delete()
+        Entity.objects.filter(pk=candidate_uuid).delete()
+
+        swept.append(
+            GriftSweptEntity(
+                entity_id=entity_id_str,
+                entity_type=entity_type,
+                action="purge",
+                reason="orphaned",
+            )
+        )
+
+    return swept
+
+
+def _emit_force_reimport_event(
+    *,
+    batch: Any,
+    nodes_imported: int,
+    edges_imported: int,
+    edges_skipped: int,
+    swept_entities: list[GriftSweptEntity],
+    sweep_skipped: list[GriftSweepSkipped],
+    purge: bool,
+    sweep_strict: bool,
+    actor: Any,
+) -> None:
+    """Emit the FORCE_REIMPORT BatchEvent so the audit trail reads as
+    'initial ingest → force re-import(s) → further activity'.
+    """
+    from tap_grid.models import BatchEvent, BatchEventType
+
+    BatchEvent.objects.create(
+        batch=batch,
+        event_type=BatchEventType.FORCE_REIMPORT,
+        entity_id=batch.entity_id,
+        entity_type="batch",
+        actor=actor,
+        metadata={
+            "nodes_imported": nodes_imported,
+            "edges_imported": edges_imported,
+            "edges_skipped": edges_skipped,
+            "entities_swept": len(swept_entities),
+            "entities_purged": sum(1 for s in swept_entities if s.action == "purge"),
+            "sweep_skipped": len(sweep_skipped),
+            "purge": purge,
+            "sweep_strict": sweep_strict,
+            "swept_entity_ids": [s.entity_id for s in swept_entities],
+            "sweep_skipped_reasons": {
+                s.entity_id: s.reason for s in sweep_skipped
+            },
+        },
     )
 
 
@@ -1368,6 +1816,9 @@ def grift_import(
     *,
     dangling_edge_mode: Literal["strict", "permissive"] = "strict",
     actor: Any = None,
+    force_batches: list[str] | set[str] | None = None,
+    sweep_strict: bool = False,
+    purge: bool = False,
 ) -> GriftImportResult:
     """Import a GRIFT v0 document into the local TAP grid.
 
@@ -1380,11 +1831,99 @@ def grift_import(
         dangling_edge_mode: "strict" fails preflight on any dangling edge;
             "permissive" skips only the offending edges and continues.
         actor: Optional User to record as the import actor.
+        force_batches: Optional collection of batch_entity_id strings to
+            force re-import (bypass the skip-if-exists guard). Permitted
+            if and only if Django's DEBUG setting is True.
+            See req-grid-import-grift-force-reimport.
+        sweep_strict: If True, a force re-import aborts before any writes
+            if any sweep candidate fails a guardrail. Only meaningful with
+            force_batches. See req-grid-import-grift-batch-scoped-sweep.
+        purge: If True, force re-import hard-deletes swept entities (and
+            their batch-scoped history) instead of tombstoning. Permitted
+            if and only if DEBUG=True. Only meaningful with force_batches.
+            See req-grid-import-grift-sweep-purge.
 
     Returns:
         GriftImportResult describing every phase of the import.
     """
+    from django.conf import settings
+
     reference_time = timezone.now()
+
+    # Normalise force_batches to a set of strings.
+    force_batches_set: set[str] = set(force_batches or [])
+
+    # --purge only makes sense with force_batches; check this first so the
+    # error surfaces consistently whether or not DEBUG is set.
+    if purge and not force_batches_set:
+        return GriftImportResult(
+            success=False,
+            grift_version="",
+            import_mode=IMPORT_MODE,
+            dangling_edge_mode=dangling_edge_mode,
+            reference_time=reference_time.isoformat(),
+            counts=GriftCounts(errors=1),
+            imported_batches=[],
+            skipped_batches=[],
+            errors=[
+                _issue(
+                    "purge_requires_force_reimport",
+                    "--purge requires --force-batches; no batches were named for force re-import.",
+                    "preflight",
+                    "$",
+                )
+            ],
+            warnings=[],
+        )
+
+    # req-grid-import-grift-force-reimport env gate: permitted iff DEBUG=True.
+    # There is no alternate flag, override, or settings key that enables it
+    # in any other configuration. Refuse with a dedicated error code so the
+    # operator sees exactly why it was rejected.
+    if force_batches_set and not getattr(settings, "DEBUG", False):
+        return GriftImportResult(
+            success=False,
+            grift_version="",
+            import_mode=IMPORT_MODE,
+            dangling_edge_mode=dangling_edge_mode,
+            reference_time=reference_time.isoformat(),
+            counts=GriftCounts(errors=1),
+            imported_batches=[],
+            skipped_batches=[],
+            errors=[
+                _issue(
+                    "force_reimport_refused_production",
+                    "Force re-import is permitted if and only if DEBUG=True. "
+                    "Refusing the invocation.",
+                    "preflight",
+                    "$",
+                )
+            ],
+            warnings=[],
+        )
+    # req-grid-import-grift-sweep-purge env gate: same invariant, applied
+    # independently so --purge refusals are distinguishable.
+    if purge and not getattr(settings, "DEBUG", False):
+        return GriftImportResult(
+            success=False,
+            grift_version="",
+            import_mode=IMPORT_MODE,
+            dangling_edge_mode=dangling_edge_mode,
+            reference_time=reference_time.isoformat(),
+            counts=GriftCounts(errors=1),
+            imported_batches=[],
+            skipped_batches=[],
+            errors=[
+                _issue(
+                    "sweep_purge_refused_production",
+                    "--purge is permitted if and only if DEBUG=True. "
+                    "Refusing the invocation.",
+                    "preflight",
+                    "$",
+                )
+            ],
+            warnings=[],
+        )
 
     # Parse JSON input.
     if isinstance(document, (str, bytes)):
@@ -1411,7 +1950,33 @@ def grift_import(
         if isinstance(meta, dict):
             grift_version = str(meta.get("grift_version", ""))
 
-    preflight = _run_preflight(document, reference_time=reference_time, dangling_edge_mode=dangling_edge_mode)
+    preflight = _run_preflight(
+        document,
+        reference_time=reference_time,
+        dangling_edge_mode=dangling_edge_mode,
+        force_batches=force_batches_set,
+    )
+
+    # If any named force_batches didn't resolve to an existing batch in the
+    # file, surface that explicitly — silent no-op would be confusing.
+    if force_batches_set:
+        file_batch_ids = {
+            (batch.get("batch_entity") or {}).get("entity_id")
+            for batch in (document.get("batches") if isinstance(document, dict) else []) or []
+        }
+        file_batch_ids.discard(None)
+        missing = force_batches_set - file_batch_ids
+        for mb in sorted(missing):
+            preflight.issues.append(
+                _issue(
+                    "force_reimport_batch_not_found",
+                    f"Requested force re-import of batch '{mb}' which is not present in the document.",
+                    "preflight",
+                    "$.batches",
+                    batch_entity_id=mb,
+                )
+            )
+            preflight.ok = False
 
     # Separate preflight issues into errors and warnings.
     # In permissive mode, dangling_edge issues are warnings (they just get skipped).
@@ -1451,22 +2016,42 @@ def grift_import(
             actor=actor,
             reference_time=reference_time,
             dangling_edge_mode=dangling_edge_mode,
+            force_batches=force_batches_set,
+            sweep_strict=sweep_strict,
+            purge=purge,
         )
         imported_batches.append(summary)
         exec_issues.extend(batch_issues)
 
-    exec_errors = [i for i in exec_issues if i.code == "execution_failed"]
-    exec_warnings = [i for i in exec_issues if i.code != "execution_failed"]
+    exec_errors = [i for i in exec_issues if i.code in ("execution_failed", "sweep_strict_aborted")]
+    exec_warnings = [i for i in exec_issues if i.code not in ("execution_failed", "sweep_strict_aborted")]
 
     all_errors = errors + exec_errors
     all_warnings = warnings + exec_warnings
 
+    # Batches that executed successfully. A force re-import that aborted via
+    # --sweep-strict is counted as a failure (nothing landed) but still has
+    # an entry in imported_batches for reporting.
+    successfully_imported = [
+        b for b in imported_batches
+        if not b.sweep_strict_aborted and b.errors_count == 0
+    ]
+
     counts = GriftCounts(
-        batches_imported=len(imported_batches),
+        batches_imported=len(successfully_imported),
         batches_skipped=len(preflight.batches_to_skip),
+        batches_force_reimported=sum(
+            1 for b in successfully_imported if b.force_reimported
+        ),
         nodes_imported=sum(b.nodes_imported for b in imported_batches),
         edges_imported=sum(b.edges_imported for b in imported_batches),
         edges_skipped=sum(b.edges_skipped for b in imported_batches),
+        entities_swept=sum(len(b.swept_entities) for b in imported_batches),
+        entities_purged=sum(
+            sum(1 for s in b.swept_entities if s.action == "purge")
+            for b in imported_batches
+        ),
+        sweep_skipped=sum(len(b.sweep_skipped) for b in imported_batches),
         errors=len(all_errors),
         warnings=len(all_warnings),
     )
