@@ -164,16 +164,28 @@ fi
 # Band 0 (8000/5432) is reserved for the primary stack.
 # Cap at 50 so we fail loudly instead of allocating into someone else's well-
 # known port range.
+#
+# A band is "free" when neither the registry NOR actual listening sockets
+# claim it. The actual-port check catches the drift case where a session was
+# spawned by an earlier script version that never appended its registry row,
+# or where the host has something else listening on the band's ports.
+port_in_use() {
+  lsof -iTCP:"$1" -sTCP:LISTEN -P -n 2>/dev/null | grep -q LISTEN
+}
 WEB_PORT=""
 POSTGRES_PORT=""
 for ((band=1; band<=50; band++)); do
   candidate_web=$((8000 + 10 * band))
   candidate_db=$((5432 + 10 * band))
-  if ! grep -qE "^[^ #]+ ${candidate_web} ${candidate_db} " "$REGISTRY"; then
-    WEB_PORT=$candidate_web
-    POSTGRES_PORT=$candidate_db
-    break
+  if grep -qE "^[^ #]+ ${candidate_web} ${candidate_db} " "$REGISTRY"; then
+    continue   # band claimed in registry
   fi
+  if port_in_use "$candidate_web" || port_in_use "$candidate_db"; then
+    continue   # band claimed by something actually listening
+  fi
+  WEB_PORT=$candidate_web
+  POSTGRES_PORT=$candidate_db
+  break
 done
 [[ -n "$WEB_PORT" ]] || fail "All session bands (1..50) are in use. Despawn unused sessions or raise the cap."
 
@@ -307,22 +319,57 @@ info "First build pulls postgres:16-alpine and compiles the web image — typica
 scripts/dc up -d --build
 
 # ============================================================================
-# Step 5: Apply migrations
+# Step 5: Wait for the entrypoint to finish initial setup
 #
-# Standard Django; no spec-dev-multisession requirement governs this directly.
-# Each session has its own postgres volume so migrations always run against a
-# fresh DB.
+# `dc up -d` returns the moment PID 1 (entrypoint.sh) starts, but the entrypoint
+# is still running `uv sync` (slow on first run — populates the named-volume
+# uv cache and the bind-mounted .venv) and then `migrate`. Running another
+# `dc exec uv run ...` here would race those processes and one of them gets
+# SIGKILL'd by the lock contention (this caused exit 137 errors all day).
+#
+# Instead, poll for runserver readiness — once Django responds on port 8000
+# inside the container, we know uv sync + migrate are both done. Migrate is
+# already applied by the entrypoint, so we don't re-run it here.
 # ============================================================================
-bold "Step 5: Applying migrations"
-scripts/dc exec web uv run python manage.py migrate
+bold "Step 5: Waiting for entrypoint (uv sync + migrate + runserver)"
+info "First-time uv sync downloads ~50MB of wheels — typically 1-3 minutes."
+WAIT_TIMEOUT=300   # 5 minutes
+WAIT_START=$(date +%s)
+while true; do
+  # Use Python's urllib (always present — the base image is python:3.14-slim,
+  # which doesn't ship curl). The check passes if anything HTTP responds at
+  # all — the goal is "is runserver listening?", not "does the page load
+  # cleanly?". 500s are fine here; we just need to know uv sync + migrate
+  # finished and the dev server bound the port.
+  if scripts/dc exec -T web python -c "
+import urllib.request, sys
+try:
+    urllib.request.urlopen('http://localhost:8000/admin/', timeout=2)
+    sys.exit(0)
+except urllib.error.HTTPError:
+    sys.exit(0)  # 4xx/5xx from a real server is still 'listening'
+except Exception:
+    sys.exit(1)  # connection refused / not listening yet
+" 2>/dev/null; then
+    info "Web is responding."
+    break
+  fi
+  elapsed=$(($(date +%s) - WAIT_START))
+  if [[ $elapsed -gt $WAIT_TIMEOUT ]]; then
+    fail "Web did not become ready in ${WAIT_TIMEOUT}s. Check 'scripts/dc logs web' in $WORKTREE."
+  fi
+  printf "    waiting... %ds\r" "$elapsed"
+  sleep 3
+done
+echo
 
 # ============================================================================
 # Step 6: Seed plugin data
 #
 # Each isolated stack is a separate TAP installation; spawn seeds it so the
 # attached Claude session has data to work with from the first request.
-# Standard plugin onboarding via tap_plugins; no spec-dev-multisession
-# requirement governs this directly.
+# Plugin order is INSTALLED_APPS order via apps.get_app_configs() — see
+# req-plugin-load-v0-ready-readonly.
 # ============================================================================
 bold "Step 6: Seeding plugin data"
 scripts/dc exec web uv run python manage.py import_plugin_grift --all
