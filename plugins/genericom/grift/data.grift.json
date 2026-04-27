@@ -6,7 +6,7 @@
     "finding_intent": [
       {
         "slug": "genericom-rds-unencrypted-at-rest",
-        "target_entity_id": "01965b01-4000-7000-8000-000600000001",
+        "target_entity_id": "019dd143-3e8f-73e4-b0fa-e6606415fb1b",
         "summary": "RDS PostgreSQL instance has encryption at rest disabled.",
         "spec_ref": "req-genericom-demo-findings-3"
       }
@@ -15,7 +15,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01965b01-4000-7000-8000-000000000006",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e6307bce3067",
         "entity_type": "batch",
         "name": "Genericom data tier v0.1.0",
         "dimensions": {}
@@ -28,7 +28,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000600000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6606415fb1b",
             "entity_type": "aws_rds_instance",
             "name": "genericom-prod-postgres",
             "dimensions": {
@@ -62,7 +62,7 @@
       "edges": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0006f0000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e661282d8ce3",
             "entity_type": "edge",
             "name": "RDS belongs to account",
             "dimensions": {
@@ -70,15 +70,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000600000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000200000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6606415fb1b",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6376bbb66bb",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0006f0000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e662a67f07f3",
             "entity_type": "edge",
             "name": "RDS resides in private-db-a",
             "dimensions": {
@@ -86,15 +86,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000600000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000015",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6606415fb1b",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63ee5558e18",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0006f0000003",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6637fc0aa72",
             "entity_type": "edge",
             "name": "RDS resides in private-db-c",
             "dimensions": {
@@ -102,15 +102,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000600000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000016",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6606415fb1b",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63fe8be4777",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0006f0000004",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6645c618022",
             "entity_type": "edge",
             "name": "EC2 web-a stores in RDS",
             "dimensions": {
@@ -118,15 +118,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000500000003",
-            "to_entity_id": "01965b01-4000-7000-8000-000600000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e655683af8b9",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6606415fb1b",
             "edge_type": "STORES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0006f0000005",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6657145c1dc",
             "entity_type": "edge",
             "name": "EC2 web-c stores in RDS",
             "dimensions": {
@@ -134,8 +134,8 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000500000004",
-            "to_entity_id": "01965b01-4000-7000-8000-000600000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e656a8aacce7",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6606415fb1b",
             "edge_type": "STORES_IN",
             "properties": {}
           }

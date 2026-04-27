@@ -46,16 +46,24 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # ============================================================================
 # Dependencies
 # ============================================================================
+#
+# Dependency installation runs at container START via docker/entrypoint.sh,
+# NOT at image build. The reasons:
+#
+#   1. The compose bind mount `.:/app` overrides /app at runtime, so any
+#      /app/.venv populated at build time is hidden anyway — pure waste.
+#   2. /root/.cache/uv is a named volume (compose), so a build-time uv sync
+#      can't pre-populate it usefully either.
+#   3. Crucially, baking uv's cache into an image layer means Docker's build
+#      cache can fossilize a corrupted uv state and replay it across every
+#      rebuild. Moving the sync to runtime (with a named-volume cache) keeps
+#      cache state mutable per-session and reset-able by `dc down -v`.
+#
+# We still copy the lock + pyproject so the image carries them, but we don't
+# install. First container start does `uv sync` and populates the worktree's
+# .venv plus the named-volume cache.
 
-# Copy dependency files first, before the rest of the code
-# Docker caches each layer - if pyproject.toml hasn't changed,
-# Docker reuses the cached dependency layer (much faster rebuilds)
 COPY pyproject.toml uv.lock* ./
-
-# Install Python dependencies using UV
-# --frozen: use exact versions from uv.lock (reproducible builds)
-# The fallback (|| uv sync) handles first run when no lock file exists yet
-RUN uv sync --frozen --no-dev || uv sync
 
 # ============================================================================
 # Application Code

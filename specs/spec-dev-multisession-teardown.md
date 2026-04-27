@@ -19,28 +19,34 @@ This spec lives separately from [spec-dev-multisession.md](spec-dev-multisession
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-dev-multisession-teardown-script | [Despawn Script](#despawn-script) | Proposed | The one-line public interface |
-| req-dev-multisession-teardown-cleanup | [Total Cleanup](#total-cleanup) | Proposed | What "torn down" means |
-| req-dev-multisession-teardown-safety | [Safety Rails](#safety-rails) | Proposed | Don't lose uncommitted work |
+| req-dev-multisession-teardown-script | [Despawn Script](#despawn-script) | Implemented | The one-line public interface |
+| req-dev-multisession-teardown-cleanup | [Total Cleanup](#total-cleanup) | Implemented | What "torn down" means |
+| req-dev-multisession-teardown-safety | [Safety Rails](#safety-rails) | Deprecated | Replaced by aggressive-by-default with confirm prompt |
 
 ### Despawn Script
 ----
 RID: `req-dev-multisession-teardown-script`
-Status: `Proposed`
+Status: `Implemented`
 
 The public interface is a single command:
 
 ```bash
-scripts/despawn-session.sh <name>
+scripts/despawn-session.sh <name>            # interactive confirm
+scripts/despawn-session.sh <name> --yes      # skip confirm
+scripts/despawn-session.sh                   # interactive — pick from registry
+scripts/despawn-session.sh <name> --purge-image  # also force-rebuild image
 ```
 
-Where `<name>` matches a session previously spawned via the procedure in [spec-dev-multisession.md](spec-dev-multisession.md) (e.g. `cli`, `vscode`).
+Where `<name>` matches a session previously spawned via the procedure in [spec-dev-multisession.md](spec-dev-multisession.md) (e.g. `cli`, `vscode`). The script also accepts names that are not in the registry — useful for cleaning up half-spawned sessions where the registry append never happened.
 
-Optional flags (each off by default):
+Flags:
 
-- `--force` — skip the safety check for uncommitted changes in the session worktree.
-- `--keep-branch` — leave the `session/<name>` git branch in place (useful when work has been pushed and is awaiting PR merge).
-- `--dry-run` — print what would be removed, take no destructive action.
+- `--yes` / `-y` — skip the confirmation prompt. Pair with the named form for one-line invocation in scripts.
+- `--purge-image` — also remove the per-project web image (`tap_<name>-web`) so the next spawn rebuilds without using the cached build state. Use when uv install state, wheel cache, or other image-baked dependency state is poisoned.
+
+#### Behavior
+
+Best-effort, aggressive teardown. Individual cleanup-step failures log a warning and continue rather than aborting — the goal is "leave nothing behind," not "halt at the first surprise." Re-running on an already-torn-down session is safe (each step's no-op path is reached cleanly).
 
 #### Implementation
 
@@ -48,14 +54,24 @@ The script lives at `scripts/despawn-session.sh` and is checked into the repo. I
 
 Sequence:
 
-1. Resolve session: read `~/tap-sessions/<name>/.env.local` to recover `COMPOSE_PROJECT_NAME`. If the worktree or env file is missing, exit 0 with a "nothing to do" message (idempotent).
-2. Safety check (skipped under `--force`): `git -C ~/tap-sessions/<name> status --porcelain` must be empty. If not, refuse and print the dirty paths.
-3. Stop the stack: `cd ~/tap-sessions/<name> && scripts/dc down -v --remove-orphans`.
-4. Remove the worktree: `git worktree remove ~/tap-sessions/<name>` (use `--force` if step 2 was bypassed).
-5. Delete the branch (skipped under `--keep-branch`): `git branch -D session/<name>`.
-6. Print a confirmation summary listing what was removed.
+1. **Pick the session.** If `<name>` is provided, use it. Otherwise display the registry and prompt. Names not in the registry are accepted (cleaning up a half-spawned session may not have a registry row).
+2. **Show the plan and confirm.** Lists what will be removed (containers, volumes, networks, worktree path including all uncommitted files, supermodule branch, submodule worktrees and branches, registry row, optionally the per-project image). Skip with `--yes`.
+3. **Stop the stack.** Prefer `cd <worktree> && scripts/dc down -v --remove-orphans` so `.env.local` resolves the project name correctly. Fall back to `docker compose -p tap_<name> down -v --remove-orphans` if the worktree is unavailable.
+4. **Belt-and-suspenders volume / network cleanup.** Even after step 3, named volumes / networks under `tap_<name>_` are matched and removed explicitly. This catches the failure mode where a previous `dc down` couldn't identify the project (missing `.env.local`).
+5. **Remove submodule worktrees and branches.** For each path in `.gitmodules`:
+   - `git -C <primary>/<path> worktree remove --force <worktree>/<path>`
+   - `git -C <primary>/<path> branch -D session/<name>`
+   - `git -C <primary>/<path> worktree prune` to clear any stale registrations.
+6. **Remove the supermodule worktree and branch.** `git worktree remove --force` followed by `git branch -D session/<name>`. If the worktree directory survives somehow (e.g. removed outside git's awareness), `rm -rf` it.
+7. **Remove the registry row.** `sed -i.bak "/^<name> /d" ~/tap-sessions/.registry`, freeing the band for reuse. See [req-dev-multisession-port-registry](spec-dev-multisession.md#per-machine-session-registry).
+8. **(Optional) Purge the per-project image** with `--purge-image`: `docker rmi` for any image matching `tap_<name>-web`. Forces a no-cache rebuild on the next spawn — necessary when uv cache, wheel state, or other image-baked dependency state is poisoned, because despawn alone doesn't touch image layers.
+9. **Print a verification block** with the commands the operator can run to confirm everything's gone.
 
-Under `--dry-run`, steps 3–5 are reported but not executed.
+Step 5 must precede step 6: removing the supermodule worktree while submodule worktrees are still nested inside it would leave dangling worktree registrations in the submodule repos. `git worktree prune` in each submodule recovers those, but ordering it correctly avoids the cleanup-the-cleanup case.
+
+#### Best-effort semantics
+
+Individual cleanup steps log a warning on failure and continue. The script doesn't run with `set -e`. The reasoning: when an operator invokes despawn, what they want is "leave nothing behind from this session." Aborting on the first surprise (a missing volume, a worktree git no longer knows about, etc.) leaves more partial state than just pushing through. Re-running on an already-clean session is safe — each step's no-op branch is reached without error.
 
 #### Acceptance Criteria
 
@@ -63,7 +79,9 @@ Under `--dry-run`, steps 3–5 are reported but not executed.
 | --- | --- | :---: | --- | --- |
 | req-dev-multisession-teardown-script-1 | Single-command invocation | Proposed | `scripts/despawn-session.sh <name>` is the only command needed for a clean teardown. | |
 | req-dev-multisession-teardown-script-2 | Idempotent | Proposed | Running on a non-existent or already-torn-down session exits 0 with no error. | |
-| req-dev-multisession-teardown-script-3 | Dry run | Proposed | `--dry-run` reports planned actions without executing them. | |
+| req-dev-multisession-teardown-script-3 | Image purge flag | Proposed | `--purge-image` removes the per-project web image so the next spawn rebuilds without cache. | |
+| req-dev-multisession-teardown-script-4 | Half-spawn recovery | Proposed | Despawn cleans up sessions whose registry append never happened (worktree exists, registry row doesn't). | |
+| req-dev-multisession-teardown-script-5 | Best-effort cleanup | Proposed | Individual cleanup-step failures log a warning and continue. | |
 
 ### Total Cleanup
 ----
@@ -76,7 +94,10 @@ After a successful (non-dry-run, non-`--keep-branch`) teardown for session `<nam
 - Networks owned by project `tap_<name>`.
 - Volumes owned by project `tap_<name>` (notably `tap_<name>_postgres_data`).
 - The worktree directory `~/tap-sessions/<name>`.
-- The git branch `session/<name>`.
+- The git branch `session/<name>` in the supermodule.
+- The git branch `session/<name>` in each submodule (one per `.gitmodules` entry).
+- Worktree registrations in any submodule's `.git/worktrees/<name>/` (these would otherwise survive `git worktree prune`).
+- The session's row in `~/tap-sessions/.registry` (band must be freed for reuse).
 
 #### Verification
 
@@ -99,37 +120,51 @@ git branch --list "session/<name>" | grep .                           # no outpu
 | req-dev-multisession-teardown-cleanup-3 | No network | Proposed | No networks remain in the session's compose project. | |
 | req-dev-multisession-teardown-cleanup-4 | Worktree removed | Proposed | The `~/tap-sessions/<name>` directory is gone. | |
 | req-dev-multisession-teardown-cleanup-5 | Branch removed | Proposed | The `session/<name>` branch is gone (unless `--keep-branch`). | |
+| req-dev-multisession-teardown-cleanup-6 | Registry row removed | Proposed | The session's row in `~/tap-sessions/.registry` is gone, freeing its band for reuse. | |
 
 ### Safety Rails
 ----
 RID: `req-dev-multisession-teardown-safety`
-Status: `Proposed`
+Status: `Deprecated`
 
-Teardown is destructive. The script must refuse to proceed when it could lose work:
+#### Status Details
+Deprecated 2026-04-27. The original safety design called for despawn to refuse on dirty worktrees and unmerged commits, with `--force` as an opt-in override. In practice, despawn is most often invoked exactly when state is dirty (mid-debugging, after a failed spawn, after a SIGKILL during migrate) — making the safety rails the rule and `--force` the path everyone takes. We replaced this with a confirm prompt (`--yes` to skip) and aggressive-by-default cleanup. The interactive confirm is the safety mechanism; the spec's explicit dirty-worktree refusal is no longer the way.
 
-- If `git status` in the worktree shows uncommitted or untracked files, abort and print a list of dirty paths. Override with `--force`.
-- If the `session/<name>` branch has commits not present on `main` (or its upstream tracking branch), abort and require `--force` to drop them. The script should mention that pushing the branch first is the safer path.
-- If a stack-up step fails partway through teardown, the script must report which steps did and did not run, so the developer can finish manually.
+If sticky safety is needed for a workflow (e.g. a CI job that must never destroy unpushed work), the right shape is a separate `--safe` flag that re-introduces the dirty checks, rather than making safety the default.
 
-#### Acceptance Criteria
+The original ACIDs below are preserved for history but should not be implemented under their original framing.
+
+#### Acceptance Criteria (historical)
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-teardown-safety-1 | Dirty worktree blocks | Proposed | Teardown aborts with a clear error when the worktree has uncommitted changes, unless `--force`. | |
-| req-dev-multisession-teardown-safety-2 | Unmerged commits block | Proposed | Teardown aborts when `session/<name>` has commits not on `main`, unless `--force`. | |
-| req-dev-multisession-teardown-safety-3 | Partial-failure transparency | Proposed | A mid-teardown failure prints which steps succeeded and which remain. | |
+| req-dev-multisession-teardown-safety-1 | Dirty worktree blocks | Deprecated | Original framing — replaced by confirm prompt. | |
+| req-dev-multisession-teardown-safety-2 | Unmerged commits block | Deprecated | Original framing — replaced by confirm prompt. | |
+| req-dev-multisession-teardown-safety-3 | Partial-failure transparency | Deprecated | Replaced by per-step warnings + best-effort continuation. | |
 
 ## Manual Teardown (until the script lands)
 
 Until `scripts/despawn-session.sh` is implemented, follow this sequence by hand for session `<name>`:
 
 ```bash
-cd ~/tap-sessions/<name>
+NAME=<name>
+REPO=~/Documents/code/tap
+cd ~/tap-sessions/$NAME
 git status                                        # confirm clean
 scripts/dc down -v --remove-orphans
-cd ~/Documents/code/tap
-git worktree remove ~/tap-sessions/<name>
-git branch -D session/<name>
+
+# Submodule worktrees first — each lives in the primary submodule's repo.
+git -C $REPO config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}' | while read -r path; do
+  git -C $REPO/$path worktree remove ~/tap-sessions/$NAME/$path 2>/dev/null
+  git -C $REPO/$path branch -D session/$NAME 2>/dev/null
+done
+
+cd $REPO
+git worktree remove ~/tap-sessions/$NAME
+git branch -D session/$NAME
+
+# Free the band for reuse — remove the registry row.
+sed -i.bak "/^${NAME} /d" ~/tap-sessions/.registry && rm -f ~/tap-sessions/.registry.bak
 ```
 
 Verify with the commands in [Total Cleanup → Verification](#verification).

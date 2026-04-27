@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01965b01-4000-7000-8000-000000000001",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e62b992011e9",
         "entity_type": "batch",
         "name": "Genericom dimension v0.1.0",
         "dimensions": {}
@@ -19,7 +19,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000100000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e63654794bdb",
             "entity_type": "dimension",
             "name": "tap.env: genericom-prod",
             "dimensions": {

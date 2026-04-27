@@ -10,19 +10,19 @@ The doc is the trial run for the documentation system defined in [spec-docs.md](
 
 |   |   |  |
 | :---: | --- | --- |
-| 1. | Single Procedural Surface | One doc walks the reader from "I want a new session" to "I have a running, smoke-tested session" without requiring spec navigation. |
-| 2. | LLM-Actionable | An attached Claude Code session can follow the doc top-to-bottom and execute every command without ambiguity. |
-| 3. | Spec-Aligned | The doc reflects current behavior of `scripts/dc`, `docker-compose.yml`, the port registry, and the smoke-test/teardown procedures. |
-| 4. | Drift-Resistant | Every change to the underlying behavior (compose params, port band, scripts, smoke-test or teardown procedures) is captured in `update-triggers:` so a future editor knows the doc needs review. |
+| 1. | Single Public Entry Point | One short doc tells a developer exactly what command to run to spawn a session and where to look for what it does. |
+| 2. | Zero Procedural Duplication | The doc does NOT describe step-by-step procedure — the script is canonical, and parallel descriptions just drift. The doc's job is to point readers at the script and at the specs that define its behavior. |
+| 3. | LLM-Actionable | An attached Claude Code session reading this doc immediately knows the entry command and where to follow up (smoke-test spec, teardown spec). |
+| 4. | Drift-Resistant | The doc has almost no surface to drift — only the script invocation and links. Behavior is documented at its canonical home (specs + script comments). |
 
 ## Requirements
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-dev-multisession-onboarding-doc-exists | [Doc Exists at Canonical Path](#doc-exists-at-canonical-path) | Proposed | `docs/doc-dev-multisession-onboarding.md` |
-| req-dev-multisession-onboarding-doc-procedure | [Procedure Reflects Current Behavior](#procedure-reflects-current-behavior) | Proposed | Steps match what `scripts/dc` and `docker-compose.yml` actually do |
+| req-dev-multisession-onboarding-doc-pointer | [Pointer-Only Surface](#pointer-only-surface) | Proposed | Doc names the script invocation and links the specs; no procedural duplication |
 | req-dev-multisession-onboarding-doc-frontmatter | [Frontmatter Per spec-docs](#frontmatter-per-spec-docs) | Proposed | Conforms to `req-docs-frontmatter` |
-| req-dev-multisession-onboarding-doc-coverage | [Covers All Phase-1 Surfaces](#covers-all-phase-1-surfaces) | Proposed | Onboarding → smoke test → attached Claude |
+| req-dev-multisession-onboarding-doc-handoff | [Handoff to Smoke-Test and Teardown](#handoff-to-smoke-test-and-teardown) | Proposed | Doc tells the reader what to do next |
 
 ### Doc Exists at Canonical Path
 ----
@@ -38,30 +38,35 @@ The doc lives at `docs/doc-dev-multisession-onboarding.md`. The path is canonica
 | req-dev-multisession-onboarding-doc-exists-1 | File present | Proposed | `docs/doc-dev-multisession-onboarding.md` exists in the repo. | |
 | req-dev-multisession-onboarding-doc-exists-2 | Cross-references resolve | Proposed | Every link to the doc from other specs/docs resolves. | |
 
-### Procedure Reflects Current Behavior
+### Pointer-Only Surface
 ----
-RID: `req-dev-multisession-onboarding-doc-procedure`
+RID: `req-dev-multisession-onboarding-doc-pointer`
 Status: `Proposed`
 
-The doc's procedural steps must match the actual behavior of the system. Specifically:
+The doc must NOT contain a step-by-step procedure. The canonical procedure lives in two places, and only those two:
 
-- Worktree path matches [req-dev-multisession-spawn-script](spec-dev-multisession.md#spawn-script) (`~/tap-sessions/<name>`).
-- Branch naming matches the spawn pattern (`session/<name>`).
-- `.env.local` keys and example values match the [Fixed-by-Name Port Registry](spec-dev-multisession.md#fixed-by-name-port-registry).
-- Compose invocation goes through [`scripts/dc`](spec-dev-multisession.md#env-file-cascade) so env-file cascading applies.
-- TAP_GRID_ID generation uses Python 3.14's `uuid.uuid7()`.
-- Migrate / seed commands match the management commands in `tap_grid/` and `tap_plugins/`.
-- The smoke-test step links to [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md).
-- The teardown reference links to [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md).
+1. The **script** at `scripts/spawn-session.sh` — runnable, executable behavior.
+2. The **spec requirements** in `spec-dev-multisession.md` (and its sibling teardown / smoketest specs) — the *why* behind each behavior, anchored from inline comments in the script.
+
+The doc's job is to:
+
+- Name the entry-point command (one fenced code block).
+- Link to the canonical specs (so the reader knows where to look for *what the script does*).
+- Hand off to the smoke-test and teardown specs (so the reader knows what to do next).
+
+This keeps drift to a minimum: the only surface in the doc that can drift is the entry-point command itself and the link targets. Everything substantive about behavior is captured at its canonical home.
+
+#### Status Details
+
+This requirement replaces the earlier `req-dev-multisession-onboarding-doc-procedure`, which required the doc to contain a manual procedure that "matched current behavior." That procedure was deleted on 2026-04-27 because (a) the spawn script now exists and is canonical, and (b) parallel procedural descriptions in two places drift. The doc has been slimmed to a pointer-only surface.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-onboarding-doc-procedure-1 | Worktree path correct | Proposed | Doc uses `~/tap-sessions/<name>` and branch `session/<name>`. | |
-| req-dev-multisession-onboarding-doc-procedure-2 | Override keys correct | Proposed | `.env.local` example contains exactly `COMPOSE_PROJECT_NAME`, `WEB_PORT`, `POSTGRES_PORT`, `TAP_GRID_ID`, `TAP_SESSION_LABEL`. | |
-| req-dev-multisession-onboarding-doc-procedure-3 | Compose via wrapper | Proposed | All compose invocations use `scripts/dc`, not raw `docker compose`. | |
-| req-dev-multisession-onboarding-doc-procedure-4 | Smoke + teardown linked | Proposed | Procedure ends with links to smoke-test and teardown specs. | |
+| req-dev-multisession-onboarding-doc-pointer-1 | No step-by-step procedure | Proposed | The doc body has zero numbered procedural steps. | |
+| req-dev-multisession-onboarding-doc-pointer-2 | Names the script | Proposed | The doc contains exactly one fenced code block invoking `scripts/spawn-session.sh`. | |
+| req-dev-multisession-onboarding-doc-pointer-3 | Links the canonical specs | Proposed | The doc links `req-dev-multisession-spawn-script` and `req-dev-multisession-admin-bootstrap` (so readers can follow the trail to behavior). | |
 
 ### Frontmatter Per spec-docs
 ----
@@ -81,48 +86,37 @@ The doc carries the YAML frontmatter pattern defined in [req-docs-frontmatter](s
 | req-dev-multisession-onboarding-doc-frontmatter-1 | Required fields present | Proposed | `spec`, `audience` populated correctly. | |
 | req-dev-multisession-onboarding-doc-frontmatter-2 | Update triggers populated | Proposed | `update-triggers:` lists the concrete change areas this doc depends on. | |
 
-### Covers All Phase-1 Surfaces
+### Handoff to Smoke-Test and Teardown
 ----
-RID: `req-dev-multisession-onboarding-doc-coverage`
+RID: `req-dev-multisession-onboarding-doc-handoff`
 Status: `Proposed`
 
-A reader following the doc end-to-end ends up with:
+Reading the doc must leave the developer (or attached Claude) knowing the two next steps in the lifecycle:
 
-1. A worktree at `~/tap-sessions/<name>`.
-2. A `.env.local` carrying their port band and a fresh `TAP_GRID_ID`.
-3. A running Docker stack on the assigned ports.
-4. Migrations applied.
-5. Plugin data seeded.
-6. A Claude Code session attached inside the new worktree.
-7. A clear handoff to [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md) for verification.
+1. **Verification:** run the procedure in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md) from inside the attached Claude session.
+2. **Cleanup when done:** see [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md).
+
+Without these handoffs the doc would create an orphaned starting point — the developer spawns a session and doesn't know how to verify it or how to clean it up.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-onboarding-doc-coverage-1 | All seven outcomes covered | Proposed | Each numbered outcome above appears as a step or sub-step in the doc. | |
+| req-dev-multisession-onboarding-doc-handoff-1 | Smoke-test linked | Proposed | The doc links `spec-dev-multisession-smoketest.md` with a sentence about when to run it. | |
+| req-dev-multisession-onboarding-doc-handoff-2 | Teardown linked | Proposed | The doc links `spec-dev-multisession-teardown.md` with a sentence about when to use it. | |
 
 ## Re-evaluation Triggers
 
 The doc must be reviewed (and updated if needed) when any of the following change. This list is the narrative source for the doc's `update-triggers:` frontmatter; the two should stay in sync.
 
+The doc is now a pointer-only surface, so the trigger list is small by design. Behavior triggers (compose env contract, port registry, worktree convention, etc.) belong on `spec-dev-multisession.md` and `scripts/spawn-session.sh`'s inline comments — not here.
+
 | Trigger | Why it matters |
 | --- | --- |
-| `scripts/dc` behavior or invocation | Doc tells readers to run `scripts/dc up -d --build` etc.; if the wrapper changes, examples drift. |
-| `docker-compose.yml` env-var contract | Adding/removing parameterized vars (e.g. a new `REDIS_PORT`) means `.env.local` examples need updating. |
-| Port registry table in `spec-dev-multisession.md` | Doc's `cli` example pulls from the registry; new bands or changes to existing ones require doc edits. |
-| Worktree path or branch convention | If `~/tap-sessions/<name>` or `session/<name>` change, every step changes. |
-| TAP_GRID_ID generation method | If we move off Python 3.14's `uuid.uuid7()` (e.g. to a management command), the doc's one-liner needs updating. |
-| `TAP_SESSION_LABEL` convention or rendering | Doc tells readers to set `TAP_SESSION_LABEL=cli` and shows what the UI will look like; if rendering or var name changes, the doc drifts. |
-| `.localhost` URL convention or `ALLOWED_HOSTS` handling | Doc tells readers to use `http://<name>.tap.localhost:<port>/`; if this breaks, instructions are misleading. |
-| Migrate or seed command names | `import_plugin_grift --all` or `migrate` invocations changing breaks step 5 / step 6. |
-| `spec-dev-multisession-smoketest.md` or `-teardown.md` reorganization | Doc links readers to those specs; structural changes need link audits. |
-| `scripts/spawn-session.sh` shipping (Phase 2) | The manual procedure should be replaced with "run the spawn script"; this doc shifts from primary to fallback. |
+| `scripts/spawn-session.sh` invocation, prompts, or output | The doc names the script as the entry point; if the invocation changes (path, flags, prompt sequence) the doc drifts. |
+| Restructuring of `spec-dev-multisession-smoketest.md` or `-teardown.md` | The doc hands off to those specs; structural changes need link audits. |
 
-When the spawn script lands (Phase 2), this doc-spec should be reviewed for whether the doc:
-
-- becomes redundant and is deprecated, or
-- is restructured to lead with the spawn-script invocation and keep the manual fallback as a secondary section.
+History: the doc previously contained a full step-by-step manual procedure with ~10 behavior-related triggers. When the spawn script shipped (2026-04-27), the manual procedure was deleted and the trigger list collapsed to the two above. See `req-dev-multisession-onboarding-doc-pointer` for the rationale.
 
 ## Linked Specs
 

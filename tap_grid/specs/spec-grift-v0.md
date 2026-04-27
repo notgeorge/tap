@@ -341,7 +341,7 @@ These schemas are normative for structure and basic field validation. Model-spec
 | req-grift-node | [Node Object](#node-object) | Implemented | Full-object node interchange contract |
 | req-grift-edge | [Edge Object](#edge-object) | Implemented | Full-object edge interchange contract |
 | req-grift-validation | [Validation Rules](#validation-rules) | Implemented | Strict schema and sanity rules |
-| req-grift-seed-ids | [Seed Data ID Convention](#seed-data-id-convention) | Proposed | Authoring convention for hand-written plugin seed IDs |
+| req-grift-seed-ids | [Seed Data ID Convention](#seed-data-id-convention) | Deprecated | Superseded by [spec-grid-uuid-selection.md](spec-grid-uuid-selection.md) and [spec-grift-seed-ids-real-uuid7.md](spec-grift-seed-ids-real-uuid7.md) |
 | req-grift-order | [Canonical Export Ordering](#canonical-export-ordering) | Backlog | Export ordering (no exporter yet) |
 | req-grift-v0-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Explicit exclusions for this version |
 
@@ -714,53 +714,16 @@ Importer workflow, reference resolution, datetime comparison timing, and batch e
 ## Seed Data ID Convention
 ----
 RID: `req-grift-seed-ids`
-Status: `Proposed`
+Status: `Deprecated`
 
-Plugin-shipped GRIFT files authored by hand benefit from readable, stable `entity_id` values. This section codifies an authoring convention that keeps those IDs RFC 9562 UUIDv7-compliant while remaining inspectable at debug time.
+This requirement previously codified a hand-authored "synthetic UUIDv7" convention for plugin seed `entity_id` values: a fixed plugin-wide timestamp prefix, zeroed `rand_a`, zeroed high bits of `rand_b`, and a hand-curated counter tail. That convention produced UUIDs that were structurally not unique — humans pick low numbers, and on 2026-04-27 a collision in the genericom plugin proved the failure mode.
 
-### Status Details
+The convention is replaced by:
 
-This convention applies only to hand-authored seed data that ships inside a plugin. Runtime-generated entities continue to use `uuid.uuid7()` directly and produce fully organic UUIDv7 values.
+- [spec-grid-uuid-selection.md](spec-grid-uuid-selection.md) — defines the menu of allowed UUID schemes (v7, v5, v4) and the criteria for choosing one. UUIDs in seed data are organic `uuid.uuid7()` values; mirrored external identity uses `uuid.uuid5(namespace, key)` with an organic v7 namespace.
+- [spec-grift-seed-ids-real-uuid7.md](spec-grift-seed-ids-real-uuid7.md) — the one-shot migration that rewrote every in-tree synthetic UUID to organic v7.
 
-### Implementation
-
-Hand-authored seed IDs are structured as:
-
-```
-TTTTTTTT-TTTT-7RRR-VRRR-CCCCCCCCCCCC
-```
-
-- `TTTTTTTT-TTTT` — 48-bit timestamp prefix (12 hex chars). Chosen **once per plugin** at plugin birth and reused across every seed `entity_id` that plugin ships. Any valid Unix-ms timestamp works; the recommendation is a timestamp near the plugin's initial commit so chronological sort roughly reflects plugin age.
-- `7RRR` — UUIDv7 version nibble `7` followed by `rand_a`. In hand-authored seeds, `rand_a` is conventionally zeroed (`000`).
-- `VRRR` — variant nibble (`8`, `9`, `a`, or `b`) followed by the high bits of `rand_b`. Conventionally `8000`.
-- `CCCCCCCCCCCC` — 12 hex chars of stable, zero-padded counter (the low bits of `rand_b`). Counters may be split into category blocks (e.g. `000100000001` for "network objects, record 1").
-
-Existing example from `aws_core`:
-
-```
-01965b00-4000-7000-8000-000000000002
-```
-
-- `01965b00-4000` — plugin timestamp prefix
-- `7000` — UUIDv7 version, `rand_a` zeroed
-- `8000` — variant `8`, `rand_b` high bits zeroed
-- `000000000002` — counter (dimension node, second record)
-
-Each plugin MUST pick a distinct timestamp prefix so IDs from different plugins don't collide. Batch `entity_id` values follow the same convention, with the counter chosen so the batch sorts lexically before its contained nodes.
-
-Runtime-generated IDs (exports, dynamic user writes) use organic `uuid.uuid7()`.
-
-### Acceptance Criteria
-
-| ACID | Title | Status | Description | Notes |
-| --- | --- | :---: | --- | --- |
-| req-grift-seed-ids-1 | UUIDv7-Compliant | Proposed | Seed-data `entity_id` values are valid RFC 9562 UUIDv7 (version nibble `7`, variant nibble `8`–`b`). | |
-| req-grift-seed-ids-2 | Per-Plugin Timestamp Prefix | Proposed | Each plugin uses a single stable 48-bit timestamp prefix across all of its hand-authored seed IDs. | |
-| req-grift-seed-ids-3 | Distinct Prefix Per Plugin | Proposed | Two plugins must not share the same 48-bit timestamp prefix. | Informal for v0; no central registry yet. |
-
-### Future
-
-Track adopted plugin prefixes in a central registry (e.g. a TAP-wide reference document) so new plugins can confirm uniqueness without grep. Add a validation rule that flags non-compliant seed IDs during plugin load.
+This section is retained as a historical pointer; do not author new IDs under the old convention.
 
 ## Canonical Export Ordering
 ----

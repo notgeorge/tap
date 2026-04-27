@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019d657d-cc50-71e9-a77b-e7d8cba4bf55",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e761dd8c7399",
         "entity_type": "batch",
         "name": "LOTR searches v0.1.0",
         "dimensions": {}
@@ -19,7 +19,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "019d657d-cc50-71e9-a77b-e7d9a684010c",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e762333aa2d6",
             "entity_type": "search",
             "name": "All LOTR Characters",
             "dimensions": {}
@@ -34,7 +34,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d657d-cc50-71e9-a77b-e7da0c960bd0",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e763b714ba63",
             "entity_type": "search",
             "name": "All LOTR Locations",
             "dimensions": {}
@@ -49,7 +49,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d657d-cc50-71e9-a77b-e7dbbefcb7e3",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e764bdcb7494",
             "entity_type": "search",
             "name": "All LOTR Artifacts",
             "dimensions": {}
@@ -64,7 +64,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d657d-cc50-71e9-a77b-e7dcd0332e8f",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e765a5116fae",
             "entity_type": "search",
             "name": "Characters and Their Artifacts",
             "dimensions": {}
@@ -83,7 +83,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d657d-cc50-71e9-a77b-e7ddc6024f3b",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e766e0658218",
             "entity_type": "search",
             "name": "Characters and Their Locations",
             "dimensions": {}
@@ -102,7 +102,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d657d-cc50-71e9-a77b-e7de8daa4f19",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e767e77a62dc",
             "entity_type": "search",
             "name": "Character Alliances",
             "dimensions": {}
@@ -121,7 +121,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d657d-cc50-71e9-a77b-e7dff210af8a",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e768932bf6c4",
             "entity_type": "search",
             "name": "All Fellowship Edges",
             "dimensions": {}
@@ -136,7 +136,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d657d-cc50-71e9-a77b-e7e09dff227c",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7693b9626c6",
             "entity_type": "search",
             "name": "Characters with Bio",
             "dimensions": {}
@@ -151,7 +151,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d6eed-adf7-7572-91aa-e19006369266",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e793b2ed6bdf",
             "entity_type": "search",
             "name": "LOTR Saga",
             "dimensions": {}

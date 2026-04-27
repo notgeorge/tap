@@ -120,6 +120,10 @@ Development Commands
     # Apply migrations
     docker compose exec web uv run python manage.py migrate
 
+    # Seed plugin data (required after migrate — plugins no longer auto-import in ready();
+    # see req-plugin-load-v0-ready-readonly. Spawn script does this automatically.)
+    docker compose exec web uv run python manage.py import_plugin_grift --all
+
     # Create superuser
     docker compose exec web uv run python manage.py createsuperuser
 
@@ -128,3 +132,28 @@ Development Commands
 
     # View logs
     docker compose logs -f web
+
+Documentation (specs ↔ docs alignment)
+    Specs (specs/, <app>/specs/) are authoritative for behavior. Docs (docs/) are derived how-to surfaces.
+    See specs/spec-docs.md for the full documentation system contract.
+
+    Naming:
+        Doc files: docs/doc-<system>-<name>.md (doc- prefix on the filename)
+        Doc-owning specs: specs/spec-<system>-<doc-name>-doc.md (-doc suffix on the spec filename)
+
+    Drift prevention — when editing a SPEC:
+        1. Search docs/ for any reference to the requirement RID(s) you are changing:
+               grep -r "req-foo-bar" docs/
+        2. Read each hit. If the doc no longer matches behavior, update the doc in the same PR.
+        3. Doc-only commits when the doc change is independent of behavior; bundled commits when paired with a behavior change.
+
+    Drift prevention — when editing a DOC:
+        1. Read its frontmatter `spec:` and skim its `covers:` list.
+        2. Confirm the procedure / claims still match what the linked specs require.
+        3. If a referenced requirement has changed, update the doc; if the doc-spec's `update-triggers:` list is incomplete, expand it.
+
+    Versioning:
+        last-edited and version are derived from git (git log -1 --format=%cI / %h <file>); never store these in a doc.
+        last-reviewed is NOT used; the git log is the source of truth.
+
+    See req-docs-drift-conventions and req-docs-change-history in specs/spec-docs.md.

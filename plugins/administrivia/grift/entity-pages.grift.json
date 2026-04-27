@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019d7a00-1000-7000-a000-000000000001",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e798d18f1b2e",
         "entity_type": "batch",
         "name": "Entity viewer/editor pages v0.1.0",
         "dimensions": {}
@@ -19,7 +19,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000010",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e799369231ae",
             "entity_type": "search",
             "name": "Entity Neighborhood",
             "dimensions": {}
@@ -49,7 +49,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000020",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e79aab8b8341",
             "entity_type": "layout",
             "name": "Entity Neighborhood Layout",
             "dimensions": {}
@@ -67,7 +67,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000030",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e79bd22f2904",
             "entity_type": "panel",
             "name": "Entity Graph",
             "dimensions": {"tap.graph": "web"}
@@ -81,7 +81,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000031",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e79c1ea8752d",
             "entity_type": "panel",
             "name": "Entity Viewer",
             "dimensions": {"tap.graph": "web"}
@@ -95,7 +95,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000032",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa11dcdb2569",
             "entity_type": "panel",
             "name": "Entity FLIP",
             "dimensions": {"tap.graph": "web"}
@@ -109,7 +109,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000033",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa12ef810581",
             "entity_type": "panel",
             "name": "Entity Editor",
             "dimensions": {"tap.graph": "web"}
@@ -123,7 +123,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000040",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa13e06f1ab1",
             "entity_type": "page",
             "name": "Entity Viewer",
             "dimensions": {"tap.graph": "web"}
@@ -147,7 +147,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000041",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa144d77d812",
             "entity_type": "page",
             "name": "Entity Editor",
             "dimensions": {"tap.graph": "web"}
@@ -172,98 +172,98 @@
       "edges": [
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000050",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa15c501983a",
             "entity_type": "edge",
             "name": "USES_SEARCH",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d7a00-1000-7000-a000-000000000020",
-            "to_entity_id": "019d7a00-1000-7000-a000-000000000010",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e79aab8b8341",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e799369231ae",
             "edge_type": "USES_SEARCH",
             "properties": {"search-id": "main"}
           }
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000051",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa16b7f9d354",
             "entity_type": "edge",
             "name": "USES_LAYOUT",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d7a00-1000-7000-a000-000000000030",
-            "to_entity_id": "019d7a00-1000-7000-a000-000000000020",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e79bd22f2904",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e79aab8b8341",
             "edge_type": "USES_LAYOUT",
             "properties": {"layout-id": "default"}
           }
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000060",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa17e3d4e783",
             "entity_type": "edge",
             "name": "USES_PANEL",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d7a00-1000-7000-a000-000000000040",
-            "to_entity_id": "019d7a00-1000-7000-a000-000000000030",
+            "from_entity_id": "019dd143-3e90-72fd-b0a4-aa13e06f1ab1",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e79bd22f2904",
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "graph"}}
           }
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000061",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa185367a9b8",
             "entity_type": "edge",
             "name": "USES_PANEL",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d7a00-1000-7000-a000-000000000040",
-            "to_entity_id": "019d7a00-1000-7000-a000-000000000031",
+            "from_entity_id": "019dd143-3e90-72fd-b0a4-aa13e06f1ab1",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e79c1ea8752d",
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "viewer"}}
           }
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000062",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa19fad98ab7",
             "entity_type": "edge",
             "name": "USES_PANEL",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d7a00-1000-7000-a000-000000000040",
-            "to_entity_id": "019d7a00-1000-7000-a000-000000000032",
+            "from_entity_id": "019dd143-3e90-72fd-b0a4-aa13e06f1ab1",
+            "to_entity_id": "019dd143-3e90-72fd-b0a4-aa11dcdb2569",
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "flip"}}
           }
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000070",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa1a42e7eed2",
             "entity_type": "edge",
             "name": "USES_PANEL",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d7a00-1000-7000-a000-000000000041",
-            "to_entity_id": "019d7a00-1000-7000-a000-000000000030",
+            "from_entity_id": "019dd143-3e90-72fd-b0a4-aa144d77d812",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e79bd22f2904",
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "graph"}}
           }
         },
         {
           "entity": {
-            "entity_id": "019d7a00-1000-7000-a000-000000000071",
+            "entity_id": "019dd143-3e90-72fd-b0a4-aa1b1077ac08",
             "entity_type": "edge",
             "name": "USES_PANEL",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d7a00-1000-7000-a000-000000000041",
-            "to_entity_id": "019d7a00-1000-7000-a000-000000000033",
+            "from_entity_id": "019dd143-3e90-72fd-b0a4-aa144d77d812",
+            "to_entity_id": "019dd143-3e90-72fd-b0a4-aa12ef810581",
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "editor"}}
           }

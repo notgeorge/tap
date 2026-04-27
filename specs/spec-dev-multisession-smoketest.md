@@ -22,6 +22,7 @@ The smoke test is also the regression harness for `req-dev-multisession-compose-
 | req-dev-multisession-smoketest-runtime | [Runtime Reachability](#runtime-reachability) | Proposed | Stack up + responsive |
 | req-dev-multisession-smoketest-isolation | [Isolation](#isolation) | Proposed | No collision with primary |
 | req-dev-multisession-smoketest-data | [Data Plane](#data-plane) | Proposed | Migrations + seed |
+| req-dev-multisession-smoketest-admin | [Admin Bootstrap](#admin-bootstrap) | Proposed | Superuser created and credentials file present |
 
 ### Runtime Reachability
 ----
@@ -152,6 +153,57 @@ Expected: the two values match. Mismatch means the override didn't apply — mos
 | req-dev-multisession-smoketest-data-1 | Migrations applied | Proposed | `migrate --check` exits 0. | |
 | req-dev-multisession-smoketest-data-2 | Seed loaded | Proposed | `Entity.all_objects.count()` > 0. | |
 | req-dev-multisession-smoketest-data-3 | Grid ID matches override | Proposed | Container env `TAP_GRID_ID` matches `.env.local`. | |
+
+### Admin Bootstrap
+----
+RID: `req-dev-multisession-smoketest-admin`
+Status: `Proposed`
+
+The session must have a Django admin superuser created and a `.dev-credentials` file present. The credentials in the file must match what's in the database.
+
+#### Procedure
+
+```bash
+# 1. .dev-credentials file exists with all required keys.
+test -f .dev-credentials
+grep -E '^(DJANGO_SUPERUSER_USERNAME|DJANGO_SUPERUSER_PASSWORD|DJANGO_SUPERUSER_EMAIL|SESSION_NAME|GENERATED_AT)=' .dev-credentials | wc -l
+```
+
+Expected: file exists; grep returns `5` (all five keys present).
+
+```bash
+# 2. .dev-credentials is gitignored.
+git check-ignore .dev-credentials
+```
+
+Expected: command exits 0 and prints `.dev-credentials` (file is ignored).
+
+```bash
+# 3. The admin user exists in the database.
+scripts/dc exec web uv run python manage.py shell -c \
+  "from django.contrib.auth import get_user_model; U = get_user_model(); print(U.objects.filter(username='admin', is_superuser=True).count())"
+```
+
+Expected: prints `1` (exactly one admin superuser exists).
+
+```bash
+# 4. The credentials in the file actually log in.
+USERNAME=$(grep ^DJANGO_SUPERUSER_USERNAME= .dev-credentials | cut -d= -f2)
+PASSWORD=$(grep ^DJANGO_SUPERUSER_PASSWORD= .dev-credentials | cut -d= -f2-)
+scripts/dc exec web uv run python manage.py shell -c \
+  "from django.contrib.auth import authenticate; u = authenticate(username='$USERNAME', password='$PASSWORD'); print('OK' if u and u.is_superuser else 'FAIL')"
+```
+
+Expected: prints `OK`. `FAIL` means the credentials file and the DB are out of sync — re-run admin bootstrap (step 7 of the onboarding doc).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-smoketest-admin-1 | Credentials file complete | Proposed | `.dev-credentials` exists with all five keys. | |
+| req-dev-multisession-smoketest-admin-2 | Credentials file gitignored | Proposed | `git check-ignore .dev-credentials` exits 0. | |
+| req-dev-multisession-smoketest-admin-3 | Admin user exists | Proposed | Exactly one `admin` superuser is present in the session DB. | |
+| req-dev-multisession-smoketest-admin-4 | Credentials log in | Proposed | The username/password from `.dev-credentials` authenticates as a superuser. | |
 
 ## Status Vocabulary
 

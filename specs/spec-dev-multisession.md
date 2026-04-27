@@ -14,7 +14,7 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | 2. | Working Tree Isolation | Each session has its own checkout (git worktree) so file edits never overlap. |
 | 3. | Repeatable Spawn | Adding a new session is a single command that produces a working environment seeded with current data. |
 | 4. | Zero-Setup Default | The primary checkout works with `docker compose up` and no manual env configuration, preserving today's developer experience. |
-| 5. | Predictable Resource Allocation | Ports and namespaces are deterministic and human-memorable, not auto-allocated, while the design leaves room for auto-allocation later. |
+| 5. | Demand-Driven Allocation | Sessions get a port band the first time they're spawned, recorded in a per-machine registry. The primary's reservation (8000/5432) is fixed; everything else is allocated on demand. Ephemeral by default — despawn frees the band. |
 
 ## Requirements
 
@@ -22,9 +22,10 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | --- | --- | :---: | --- |
 | req-dev-multisession-compose-parameterized | [Parameterized Compose Stack](#parameterized-compose-stack) | Implemented | Phase 1 |
 | req-dev-multisession-env-cascade | [Env File Cascade](#env-file-cascade) | Implemented | Phase 1 |
-| req-dev-multisession-port-registry | [Fixed-by-Name Port Registry](#fixed-by-name-port-registry) | Implemented | Phase 1 |
-| req-dev-multisession-browser-disambiguation | [Browser Disambiguation](#browser-disambiguation) | Proposed | Phase 1 |
-| req-dev-multisession-spawn-script | [Spawn Script](#spawn-script) | Proposed | Phase 2 |
+| req-dev-multisession-port-registry | [Per-Machine Session Registry](#per-machine-session-registry) | Implemented | Phase 1 |
+| req-dev-multisession-browser-disambiguation | [Browser Disambiguation](#browser-disambiguation) | Implemented | Phase 1 |
+| req-dev-multisession-spawn-script | [Spawn Script](#spawn-script) | Implemented | Phase 2; interactive |
+| req-dev-multisession-admin-bootstrap | [Admin User Bootstrap](#admin-user-bootstrap) | Implemented | Phase 2, sub-feature of spawn |
 | req-dev-multisession-list-script | [List Script](#list-script) | Proposed | Phase 3 |
 | req-dev-multisession-named-routing | [Name-Based Routing via Reverse Proxy](#name-based-routing-via-reverse-proxy) | Backlog | Phase 3 polish |
 
@@ -46,6 +47,8 @@ Status: `Implemented`
 - `docker-compose.yml` uses `${VAR:-default}` substitution syntax so the file remains valid with no `.env` present.
 - A checked-in `.env` carries the defaults so `docker compose up` works out of the box in the primary checkout.
 - Container-internal ports (`8000`, `5432`) stay fixed; only host-side mappings move.
+- **uv cache lives in a per-project named volume** (`uv_cache:/root/.cache/uv`) rather than being baked into the image at build time. This is a deliberate isolation choice: image layers carrying uv's cache caused Docker's build cache to fossilize corrupted uv state and replay it across every rebuild (a real problem hit during multi-session debugging on 2026-04-27). Per-project named volumes mean (a) cache corruption can't leak between sessions, (b) `dc down -v` (already part of despawn) clears it, and (c) image rebuilds don't carry old cache state forward.
+- **Dependency sync runs in the entrypoint, not the Dockerfile.** Because both `/app/.venv` (worktree bind mount) and `/root/.cache/uv` (named volume) are runtime mounts that hide image content, build-time `uv sync` is wasted work — anything installed lands in image layers nobody can read at runtime. `docker/entrypoint.sh` runs `uv sync` on first container start; subsequent starts are near-instant no-ops because the venv and cache persist in their respective mounts.
 
 #### Future
 If we add Redis, mailcatcher, or other host-exposed services, follow the same pattern: add `<SERVICE>_PORT` variable with a default, allocate it a fixed offset in the port registry.
@@ -57,6 +60,8 @@ If we add Redis, mailcatcher, or other host-exposed services, follow the same pa
 | req-dev-multisession-compose-parameterized-1 | Default behavior unchanged | Proposed | `docker compose up` from a fresh clone with the checked-in `.env` produces containers named `tap-web-1` / `tap-db-1` listening on host `8000` / `5432`. | |
 | req-dev-multisession-compose-parameterized-2 | Override applied | Proposed | Setting `COMPOSE_PROJECT_NAME=tap_cli WEB_PORT=8001 POSTGRES_PORT=5433` and running compose produces containers in the `tap_cli` project listening on host `8001` / `5433`. | |
 | req-dev-multisession-compose-parameterized-3 | Two stacks coexist | Proposed | Two checkouts running compose with different namespaces produce two simultaneously-running, non-conflicting Docker stacks. | |
+| req-dev-multisession-compose-parameterized-4 | uv cache is a per-project named volume | Proposed | The web service mounts `uv_cache:/root/.cache/uv`. Each compose project gets its own volume; cache corruption is per-session and cleared by `dc down -v`. | |
+| req-dev-multisession-compose-parameterized-5 | Dependency sync at entrypoint | Proposed | `uv sync` runs from `docker/entrypoint.sh`, not the Dockerfile, so the install lands in the bind-mounted worktree and the named-volume cache rather than in image layers. | |
 
 ### Env File Cascade
 ----
@@ -78,35 +83,63 @@ A small `scripts/dc` wrapper invokes Docker Compose with `--env-file .env --env-
 | req-dev-multisession-env-cascade-1 | Wrapper cascades env files | Proposed | `scripts/dc config` resolves variables from `.env.local` when present, falling back to `.env`. | |
 | req-dev-multisession-env-cascade-2 | `.env.local` not tracked | Proposed | `git status` is clean after creating a `.env.local` file. | |
 
-### Fixed-by-Name Port Registry
+### Per-Machine Session Registry
 ----
 RID: `req-dev-multisession-port-registry`
 Status: `Implemented`
 
-Each session name maps to a fixed port offset to keep ports human-memorable across spawns. The registry lives in `scripts/sessions.txt` (or equivalent), one entry per name, allocated in offsets of 10:
+Sessions are allocated port bands on demand at spawn time and recorded in a per-machine registry at `~/tap-sessions/.registry`. The primary stack's reservation is fixed; session names are otherwise arbitrary and chosen by the developer.
+
+#### Reserved
 
 | Name | COMPOSE_PROJECT_NAME | WEB_PORT | POSTGRES_PORT |
 | --- | --- | --- | --- |
-| (default) | tap | 8000 | 5432 |
-| cli | tap_cli | 8010 | 5442 |
-| vscode | tap_vscode | 8020 | 5452 |
-| (next) | tap_<name> | 80N0 | 54N2 |
+| (default — primary stack) | tap | 8000 | 5432 |
 
-The 10-port spacing per session leaves headroom for adding services (Redis, mailcatcher, debugger) without re-numbering.
+#### Allocation algorithm
 
-#### Future
-When we move to "make it fast" mode, replace this registry with auto-allocation from a pool (e.g., next free port in 8000–8099), trading determinism for zero-config spawns. The fixed-name registry stays useful for muscle-memory sessions; auto-allocation would be the default for ad hoc ones.
+For session band `N` (1 ≤ N ≤ 50): `WEB_PORT = 8000 + 10N`, `POSTGRES_PORT = 5432 + 10N`. So band 1 = 8010 / 5442, band 2 = 8020 / 5452, etc.
+
+On `scripts/spawn-session.sh`, the script:
+1. Reads the registry.
+2. Rejects the chosen name if it already has a row.
+3. Walks bands 1..50 and picks the smallest one whose ports are not already in any registry row.
+4. After a successful spawn, appends the new row to the registry.
+
+The 10-port spacing per band leaves headroom for additional host-exposed services (Redis, mailcatcher, debugger) within a session without renumbering.
+
+The cap (50) exists to fail loudly rather than allocate into someone else's well-known port range. If you genuinely need more concurrent sessions than that, you have bigger problems than a script error.
+
+#### Format
+
+Line-delimited, single-space-separated columns: `name web db branch spawned`. Comment lines start with `#`. Example:
+
+```
+# name web db branch spawned
+cli 8010 5442 session/cli 2026-04-27T15:00:00Z
+vscode 8020 5452 session/vscode 2026-04-27T15:30:00Z
+```
+
+#### Ephemeral by default
+
+Despawn removes the row, freeing the band for reuse. Re-spawning the same name later may or may not return the same band depending on what else has been spawned since. If sticky-band behavior is wanted, a future `--retain` flag on despawn could preserve the row while removing everything else.
+
+#### Concurrency
+
+Two simultaneous spawns could race and pick the same band. This is genuinely rare in practice and not worth a `flock` (which isn't in macOS's base system anyway). If it becomes a real problem we'll add a lock-directory pattern (`mkdir`-based, portable).
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-port-registry-1 | Registry is canonical | Proposed | The port table in this spec matches what spawn script writes to `.env.local`. | |
+| req-dev-multisession-port-registry-1 | Registry is canonical for live sessions | Proposed | Every active session has exactly one row in `~/tap-sessions/.registry`; despawn removes it. | |
+| req-dev-multisession-port-registry-2 | Allocation finds smallest free band | Proposed | Spawn picks the lowest-numbered free band, not a random one. | |
+| req-dev-multisession-port-registry-3 | Cap enforced | Proposed | Spawn fails with a clear error when all 50 bands are occupied. | |
 
 ### Browser Disambiguation
 ----
 RID: `req-dev-multisession-browser-disambiguation`
-Status: `Proposed`
+Status: `Implemented`
 
 Two zero-infra mechanisms let the developer tell at a glance which session a browser tab points at:
 
@@ -135,25 +168,121 @@ The two mechanisms are independent and complementary — the URL labels the addr
 ### Spawn Script
 ----
 RID: `req-dev-multisession-spawn-script`
-Status: `Proposed`
+Status: `Implemented`
 
-`scripts/spawn-session.sh <name>` provisions a new isolated environment in one command:
+`scripts/spawn-session.sh` provisions a new isolated environment interactively. The script prompts only for decisions the developer must make (Keychain setup if missing, session name) and runs everything else automatically:
 
-1. Creates a git worktree at `~/tap-sessions/<name>` on a new branch `session/<name>`.
-2. Generates `.env.local` in the worktree with `COMPOSE_PROJECT_NAME`, `WEB_PORT`, `POSTGRES_PORT` from the registry, and a freshly generated `TAP_GRID_ID`.
-3. Builds and starts the stack: `scripts/dc up -d --build`.
-4. Runs `scripts/dc exec web uv run python manage.py migrate`.
-5. Runs `scripts/dc exec web uv run python manage.py import_plugin_grift --all` to seed.
-6. Prints next-step instructions: `cd` path, web URL, and the command to attach Claude Code.
+1. **Step 0 — Keychain check.** If `tap-dev-default` is missing, offers to set it. macOS-only; non-Darwin platforms skip this step and fall back to env var or random per session.
+2. **Step 1 — Session name and band allocation.** Displays the current live sessions from `~/tap-sessions/.registry` (initializing the file with a header on first use). Prompts for a name; validates against `^[a-z][a-z0-9_-]*$` and rejects `default` (reserved for the primary stack). Rejects names already in the registry. Allocates the smallest free band (per [Per-Machine Session Registry](#per-machine-session-registry)) and computes web/db ports. Also runs the stale-Docker pre-check so leftover state from a prior failed spawn (volume or containers under `tap_<name>`) aborts the run cleanly with a "remove this first" message.
+3. **Step 2 — Worktree.** Creates the worktree at `~/tap-sessions/<name>` on a new branch `session/<name>`. Aborts if the worktree path already exists. For each submodule declared in `.gitmodules` (currently `plugins/aws_core`, `plugins/computing_core`, `plugins/fedramp_20x_ksi`), creates a **submodule worktree** at the same `session/<name>` branch starting from the supermodule's recorded gitlink SHA. Concretely: `git -C <primary>/plugins/<sm> worktree add -b session/<name> <session-worktree>/plugins/<sm> <gitlink-sha>`. This shares `.git/` infrastructure with the primary's submodule (so unpushed primary commits are visible without copying) and points the worktree's submodule `origin` at the canonical remote (so pushes go to GitHub directly). Pre-check: every submodule must be initialized in the primary, and `session/<name>` must not already exist in any submodule — both block early before any state mutation. Despawn must remove the submodule worktrees before the supermodule worktree; see [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md).
+4. **Step 3 — `.env.local`.** Generates fresh `TAP_GRID_ID` via Python's `uuid.uuid7()`. Writes `COMPOSE_PROJECT_NAME`, `WEB_PORT`, `POSTGRES_PORT`, `TAP_GRID_ID`, `TAP_SESSION_LABEL`.
+5. **Step 4 — Build + start.** `scripts/dc up -d --build`.
+6. **Step 5 — Migrate.** `scripts/dc exec web uv run python manage.py migrate`.
+7. **Step 6 — Seed.** `scripts/dc exec web uv run python manage.py import_plugin_grift --all`.
+8. **Step 7 — Admin user.** Implements [req-dev-multisession-admin-bootstrap](#admin-user-bootstrap): resolves password (env var → Keychain → random), writes `.dev-credentials`, runs `createsuperuser --noinput`.
+9. **Done.** Prints labeled URL, direct URL, admin URL, admin credentials, credentials-file path, and how to attach Claude Code.
+
+The script wires a failure trap that, on any non-zero exit, prints recovery commands for the partial state (despawn + worktree-remove + branch-delete). This isolates the developer from "where did spawn fail and what do I do now" guesswork.
 
 Worktrees live **outside** the repo at `~/tap-sessions/<name>` to keep the main tree uncluttered.
+
+#### Future
+
+A `--non-interactive` mode (taking `--name`, `--admin-password` flags) would make the script CI-friendly. Not v1. Auto-allocation of new port bands (when "make it fast" mode lands) would skip the registry-edit-first requirement for ad-hoc names.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-spawn-script-1 | Single-command spawn | Proposed | `scripts/spawn-session.sh foo` produces a running, seeded stack at the registered port. | |
-| req-dev-multisession-spawn-script-2 | Idempotent failure | Proposed | Re-running spawn for an existing name fails fast with a clear error rather than partially mutating state. | |
+| req-dev-multisession-spawn-script-1 | Single-command spawn | Proposed | `scripts/spawn-session.sh` produces a running, seeded stack with admin user at the registered port band. | |
+| req-dev-multisession-spawn-script-2 | Idempotent failure | Proposed | Re-running spawn for a session with an existing worktree aborts before any mutation. | |
+| req-dev-multisession-spawn-script-3 | Registry collision rejection | Proposed | Names already present in `~/tap-sessions/.registry` are rejected with a clear error pointing at despawn. | |
+| req-dev-multisession-spawn-script-4 | Failure trap recovery | Proposed | On non-zero exit during spawn, the script prints recovery commands for the partial state. | |
+
+### Admin User Bootstrap
+----
+RID: `req-dev-multisession-admin-bootstrap`
+Status: `Implemented`
+
+The spawn script must create a Django admin superuser in each new session's database, unattended, without prompting. This is a sub-feature of [Spawn Script](#spawn-script) but specified separately because the credential resolution model has its own design surface.
+
+#### Username and email — fixed
+
+- **Username:** `admin`.
+- **Email:** `admin@<session>.tap.localhost` (e.g. `admin@cli.tap.localhost`).
+
+Both are deterministic from the session name. Not configurable in v0 to keep the spawn flow simple.
+
+#### Password resolution order
+
+The spawn script resolves the admin password by checking these sources in order; the first that yields a value wins:
+
+1. `--admin-password=<value>` flag passed to spawn (explicit, highest priority).
+2. `TAP_DEV_ADMIN_PASSWORD` environment variable.
+3. **macOS Keychain** (Darwin only): `security find-generic-password -s tap-dev-default -a admin -w 2>/dev/null`. Silently falls through if Keychain is locked, the entry is missing, or the platform is not Darwin.
+4. **Default:** generate a fresh random password — `python3 -c "import secrets; print(secrets.token_urlsafe(18))"`.
+
+Sources 1–3 give the developer a way to pin a stable password across sessions when convenience matters. Source 4 keeps the secure default in place.
+
+#### Credentials file
+
+Whatever password is resolved, the spawn script writes it (along with username, email, session name, and timestamp) to `<worktree>/.dev-credentials`. The file is the runtime interface — both the attached Claude session and the developer read it from a known path. Format mirrors `.env`:
+
+```
+DJANGO_SUPERUSER_USERNAME=admin
+DJANGO_SUPERUSER_PASSWORD=<resolved>
+DJANGO_SUPERUSER_EMAIL=admin@<session>.tap.localhost
+SESSION_NAME=<session>
+GENERATED_AT=<ISO-8601>
+```
+
+`.dev-credentials` is gitignored (a `.dev-credentials` rule is added to `.gitignore` alongside `.env.local`).
+
+#### Superuser creation
+
+The spawn script invokes Django's built-in unattended path:
+
+```bash
+scripts/dc exec \
+  -e DJANGO_SUPERUSER_USERNAME \
+  -e DJANGO_SUPERUSER_PASSWORD \
+  -e DJANGO_SUPERUSER_EMAIL \
+  web uv run python manage.py createsuperuser --noinput
+```
+
+Env vars are sourced from `.dev-credentials`. The command is idempotent in spawn flow because the database is freshly migrated (no existing admin user).
+
+#### Echo at completion
+
+Spawn ends by printing the resolved credentials and the session URL to stdout once, so a developer running spawn from a terminal sees them without having to read the file. The credentials file is named in the output ("Saved to `<worktree>/.dev-credentials`") so terminal-loss is recoverable.
+
+#### Despawn behavior
+
+`scripts/despawn-session.sh` removes the worktree, which deletes `.dev-credentials` along with everything else. The macOS Keychain entry (if used) is **not** touched by default — it's intended to outlive sessions. A `--purge-keychain` flag on despawn explicitly removes the `tap-dev-default` Keychain entry when the developer wants a clean slate.
+
+#### Threat model and limits
+
+`.dev-credentials` is a plaintext password on disk. This is acceptable for dev environments (no worse than `.env.local` carrying database credentials) but worth being explicit:
+
+- **In scope:** preventing accidental commit (gitignored), preventing cross-session leakage (per-worktree, random by default).
+- **Out of scope:** protecting against an attacker with filesystem access to the dev machine. Anyone who can read `.env.local` can read `.dev-credentials`, and anyone who can run shell commands as the developer can read the macOS Keychain (eventually, after Keychain auth — Keychain raises the bar but does not eliminate the threat).
+
+Hardening beyond this (e.g. SSH-key-encrypted credentials, ephemeral admin tokens) is a Phase 4 concern, not Phase 2.
+
+#### Cross-platform note
+
+The Keychain branch (#3 above) is wrapped in a Darwin check. Linux / Windows dev machines fall through to env var or random — same UX, different ceiling on convenience.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-admin-bootstrap-1 | Admin user created unattended | Proposed | After spawn, `admin` superuser exists in the session DB and can log in to `/admin/`. | |
+| req-dev-multisession-admin-bootstrap-2 | Resolution order honored | Proposed | `--admin-password`, `TAP_DEV_ADMIN_PASSWORD`, Keychain, random — checked in that order; first hit wins. | |
+| req-dev-multisession-admin-bootstrap-3 | Credentials file written | Proposed | `<worktree>/.dev-credentials` exists with all five fields and is gitignored. | |
+| req-dev-multisession-admin-bootstrap-4 | Echoed once at spawn | Proposed | Spawn output names the username, password, email, URL, and credentials-file path. | |
+| req-dev-multisession-admin-bootstrap-5 | Keychain optional | Proposed | Spawn succeeds on a machine with no `tap-dev-default` Keychain entry by falling through to random generation. | |
+| req-dev-multisession-admin-bootstrap-6 | Despawn cleans up | Proposed | After despawn, `.dev-credentials` is gone (worktree removed). Keychain entry remains unless `--purge-keychain`. | |
 
 ### List Script
 ----

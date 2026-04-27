@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01965b01-4000-7000-8000-000000000007",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e631b9a2e98a",
         "entity_type": "batch",
         "name": "Genericom pages v0.1.0",
         "dimensions": {}
@@ -14,12 +14,12 @@
       "batch_node": {
         "source": "plugins.genericom",
         "name": "Genericom pages v0.1.0",
-        "description": "Genericom demo landing page, graph panel, layout, and seed search."
+        "description": "Genericom demo landing page, graph panel, and seed search."
       },
       "nodes": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000700000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6661cbd41aa",
             "entity_type": "search",
             "name": "Genericom Landing Slice",
             "dimensions": {}
@@ -45,25 +45,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000700000002",
-            "entity_type": "layout",
-            "name": "Genericom Landing Layout",
-            "dimensions": {}
-          },
-          "node": {
-            "name": "Genericom Landing Layout",
-            "description": "Placeholder layout for the Genericom demo landing page — cytoscape:cose placement; swapped for a projection next.",
-            "definition": {
-              "inputs": [],
-              "steps": [{"type": "search", "search-id": "main"}],
-              "presentation": {"placement": "cytoscape:cose"},
-              "interactions": {}
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000700000003",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6676e260227",
             "entity_type": "panel",
             "name": "Genericom Landing Graph",
             "dimensions": {"tap.graph": "web"}
@@ -78,7 +60,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000700000004",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6685b8ca028",
             "entity_type": "page",
             "name": "Genericom",
             "dimensions": {"tap.graph": "web"}
@@ -97,42 +79,14 @@
       "edges": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0007f0000001",
-            "entity_type": "edge",
-            "name": "Layout USES_SEARCH Landing Slice",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000700000002",
-            "to_entity_id": "01965b01-4000-7000-8000-000700000001",
-            "edge_type": "USES_SEARCH",
-            "properties": {"search-id": "main"}
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0007f0000002",
-            "entity_type": "edge",
-            "name": "Panel USES_LAYOUT Landing Layout",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000700000003",
-            "to_entity_id": "01965b01-4000-7000-8000-000700000002",
-            "edge_type": "USES_LAYOUT",
-            "properties": {"layout-id": "default"}
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0007f0000003",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e66afc992218",
             "entity_type": "edge",
             "name": "Page USES_PANEL Landing Graph",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000700000004",
-            "to_entity_id": "01965b01-4000-7000-8000-000700000003",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6685b8ca028",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6676e260227",
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "main"}}
           }
@@ -141,7 +95,7 @@
     },
     {
       "batch_entity": {
-        "entity_id": "01965b01-4000-7000-8000-000000000008",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e6328276fa6c",
         "entity_type": "batch",
         "name": "Genericom projection v0.2.0",
         "dimensions": {}
@@ -149,12 +103,47 @@
       "batch_node": {
         "source": "plugins.genericom",
         "name": "Genericom projection v0.2.0",
-        "description": "Switches the landing-graph panel from a placeholder Layout to a bounded-layer AWS top-level Projection."
+        "description": "Wires the landing-graph panel to a bounded-layer AWS top-level Projection backed by an Elevation + Layout v1 entity chain (USES_ELEVATION + USES_DEFAULT_ELEVATION + USES_LAYOUT)."
       },
       "nodes": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000700000005",
+            "entity_id": "019dd145-03b3-721b-acd1-2a73d0cefcc6",
+            "entity_type": "layout",
+            "name": "genericom-aws-top-level-layout",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "genericom-aws-top-level-layout",
+            "description": "Declare nesting relationships and base sizes; runtime applies bounded-layer projection.",
+            "definition": {
+              "js_file": "plugins/genericom/static/genericom/js/projections/aws-top-level.js"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd145-03b3-721b-acd1-2a7454c85ea1",
+            "entity_type": "elevation",
+            "name": "genericom-aws-top-level-elevation",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "genericom-aws-top-level-elevation",
+            "description": "Nested account/VPC/subnet/resource scene.",
+            "definition": {
+              "zoom": 0.6,
+              "description": "Nested account/VPC/subnet/resource scene.",
+              "layouts": [
+                "019dd145-03b3-721b-acd1-2a73d0cefcc6"
+              ],
+              "double_tap_targets": []
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
             "entity_type": "projection",
             "name": "Genericom AWS Top-Level Projection",
             "dimensions": {"tap.graph": "web"}
@@ -166,22 +155,10 @@
               "node_style": "icon-badge",
               "min_zoom": "fit",
               "lock_nodes": true,
-              "default_elevation": "aws-top-level",
               "elevations": [
-                {
-                  "name": "aws-top-level",
-                  "description": "Nested account/VPC/subnet/resource scene.",
-                  "zoom": 0.6,
-                  "tap_layouts": [
-                    {
-                      "name": "aws-top-level",
-                      "description": "Declare nesting relationships and base sizes; runtime applies bounded-layer projection.",
-                      "js_file": "plugins/genericom/static/genericom/js/projections/aws-top-level.js"
-                    }
-                  ],
-                  "double_tap_targets": []
-                }
-              ]
+                "019dd145-03b3-721b-acd1-2a7454c85ea1"
+              ],
+              "default_elevation_id": "019dd145-03b3-721b-acd1-2a7454c85ea1"
             }
           }
         }
@@ -189,30 +166,90 @@
       "edges": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0007f0000004",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e66b97719a3a",
             "entity_type": "edge",
             "name": "Panel USES_PROJECTION AWS Top-Level",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000700000003",
-            "to_entity_id": "01965b01-4000-7000-8000-000700000005",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6676e260227",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
             "edge_type": "USES_PROJECTION",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0007f0000005",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e66cd0610f73",
             "entity_type": "edge",
             "name": "Panel USES_SEARCH Landing Slice (direct seed)",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000700000003",
-            "to_entity_id": "01965b01-4000-7000-8000-000700000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6676e260227",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6661cbd41aa",
             "edge_type": "USES_SEARCH",
             "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd151-c661-72d5-955c-06ae8d97b6ca",
+            "entity_type": "edge",
+            "name": "Projection USES_ELEVATION aws-top-level",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
+            "to_entity_id": "019dd145-03b3-721b-acd1-2a7454c85ea1",
+            "edge_type": "USES_ELEVATION",
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-elevations",
+                "value": "019dd145-03b3-721b-acd1-2a7454c85ea1"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd151-c661-72d5-955c-06af4ce16d33",
+            "entity_type": "edge",
+            "name": "Projection USES_DEFAULT_ELEVATION aws-top-level",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
+            "to_entity_id": "019dd145-03b3-721b-acd1-2a7454c85ea1",
+            "edge_type": "USES_DEFAULT_ELEVATION",
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-default-elevation",
+                "value": "019dd145-03b3-721b-acd1-2a7454c85ea1"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd151-c661-72d5-955c-06b0d19073d3",
+            "entity_type": "edge",
+            "name": "Elevation USES_LAYOUT aws-top-level",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019dd145-03b3-721b-acd1-2a7454c85ea1",
+            "to_entity_id": "019dd145-03b3-721b-acd1-2a73d0cefcc6",
+            "edge_type": "USES_LAYOUT",
+            "properties": {
+              "hotlink": {
+                "model": "elevation",
+                "spec": "elevation-layouts",
+                "value": "019dd145-03b3-721b-acd1-2a73d0cefcc6"
+              }
+            }
           }
         }
       ]

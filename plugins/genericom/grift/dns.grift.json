@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01965b01-4000-7000-8000-000000000004",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e62e934ec2be",
         "entity_type": "batch",
         "name": "Genericom DNS v0.1.0",
         "dimensions": {}
@@ -19,7 +19,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000400000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e64f1d4de436",
             "entity_type": "aws_route53_zone",
             "name": "genericom.com",
             "dimensions": {
@@ -52,7 +52,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000400000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6505e0412bd",
             "entity_type": "aws_acm_certificate",
             "name": "genericom-prod-genericom-com-cert",
             "dimensions": {
@@ -74,7 +74,7 @@
       "edges": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0004f0000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e651e7cc8ccf",
             "entity_type": "edge",
             "name": "Route 53 zone belongs to account",
             "dimensions": {
@@ -82,15 +82,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000400000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000200000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e64f1d4de436",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6376bbb66bb",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0004f0000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e652b5b30c0f",
             "entity_type": "edge",
             "name": "ACM cert belongs to account",
             "dimensions": {
@@ -98,8 +98,8 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000400000002",
-            "to_entity_id": "01965b01-4000-7000-8000-000200000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6505e0412bd",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6376bbb66bb",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }

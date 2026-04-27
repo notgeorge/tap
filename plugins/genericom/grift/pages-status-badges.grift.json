@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01965b01-4000-7000-8000-00000000000f",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e634094cba4d",
         "entity_type": "batch",
         "name": "Genericom projection v0.4.0",
         "dimensions": {}
@@ -19,7 +19,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000700000005",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
             "entity_type": "projection",
             "name": "Genericom AWS Top-Level Projection",
             "dimensions": {"tap.graph": "web"}
@@ -31,22 +31,10 @@
               "node_style": "icon-badge",
               "min_zoom": "fit",
               "lock_nodes": true,
-              "default_elevation": "aws-top-level",
               "elevations": [
-                {
-                  "name": "aws-top-level",
-                  "description": "Nested account/VPC/subnet/resource scene.",
-                  "zoom": 0.6,
-                  "tap_layouts": [
-                    {
-                      "name": "aws-top-level",
-                      "description": "Declare nesting relationships and base sizes; runtime applies bounded-layer projection.",
-                      "js_file": "plugins/genericom/static/genericom/js/projections/aws-top-level.js"
-                    }
-                  ],
-                  "double_tap_targets": []
-                }
+                "019dd145-03b3-721b-acd1-2a7454c85ea1"
               ],
+              "default_elevation_id": "019dd145-03b3-721b-acd1-2a7454c85ea1",
               "status_badges": {
                 "refresh_seconds": 0,
                 "badge_sets": [
@@ -56,7 +44,7 @@
                     "text_color": "#F5E6E3",
                     "population": {
                       "type": "search",
-                      "search_id": "0197fed0-0000-7000-8000-000c00000001",
+                      "search_id": "019dd143-3e8f-73e4-b0fa-e6787fdeac70",
                       "inputs": {}
                     }
                   },
@@ -78,7 +66,48 @@
           }
         }
       ],
-      "edges": []
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019dd149-1216-725b-a0d6-02eb1f205f6f",
+            "entity_type": "edge",
+            "name": "Projection USES_ELEVATION aws-top-level (v0.3.0)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
+            "to_entity_id": "019dd145-03b3-721b-acd1-2a7454c85ea1",
+            "edge_type": "USES_ELEVATION",
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-elevations",
+                "value": "019dd145-03b3-721b-acd1-2a7454c85ea1"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd149-1216-725b-a0d6-02ec96bc8f78",
+            "entity_type": "edge",
+            "name": "Projection USES_DEFAULT_ELEVATION aws-top-level (v0.3.0)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
+            "to_entity_id": "019dd145-03b3-721b-acd1-2a7454c85ea1",
+            "edge_type": "USES_DEFAULT_ELEVATION",
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-default-elevation",
+                "value": "019dd145-03b3-721b-acd1-2a7454c85ea1"
+              }
+            }
+          }
+        }
+      ]
     }
   ]
 }
