@@ -300,21 +300,94 @@ export async function execute(context) {
             }
         });
 
-    // --- Post-layout arrangements: align programs with their listening ports ---
-    const portToApp = {
+    // --- Post-layout arrangements ---
+    // Mirror the Arrangement entities seeded in plugins/genericom/grift/ec2-arrangements.grift.json.
+    // The entities exist for future elevation reuse via Layout USES_ARRANGEMENT hotlinks; the
+    // projection drives execution order today so the rules fire in dependency order.
+    const albIngressRow = {
+        // entity_id: 01980000-3000-7000-8000-000200000001 (arr-genericom-ec2-alb-ingress-row)
         anchor: {
-            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port) WHERE ec2.entity_id = $eid AND p.port_number = 80 RETURN p",
+            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port) WHERE ec2.entity_id = $entity_id AND p.port_number = 80 RETURN p",
         },
         members: {
-            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(prog:program)-[:LISTENS_ON]->(p:port) WHERE ec2.entity_id = $eid AND p.port_number = 80 RETURN prog",
+            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port)<-[:CONNECTS_TO]-(tcp:tcp_connection)<-[:CONNECTS_TO]-(alb:aws_alb) WHERE ec2.entity_id = $entity_id AND p.port_number = 80 RETURN tcp, alb",
         },
         positioning: "horizontal",
         distribution: "even",
     };
 
-    const arrResult = await executeArrangements(cy, [portToApp], {eid: anchorId});
+    const internalAppRow = {
+        // entity_id: 01980000-3000-7000-8000-000200000002 (arr-genericom-ec2-internal-app-row)
+        anchor: {
+            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port) WHERE ec2.entity_id = $entity_id AND p.port_number = 8000 RETURN p",
+        },
+        members: {
+            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(prog:program) WHERE ec2.entity_id = $entity_id RETURN prog",
+        },
+        positioning: "horizontal",
+        distribution: "even",
+    };
+
+    const loIfaceFollowsPort = {
+        // entity_id: 01980000-3000-7000-8000-000200000003 (arr-genericom-ec2-lo-iface-follows-port)
+        anchor: {
+            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port) WHERE ec2.entity_id = $entity_id AND p.port_number = 8000 RETURN p",
+        },
+        members: {
+            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port) WHERE ec2.entity_id = $entity_id AND p.port_number = 8000 RETURN iface",
+        },
+        positioning: "horizontal",
+        distribution: "even",
+    };
+
+    const arrResult = await executeArrangements(
+        cy,
+        [albIngressRow, internalAppRow, loIfaceFollowsPort],
+        {entity_id: anchorId},
+    );
     if (arrResult.warnings.length > 0) {
         console.warn("Arrangement warnings:", arrResult.warnings);
+    }
+
+    // --- Post-arrangement fix-up: visual polish for the demo ---
+    // Even-distribution arrangements snap y but preserve x, so a single-member
+    // arrangement (B3) leaves lo iface and lo port at the same x. Shrink the
+    // lo iface and nudge it left of its port so they sit adjacent on the row.
+    // Also re-shelve files below the program row.
+    const loPort = cy.nodes().filter((n) =>
+        n.data("entity_type") === "port" &&
+        (n.data("label") || "") === ":8000/tcp" &&
+        relevant.has(n.id())
+    );
+    const loIface = cy.nodes().filter((n) =>
+        n.data("entity_type") === "network_interface" &&
+        (n.data("label") || "") === "lo" &&
+        relevant.has(n.id())
+    );
+    if (loPort.length > 0 && loIface.length > 0) {
+        const lp = loPort[0];
+        const li = loIface[0];
+        li.style({width: 28, height: 24, "font-size": 8});
+        li.position({x: lp.position().x - 36, y: lp.position().y});
+    }
+
+    // Re-anchor files below the program row, and pull contained keys with them.
+    if (loPort.length > 0) {
+        const shelfY = loPort[0].position().y + 110;
+        const shelfBaseX = L + 140;
+        files.forEach((f, idx) => {
+            f.position({x: shelfBaseX + idx * 120, y: shelfY});
+        });
+        // Crypto keys: park them on the key file's tile (CONTAINS edges are pruned at this layer).
+        const keyFile = files.find((f) => (f.data("label") || "").endsWith(".key"));
+        if (keyFile) {
+            cy.nodes()
+                .filter((n) => (n.data("entity_type") === "public_key" || n.data("entity_type") === "private_key") && relevant.has(n.id()))
+                .forEach((key, i) => {
+                    key.style({width: 14, height: 14, "z-index": 15});
+                    key.position({x: keyFile.position().x - 16 + i * 16, y: keyFile.position().y + 6});
+                });
+        }
     }
 
     // --- Edge styling: thick and dark for visibility ---

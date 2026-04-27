@@ -26,13 +26,13 @@ Arrangements are TAP-managed entities stored as their own model and connected to
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-viz-arrangement-model | [Arrangement Model](#arrangement-model) | Proposed | Arrangement as a TAP-managed BaseModel entity |
-| req-viz-arrangement-definition | [Arrangement Definition](#arrangement-definition) | Proposed | JSON definition shape: anchor, members, positioning |
-| req-viz-arrangement-anchor | [Anchor Resolution](#anchor-resolution) | Proposed | Single-node anchor identified by gryphon query against cy |
-| req-viz-arrangement-members | [Member Resolution](#member-resolution) | Proposed | Member nodes identified by gryphon queries against cy |
-| req-viz-arrangement-positioning | [Positioning](#positioning) | Proposed | Horizontal or vertical axis positioning relative to anchor |
-| req-viz-arrangement-distribution | [Distribution](#distribution) | Proposed | Even distribution of members across the positioned axis |
-| req-viz-arrangement-execution | [Execution Model](#execution-model) | Proposed | Client-side serial execution after layout completes |
+| req-viz-arrangement-model | [Arrangement Model](#arrangement-model) | Implemented | Arrangement as a TAP-managed BaseModel entity |
+| req-viz-arrangement-definition | [Arrangement Definition](#arrangement-definition) | Implemented | JSON definition shape: anchor, members, positioning |
+| req-viz-arrangement-anchor | [Anchor Resolution](#anchor-resolution) | Implemented | Single-node anchor identified by gryphon query against cy |
+| req-viz-arrangement-members | [Member Resolution](#member-resolution) | Implemented | Member nodes identified by gryphon queries against cy |
+| req-viz-arrangement-positioning | [Positioning](#positioning) | Implemented | Horizontal or vertical axis positioning relative to anchor |
+| req-viz-arrangement-distribution | [Distribution](#distribution) | Implemented | Even distribution of members across the positioned axis |
+| req-viz-arrangement-execution | [Execution Model](#execution-model) | Implemented | Client-side serial execution after layout completes |
 | req-viz-arrangement-layout-hotlink | [Layout Hotlink Integration](#layout-hotlink-integration) | Proposed | Layouts reference arrangements via hotlinks in definition |
 | req-viz-arrangement-tagging | [Arrangement Tagging](#arrangement-tagging) | Backlog | Tag cy elements with arrangement membership for downstream logic |
 
@@ -41,7 +41,7 @@ Arrangements are TAP-managed entities stored as their own model and connected to
 ### Arrangement Model
 ----
 RID: `req-viz-arrangement-model`
-Status: `Proposed`
+Status: `Implemented`
 
 An arrangement is a TAP-managed entity that stores a declarative positioning rule.
 
@@ -69,7 +69,7 @@ If arrangement logic needs plugin-extensible behavior, that should be a separate
 ### Arrangement Definition
 ----
 RID: `req-viz-arrangement-definition`
-Status: `Proposed`
+Status: `Implemented`
 
 The arrangement definition JSON describes the anchor, members, positioning axis, and distribution strategy.
 
@@ -114,7 +114,7 @@ Gryphon queries in arrangements are executed server-side via the standard grypho
 ### Anchor Resolution
 ----
 RID: `req-viz-arrangement-anchor`
-Status: `Proposed`
+Status: `Implemented`
 
 The anchor is a single node identified by a gryphon query. It stays fixed in place.
 
@@ -142,7 +142,7 @@ If multi-anchor arrangements become useful (e.g., "between these two nodes"), th
 ### Member Resolution
 ----
 RID: `req-viz-arrangement-members`
-Status: `Proposed`
+Status: `Implemented`
 
 Members are nodes identified by a gryphon query that will be repositioned.
 
@@ -171,7 +171,7 @@ Add explicit sort keys in the definition (e.g., `"sort_by": "label"`) when order
 ### Positioning
 ----
 RID: `req-viz-arrangement-positioning`
-Status: `Proposed`
+Status: `Implemented`
 
 Members are positioned along a single axis relative to the anchor.
 
@@ -202,7 +202,7 @@ Add angular positioning (`"radial"`) for spoke-and-hub layouts.
 ### Distribution
 ----
 RID: `req-viz-arrangement-distribution`
-Status: `Proposed`
+Status: `Implemented`
 
 Distribution controls spacing of members along the positioning axis after they have been snapped to it.
 
@@ -232,7 +232,7 @@ Deriving span from member positions rather than imposing a fixed size keeps arra
 ### Execution Model
 ----
 RID: `req-viz-arrangement-execution`
-Status: `Proposed`
+Status: `Implemented`
 
 Arrangements execute client-side, serially, after the layout completes.
 
