@@ -30,8 +30,8 @@ Layouts are Cytoscape-oriented. Cytoscape remains the graph runtime that layout 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-viz-layout-artifact | [Layout Artifact](#layout-artifact) | Implemented | A layout is a TAP-managed entity (`tap_viz.models.Layout`) |
-| req-viz-layout-shape | [Layout Shape (v0)](#layout-shape-v0) | Deprecating | V0 layouts contain name, description, and js file reference; superseded by `req-viz-layout-dual-mode` |
-| req-viz-layout-dual-mode | [Dual-Mode Layout Definition (v1)](#dual-mode-layout-definition-v1) | Approved for Development | Layout `definition` may carry `js_file` (layout_module) and/or `arrangements` (ordered IDs); both optional |
+| req-viz-layout-shape | [Layout Shape (v0)](#layout-shape-v0) | Deprecated | Superseded by `req-viz-layout-dual-mode`; inline `{name, js_file}` shape no longer used |
+| req-viz-layout-dual-mode | [Dual-Mode Layout Definition (v1)](#dual-mode-layout-definition-v1) | Implemented | Layout `definition` carries `js_file` (layout_module) and/or `arrangements` (ordered IDs); both optional |
 | req-viz-layout-module-contract | [Module Contract](#module-contract) | Implemented | Layout modules export a standard async execute entrypoint |
 | req-viz-layout-runtime-context | [Runtime Context](#runtime-context) | Implemented | Layouts receive a locked-in minimal runtime context; `trigger_node` is an optional hint, not a core operand |
 | req-viz-layout-capabilities | [Layout Capabilities](#layout-capabilities) | Implemented | Layouts may fetch, mutate, nest, and position the Cytoscape graph; assert scene invariants on entry |
@@ -65,7 +65,7 @@ Define how tap layouts should later relate to graph-managed layout nodes and oth
 ### Layout Shape (v0)
 ----
 RID: `req-viz-layout-shape`
-Status: `Deprecating`
+Status: `Deprecated`
 
 The v0 tap layout object was intentionally minimal — a name + a JS file reference.
 
@@ -91,7 +91,7 @@ Once the v1 migration ships, this requirement becomes `Deprecated`.
 ### Dual-Mode Layout Definition (v1)
 ----
 RID: `req-viz-layout-dual-mode`
-Status: `Approved for Development`
+Status: `Implemented`
 
 A v1 Layout entity's `definition` JSON may carry a `layout_module` reference (the JS file), an ordered list of arrangement entity_ids, both, or neither.
 
@@ -167,10 +167,10 @@ Existing v0 projections (genericom EC2, LOTR) carry inline `tap_layouts[]` array
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-layout-dual-mode-1 | Schema validates dual-mode | Approved for Development | `FIELD_VALIDATION_SCHEMA` accepts `definition` with `js_file`, `arrangements`, both, or neither. | |
-| req-viz-layout-dual-mode-2 | Module runs before arrangements | Approved for Development | Runtime invokes `js_file`'s `execute()` first, then `executeArrangements()`. | |
-| req-viz-layout-dual-mode-3 | Arrangements hotlink validates | Approved for Development | `USES_ARRANGEMENT` hotlink remains exact-match against `definition.arrangements`. | Existing behavior, restated for v1. |
-| req-viz-layout-dual-mode-4 | Empty layout warns | Approved for Development | Layout with neither `js_file` nor `arrangements` produces an `empty_layout` warning at execution. | Not an error — the layout is legal but probably a misconfiguration. |
+| req-viz-layout-dual-mode-1 | Schema validates dual-mode | Implemented | `FIELD_VALIDATION_SCHEMA` accepts `definition` with `js_file`, `arrangements`, both, or neither. | |
+| req-viz-layout-dual-mode-2 | Module runs before arrangements | Implemented | Runtime invokes `js_file`'s `execute()` first, then `executeArrangements()`. | |
+| req-viz-layout-dual-mode-3 | Arrangements hotlink validates | Implemented | `USES_ARRANGEMENT` hotlink remains exact-match against `definition.arrangements`. | Existing behavior, restated for v1. |
+| req-viz-layout-dual-mode-4 | Empty layout warns | Implemented | Layout with neither `js_file` nor `arrangements` produces an `empty_layout` warning at execution. | Not an error — the layout is legal but probably a misconfiguration. |
 
 
 ### Module Contract

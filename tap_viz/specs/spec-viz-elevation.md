@@ -25,18 +25,18 @@ The runtime behavior of elevations — zoom-threshold watching, double-tap pan-z
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-viz-elevation-model | [Elevation Model](#elevation-model) | Approved for Development | Elevation as a TAP-managed BaseModel entity in `tap_viz` |
-| req-viz-elevation-definition | [Elevation Definition](#elevation-definition) | Approved for Development | JSON definition shape: zoom, description, layouts, double_tap_targets |
-| req-viz-elevation-uses-layout-hotlink | [USES_LAYOUT Hotlink](#uses_layout-hotlink) | Approved for Development | Ordered Layout-entity references; runs in array order |
-| req-viz-elevation-navigates-to-hotlink | [NAVIGATES_TO Hotlink](#navigates_to-hotlink) | Approved for Development | Double-tap target references resolve to Elevation entities |
-| req-viz-elevation-no-default-layout | [No Default Layout Concept](#no-default-layout-concept) | Approved for Development | All `USES_LAYOUT` layouts compose; there is no "default layout" under an elevation |
+| req-viz-elevation-model | [Elevation Model](#elevation-model) | Implemented | Elevation as a TAP-managed BaseModel entity in `tap_viz` |
+| req-viz-elevation-definition | [Elevation Definition](#elevation-definition) | Implemented | JSON definition shape: zoom, description, layouts, double_tap_targets |
+| req-viz-elevation-uses-layout-hotlink | [USES_LAYOUT Hotlink](#uses_layout-hotlink) | Implemented | Ordered Layout-entity references; runs in array order |
+| req-viz-elevation-navigates-to-hotlink | [NAVIGATES_TO Hotlink](#navigates_to-hotlink) | Implemented | Double-tap target references resolve to Elevation entities |
+| req-viz-elevation-no-default-layout | [No Default Layout Concept](#no-default-layout-concept) | Implemented | All `USES_LAYOUT` layouts compose; there is no "default layout" under an elevation |
 
 ## Requirements
 
 ### Elevation Model
 ----
 RID: `req-viz-elevation-model`
-Status: `Approved for Development`
+Status: `Implemented`
 
 An elevation is a TAP-managed entity that names a zoom-driven stage and orchestrates the layouts active at that altitude.
 
@@ -64,7 +64,7 @@ If multiple projections start sharing the same elevation entity widely, consider
 ### Elevation Definition
 ----
 RID: `req-viz-elevation-definition`
-Status: `Approved for Development`
+Status: `Implemented`
 
 The elevation `definition` JSON describes the zoom threshold, layout composition, and navigation targets.
 
@@ -111,7 +111,7 @@ Splitting `layouts` and `double_tap_targets` into their own typed hotlinks — r
 ### USES_LAYOUT Hotlink
 ----
 RID: `req-viz-elevation-uses-layout-hotlink`
-Status: `Approved for Development`
+Status: `Implemented`
 
 Elevations reference layouts via an ordered array of entity IDs in their `definition.layouts`, validated by the hotlink system.
 
@@ -144,14 +144,14 @@ At runtime, the projection runtime resolves the elevation's layouts in order and
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-elevation-uses-layout-hotlink-1 | Hotlink validates exact match | Approved for Development | The hotlink fails save when `definition.layouts` and the `USES_LAYOUT` edge set diverge. | |
-| req-viz-elevation-uses-layout-hotlink-2 | Order preserved | Approved for Development | Layouts run in the array order declared in `definition.layouts`, not edge insertion order. | |
+| req-viz-elevation-uses-layout-hotlink-1 | Hotlink validates exact match | Implemented | The hotlink fails save when `definition.layouts` and the `USES_LAYOUT` edge set diverge. | |
+| req-viz-elevation-uses-layout-hotlink-2 | Order preserved | Implemented | Layouts run in the array order declared in `definition.layouts`, not edge insertion order. | |
 
 
 ### NAVIGATES_TO Hotlink
 ----
 RID: `req-viz-elevation-navigates-to-hotlink`
-Status: `Approved for Development`
+Status: `Implemented`
 
 Double-tap targets reference other elevations via typed `NAVIGATES_TO` edges, validated as a hotlink.
 
@@ -183,14 +183,14 @@ The `entity_type` field of each `double_tap_targets[]` entry is data, not a grap
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-elevation-navigates-to-hotlink-1 | Hotlink validates exact match | Approved for Development | The hotlink fails save when `target_elevation_id` set and `NAVIGATES_TO` edge set diverge. | |
-| req-viz-elevation-navigates-to-hotlink-2 | Targets reachable from same projection | Approved for Development | Cross-hotlink validator on the projection ensures every `NAVIGATES_TO` target also appears in the projection's `USES_ELEVATION` set. | Validator lives on `Projection.validate()`; see `spec-viz-projection.md`. |
+| req-viz-elevation-navigates-to-hotlink-1 | Hotlink validates exact match | Implemented | The hotlink fails save when `target_elevation_id` set and `NAVIGATES_TO` edge set diverge. | |
+| req-viz-elevation-navigates-to-hotlink-2 | Targets reachable from same projection | Implemented | Cross-hotlink validator on the projection ensures every `NAVIGATES_TO` target also appears in the projection's `USES_ELEVATION` set. | Validator lives on `Projection.validate()`; see `spec-viz-projection.md`. |
 
 
 ### No Default Layout Concept
 ----
 RID: `req-viz-elevation-no-default-layout`
-Status: `Approved for Development`
+Status: `Implemented`
 
 An elevation has no "default layout". All layouts in `definition.layouts` compose; they all run in declared order on every entry.
 
@@ -206,7 +206,7 @@ Default-elevation exists at the projection level because a projection has to *la
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-viz-elevation-no-default-layout-1 | All layouts run | Approved for Development | The runtime runs every Layout in `USES_LAYOUT` order; no per-context layout selection. | |
+| req-viz-elevation-no-default-layout-1 | All layouts run | Implemented | The runtime runs every Layout in `USES_LAYOUT` order; no per-context layout selection. | |
 
 
 ## Status Vocabulary
