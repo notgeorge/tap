@@ -1,4 +1,4 @@
-"""tap_viz models — Viz layout, projection, and arrangement entities."""
+"""tap_viz models — Viz layout, projection, elevation, and arrangement entities."""
 
 from typing import Any, ClassVar
 
@@ -80,13 +80,32 @@ class Arrangement(BaseModel):
         return self.name
 
 
-class Layout(BaseModel):
-    """A reusable TAP viz layout definition.
+# ---------------------------------------------------------------------------
+# Layout (v1) — dual-mode definition: optional js_file (layout_module) and/or
+# optional ordered arrangements list. See spec-viz-layouts.md.
+# ---------------------------------------------------------------------------
 
-    Layouts are Entities (via BaseModel). The definition JSONField stores
-    the TAP-owned declarative layout payload: inputs, steps, presentation,
-    and interactions. Search retrieval is backed by USES_SEARCH edges from
-    this layout to Search entities.
+_LAYOUT_DEFINITION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": True,
+    "properties": {
+        "js_file": {"type": "string", "minLength": 1},
+        "arrangements": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+        },
+    },
+}
+
+
+class Layout(BaseModel):
+    """A reusable TAP viz layout entity.
+
+    A Layout entity may carry a `js_file` reference (the layout_module — the
+    JavaScript file whose `execute(context)` the runtime invokes for broad-strokes
+    positioning) and/or an ordered list of arrangement entity IDs (declarative
+    polish applied after the module runs). Both are optional; layouts may use
+    either, both, or neither. See spec-viz-layouts.md.
     """
 
     ENTITY_TYPE: ClassVar[str] = "layout"
@@ -97,6 +116,13 @@ class Layout(BaseModel):
         "definition": {"type": "object"},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
+
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {
+        "definition": {
+            "validation": "jsonschema",
+            "schema": _LAYOUT_DEFINITION_SCHEMA,
+        },
+    }
 
     HOTLINKS: ClassVar[list[dict]] = [
         {
@@ -115,11 +141,106 @@ class Layout(BaseModel):
     definition = models.JSONField(
         default=dict,
         blank=True,
-        help_text="TAP-owned declarative layout payload: inputs, steps, presentation, interactions.",
+        help_text="Layout definition: optional js_file (layout_module) and/or arrangements (ordered IDs).",
     )
 
     class Meta(BaseModel.Meta):
         db_table = "tap_layout"
+        ordering = ["-entity__created_at"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+# ---------------------------------------------------------------------------
+# Elevation — zoom-driven stage; composes Layout entities via USES_LAYOUT and
+# declares double-tap navigation via NAVIGATES_TO. See spec-viz-elevation.md.
+# ---------------------------------------------------------------------------
+
+_ELEVATION_DEFINITION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["zoom"],
+    "additionalProperties": True,
+    "properties": {
+        "zoom": {"type": "number"},
+        "description": {"type": "string"},
+        "layouts": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+        },
+        "double_tap_targets": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["entity_type", "target_elevation_id"],
+                "additionalProperties": False,
+                "properties": {
+                    "entity_type": {"type": "string", "minLength": 1},
+                    "target_elevation_id": {"type": "string", "minLength": 1},
+                },
+            },
+        },
+    },
+}
+
+
+class Elevation(BaseModel):
+    """A zoom-driven stage within a projection.
+
+    Elevations compose Layout entities (via USES_LAYOUT) and declare double-tap
+    navigation targets to other elevations (via NAVIGATES_TO). The runtime
+    behavior — zoom-threshold watching, double-tap pan-zoom, hysteresis — is
+    orchestrated by the projection runtime; this model is the structural
+    entity. See spec-viz-elevation.md.
+    """
+
+    ENTITY_TYPE: ClassVar[str] = "elevation"
+
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "definition": {"type": "object"},
+    }
+    CREATE_REQUIRED: ClassVar[list[str]] = ["name", "definition"]
+
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {
+        "definition": {
+            "validation": "jsonschema",
+            "schema": _ELEVATION_DEFINITION_SCHEMA,
+        },
+    }
+
+    HOTLINKS: ClassVar[list[dict]] = [
+        {
+            "name": "elevation-layouts",
+            "field": "definition",
+            "selector_type": "simple_path",
+            "selector": "layouts.*",
+            "edge_direction": "outbound",
+            "edge_type": "USES_LAYOUT",
+            "mode": "exact",
+        },
+        {
+            "name": "elevation-navigates-to",
+            "field": "definition",
+            "selector_type": "simple_path",
+            "selector": "double_tap_targets.*.target_elevation_id",
+            "edge_direction": "outbound",
+            "edge_type": "NAVIGATES_TO",
+            "mode": "exact",
+        },
+    ]
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    definition = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Elevation definition: zoom, layouts (ordered IDs), double_tap_targets.",
+    )
+
+    class Meta(BaseModel.Meta):
+        db_table = "tap_elevation"
         ordering = ["-entity__created_at"]
 
     def __str__(self) -> str:
