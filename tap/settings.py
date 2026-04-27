@@ -36,7 +36,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # MUST be unique per installation and NEVER committed to version control.
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.environ.get("DEBUG", "true").lower() in ("true", "1", "yes")
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,.localhost").split(",")
 
 # =============================================================================
 # TAP Grid Identity
@@ -64,6 +64,12 @@ if "runserver" in sys.argv:
 
 # User-facing product name. Override to rebrand the UI (e.g. "Rampart").
 TAP_PRODUCT_NAME = os.environ.get("TAP_PRODUCT_NAME", "TAP")
+
+# Session label for multi-session dev disambiguation. When set, the UI prefixes
+# the page title and nav with "[<label>]" so the developer can see at a glance
+# which isolated stack a browser tab is pointing at. Empty for the primary stack.
+# Set per-worktree in .env.local — see specs/spec-dev-multisession.md.
+TAP_SESSION_LABEL = os.environ.get("TAP_SESSION_LABEL", "")
 
 # =============================================================================
 # Application Definition

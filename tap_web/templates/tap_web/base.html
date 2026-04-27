@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{{ product_name }}{% endblock %}</title>
+    <title>{% if session_label %}[{{ session_label }}] {% endif %}{% block title %}{{ product_name }}{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="{% static 'tap_web/favicon.ico' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/tailwind.css' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/panels.css' %}">
@@ -17,6 +17,7 @@
             <div class="flex items-center justify-between h-10">
                 <div class="flex items-center space-x-2">
                     <a href="/" class="text-sm font-bold">{{ product_name }}</a>
+                    {% if session_label %}<span class="text-xs font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40" title="Multi-session dev label — see spec-dev-multisession.md">{{ session_label }}</span>{% endif %}
                     {% block header_title %}{% endblock %}
                 </div>
                 <div class="flex items-center" style="gap: 0.75rem;">

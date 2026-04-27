@@ -19,8 +19,10 @@ staticfiles/
 media/
 
 # Environment / secrets
-.env
-.env.*
+# .env is checked in with defaults so `docker compose up` works out of the box.
+# .env.local is the per-worktree override layer for multi-session dev — see spec-dev-multisession.md.
+.env.local
+.env.*.local
 
 # IDE
 .vscode/

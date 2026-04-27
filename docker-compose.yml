@@ -33,8 +33,11 @@ services:
 
     # Expose PostgreSQL port to the host machine
     # Useful for connecting with database tools like pgAdmin or DBeaver
+    #
+    # Host port is parameterized to support multiple concurrent dev sessions
+    # (see spec-dev-multisession.md). Container port stays fixed at 5432.
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
 
     # Health check to verify database is ready to accept connections
     # Other services can wait for this before starting
@@ -61,10 +64,13 @@ services:
     volumes:
       - .:/app
 
-    # Map container port 8000 to host port 8000
-    # Access the app at http://localhost:8000
+    # Map container port 8000 to host port WEB_PORT (default 8000)
+    # Access the app at http://localhost:${WEB_PORT}
+    #
+    # Host port is parameterized to support multiple concurrent dev sessions
+    # (see spec-dev-multisession.md). Container port stays fixed at 8000.
     ports:
-      - "8000:8000"
+      - "${WEB_PORT:-8000}:8000"
 
     # Environment variables for Django
     environment:
@@ -75,11 +81,21 @@ services:
       # Django settings
       DEBUG: "true"                        # Enable debug mode (never in production!)
       SECRET_KEY: dev-secret-key-change-me # Django secret key (change in production!)
-      ALLOWED_HOSTS: localhost,127.0.0.1   # Hosts Django will respond to
+      # ALLOWED_HOSTS includes .localhost (note the leading dot) so any
+      # *.localhost subdomain — e.g. cli.tap.localhost — is accepted. This
+      # supports the multi-session dev URL convention without /etc/hosts edits.
+      ALLOWED_HOSTS: localhost,127.0.0.1,.localhost
+
+      # Multi-session label rendered in the UI title bar / browser tab so the
+      # developer can tell at a glance which isolated stack a window points at.
+      # Empty for the primary stack; set per-worktree in .env.local (e.g. "cli").
+      # See specs/spec-dev-multisession.md.
+      TAP_SESSION_LABEL: "${TAP_SESSION_LABEL:-}"
 
       # Unique identity for this TAP installation (UUIDv7, immutable)
       # Generated with: docker compose exec web uv run python manage.py generate_grid_id
-      TAP_GRID_ID: "019c2a9a-cfdb-768e-82c5-7a037556064d"
+      # Parameterized so each isolated session can carry its own install identity.
+      TAP_GRID_ID: "${TAP_GRID_ID:-019c2a9a-cfdb-768e-82c5-7a037556064d}"
 
     # Wait for the database to be healthy before starting Django
     # Prevents errors from Django trying to connect before PostgreSQL is ready

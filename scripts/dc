@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Thin docker-compose wrapper that cascades .env and .env.local so
+# per-worktree overrides layer on top of checked-in defaults.
+#
+# Usage: scripts/dc <any docker compose subcommand>
+# Examples:
+#   scripts/dc up
+#   scripts/dc exec web uv run python manage.py migrate
+#
+# See spec-dev-multisession.md for the multi-session dev setup this enables.
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+args=()
+[[ -f .env ]] && args+=(--env-file .env)
+[[ -f .env.local ]] && args+=(--env-file .env.local)
+
+exec docker compose "${args[@]}" "$@"
