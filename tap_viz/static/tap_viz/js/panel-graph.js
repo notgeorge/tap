@@ -339,6 +339,8 @@ function initGraph(panelId) {
     const nodes = JSON.parse(nodesEl.textContent || "[]");
     const edges = JSON.parse(edgesEl.textContent || "[]");
     const projection = projectionEl ? JSON.parse(projectionEl.textContent || "null") : null;
+    const inputsEl = document.getElementById("tap-graph-inputs-" + panelId);
+    const panelInputs = inputsEl ? JSON.parse(inputsEl.textContent || "{}") : {};
 
     // Projection-hosted panel: empty scenes are allowed (the runtime populates them).
     if (nodes.length === 0 && !projection) {
@@ -745,7 +747,7 @@ function initGraph(panelId) {
         // elevations, tap layouts, and zoom-driven transitions.
         import("/static/tap_viz/js/runtime/projection.js")
             .then(function (mod) {
-                return mod.initProjection(cy, projection, {});
+                return mod.initProjection(cy, projection, {inputs: panelInputs});
             })
             .catch(function (err) {
                 console.error("[TAP projection] init failed", err);

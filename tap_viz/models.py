@@ -249,7 +249,7 @@ class Elevation(BaseModel):
 
 _PROJECTION_DEFINITION_SCHEMA: dict = {
     "type": "object",
-    "required": ["default_elevation", "elevations"],
+    "required": ["default_elevation_id", "elevations"],
     "additionalProperties": True,
     "properties": {
         "node_style": {
@@ -341,46 +341,14 @@ _PROJECTION_DEFINITION_SCHEMA: dict = {
             ],
         },
         "lock_nodes": {"type": "boolean"},
-        "default_elevation": {"type": "string", "minLength": 1},
+        # v1: elevations is an ordered array of Elevation entity UUIDs.
+        # default_elevation_id is the single Elevation that is the landing point.
+        # Both are validated by hotlinks; their cross-set membership is enforced in validate().
+        "default_elevation_id": {"type": "string", "minLength": 1},
         "elevations": {
             "type": "array",
             "minItems": 1,
-            "items": {
-                "type": "object",
-                "required": ["name", "zoom", "tap_layouts"],
-                "additionalProperties": True,
-                "properties": {
-                    "name": {"type": "string", "minLength": 1},
-                    "description": {"type": "string"},
-                    "zoom": {"type": "number"},
-                    "tap_layouts": {
-                        "type": "array",
-                        "minItems": 1,
-                        "items": {
-                            "type": "object",
-                            "required": ["name", "js_file"],
-                            "additionalProperties": True,
-                            "properties": {
-                                "name": {"type": "string", "minLength": 1},
-                                "description": {"type": "string"},
-                                "js_file": {"type": "string", "minLength": 1},
-                            },
-                        },
-                    },
-                    "double_tap_targets": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "required": ["entity_type", "target_elevation"],
-                            "additionalProperties": False,
-                            "properties": {
-                                "entity_type": {"type": "string", "minLength": 1},
-                                "target_elevation": {"type": "string", "minLength": 1},
-                            },
-                        },
-                    },
-                },
-            },
+            "items": {"type": "string", "minLength": 1},
         },
     },
 }
@@ -389,10 +357,13 @@ _PROJECTION_DEFINITION_SCHEMA: dict = {
 class Projection(BaseModel):
     """A reusable TAP Viz projection — a coherent multi-elevation visual perspective.
 
-    A projection orchestrates one or more tap layouts across named zoom-driven
-    elevations. Graph panels reference a projection via `USES_PROJECTION`. The
-    v0 shape is a monolithic `definition` payload containing `default_elevation`
-    and an ordered `elevations` array; see `spec-viz-projection.md`.
+    A projection composes Elevation entities into a zoom-driven visual journey
+    and designates a single Elevation as the landing point. Graph panels reference
+    a projection via `USES_PROJECTION`. See `spec-viz-projection.md`.
+
+    Composition is via two hotlinks:
+      - USES_ELEVATION (ordered, exact) — every elevation in the journey
+      - USES_DEFAULT_ELEVATION (single, exact) — the landing point on initial load
     """
 
     ENTITY_TYPE: ClassVar[str] = "projection"
@@ -415,12 +386,33 @@ class Projection(BaseModel):
         },
     }
 
+    HOTLINKS: ClassVar[list[dict]] = [
+        {
+            "name": "projection-elevations",
+            "field": "definition",
+            "selector_type": "simple_path",
+            "selector": "elevations.*",
+            "edge_direction": "outbound",
+            "edge_type": "USES_ELEVATION",
+            "mode": "exact",
+        },
+        {
+            "name": "projection-default-elevation",
+            "field": "definition",
+            "selector_type": "simple_path",
+            "selector": "default_elevation_id",
+            "edge_direction": "outbound",
+            "edge_type": "USES_DEFAULT_ELEVATION",
+            "mode": "exact",
+        },
+    ]
+
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     definition = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Monolithic projection definition: default_elevation + ordered elevations.",
+        help_text="Projection definition: elevations (ordered IDs), default_elevation_id, chrome.",
     )
 
     class Meta(BaseModel.Meta):
@@ -434,36 +426,21 @@ class Projection(BaseModel):
         return self.name
 
     def validate(self) -> None:
-        """Cross-field invariants: unique elevation names/zooms, valid default_elevation."""
+        """Cross-hotlink invariant: default_elevation_id must appear in elevations."""
         if not isinstance(self.definition, dict):
             return
+
         elevations = self.definition.get("elevations")
-        if not isinstance(elevations, list) or not elevations:
+        default_id = self.definition.get("default_elevation_id")
+
+        if not isinstance(elevations, list) or not isinstance(default_id, str):
             return
 
-        names: list[str] = []
-        zooms: list[float] = []
-        for elev in elevations:
-            if not isinstance(elev, dict):
-                continue
-            name = elev.get("name")
-            if isinstance(name, str):
-                names.append(name)
-            zoom = elev.get("zoom")
-            if isinstance(zoom, (int, float)):
-                zooms.append(float(zoom))
-
-        if len(names) != len(set(names)):
+        if default_id not in elevations:
             raise ValidationError(
-                {"definition": ["Elevation names must be unique within a projection."]}
-            )
-        if len(zooms) != len(set(zooms)):
-            raise ValidationError(
-                {"definition": ["Elevation zoom values must be unique within a projection."]}
-            )
-
-        default_elev = self.definition.get("default_elevation")
-        if isinstance(default_elev, str) and default_elev not in names:
-            raise ValidationError(
-                {"definition": [f"default_elevation '{default_elev}' does not match any elevation name."]}
+                {
+                    "definition": [
+                        f"default_elevation_id '{default_id}' must also appear in 'elevations'."
+                    ]
+                }
             )

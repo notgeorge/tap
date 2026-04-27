@@ -128,6 +128,7 @@ class GraphPanelType:
             "graph_nodes_json": safe_json(list(nodes.values())),
             "graph_edges_json": safe_json(list(edges.values())),
             "graph_projection_json": safe_json(None),
+            "graph_inputs_json": safe_json({}),
             "graph_placement": placement,
             "graph_nesting_enabled": nesting_enabled,
             "graph_height": _sanitize_panel_height((panel.config or {}).get("height")),
@@ -173,10 +174,15 @@ class GraphPanelType:
             logger.exception("Graph panel seed search failed for panel %s", panel.entity_id)
             return _error_ctx(f"Seed search execution failed: {exc}")
 
+        from tap_viz.panels.graph_panel.projection_resolver import resolve_projection_definition
+
+        resolved_definition = resolve_projection_definition(projection.definition or {})
+
         return {
             "graph_nodes_json": safe_json(list(nodes.values())),
             "graph_edges_json": safe_json(list(edges.values())),
-            "graph_projection_json": safe_json(projection.definition),
+            "graph_projection_json": safe_json(resolved_definition),
+            "graph_inputs_json": safe_json(raw_inputs),
             "graph_placement": "projection",
             "graph_nesting_enabled": False,
             "graph_height": _sanitize_panel_height((panel.config or {}).get("height")),
@@ -297,6 +303,7 @@ def _error_ctx(message: str) -> dict[str, Any]:
         "graph_nodes_json": safe_json([]),
         "graph_edges_json": safe_json([]),
         "graph_projection_json": safe_json(None),
+        "graph_inputs_json": safe_json({}),
         "graph_placement": "cytoscape:cose",
         "graph_height": _DEFAULT_PANEL_HEIGHT,
         "graph_error": message,

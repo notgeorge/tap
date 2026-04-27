@@ -19,6 +19,7 @@
  */
 
 import {loadLayoutModule} from "./layout-loader.js";
+import {executeArrangements} from "./arrangement.js";
 
 /**
  * @param {cytoscape.Core} cy
@@ -71,9 +72,31 @@ export async function initProjection(cy, projection, opts = {}) {
     async function runLayoutsSerially(elevation, context) {
         const layouts = elevation.tap_layouts || [];
         for (const layoutDef of layouts) {
+            const hasModule = !!layoutDef.js_file;
+            const arrangementDefs = Array.isArray(layoutDef.arrangements) ? layoutDef.arrangements : [];
             try {
-                const mod = await loadLayoutModule(layoutDef.js_file);
-                await mod.execute({...context, layout: layoutDef});
+                if (hasModule) {
+                    const mod = await loadLayoutModule(layoutDef.js_file);
+                    await mod.execute({...context, layout: layoutDef});
+                }
+                if (arrangementDefs.length > 0) {
+                    const result = await executeArrangements(cy, arrangementDefs, context.inputs || {});
+                    if (result.warnings.length > 0) {
+                        state.onWarning({
+                            category: "arrangement_warnings",
+                            elevation: elevation.name,
+                            layout: layoutDef.name,
+                            warnings: result.warnings,
+                        });
+                    }
+                }
+                if (!hasModule && arrangementDefs.length === 0) {
+                    state.onWarning({
+                        category: "empty_layout",
+                        elevation: elevation.name,
+                        layout: layoutDef.name,
+                    });
+                }
             } catch (err) {
                 state.onError({
                     category: "layout_execution_failed",

@@ -15,7 +15,9 @@
  *   ABOVE EC2: supporting services (Redis)
  */
 
-import { executeArrangements } from "/static/tap_viz/js/runtime/arrangement.js";
+// Arrangements are owned by the Layout entity (definition.arrangements) and
+// run by the projection runtime after this module returns. This module only
+// does broad-strokes positioning + post-arrangement-friendly fix-up.
 
 export async function execute(context) {
     const {cy, trigger_reason, inputs} = context;
@@ -299,55 +301,6 @@ export async function execute(context) {
                 ip.position({x: CX + 200, y: EXT_T});
             }
         });
-
-    // --- Post-layout arrangements ---
-    // Mirror the Arrangement entities seeded in plugins/genericom/grift/ec2-arrangements.grift.json.
-    // The entities exist for future elevation reuse via Layout USES_ARRANGEMENT hotlinks; the
-    // projection drives execution order today so the rules fire in dependency order.
-    const albIngressRow = {
-        // entity_id: 01980000-3000-7000-8000-000200000001 (arr-genericom-ec2-alb-ingress-row)
-        anchor: {
-            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port) WHERE ec2.entity_id = $entity_id AND p.port_number = 80 RETURN p",
-        },
-        members: {
-            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port)<-[:CONNECTS_TO]-(tcp:tcp_connection)<-[:CONNECTS_TO]-(alb:aws_alb) WHERE ec2.entity_id = $entity_id AND p.port_number = 80 RETURN tcp, alb",
-        },
-        positioning: "horizontal",
-        distribution: "even",
-    };
-
-    const internalAppRow = {
-        // entity_id: 01980000-3000-7000-8000-000200000002 (arr-genericom-ec2-internal-app-row)
-        anchor: {
-            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port) WHERE ec2.entity_id = $entity_id AND p.port_number = 8000 RETURN p",
-        },
-        members: {
-            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(prog:program) WHERE ec2.entity_id = $entity_id RETURN prog",
-        },
-        positioning: "horizontal",
-        distribution: "even",
-    };
-
-    const loIfaceFollowsPort = {
-        // entity_id: 01980000-3000-7000-8000-000200000003 (arr-genericom-ec2-lo-iface-follows-port)
-        anchor: {
-            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port) WHERE ec2.entity_id = $entity_id AND p.port_number = 8000 RETURN p",
-        },
-        members: {
-            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port) WHERE ec2.entity_id = $entity_id AND p.port_number = 8000 RETURN iface",
-        },
-        positioning: "horizontal",
-        distribution: "even",
-    };
-
-    const arrResult = await executeArrangements(
-        cy,
-        [albIngressRow, internalAppRow, loIfaceFollowsPort],
-        {entity_id: anchorId},
-    );
-    if (arrResult.warnings.length > 0) {
-        console.warn("Arrangement warnings:", arrResult.warnings);
-    }
 
     // --- Post-arrangement fix-up: visual polish for the demo ---
     // Even-distribution arrangements snap y but preserve x, so a single-member

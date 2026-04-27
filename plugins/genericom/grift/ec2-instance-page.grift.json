@@ -66,19 +66,45 @@
                 "mode": "icon-badge",
                 "exclude_types": ["port", "tcp_connection", "ip_address", "public_key", "private_key"]
               },
-              "default_elevation": "ec2-internal",
-              "elevations": [
-                {
-                  "name": "ec2-internal",
-                  "description": "Internal view of a single EC2 instance.",
-                  "zoom": 0.6,
-                  "tap_layouts": [
-                    {
-                      "name": "ec2-internal",
-                      "js_file": "plugins/genericom/static/genericom/js/projections/ec2-internal.js"
-                    }
-                  ]
-                }
+              "elevations": ["01980000-3000-7000-8000-000300000001"],
+              "default_elevation_id": "01980000-3000-7000-8000-000300000001"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-3000-7000-8000-000300000001",
+            "entity_type": "elevation",
+            "name": "genericom-ec2-internal-elevation",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "genericom-ec2-internal-elevation",
+            "description": "Internal view of a single EC2 instance.",
+            "definition": {
+              "zoom": 0.6,
+              "description": "Internal view of a single EC2 instance.",
+              "layouts": ["01980000-3000-7000-8000-000300000002"],
+              "double_tap_targets": []
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-3000-7000-8000-000300000002",
+            "entity_type": "layout",
+            "name": "genericom-ec2-internal-layout",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "genericom-ec2-internal-layout",
+            "description": "Broad-strokes JS layout (interfaces, programs, files, externals) plus three arrangements (alb-ingress-row, internal-app-row, lo-iface-follows-port).",
+            "definition": {
+              "js_file": "plugins/genericom/static/genericom/js/projections/ec2-internal.js",
+              "arrangements": [
+                "01980000-3000-7000-8000-000200000001",
+                "01980000-3000-7000-8000-000200000002",
+                "01980000-3000-7000-8000-000200000003"
               ]
             }
           }
@@ -129,6 +155,90 @@
             "to_entity_id": "01980000-3000-7000-8000-000100000002",
             "edge_type": "USES_PROJECTION",
             "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-3000-7000-8000-0003f0000001",
+            "entity_type": "edge",
+            "name": "Projection USES_ELEVATION ec2-internal",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "01980000-3000-7000-8000-000100000002",
+            "to_entity_id": "01980000-3000-7000-8000-000300000001",
+            "edge_type": "USES_ELEVATION",
+            "properties": {"hotlink": {"model": "projection", "spec": "projection-elevations", "value": "01980000-3000-7000-8000-000300000001"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-3000-7000-8000-0003f0000002",
+            "entity_type": "edge",
+            "name": "Projection USES_DEFAULT_ELEVATION ec2-internal",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "01980000-3000-7000-8000-000100000002",
+            "to_entity_id": "01980000-3000-7000-8000-000300000001",
+            "edge_type": "USES_DEFAULT_ELEVATION",
+            "properties": {"hotlink": {"model": "projection", "spec": "projection-default-elevation", "value": "01980000-3000-7000-8000-000300000001"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-3000-7000-8000-0003f0000003",
+            "entity_type": "edge",
+            "name": "ec2-internal-elevation USES_LAYOUT ec2-internal-layout",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "01980000-3000-7000-8000-000300000001",
+            "to_entity_id": "01980000-3000-7000-8000-000300000002",
+            "edge_type": "USES_LAYOUT",
+            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-layouts", "value": "01980000-3000-7000-8000-000300000002"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-3000-7000-8000-0003f0000011",
+            "entity_type": "edge",
+            "name": "ec2-internal-layout USES_ARRANGEMENT alb-ingress-row",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "01980000-3000-7000-8000-000300000002",
+            "to_entity_id": "01980000-3000-7000-8000-000200000001",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "01980000-3000-7000-8000-000200000001"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-3000-7000-8000-0003f0000012",
+            "entity_type": "edge",
+            "name": "ec2-internal-layout USES_ARRANGEMENT internal-app-row",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "01980000-3000-7000-8000-000300000002",
+            "to_entity_id": "01980000-3000-7000-8000-000200000002",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "01980000-3000-7000-8000-000200000002"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "01980000-3000-7000-8000-0003f0000013",
+            "entity_type": "edge",
+            "name": "ec2-internal-layout USES_ARRANGEMENT lo-iface-follows-port",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "01980000-3000-7000-8000-000300000002",
+            "to_entity_id": "01980000-3000-7000-8000-000200000003",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "01980000-3000-7000-8000-000200000003"}}
           }
         },
         {

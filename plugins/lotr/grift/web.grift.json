@@ -92,37 +92,79 @@
             "name": "LOTR Saga Projection",
             "description": "Middle-earth saga projection: nested realm/location/character/artifact scene with double-tap character-view elevation.",
             "definition": {
-              "default_elevation": "saga-level",
               "elevations": [
-                {
-                  "name": "saga-level",
-                  "description": "All realms, locations, characters, and artifacts arranged in nested compound nodes.",
-                  "zoom": 0.6,
-                  "tap_layouts": [
-                    {
-                      "name": "saga-stage",
-                      "description": "Nest realm/location/character/artifact, size parents, grid recursively.",
-                      "js_file": "plugins/lotr/static/lotr/js/projections/saga-stage.js"
-                    }
-                  ],
-                  "double_tap_targets": [
-                    {"entity_type": "character", "target_elevation": "character-view"}
-                  ]
-                },
-                {
-                  "name": "character-view",
-                  "description": "Zoomed view on a single character showing their wielded artifacts.",
-                  "zoom": 0.9,
-                  "tap_layouts": [
-                    {
-                      "name": "character-view",
-                      "description": "Lay out the character's artifacts inside the character compound.",
-                      "js_file": "plugins/lotr/static/lotr/js/projections/character-view.js"
-                    }
-                  ],
-                  "double_tap_targets": []
-                }
+                "019d6580-5d1e-7625-acaf-3a1000001001",
+                "019d6580-5d1e-7625-acaf-3a1000001002"
+              ],
+              "default_elevation_id": "019d6580-5d1e-7625-acaf-3a1000001001"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a1000001001",
+            "entity_type": "elevation",
+            "name": "lotr-saga-level",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "lotr-saga-level",
+            "description": "All realms, locations, characters, and artifacts arranged in nested compound nodes.",
+            "definition": {
+              "zoom": 0.6,
+              "description": "All realms, locations, characters, and artifacts arranged in nested compound nodes.",
+              "layouts": ["019d6580-5d1e-7625-acaf-3a1000002001"],
+              "double_tap_targets": [
+                {"entity_type": "character", "target_elevation_id": "019d6580-5d1e-7625-acaf-3a1000001002"}
               ]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a1000001002",
+            "entity_type": "elevation",
+            "name": "lotr-character-view",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "lotr-character-view",
+            "description": "Zoomed view on a single character showing their wielded artifacts.",
+            "definition": {
+              "zoom": 0.9,
+              "description": "Zoomed view on a single character showing their wielded artifacts.",
+              "layouts": ["019d6580-5d1e-7625-acaf-3a1000002002"],
+              "double_tap_targets": []
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a1000002001",
+            "entity_type": "layout",
+            "name": "lotr-saga-stage",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "lotr-saga-stage",
+            "description": "Nest realm/location/character/artifact, size parents, grid recursively.",
+            "definition": {
+              "js_file": "plugins/lotr/static/lotr/js/projections/saga-stage.js"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a1000002002",
+            "entity_type": "layout",
+            "name": "lotr-character-view-layout",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "lotr-character-view-layout",
+            "description": "Lay out the character's artifacts inside the character compound.",
+            "definition": {
+              "js_file": "plugins/lotr/static/lotr/js/projections/character-view.js"
             }
           }
         },
@@ -228,6 +270,90 @@
             "to_entity_id": "fa7c2017-a654-45dc-a057-702e1f91431a",
             "edge_type": "USES_PROJECTION",
             "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a10f0001001",
+            "entity_type": "edge",
+            "name": "Projection USES_ELEVATION saga-level",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "fa7c2017-a654-45dc-a057-702e1f91431a",
+            "to_entity_id": "019d6580-5d1e-7625-acaf-3a1000001001",
+            "edge_type": "USES_ELEVATION",
+            "properties": {"hotlink": {"model": "projection", "spec": "projection-elevations", "value": "019d6580-5d1e-7625-acaf-3a1000001001"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a10f0001002",
+            "entity_type": "edge",
+            "name": "Projection USES_ELEVATION character-view",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "fa7c2017-a654-45dc-a057-702e1f91431a",
+            "to_entity_id": "019d6580-5d1e-7625-acaf-3a1000001002",
+            "edge_type": "USES_ELEVATION",
+            "properties": {"hotlink": {"model": "projection", "spec": "projection-elevations", "value": "019d6580-5d1e-7625-acaf-3a1000001002"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a10f0001003",
+            "entity_type": "edge",
+            "name": "Projection USES_DEFAULT_ELEVATION saga-level",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "fa7c2017-a654-45dc-a057-702e1f91431a",
+            "to_entity_id": "019d6580-5d1e-7625-acaf-3a1000001001",
+            "edge_type": "USES_DEFAULT_ELEVATION",
+            "properties": {"hotlink": {"model": "projection", "spec": "projection-default-elevation", "value": "019d6580-5d1e-7625-acaf-3a1000001001"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a10f0002001",
+            "entity_type": "edge",
+            "name": "saga-level USES_LAYOUT saga-stage",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6580-5d1e-7625-acaf-3a1000001001",
+            "to_entity_id": "019d6580-5d1e-7625-acaf-3a1000002001",
+            "edge_type": "USES_LAYOUT",
+            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-layouts", "value": "019d6580-5d1e-7625-acaf-3a1000002001"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a10f0002002",
+            "entity_type": "edge",
+            "name": "character-view USES_LAYOUT character-view-layout",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6580-5d1e-7625-acaf-3a1000001002",
+            "to_entity_id": "019d6580-5d1e-7625-acaf-3a1000002002",
+            "edge_type": "USES_LAYOUT",
+            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-layouts", "value": "019d6580-5d1e-7625-acaf-3a1000002002"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019d6580-5d1e-7625-acaf-3a10f0003001",
+            "entity_type": "edge",
+            "name": "saga-level NAVIGATES_TO character-view",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019d6580-5d1e-7625-acaf-3a1000001001",
+            "to_entity_id": "019d6580-5d1e-7625-acaf-3a1000001002",
+            "edge_type": "NAVIGATES_TO",
+            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-navigates-to", "value": "019d6580-5d1e-7625-acaf-3a1000001002"}}
           }
         },
         {
