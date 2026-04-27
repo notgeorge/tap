@@ -15,6 +15,8 @@
  *   ABOVE EC2: supporting services (Redis)
  */
 
+import { executeArrangements } from "/static/tap_viz/js/runtime/arrangement.js";
+
 export async function execute(context) {
     const {cy, trigger_reason, inputs} = context;
 
@@ -297,6 +299,23 @@ export async function execute(context) {
                 ip.position({x: CX + 200, y: EXT_T});
             }
         });
+
+    // --- Post-layout arrangements: align programs with their listening ports ---
+    const portToApp = {
+        anchor: {
+            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(iface:network_interface)<-[:ATTACHED_TO]-(p:port) WHERE ec2.entity_id = $eid AND p.port_number = 80 RETURN p",
+        },
+        members: {
+            gryphon: "MATCH (ec2:aws_ec2_instance)-[:HOSTS]->(prog:program)-[:LISTENS_ON]->(p:port) WHERE ec2.entity_id = $eid AND p.port_number = 80 RETURN prog",
+        },
+        positioning: "horizontal",
+        distribution: "even",
+    };
+
+    const arrResult = await executeArrangements(cy, [portToApp], {eid: anchorId});
+    if (arrResult.warnings.length > 0) {
+        console.warn("Arrangement warnings:", arrResult.warnings);
+    }
 
     // --- Edge styling: thick and dark for visibility ---
     cy.edges().not(".tap-elevation-hidden").forEach((e) => {

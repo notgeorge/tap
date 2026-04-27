@@ -1,11 +1,83 @@
-"""tap_viz models — Viz layout and projection entities."""
+"""tap_viz models — Viz layout, projection, and arrangement entities."""
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from django.core.exceptions import ValidationError
 from django.db import models
 
 from tap_grid.models import BaseModel
+
+
+# ---------------------------------------------------------------------------
+# Arrangement definition schema
+# ---------------------------------------------------------------------------
+
+_ARRANGEMENT_DEFINITION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["anchor", "members", "positioning", "distribution"],
+    "additionalProperties": False,
+    "properties": {
+        "anchor": {
+            "type": "object",
+            "required": ["gryphon"],
+            "additionalProperties": False,
+            "properties": {
+                "gryphon": {"type": "string", "minLength": 1},
+            },
+        },
+        "members": {
+            "type": "object",
+            "required": ["gryphon"],
+            "additionalProperties": False,
+            "properties": {
+                "gryphon": {"type": "string", "minLength": 1},
+            },
+        },
+        "positioning": {"type": "string", "enum": ["horizontal", "vertical"]},
+        "distribution": {"type": "string", "enum": ["even"]},
+    },
+}
+
+
+class Arrangement(BaseModel):
+    """A declarative post-layout positioning rule.
+
+    Arrangements reposition nodes already on the Cytoscape graph into structured
+    formations relative to an anchor node. They are pure data — no executable
+    code — and are connected to layouts via USES_ARRANGEMENT edges (hotlinks).
+    See spec-viz-arrangement.md.
+    """
+
+    ENTITY_TYPE: ClassVar[str] = "arrangement"
+
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "definition": {"type": "object"},
+    }
+    CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
+
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {
+        "definition": {
+            "validation": "jsonschema",
+            "schema": _ARRANGEMENT_DEFINITION_SCHEMA,
+        },
+    }
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    definition = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Declarative arrangement rule: anchor, members, positioning, distribution.",
+    )
+
+    class Meta(BaseModel.Meta):
+        db_table = "tap_arrangement"
+        ordering = ["-entity__created_at"]
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class Layout(BaseModel):
@@ -25,6 +97,18 @@ class Layout(BaseModel):
         "definition": {"type": "object"},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
+
+    HOTLINKS: ClassVar[list[dict]] = [
+        {
+            "name": "layout-arrangements",
+            "field": "definition",
+            "selector_type": "simple_path",
+            "selector": "arrangements.*",
+            "edge_direction": "outbound",
+            "edge_type": "USES_ARRANGEMENT",
+            "mode": "exact",
+        },
+    ]
 
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")

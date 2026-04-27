@@ -99,6 +99,37 @@ def execute_gryphon(
     if not query:
         raise SearchExecutionError("Gryphon search definition is missing 'query'.")
 
+    return execute_gryphon_raw(query, inputs, db_alias=db_alias, layer=layer)
+
+
+def execute_gryphon_raw(
+    query: str,
+    inputs: dict[str, Any],
+    *,
+    db_alias: str = "default",
+    layer: SubgraphLayer = "full",
+) -> dict[str, Any]:
+    """Execute a raw gryphon query string and return the canonical graph envelope.
+
+    Unlike execute_gryphon(), this does not require a stored Search entity.
+    Used by the arrangement runtime and other consumers that hold inline
+    gryphon query strings.
+
+    Args:
+        query: A gryphon query string.
+        inputs: Runtime $var values; must supply all required params from the query.
+        db_alias: Database alias for all queries (should be the read-only alias in production).
+        layer: GRIFT subgraph return layer (lite, full, extended).
+
+    Returns:
+        ``{"nodes": [...], "edges": [...]}`` canonical envelope.
+
+    Raises:
+        SearchExecutionError: If the query is malformed, unsupported, or execution fails.
+    """
+    if not query:
+        raise SearchExecutionError("Gryphon query string is empty.")
+
     ast = parse_gryphon(query)
 
     # Validate that all required $var names are present in inputs.

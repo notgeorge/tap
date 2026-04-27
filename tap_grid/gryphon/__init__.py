@@ -8,9 +8,13 @@ Usage::
 
     ast = parse_gryphon("MATCH (hub)-[e]-(neighbor) WHERE hub.entity_id = $entity_id")
     result = execute_gryphon(search, inputs={"entity_id": "<uuid>"}, db_alias="search_readonly")
+
+    # Raw query execution (no Search entity required):
+    from tap_grid.gryphon import execute_gryphon_raw
+    result = execute_gryphon_raw("MATCH (a:program) RETURN a", inputs={})
 """
 
-from tap_grid.gryphon.executor import execute_gryphon
+from tap_grid.gryphon.executor import execute_gryphon, execute_gryphon_raw
 from tap_grid.gryphon.parser import parse_gryphon
 
-__all__ = ["execute_gryphon", "parse_gryphon"]
+__all__ = ["execute_gryphon", "execute_gryphon_raw", "parse_gryphon"]
