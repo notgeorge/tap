@@ -2,11 +2,16 @@
 
 ## Philosophy
 
-Tap layouts are executable TAP Viz layout functions. They are not raw Cytoscape built-in layouts such as `grid`, `cose`, or `breadthfirst`, and they are not TAP-owned declarative layout recipes stored entirely in JSON. A tap layout is a deterministic JavaScript module that can fetch data, add graph members, apply nesting, invoke Cytoscape layouts, position nodes manually, and adjust styling or scaling as needed to produce a meaningful scene.
+A **layout** in TAP Viz is a TAP-managed entity (`tap_viz.models.Layout`) that owns the scene-construction work for one node group within an elevation. A layout may carry two complementary things:
 
-Tap layouts exist because the graph views TAP wants to build are richer than what can be expressed cleanly through static configuration alone. A serious visual system needs to combine multiple behaviors in one execution: search, grouping, nesting, built-in Cytoscape layouts, manual positioning, and scene-specific logic. Treating layouts as executable code keeps that complexity in files where it can be tested, evolved, and reused.
+1. **A `layout_module`** — a JavaScript file (referenced by `js_file`) that runs `execute(context)`, doing whatever procedural work the scene needs: fetching data, applying nesting, invoking Cytoscape built-ins, positioning nodes manually, styling. This is the executable broad-strokes pass.
+2. **An ordered list of arrangements** — declarative single-anchor positioning rules (see [spec-viz-arrangement.md](spec-viz-arrangement.md)) that refine positions after the module runs. This is the declarative polish pass.
 
-Tap layouts are Cytoscape-oriented. Cytoscape remains the graph runtime that tap layouts control. A tap layout may call built-in Cytoscape layouts as one tool among several, but a tap layout is a TAP Viz runtime contract rather than a Cytoscape plugin contract.
+Either, both, or neither may be present. The arrangement system was conceived as an *enhancement on top of* a layout's procedural work — the JS module places everything broadly, then arrangements tweak specific rows. Layouts that don't need procedural logic can ship arrangements alone; layouts that don't need declarative polish can ship a module alone.
+
+The terminology distinction is important and worth being precise about: **"layout"** is the entity (and the role); **"layout_module"** is the JavaScript file the entity may reference. Earlier docs and code sometimes used "tap layout" or "layout" interchangeably for the JS file; the v1 reshape pulls those apart so "layout" exclusively means the entity that composes the work.
+
+Layouts are Cytoscape-oriented. Cytoscape remains the graph runtime that layout modules control. A layout module may call built-in Cytoscape layouts as one tool among several, but the layout-module contract is a TAP Viz runtime contract rather than a Cytoscape plugin contract.
 
 ## Goals
 
@@ -24,9 +29,10 @@ Tap layouts are Cytoscape-oriented. Cytoscape remains the graph runtime that tap
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-viz-layout-artifact | [Layout Artifact](#layout-artifact) | Implemented | A tap layout is a TAP-managed artifact with a file-backed implementation |
-| req-viz-layout-shape | [Layout Shape](#layout-shape) | Implemented | V0 tap layouts contain name, description, and js file reference |
-| req-viz-layout-module-contract | [Module Contract](#module-contract) | Implemented | Tap layout JS modules export a standard async execute entrypoint |
+| req-viz-layout-artifact | [Layout Artifact](#layout-artifact) | Implemented | A layout is a TAP-managed entity (`tap_viz.models.Layout`) |
+| req-viz-layout-shape | [Layout Shape (v0)](#layout-shape-v0) | Deprecating | V0 layouts contain name, description, and js file reference; superseded by `req-viz-layout-dual-mode` |
+| req-viz-layout-dual-mode | [Dual-Mode Layout Definition (v1)](#dual-mode-layout-definition-v1) | Approved for Development | Layout `definition` may carry `js_file` (layout_module) and/or `arrangements` (ordered IDs); both optional |
+| req-viz-layout-module-contract | [Module Contract](#module-contract) | Implemented | Layout modules export a standard async execute entrypoint |
 | req-viz-layout-runtime-context | [Runtime Context](#runtime-context) | Implemented | Layouts receive a locked-in minimal runtime context; `trigger_node` is an optional hint, not a core operand |
 | req-viz-layout-capabilities | [Layout Capabilities](#layout-capabilities) | Implemented | Layouts may fetch, mutate, nest, and position the Cytoscape graph; assert scene invariants on entry |
 | req-viz-layout-execution | [Execution Model](#execution-model) | Implemented | Layouts execute serially under a host but failures do not block later layouts |
@@ -56,12 +62,16 @@ This keeps complex layout behavior versioned, testable, and shippable through no
 Define how tap layouts should later relate to graph-managed layout nodes and other reusable artifact shapes.
 
 
-### Layout Shape
+### Layout Shape (v0)
 ----
 RID: `req-viz-layout-shape`
-Status: `Implemented`
+Status: `Deprecating`
 
-The v0 tap layout object is intentionally minimal.
+The v0 tap layout object was intentionally minimal — a name + a JS file reference.
+
+#### Status Details
+
+The v0 inline shape (used inside the projection's `definition.elevations[].tap_layouts[]` array) is being superseded by the v1 entity-based dual-mode definition in [Dual-Mode Layout Definition (v1)](#dual-mode-layout-definition-v1). Existing v0-shaped projections continue to work until migrated.
 
 #### Implementation
 
@@ -73,13 +83,94 @@ The v0 tap layout shape contains exactly:
 
 `js_file` references a static asset path under the TAP or plugin JavaScript tree.
 
-#### Development
-
-The first layout shape should stay minimal until real working layouts force additional structure.
-
 #### Future
 
-Add more layout metadata only when real runtime needs justify it.
+Once the v1 migration ships, this requirement becomes `Deprecated`.
+
+
+### Dual-Mode Layout Definition (v1)
+----
+RID: `req-viz-layout-dual-mode`
+Status: `Approved for Development`
+
+A v1 Layout entity's `definition` JSON may carry a `layout_module` reference (the JS file), an ordered list of arrangement entity_ids, both, or neither.
+
+#### Implementation
+
+The v1 Layout `definition` shape:
+
+```json
+{
+  "js_file": "plugins/genericom/static/genericom/js/projections/ec2-internal.js",
+  "arrangements": [
+    "<arrangement-entity-id-1>",
+    "<arrangement-entity-id-2>",
+    "<arrangement-entity-id-3>"
+  ]
+}
+```
+
+Top-level keys:
+
+- `js_file` — string, optional. Path to a layout_module under the TAP or plugin JavaScript tree. When present, the runtime imports the module and runs its `execute(context)` entrypoint per [Module Contract](#module-contract).
+- `arrangements` — array of UUIDs, optional. Ordered list of Arrangement entities applied via the `executeArrangements()` runtime helper. Validated by the existing `USES_ARRANGEMENT` hotlink on the Layout model.
+
+Both `js_file` and `arrangements` are optional. Allowed combinations:
+
+| `js_file` | `arrangements` | Behavior |
+| --- | --- | --- |
+| present | present | Module runs first (broad-strokes positioning); arrangements run after (declarative polish). The genericom EC2 internal layout exercises this combination. |
+| present | absent | Module-only layout. The classic v0 behavior; LOTR saga-stage is an example. |
+| absent | present | Arrangements-only layout. No procedural logic; declarative positioning rules alone produce the scene. |
+| absent | absent | No-op layout. Legal but unusual; the runtime emits an `empty_layout` warning. |
+
+#### Execution Order
+
+Within a single Layout, the runtime sequence is fixed:
+
+1. If `js_file` is present, dynamically import the module and `await module.execute(context)`.
+2. If `arrangements` is present, fetch each arrangement's `definition` and call `executeArrangements(cy, [...defs], inputs)` with all of them, in array order, in a single call.
+
+This ordering reflects the conceptual relationship: arrangements refine positions that the module has already established. Reversing the order would have arrangements snap nodes to anchors that the module then displaces.
+
+#### Hotlink
+
+The Layout model already declares the `USES_ARRANGEMENT` hotlink (added in migration 0009):
+
+```python
+HOTLINKS: ClassVar[list[dict]] = [
+    {
+        "name": "layout-arrangements",
+        "field": "definition",
+        "selector_type": "simple_path",
+        "selector": "arrangements.*",
+        "edge_direction": "outbound",
+        "edge_type": "USES_ARRANGEMENT",
+        "mode": "exact",
+    },
+]
+```
+
+The hotlink validates exact match between `definition.arrangements` (when present) and the outbound `USES_ARRANGEMENT` edge set. When `arrangements` is absent or empty, the edge set is also empty — the hotlink validates trivially.
+
+`js_file` is *not* a hotlink — it points to a static asset path, not an entity. It stays as plain JSON in `definition`.
+
+#### Migration
+
+Existing v0 projections (genericom EC2, LOTR) carry inline `tap_layouts[]` arrays inside their projection definition. Migration:
+
+1. For each inline tap_layout, author a Layout entity with `definition.js_file` populated from the v0 entry's `js_file`.
+2. For layouts whose positioning would benefit from declarative refinement (genericom EC2 internal does; LOTR saga-stage does not at this time), author the corresponding Arrangement entities and reference them via `definition.arrangements`.
+3. The Elevation entity's `USES_LAYOUT` hotlink replaces the inline `tap_layouts[]` array (see [spec-viz-elevation.md](spec-viz-elevation.md)).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-layout-dual-mode-1 | Schema validates dual-mode | Approved for Development | `FIELD_VALIDATION_SCHEMA` accepts `definition` with `js_file`, `arrangements`, both, or neither. | |
+| req-viz-layout-dual-mode-2 | Module runs before arrangements | Approved for Development | Runtime invokes `js_file`'s `execute()` first, then `executeArrangements()`. | |
+| req-viz-layout-dual-mode-3 | Arrangements hotlink validates | Approved for Development | `USES_ARRANGEMENT` hotlink remains exact-match against `definition.arrangements`. | Existing behavior, restated for v1. |
+| req-viz-layout-dual-mode-4 | Empty layout warns | Approved for Development | Layout with neither `js_file` nor `arrangements` produces an `empty_layout` warning at execution. | Not an error — the layout is legal but probably a misconfiguration. |
 
 
 ### Module Contract

@@ -27,9 +27,11 @@ Projections should also be self-contained. A projection must be able to define a
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-viz-projection-artifact | [Projection Artifact](#projection-artifact) | Implemented | Projection is a first-class TAP Viz artifact (`tap_viz.models.Projection`) |
-| req-viz-projection-structure | [Projection Structure](#projection-structure) | Implemented | Monolithic v0 shape enforced via `FIELD_VALIDATION_SCHEMA` and `validate()` cross-field checks |
-| req-viz-projection-elevation | [Elevation Model](#elevation-model) | Implemented | Zoom threshold watcher + double-tap handler in `runtime/projection.js` |
-| req-viz-projection-layout-orchestration | [Layout Orchestration](#layout-orchestration) | Implemented | Tap layouts referenced inline by `js_file`, run serially per elevation |
+| req-viz-projection-structure | [Projection Structure](#projection-structure) | Deprecating | Monolithic v0 shape with inline elevations; superseded by `req-viz-projection-entity-structure` |
+| req-viz-projection-entity-structure | [Projection Entity Structure (v1)](#projection-entity-structure-v1) | Approved for Development | Elevations referenced as entities via `USES_ELEVATION` and `USES_DEFAULT_ELEVATION` hotlinks |
+| req-viz-projection-elevation | [Elevation Model](#elevation-model) | Deprecating | Inline elevation config in projection definition; superseded by `spec-viz-elevation.md` |
+| req-viz-projection-layout-orchestration | [Layout Orchestration](#layout-orchestration) | Deprecating | Tap layouts referenced inline by `js_file`; superseded by `req-viz-projection-elevation-orchestration` |
+| req-viz-projection-elevation-orchestration | [Elevation Orchestration (v1)](#elevation-orchestration-v1) | Approved for Development | Projections compose Elevation entities; layouts are owned by Elevation per `spec-viz-elevation.md` |
 | req-viz-projection-layout-runtime | [Layout Runtime](#layout-runtime) | Implemented | Runtime context (`cy`, `projection`, `elevation`, `trigger_reason`, `trigger_node`) passed to `execute(context)` |
 | req-viz-projection-incremental-loading | [Incremental Loading](#incremental-loading) | Implemented | `character-view.js` demonstrates runtime sub-search via `runtime/search.js` |
 | req-viz-projection-self-contained | [Self-Contained Execution](#self-contained-execution) | Implemented | LOTR saga projection defines nesting, dimensions, and layout without model-level hints |
@@ -65,45 +67,136 @@ Define the exact storage model and relation to existing layout entities in a fol
 ### Projection Structure
 ----
 RID: `req-viz-projection-structure`
-Status: `Implemented`
+Status: `Deprecating`
 
 A projection owns the top-level structure needed to initialize and advance a visual perspective.
 
+#### Status Details
+
+The v0 monolithic shape — inline elevations and inline tap-layout references — is being superseded by the entity-based shape in [Projection Entity Structure (v1)](#projection-entity-structure-v1). Existing projections (genericom EC2, LOTR saga) still use the v0 shape and continue to work; new projections should follow v1.
+
 #### Implementation
-
-The initial projection shape is expected to include:
-
-- `name`
-- `description`
-- `default_elevation`
-- one or more `elevations`
-
-For the first pass, projection should be defined as one monolithic object rather than split into separate elevation nodes or separately referenced layout nodes.
 
 The v0 projection shape is:
 
 - `name`
 - `description`
-- `default_elevation`
-- `elevations`
+- `default_elevation` — string; references an elevation by `name`.
+- `elevations` — array of inline elevation objects.
 
-`default_elevation` references an elevation by `name`.
+The shape is enforced via `FIELD_VALIDATION_SCHEMA` and `validate()` cross-field checks on the `Projection` model.
 
 #### Development
 
-This keeps the first implementation easy to build and easy to revise. Projection can be broken into reusable referenced artifacts later, once the structure proves itself in a real working example.
+The monolithic shape was deliberately chosen for v0 to avoid premature splitting into reusable artifacts. With the v1 reshape (elevations + layouts + arrangements as entities), the projection-to-arrangement chain becomes addressable as a graph, which v0 explicitly deferred.
 
 #### Future
 
-Break projections into reusable referenced artifacts once the v0 structure stabilizes.
+Existing v0 projections will be migrated to the v1 entity structure in a single pass once the v1 implementation lands. This requirement remains `Deprecating` until that migration ships, then becomes `Deprecated`.
+
+
+### Projection Entity Structure (v1)
+----
+RID: `req-viz-projection-entity-structure`
+Status: `Approved for Development`
+
+A projection composes a set of Elevation entities and designates one as the default landing point, both via typed graph hotlinks.
+
+#### Implementation
+
+The v1 projection definition shape:
+
+```json
+{
+  "name": "Genericom EC2 Internal Projection",
+  "description": "Computing-core internal view of an EC2 instance.",
+  "elevations": [
+    "<elevation-entity-id-1>",
+    "<elevation-entity-id-2>"
+  ],
+  "default_elevation_id": "<elevation-entity-id-1>",
+  "node_style": { ... },
+  "status_badges": { ... },
+  "min_zoom": "fit",
+  "lock_nodes": false
+}
+```
+
+Top-level changes from v0:
+
+- `elevations` is an array of UUIDs (not inline objects). Validated by the `USES_ELEVATION` hotlink.
+- `default_elevation_id` is a single UUID. Validated by the `USES_DEFAULT_ELEVATION` hotlink.
+- Inline elevation fields (`zoom`, `tap_layouts`, `double_tap_targets`) are not present at the projection level — they live on the Elevation entity per [spec-viz-elevation.md](spec-viz-elevation.md).
+
+The Projection model declares two hotlinks for elevation composition:
+
+```python
+HOTLINKS: ClassVar[list[dict]] = [
+    {
+        "name": "projection-elevations",
+        "field": "definition",
+        "selector_type": "simple_path",
+        "selector": "elevations.*",
+        "edge_direction": "outbound",
+        "edge_type": "USES_ELEVATION",
+        "mode": "exact",
+    },
+    {
+        "name": "projection-default-elevation",
+        "field": "definition",
+        "selector_type": "simple_path",
+        "selector": "default_elevation_id",
+        "edge_direction": "outbound",
+        "edge_type": "USES_DEFAULT_ELEVATION",
+        "mode": "exact",
+    },
+]
+```
+
+The `USES_DEFAULT_ELEVATION` edge expresses "this is THE landing elevation for this projection" as a typed graph relationship rather than a string-name reference or an edge-property flag on `USES_ELEVATION`. This makes the default queryable via gryphon (`MATCH (p:projection)-[:USES_DEFAULT_ELEVATION]->(el:elevation) ...`) and lets the same Elevation entity be the default in one projection and a non-default member in another.
+
+#### Cross-Hotlink Invariant
+
+The hotlink machinery validates each hotlink in isolation. Two cross-hotlink rules require an explicit `validate()` method on the Projection model:
+
+1. `default_elevation_id` MUST appear in the `elevations` array (and equivalently, the `USES_DEFAULT_ELEVATION` target MUST also be a `USES_ELEVATION` target).
+2. Every `NAVIGATES_TO` target reachable from any of this projection's elevations (via [`spec-viz-elevation.md`](spec-viz-elevation.md#navigates_to-hotlink)) MUST also appear in the projection's `elevations` set — you cannot double-tap to an elevation the projection does not compose.
+
+These invariants are surfaced as `ValidationError`s on save with codes `default_elevation_not_in_set` and `navigates_to_target_outside_projection`.
+
+#### Migration
+
+Existing v0 projections (genericom EC2 internal, LOTR saga) are migrated in a single pass when the v1 implementation ships:
+
+1. Author Elevation entities for each inline elevation, populated from the v0 `elevations[]` payload.
+2. Author Layout entities for each inline tap-layout, populated with `js_file` from the v0 `tap_layouts[]` entry. Add `arrangements` if the layout's positioning would benefit (genericom EC2 internal does; see [spec-viz-arrangement.md](spec-viz-arrangement.md)).
+3. Replace the projection's `definition.elevations` with the array of Elevation entity_ids and `definition.default_elevation_id` with the single UUID.
+4. Update `tap-plugin.toml` to register the new arrangement / elevation / layout grift bundles.
+5. Run `import_plugin_grift --force-batches` to reseat the projection definition.
+
+Blast radius is small (two projections in the codebase at the time of this writing).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-projection-entity-structure-1 | USES_ELEVATION hotlink | Approved for Development | Hotlink validates exact match between `definition.elevations` and outbound `USES_ELEVATION` edges. | |
+| req-viz-projection-entity-structure-2 | USES_DEFAULT_ELEVATION hotlink | Approved for Development | Hotlink validates exact match between `definition.default_elevation_id` and a single outbound `USES_DEFAULT_ELEVATION` edge. | |
+| req-viz-projection-entity-structure-3 | Default in set invariant | Approved for Development | `validate()` rejects projections whose `default_elevation_id` is not in `elevations`. | |
+| req-viz-projection-entity-structure-4 | Navigates-to in set invariant | Approved for Development | `validate()` rejects projections where any composed elevation's `NAVIGATES_TO` target is not in the projection's `elevations`. | |
+| req-viz-projection-entity-structure-5 | v0 projections migrated | Approved for Development | Genericom EC2 and LOTR projections updated to v1 shape in the same release. | |
 
 
 ### Elevation Model
 ----
 RID: `req-viz-projection-elevation`
-Status: `Implemented`
+Status: `Deprecating`
 
 Elevations are named zoom-driven stages within a projection.
+
+#### Status Details
+
+The v0 inline-elevation shape is being superseded by the Elevation entity defined in [spec-viz-elevation.md](spec-viz-elevation.md). The runtime activation behavior described below (zoom thresholds, double-tap pan-zoom, hysteresis, viewport preservation) carries forward unchanged — what's deprecating is the *config shape*, not the *runtime semantics*.
 
 #### Implementation
 
@@ -172,13 +265,17 @@ Define elevation metadata, zoom thresholds, enter/exit semantics, and how multip
 ### Layout Orchestration
 ----
 RID: `req-viz-projection-layout-orchestration`
-Status: `Implemented`
+Status: `Deprecating`
 
 Projections orchestrate one or more layouts at each elevation rather than replacing the layout system.
 
+#### Status Details
+
+The v0 inline `tap_layouts[]` shape is being superseded by the v1 elevation orchestration model in [Elevation Orchestration (v1)](#elevation-orchestration-v1). The clean layering — *projections define perspective and progression, elevations define staging, layouts do the work* — is preserved; what changes is that elevations and layouts become entities composed via hotlinks rather than inline JSON.
+
 #### Implementation
 
-Layouts remain deterministic Cytoscape-specific executable functions. A projection decides when layouts run and which nodes they operate on. Multiple layouts may be active within the same elevation when they operate on different graph members or different scopes of the current scene.
+Layouts remain deterministic Cytoscape-specific executable functions (now potentially supplemented by declarative arrangements). A projection decides when layouts run and which nodes they operate on. Multiple layouts may be active within the same elevation when they operate on different graph members or different scopes of the current scene.
 
 In v0, a projection references inline tap layouts rather than separate layout entities.
 
@@ -190,19 +287,52 @@ The v0 tap layout shape is:
 
 `tap_layouts` run in array order.
 
-#### Development
-
-This requirement preserves a clean layering:
-
-- projections define perspective and progression
-- elevations define staging and activation
-- layouts do the actual graph arrangement work
-
-Keeping tap layout references inline for the first pass makes it easier to discover the right long-term artifact shape before introducing more graph-managed indirection.
-
 #### Future
 
-Define the runtime contract for executable layouts and how elevations invoke them.
+Once the v1 migration ships, this requirement becomes `Deprecated`.
+
+
+### Elevation Orchestration (v1)
+----
+RID: `req-viz-projection-elevation-orchestration`
+Status: `Approved for Development`
+
+A v1 projection composes Elevation entities; each elevation owns its layout composition via the `USES_LAYOUT` hotlink defined in [spec-viz-elevation.md](spec-viz-elevation.md). Layouts are first-class entities (see [spec-viz-layouts.md](spec-viz-layouts.md)) that may carry a `layout_module` (JS file) and/or an ordered `arrangements` array.
+
+#### Implementation
+
+Layering responsibility:
+
+- **Projection** — perspective and progression. Composes elevations, designates the default landing elevation, declares projection-wide chrome (status badges, node styling, min zoom, lock nodes).
+- **Elevation** — staging and activation. Declares its zoom threshold, composes layouts in execution order, declares double-tap navigation targets.
+- **Layout** — scene work. Runs a `layout_module` for broad-strokes positioning and/or applies arrangements for declarative refinement.
+- **Arrangement** — single-anchor positioning rule. Refines positions of nodes the layout has already placed.
+
+The runtime walks the chain at panel load:
+
+1. Resolve the panel's `USES_PROJECTION` target.
+2. Resolve the projection's `USES_DEFAULT_ELEVATION` target (or the elevation matched by current zoom).
+3. Resolve the elevation's `USES_LAYOUT` targets in order.
+4. For each layout, resolve `USES_ARRANGEMENT` targets in order.
+5. Run the layout's `layout_module` first (if present), then its arrangements (if any).
+
+The whole chain is fetchable in a single gryphon query at the `full` layer:
+
+```
+MATCH (p:projection)-[:USES_DEFAULT_ELEVATION]->(el:elevation)-[:USES_LAYOUT]->(l:layout)-[:USES_ARRANGEMENT]->(a:arrangement)
+WHERE p.entity_id = $projection_id
+RETURN el, l, a
+```
+
+This replaces the v0 path of fetching the projection's monolithic `definition` JSON and reading inline elevation/layout config from it.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-projection-elevation-orchestration-1 | Chain resolves via gryphon | Approved for Development | One gryphon query at `full` layer pulls projection → elevation → layouts → arrangements with definitions. | |
+| req-viz-projection-elevation-orchestration-2 | Layout module runs before arrangements | Approved for Development | When a Layout has both `layout_module` and `arrangements`, the module runs first, arrangements second. | See `spec-viz-layouts.md` Dual-Mode Layout Definition |
+| req-viz-projection-elevation-orchestration-3 | Empty-layout elevation valid | Approved for Development | An Elevation with `USES_LAYOUT` empty is legal (uncommon but not an error). | |
 
 
 ### Layout Runtime

@@ -33,7 +33,7 @@ Arrangements are TAP-managed entities stored as their own model and connected to
 | req-viz-arrangement-positioning | [Positioning](#positioning) | Implemented | Horizontal or vertical axis positioning relative to anchor |
 | req-viz-arrangement-distribution | [Distribution](#distribution) | Implemented | Even distribution of members across the positioned axis |
 | req-viz-arrangement-execution | [Execution Model](#execution-model) | Implemented | Client-side serial execution after layout completes |
-| req-viz-arrangement-layout-hotlink | [Layout Hotlink Integration](#layout-hotlink-integration) | Proposed | Layouts reference arrangements via hotlinks in definition |
+| req-viz-arrangement-layout-hotlink | [Layout Hotlink Integration](#layout-hotlink-integration) | Approved for Development | Layouts reference arrangements via `USES_ARRANGEMENT` hotlink; canonical host path per `spec-viz-layouts.md` |
 | req-viz-arrangement-tagging | [Arrangement Tagging](#arrangement-tagging) | Backlog | Tag cy elements with arrangement membership for downstream logic |
 
 ## Requirements
@@ -280,9 +280,9 @@ Making the arrangement runtime a shared module means any layout — TAP-owned or
 ### Layout Hotlink Integration
 ----
 RID: `req-viz-arrangement-layout-hotlink`
-Status: `Proposed`
+Status: `Approved for Development`
 
-Layouts reference arrangements via an array of entity IDs in their definition, validated by the hotlink system.
+Layouts reference arrangements via an array of entity IDs in their definition, validated by the hotlink system. This is the canonical host path for arrangements once the v1 reshape lands; see [Dual-Mode Layout Definition (v1)](spec-viz-layouts.md#dual-mode-layout-definition-v1).
 
 #### Implementation
 
