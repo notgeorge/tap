@@ -29,7 +29,7 @@ The smoke test is also the regression harness for `req-dev-multisession-compose-
 RID: `req-dev-multisession-smoketest-runtime`
 Status: `Proposed`
 
-The new session's stack must be running with the namespace and ports declared in `.env.local`, and Django must respond on the configured `WEB_PORT`.
+The new session's stack must be running with the namespace and ports declared in `.env.local`, and Django must respond both on the direct `WEB_PORT` (port-binding proof) and on the labeled `<TAP_SESSION_LABEL>.tap.localhost:<WEB_PORT>` URL (browser-disambiguation convention from `req-dev-multisession-browser-disambiguation`). The labeled form is the canonical URL to point a browser at — it makes the active session visible in the address bar — and the smoke test verifies it works end-to-end (DNS resolution + Django `ALLOWED_HOSTS`).
 
 #### Procedure
 
@@ -50,12 +50,20 @@ scripts/dc ps
 Expected: 2 services (`db`, `web`), `db` shows `(healthy)`, `web` shows `running`.
 
 ```bash
-# 3. Web responds on the assigned host port.
+# 3. Web responds on the assigned host port (direct form — proves port binding).
 WEB_PORT=$(grep ^WEB_PORT .env.local | cut -d= -f2)
 curl -sI http://localhost:${WEB_PORT}/ | head -1
 ```
 
 Expected: an HTTP status line (200/302/etc — any response proves the port is bound and Django is serving).
+
+```bash
+# 4. Web responds on the labeled URL (canonical form for browsers).
+LABEL=$(grep ^TAP_SESSION_LABEL .env.local | cut -d= -f2)
+curl -sI http://${LABEL}.tap.localhost:${WEB_PORT}/ | head -1
+```
+
+Expected: same HTTP status line as step 3. This proves the OS resolves `*.localhost` to 127.0.0.1 and Django's `ALLOWED_HOSTS` accepts the subdomain — i.e. the canonical browser URL `http://<session>.tap.localhost:<port>/` works end-to-end. A connection-refused or `400 Bad Request: Invalid HTTP_HOST` here means either the resolver doesn't map `*.localhost` (rare on macOS/modern Linux) or `ALLOWED_HOSTS` was overridden without `.localhost`.
 
 #### Acceptance Criteria
 
@@ -63,7 +71,8 @@ Expected: an HTTP status line (200/302/etc — any response proves the port is b
 | --- | --- | :---: | --- | --- |
 | req-dev-multisession-smoketest-runtime-1 | Override resolved | Proposed | `scripts/dc config` shows the project name and ports from `.env.local`. | |
 | req-dev-multisession-smoketest-runtime-2 | Services up | Proposed | `scripts/dc ps` shows `db` healthy and `web` running. | |
-| req-dev-multisession-smoketest-runtime-3 | Web responds | Proposed | `curl http://localhost:${WEB_PORT}/` returns an HTTP status line. | |
+| req-dev-multisession-smoketest-runtime-3 | Direct URL responds | Proposed | `curl http://localhost:${WEB_PORT}/` returns an HTTP status line. | |
+| req-dev-multisession-smoketest-runtime-4 | Labeled URL responds | Proposed | `curl http://${TAP_SESSION_LABEL}.tap.localhost:${WEB_PORT}/` returns an HTTP status line. | Verifies `req-dev-multisession-browser-disambiguation` end-to-end. |
 
 ### Isolation
 ----
@@ -132,10 +141,10 @@ Expected: exits 0 with no "would apply" output. Non-zero means migrations are pe
 ```bash
 # 2. Seed data present (Entity table non-empty).
 scripts/dc exec web uv run python manage.py shell -c \
-  "from tap_grid.models import Entity; print(Entity.all_objects.count())"
+  "from tap_grid.models import Entity; print(Entity.objects.count())"
 ```
 
-Expected: a positive integer (typically dozens to thousands depending on what plugins are installed). Zero means seed didn't run — return to onboarding step 6.
+Expected: a positive integer (typically dozens to thousands depending on what plugins are installed). Zero means seed didn't run — return to onboarding step 6. Note: `Entity` is the spine and is not a `BaseModel` subclass, so it has no `all_objects` manager — use `Entity.objects` directly. Tombstoned entities still count.
 
 ```bash
 # 3. TAP_GRID_ID is the value from .env.local (not the default).
@@ -188,10 +197,13 @@ Expected: prints `1` (exactly one admin superuser exists).
 
 ```bash
 # 4. The credentials in the file actually log in.
-USERNAME=$(grep ^DJANGO_SUPERUSER_USERNAME= .dev-credentials | cut -d= -f2)
-PASSWORD=$(grep ^DJANGO_SUPERUSER_PASSWORD= .dev-credentials | cut -d= -f2-)
+# NOTE: do not name these vars USERNAME — zsh treats USERNAME as a special
+# parameter mapped to the OS login name, so a local assignment is silently
+# ignored and the admin auth check will spuriously FAIL.
+ADMIN_USER=$(grep ^DJANGO_SUPERUSER_USERNAME= .dev-credentials | cut -d= -f2)
+ADMIN_PASS=$(grep ^DJANGO_SUPERUSER_PASSWORD= .dev-credentials | cut -d= -f2-)
 scripts/dc exec web uv run python manage.py shell -c \
-  "from django.contrib.auth import authenticate; u = authenticate(username='$USERNAME', password='$PASSWORD'); print('OK' if u and u.is_superuser else 'FAIL')"
+  "from django.contrib.auth import authenticate; u = authenticate(username='$ADMIN_USER', password='$ADMIN_PASS'); print('OK' if u and u.is_superuser else 'FAIL')"
 ```
 
 Expected: prints `OK`. `FAIL` means the credentials file and the DB are out of sync — re-run admin bootstrap (step 7 of the onboarding doc).
