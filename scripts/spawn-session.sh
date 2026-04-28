@@ -49,25 +49,43 @@ trap on_failure EXIT
 # ---------------------------------------------------------------------------
 # Parse args
 #
-# Positional <name> skips the interactive name prompt in step 1. All other
-# decisions (Keychain setup, password resolution) still flow through the
-# script's prompts / defaults. If no name is given, step 1 prompts as before.
+# Positional <name> skips the interactive name prompt in step 1.
+# Optional <launch> is `cli` or `vscode` — when set, after a successful spawn
+# the script auto-launches the matching editor against the new worktree.
 # ---------------------------------------------------------------------------
+LAUNCH_TARGET=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
       cat <<EOF
-Usage: $0 [<name>]
+Usage: $0 [<name>] [cli|vscode]
 
 Spawn a new isolated TAP dev session. <name> is the session label
 (lowercase, e.g. cli, vscode, fix-arrangements). If omitted, the script
 prompts for it interactively.
+
+Optional second arg auto-attaches an editor after spawn completes:
+  cli     — cd into the worktree and exec \`claude\` (this script's process
+            becomes the claude REPL)
+  vscode  — open the worktree in VS Code via \`open -a "Visual Studio Code"\`
+            (non-blocking — VS Code launches as a separate app)
+
+Examples:
+  $0                       # interactive, no auto-launch
+  $0 fix-arrangements      # named, no auto-launch
+  $0 fix-arrangements cli  # named + attach Claude in the worktree
+  $0 fix-arrangements vscode
 
 Spec: req-dev-multisession-spawn-script in specs/spec-dev-multisession.md
 EOF
       exit 0
       ;;
     -*) fail "Unknown flag: $1" ;;
+    cli|vscode)
+      [[ -z "$LAUNCH_TARGET" ]] || fail "Multiple launch targets given: '$LAUNCH_TARGET' and '$1'."
+      LAUNCH_TARGET="$1"
+      shift
+      ;;
     *)
       [[ -z "$SESSION_NAME" ]] || fail "Multiple session names given: '$SESSION_NAME' and '$1'."
       SESSION_NAME="$1"
@@ -452,8 +470,9 @@ info "  Admin URL: http://$SESSION_NAME.tap.localhost:$WEB_PORT/admin/"
 echo
 info "Admin credentials"
 info "  Username:  admin"
-info "  Password:  $ADMIN_PASSWORD"
+info "  Password:  (saved to .dev-credentials — never printed to stdout)"
 info "  File:      $WORKTREE/.dev-credentials"
+info "  Read with: cat '$WORKTREE/.dev-credentials'"
 echo
 info "Attach Claude Code"
 info "  CLI:       cd $WORKTREE && claude"
@@ -462,3 +481,24 @@ echo
 info "Next: from inside the attached Claude session, run the smoke tests in"
 info "      specs/spec-dev-multisession-smoketest.md"
 echo
+
+# ============================================================================
+# Auto-launch editor (optional second positional arg)
+#
+# `cli` — exec claude in the worktree. This script's process becomes the
+#         claude REPL; when claude exits the user is back in their original
+#         shell.
+# `vscode` — open the worktree as a folder in VS Code. Non-blocking; the
+#            script exits normally after the open call returns.
+# ============================================================================
+case "$LAUNCH_TARGET" in
+  cli)
+    bold "Launching Claude Code in $WORKTREE..."
+    cd "$WORKTREE"
+    exec claude
+    ;;
+  vscode)
+    bold "Opening $WORKTREE in VS Code..."
+    open -a "Visual Studio Code" "$WORKTREE"
+    ;;
+esac
