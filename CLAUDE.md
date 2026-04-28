@@ -128,3 +128,10 @@ Development Commands
 
     # View logs
     docker compose logs -f web
+
+Multi-session worktrees
+    Worktrees under /Users/george/tap-sessions/<label>/ are isolated Compose stacks.
+    Per-session config lives in .env.local (COMPOSE_PROJECT_NAME, WEB_PORT, POSTGRES_PORT, TAP_GRID_ID).
+    Always use `scripts/dc` instead of `docker compose` directly — it merges .env + .env.local
+    so commands target this session's containers, not the primary `tap` stack on 8000/5432.
+    See spec-dev-multisession.md for port bands and the spawn/despawn workflow.
