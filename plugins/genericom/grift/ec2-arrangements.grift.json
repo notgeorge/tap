@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01980000-3000-7000-8000-000000000002",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e70e600d926c",
         "entity_type": "batch",
         "name": "Genericom EC2 arrangements v0.1.0",
         "dimensions": {}
@@ -19,7 +19,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-000200000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7165f819246",
             "entity_type": "arrangement",
             "name": "arr-genericom-ec2-alb-ingress-row",
             "dimensions": {}
@@ -41,7 +41,7 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-000200000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e717272ef359",
             "entity_type": "arrangement",
             "name": "arr-genericom-ec2-internal-app-row",
             "dimensions": {}
@@ -63,7 +63,7 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-000200000003",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7188a4ecee1",
             "entity_type": "arrangement",
             "name": "arr-genericom-ec2-lo-iface-follows-port",
             "dimensions": {}

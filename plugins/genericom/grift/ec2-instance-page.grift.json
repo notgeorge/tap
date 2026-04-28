@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01980000-3000-7000-8000-000000000001",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e70d4ecb349e",
         "entity_type": "batch",
         "name": "Genericom EC2 instance page v0.1.0",
         "dimensions": {}
@@ -19,7 +19,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-000100000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e70fbb2ebd34",
             "entity_type": "search",
             "name": "EC2 Instance Internal Slice",
             "dimensions": {}
@@ -53,7 +53,7 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-000100000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e710e334c9bb",
             "entity_type": "projection",
             "name": "EC2 Instance Internal Projection",
             "dimensions": {"tap.graph": "web"}
@@ -66,14 +66,14 @@
                 "mode": "icon-badge",
                 "exclude_types": ["port", "tcp_connection", "ip_address", "public_key", "private_key"]
               },
-              "elevations": ["01980000-3000-7000-8000-000300000001"],
-              "default_elevation_id": "01980000-3000-7000-8000-000300000001"
+              "elevations": ["019dd143-3e8f-73e4-b0fa-e719d6b2b302"],
+              "default_elevation_id": "019dd143-3e8f-73e4-b0fa-e719d6b2b302"
             }
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-000300000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e719d6b2b302",
             "entity_type": "elevation",
             "name": "genericom-ec2-internal-elevation",
             "dimensions": {"tap.graph": "web"}
@@ -84,14 +84,14 @@
             "definition": {
               "zoom": 0.6,
               "description": "Internal view of a single EC2 instance.",
-              "layouts": ["01980000-3000-7000-8000-000300000002"],
+              "layouts": ["019dd143-3e8f-73e4-b0fa-e71afae2e8bc"],
               "double_tap_targets": []
             }
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-000300000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc",
             "entity_type": "layout",
             "name": "genericom-ec2-internal-layout",
             "dimensions": {"tap.graph": "web"}
@@ -102,16 +102,16 @@
             "definition": {
               "js_file": "plugins/genericom/static/genericom/js/projections/ec2-internal.js",
               "arrangements": [
-                "01980000-3000-7000-8000-000200000001",
-                "01980000-3000-7000-8000-000200000002",
-                "01980000-3000-7000-8000-000200000003"
+                "019dd143-3e8f-73e4-b0fa-e7165f819246",
+                "019dd143-3e8f-73e4-b0fa-e717272ef359",
+                "019dd143-3e8f-73e4-b0fa-e7188a4ecee1"
               ]
             }
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-000100000003",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e711894696b5",
             "entity_type": "panel",
             "name": "EC2 Instance Graph",
             "dimensions": {"tap.graph": "web"}
@@ -126,7 +126,7 @@
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-000100000004",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e71243cc117c",
             "entity_type": "page",
             "name": "EC2 Instance",
             "dimensions": {"tap.graph": "web"}
@@ -145,126 +145,126 @@
       "edges": [
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-0001f0000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e71327e4d8cd",
             "entity_type": "edge",
             "name": "Panel USES_PROJECTION EC2 Internal",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01980000-3000-7000-8000-000100000003",
-            "to_entity_id": "01980000-3000-7000-8000-000100000002",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e711894696b5",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e710e334c9bb",
             "edge_type": "USES_PROJECTION",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-0003f0000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e71bee33e870",
             "entity_type": "edge",
             "name": "Projection USES_ELEVATION ec2-internal",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01980000-3000-7000-8000-000100000002",
-            "to_entity_id": "01980000-3000-7000-8000-000300000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e710e334c9bb",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e719d6b2b302",
             "edge_type": "USES_ELEVATION",
-            "properties": {"hotlink": {"model": "projection", "spec": "projection-elevations", "value": "01980000-3000-7000-8000-000300000001"}}
+            "properties": {"hotlink": {"model": "projection", "spec": "projection-elevations", "value": "019dd143-3e8f-73e4-b0fa-e719d6b2b302"}}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-0003f0000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e71c4018df98",
             "entity_type": "edge",
             "name": "Projection USES_DEFAULT_ELEVATION ec2-internal",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01980000-3000-7000-8000-000100000002",
-            "to_entity_id": "01980000-3000-7000-8000-000300000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e710e334c9bb",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e719d6b2b302",
             "edge_type": "USES_DEFAULT_ELEVATION",
-            "properties": {"hotlink": {"model": "projection", "spec": "projection-default-elevation", "value": "01980000-3000-7000-8000-000300000001"}}
+            "properties": {"hotlink": {"model": "projection", "spec": "projection-default-elevation", "value": "019dd143-3e8f-73e4-b0fa-e719d6b2b302"}}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-0003f0000003",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e71dc64cd7a2",
             "entity_type": "edge",
             "name": "ec2-internal-elevation USES_LAYOUT ec2-internal-layout",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01980000-3000-7000-8000-000300000001",
-            "to_entity_id": "01980000-3000-7000-8000-000300000002",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e719d6b2b302",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc",
             "edge_type": "USES_LAYOUT",
-            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-layouts", "value": "01980000-3000-7000-8000-000300000002"}}
+            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-layouts", "value": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc"}}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-0003f0000011",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e71e0dc46976",
             "entity_type": "edge",
             "name": "ec2-internal-layout USES_ARRANGEMENT alb-ingress-row",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01980000-3000-7000-8000-000300000002",
-            "to_entity_id": "01980000-3000-7000-8000-000200000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7165f819246",
             "edge_type": "USES_ARRANGEMENT",
-            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "01980000-3000-7000-8000-000200000001"}}
+            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "019dd143-3e8f-73e4-b0fa-e7165f819246"}}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-0003f0000012",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e71fa2943e85",
             "entity_type": "edge",
             "name": "ec2-internal-layout USES_ARRANGEMENT internal-app-row",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01980000-3000-7000-8000-000300000002",
-            "to_entity_id": "01980000-3000-7000-8000-000200000002",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e717272ef359",
             "edge_type": "USES_ARRANGEMENT",
-            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "01980000-3000-7000-8000-000200000002"}}
+            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "019dd143-3e8f-73e4-b0fa-e717272ef359"}}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-0003f0000013",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e72072eb97fc",
             "entity_type": "edge",
             "name": "ec2-internal-layout USES_ARRANGEMENT lo-iface-follows-port",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01980000-3000-7000-8000-000300000002",
-            "to_entity_id": "01980000-3000-7000-8000-000200000003",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7188a4ecee1",
             "edge_type": "USES_ARRANGEMENT",
-            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "01980000-3000-7000-8000-000200000003"}}
+            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "019dd143-3e8f-73e4-b0fa-e7188a4ecee1"}}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-0001f0000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7148072455d",
             "entity_type": "edge",
             "name": "Panel USES_SEARCH EC2 Instance Slice",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01980000-3000-7000-8000-000100000003",
-            "to_entity_id": "01980000-3000-7000-8000-000100000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e711894696b5",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e70fbb2ebd34",
             "edge_type": "USES_SEARCH",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01980000-3000-7000-8000-0001f0000003",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7158c4e6ef5",
             "entity_type": "edge",
             "name": "Page USES_PANEL EC2 Instance Graph",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "01980000-3000-7000-8000-000100000004",
-            "to_entity_id": "01980000-3000-7000-8000-000100000003",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e71243cc117c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e711894696b5",
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "main"}}
           }

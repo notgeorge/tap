@@ -61,8 +61,15 @@ services:
     #
     # Syntax: ./local/path:/container/path
     # The dot (.) means "current directory"
+    #
+    # uv_cache is a NAMED VOLUME for uv's wheel/extract cache. Keeping it out
+    # of the image means Docker's layer cache can't fossilize a corrupted uv
+    # state into every rebuild (a real problem we hit while debugging multi-
+    # session spawn). Each compose project gets its own volume, so sessions
+    # are isolated; despawn's `dc down -v` removes it for free.
     volumes:
       - .:/app
+      - uv_cache:/root/.cache/uv
 
     # Map container port 8000 to host port WEB_PORT (default 8000)
     # Access the app at http://localhost:${WEB_PORT}
@@ -115,3 +122,4 @@ services:
 # Run 'docker volume ls' to see them, 'docker volume rm tap_postgres_data' to delete
 volumes:
   postgres_data:  # Stores PostgreSQL data files
+  uv_cache:       # Stores uv's downloaded wheels + extracted archives. Per-project.

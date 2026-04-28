@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01965b01-4000-7000-8000-000000000002",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e62c47a56d79",
         "entity_type": "batch",
         "name": "Genericom account v0.1.0",
         "dimensions": {}
@@ -19,7 +19,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000200000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6376bbb66bb",
             "entity_type": "aws_account",
             "name": "genericom-prod",
             "dimensions": {

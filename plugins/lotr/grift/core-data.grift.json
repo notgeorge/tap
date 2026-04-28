@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019d63fe-3c6e-7061-9368-c85fef493a59",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e721f50d554c",
         "entity_type": "batch",
         "name": "LOTR core data v0.1.0",
         "dimensions": {}
@@ -19,7 +19,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
             "entity_type": "character",
             "name": "Frodo Baggins",
             "dimensions": {}
@@ -31,7 +31,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
             "entity_type": "character",
             "name": "Gandalf",
             "dimensions": {}
@@ -43,7 +43,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
             "entity_type": "character",
             "name": "Aragorn",
             "dimensions": {}
@@ -55,7 +55,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8639b205dc8",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e72528647a90",
             "entity_type": "character",
             "name": "Samwise Gamgee",
             "dimensions": {}
@@ -67,7 +67,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e726b466c82c",
             "entity_type": "character",
             "name": "Legolas",
             "dimensions": {}
@@ -79,7 +79,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c865b9ae5164",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7274200a5de",
             "entity_type": "character",
             "name": "Gimli",
             "dimensions": {}
@@ -91,7 +91,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
             "entity_type": "character",
             "name": "Sauron",
             "dimensions": {}
@@ -103,7 +103,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c86786a0a0eb",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7290b82793f",
             "entity_type": "character",
             "name": "Bilbo Baggins",
             "dimensions": {}
@@ -115,7 +115,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c868e1483031",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e72a450d9cbb",
             "entity_type": "location",
             "name": "The Shire",
             "dimensions": {}
@@ -128,7 +128,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8695200da3a",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e72bef051c2c",
             "entity_type": "location",
             "name": "Rivendell",
             "dimensions": {}
@@ -141,7 +141,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
             "entity_type": "location",
             "name": "Mordor",
             "dimensions": {}
@@ -154,7 +154,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
             "entity_type": "location",
             "name": "Gondor",
             "dimensions": {}
@@ -167,7 +167,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c86c55a9c5a8",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e72e599154d9",
             "entity_type": "location",
             "name": "Minas Tirith",
             "dimensions": {}
@@ -180,7 +180,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c86d089f9a53",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e72fb90a0e5d",
             "entity_type": "location",
             "name": "Mount Doom",
             "dimensions": {}
@@ -193,7 +193,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c86e06172d78",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e73069874610",
             "entity_type": "location",
             "name": "Mirkwood",
             "dimensions": {}
@@ -206,7 +206,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c86f4f124ad5",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e731376dd21a",
             "entity_type": "artifact",
             "name": "The One Ring",
             "dimensions": {}
@@ -219,7 +219,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8701650be92",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e732044e5419",
             "entity_type": "artifact",
             "name": "Sting",
             "dimensions": {}
@@ -232,7 +232,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8712895301d",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e733978ef16a",
             "entity_type": "artifact",
             "name": "Anduril",
             "dimensions": {}
@@ -245,7 +245,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c872dd751bc0",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e73408b97621",
             "entity_type": "artifact",
             "name": "Glamdring",
             "dimensions": {}
@@ -258,7 +258,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c873458e9095",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e73596623921",
             "entity_type": "race",
             "name": "Hobbits",
             "dimensions": {}
@@ -271,7 +271,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c874afd3d3c3",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e736455044bb",
             "entity_type": "race",
             "name": "Elves",
             "dimensions": {}
@@ -284,7 +284,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c87561db7fb5",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e737ea57fbae",
             "entity_type": "race",
             "name": "Dwarves",
             "dimensions": {}
@@ -297,7 +297,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8769530b164",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e738875ad282",
             "entity_type": "race",
             "name": "Men",
             "dimensions": {}
@@ -310,7 +310,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c877f671b960",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7390cc2b5bf",
             "entity_type": "race",
             "name": "Wizards",
             "dimensions": {}
@@ -323,7 +323,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
             "entity_type": "faction",
             "name": "Fellowship of the Ring",
             "dimensions": {}
@@ -335,7 +335,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c879e8dd5b07",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e73b346d97b1",
             "entity_type": "faction",
             "name": "Forces of Mordor",
             "dimensions": {}
@@ -347,7 +347,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c87a064c08d7",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e73cf30f5c71",
             "entity_type": "faction",
             "name": "Rohan",
             "dimensions": {}
@@ -359,7 +359,7 @@
         },
         {
           "entity": {
-            "entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
             "entity_type": "realm",
             "name": "Middle-earth",
             "dimensions": {}
@@ -373,490 +373,490 @@
       "edges": [
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c87b75e0ed81",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e73d82956e5b",
             "entity_type": "edge",
             "name": "WIELDS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86f4f124ad5",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e731376dd21a",
             "edge_type": "WIELDS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c87c53008704",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e73e1f0e0aa7",
             "entity_type": "edge",
             "name": "WIELDS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c8701650be92",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e732044e5419",
             "edge_type": "WIELDS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c87d8550641e",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e73f443d0856",
             "entity_type": "edge",
             "name": "WIELDS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c8712895301d",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e733978ef16a",
             "edge_type": "WIELDS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c87e6ea6ec75",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e74002577fbf",
             "entity_type": "edge",
             "name": "WIELDS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c872dd751bc0",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73408b97621",
             "edge_type": "WIELDS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c87f9dbd1350",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e74135b8f5f3",
             "entity_type": "edge",
             "name": "BELONGS_TO",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c873458e9095",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73596623921",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c880a53f04a4",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7421e5330e0",
             "entity_type": "edge",
             "name": "BELONGS_TO",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c8639b205dc8",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c873458e9095",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72528647a90",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73596623921",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8814c944e79",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e743b491218a",
             "entity_type": "edge",
             "name": "BELONGS_TO",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c86786a0a0eb",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c873458e9095",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7290b82793f",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73596623921",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8825b50c79d",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7448b720a67",
             "entity_type": "edge",
             "name": "BELONGS_TO",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c877f671b960",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7390cc2b5bf",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8832c1abe9e",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e74557f094a6",
             "entity_type": "edge",
             "name": "BELONGS_TO",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c8769530b164",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e738875ad282",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8849cb0e0fb",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e746da733608",
             "entity_type": "edge",
             "name": "BELONGS_TO",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c874afd3d3c3",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e726b466c82c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e736455044bb",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c885d2bb2a4c",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e747183faf40",
             "entity_type": "edge",
             "name": "BELONGS_TO",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c865b9ae5164",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c87561db7fb5",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7274200a5de",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e737ea57fbae",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c886cc9379e9",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e748593fa9fd",
             "entity_type": "edge",
             "name": "LOCATED_IN",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
             "edge_type": "LOCATED_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c887d3df98bf",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e74911fc0352",
             "entity_type": "edge",
             "name": "LOCATED_IN",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c86786a0a0eb",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c868e1483031",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7290b82793f",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72a450d9cbb",
             "edge_type": "LOCATED_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c88840c55623",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e74af0e497be",
             "entity_type": "edge",
             "name": "LOCATED_IN",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
             "edge_type": "LOCATED_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8899fa242ca",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e74b1d847694",
             "entity_type": "edge",
             "name": "LOCATED_IN",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e726b466c82c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
             "edge_type": "LOCATED_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c88acbd4767f",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e74c8ee93bee",
             "entity_type": "edge",
             "name": "MEMBER_OF",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
             "edge_type": "MEMBER_OF",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c88bf236d55a",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e74d0ff2c7fc",
             "entity_type": "edge",
             "name": "MEMBER_OF",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
             "edge_type": "MEMBER_OF",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c88cd75f5db6",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e74e05b4d4e2",
             "entity_type": "edge",
             "name": "MEMBER_OF",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
             "edge_type": "MEMBER_OF",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c88d606c63fd",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e74f18c75178",
             "entity_type": "edge",
             "name": "MEMBER_OF",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c8639b205dc8",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72528647a90",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
             "edge_type": "MEMBER_OF",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c88ef811949b",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e750e24498f1",
             "entity_type": "edge",
             "name": "MEMBER_OF",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e726b466c82c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
             "edge_type": "MEMBER_OF",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c88ffb8c7f88",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e751b8ebe9f8",
             "entity_type": "edge",
             "name": "MEMBER_OF",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c865b9ae5164",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7274200a5de",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
             "edge_type": "MEMBER_OF",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8909537f7e4",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7523e2e59ca",
             "entity_type": "edge",
             "name": "MEMBER_OF",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c879e8dd5b07",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73b346d97b1",
             "edge_type": "MEMBER_OF",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8914a2a909b",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e75377c9a9d3",
             "entity_type": "edge",
             "name": "ALLIES_WITH",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c8639b205dc8",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72528647a90",
             "edge_type": "ALLIES_WITH",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c892ce03b2da",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e754b9689ca1",
             "entity_type": "edge",
             "name": "ALLIES_WITH",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
             "edge_type": "ALLIES_WITH",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8935c796ecb",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e755f39539f3",
             "entity_type": "edge",
             "name": "ALLIES_WITH",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c8646a5accbc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c865b9ae5164",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e726b466c82c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7274200a5de",
             "edge_type": "ALLIES_WITH",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8947f17dc63",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7566fb80571",
             "entity_type": "edge",
             "name": "ENEMIES_WITH",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
             "edge_type": "ENEMIES_WITH",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c8950744ee63",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7570149a68d",
             "entity_type": "edge",
             "name": "ENEMIES_WITH",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
             "edge_type": "ENEMIES_WITH",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c89613f4f9b1",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e75808c16156",
             "entity_type": "edge",
             "name": "FORGED_IN",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c86f4f124ad5",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86d089f9a53",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e731376dd21a",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72fb90a0e5d",
             "edge_type": "FORGED_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c897bc5cce7a",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e75994210dec",
             "entity_type": "edge",
             "name": "CONTAINS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86d089f9a53",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72fb90a0e5d",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c898e9f3d57d",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e75a72622f74",
             "entity_type": "edge",
             "name": "CONTAINS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86c55a9c5a8",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72e599154d9",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c899a5ff6deb",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e75bebe1a8e8",
             "entity_type": "edge",
             "name": "RULES",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
             "edge_type": "RULES",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c89a73d1fded",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e75cbd0ba0b4",
             "entity_type": "edge",
             "name": "RULES",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c866db8f9e6a",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
             "edge_type": "RULES",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c89be3934b60",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e75d627b7e71",
             "entity_type": "edge",
             "name": "ENEMIES_WITH",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c879e8dd5b07",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73b346d97b1",
             "edge_type": "ENEMIES_WITH",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c89cf194e96f",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e75e8a127ec0",
             "entity_type": "edge",
             "name": "ALLIES_WITH",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c878203fda77",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c87a064c08d7",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73cf30f5c71",
             "edge_type": "ALLIES_WITH",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c89d9384071d",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e75f2de6ded2",
             "entity_type": "edge",
             "name": "MENTORS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
             "edge_type": "MENTORS",
             "properties": {
               "discipline": "wizardry"
@@ -865,14 +865,14 @@
         },
         {
           "entity": {
-            "entity_id": "019d63fe-3c6e-7061-9368-c89eeb874540",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7604d57a507",
             "entity_type": "edge",
             "name": "MENTORS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c86786a0a0eb",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c860b98a012e",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7290b82793f",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
             "edge_type": "MENTORS",
             "properties": {
               "discipline": "adventure"
@@ -881,112 +881,112 @@
         },
         {
           "entity": {
-            "entity_id": "019d6eec-e9e2-7627-9c48-c824c58c8ab1",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e78bfaf30fc4",
             "entity_type": "edge",
             "name": "LOCATED_IN",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c8639b205dc8",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72528647a90",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
             "edge_type": "LOCATED_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d6eec-e9e2-7627-9c48-c825c7951cb9",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e78c98f93a84",
             "entity_type": "edge",
             "name": "LOCATED_IN",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c861ae1ef5fc",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
             "edge_type": "LOCATED_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d6eec-e9e2-7627-9c48-c82667c02d71",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e78dc1dd40df",
             "entity_type": "edge",
             "name": "LOCATED_IN",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d63fe-3c6e-7061-9368-c862b98a4c10",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
             "edge_type": "LOCATED_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d6eec-e9e2-7627-9c48-c827ebd430c7",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e78eaaca0277",
             "entity_type": "edge",
             "name": "CONTAINS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c868e1483031",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72a450d9cbb",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d6eec-e9e2-7627-9c48-c828df12d2ae",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e78fd4d7a165",
             "entity_type": "edge",
             "name": "CONTAINS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c8695200da3a",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72bef051c2c",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d6eec-e9e2-7627-9c48-c829ddf47615",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7904f4303fd",
             "entity_type": "edge",
             "name": "CONTAINS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86acbdf6a31",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d6eec-e9e2-7627-9c48-c82ae764760d",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e79158e28834",
             "entity_type": "edge",
             "name": "CONTAINS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86b4d5f6a44",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "019d6eec-e9e2-7627-9c48-c82b57174a12",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7927efe70a3",
             "entity_type": "edge",
             "name": "CONTAINS",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "019d6eec-e9e2-7627-9c48-c823c0983faf",
-            "to_entity_id": "019d63fe-3c6e-7061-9368-c86e06172d78",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73069874610",
             "edge_type": "CONTAINS",
             "properties": {}
           }

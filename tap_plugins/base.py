@@ -91,7 +91,10 @@ class TapPluginConfig(AppConfig):
         self._register_types_from_manifest()
         self._register_editors_from_manifest()
         self._register_searches_from_manifest()
-        self._import_grift_from_manifest()
+        # NOTE: ready() must not perform queries or mutations against TAP-managed
+        # graph state. Grift import is an explicit operator action via the
+        # `manage.py import_plugin_grift` management command. See
+        # req-plugin-load-v0-ready-readonly in spec-plugin-load-lifecycle-v0.md.
 
     def get_api_router(self) -> Any:
         """Return a ninja.Router for this plugin, or None.
@@ -237,65 +240,3 @@ class TapPluginConfig(AppConfig):
             runner = import_string(entry.callable_path)
             register_search_runner(entry.runner_key, runner)
 
-    # ---------------------------------------------------------------------------
-    # GRIFT import
-    # ---------------------------------------------------------------------------
-
-    def _import_grift_from_manifest(self) -> None:
-        """Import declared GRIFT bundles on plugin load (upsert — idempotent).
-
-        Runs on every startup until a plugin state system is introduced.
-        """
-        if self._manifest is None or not self._manifest.grift:
-            return
-
-        import json
-
-        try:
-            from tap_grid.grift import grift_import
-        except ImportError:
-            logger.debug("tap_grid.grift not available; skipping GRIFT import for plugin '%s'.", self.name)
-            return
-
-        try:
-            for entry in self._manifest.grift:
-                grift_path = self._manifest.plugin_root / entry.path
-                with open(grift_path) as fh:
-                    document = json.load(fh)
-
-                result = grift_import(document, dangling_edge_mode="warn", actor=None)
-                counts = result.counts
-
-                if result.success:
-                    logger.info(
-                        "Plugin '%s': GRIFT bundle '%s' imported — %d node(s), %d edge(s).",
-                        self.name,
-                        entry.name,
-                        counts.nodes_imported,
-                        counts.edges_imported,
-                    )
-                    for w in result.warnings:
-                        logger.warning(
-                            "Plugin '%s': GRIFT bundle '%s' warning [%s]: %s",
-                            self.name,
-                            entry.name,
-                            w.phase,
-                            w.message,
-                        )
-                else:
-                    logger.error(
-                        "Plugin '%s': GRIFT bundle '%s' import failed.",
-                        self.name,
-                        entry.name,
-                    )
-                    for err in result.errors:
-                        logger.error(
-                            "Plugin '%s': GRIFT bundle '%s' [%s] %s: %s",
-                            self.name,
-                            entry.name,
-                            err.phase,
-                            err.path,
-                            err.message,
-                        )
-        except OperationalError, ProgrammingError:
-            logger.debug("Database not ready; skipping GRIFT import for plugin '%s'.", self.name)

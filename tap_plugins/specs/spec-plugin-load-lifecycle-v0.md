@@ -23,6 +23,7 @@ The guiding principle for v0 is that the plugin's load shape should be reviewabl
 | --- | --- | :---: | --- |
 | req-plugin-load-v0-scope | [Plugin Load Scope](#plugin-load-scope) | Implemented | Defines what this v0 spec covers and excludes |
 | req-plugin-load-v0-contract | [Plugin Load Contract](#plugin-load-contract) | Implemented | Defines what TAP considers plugin load in v0 |
+| req-plugin-load-v0-ready-readonly | [Ready Is Read-Only For Graph State](#ready-is-read-only-for-graph-state) | Implemented | `ready()` must not query or mutate TAP-managed graph state |
 | req-plugin-load-v0-manifest | [Plugin Manifest Declaration](#plugin-manifest-declaration) | Implemented | High-level declaration surface for models, edges, and GRIFT files |
 | req-plugin-load-v0-models | [TAP-Managed Model Publication](#tap-managed-model-publication) | Implemented | Models introduced by a plugin are part of the load contract |
 | req-plugin-load-v0-grift | [Bundled GRIFT Publication](#bundled-grift-publication) | Implemented | GRIFT files are declared by the plugin as loadable bundled data |
@@ -112,6 +113,44 @@ This requirement intentionally chooses a concrete boundary instead of a softer �
 
 #### Future
 If TAP later introduces a richer lifecycle manager, it may wrap or replace direct `ready()` usage, but it should preserve the same observable plugin load contract unless a later spec intentionally changes it.
+
+### Ready Is Read-Only For Graph State
+----
+RID: `req-plugin-load-v0-ready-readonly`
+Status: `Implemented`
+
+`TapPluginConfig.ready()` must not query or mutate TAP-managed graph state. Its job is metadata registration only: edge types, model types, editor descriptors, search runners, and any registry-level wiring that comes purely from the plugin manifest. Any work that needs to read or write the graph database — most notably grift bundle import — is the responsibility of explicit operator-invoked tooling, not of plugin startup.
+
+#### Status Details
+Implemented as of 2026-04-27. Earlier versions of `TapPluginConfig.ready()` ran `_import_grift_from_manifest()` on every startup. That call has been removed because it (a) violated this rule, (b) ran during every `manage.py` invocation including `migrate`, contending for resources and producing the `RuntimeWarning: Accessing the database during app initialization is discouraged` Django emits, and (c) made startup loud and brittle when bundle JSON drifted from current schemas.
+
+The same code path is still available — and is now the only path — through the existing `manage.py import_plugin_grift` management command.
+
+#### Implementation
+- `TapPluginConfig.ready()` retains: `_load_and_validate_manifest`, `_register_edges_from_manifest`, `_register_types_from_manifest`, `_register_editors_from_manifest`, `_register_searches_from_manifest`. None of these touch graph state.
+- `_import_grift_from_manifest` and its call site are removed from `tap_plugins/base.py`.
+- Operator path: `manage.py import_plugin_grift --all` iterates plugins in `INSTALLED_APPS` order via `apps.get_app_configs()`, which gives the deterministic dependency order developers control through settings.
+- Spawn workflow: `scripts/spawn-session.sh` already calls `import_plugin_grift --all` as step 6 — no script change needed for sessions.
+- Primary-stack workflow: developers running `manage.py migrate` against the primary stack must follow with `manage.py import_plugin_grift --all` to seed plugin data. Documented in CLAUDE.md and the Phase 1 onboarding doc.
+
+#### Development
+This is a deliberate alignment with CLAUDE.md's "background tasks must not silently mutate core graph state in v0; all graph mutations must remain explicit and auditable" and "use Django signals sparingly, require approval before writing them, and document them well." It also matches Django's posture toward migrations: a separate, explicit operator action rather than something that quietly happens during server startup.
+
+The cost is a manual step for developers running migrate against the primary stack. The benefit is that arbitrary `manage.py` invocations no longer hit the database, plugin startup is observably fast, and bundle validation errors no longer get rebroadcast on every server reload.
+
+A future refinement may introduce a richer "plugin data manager" or `post_migrate` integration if developer experience demands it, but that requires its own spec and explicit approval per the signals rule.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-load-v0-ready-readonly-1 | No DB access in ready() | Proposed | `TapPluginConfig.ready()` performs no queries or writes against TAP-managed graph state. | |
+| req-plugin-load-v0-ready-readonly-2 | Grift import is operator-invoked | Proposed | The only supported path for grift bundle import is `manage.py import_plugin_grift`. | |
+| req-plugin-load-v0-ready-readonly-3 | INSTALLED_APPS order honored | Proposed | `import_plugin_grift --all` imports plugins in `INSTALLED_APPS` order so dependent plugins (e.g. `aws_core` after `computing_core`) load deterministically. | |
+| req-plugin-load-v0-ready-readonly-4 | Spawn workflow unchanged | Proposed | `scripts/spawn-session.sh` continues to seed plugin data via the management command (step 6), without relying on `ready()` autorun. | |
+
+#### Future
+A separate spec may evaluate whether a `post_migrate` signal or a "plugin data manager" should auto-trigger seeding for fresh DBs in dev environments. That work would need to satisfy CLAUDE.md's signals rule (require approval, document well) and would not relax this requirement; it would layer on top of it.
 
 ### Plugin Manifest Declaration
 ----

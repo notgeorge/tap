@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01965b01-4000-7000-8000-000000000003",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e62d1522479d",
         "entity_type": "batch",
         "name": "Genericom network v0.1.0",
         "dimensions": {}
@@ -19,7 +19,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000300000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e638cdedc27f",
             "entity_type": "aws_vpc",
             "name": "genericom-prod-vpc",
             "dimensions": {
@@ -40,7 +40,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000300000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e63999e0cd99",
             "entity_type": "aws_internet_gateway",
             "name": "genericom-prod-igw",
             "dimensions": {
@@ -59,7 +59,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000300000011",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e63a9ee1abeb",
             "entity_type": "aws_subnet",
             "name": "genericom-prod-public-alb-a",
             "dimensions": {
@@ -80,7 +80,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000300000012",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e63bc615844d",
             "entity_type": "aws_subnet",
             "name": "genericom-prod-public-alb-c",
             "dimensions": {
@@ -101,7 +101,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000300000013",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e63c019abd84",
             "entity_type": "aws_subnet",
             "name": "genericom-prod-private-web-a",
             "dimensions": {
@@ -122,7 +122,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000300000014",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e63dba4b1fd3",
             "entity_type": "aws_subnet",
             "name": "genericom-prod-private-web-c",
             "dimensions": {
@@ -143,7 +143,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000300000015",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e63ee5558e18",
             "entity_type": "aws_subnet",
             "name": "genericom-prod-private-db-a",
             "dimensions": {
@@ -164,7 +164,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000300000016",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e63fe8be4777",
             "entity_type": "aws_subnet",
             "name": "genericom-prod-private-db-c",
             "dimensions": {
@@ -187,7 +187,7 @@
       "edges": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f0000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6406829a9cc",
             "entity_type": "edge",
             "name": "VPC belongs to account",
             "dimensions": {
@@ -195,15 +195,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000200000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e638cdedc27f",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6376bbb66bb",
             "edge_type": "BELONGS_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f0000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e641eba8384a",
             "entity_type": "edge",
             "name": "Region contains VPC",
             "dimensions": {
@@ -211,15 +211,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b00-1000-7000-8000-000000000033",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54f83ab5e84",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e638cdedc27f",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f0000003",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e642f5024d21",
             "entity_type": "edge",
             "name": "VPC contains public-alb-a",
             "dimensions": {
@@ -227,15 +227,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000011",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e638cdedc27f",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63a9ee1abeb",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f0000004",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e643ce66184f",
             "entity_type": "edge",
             "name": "VPC contains public-alb-c",
             "dimensions": {
@@ -243,15 +243,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000012",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e638cdedc27f",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63bc615844d",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f0000005",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e64461cc4491",
             "entity_type": "edge",
             "name": "VPC contains private-web-a",
             "dimensions": {
@@ -259,15 +259,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000013",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e638cdedc27f",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63c019abd84",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f0000006",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e645d0c14707",
             "entity_type": "edge",
             "name": "VPC contains private-web-c",
             "dimensions": {
@@ -275,15 +275,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000014",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e638cdedc27f",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63dba4b1fd3",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f0000007",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e64613fc2826",
             "entity_type": "edge",
             "name": "VPC contains private-db-a",
             "dimensions": {
@@ -291,15 +291,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000015",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e638cdedc27f",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63ee5558e18",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f0000008",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e647783ecc26",
             "entity_type": "edge",
             "name": "VPC contains private-db-c",
             "dimensions": {
@@ -307,15 +307,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000016",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e638cdedc27f",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63fe8be4777",
             "edge_type": "CONTAINS",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f0000009",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e648a56b4906",
             "entity_type": "edge",
             "name": "IGW attached to VPC",
             "dimensions": {
@@ -323,15 +323,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000002",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e63999e0cd99",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e638cdedc27f",
             "edge_type": "ATTACHED_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f000000a",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e649313d6208",
             "entity_type": "edge",
             "name": "public-alb-a resides in us-west-1a",
             "dimensions": {
@@ -339,15 +339,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000011",
-            "to_entity_id": "01965b00-2000-7000-8000-000000000102",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e63a9ee1abeb",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b696216b36",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f000000b",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e64af5309216",
             "entity_type": "edge",
             "name": "public-alb-c resides in us-west-1c",
             "dimensions": {
@@ -355,15 +355,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000012",
-            "to_entity_id": "01965b00-2000-7000-8000-000000000104",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e63bc615844d",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b8b49eb9dc",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f000000c",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e64bbd9dc908",
             "entity_type": "edge",
             "name": "private-web-a resides in us-west-1a",
             "dimensions": {
@@ -371,15 +371,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000013",
-            "to_entity_id": "01965b00-2000-7000-8000-000000000102",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e63c019abd84",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b696216b36",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f000000d",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e64c40ad7cd4",
             "entity_type": "edge",
             "name": "private-web-c resides in us-west-1c",
             "dimensions": {
@@ -387,15 +387,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000014",
-            "to_entity_id": "01965b00-2000-7000-8000-000000000104",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e63dba4b1fd3",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b8b49eb9dc",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f000000e",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e64dbcc7c6e4",
             "entity_type": "edge",
             "name": "private-db-a resides in us-west-1a",
             "dimensions": {
@@ -403,15 +403,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000015",
-            "to_entity_id": "01965b00-2000-7000-8000-000000000102",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e63ee5558e18",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b696216b36",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0003f000000f",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e64ef181191c",
             "entity_type": "edge",
             "name": "private-db-c resides in us-west-1c",
             "dimensions": {
@@ -419,8 +419,8 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000300000016",
-            "to_entity_id": "01965b00-2000-7000-8000-000000000104",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e63fe8be4777",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b8b49eb9dc",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }

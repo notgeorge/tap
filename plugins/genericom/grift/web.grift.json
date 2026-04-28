@@ -6,13 +6,13 @@
     "finding_intent": [
       {
         "slug": "genericom-alb-public-http-80",
-        "target_entity_id": "01965b01-4000-7000-8000-000500000001",
+        "target_entity_id": "019dd143-3e8f-73e4-b0fa-e6530f566b55",
         "summary": "ALB exposes a public HTTP :80 listener (redirects to :443 but the port is still publicly reachable).",
         "spec_ref": "req-genericom-demo-findings-1"
       },
       {
         "slug": "genericom-alb-internal-http",
-        "target_entity_id": "01965b01-4000-7000-8000-000500000002",
+        "target_entity_id": "019dd143-3e8f-73e4-b0fa-e654d3e9c6f0",
         "summary": "ALB forwards internally to the web tier over unencrypted HTTP :80; target group and EC2 instances effectively serve on TCP :80.",
         "spec_ref": "req-genericom-demo-findings-2"
       }
@@ -21,7 +21,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "01965b01-4000-7000-8000-000000000005",
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e62fe81d272a",
         "entity_type": "batch",
         "name": "Genericom web tier v0.1.0",
         "dimensions": {}
@@ -34,7 +34,7 @@
       "nodes": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000500000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6530f566b55",
             "entity_type": "aws_alb",
             "name": "genericom-prod-web-alb",
             "dimensions": {
@@ -57,7 +57,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000500000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e654d3e9c6f0",
             "entity_type": "aws_target_group",
             "name": "genericom-prod-web-tg",
             "dimensions": {
@@ -78,7 +78,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000500000003",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e655683af8b9",
             "entity_type": "aws_ec2_instance",
             "name": "genericom-prod-web-a",
             "dimensions": {
@@ -109,7 +109,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-000500000004",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e656a8aacce7",
             "entity_type": "aws_ec2_instance",
             "name": "genericom-prod-web-c",
             "dimensions": {
@@ -142,7 +142,7 @@
       "edges": [
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0005f0000001",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e657ef65bed3",
             "entity_type": "edge",
             "name": "ALB resides in public-alb-a",
             "dimensions": {
@@ -150,15 +150,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000500000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000011",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6530f566b55",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63a9ee1abeb",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0005f0000002",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e658be7202b2",
             "entity_type": "edge",
             "name": "ALB resides in public-alb-c",
             "dimensions": {
@@ -166,15 +166,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000500000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000012",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6530f566b55",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63bc615844d",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0005f0000003",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e659999a8d23",
             "entity_type": "edge",
             "name": "ALB backed by ACM cert",
             "dimensions": {
@@ -182,8 +182,8 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000500000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000400000002",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6530f566b55",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6505e0412bd",
             "edge_type": "BACKED_BY",
             "properties": {
               "relationship": "tls-termination"
@@ -192,7 +192,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0005f0000004",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e65a7c035709",
             "entity_type": "edge",
             "name": "ALB routes to target group",
             "dimensions": {
@@ -200,8 +200,8 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000500000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000500000002",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6530f566b55",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e654d3e9c6f0",
             "edge_type": "ROUTES_TO",
             "properties": {
               "port": 80
@@ -210,7 +210,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0005f0000005",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e65b042bd9b3",
             "entity_type": "edge",
             "name": "Route 53 zone routes to ALB",
             "dimensions": {
@@ -218,15 +218,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000400000001",
-            "to_entity_id": "01965b01-4000-7000-8000-000500000001",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e64f1d4de436",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6530f566b55",
             "edge_type": "ROUTES_TO",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0005f0000006",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e65c0835bef2",
             "entity_type": "edge",
             "name": "EC2 web-a resides in private-web-a",
             "dimensions": {
@@ -234,15 +234,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000500000003",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000013",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e655683af8b9",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63c019abd84",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0005f0000007",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e65dc7a757c1",
             "entity_type": "edge",
             "name": "EC2 web-c resides in private-web-c",
             "dimensions": {
@@ -250,15 +250,15 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000500000004",
-            "to_entity_id": "01965b01-4000-7000-8000-000300000014",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e656a8aacce7",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e63dba4b1fd3",
             "edge_type": "RESIDES_IN",
             "properties": {}
           }
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0005f0000008",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e65e4b98570d",
             "entity_type": "edge",
             "name": "Target group backed by EC2 web-a",
             "dimensions": {
@@ -266,8 +266,8 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000500000002",
-            "to_entity_id": "01965b01-4000-7000-8000-000500000003",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e654d3e9c6f0",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e655683af8b9",
             "edge_type": "BACKED_BY",
             "properties": {
               "relationship": "target"
@@ -276,7 +276,7 @@
         },
         {
           "entity": {
-            "entity_id": "01965b01-4000-7000-8000-0005f0000009",
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e65ff5dfb517",
             "entity_type": "edge",
             "name": "Target group backed by EC2 web-c",
             "dimensions": {
@@ -284,8 +284,8 @@
             }
           },
           "edge": {
-            "from_entity_id": "01965b01-4000-7000-8000-000500000002",
-            "to_entity_id": "01965b01-4000-7000-8000-000500000004",
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e654d3e9c6f0",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e656a8aacce7",
             "edge_type": "BACKED_BY",
             "properties": {
               "relationship": "target"
