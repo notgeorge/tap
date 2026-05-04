@@ -307,8 +307,7 @@ Formal definition of what single and double clicks do on graph objects.
 Single click behavior depends on the click target:
 
 - **Status badge** (`[_is_status_badge]`): opens the info window for the host node ([spec-viz-status-badge-info.md](spec-viz-status-badge-info.md)). Clicking the same badge while the window is open closes it.
-- **Node with at least one active status badge** (`[_status_host_active]`): opens the same info window as a badge click on that host.
-- **Node without active status badges**: default Cytoscape selection behavior; no navigation, no window.
+- **Node** (host body, with or without badges): no built-in action. The single-tap slot on a host body is reserved for plugins/projections to bind their own behavior on entity types they own (e.g. the Genericom AWS top-level projection navigates EC2 body taps to the per-instance page; see `req-genericom-ec2-aws-toplevel-click` in `spec-genericom-ec2-projection.md`). Default Cytoscape selection still applies.
 - **Edge**: no action. Edges are not clickable for navigation or popover purposes in v0.
 - **Empty canvas**: default Cytoscape behavior (deselect).
 
@@ -318,28 +317,29 @@ Double click behavior is unchanged and scoped to nodes in projection-hosted pane
 - **Node in a non-projection panel**: no action in v0.
 - **Non-node targets**: no action on double-click in v0.
 
-The existing debounce machinery in `panel-graph.js` (400ms single-tap delay, 500ms double-tap dedup) is preserved: single-click actions resolve on the delayed path so a genuine double-tap is not pre-empted. Firefox's native `dblclick` fallback is also preserved.
+Manual double-tap detection in `panel-graph.js` and the Firefox native `dblclick` fallback are preserved. The host single-tap debounce timer is no longer used (host single-tap has no scheduled action), but the same-node-within-window check still runs to feed `_fireDoubleTap` on the second tap.
 
 #### Development
 
 - Removing navigation-on-tap gives the single-click slot a single clear purpose: in-panel inspection. That's a better use of the gesture than cross-page navigation, which is reachable via explicit links elsewhere.
 - Consolidating semantics into one requirement here (rather than scattering click rules across per-feature specs) gives future interaction work a single cross-reference point.
-- Badge and host both triggering the same window is intentional: the badge is a small hit target at low zoom, and the host is discoverable when the badge is not. Together they make the window reachable at any reasonable zoom level.
+- Host body single-tap is intentionally a no-op so plugins can claim it. The badge remains the canonical way to open the info-window — it's a precise, intent-bearing target. Hosts often have other meanings (inspect, drill down, navigate) that vary per entity type and should not be hard-coded here.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-viz-panel-click-semantics-1 | Badge Click Opens Info Window | Implemented | Single click on a status badge opens the host's info window. | Wired in `panel-graph.js` tap handler |
-| req-viz-panel-click-semantics-2 | Badged Host Click Opens Info Window | Implemented | Single click on a node with active status badges opens the info window. | Check `[_status_host_active]` data |
+| req-viz-panel-click-semantics-2 | Badged Host Click Opens Info Window | Deprecated | Single click on a badged host no longer opens the info window. The host-body tap slot is reserved for plugins/projections. | Removed in the badge-only-trigger refactor (see `req-genericom-ec2-aws-toplevel-click`). |
 | req-viz-panel-click-semantics-3 | Unbadged Host Click Is No-Op | Implemented | Single click on a node with no active status badges takes no navigation or window action. | Default selection still applies |
 | req-viz-panel-click-semantics-4 | Navigation Removed | Implemented | The previous `/object/...` navigation on node tap is fully removed. | `panel-graph.js` `go()` branch deleted |
 | req-viz-panel-click-semantics-5 | Double Tap Unchanged | Implemented | Double-tap on a node in a projection panel continues to trigger the projection elevation transition. | `tap-double` event on nodes |
 | req-viz-panel-click-semantics-6 | Edge Click Is No-Op | Implemented | Clicking an edge takes no action in v0. | |
+| req-viz-panel-click-semantics-7 | Host Body Tap Is Plugin-Owned | Implemented | Single click on a host body has no built-in action; plugins/projections may bind their own handlers via `cy.on("tap", "node[entity_type=...]", ...)`. | First plugin user: Genericom AWS top-level projection navigating EC2 nodes to `/genericom/instance/<entity_id>`. |
 
 #### Future
 
-- A broader click registry (explicit binding of click → behavior per projection) would let plugins override these defaults. v0 hardcodes the rules above.
+- A broader click registry (explicit binding of click → behavior per projection) would let plugins register handlers declaratively rather than wiring them in JS. The current model lets plugins claim the host-tap slot via raw `cy.on(...)` calls, which works but doesn't enforce single-binding-per-entity-type semantics.
 
 
 ### Runtime Popovers

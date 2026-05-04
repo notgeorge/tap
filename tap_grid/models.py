@@ -537,10 +537,25 @@ class BaseModel(models.Model):
         else:
             self._confirm_entity()
             super().save(*args, **kwargs)
-            Entity.objects.filter(pk=self.entity_id).update(
-                updated_at=timezone.now(),
-                version=models.F("version") + 1,
-            )
+            # Spine sync. BaseModel is the source of truth for `name` (via
+            # get_name()); Entity.name is a subordinate materialized
+            # projection that the framework keeps current. Folded into the
+            # same .update() that already bumps updated_at and version, so
+            # there's no extra round-trip and no separate history record.
+            # Direct .update() bypasses Django signals (Entity has no
+            # HistoricalRecords anyway, but this is belt-and-suspenders).
+            # See spec-grid-node.md req-grid-node-display.
+            spine_updates: dict[str, Any] = {
+                "updated_at": timezone.now(),
+                "version": models.F("version") + 1,
+            }
+            new_name = self.get_name()
+            if self.entity.name != new_name:
+                spine_updates["name"] = new_name
+            Entity.objects.filter(pk=self.entity_id).update(**spine_updates)
+            if "name" in spine_updates:
+                # Keep the in-memory entity in lockstep with the persisted spine.
+                self.entity.name = new_name
 
 
 class Edge(BaseModel):

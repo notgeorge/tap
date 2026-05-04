@@ -28,6 +28,7 @@ The projection is built on the computing_core plugin's vendor-neutral primitives
 | req-genericom-ec2-projection | [Instance Projection Definition](#instance-projection-definition) | In Development | Semantic zone layout with icon-badge exclude_types |
 | req-genericom-ec2-layout | [Instance Layout Strategy](#instance-layout-strategy) | Proposed | Refined layout with semantic placement and nesting |
 | req-genericom-ec2-findings | [Findings Panel](#findings-panel) | Proposed | Findings table below the projection showing alerts for this host |
+| req-genericom-ec2-aws-toplevel-click | [AWS Top-Level Click Entry (One-Off)](#aws-top-level-click-entry-one-off) | Implemented | Hard-coded click-to-navigate from AWS top-level EC2 nodes; demo-grade hack pending a generic interaction system |
 
 ---
 
@@ -52,6 +53,65 @@ The EC2 instance detail page is accessible at `/genericom/instance/<entity_id>` 
 | req-genericom-ec2-page-1 | URL Resolves | Implemented | `/genericom/instance/<uuid>` loads the EC2 instance page. | |
 | req-genericom-ec2-page-2 | Entity ID Flows To Search | Implemented | The UUID from the URL is available as `$entity_id` in the panel's seed search. | |
 | req-genericom-ec2-page-3 | Both Instances Work | Implemented | The page renders correctly for both `genericom-prod-web-a` and `genericom-prod-web-c`. | |
+
+---
+
+### AWS Top-Level Click Entry (One-Off)
+----
+RID: `req-genericom-ec2-aws-toplevel-click`
+Status: `Implemented`
+
+Clicking an EC2 instance node on the Genericom AWS top-level page (`/genericom`) navigates the user to that instance's dedicated page (`/genericom/instance/<entity_id>`). This is the demo entry point that connects the spatial overview to the per-instance drilldown.
+
+#### Status Details
+
+This is a deliberate **make-it-work** implementation. There is no general per-entity-type interaction system in TAP projections yet — no registry of click handlers keyed by entity_type, no declarative `on_click` slot on entity types, no shared "node tap → URL template" mechanism that other projections could reuse. Rather than block the demo on building that abstraction, the click handler is wired directly into the AWS top-level projection JS as a hard-coded EC2-specific case.
+
+This shortcut means:
+
+- Adding click navigation for another entity type (e.g. RDS, ALB) requires another hard-coded block in the same JS file.
+- Adding click navigation on a different page that also renders EC2 nodes requires duplicating the handler in that projection's JS.
+- The destination URL template is duplicated in JS rather than discovered from the entity-type definition.
+
+A related side-refactor was needed in `tap_viz`: the previous `panel-graph.js` tap handler also opened the status-badge info-window when a *badged host body* was tapped. That conflicted with this projection's host-body navigation handler — both fired on the same gesture, and only the synchronous `window.location.href` won by virtue of beating the info-window's debounced timer. The fix was to make badge taps the only trigger for the info-window and free up host-body taps for plugins to claim. See `spec-viz-panel.md` `req-viz-panel-click-semantics-7` (the new "Host Body Tap Is Plugin-Owned" rule) and `req-viz-panel-click-semantics-2` (Deprecated, the old "Badged Host Click Opens Info Window" rule). This badge-info window behavior is also tracked in `spec-viz-status-badge-info.md` `req-viz-info-window-trigger`.
+
+#### Implementation
+
+In `plugins/genericom/static/genericom/js/projections/aws-top-level.js`, after the projection runs and shadow interactions are wired up:
+
+```js
+cy.on("tap", 'node[entity_type="aws_ec2_instance"]', (evt) => {
+    const node = evt.target;
+    if (node.data("_is_shadow")) return;          // skip shadow copies
+    const entityId = node.id();
+    if (entityId) {
+        window.location.href = "/genericom/instance/" + entityId;
+    }
+});
+```
+
+Hover affordance: `mouseover` / `mouseout` listeners on the same selector swap `cy.container().style.cursor` to `"pointer"` so the node visually advertises itself as clickable. Shadow copies (`_is_shadow` data flag) are excluded so the affordance and the navigation only apply to the primary subnet-resident node, not the VPC-scope shadow placeholders.
+
+The EC2 page itself (`req-genericom-ec2-page`) already accepts the entity_id via `parameterized_page_view`, so this requirement is purely about the source-side entry point.
+
+#### Refactor Signal
+
+Build a generic projection-interaction system when **any** of:
+
+- A second entity type needs click navigation (RDS, ALB, Route 53 zone, etc.).
+- A second projection needs the same EC2-click behavior.
+- The destination URL needs to vary by deployment, environment, or user permissions.
+
+Likely shape: a registry of `(entity_type, action) → handler` keyed declaratively per entity type (or per projection, scoped to a specific page), with the URL template discovered from the registered entity-type definition rather than hard-coded in JS. Once that exists, this block deletes itself.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-genericom-ec2-aws-toplevel-click-1 | EC2 Tap Navigates | Implemented | Tapping an EC2 instance node on `/genericom` navigates to `/genericom/instance/<entity_id>`. | |
+| req-genericom-ec2-aws-toplevel-click-2 | Pointer Cursor On Hover | Implemented | Hovering an EC2 node shows a pointer cursor. | |
+| req-genericom-ec2-aws-toplevel-click-3 | Shadows Excluded | Implemented | Shadow EC2 placeholders (none in current data, but defensively guarded) do not trigger navigation. | |
+| req-genericom-ec2-aws-toplevel-click-4 | Marked One-Off In Code | Implemented | The handler is annotated in `aws-top-level.js` with a comment pointing back to this spec section as the refactor signal. | |
 
 ---
 

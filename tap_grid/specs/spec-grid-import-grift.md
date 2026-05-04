@@ -81,6 +81,22 @@ No batch transaction may begin until the full file has passed preflight, except 
 - the importer must sanity-check that the resolved local model type matches the envelope `entity_type`
 - if an object payload format ever redundantly carries its own entity identity fields, those values must match the enclosing entity envelope exactly
 
+#### Envelope/Payload Name Match
+
+This is the first concrete application of the redundant-identity rule. The GRIFT envelope's `name` is a projection of the typed model's name field (per `spec-grid-node.md` `req-grid-node-display`: `BaseModel.get_name()` is canonical, `Entity.name` is a subordinate materialized projection). When a bundle declares both `entity.name` and the typed model payload's `name`, the two must agree exactly.
+
+Rules:
+
+- if `entity.name` is missing or empty in the envelope, no comparison is performed; the projection is materialized from the typed model's name on import
+- if both `entity.name` and the model payload's `name` are present and non-empty, they must be string-equal after surrounding whitespace is trimmed
+- mismatches emit a hard-error issue with code `envelope_payload_name_mismatch` and JSON path `$.batches[i].nodes[j].entity.name`
+- mismatches accrue across the whole file: every offending node produces its own issue in the preflight report; the importer does not stop at the first hit, so a bundle author can fix all of them together
+- there is no auto-align fallback. The bundle author must commit to the intended value rather than have the importer guess
+
+This rule does not apply to edges. Edge `entity.name` is structural (the importer treats it as an authoring label) and bundles do not carry a separate edge-side name to compare against.
+
+Future fields that are doubly declared by a model payload and the spine envelope (no current examples) should follow the same pattern with sibling codes like `envelope_payload_<field>_mismatch`.
+
 ## Reference Time
 ----
 RID: `req-grid-import-grift-time`
@@ -133,6 +149,14 @@ Each GRIFT batch executes as its own import unit after successful file preflight
 - node and edge mutations must route through the TAP service layer rather than direct ORM writes
 - the imported GRIFT batch `batch_entity.entity_id` becomes the `batch_id` placed into `CallerContext` for the service-layer write execution
 - the GRIFT batch is therefore the live service-layer batch context for the imported node and edge writes
+
+### Spine Sync For Replaced Entities
+
+The GRIFT envelope is authoritative for an entity's spine fields (`Entity.name`, `Entity.dimensions`) on every import. The service-layer `replace_node` verb intentionally leaves spine fields alone so callers cannot accidentally renumber entities through the model-write path; for GRIFT imports that is the wrong default, because the bundle's envelope is the bundle's declaration of truth.
+
+After a successful node-replace operation, the importer must compare the bundle's envelope-side `name` and `dimensions` for that entity against the persisted Entity row and apply any differences. The implementation uses a direct `Entity.objects.filter(pk=...).update(...)` (not `save()`) so that a pure spine sync does not bump the entity's version counter and so the post-pass is cheap. `updated_at` is bumped explicitly when anything changes so observers can see the spine moved.
+
+This rule applies on any import path that performs a replace, including force re-import (`req-grid-import-grift-force-reimport`). The rule does not apply to creates (the service-layer `create_node` verb already accepts the envelope's `name` and `dimensions` and writes them on the spine).
 
 ### Import Modes
 

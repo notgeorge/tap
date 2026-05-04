@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019df4e8-7c6a-73ca-b601-b3bed027dac8",
+        "entity_type": "batch",
+        "name": "Genericom open alerts panel v0.2.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom open alerts panel v0.2.0",
+        "description": "Seeds the Open Alerts table panel beneath the Genericom AWS top-level graph: Search (gryphon, multi-MATCH including RELATED_INDICATOR), Panel (genericom-open-alerts type), USES_SEARCH and USES_PANEL edges."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019df4d9-9274-721d-a87a-260c0a050ae8",
+            "entity_type": "search",
+            "name": "Genericom Open Alerts",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "Genericom Open Alerts",
+            "description": "Gryphon query returning all open findings joined to their parent system via HAS_FINDING and any related KSI indicators via RELATED_INDICATOR. Two MATCH clauses (UNION-dedup) so findings without a KSI link still appear.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": "MATCH (s)-[h:HAS_FINDING]->(f:finding) WHERE f.status = \"open\"\nMATCH (f:finding)-[r:RELATED_INDICATOR]->(i:ksi_indicator) WHERE f.status = \"open\""
+            },
+            "default_limit": 200,
+            "max_limit": 500
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019df4d9-9274-721d-a87a-260d130b62e3",
+            "entity_type": "panel",
+            "name": "Genericom Open Alerts",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "slug": "genericom-open-alerts",
+            "name": "Genericom Open Alerts",
+            "description": "Open findings table on the Genericom AWS top-level page.",
+            "view": "genericom/panels/open_alerts.html",
+            "config": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019df4d9-9274-721d-a87a-260e45bafd9f",
+            "entity_type": "edge",
+            "name": "Open Alerts Panel USES_SEARCH",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019df4d9-9274-721d-a87a-260d130b62e3",
+            "to_entity_id": "019df4d9-9274-721d-a87a-260c0a050ae8",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019df4d9-9274-721d-a87a-260f44de671c",
+            "entity_type": "edge",
+            "name": "Genericom Page USES_PANEL Open Alerts",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6685b8ca028",
+            "to_entity_id": "019df4d9-9274-721d-a87a-260d130b62e3",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "alerts"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "batch_entity": {
+        "entity_id": "019df4db-d2b7-7681-952d-e4bba6cfc044",
+        "entity_type": "batch",
+        "name": "Genericom landing layout adds Open Alerts row v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom landing layout adds Open Alerts row v0.1.0",
+        "description": "Updates the Genericom Page layout to a three-row stack: KPI strip on top (auto), graph (1fr), Open Alerts table beneath (auto). Loads after pages-kpi-strip so this version wins."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6685b8ca028",
+            "entity_type": "page",
+            "name": "Genericom",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Genericom",
+            "slug": "/genericom",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {"panel-id": "kpi", "height": "auto"},
+                    "row-2": {"panel-id": "main", "height": "1fr"},
+                    "row-3": {"panel-id": "alerts", "height": "auto"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

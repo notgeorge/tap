@@ -4,4 +4,13 @@ from tap_plugins.base import TapPluginConfig
 
 
 class GenericomConfig(TapPluginConfig):
-    pass
+    def ready(self) -> None:
+        super().ready()
+        from plugins.genericom.panels.open_alerts import (
+            GenericomOpenAlertsPanelType,
+        )
+        from tap_web.registry import panel_type_registry
+
+        panel_type_registry.register(
+            "genericom-open-alerts", GenericomOpenAlertsPanelType
+        )

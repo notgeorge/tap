@@ -969,3 +969,102 @@ class TestGriftForceReimport:
         result = grift_import(_minimal_doc([]), force_batches=[bogus])
         assert not result.success
         assert any(e.code == "force_reimport_batch_not_found" for e in result.errors)
+
+
+# ---------------------------------------------------------------------------
+# Identity Sanity: envelope/payload name match
+# (req-grid-import-grift-preflight "Envelope/Payload Name Match")
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestEnvelopePayloadNameMatch:
+    def _node_with_names(self, entity_id: str, envelope_name: str | None, payload_name: str) -> dict[str, Any]:
+        envelope: dict[str, Any] = {
+            "entity_id": entity_id,
+            "entity_type": "character",
+            "dimensions": {},
+        }
+        if envelope_name is not None:
+            envelope["name"] = envelope_name
+        return {
+            "entity": envelope,
+            "node": {"name": payload_name, "bio": "A hobbit"},
+        }
+
+    def test_matched_names_pass_preflight(self):
+        nid = _node_entity_id()
+        node = self._node_with_names(nid, envelope_name="Frodo", payload_name="Frodo")
+        container = _batch_container(_batch_entity_id(), nodes=[node])
+        result = grift_import(_minimal_doc([container]))
+        assert result.success
+        assert not any(e.code == "envelope_payload_name_mismatch" for e in result.errors)
+
+    def test_envelope_name_omitted_passes(self):
+        """Bundles that omit envelope.name keep working — the spine projection
+        is materialized from the model's name on import."""
+        nid = _node_entity_id()
+        node = self._node_with_names(nid, envelope_name=None, payload_name="Frodo")
+        container = _batch_container(_batch_entity_id(), nodes=[node])
+        result = grift_import(_minimal_doc([container]))
+        assert result.success
+        assert not any(e.code == "envelope_payload_name_mismatch" for e in result.errors)
+
+    def test_envelope_name_empty_rejected_by_schema(self):
+        """Explicitly-empty envelope.name is rejected at the document-schema
+        layer before the mismatch check runs. This makes the mismatch
+        check's empty-envelope-name guard belt-and-suspenders, never the
+        primary defense."""
+        nid = _node_entity_id()
+        node = self._node_with_names(nid, envelope_name="", payload_name="Frodo")
+        container = _batch_container(_batch_entity_id(), nodes=[node])
+        result = grift_import(_minimal_doc([container]))
+        assert not result.success
+        assert any(e.code == "schema_validation_failed" for e in result.errors)
+        assert not any(e.code == "envelope_payload_name_mismatch" for e in result.errors)
+
+    def test_whitespace_only_difference_passes(self):
+        """Surrounding whitespace is trimmed before comparison."""
+        nid = _node_entity_id()
+        node = self._node_with_names(nid, envelope_name="  Frodo  ", payload_name="Frodo")
+        container = _batch_container(_batch_entity_id(), nodes=[node])
+        result = grift_import(_minimal_doc([container]))
+        assert result.success
+        assert not any(e.code == "envelope_payload_name_mismatch" for e in result.errors)
+
+    def test_mismatch_fails_preflight(self):
+        nid = _node_entity_id()
+        node = self._node_with_names(nid, envelope_name="Bilbo", payload_name="Frodo")
+        container = _batch_container(_batch_entity_id(), nodes=[node])
+        result = grift_import(_minimal_doc([container]))
+        assert not result.success
+        mismatches = [e for e in result.errors if e.code == "envelope_payload_name_mismatch"]
+        assert len(mismatches) == 1
+        # Issue carries enough context to be operator-actionable.
+        assert mismatches[0].entity_id == nid
+        assert mismatches[0].entity_type == "character"
+        assert "Bilbo" in mismatches[0].message and "Frodo" in mismatches[0].message
+        assert mismatches[0].path.endswith(".entity.name")
+
+    def test_mismatches_accrue_across_file(self):
+        """Multiple offending nodes each produce their own issue; preflight
+        does not stop at the first mismatch."""
+        nid_a = _node_entity_id()
+        nid_b = _node_entity_id()
+        node_a = self._node_with_names(nid_a, envelope_name="X", payload_name="A")
+        node_b = self._node_with_names(nid_b, envelope_name="Y", payload_name="B")
+        container = _batch_container(_batch_entity_id(), nodes=[node_a, node_b])
+        result = grift_import(_minimal_doc([container]))
+        assert not result.success
+        mismatches = [e for e in result.errors if e.code == "envelope_payload_name_mismatch"]
+        offending_ids = {e.entity_id for e in mismatches}
+        assert offending_ids == {nid_a, nid_b}
+
+    def test_mismatch_blocks_writes(self):
+        """A failing preflight must not mutate the database."""
+        nid = _node_entity_id()
+        node = self._node_with_names(nid, envelope_name="Bilbo", payload_name="Frodo")
+        container = _batch_container(_batch_entity_id(), nodes=[node])
+        result = grift_import(_minimal_doc([container]))
+        assert not result.success
+        assert not Entity.objects.filter(pk=uuid.UUID(nid)).exists()
