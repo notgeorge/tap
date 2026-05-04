@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019dd143-3e8f-73e4-b0fa-e634094cba4d",
+        "entity_id": "019dd200-0000-7000-8000-000000000010",
         "entity_type": "batch",
-        "name": "Genericom projection v0.4.0",
+        "name": "Genericom projection v0.4.1",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.genericom",
-        "name": "Genericom projection v0.3.0",
-        "description": "Adds a status_badges config to the AWS top-level projection so alert and warn bubbles render on EC2, RDS, ElastiCache, and ALB nodes."
+        "name": "Genericom projection v0.4.1",
+        "description": "Adds a status_badges config to the AWS top-level projection so alert bubbles render on EC2, RDS, ElastiCache, and ALB nodes."
       },
       "nodes": [
         {
@@ -47,18 +47,6 @@
                       "search_id": "019dd143-3e8f-73e4-b0fa-e6787fdeac70",
                       "inputs": {}
                     }
-                  },
-                  {
-                    "name": "warn",
-                    "color": "#F0DE8B",
-                    "text_color": "#574518",
-                    "population": {
-                      "type": "static_by_node_type",
-                      "rules": [
-                        {"entity_type": "aws_ec2_instance", "count": 3},
-                        {"entity_type": "aws_alb", "count": 1}
-                      ]
-                    }
                   }
                 ]
               }
@@ -71,7 +59,7 @@
           "entity": {
             "entity_id": "019dd149-1216-725b-a0d6-02eb1f205f6f",
             "entity_type": "edge",
-            "name": "Projection USES_ELEVATION aws-top-level (v0.3.0)",
+            "name": "Projection USES_ELEVATION aws-top-level (v0.4.1)",
             "dimensions": {}
           },
           "edge": {
@@ -91,7 +79,7 @@
           "entity": {
             "entity_id": "019dd149-1216-725b-a0d6-02ec96bc8f78",
             "entity_type": "edge",
-            "name": "Projection USES_DEFAULT_ELEVATION aws-top-level (v0.3.0)",
+            "name": "Projection USES_DEFAULT_ELEVATION aws-top-level (v0.4.1)",
             "dimensions": {}
           },
           "edge": {

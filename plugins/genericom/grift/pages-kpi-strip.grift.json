@@ -1,0 +1,73 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019dd200-0000-7000-8000-000000000051",
+        "entity_type": "batch",
+        "name": "Genericom KPI strip panel + edge v0.2.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom KPI strip panel + edge v0.2.0",
+        "description": "Seeds the KPI strip panel instance for the Genericom landing page (slot 'kpi'). Panel TYPE and the open-findings search live in fedramp_20x_ksi; this batch is the genericom-side instance config wiring the type's view template into the page. Page layout is owned by open-alerts.grift.json, which loads later and pins the final kpi/main/alerts stack."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019dd200-0000-7000-8000-000000000050",
+            "entity_type": "panel",
+            "name": "Genericom KPI Strip",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "genericom-kpi-strip",
+            "name": "Genericom KPI Strip",
+            "view": "fedramp_20x_ksi/panels/kpi_strip.html",
+            "editor_view": "",
+            "config": {
+              "hide_header": true,
+              "tiles": [
+                {
+                  "label": "Open Alerts",
+                  "color": "#9E3A3A",
+                  "value_field": "count",
+                  "mode": "sum",
+                  "query": [
+                    "MATCH (e)-[:HAS_FINDING]->(f:finding)",
+                    "WHERE f.status = \"open\"",
+                    "NOT EXISTS {",
+                    "  MATCH (x:exception)-[:COVERS_FINDING]->(f)",
+                    "  WHERE x.status = \"active\"",
+                    "}",
+                    "RETURN e.entity_id AS entity_id, COUNT(f) AS count"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019dd200-0000-7000-8000-000000000052",
+            "entity_type": "edge",
+            "name": "Page USES_PANEL KPI Strip",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6685b8ca028",
+            "to_entity_id": "019dd200-0000-7000-8000-000000000050",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "kpi"}}
+          }
+        }
+      ]
+    }
+  ]
+}
