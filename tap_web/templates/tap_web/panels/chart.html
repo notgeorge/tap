@@ -1,0 +1,8 @@
+<div class="tap-panel tap-panel--chart">
+    {% if not panel.config.hide_header %}{% include "tap_web/panel_header.html" %}{% endif %}
+
+    {# v0: load-bearing stub. ECharts is loaded as a panel asset; the mount
+       below is reserved for the future chart-spec layer. See
+       spec-web-panels-chart.md req-web-panels-chart-rendering. #}
+    <div class="tap-chart-mount" id="tap-chart-{{ panel.entity_id }}"></div>
+</div>
