@@ -447,6 +447,10 @@ def _execute_hub_and_spoke(
     if edge_pattern.edge_type:
         edge_filter["edge_type"] = edge_pattern.edge_type
 
+    # Inline edge-property map filter (req-grid-traversal-lang-filters-1).
+    for key, raw_value in edge_pattern.inline_props.items():
+        edge_filter[f"properties__{key}"] = _resolve_value(raw_value, {})
+
     direction = edge_pattern.direction
 
     # select_related("entity") needed for full/extended edge serialization.
@@ -530,10 +534,15 @@ def _execute_edge_type_scan(
     edge_type = edge_pattern.edge_type
     extra_related = ["entity"] if layer != "lite" else []
 
+    # Inline edge-property map filter (req-grid-traversal-lang-filters-1).
+    inline_prop_filters: dict[str, Any] = {
+        f"properties__{k}": _resolve_value(v, {}) for k, v in edge_pattern.inline_props.items()
+    }
+
     qualifying_edges: list[Edge] = []
 
     if direction in ("out", "any"):
-        filters: dict[str, Any] = {"edge_type": edge_type}
+        filters: dict[str, Any] = {"edge_type": edge_type, **inline_prop_filters}
         if left_node.label:
             filters["from_entity__entity_type"] = left_node.label
         if right_node.label:
@@ -547,7 +556,7 @@ def _execute_edge_type_scan(
         qualifying_edges.extend(qs)
 
     if direction in ("in", "any"):
-        filters = {"edge_type": edge_type}
+        filters = {"edge_type": edge_type, **inline_prop_filters}
         if left_node.label:
             filters["to_entity__entity_type"] = left_node.label
         if right_node.label:
@@ -845,6 +854,7 @@ def _resolve_value(value: Any, inputs: dict[str, Any]) -> Any:
 def _build_chain_queryset(
     pattern: PathPattern,
     db_alias: str,
+    inputs: dict[str, Any] | None = None,
 ):
     """Build an Edge queryset that joins all hops of a (potentially multi-hop) pattern.
 
@@ -884,6 +894,14 @@ def _build_chain_queryset(
 
         if edge.edge_type:
             filters[f"{prefix}edge_type"] = edge.edge_type
+
+        # Inline edge-property map filter: `-[:T {key: "value"}]->` narrows the
+        # queryset by JSON-key equality on Edge.properties. Per
+        # req-grid-traversal-lang-filters-1; closes the silent-drop bug where
+        # the parser accepted the map but the executor ignored it.
+        for key, raw_value in edge.inline_props.items():
+            value = _resolve_value(raw_value, inputs or {})
+            filters[f"{prefix}properties__{key}"] = value
 
         left = pattern.nodes[hop_idx]
         right = pattern.nodes[hop_idx + 1]
@@ -975,7 +993,7 @@ def _apply_not_exists(
         )
 
     inner_bindings = _build_var_bindings(inner_pattern)
-    inner_qs = _build_chain_queryset(inner_pattern, db_alias)
+    inner_qs = _build_chain_queryset(inner_pattern, db_alias, inputs)
 
     # Correlation: for every variable shared between outer and inner bindings,
     # constrain the inner's ORM path to equal OuterRef of the outer's path.
@@ -1185,7 +1203,7 @@ def _build_clause_queryset(
         )
 
     bindings = _build_var_bindings(pattern)
-    qs = _build_chain_queryset(pattern, db_alias)
+    qs = _build_chain_queryset(pattern, db_alias, inputs)
 
     # Filter WHERE predicate to only include comparisons on variables bound
     # in this clause. This allows UNION queries where each MATCH clause

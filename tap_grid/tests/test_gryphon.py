@@ -1232,3 +1232,117 @@ class TestGryphonV2Executor:
         entity_ids = [n["entity"]["entity_id"] for n in result["nodes"]]
         # No duplicates.
         assert len(entity_ids) == len(set(entity_ids))
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonInlineEdgePropertyFilter:
+    """Regression coverage for req-grid-traversal-lang-filters-1.
+
+    Inline edge property maps `-[:T {key: "value"}]->` must narrow the queryset
+    by JSON-key equality on Edge.properties. Prior to the fix the parser
+    accepted the map but the executor silently ignored it; queries with
+    different filter values produced identical result sets.
+    """
+
+    def _setup_findings_with_relationship_types(self):
+        """Two findings on one host, each related to the same indicator with a
+        different `relationship_type` property value."""
+        import uuid
+
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Edge, Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+
+        host = Entity.objects.create(entity_type="host", name="web-1")
+        f_violation = Entity.objects.create(entity_type="finding", name="violation-finding")
+        f_passing = Entity.objects.create(entity_type="finding", name="passing-finding")
+        indicator = Entity.objects.create(entity_type="indicator", name="ksi-test")
+
+        # host HAS_FINDING f_violation; host HAS_FINDING f_passing
+        for f in (f_violation, f_passing):
+            Edge.objects.create(
+                entity=Entity.objects.create(entity_type="edge"),
+                from_entity=host,
+                to_entity=f,
+                edge_type="HAS_FINDING",
+            )
+
+        # f_violation -[:RELATED {relationship_type: "violation"}]-> indicator
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=f_violation,
+            to_entity=indicator,
+            edge_type="RELATED",
+            properties={"relationship_type": "violation"},
+        )
+        # f_passing -[:RELATED {relationship_type: "passing"}]-> indicator
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=f_passing,
+            to_entity=indicator,
+            edge_type="RELATED",
+            properties={"relationship_type": "passing"},
+        )
+
+        return host, f_violation, f_passing, indicator
+
+    def test_inline_edge_property_filter_narrows_results(self):
+        """Two queries differing only in the inline filter value must return
+        different result sets. Pre-fix, both queries returned identical results.
+        """
+        host, f_violation, f_passing, indicator = self._setup_findings_with_relationship_types()
+
+        violation_search = Search(
+            search_type="gryphon",
+            root="node",
+            name="count-violations",
+            definition={
+                "query": (
+                    'MATCH (h)-[:HAS_FINDING]->(f:finding)'
+                    '-[:RELATED {relationship_type: "violation"}]->(i:indicator) '
+                    "RETURN h.entity_id AS host, COUNT(f) AS count"
+                )
+            },
+        )
+        passing_search = Search(
+            search_type="gryphon",
+            root="node",
+            name="count-passing",
+            definition={
+                "query": (
+                    'MATCH (h)-[:HAS_FINDING]->(f:finding)'
+                    '-[:RELATED {relationship_type: "passing"}]->(i:indicator) '
+                    "RETURN h.entity_id AS host, COUNT(f) AS count"
+                )
+            },
+        )
+
+        v_rows = execute_search(violation_search, inputs={}).get("rows", [])
+        p_rows = execute_search(passing_search, inputs={}).get("rows", [])
+
+        v_counts = {r["host"]: r["count"] for r in v_rows}
+        p_counts = {r["host"]: r["count"] for r in p_rows}
+
+        assert v_counts == {str(host.pk): 1}, "violation filter should match exactly one finding"
+        assert p_counts == {str(host.pk): 1}, "passing filter should match exactly one finding"
+
+    def test_inline_edge_property_filter_no_match_returns_empty(self):
+        """A filter value that no edge carries returns zero rows."""
+        host, *_ = self._setup_findings_with_relationship_types()
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="no-match",
+            definition={
+                "query": (
+                    'MATCH (h)-[:HAS_FINDING]->(f:finding)'
+                    '-[:RELATED {relationship_type: "informational"}]->(i:indicator) '
+                    "RETURN h.entity_id AS host, COUNT(f) AS count"
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        assert result.get("rows", []) == []

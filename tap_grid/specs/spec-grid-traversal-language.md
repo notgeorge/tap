@@ -23,7 +23,8 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-shape | [Traversal Language Shape](#traversal-language-shape) | Implemented | MATCH/WHERE/RETURN clause structure |
 | req-grid-traversal-lang-storage | [Traversal Storage Form](#traversal-storage-form) | Implemented | String and list[str] storage forms |
 | req-grid-traversal-lang-patterns | [Pattern And Binding Syntax](#pattern-and-binding-syntax) | Implemented | Node/edge/path patterns, direction, bounded traversal |
-| req-grid-traversal-lang-filters | [Field And Predicate Semantics](#field-and-predicate-semantics) | Implemented | Inline filters and WHERE predicates over model and JSON fields |
+| req-grid-traversal-lang-filters | [Field And Predicate Semantics](#field-and-predicate-semantics) | Implemented | Inline filters and WHERE predicates over model fields; multi-step JSON paths deferred to `req-grid-traversal-lang-filters-jsonpath` |
+| req-grid-traversal-lang-filters-jsonpath | [JSONPath For JSON Field Predicates](#jsonpath-for-json-field-predicates) | Proposed | Adopt RFC 9535 JSONPath for `WHERE` predicates over JSON-backed fields; replace in-house dot/bracket grammar |
 | req-grid-traversal-lang-combinators | [Predicate Combinators](#predicate-combinators) | Implemented | AND/OR/NOT in WHERE predicates |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
 | req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
@@ -227,16 +228,72 @@ RETURN n.entity_id, n.name
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-traversal-lang-filters-1 | Inline Property Maps Supported | Implemented | Node and edge patterns may include inline property filters. | |
+| req-grid-traversal-lang-filters-1 | Inline Property Maps Supported | Implemented | Node and edge patterns may include inline property filters; values are AND'd into the queryset for the bound pattern. | Edge-side filter implementation at `tap_grid/gryphon/executor.py::_apply_inline_edge_property_filters` (closes Gap 1). Verified by tests in `tap_grid/tests/test_gryphon_inline_edge_filter.py`. |
 | req-grid-traversal-lang-filters-2 | Where Predicates Supported | Implemented | gryphon text supports `WHERE` predicates over bound variables. | |
-| req-grid-traversal-lang-filters-3 | Dot Field Access Supported | Implemented | Predicates may access object-model fields with dot notation. | |
-| req-grid-traversal-lang-filters-4 | Keyed Json Access Supported | Implemented | Predicates may access JSON keys using bracket notation. | |
-| req-grid-traversal-lang-filters-5 | Positional Array Access Supported | Implemented | Predicates may address array members by numeric index. | |
-| req-grid-traversal-lang-filters-6 | Array Wildcard Access Supported | Implemented | Predicates may use `[*]` to mean "any array member". | |
+| req-grid-traversal-lang-filters-3 | Dot Field Access Supported | Implemented | Predicates may access object-model fields with dot notation (single step). | Multi-step paths into JSON fields are deferred to `req-grid-traversal-lang-filters-jsonpath`. |
+| req-grid-traversal-lang-filters-4 | Keyed Json Access Supported | Backlog | Predicates may access JSON keys using bracket notation. | Subsumed by [JSONPath For JSON Field Predicates](#jsonpath-for-json-field-predicates) (`req-grid-traversal-lang-filters-jsonpath`). The executor currently rejects multi-step paths with a clear `WHERE predicates support single dot-step field paths only.` error. |
+| req-grid-traversal-lang-filters-5 | Positional Array Access Supported | Backlog | Predicates may address array members by numeric index. | Subsumed by [JSONPath For JSON Field Predicates](#jsonpath-for-json-field-predicates). |
+| req-grid-traversal-lang-filters-6 | Array Wildcard Access Supported | Backlog | Predicates may use `[*]` to mean "any array member". | Subsumed by [JSONPath For JSON Field Predicates](#jsonpath-for-json-field-predicates). |
 
 #### Future
 Consider adding `IN`, `EXISTS`, and collection functions once enough real queries demonstrate
 the need.
+
+
+### JSONPath For JSON Field Predicates
+----
+RID: `req-grid-traversal-lang-filters-jsonpath`
+Status: `Proposed`
+
+`WHERE` predicates that need to reach into JSON-backed fields (`Edge.properties`, `BaseModel.dimensions`, model-level JSON columns like `configuration` / `properties`) should adopt **JSONPath ([RFC 9535](https://www.rfc-editor.org/rfc/rfc9535.html))** as the canonical path syntax rather than continue evolving an in-house dot/bracket grammar.
+
+#### Background And Motivation
+
+The currently-shipping executor enforces "single dot-step field paths only" in `WHERE` (`tap_grid/gryphon/executor.py::_apply_comparison`). Multi-step paths into JSON fields — `r.properties.relationship_type`, `n.properties.aliases[*].name`, `n.dimensions["tap.graph"]` — all error out, even though three of them are listed as `Implemented` in the ACID table above. That status discrepancy was discovered during Gap 1 mop-up; this requirement realigns the spec with reality and proposes a path forward that does not require us to invent and maintain a JSONPath equivalent.
+
+JSONPath is preferred over the alternatives because:
+
+- **First-class Postgres support.** Postgres has had `jsonb_path_query`, `jsonb_path_match`, and the `@?` / `@@` operators since version 12. They take a JSONPath string verbatim and evaluate it server-side. We do not need to compile, translate, or interpret the path expression in Python — we thread it through to the database.
+- **IETF-standardized.** RFC 9535 (2024) settled what had been a defacto standard for ~15 years. Multiple mature implementations exist in every language we'd plausibly target.
+- **Spec gets shorter, not longer.** Instead of documenting our half-working dot/bracket grammar (filters-4/5/6 above), we cite RFC 9535 once and inherit its semantics, including filter expressions like `[?(@.kind == "primary")]` that would otherwise be a year of additional grammar work.
+
+The candidates considered and rejected:
+
+- **JMESPath** (used by AWS CLI, Ansible) — clean grammar but no Postgres native support; we'd be writing the same compiler we're trying to avoid.
+- **JSON Pointer** (RFC 6901) — path-only, no filter or wildcard capability; too limited.
+
+#### Implementation
+
+The implementation surface is the `WHERE` compiler in `tap_grid/gryphon/executor.py`. The work is:
+
+1. **Recognize JSON-field paths.** When the first step of a dot/bracket path resolves to a `JSONField` on the bound model (`Edge.properties`, `Entity.dimensions`, `BaseModel.<json_column>`), do not attempt native column traversal. Capture the remainder of the path.
+2. **Translate to JSONPath.** Map the captured remainder onto a JSONPath expression rooted at `$`. Examples:
+   - `r.properties.relationship_type` → `$.relationship_type`
+   - `n.dimensions["tap.graph"]` → `$["tap.graph"]`
+   - `n.properties.aliases[0].name` → `$.aliases[0].name`
+   - `n.properties.aliases[*].name = $alias` → `$.aliases[*].name == "<value>"` inside `jsonb_path_match`
+3. **Emit the SQL.** Use Django's `RawSQL` or a custom queryset annotation that calls `properties @@ '<path expr>'::jsonpath` (or `@?` for existence-only). Bind `$alias` parameters into the JSONPath expression safely, not via string interpolation.
+4. **Backend gate.** Behind a backend-detection check so future non-Postgres backends fall through to a Python-side evaluator using a JSONPath library (e.g. `jsonpath-ng`) rather than failing.
+
+The dotted gryphon syntax that authors already write (`r.properties.relationship_type`) stays valid — the compiler maps it to JSONPath under the hood. Authors who prefer JSONPath directly can write `r @@ "$.relationship_type == \"violation\""` once that surface is added.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-filters-jsonpath-1 | JSON Field Detection | Proposed | The compiler identifies JSON-field paths by inspecting the bound model's field types and routes them to JSONPath translation. | |
+| req-grid-traversal-lang-filters-jsonpath-2 | Dotted Path Translates To JSONPath | Proposed | Existing `properties.<key>` and `properties.<key>.<key>` dotted forms compile to equivalent JSONPath expressions and are evaluated by Postgres `jsonb_path_match`. | Subsumes filters-4. |
+| req-grid-traversal-lang-filters-jsonpath-3 | Bracketed Keys Supported | Proposed | `dimensions["tap.graph"]` and similar bracket-key forms compile to `$["tap.graph"]`. | Subsumes filters-4. |
+| req-grid-traversal-lang-filters-jsonpath-4 | Positional Array Access | Proposed | `properties.aliases[0].name` compiles to `$.aliases[0].name`. | Subsumes filters-5. |
+| req-grid-traversal-lang-filters-jsonpath-5 | Array Wildcard Access | Proposed | `properties.aliases[*].name = $alias` compiles to a JSONPath expression evaluated server-side; semantics: predicate is true when at least one array member satisfies the comparison. | Subsumes filters-6. |
+| req-grid-traversal-lang-filters-jsonpath-6 | Bind Params Are Quoted Safely | Proposed | `$param` references in gryphon `WHERE` are inlined into JSONPath expressions through parameterized placeholders, not string concatenation. | Security-relevant; prevents jsonpath injection. |
+| req-grid-traversal-lang-filters-jsonpath-7 | Spec References RFC 9535 | Proposed | The spec text replaces the in-house dot/bracket grammar prose with a citation to RFC 9535 as the authority for path syntax. | |
+
+#### Future
+
+- A second surface that lets authors write JSONPath directly in `WHERE` (e.g. `r @@ "$.relationship_type == \"violation\""`) once the translation path is stable.
+- Support for non-Postgres backends via a Python-side JSONPath evaluator. Out of scope until a second backend exists.
+- Expanding `[*]` semantics to support `ALL` (all members satisfy) in addition to the default `ANY` (at least one satisfies). Worth a separate ACID once a real query demands it.
 
 
 ### Predicate Combinators
