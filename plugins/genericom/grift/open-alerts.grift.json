@@ -95,15 +95,15 @@
     },
     {
       "batch_entity": {
-        "entity_id": "019df4db-d2b7-7681-952d-e4bba6cfc044",
+        "entity_id": "019df8e0-a126-7786-b47e-690a52c37065",
         "entity_type": "batch",
-        "name": "Genericom landing layout adds Open Alerts row v0.1.0",
+        "name": "Genericom landing layout v0.2.0",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.genericom",
-        "name": "Genericom landing layout adds Open Alerts row v0.1.0",
-        "description": "Updates the Genericom Page layout to a three-row stack: KPI strip on top (auto), graph (1fr), Open Alerts table beneath (auto). Loads after pages-kpi-strip so this version wins."
+        "name": "Genericom landing layout v0.2.0",
+        "description": "Republishes the Genericom Page layout as a three-row stack: finding strip on top (auto), graph (1fr), Open Alerts table beneath (auto). v0.2.0 renames the top slot from 'kpi' to 'finding-strip' to match the panel-type rename; the matching USES_PANEL hotlink update is in pages-finding-strip.grift.json's v0.5.0 batch — both must land in the same import pass."
       },
       "nodes": [
         {
@@ -121,7 +121,7 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1": {"panel-id": "kpi", "height": "auto"},
+                    "row-1": {"panel-id": "finding-strip", "height": "auto"},
                     "row-2": {"panel-id": "main", "height": "1fr"},
                     "row-3": {"panel-id": "alerts", "height": "auto"}
                   }

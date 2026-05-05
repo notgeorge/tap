@@ -1,0 +1,84 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019df8e0-a126-7786-b47e-6909647ffe0f",
+        "entity_type": "batch",
+        "name": "Genericom Finding Strip panel + edge v0.5.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom Finding Strip panel + edge v0.5.0",
+        "description": "Seeds the Finding Strip panel instance for the Genericom landing page (slot 'finding-strip'). v0.5.0: slot rename 'kpi' → 'finding-strip' to match the panel-type rename; both this batch and the open-alerts page-layout batch must land together so the page-panels hotlink stays exact-match. Tile config unchanged from v0.4.0: two verdict-scoped tiles (Passing green + Violations red) using the inline edge property filter."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019dd200-0000-7000-8000-000000000050",
+            "entity_type": "panel",
+            "name": "Genericom Finding Strip",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "genericom-finding-strip",
+            "name": "Genericom Finding Strip",
+            "view": "fedramp_20x_ksi/panels/finding_strip.html",
+            "editor_view": "",
+            "config": {
+              "hide_header": true,
+              "tiles": [
+                {
+                  "label": "Passing",
+                  "color": "#15803d",
+                  "value_field": "count",
+                  "mode": "sum",
+                  "query": [
+                    "MATCH (e)-[:HAS_FINDING]->(f:finding)-[:RELATED_INDICATOR {relationship_type: \"passing\"}]->(i:ksi_indicator)",
+                    "WHERE f.status = \"open\"",
+                    "RETURN e.entity_id AS entity_id, COUNT(f) AS count"
+                  ]
+                },
+                {
+                  "label": "Violations",
+                  "color": "#9E3A3A",
+                  "value_field": "count",
+                  "mode": "sum",
+                  "query": [
+                    "MATCH (e)-[:HAS_FINDING]->(f:finding)-[:RELATED_INDICATOR {relationship_type: \"violation\"}]->(i:ksi_indicator)",
+                    "WHERE f.status = \"open\"",
+                    "NOT EXISTS {",
+                    "  MATCH (x:exception)-[:COVERS_FINDING]->(f)",
+                    "  WHERE x.status = \"active\"",
+                    "}",
+                    "RETURN e.entity_id AS entity_id, COUNT(f) AS count"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019dd200-0000-7000-8000-000000000052",
+            "entity_type": "edge",
+            "name": "Page USES_PANEL Finding Strip",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6685b8ca028",
+            "to_entity_id": "019dd200-0000-7000-8000-000000000050",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "finding-strip"}}
+          }
+        }
+      ]
+    }
+  ]
+}

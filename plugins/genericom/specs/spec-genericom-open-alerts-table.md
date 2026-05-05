@@ -100,7 +100,7 @@ The Genericom page (`/genericom`, slug `/genericom`) layout is extended from a s
 
 The page-layout JSON schema accepts `"auto"` row heights as a first-class option (per `spec-web-page.md` `req-web-page-layout`); the renderer translates `"auto"` rows to `flex: 0 0 auto`. No schema change was required.
 
-The Genericom landing layout was already established by `pages-kpi-strip.grift.json` as a 2-row stack (KPI strip auto, graph 1fr). The Open Alerts implementation adds a third batch — in `open-alerts.grift.json` — that re-publishes the layout as a 3-row stack: KPI (auto) → graph (1fr) → alerts (auto). Bundle order in the manifest places `open-alerts` after `pages-kpi-strip` so the alerts patch wins.
+The Genericom landing layout was already established by `pages-finding-strip.grift.json` as a 2-row stack (finding strip auto, graph 1fr). The Open Alerts implementation adds a third batch — in `open-alerts.grift.json` — that re-publishes the layout as a 3-row stack: finding strip (auto) → graph (1fr) → alerts (auto). Bundle order in the manifest places `open-alerts` after `pages-finding-strip` so the alerts patch wins. The top slot is named `finding-strip`; the panel was previously called the *KPI Strip* and the slot `kpi`, both renamed in lockstep when the verdict vocabulary landed.
 
 A known visual artifact: when the table is short (e.g. 8 rows on a 900px viewport), the `1fr` graph row competes with the `auto` alerts row for vertical space and the graph compresses. The page does not yet pin the graph to a viewport-anchored minimum height. For long tables the page scrolls correctly; for the Anwar demo the compressed-graph behavior is acceptable. A graph viewport-min-height fix is deferred to Future Work.
 
