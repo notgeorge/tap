@@ -123,6 +123,11 @@ body:has(.tap-panel--genericom-open-alerts) .tap-panel-slot[data-row-height="1fr
     color: #075985;
 }
 
+.genericom-ksi-rel--passing {
+    background: #d1fae5;
+    color: #065f46;
+}
+
 .genericom-ksi-rel--related,
 .genericom-ksi-rel--remediation {
     background: #f1f5f9;

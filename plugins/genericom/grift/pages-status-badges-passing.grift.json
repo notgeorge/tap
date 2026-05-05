@@ -1,0 +1,163 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019df86d-8da6-74ea-a63c-3cfa18f37f96",
+        "entity_type": "batch",
+        "name": "Genericom projection v0.6.3",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom projection v0.6.3",
+        "description": "Splits the alert badge into verdict-scoped sets: red 'alert' counts only findings whose RELATED_INDICATOR.relationship_type=violation; new green 'passing' badge counts findings whose relationship_type=passing. Re-publishes the existing open-findings-per-entity search with a violation filter, adds a new passing-findings-per-entity search, and updates the AWS top-level projection's status_badges config to carry both sets."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6787fdeac70",
+            "entity_type": "search",
+            "name": "Open Violations Per Entity (Not Covered By Active Exception)",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Open Violations Per Entity (Not Covered By Active Exception)",
+            "description": "Counts open findings per entity whose RELATED_INDICATOR.relationship_type='violation' and which are not covered by an active exception. Drives the red status badge on the AWS top-level projection.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": [
+                "MATCH (e)-[:HAS_FINDING]->(f:finding)-[:RELATED_INDICATOR {relationship_type: \"violation\"}]->(i:ksi_indicator)",
+                "WHERE f.status = \"open\"",
+                "NOT EXISTS {",
+                "  MATCH (x:exception)-[:COVERS_FINDING]->(f)",
+                "  WHERE x.status = \"active\"",
+                "}",
+                "RETURN e.entity_id AS entity_id, COUNT(f) AS count"
+              ]
+            },
+            "max_limit": 1000
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019df854-3047-7632-ac0c-8bb12cca20fd",
+            "entity_type": "search",
+            "name": "Passing Findings Per Entity",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Passing Findings Per Entity",
+            "description": "Counts open findings per entity whose RELATED_INDICATOR.relationship_type='passing'. Drives the green status badge on the AWS top-level projection.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": [
+                "MATCH (e)-[:HAS_FINDING]->(f:finding)-[:RELATED_INDICATOR {relationship_type: \"passing\"}]->(i:ksi_indicator)",
+                "WHERE f.status = \"open\"",
+                "RETURN e.entity_id AS entity_id, COUNT(f) AS count"
+              ]
+            },
+            "max_limit": 1000
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
+            "entity_type": "projection",
+            "name": "Genericom AWS Top-Level Projection",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Genericom AWS Top-Level Projection",
+            "description": "Bounded-layer nested projection: account -> vpc -> subnet -> resource, plus route53 inside account. Carries verdict-scoped status badges: red 'alert' for violations (with click-through to a detail info window), green 'passing' for passing findings.",
+            "definition": {
+              "node_style": "icon-badge",
+              "min_zoom": "fit",
+              "lock_nodes": true,
+              "elevations": [
+                "019dd145-03b3-721b-acd1-2a7454c85ea1"
+              ],
+              "default_elevation_id": "019dd145-03b3-721b-acd1-2a7454c85ea1",
+              "status_badges": {
+                "refresh_seconds": 0,
+                "badge_sets": [
+                  {
+                    "name": "alert",
+                    "color": "#9E3A3A",
+                    "text_color": "#F5E6E3",
+                    "population": {
+                      "type": "search",
+                      "search_id": "019dd143-3e8f-73e4-b0fa-e6787fdeac70",
+                      "inputs": {}
+                    },
+                    "info_window": {
+                      "search_id": "019dd143-3e8f-73e4-b0fa-e6799e37bc63",
+                      "inputs": {}
+                    }
+                  },
+                  {
+                    "name": "passing",
+                    "color": "#15803d",
+                    "text_color": "#ecfdf5",
+                    "population": {
+                      "type": "search",
+                      "search_id": "019df854-3047-7632-ac0c-8bb12cca20fd",
+                      "inputs": {}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019df854-3047-7632-ac0c-8bb27c8c1de7",
+            "entity_type": "edge",
+            "name": "Projection USES_ELEVATION aws-top-level (v0.6.0)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
+            "to_entity_id": "019dd145-03b3-721b-acd1-2a7454c85ea1",
+            "edge_type": "USES_ELEVATION",
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-elevations",
+                "value": "019dd145-03b3-721b-acd1-2a7454c85ea1"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019df854-3047-7632-ac0c-8bb37cba8f0a",
+            "entity_type": "edge",
+            "name": "Projection USES_DEFAULT_ELEVATION aws-top-level (v0.6.0)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
+            "to_entity_id": "019dd145-03b3-721b-acd1-2a7454c85ea1",
+            "edge_type": "USES_DEFAULT_ELEVATION",
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-default-elevation",
+                "value": "019dd145-03b3-721b-acd1-2a7454c85ea1"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
