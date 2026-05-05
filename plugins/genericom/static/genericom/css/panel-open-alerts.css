@@ -133,3 +133,13 @@ body:has(.tap-panel--genericom-open-alerts) .tap-panel-slot[data-row-height="1fr
     background: #f1f5f9;
     color: #334155;
 }
+
+/* Finding title link — drill-through to /fedramp-ksi/finding profile page. */
+.genericom-finding-link {
+    color: #475c7a;
+    text-decoration: none;
+    font-weight: 500;
+}
+.genericom-finding-link:hover {
+    text-decoration: underline;
+}

@@ -21,6 +21,20 @@
         }
     }
 
+    function titleCellFormatter(cell) {
+        var row = cell.getRow().getData();
+        var title = cell.getValue() || "";
+        var fid = row.finding_id || "";
+        if (!fid) {
+            return title;
+        }
+        var a = document.createElement("a");
+        a.className = "genericom-finding-link";
+        a.href = "/fedramp-ksi/finding?entity_id=" + encodeURIComponent(fid);
+        a.textContent = title;
+        return a;
+    }
+
     function ksiCellFormatter(cell) {
         const row = cell.getRow().getData();
         const code = row.ksi_code || "";
@@ -108,7 +122,7 @@
             groupHeader: groupHeaderFormatter,
             groupStartOpen: true,
             columns: [
-                { title: "Title", field: "title", widthGrow: 1, headerSort: true },
+                { title: "Title", field: "title", widthGrow: 1, headerSort: true, formatter: titleCellFormatter },
                 {
                     title: "Description",
                     field: "description",

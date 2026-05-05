@@ -167,6 +167,7 @@ def _build_rows(envelope: dict[str, Any]) -> list[dict[str, Any]]:
         created_at = ent.get("created_at")
         rows.append(
             {
+                "finding_id": finding_id,
                 "title": ent.get("name") or finding_body.get("name") or "",
                 "system_name": parent_ent.get("name")
                 or (parent.get("node") or {}).get("name")
