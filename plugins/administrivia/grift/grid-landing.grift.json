@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019d6590-cafb-7069-b54c-3da3f8993a37",
+        "entity_id": "019df989-91d8-760a-bf46-31b01fd4778a",
         "entity_type": "batch",
-        "name": "TAP grid landing v0.1.0",
+        "name": "Administrivia page v0.2.0",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.administrivia",
-        "name": "TAP grid landing v0.1.0",
-        "description": "Default /grid landing page, searches, layout, and panels for TAP administration."
+        "name": "Administrivia page v0.2.0",
+        "description": "Administrivia admin page at /administrivia (renamed from /grid). Surfaces the grid-overview graph and the all-entities table. v0.2.0 drops the landing_page entity + USES_LANDING_PAGE edge — administrivia is no longer the site landing; that role moves to genericom (see plugins/genericom/grift/pages.grift.json batch 'Genericom landing page v0.1.0')."
       },
       "nodes": [
         {
@@ -98,29 +98,17 @@
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7812270b36d",
             "entity_type": "page",
-            "name": "Grid",
+            "name": "Administrivia",
             "dimensions": {"tap.graph": "web"}
           },
           "node": {
-            "name": "Grid",
-            "slug": "/grid",
+            "name": "Administrivia",
+            "slug": "/administrivia",
             "layout": {
               "columns": {
                 "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "graph"}, "row-2": {"panel-id": "nodes"}}}
               }
             }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019dd143-3e8f-73e4-b0fa-e782fe0fd486",
-            "entity_type": "landing_page",
-            "name": "Default",
-            "dimensions": {"tap.graph": "web"}
-          },
-          "node": {
-            "name": "Default",
-            "description": "Default TAP landing page."
           }
         }
       ],
@@ -207,20 +195,6 @@
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7806fa99ee8",
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "nodes"}}
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019dd143-3e8f-73e4-b0fa-e7894f4af21e",
-            "entity_type": "edge",
-            "name": "USES_LANDING_PAGE",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e782fe0fd486",
-            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7812270b36d",
-            "edge_type": "USES_LANDING_PAGE",
-            "properties": {}
           }
         }
       ]

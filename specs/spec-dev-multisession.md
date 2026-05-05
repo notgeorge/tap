@@ -42,6 +42,7 @@ Status: `Implemented`
 - `WEB_PORT` — host port mapped to Django container `8000`. Default `8000`.
 - `POSTGRES_PORT` — host port mapped to Postgres container `5432`. Default `5432`.
 - `TAP_GRID_ID` — installation identity. Default the current hardcoded UUID; spawn script (Phase 2) generates a new one per session.
+- `TAP_PRODUCT_NAME` — product name shown in the UI title bar, header, and `<title>` element. Default `"TAP"`. Set per-session in `.env.local` (e.g. `RAMPART`) for branded demo instances; the value is read by `tap_web/context_processors.py` and exposed to every template as `{{ product_name }}`.
 
 #### Implementation
 - `docker-compose.yml` uses `${VAR:-default}` substitution syntax so the file remains valid with no `.env` present.
