@@ -1,0 +1,38 @@
+{% load static %}
+<div class="tap-panel tap-panel--instance-hero">
+{% if hero_error %}
+<div class="instance-hero-error">{{ hero_error }}</div>
+{% elif hero %}
+<header class="instance-hero">
+    <h1 class="instance-hero-name">{{ hero.name }}</h1>
+</header>
+<dl class="instance-hero-identity">
+    <div class="instance-hero-identity-item">
+        <dt>Type</dt>
+        <dd>{% if hero.instance_type %}{{ hero.instance_type }}{% else %}<span class="instance-hero-empty">—</span>{% endif %}</dd>
+    </div>
+    <div class="instance-hero-identity-item">
+        <dt>Account</dt>
+        <dd>{% if hero.account %}{{ hero.account }}{% else %}<span class="instance-hero-empty">—</span>{% endif %}</dd>
+    </div>
+    <div class="instance-hero-identity-item">
+        <dt>VPC</dt>
+        <dd>{% if hero.vpc %}{{ hero.vpc }}{% else %}<span class="instance-hero-empty">—</span>{% endif %}</dd>
+    </div>
+    <div class="instance-hero-identity-item">
+        <dt>Subnet</dt>
+        <dd>{% if hero.subnet %}{{ hero.subnet }}{% else %}<span class="instance-hero-empty">—</span>{% endif %}</dd>
+    </div>
+    <div class="instance-hero-identity-item instance-hero-identity-item--ips">
+        <dt>IPs</dt>
+        <dd>
+            {% if hero.ips %}
+                {% for ip in hero.ips %}<span class="instance-hero-ip">{{ ip }}</span>{% if not forloop.last %} {% endif %}{% endfor %}
+            {% else %}
+                <span class="instance-hero-empty">—</span>
+            {% endif %}
+        </dd>
+    </div>
+</dl>
+{% endif %}
+</div>

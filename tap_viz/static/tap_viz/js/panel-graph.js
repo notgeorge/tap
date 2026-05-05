@@ -492,7 +492,7 @@ function initGraph(panelId) {
                     "curve-style": "bezier",
                     "label": "data(label)",
                     "font-size": "9px",
-                    "color": "#64748b",
+                    "color": "#000000",
                 },
             },
             {
@@ -625,6 +625,37 @@ function initGraph(panelId) {
                 selector: "node[fill_color]",
                 style: {
                     "background-color": "data(fill_color)",
+                    "background-opacity": 1,
+                    "border-color": "data(border_color)",
+                    "border-width": 2,
+                    "color": "data(label_color)",
+                },
+            },
+            {
+                // Compound viewport-parents with a model-level fill color.
+                // Cytoscape state pseudo-classes (`:parent`) have higher
+                // specificity than plain attribute selectors, so the per-model
+                // palette must be re-asserted with state-level specificity to
+                // win over the compound-parent default opacity 0.08.
+                selector: ":parent[fill_color]",
+                style: {
+                    "background-color": "data(fill_color)",
+                    "background-opacity": 1,
+                    "border-color": "data(border_color)",
+                    "border-width": 2,
+                    "color": "data(label_color)",
+                },
+            },
+            {
+                // Compound viewport-parents with a model-level fill color.
+                // Compound (`:parent`) nodes get aggressively-opacity-reduced
+                // background by default; for nodes that ship a per-model fill
+                // color we re-assert it here with `:parent[fill_color]` so the
+                // palette wins over the compound default.
+                selector: ":parent[fill_color]",
+                style: {
+                    "background-color": "data(fill_color)",
+                    "background-opacity": 1,
                     "border-color": "data(border_color)",
                     "border-width": 2,
                     "color": "data(label_color)",

@@ -104,8 +104,14 @@ export async function execute(context) {
         "border-color": "#2B5783",
         "border-width": 3,
         "background-color": "#5E89B2",
-        "background-opacity": 0.08,
-        "text-margin-y": -4,
+        "background-opacity": 0.55,
+        // Anchor EC2 name renders outside-top in the dark accent color so
+        // it sits above the viewport-parent's bordered header rather than
+        // overlapping the children inside.
+        "text-valign": "top",
+        "text-halign": "center",
+        "text-margin-y": -10,
+        "color": "#2B5783",
         "font-size": 13,
         "z-index": 0,
         "z-index-compare": "manual",
@@ -162,21 +168,30 @@ export async function execute(context) {
                 ports.push(cy.getElementById(e.data("source")));
             }
         });
-        const listening = ports.filter((p) => p.data("port_number") != null)
+        // A port is a "listening" port when something LISTENS_ON it (regardless
+        // of whether the port_number field happens to be populated). Anything
+        // else hanging off the interface is treated as an ephemeral client
+        // port and rendered with a dashed outline.
+        const listenedSet = new Set();
+        cy.edges(`[label = "LISTENS_ON"]`).forEach((e) => {
+            listenedSet.add(e.data("target"));
+        });
+        const listening = ports.filter((p) => listenedSet.has(p.id()))
             .sort((a, b) => (a.data("port_number") || 0) - (b.data("port_number") || 0));
-        const client = ports.filter((p) => p.data("port_number") == null);
+        const client = ports.filter((p) => !listenedSet.has(p.id()));
         const totalPorts = listening.length + client.length;
         const ifaceH = Math.max(80, totalPorts * 34 + (client.length > 0 ? 20 : 0) + 30);
 
-        iface.style({width: 55, height: ifaceH, "background-opacity": 0.12, "border-width": 1, "font-size": 9});
+        iface.style({width: 55, height: ifaceH, "background-opacity": 0.45, "border-width": 1, "font-size": 9});
         iface.position({x: L + 50, y: T + 80 + idx * (ifaceH + 30)});
 
         const px = iface.position().x;
         let py = iface.position().y - ifaceH / 2 + 24;
 
-        // Listening ports: solid circles, stacked vertically.
+        // Listening ports: solid circles, stacked vertically. Bumped
+        // z-index so they render above the interface container.
         listening.forEach((p) => {
-            p.style({width: 24, height: 24, shape: "ellipse", "font-size": 8});
+            p.style({width: 24, height: 24, shape: "ellipse", "font-size": 8, "z-index": 30});
             p.position({x: px, y: py});
             py += 32;
         });
@@ -185,7 +200,7 @@ export async function execute(context) {
         if (client.length > 0) {
             py += 12;
             client.forEach((p) => {
-                p.style({width: 20, height: 20, shape: "ellipse", "border-style": "dashed", "border-width": 2, "font-size": 7});
+                p.style({width: 20, height: 20, shape: "ellipse", "border-style": "dashed", "border-width": 2, "font-size": 7, "z-index": 30});
                 p.position({x: px, y: py});
                 py += 28;
             });
@@ -302,6 +317,110 @@ export async function execute(context) {
             }
         });
 
+    // --- Wrap the focused EC2 + siblings in account/VPC viewport-parents ---
+    // Subnets aren't shown in this projection (the user has explicitly asked
+    // to skip the subnet tier). Sibling EC2 instances inside the same VPC
+    // render as compact leaf nodes to the right of the focused one. Account
+    // and VPC compound parents are added via cytoscape's native nesting
+    // (data.parent on children) so they auto-resize to encompass everything.
+    const subnetNodes = cy.nodes('[entity_type="aws_subnet"]');
+    subnetNodes.addClass("tap-elevation-hidden");
+    subnetNodes.connectedEdges().addClass("tap-elevation-hidden");
+
+    const vpcNode = cy.nodes('[entity_type="aws_vpc"]').first();
+    const accountNode = cy.nodes('[entity_type="aws_account"]').first();
+
+    // The relevance/elevation pass earlier in this function hides everything
+    // not reachable from the focused EC2 via HOSTS/ATTACHED_TO/etc. The VPC
+    // and account aren't part of that traversal so they need the
+    // elevation-hidden class explicitly stripped before they can render.
+    [vpcNode, accountNode].forEach((nn) => {
+        if (nn.length > 0) nn.removeClass("tap-elevation-hidden");
+    });
+
+    if (vpcNode.length > 0) {
+        vpcNode.addClass("tap-viewport-parent");
+        vpcNode.style({
+            "background-color": "#e8f5e9",
+            "background-opacity": 1,
+            "border-color": "#2e7d32",
+            "border-width": 2,
+            "border-opacity": 0.55,
+            "text-valign": "top",
+            "text-halign": "center",
+            "text-margin-y": -8,
+            "color": "#2e7d32",
+            "font-size": 11,
+            "padding": 24,
+        });
+
+        // Sibling EC2 instances are explicitly excluded from this projection
+        // (the focused EC2 is the only host shown). Hide any that the search
+        // happens to surface so they don't render as stray nodes inside the
+        // VPC.
+        cy.nodes('[entity_type="aws_ec2_instance"]')
+            .filter((n) => n.id() !== anchorId)
+            .addClass("tap-elevation-hidden");
+
+        ec2.move({parent: vpcNode.id()});
+
+        // VPC-scoped neighbours that the focused EC2 connects to (ALB,
+        // RDS, ElastiCache/Redis) along with their associated TCP
+        // connections, ports, and IP addresses are positioned absolutely
+        // by the EC2-internal layout above. Re-parent them under the VPC
+        // compound parent so the VPC's bounding box visually encompasses
+        // them. Their absolute positions stay; only the parent assignment
+        // changes.
+        const VPC_NEIGHBOR_TYPES = new Set([
+            "aws_alb",
+            "aws_rds_instance",
+            "aws_elasticache_cluster",
+            "tcp_connection",
+        ]);
+        cy.nodes().forEach((n) => {
+            if (n.id() === anchorId) return;
+            if (n.hasClass("tap-elevation-hidden")) return;
+            const t = n.data("entity_type");
+            if (VPC_NEIGHBOR_TYPES.has(t)) {
+                n.move({parent: vpcNode.id()});
+            }
+        });
+        // Remote ports and IPs that hang off the VPC-scoped services also
+        // belong inside the VPC box visually. They were already positioned
+        // by the layout above; re-parent them under the VPC.
+        cy.nodes('[entity_type="port"]').forEach((p) => {
+            if (hosted.has(p.id())) return; // ports hosted by the focused EC2
+            if (p.hasClass("tap-elevation-hidden")) return;
+            p.move({parent: vpcNode.id()});
+        });
+        cy.nodes('[entity_type="ip_address"]').forEach((ip) => {
+            if (hosted.has(ip.id())) return;
+            if (ip.hasClass("tap-elevation-hidden")) return;
+            // The remote-side IPs (RDS writer, Redis endpoint) live with
+            // their VPC neighbours; the EC2's own interface IPs are
+            // hosted children and stay with the EC2.
+            ip.move({parent: vpcNode.id()});
+        });
+
+        if (accountNode.length > 0) {
+            accountNode.addClass("tap-viewport-parent");
+            accountNode.style({
+                "background-color": "#fff8e1",
+                "background-opacity": 1,
+                "border-color": "#b58c2a",
+                "border-width": 2,
+                "border-opacity": 0.55,
+                "text-valign": "top",
+                "text-halign": "center",
+                "text-margin-y": -8,
+                "color": "#8a6914",
+                "font-size": 11,
+                "padding": 28,
+            });
+            vpcNode.move({parent: accountNode.id()});
+        }
+    }
+
     // --- Edge styling: thick and dark for visibility ---
     cy.edges().not(".tap-elevation-hidden").forEach((e) => {
         e.data("label", "");  // Clear edge type label from data.
@@ -312,6 +431,25 @@ export async function execute(context) {
         "target-arrow-color": "#334155",
         "target-arrow-shape": "triangle",
         "curve-style": "bezier",
+    });
+
+    // After all the compound-parent moves above, the VPC and account boxes
+    // auto-resize to encompass their children. The icon-badge runtime
+    // anchors badges via the host's `position()` + `width()/height()` —
+    // for compound parents those values lag the rendered bounding box, so
+    // explicitly snap the badges to the parent's actual top-left corner
+    // computed from boundingBox(). Run on next frame so cytoscape has
+    // finalized the compound geometry.
+    requestAnimationFrame(() => {
+        [vpcNode, accountNode].forEach((nn) => {
+            if (!nn || nn.length === 0) return;
+            const badge = cy.getElementById("badge:" + nn.id());
+            if (badge.length === 0) return;
+            const bb = nn.boundingBox({includeOverlays: false, includeLabels: false});
+            badge.unlock();
+            badge.position({x: bb.x1, y: bb.y1});
+            badge.lock();
+        });
     });
 
     // --- Fit viewport ---
