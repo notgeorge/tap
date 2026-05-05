@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019df86d-8da6-74ea-a63c-3cfa18f37f96",
+        "entity_id": "019df964-ac0c-7329-b43a-2444529ceba5",
         "entity_type": "batch",
-        "name": "Genericom projection v0.6.3",
+        "name": "Genericom projection v0.7.0",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.genericom",
-        "name": "Genericom projection v0.6.3",
-        "description": "Splits the alert badge into verdict-scoped sets: red 'alert' counts only findings whose RELATED_INDICATOR.relationship_type=violation; new green 'passing' badge counts findings whose relationship_type=passing. Re-publishes the existing open-findings-per-entity search with a violation filter, adds a new passing-findings-per-entity search, and updates the AWS top-level projection's status_badges config to carry both sets."
+        "name": "Genericom projection v0.7.0",
+        "description": "v0.7.0 fills out the verdict-scoped info windows. (1) Re-publishes the existing per-entity detail search to filter by RELATED_INDICATOR.relationship_type='violation' so the alert info-window count matches the alert badge (was: badge=2, info-window=3 on web-a because the detail search was unfiltered). (2) Adds a new 'Passing Findings Detail Per Entity' search and wires it as the passing badge's info_window so clicking the green badge opens a detail panel. (3) Adds human-readable `label` fields to both badge sets ('Violations' and 'Passing') for the info-window section header; the section dot continues to use the badge's color."
       },
       "nodes": [
         {
@@ -67,6 +67,52 @@
         },
         {
           "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e6799e37bc63",
+            "entity_type": "search",
+            "name": "Open Violations Detail Per Entity (Not Covered By Active Exception)",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Open Violations Detail Per Entity (Not Covered By Active Exception)",
+            "description": "Per-entity list of open findings whose RELATED_INDICATOR.relationship_type='violation' and which are not covered by any active exception. Returns one row per finding with entity_id (the host) and name (the finding title). Consumed by the alert (violations) status-badge info window.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": [
+                "MATCH (e)-[:HAS_FINDING]->(f:finding)-[:RELATED_INDICATOR {relationship_type: \"violation\"}]->(i:ksi_indicator)",
+                "WHERE f.status = \"open\"",
+                "NOT EXISTS {",
+                "  MATCH (x:exception)-[:COVERS_FINDING]->(f)",
+                "  WHERE x.status = \"active\"",
+                "}",
+                "RETURN e.entity_id AS entity_id, f.name AS name"
+              ]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019df964-ac0c-7329-b43a-24454863abae",
+            "entity_type": "search",
+            "name": "Passing Findings Detail Per Entity",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Passing Findings Detail Per Entity",
+            "description": "Per-entity list of open findings whose RELATED_INDICATOR.relationship_type='passing'. Returns one row per finding with entity_id (the host) and name (the finding title). Consumed by the passing status-badge info window.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": [
+                "MATCH (e)-[:HAS_FINDING]->(f:finding)-[:RELATED_INDICATOR {relationship_type: \"passing\"}]->(i:ksi_indicator)",
+                "WHERE f.status = \"open\"",
+                "RETURN e.entity_id AS entity_id, f.name AS name"
+              ]
+            }
+          }
+        },
+        {
+          "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e669c05db9a5",
             "entity_type": "projection",
             "name": "Genericom AWS Top-Level Projection",
@@ -74,7 +120,7 @@
           },
           "node": {
             "name": "Genericom AWS Top-Level Projection",
-            "description": "Bounded-layer nested projection: account -> vpc -> subnet -> resource, plus route53 inside account. Carries verdict-scoped status badges: red 'alert' for violations (with click-through to a detail info window), green 'passing' for passing findings.",
+            "description": "Bounded-layer nested projection: account -> vpc -> subnet -> resource, plus route53 inside account. Carries verdict-scoped status badges: red 'alert' for violations and green 'passing' for passing findings, each with click-through to a detail info window labeled 'Violations' or 'Passing' respectively.",
             "definition": {
               "node_style": "icon-badge",
               "min_zoom": "fit",
@@ -88,6 +134,7 @@
                 "badge_sets": [
                   {
                     "name": "alert",
+                    "label": "Violations",
                     "color": "#9E3A3A",
                     "text_color": "#F5E6E3",
                     "population": {
@@ -102,11 +149,16 @@
                   },
                   {
                     "name": "passing",
+                    "label": "Passing",
                     "color": "#15803d",
                     "text_color": "#ecfdf5",
                     "population": {
                       "type": "search",
                       "search_id": "019df854-3047-7632-ac0c-8bb12cca20fd",
+                      "inputs": {}
+                    },
+                    "info_window": {
+                      "search_id": "019df964-ac0c-7329-b43a-24454863abae",
                       "inputs": {}
                     }
                   }
@@ -121,7 +173,7 @@
           "entity": {
             "entity_id": "019df854-3047-7632-ac0c-8bb27c8c1de7",
             "entity_type": "edge",
-            "name": "Projection USES_ELEVATION aws-top-level (v0.6.0)",
+            "name": "Projection USES_ELEVATION aws-top-level",
             "dimensions": {}
           },
           "edge": {
@@ -141,7 +193,7 @@
           "entity": {
             "entity_id": "019df854-3047-7632-ac0c-8bb37cba8f0a",
             "entity_type": "edge",
-            "name": "Projection USES_DEFAULT_ELEVATION aws-top-level (v0.6.0)",
+            "name": "Projection USES_DEFAULT_ELEVATION aws-top-level",
             "dimensions": {}
           },
           "edge": {
