@@ -82,12 +82,15 @@ def resolve_projection_definition(projection_definition: dict[str, Any]) -> dict
             l_def = layout.definition or {}
 
             arrangement_ids: list[str] = l_def.get("arrangements") or []
+            control = l_def.get("arrangement_control") or {}
+            mode = control.get("mode", "all") if isinstance(control, dict) else "all"
             arrangements_out: list[dict[str, Any]] = []
-            for a_id in arrangement_ids:
-                arrangement = Arrangement.objects.filter(entity__id=a_id).first()
-                if arrangement is None:
-                    continue
-                arrangements_out.append(arrangement.definition or {})
+            if mode != "none":
+                for a_id in arrangement_ids:
+                    arrangement = Arrangement.objects.filter(entity__id=a_id).first()
+                    if arrangement is None:
+                        continue
+                    arrangements_out.append(arrangement.definition or {})
 
             layouts_out.append(
                 {

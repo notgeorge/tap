@@ -267,6 +267,8 @@ Execution flow:
 
 Gryphon queries are executed via the standard server-side gryphon execution path (the same path used by searches). The returned entity IDs are then used to look up corresponding nodes in the cy graph. This gives arrangements access to the full gryphon query system — multi-hop, aggregation, edge traversals — without needing a client-side gryphon implementation.
 
+Whether the host Layout's arrangements actually dispatch on a given page load may be controlled by its `arrangement_control` field; see [`req-viz-layout-arrangement-control`](spec-viz-layouts.md#arrangement-control). Arrangements themselves remain unaware of the control field — the decision is applied by the Layout runtime before `executeArrangements()` is called, so individual arrangement definitions never need to opt in or out.
+
 #### Development
 
 Making the arrangement runtime a shared module means any layout — TAP-owned or plugin-shipped — can use arrangements by importing and calling `executeArrangements()`. Using server-side gryphon means arrangements get the full query language for free and stay consistent with how gryphon queries work everywhere else in TAP.

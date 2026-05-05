@@ -16,8 +16,8 @@
  */
 
 // Arrangements are owned by the Layout entity (definition.arrangements) and
-// run by the projection runtime after this module returns. This module only
-// does broad-strokes positioning + post-arrangement-friendly fix-up.
+// run by the projection runtime after this module returns. This module does
+// broad-strokes positioning only.
 
 export async function execute(context) {
     const {cy, trigger_reason, inputs} = context;
@@ -301,47 +301,6 @@ export async function execute(context) {
                 ip.position({x: CX + 200, y: EXT_T});
             }
         });
-
-    // --- Post-arrangement fix-up: visual polish for the demo ---
-    // Even-distribution arrangements snap y but preserve x, so a single-member
-    // arrangement (B3) leaves lo iface and lo port at the same x. Shrink the
-    // lo iface and nudge it left of its port so they sit adjacent on the row.
-    // Also re-shelve files below the program row.
-    const loPort = cy.nodes().filter((n) =>
-        n.data("entity_type") === "port" &&
-        (n.data("label") || "") === ":8000/tcp" &&
-        relevant.has(n.id())
-    );
-    const loIface = cy.nodes().filter((n) =>
-        n.data("entity_type") === "network_interface" &&
-        (n.data("label") || "") === "lo" &&
-        relevant.has(n.id())
-    );
-    if (loPort.length > 0 && loIface.length > 0) {
-        const lp = loPort[0];
-        const li = loIface[0];
-        li.style({width: 28, height: 24, "font-size": 8});
-        li.position({x: lp.position().x - 36, y: lp.position().y});
-    }
-
-    // Re-anchor files below the program row, and pull contained keys with them.
-    if (loPort.length > 0) {
-        const shelfY = loPort[0].position().y + 110;
-        const shelfBaseX = L + 140;
-        files.forEach((f, idx) => {
-            f.position({x: shelfBaseX + idx * 120, y: shelfY});
-        });
-        // Crypto keys: park them on the key file's tile (CONTAINS edges are pruned at this layer).
-        const keyFile = files.find((f) => (f.data("label") || "").endsWith(".key"));
-        if (keyFile) {
-            cy.nodes()
-                .filter((n) => (n.data("entity_type") === "public_key" || n.data("entity_type") === "private_key") && relevant.has(n.id()))
-                .forEach((key, i) => {
-                    key.style({width: 14, height: 14, "z-index": 15});
-                    key.position({x: keyFile.position().x - 16 + i * 16, y: keyFile.position().y + 6});
-                });
-        }
-    }
 
     // --- Edge styling: thick and dark for visibility ---
     cy.edges().not(".tap-elevation-hidden").forEach((e) => {

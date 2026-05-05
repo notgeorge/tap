@@ -94,6 +94,13 @@ _LAYOUT_DEFINITION_SCHEMA: dict[str, Any] = {
             "type": "array",
             "items": {"type": "string", "minLength": 1},
         },
+        "arrangement_control": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "mode": {"type": "string", "enum": ["all", "none"]},
+            },
+        },
     },
 }
 
