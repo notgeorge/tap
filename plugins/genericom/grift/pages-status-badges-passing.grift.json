@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019df964-ac0c-7329-b43a-2444529ceba5",
+        "entity_id": "019dfa59-f529-722d-a06c-80f119adff00",
         "entity_type": "batch",
-        "name": "Genericom projection v0.7.0",
+        "name": "Genericom projection v0.7.1",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.genericom",
-        "name": "Genericom projection v0.7.0",
-        "description": "v0.7.0 fills out the verdict-scoped info windows. (1) Re-publishes the existing per-entity detail search to filter by RELATED_INDICATOR.relationship_type='violation' so the alert info-window count matches the alert badge (was: badge=2, info-window=3 on web-a because the detail search was unfiltered). (2) Adds a new 'Passing Findings Detail Per Entity' search and wires it as the passing badge's info_window so clicking the green badge opens a detail panel. (3) Adds human-readable `label` fields to both badge sets ('Violations' and 'Passing') for the info-window section header; the section dot continues to use the badge's color."
+        "name": "Genericom projection v0.7.1",
+        "description": "v0.7.1 extends both info-window detail searches (violations + passing) to also return f.entity_id AS finding_id. The info-window row renderer uses finding_id to make each row a click-through link to the finding profile page. No badge counts change; this is purely a row-link enrichment."
       },
       "nodes": [
         {
@@ -85,7 +85,7 @@
                 "  MATCH (x:exception)-[:COVERS_FINDING]->(f)",
                 "  WHERE x.status = \"active\"",
                 "}",
-                "RETURN e.entity_id AS entity_id, f.name AS name"
+                "RETURN e.entity_id AS entity_id, f.name AS name, f.entity_id AS finding_id"
               ]
             }
           }
@@ -106,7 +106,7 @@
               "query": [
                 "MATCH (e)-[:HAS_FINDING]->(f:finding)-[:RELATED_INDICATOR {relationship_type: \"passing\"}]->(i:ksi_indicator)",
                 "WHERE f.status = \"open\"",
-                "RETURN e.entity_id AS entity_id, f.name AS name"
+                "RETURN e.entity_id AS entity_id, f.name AS name, f.entity_id AS finding_id"
               ]
             }
           }
