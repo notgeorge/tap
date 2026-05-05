@@ -16,19 +16,19 @@ TAP uses a spec-first development process. Specifications live in `specs/` direc
 
 When you are unsure how something works — models, edges, manifests, icons, validation, GRIFT — read the relevant spec. Do not guess or rely on patterns you've seen elsewhere.
 
-**Key specs to read before starting:**
+**Key specs to read before starting (plugin-scaffolding scope):**
 
 - `tap_plugins/specs/spec-plugin-architecture.md` — plugin structure, repo conventions, skills, package layout
 - `tap_plugins/specs/spec-plugin-manifest-v0.md` — manifest format and validation rules
-- `tap_grid/specs/spec-grid-entity.md` — BaseModel contract, dual schema requirement, field validation, known constraints
 - `tap_grid/specs/spec-grid-icon.md` — icon key format, SVG requirements, vendor brand colors
 - `tap_grid/specs/spec-grift-v0.md` — GRIFT interchange format for seed data
 
 **Key schemas:**
 
 - `tap_grid/schemas/grift-document.schema.json` — machine-readable GRIFT document schema
-- `tap_grid/schemas/edge-definition.schema.json` — machine-readable edge definition schema
 - `tap_plugins/validate/plugin-validation-result.schema.json` — validation output schema
+
+For per-model and per-edge work, the [`add-model`](../../../tap_grid/skills/add-model/SKILL.md) and [`add-edge`](../../../tap_grid/skills/add-edge/SKILL.md) skills carry the canonical spec pointers (BaseModel contract, edge-definition schema, hotlinks, history). Don't duplicate that material here — defer to those skills in Steps 5 and 6.
 
 If a spec seems incomplete or contradicts what you see in code, flag it to the user rather than silently working around it.
 
@@ -107,20 +107,17 @@ The core files every plugin needs:
 
 ## Step 5: Create Models
 
-Read `tap_grid/specs/spec-grid-entity.md` for the full BaseModel contract. It covers:
+For each model the plugin needs, follow the **[`add-model`](../../../tap_grid/skills/add-model/SKILL.md) skill**. It is the canonical procedure for adding a TAP-managed BaseModel — file layout, required class variables, dual-schema contract, manifest registration, migrations, spec sync, and tests are all covered there.
 
-- Required class variables (`ENTITY_TYPE`, `ENTITY_NAME`, `ENTITY_DESCRIPTION`, `ENTITY_ICON`, `DEFAULT_DIMENSIONS`, `FIELD_CRUD_SCHEMA`, `FIELD_VALIDATION_SCHEMA`, `CREATE_REQUIRED`)
-- The dual schema requirement and the difference between `FIELD_CRUD_SCHEMA` and `FIELD_VALIDATION_SCHEMA`
-- Nullable field handling
-- Known field name collisions (e.g. `instance_type` is reserved by django-simple-history)
+Within plugin scaffolding, complete the skill's Step 1 (shape) and Step 2 (model file) for every model before moving on. Step 4 (manifest registration), Step 5 (migrations), and Step 8 (tests) typically run once at the end of plugin scaffolding rather than once per model.
 
-Create one file per model in `models/` and a `models/__init__.py` that re-exports all classes.
+Re-export every model from `models/__init__.py` so `from <plugin>.models import <Model>` works.
 
 ## Step 6: Create Edge Definitions
 
-Read `tap_plugins/specs/spec-plugin-manifest-v0.md` for the edge file format. Validate edge files against `tap_grid/schemas/edge-definition.schema.json`.
+For each edge type the plugin needs, follow the **[`add-edge`](../../../tap_grid/skills/add-edge/SKILL.md) skill**. It is the canonical procedure for adding an edge type — `.edge.json` file shape, source/target rules, property schema design (especially enums), manifest registration, default dimensions, and tests are all covered there.
 
-Create one `.edge.json` file per edge type in `edges/`. Include `default_dimensions` matching the convention agreed in step 1.
+Within plugin scaffolding, complete the skill's Step 1 (shape) and Step 2 (edge file) for every edge before moving on. Step 3 (manifest registration) and Step 7 (tests) typically run once at the end of plugin scaffolding rather than once per edge.
 
 ## Step 7: Create GRIFT Seed Data (if applicable)
 
