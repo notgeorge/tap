@@ -173,6 +173,7 @@ def _build_rows(envelope: dict[str, Any]) -> list[dict[str, Any]]:
                 or (parent.get("node") or {}).get("name")
                 or "",
                 "system_id": parent_id,
+                "summary": finding_body.get("summary") or "",
                 "description": finding_body.get("description") or "",
                 "ksi_code": ksi_code,
                 "ksi_name": ksi_name,

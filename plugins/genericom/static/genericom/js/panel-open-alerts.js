@@ -124,8 +124,8 @@
             columns: [
                 { title: "Title", field: "title", widthGrow: 1, headerSort: true, formatter: titleCellFormatter },
                 {
-                    title: "Description",
-                    field: "description",
+                    title: "Summary",
+                    field: "summary",
                     widthGrow: 3,
                     headerSort: false,
                     formatter: "textarea",

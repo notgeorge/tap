@@ -36,8 +36,8 @@ body:has(.tap-panel--genericom-open-alerts) .tap-panel-slot[data-row-height="1fr
     width: 100%;
 }
 
-/* Description cell: allow text to wrap onto multiple lines. */
-.tap-panel--genericom-open-alerts .tabulator-cell[tabulator-field="description"] {
+/* Summary cell: allow text to wrap onto multiple lines. */
+.tap-panel--genericom-open-alerts .tabulator-cell[tabulator-field="summary"] {
     white-space: normal;
     line-height: 1.4;
 }
