@@ -143,9 +143,15 @@ class Command(BaseCommand):
             total_errors += errors
 
         if total_errors:
-            self.stderr.write(self.style.ERROR(f"Completed with {total_errors} error(s)."))
-        else:
-            self.stdout.write(self.style.SUCCESS(f"Done. {total_imported} bundle(s) imported."))
+            # Raise CommandError so the process exits non-zero. Callers like
+            # scripts/spawn-session.sh rely on this to abort the spawn (and
+            # fire its failure trap) instead of silently leaving the session
+            # in a partially-seeded state.
+            raise CommandError(
+                f"Completed with {total_errors} error(s); "
+                f"{total_imported} bundle(s) imported successfully."
+            )
+        self.stdout.write(self.style.SUCCESS(f"Done. {total_imported} bundle(s) imported."))
 
     # ---------------------------------------------------------------------------
 
