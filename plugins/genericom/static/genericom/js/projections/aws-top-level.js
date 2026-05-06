@@ -180,6 +180,30 @@ export async function execute(context) {
     // Step 4: Wire up hover highlighting for shadow groups.
     initShadowInteraction(cy);
 
+    // Step 5: One-off click-to-navigate from EC2 nodes to the dedicated EC2
+    // instance page. This is a make-it-work hack baked directly into the
+    // projection JS — there is no general per-entity-type interaction system
+    // in projections yet. When that lands (e.g. a registry of click handlers
+    // keyed by entity_type, or a declarative `on_click` slot on entity types),
+    // this block should move there. See spec-genericom-ec2-projection.md
+    // §"AWS Top-Level Click Entry (One-Off)".
+    cy.on("tap", 'node[entity_type="aws_ec2_instance"]', (evt) => {
+        const node = evt.target;
+        if (node.data("_is_shadow")) return;
+        const entityId = node.id();
+        if (entityId) {
+            window.location.href = "/genericom/instance/" + entityId;
+        }
+    });
+    cy.on("mouseover", 'node[entity_type="aws_ec2_instance"]', () => {
+        const c = cy.container();
+        if (c) c.style.cursor = "pointer";
+    });
+    cy.on("mouseout", 'node[entity_type="aws_ec2_instance"]', () => {
+        const c = cy.container();
+        if (c) c.style.cursor = "";
+    });
+
     warnings.forEach((w) => console.warn("[aws-top-level]", w.category, w.message));
 
     if (trigger_reason === "initial_load") {

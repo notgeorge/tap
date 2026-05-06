@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019dd143-3e8f-73e4-b0fa-e635d0c3be66",
+        "entity_id": "019dd200-0000-7000-8000-000000000020",
         "entity_type": "batch",
-        "name": "Genericom projection v0.5.0",
+        "name": "Genericom projection v0.5.1",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.genericom",
-        "name": "Genericom projection v0.5.0",
-        "description": "Wires the alert badge set's info_window to the open-findings-detail Search so clicking a red bubble (or a badged host) opens a detail panel listing the findings."
+        "name": "Genericom projection v0.5.1",
+        "description": "Wires the alert badge set's info_window to the open-findings-detail Search so clicking a red bubble (or a badged host) opens a detail panel listing the findings. Drops the warn badge set."
       },
       "nodes": [
         {
@@ -51,18 +51,6 @@
                       "search_id": "019dd143-3e8f-73e4-b0fa-e6799e37bc63",
                       "inputs": {}
                     }
-                  },
-                  {
-                    "name": "warn",
-                    "color": "#F0DE8B",
-                    "text_color": "#574518",
-                    "population": {
-                      "type": "static_by_node_type",
-                      "rules": [
-                        {"entity_type": "aws_ec2_instance", "count": 3},
-                        {"entity_type": "aws_alb", "count": 1}
-                      ]
-                    }
                   }
                 ]
               }
@@ -75,7 +63,7 @@
           "entity": {
             "entity_id": "019dd149-1216-725b-a0d6-02edfaf33275",
             "entity_type": "edge",
-            "name": "Projection USES_ELEVATION aws-top-level (v0.5.0)",
+            "name": "Projection USES_ELEVATION aws-top-level (v0.5.1)",
             "dimensions": {}
           },
           "edge": {
@@ -95,7 +83,7 @@
           "entity": {
             "entity_id": "019dd149-1216-725b-a0d6-02eead73f350",
             "entity_type": "edge",
-            "name": "Projection USES_DEFAULT_ELEVATION aws-top-level (v0.5.0)",
+            "name": "Projection USES_DEFAULT_ELEVATION aws-top-level (v0.5.1)",
             "dimensions": {}
           },
           "edge": {

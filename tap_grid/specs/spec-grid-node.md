@@ -105,58 +105,65 @@ Consider revisiting whether `batch_id` should move to `Entity` or be handled dif
 RID: `req-grid-node-display`
 Status: `Implemented`
 
-When a node is created, `BaseModel.save()` stores a display name on the backing Entity via `get_display_name()`. This label is visible wherever the Entity is referenced without resolving back to the typed model.
+`BaseModel` is the source of truth for a node's display name; `Entity.name` is a subordinate materialized projection that the framework keeps current on every model save. The projection exists because spine-level queries (search, gryphon, badge counts, edge envelopes) need a name that's reachable without resolving the typed model — but the value is always derived from the typed model, never authored directly on the spine.
 
-#### Status Details
-Implemented in `tap_grid/models.py`. Retroactively specified here.
+#### Source-Of-Truth Contract
+
+- The typed `BaseModel` subclass owns the name. The canonical accessor is `BaseModel.get_name()`, which subclasses override to project from whichever field(s) make sense (typically `self.name`).
+- `Entity.name` is a materialized projection of `get_name()` for cross-type query efficiency. It is read by anything that walks the spine; it is **not** a separate authority.
+- Outside of (a) the create path, (b) the per-save sync described below, and (c) the GRIFT importer's envelope-driven spine sync (see [spec-grid-import-grift.md](spec-grid-import-grift.md) `req-grid-import-grift-batch` "Spine Sync For Replaced Entities"), nothing should write to `Entity.name`. Direct writes will be silently overwritten on the next `BaseModel.save()`.
+
+This is a deliberate sub-service-layer construct: the service layer (`patch_node`, `replace_node`, `create_node`) keeps its "model fields only" contract, and the spine projection follows automatically from the model write. Callers do not need to remember to call a `sync_display_name()` helper, and there is no escape hatch by which model and spine can diverge through normal save paths.
 
 #### Implementation
 `BaseModel` defines:
 
 ```python
-def get_display_name(self) -> str:
-    """Return the display name for the auto-created Entity.
+def get_name(self) -> str:
+    """Return the name for the auto-created Entity.
 
-    Defaults to empty string. Subclasses may override to provide a
+    Defaults to empty string. Subclasses may override to project a
     meaningful label without requiring callers to set it explicitly.
+    The returned value is stored as Entity.name (a materialized projection
+    for cross-type query efficiency).
     """
     return ""
 ```
 
-This method is called inside the auto-creation path of `BaseModel.save()`:
+`BaseModel.save()` writes the projection on **both** code paths:
 
-```python
-self.entity = Entity.objects.create(
-    entity_type=entity_type,
-    display_name=self.get_display_name(),
-    ...
-)
-```
+1. **Create path** — when `entity_id` is None, `Entity.objects.create(name=self.get_name(), ...)` materializes the spine projection alongside the auto-created Entity row.
+2. **Update path** — when `entity_id` is already set, after `super().save(...)` returns, the same `.update()` call that bumps `Entity.updated_at` and `Entity.version` also re-materializes `name` whenever `self.entity.name != self.get_name()`. The projection cannot drift past a single save.
 
-The default returns an empty string. Subclasses override it to produce a meaningful label from their own fields:
+The default `get_name()` returns an empty string. Subclasses override it to produce a meaningful label from their own fields:
 
 ```python
 class Concept(BaseModel):
-    def get_display_name(self) -> str:
+    def get_name(self) -> str:
         return self.summary[:80] if self.summary else ""
 ```
 
-`Edge` overrides `get_display_name()` to produce a structural label: `"{from_entity_id} --[{edge_type}]--> {to_entity_id}"`.
+`Edge` overrides `get_name()` to produce a structural label: `"{from_entity_id} --[{edge_type}]--> {to_entity_id}"`.
 
-The display name is a soft label. It is set at creation time and not automatically kept in sync if relevant fields change afterward. Callers that update fields used in `get_display_name()` should update `entity.display_name` explicitly if the label matters downstream.
+#### History And Signal Behavior
 
-#### Development
+The per-save spine sync uses `Entity.objects.filter(pk=self.entity_id).update(**spine_updates)` — a Django ORM `.update()` query, **not** `entity.save()`. This has two relevant properties for the history subsystem:
+
+- `Entity` is `models.Model` (not `BaseModel`) and has no `HistoricalRecords` declaration. There is no per-Entity history table, so there is no Entity-side history record to write under any code path.
+- Even hypothetically, `.update()` bypasses Django pre/post-save signals entirely, so a `simple_history` `post_save` hook would not fire. Belt-and-suspenders.
+
+Net effect: every `BaseModel.save()` writes exactly one history row (on the typed model's history table, via `simple_history`'s `post_save` on the model itself) and zero on the spine. The spine sync is a pure projection refresh and is invisible to history consumers.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-node-display-1 | Default Returns Empty String | Implemented | `BaseModel.get_display_name()` returns `""` by default. | |
-| req-grid-node-display-2 | Stored on Backing Entity | Implemented | `BaseModel.save()` passes `get_display_name()` as `display_name` when calling `Entity.objects.create()`. | |
-| req-grid-node-display-3 | Subclass Override | Implemented | Subclasses may override `get_display_name()` to return a meaningful label without requiring callers to set it. | `Edge` is the primary example in `tap_grid`. |
-
-#### Future
-Consider a `sync_display_name()` helper or a post-save signal that re-syncs `entity.display_name` when the domain model's relevant fields are updated, so the Entity label stays consistent over the lifetime of the node.
+| req-grid-node-display-1 | Default Returns Empty String | Implemented | `BaseModel.get_name()` returns `""` by default. | |
+| req-grid-node-display-2 | Stored On Create | Implemented | `BaseModel.save()` passes `get_name()` to `Entity.objects.create()` on the create path. | |
+| req-grid-node-display-3 | Subclass Override | Implemented | Subclasses may override `get_name()` to project a meaningful label without requiring callers to set it. | `Edge`, `Finding`, `Concept`, etc. |
+| req-grid-node-display-4 | Synced On Save | Implemented | `BaseModel.save()` re-materializes `Entity.name` from `get_name()` whenever it has drifted. Folded into the existing `updated_at`/`version` `.update()`; no extra round trip. | Drift can only persist for the duration of one save. |
+| req-grid-node-display-5 | No Entity History Side-Effect | Implemented | The spine sync is a `.update()` query that bypasses signals, and `Entity` has no `HistoricalRecords`. No history row is written for the Entity row when the projection refreshes. | History rows continue to be written on the typed model's history table (one per save). |
+| req-grid-node-display-6 | Source-Of-Truth Direction | Implemented | `BaseModel` writes flow into `Entity.name`; the reverse direction is not supported by normal write paths and direct writes to `Entity.name` are overwritten on the next model save. | The GRIFT importer's spine-sync post-pass is the documented exception, scoped to envelope-declared values during import. |
 
 
 ### Node Service Layer

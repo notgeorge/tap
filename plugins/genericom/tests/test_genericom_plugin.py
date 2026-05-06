@@ -48,11 +48,18 @@ class TestGenericomStructure:
 
 
 class TestGenericomManifest:
-    def test_manifest_declares_six_bundles(self):
+    def test_manifest_bundle_count_matches_toml(self):
+        import tomllib
+
+        toml = tomllib.loads((PLUGIN_ROOT / "tap-plugin.toml").read_text())
+        expected_count = len(toml.get("grift", {}))
         result = validate_plugin(PLUGIN_ROOT, level="structure")
         manifest_check = next(c for c in result.checks if c.id == "manifest-parse")
         assert manifest_check.status == "pass"
-        assert any("6 grift bundle(s)" in m.text for m in manifest_check.messages)
+        assert any(
+            f"{expected_count} grift bundle(s)" in m.text
+            for m in manifest_check.messages
+        )
 
     def test_manifest_declares_no_models_or_edges(self):
         """Genericom is data-only — it should not introduce new models or edge types."""

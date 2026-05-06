@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Mint one or more fresh UUIDv7s.
+#
+# Usage:
+#   scripts/uuid7              # one UUIDv7
+#   scripts/uuid7 N            # N UUIDv7s, one per line
+#
+# Implementation: prefers the host's python3 (works on Python 3.14+, where
+# uuid.uuid7 is in the stdlib). Falls back to running it inside the dev
+# container via scripts/dc when the host python is older — useful before the
+# stack starts and on machines without 3.14 installed.
+
+set -euo pipefail
+
+count="${1:-1}"
+
+if python3 -c "import uuid; uuid.uuid7" 2>/dev/null; then
+    python3 -c "
+import sys, uuid
+for _ in range($count):
+    print(uuid.uuid7())
+"
+    exit 0
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+exec scripts/dc exec -T web uv run python -c "
+import uuid
+for _ in range($count):
+    print(uuid.uuid7())
+"

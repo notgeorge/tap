@@ -27,7 +27,11 @@ The projection is built on the computing_core plugin's vendor-neutral primitives
 | req-genericom-ec2-data | [Computing Core Seed Data](#computing-core-seed-data) | Implemented | Both Genericom EC2 instances seeded with computing-core internals |
 | req-genericom-ec2-projection | [Instance Projection Definition](#instance-projection-definition) | In Development | Semantic zone layout with icon-badge exclude_types |
 | req-genericom-ec2-layout | [Instance Layout Strategy](#instance-layout-strategy) | Proposed | Refined layout with semantic placement and nesting |
-| req-genericom-ec2-findings | [Findings Panel](#findings-panel) | Proposed | Findings table below the projection showing alerts for this host |
+| req-genericom-ec2-findings | [Findings Panel](#findings-panel) | In Development | Findings table below the projection showing alerts for this host (page layout v0.3.0) |
+| req-genericom-ec2-hero | [Instance Hero Header](#instance-hero-header) | In Development | Page header with the instance name + verdict pill aggregating its findings (page layout v0.3.0) |
+| req-genericom-ec2-identity | [Instance Identity Card](#instance-identity-card) | In Development | Compact identity strip below the hero (instance type, account, VPC, subnet, IPs) (page layout v0.3.0) |
+| req-genericom-ec2-page-layout | [Page Layout v0.3.0](#page-layout-v030) | In Development | Hero + identity card + graph (height-capped to ~1/3 viewport) + findings panel |
+| req-genericom-ec2-aws-toplevel-click | [AWS Top-Level Click Entry (One-Off)](#aws-top-level-click-entry-one-off) | Implemented | Hard-coded click-to-navigate from AWS top-level EC2 nodes; demo-grade hack pending a generic interaction system |
 
 ---
 
@@ -52,6 +56,65 @@ The EC2 instance detail page is accessible at `/genericom/instance/<entity_id>` 
 | req-genericom-ec2-page-1 | URL Resolves | Implemented | `/genericom/instance/<uuid>` loads the EC2 instance page. | |
 | req-genericom-ec2-page-2 | Entity ID Flows To Search | Implemented | The UUID from the URL is available as `$entity_id` in the panel's seed search. | |
 | req-genericom-ec2-page-3 | Both Instances Work | Implemented | The page renders correctly for both `genericom-prod-web-a` and `genericom-prod-web-c`. | |
+
+---
+
+### AWS Top-Level Click Entry (One-Off)
+----
+RID: `req-genericom-ec2-aws-toplevel-click`
+Status: `Implemented`
+
+Clicking an EC2 instance node on the Genericom AWS top-level page (`/genericom`) navigates the user to that instance's dedicated page (`/genericom/instance/<entity_id>`). This is the demo entry point that connects the spatial overview to the per-instance drilldown.
+
+#### Status Details
+
+This is a deliberate **make-it-work** implementation. There is no general per-entity-type interaction system in TAP projections yet — no registry of click handlers keyed by entity_type, no declarative `on_click` slot on entity types, no shared "node tap → URL template" mechanism that other projections could reuse. Rather than block the demo on building that abstraction, the click handler is wired directly into the AWS top-level projection JS as a hard-coded EC2-specific case.
+
+This shortcut means:
+
+- Adding click navigation for another entity type (e.g. RDS, ALB) requires another hard-coded block in the same JS file.
+- Adding click navigation on a different page that also renders EC2 nodes requires duplicating the handler in that projection's JS.
+- The destination URL template is duplicated in JS rather than discovered from the entity-type definition.
+
+A related side-refactor was needed in `tap_viz`: the previous `panel-graph.js` tap handler also opened the status-badge info-window when a *badged host body* was tapped. That conflicted with this projection's host-body navigation handler — both fired on the same gesture, and only the synchronous `window.location.href` won by virtue of beating the info-window's debounced timer. The fix was to make badge taps the only trigger for the info-window and free up host-body taps for plugins to claim. See `spec-viz-panel.md` `req-viz-panel-click-semantics-7` (the new "Host Body Tap Is Plugin-Owned" rule) and `req-viz-panel-click-semantics-2` (Deprecated, the old "Badged Host Click Opens Info Window" rule). This badge-info window behavior is also tracked in `spec-viz-status-badge-info.md` `req-viz-info-window-trigger`.
+
+#### Implementation
+
+In `plugins/genericom/static/genericom/js/projections/aws-top-level.js`, after the projection runs and shadow interactions are wired up:
+
+```js
+cy.on("tap", 'node[entity_type="aws_ec2_instance"]', (evt) => {
+    const node = evt.target;
+    if (node.data("_is_shadow")) return;          // skip shadow copies
+    const entityId = node.id();
+    if (entityId) {
+        window.location.href = "/genericom/instance/" + entityId;
+    }
+});
+```
+
+Hover affordance: `mouseover` / `mouseout` listeners on the same selector swap `cy.container().style.cursor` to `"pointer"` so the node visually advertises itself as clickable. Shadow copies (`_is_shadow` data flag) are excluded so the affordance and the navigation only apply to the primary subnet-resident node, not the VPC-scope shadow placeholders.
+
+The EC2 page itself (`req-genericom-ec2-page`) already accepts the entity_id via `parameterized_page_view`, so this requirement is purely about the source-side entry point.
+
+#### Refactor Signal
+
+Build a generic projection-interaction system when **any** of:
+
+- A second entity type needs click navigation (RDS, ALB, Route 53 zone, etc.).
+- A second projection needs the same EC2-click behavior.
+- The destination URL needs to vary by deployment, environment, or user permissions.
+
+Likely shape: a registry of `(entity_type, action) → handler` keyed declaratively per entity type (or per projection, scoped to a specific page), with the URL template discovered from the registered entity-type definition rather than hard-coded in JS. Once that exists, this block deletes itself.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-genericom-ec2-aws-toplevel-click-1 | EC2 Tap Navigates | Implemented | Tapping an EC2 instance node on `/genericom` navigates to `/genericom/instance/<entity_id>`. | |
+| req-genericom-ec2-aws-toplevel-click-2 | Pointer Cursor On Hover | Implemented | Hovering an EC2 node shows a pointer cursor. | |
+| req-genericom-ec2-aws-toplevel-click-3 | Shadows Excluded | Implemented | Shadow EC2 placeholders (none in current data, but defensively guarded) do not trigger navigation. | |
+| req-genericom-ec2-aws-toplevel-click-4 | Marked One-Off In Code | Implemented | The handler is annotated in `aws-top-level.js` with a comment pointing back to this spec section as the refactor signal. | |
 
 ---
 
@@ -180,21 +243,98 @@ The layout may use bounded-layer nesting (the EC2 as a viewport parent containin
 ### Findings Panel
 ----
 RID: `req-genericom-ec2-findings`
-Status: `Proposed`
+Status: `In Development`
 
-A findings table below the projection panel shows compliance findings associated with this EC2 instance.
+A findings panel below the graph shows the compliance findings attached directly to this EC2 instance via `HAS_FINDING` edges.
 
 #### Implementation
 
-The page layout should include a second row below the projection panel containing a findings table. The table should show findings linked to entities in the projection — primarily the unencrypted HTTP finding on the ALB-to-EC2 TCP connection.
+- Mounts the new `fedramp-20x-ksi-instance-findings` panel type — see [`spec-fedramp-20x-ksi-instance-findings.md`](../../fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-instance-findings.md).
+- Panel is asset-scoped: it reads `entity_id` from the page query params (the same EC2 entity_id the projection is keyed on) and runs a single gryphon search returning that asset's findings + their evidence + their related KSIs.
+- Each row inline-expands to reveal the finding's description, related-indicator mini-table, and evidence mini-table; the evidence rows preserve their own per-row chevron-to-detail behavior.
+- v0 only walks `HAS_FINDING` directly from the EC2 entity. Findings on hosted programs / ports are out of scope; rollup is documented in the panel spec's Future section.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-genericom-ec2-findings-1 | Findings Table Visible | Proposed | The instance page includes a visible findings table below the projection. | |
-| req-genericom-ec2-findings-2 | Findings Scoped To Host | Proposed | The table shows findings associated with the target EC2 instance and its connected entities. | |
-| req-genericom-ec2-findings-3 | Finding Detail Readable | Proposed | Each finding row shows enough detail to understand the compliance issue. | |
+| req-genericom-ec2-findings-1 | Findings Panel Mounted | In Development | EC2 instance page mounts the `fedramp-20x-ksi-instance-findings` panel below the graph. | |
+| req-genericom-ec2-findings-2 | Asset-Scoped | In Development | Panel is keyed on the EC2 entity_id; only that instance's findings render. | |
+| req-genericom-ec2-findings-3 | Inline Drill-Down | In Development | Each finding row inline-expands to reveal description, related indicators, and evidence. | |
+| req-genericom-ec2-findings-4 | Evidence Chevron Preserved | In Development | The chevron-to-evidence-detail behavior from the dedicated finding profile renders correctly inside the inline detail. | |
+
+---
+
+### Instance Hero Header
+----
+RID: `req-genericom-ec2-hero`
+Status: `In Development`
+
+The EC2 instance page opens with a hero header containing the instance name and a verdict pill aggregating the verdicts of its findings. This mirrors the dedicated finding profile's hero shape so the visual language reads as a family.
+
+#### Implementation
+
+- New `genericom-ec2-instance-hero` panel type owned by the genericom plugin.
+- Reads `entity_id` from the page's query params, runs a small gryphon slice for `(asset:aws_ec2_instance)-[:HAS_FINDING]->(f:finding)-[:HAS_EVIDENCE]->(ev:evidence)` and aggregates verdicts via the same precedence used by `finding_profile._aggregate_verdict`.
+- Renders a single template fragment: instance name + verdict pill (`Passing` / `Violation` / `Informational` / `Open`).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-genericom-ec2-hero-1 | Name Rendered | In Development | Hero displays the instance's `name`. | |
+| req-genericom-ec2-hero-2 | Verdict Pill | In Development | Hero displays a verdict pill aggregating findings + evidence verdicts. | |
+| req-genericom-ec2-hero-3 | No Findings Fallback | In Development | When the instance has zero findings the pill reads `Passing`. | |
+
+---
+
+### Instance Identity Card
+----
+RID: `req-genericom-ec2-identity`
+Status: `In Development`
+
+A compact identity strip beneath the hero summarizes the instance's basic facts so a viewer can orient themselves without scanning the graph: instance type, account, VPC, subnet, primary IPs.
+
+#### Implementation
+
+- Lives in the same `genericom-ec2-instance-hero` panel as the hero header (one panel, two visual sections — hero on top, identity row beneath).
+- The seed search walks one hop in each direction: `aws_ec2_instance -[:RESIDES_IN]-> aws_subnet -[:CONTAINED_BY?]-> aws_vpc -[:BELONGS_TO]-> aws_account`, plus interfaces/IPs via `HOSTS` + `HAS_IP`.
+- Renders a `<dl>` with kebab-cased dt/dd pairs; missing fields render `—`.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-genericom-ec2-identity-1 | Type / Account / VPC / Subnet | In Development | Identity card displays the instance type, account, VPC, and subnet. | |
+| req-genericom-ec2-identity-2 | Primary IP | In Development | Identity card displays at least one IP address per attached interface. | |
+
+---
+
+### Page Layout v0.3.0
+----
+RID: `req-genericom-ec2-page-layout`
+Status: `In Development`
+
+Layout structure (single column, four rows):
+
+```
+col-1 (1fr)
+  row-1: hero        height=auto   (hero panel + identity card)
+  row-2: main        height=1fr    (existing internal graph projection)
+  row-3: findings    height=2fr    (instance findings panel; ~2/3 of the post-hero space)
+```
+
+The graph is constrained to ~1/3 of the viewport via the layout grammar's fractional units: hero takes its intrinsic height, then graph (`1fr`) and findings (`2fr`) split the remainder 1:2. Findings panel content scrolls internally when it overflows the allotted slot.
+
+The page entity_id remains stable across the v0.2.x → v0.3.0 layout bump; the GRIFT batch gets a fresh entity_id per `req-plugin-arch-iterative-dev`.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-genericom-ec2-page-layout-1 | Layout Shape | In Development | Page renders three stacked rows: hero, graph, findings. | |
+| req-genericom-ec2-page-layout-2 | Graph Capped | In Development | Graph row visually occupies ~1/3 of the viewport at typical desktop sizes. | |
+| req-genericom-ec2-page-layout-3 | Page ID Stable | In Development | Page entity_id remains `019dd143-3e8f-73e4-b0fa-e71243cc117c` across the bump. | |
 
 ---
 

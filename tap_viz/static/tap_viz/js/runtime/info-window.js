@@ -133,10 +133,11 @@ async function _loadSections(state, host, badgeSets) {
         const sectionEl = document.createElement("section");
         sectionEl.className = "tap-info-window__section";
         sectionEl.dataset.setName = cfg.name;
+        const headerLabel = cfg.label || cfg.name;
         sectionEl.innerHTML = `
             <div class="tap-info-window__section-header">
                 <span class="tap-info-window__dot"></span>
-                <span class="tap-info-window__set-name">${_escape(cfg.name)}</span>
+                <span class="tap-info-window__set-name">${_escape(headerLabel)}</span>
                 <span class="tap-info-window__count"></span>
             </div>
             <div class="tap-info-window__section-body">
@@ -183,8 +184,18 @@ async function _loadSections(state, host, badgeSets) {
 }
 
 function _renderTable(rows) {
+    // When a row carries finding_id, wrap the label in a click-through to the
+    // finding profile. Styling stays inline (no underline / no link blue) — see
+    // `.tap-info-window__row-link` in panel-graph.css.
     const cells = rows
-        .map((r) => `<tr><td>${_escape(r.name || r.entity_id || "")}</td></tr>`)
+        .map((r) => {
+            const label = _escape(r.name || r.entity_id || "");
+            if (r.finding_id) {
+                const href = `/fedramp-ksi/finding?entity_id=${encodeURIComponent(r.finding_id)}`;
+                return `<tr><td><a class="tap-info-window__row-link" href="${href}">${label}</a></td></tr>`;
+            }
+            return `<tr><td>${label}</td></tr>`;
+        })
         .join("");
     return `
         <table class="tap-info-window__table">

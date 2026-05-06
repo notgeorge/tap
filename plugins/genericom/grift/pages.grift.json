@@ -253,6 +253,49 @@
           }
         }
       ]
+    },
+    {
+      "batch_entity": {
+        "entity_id": "019df989-91d8-760a-bf46-31b1fdafc874",
+        "entity_type": "batch",
+        "name": "Genericom landing page v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.genericom",
+        "name": "Genericom landing page v0.1.0",
+        "description": "Designates the Genericom page (slug /genericom) as the site landing page via a landing_page entity + USES_LANDING_PAGE edge. Replaces the prior administrivia landing (see plugins/administrivia/grift/grid-landing.grift.json batch v0.2.0)."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019df989-91d8-760a-bf46-31b27f18d47b",
+            "entity_type": "landing_page",
+            "name": "Default",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Default",
+            "description": "Default site landing page (Genericom AWS overview)."
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019df989-91d8-760a-bf46-31b3b2021ebb",
+            "entity_type": "edge",
+            "name": "USES_LANDING_PAGE",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019df989-91d8-760a-bf46-31b27f18d47b",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6685b8ca028",
+            "edge_type": "USES_LANDING_PAGE",
+            "properties": {}
+          }
+        }
+      ]
     }
   ]
 }

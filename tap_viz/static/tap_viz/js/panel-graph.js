@@ -492,7 +492,7 @@ function initGraph(panelId) {
                     "curve-style": "bezier",
                     "label": "data(label)",
                     "font-size": "9px",
-                    "color": "#64748b",
+                    "color": "#000000",
                 },
             },
             {
@@ -571,7 +571,10 @@ function initGraph(panelId) {
                 // host nodes showing a numeric count. Fill, text, and border
                 // colors are driven per-set through data attributes set by
                 // status-badges.js. The border is a darker related shade of
-                // the fill, computed client-side. Non-interactive.
+                // the fill, computed client-side. Events ARE enabled so the
+                // badge intercepts its own taps (otherwise clicks pass through
+                // to the host node behind, which now has plugin-owned tap
+                // semantics — see spec-viz-panel.md req-viz-panel-click-semantics-7).
                 selector: "node[_is_status_badge]",
                 style: {
                     "shape": "ellipse",
@@ -589,7 +592,7 @@ function initGraph(panelId) {
                     "text-margin-y": 0,
                     "font-size": 11,
                     "font-weight": "bold",
-                    "events": "no",
+                    "events": "yes",
                     "z-index": 999,
                 },
             },
@@ -622,6 +625,37 @@ function initGraph(panelId) {
                 selector: "node[fill_color]",
                 style: {
                     "background-color": "data(fill_color)",
+                    "background-opacity": 1,
+                    "border-color": "data(border_color)",
+                    "border-width": 2,
+                    "color": "data(label_color)",
+                },
+            },
+            {
+                // Compound viewport-parents with a model-level fill color.
+                // Cytoscape state pseudo-classes (`:parent`) have higher
+                // specificity than plain attribute selectors, so the per-model
+                // palette must be re-asserted with state-level specificity to
+                // win over the compound-parent default opacity 0.08.
+                selector: ":parent[fill_color]",
+                style: {
+                    "background-color": "data(fill_color)",
+                    "background-opacity": 1,
+                    "border-color": "data(border_color)",
+                    "border-width": 2,
+                    "color": "data(label_color)",
+                },
+            },
+            {
+                // Compound viewport-parents with a model-level fill color.
+                // Compound (`:parent`) nodes get aggressively-opacity-reduced
+                // background by default; for nodes that ship a per-model fill
+                // color we re-assert it here with `:parent[fill_color]` so the
+                // palette wins over the compound default.
+                selector: ":parent[fill_color]",
+                style: {
+                    "background-color": "data(fill_color)",
+                    "background-opacity": 1,
                     "border-color": "data(border_color)",
                     "border-width": 2,
                     "color": "data(label_color)",
@@ -772,13 +806,14 @@ function initGraph(panelId) {
 
     // Node tap / double-tap handling.
     //
-    // Single-tap opens the status-badge info window when the target has one
-    // (a badge itself, or a node with active status badges). Double-tap is
-    // the projection runtime's drilldown gesture. Host taps are delayed by
-    // DBL_TAP_WINDOW_MS so a second tap can cancel the info-window open;
-    // badge taps fire immediately since badges are not double-tap targets.
+    // Single-tap on a status badge opens the info window for its host. Tap
+    // on a host node body does NOT open the info window — host-body taps
+    // are reserved for plugins/projections to bind their own behavior on
+    // entity types they own (e.g. the AWS top-level projection navigates
+    // to the EC2 instance page on EC2 body taps).
     //
-    // Two detection channels run in parallel for double-tap so cytoscape's
+    // Double-tap on any node remains the projection runtime's drilldown
+    // gesture. Two detection channels run in parallel so cytoscape's
     // pointer translation quirks can't silently break drilldown across
     // browsers:
     //
@@ -831,27 +866,21 @@ function initGraph(panelId) {
         var node = evt.target;
         if (node.data("_is_badge") || node.data("_is_shadow")) return;
 
-        // Status badge tap → open info window for the host; badges are not
-        // double-tap targets, so fire immediately.
+        // Status badge tap → open info window for the host. Badges are the
+        // only single-tap target that opens the info-window. Fire immediately;
+        // badges are not double-tap targets.
         if (node.data("_is_status_badge")) {
             var hostId = node.data("_status_host");
             var badgeHost = hostId ? cy.getElementById(hostId) : null;
             if (badgeHost && badgeHost.length > 0) {
-                clearTimeout(pendingActionTimer);
-                pendingActionTimer = null;
                 _openInfoWindowForHost(badgeHost);
             }
             return;
         }
 
-        // Host node without active status badges → no-op (unbadged hosts
-        // have no single-click action in v0).
-        if (!node.data("_status_host_active")) {
-            return;
-        }
-
-        // Host node with active status badges → schedule info-window open,
-        // debounced so a double-tap can cancel and drilldown instead.
+        // Host node tap → manual double-tap detection only. Single-tap on a
+        // host body has no built-in action; plugins/projections own that
+        // gesture for entity types they care about.
         var nodeId = node.id();
         var now = Date.now();
         if (nodeId === lastTapNodeId && (now - lastTapTime) < DBL_TAP_WINDOW_MS) {
@@ -860,10 +889,6 @@ function initGraph(panelId) {
         }
         lastTapTime = now;
         lastTapNodeId = nodeId;
-        clearTimeout(pendingActionTimer);
-        pendingActionTimer = setTimeout(function () {
-            _openInfoWindowForHost(node);
-        }, DBL_TAP_WINDOW_MS);
     });
 
     // Firefox fallback: native dblclick with pointer→node hit test.

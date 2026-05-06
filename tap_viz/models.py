@@ -94,6 +94,13 @@ _LAYOUT_DEFINITION_SCHEMA: dict[str, Any] = {
             "type": "array",
             "items": {"type": "string", "minLength": 1},
         },
+        "arrangement_control": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "mode": {"type": "string", "enum": ["all", "none"]},
+            },
+        },
     },
 }
 
@@ -279,6 +286,11 @@ _PROJECTION_DEFINITION_SCHEMA: dict = {
                         "additionalProperties": False,
                         "properties": {
                             "name": {"type": "string", "minLength": 1},
+                            "label": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Human-readable badge-set label used as the info-window section header. Falls back to `name` when absent.",
+                            },
                             "color": {"type": "string", "minLength": 1},
                             "text_color": {"type": "string", "minLength": 1},
                             "info_window": {

@@ -343,6 +343,7 @@ These schemas are normative for structure and basic field validation. Model-spec
 | req-grift-validation | [Validation Rules](#validation-rules) | Implemented | Strict schema and sanity rules |
 | req-grift-seed-ids | [Seed Data ID Convention](#seed-data-id-convention) | Deprecated | Superseded by [spec-grid-uuid-selection.md](spec-grid-uuid-selection.md) and [spec-grift-seed-ids-real-uuid7.md](spec-grift-seed-ids-real-uuid7.md) |
 | req-grift-order | [Canonical Export Ordering](#canonical-export-ordering) | Backlog | Export ordering (no exporter yet) |
+| req-grift-import-deletes | [Import-Time Deletions](#import-time-deletions) | Backlog | Idempotent removal of nodes/edges that disappear from a re-imported batch |
 | req-grift-v0-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Explicit exclusions for this version |
 
 ## Document Format
@@ -747,6 +748,26 @@ Recommended formatting:
 - stable key ordering
 
 These formatting requirements support human readability for type-based plugin data files while still allowing large mixed-type imports.
+
+## Import-Time Deletions
+----
+RID: `req-grift-import-deletes`
+Status: `Backlog`
+
+Today GRIFT import is purely additive: re-importing a bundle creates or updates nodes and edges declared in the JSON, but never reaps entities that were *removed* from the bundle. Operators who need to retire a previously-seeded node (for example, retiring the administrivia `landing_page` after reassigning the landing role to another plugin) must currently follow the JSON change with a one-shot service-layer `delete_node` / `delete_edge_by_entity` call, performed manually via `manage.py shell` or an ad-hoc management command.
+
+This requirement covers a future opt-in mechanism that lets a re-imported batch tombstone entities that were present in the prior import but are absent from the new one. The likely shape, sketched here for reference:
+
+- Import scope is the *batch*, not the bundle: each `batch_entity_id` carries an authoritative list of `entity_id`s that belong to that batch.
+- On re-import, the importer can compare prior batch membership (recorded server-side at import time) against the new bundle and tombstone the difference via the service layer.
+- The behavior is opt-in per bundle (e.g. a `batch_entity.dimensions["grift.reap"] = "strict" | "off"` flag), and never crosses batch boundaries (batch B never reaps entities owned by batch A).
+- Deletes flow through the standard service-layer pipeline so they get history rows, FLIP/provenance, and edge cascade, identical to a hand-written `delete_node` call.
+
+Until this requirement lands, plugin authors removing previously-seeded entities should:
+
+1. Remove the node and any edges referencing it from the bundle JSON.
+2. Bump the batch version + `batch_entity_id` so the change reads as a new batch revision.
+3. Issue a one-shot service-layer delete for the affected `entity_id`(s) (via `manage.py shell` or a plugin-local management command).
 
 ## v0 Non-Goals
 ----

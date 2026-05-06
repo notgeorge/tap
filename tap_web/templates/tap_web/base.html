@@ -17,10 +17,10 @@
             <div class="flex items-center justify-between h-10">
                 <div class="flex items-center space-x-2">
                     <a href="/" class="text-sm font-bold">{{ product_name }}</a>
-                    {% if session_label %}<span class="text-xs font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40" title="Multi-session dev label — see spec-dev-multisession.md">{{ session_label }}</span>{% endif %}
                     {% block header_title %}{% endblock %}
                 </div>
                 <div class="flex items-center" style="gap: 0.75rem;">
+                    {% if session_label %}<span class="text-xs font-mono text-amber-300" title="Multi-session dev label — see spec-dev-multisession.md">[ {{ session_label }} ]</span>{% endif %}
                     <a href="#" class="text-gray-300 hover:text-white" title="History">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="10"/>

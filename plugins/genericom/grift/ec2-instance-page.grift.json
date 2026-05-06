@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019dd143-3e8f-73e4-b0fa-e70d4ecb349e",
+        "entity_id": "019df81c-701f-7638-a065-e00fad1d96f4",
         "entity_type": "batch",
-        "name": "Genericom EC2 instance page v0.1.0",
+        "name": "Genericom EC2 instance page v0.2.2",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.genericom",
-        "name": "Genericom EC2 instance page v0.1.0",
-        "description": "EC2 instance detail page with internal computing-core projection."
+        "name": "Genericom EC2 instance page v0.2.2",
+        "description": "EC2 instance detail page with internal computing-core projection. v0.2.2: arrangement_control.mode='none' — arrangement refinements are wired up but disabled at runtime; broad-strokes JS layout only. Flip to 'all' to re-enable. See req-viz-layout-arrangement-control."
       },
       "nodes": [
         {
@@ -98,14 +98,17 @@
           },
           "node": {
             "name": "genericom-ec2-internal-layout",
-            "description": "Broad-strokes JS layout (interfaces, programs, files, externals) plus three arrangements (alb-ingress-row, internal-app-row, lo-iface-follows-port).",
+            "description": "Broad-strokes JS layout (interfaces, programs, files, externals). Three arrangement refinements (alb-ingress-row, internal-app-row, lo-iface-follows-port) are wired up but disabled at runtime via arrangement_control.mode='none'. Flip to 'all' to re-enable.",
             "definition": {
               "js_file": "plugins/genericom/static/genericom/js/projections/ec2-internal.js",
               "arrangements": [
                 "019dd143-3e8f-73e4-b0fa-e7165f819246",
                 "019dd143-3e8f-73e4-b0fa-e717272ef359",
                 "019dd143-3e8f-73e4-b0fa-e7188a4ecee1"
-              ]
+              ],
+              "arrangement_control": {
+                "mode": "none"
+              }
             }
           }
         },

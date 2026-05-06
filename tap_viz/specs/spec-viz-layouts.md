@@ -32,6 +32,7 @@ Layouts are Cytoscape-oriented. Cytoscape remains the graph runtime that layout 
 | req-viz-layout-artifact | [Layout Artifact](#layout-artifact) | Implemented | A layout is a TAP-managed entity (`tap_viz.models.Layout`) |
 | req-viz-layout-shape | [Layout Shape (v0)](#layout-shape-v0) | Deprecated | Superseded by `req-viz-layout-dual-mode`; inline `{name, js_file}` shape no longer used |
 | req-viz-layout-dual-mode | [Dual-Mode Layout Definition (v1)](#dual-mode-layout-definition-v1) | Implemented | Layout `definition` carries `js_file` (layout_module) and/or `arrangements` (ordered IDs); both optional |
+| req-viz-layout-arrangement-control | [Arrangement Control](#arrangement-control) | In Development | Optional `arrangement_control.mode` (`"all"` \| `"none"`) controls whether referenced arrangements execute on a given page load |
 | req-viz-layout-module-contract | [Module Contract](#module-contract) | Implemented | Layout modules export a standard async execute entrypoint |
 | req-viz-layout-runtime-context | [Runtime Context](#runtime-context) | Implemented | Layouts receive a locked-in minimal runtime context; `trigger_node` is an optional hint, not a core operand |
 | req-viz-layout-capabilities | [Layout Capabilities](#layout-capabilities) | Implemented | Layouts may fetch, mutate, nest, and position the Cytoscape graph; assert scene invariants on entry |
@@ -171,6 +172,92 @@ Existing v0 projections (genericom EC2, LOTR) carry inline `tap_layouts[]` array
 | req-viz-layout-dual-mode-2 | Module runs before arrangements | Implemented | Runtime invokes `js_file`'s `execute()` first, then `executeArrangements()`. | |
 | req-viz-layout-dual-mode-3 | Arrangements hotlink validates | Implemented | `USES_ARRANGEMENT` hotlink remains exact-match against `definition.arrangements`. | Existing behavior, restated for v1. |
 | req-viz-layout-dual-mode-4 | Empty layout warns | Implemented | Layout with neither `js_file` nor `arrangements` produces an `empty_layout` warning at execution. | Not an error — the layout is legal but probably a misconfiguration. |
+
+
+### Arrangement Control
+----
+RID: `req-viz-layout-arrangement-control`
+Status: `In Development`
+
+A Layout's `definition` may carry an optional `arrangement_control` object that controls whether the layout's referenced arrangements actually execute at runtime. The hotlink-validated `arrangements` array continues to define what *can* run; `arrangement_control` defines what *does* run on a given page load. When `arrangement_control` is absent, the layout runs every arrangement in declared order (current behavior).
+
+This requirement exists to give operators a standardized affordance for debugging, demoing, and staging arrangement work without having to delete `USES_ARRANGEMENT` edges, mutate `definition.arrangements`, or edit JS modules. The "arrangements wired up" graph (edges + array) stays stable; the "arrangements that fire today" runtime decision becomes a simple, reversible field edit.
+
+The v0 of this requirement intentionally ships only the coarse on/off control via `mode`. Finer-grained selection (subset filtering, sequencing, conditional execution) is deferred to [Future](#future) and should be added in subsequent requirement iterations only when concrete need surfaces.
+
+#### Implementation
+
+The v1 Layout `definition` shape extends to:
+
+```json
+{
+  "js_file": "plugins/genericom/static/genericom/js/projections/ec2-internal.js",
+  "arrangements": [
+    "<arrangement-entity-id-1>",
+    "<arrangement-entity-id-2>",
+    "<arrangement-entity-id-3>"
+  ],
+  "arrangement_control": {
+    "mode": "all"
+  }
+}
+```
+
+`arrangement_control` is an optional object. When present, its only key is:
+
+- **`mode`** — one of `"all"` | `"none"`. Default: `"all"`.
+  - `"all"`: run every arrangement in `definition.arrangements`, in declared order. Equivalent to omitting `arrangement_control`.
+  - `"none"`: run zero arrangements. The JS module (if any) still runs unaffected.
+
+The `FIELD_VALIDATION_SCHEMA` on the Layout model validates the optional shape: `mode` is one of the two enum values; unknown top-level keys inside `arrangement_control` are rejected at schema time so future expansions of the field are explicit and visible.
+
+#### Hotlink Interaction
+
+`arrangement_control` is a runtime filter only. It does **not** participate in the `USES_ARRANGEMENT` hotlink in any direction:
+
+- `definition.arrangements` continues to define the structural set of arrangement entities the layout depends on, and the `USES_ARRANGEMENT` edge set continues to mirror it exactly.
+- Toggling `mode` requires no edge mutations and no migration; only the JSON `definition` field changes.
+
+This separation preserves the "edges describe what is wired up; runtime decides what fires" boundary established by the dual-mode definition.
+
+#### Runtime Behavior
+
+The Layout runtime resolves `arrangement_control` from `definition` and produces the effective list of arrangements to dispatch:
+
+1. If `arrangement_control` is absent, or `mode == "all"`: effective list = `definition.arrangements`.
+2. If `mode == "none"`: effective list = `[]`. No arrangements run.
+
+The runtime then resolves the arrangement definitions for the effective list and dispatches them via `executeArrangements()`.
+
+Misconfiguration of `arrangement_control` never throws and never blocks the layout's JS module from running. The runtime context exposed to layout modules is unchanged — the control object is consumed by the Layout runtime itself, not by individual layout modules.
+
+#### Development
+
+Putting `arrangement_control` on Layout (rather than on Elevation or Projection) keeps it co-located with `definition.arrangements`, which is the only place the relevant arrangement IDs are declared. An Elevation that needs different arrangement behavior should reference a different Layout entity rather than reach across the boundary to override Layout internals.
+
+`mode == "none"` is the form used during arrangement debugging and during the Anwar demo prep — it disables the declarative polish pass while leaving the broad-strokes JS module untouched.
+
+Shipping only `"all"` and `"none"` first is a deliberate scoping call. Subset selection, sequencing, and conditional execution are all reasonable extensions, but each carries its own design questions (ID-list vs. named-group, ordering semantics, server-side gating); collapsing them into the v0 ACIDs would invite premature design lock-in. The optional-object shape keeps the door open for those extensions without committing to any of them.
+
+#### Future
+
+- **`mode == "include"` (subset filtering)** — run only the arrangement IDs listed in an `include` array, preserving their relative order from `definition.arrangements`. Useful when iterating on a single arrangement in a stack of three or more.
+- **`mode == "exclude"`** — run every arrangement *except* those listed in an `exclude` array. Useful for "everything except this one I'm currently rewriting."
+- **`delays_ms`** — array of non-negative integers, one per effective arrangement, that delays each arrangement by the specified milliseconds before execution. Smallest useful sequencing primitive for staged demos and animation prep.
+- **Per-arrangement input overrides** — a key that lets the layout pass different `inputs` to specific arrangements without writing per-arrangement modules.
+- **Conditional control** — a `mode: "if"` form that runs an arrangement only when a gryphon predicate matches. Powerful, but adds a server query per page load and probably wants its own RID.
+- **Named arrangement groups** — when a single layout grows past ~5 arrangements, a `groups` map (name → ordered ID list) plus `mode: "groups"` becomes a more ergonomic include/exclude unit than enumerating IDs.
+- **Animation timeline** — once arrangement animations land (see [spec-viz-arrangement.md](spec-viz-arrangement.md) `req-viz-arrangement-execution` Future), any sequencing primitive added here should converge with whatever timeline primitive that requirement settles on rather than diverge into a parallel system.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-layout-arrangement-control-1 | Schema validates control object | Implemented | `_LAYOUT_DEFINITION_SCHEMA` accepts an optional `arrangement_control` object whose only allowed key is `mode` (enum: `"all"` \| `"none"`); rejects unknown keys so future extensions are explicit. | `tap_viz/models.py` |
+| req-viz-layout-arrangement-control-2 | Absent control runs all | Implemented | When `arrangement_control` is absent, the projection resolver returns every arrangement definition in declared order — unchanged from v1 baseline. | `tap_viz/panels/graph_panel/projection_resolver.py` |
+| req-viz-layout-arrangement-control-3 | Mode `all` runs all | Implemented | When `mode == "all"`, behavior is identical to `arrangement_control` being absent. | Default branch in resolver. |
+| req-viz-layout-arrangement-control-4 | Mode `none` skips arrangements | Implemented | When `mode == "none"`, the resolver emits an empty `arrangements` list for the layout. The layout's JS module (if any) is dispatched unaffected by the client runtime. | Primary debug / kludge mode. |
+| req-viz-layout-arrangement-control-5 | Hotlink unaffected | Implemented | `USES_ARRANGEMENT` hotlink validation continues to mirror `definition.arrangements` exactly; `arrangement_control` is read at resolve time only and does not create, remove, or otherwise affect arrangement edges. | |
 
 
 ### Module Contract

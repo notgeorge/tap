@@ -38,21 +38,21 @@ Click semantics are part of this story. TAP Viz previously navigated to the obje
 RID: `req-viz-info-window-trigger`
 Status: `Implemented`
 
-The info window opens on a single click, on either the status badge itself or on the host node when that host has one or more active status badges.
+The info window opens on a single click on a status badge. Host-body taps no longer trigger the info window — that gesture is reserved for plugins/projections to claim per entity type.
 
 #### Implementation
 
 - A single click on any status badge (`[_is_status_badge]`) opens the info window for that badge's host. The clicked set does not take precedence in v0 — the window shows sections for every badge set configured with an `info_window` block, not just the one that was clicked.
-- A single click on a node that has at least one active status badge opens the same window. A node has "at least one active status badge" when `[_status_host_active]` is set.
-- A single click on a node that has no active status badges does nothing (default Cytoscape selection applies; no navigation, no window).
-- Clicking any badge on a host whose info window is already open closes the window. Clicking the host in the same state also closes it. Reopening it on a different host closes the current one and opens a new one.
+- Host-body single-tap is **not** a trigger. The earlier "single click on a badged host opens the info window" rule was removed in the badge-only-trigger refactor — it conflicted with plugin-owned host-tap actions. See [spec-viz-panel.md](spec-viz-panel.md) `req-viz-panel-click-semantics-2` (Deprecated) and `req-viz-panel-click-semantics-7` (Implemented).
+- A single click on any host that does not have a status badge does nothing (default Cytoscape selection applies; no navigation, no window).
+- Clicking any badge on a host whose info window is already open closes the window. Reopening on a different host closes the current one and opens a new one.
 - Only one info window is open at a time per panel.
 
 #### Development
 
 - The previously-implemented "click to navigate to object viewer" behavior is removed. That removal is formalized in [spec-viz-panel.md](spec-viz-panel.md) (`req-viz-panel-node-nav` → `Deprecated`, superseded by a new `req-viz-panel-click-semantics`).
 - Double-click semantics (elevation transition for projection panels) are preserved and unchanged.
-- Tap debouncing continues to treat the first tap as potentially a double-tap precursor. The info window opens on the delayed single-tap resolution, matching the prior navigation behavior's timing.
+- Badge-tap fires immediately (no debounce). The host-tap debounce machinery is retained only to drive double-tap detection.
 
 #### Future
 

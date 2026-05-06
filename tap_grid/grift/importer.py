@@ -188,6 +188,7 @@ _ERROR_CODES = frozenset(
         "timestamp_in_future",
         "timestamp_order_invalid",
         "entity_type_mismatch",
+        "envelope_payload_name_mismatch",
         "dangling_edge",  # hard error in strict mode; warning surfaced separately in permissive
         "execution_failed",
         "force_reimport_refused_production",
@@ -974,6 +975,42 @@ def _run_preflight(
                 entity_id=node_entity_id,
             )
 
+            # Identity Sanity for redundant identity-bearing fields. The GRIFT
+            # envelope can carry `name` alongside the typed model payload that
+            # also carries `name` (the model's name field is the source of
+            # truth; the envelope's name is the spine projection). When both
+            # are declared, they must agree exactly. Bundles that omit
+            # `entity.name` (or set it empty) are unaffected — the spine
+            # projection is materialized from the model's name on import.
+            # See spec-grid-import-grift.md req-grid-import-grift-preflight
+            # "Identity Sanity".
+            envelope_name = node_obj["entity"].get("name")
+            payload = node_obj.get("node")
+            if (
+                envelope_name
+                and isinstance(payload, dict)
+                and isinstance(payload.get("name"), str)
+                and payload["name"]
+                and envelope_name.strip() != payload["name"].strip()
+            ):
+                issues.append(
+                    _issue(
+                        "envelope_payload_name_mismatch",
+                        (
+                            f"Envelope name {envelope_name!r} does not match "
+                            f"node payload name {payload['name']!r}. The "
+                            f"GRIFT envelope's `name` is a projection of the "
+                            f"typed model's name field; the two must match "
+                            f"exactly when both are declared."
+                        ),
+                        "validation",
+                        f"{node_path}.entity.name",
+                        entity_id=node_entity_id,
+                        batch_entity_id=batch_entity_id,
+                        entity_type=entity_type,
+                    )
+                )
+
         # Validate each edge object.
         for edge_idx, edge_obj in enumerate(batch_container["edges"]):
             edge_path = f"{batch_path}.edges[{edge_idx}]"
@@ -1334,16 +1371,31 @@ def _execute_grift_batch(
             # Build operations: determine create vs replace per entity before executing.
             ops: list[WriteOperation] = []
             op_meta: list[dict[str, Any]] = []  # parallel metadata for error reporting
+            # Spine-sync intents for existing-entity replaces: the service-layer
+            # replace verb leaves Entity spine fields untouched (per its docstring),
+            # but on re-import the bundle's envelope is authoritative for spine
+            # values. We capture the bundle's envelope-side `name` and `dimensions`
+            # for every replace_node target and apply them in a post-pass after
+            # the batch succeeds. See req-grid-import-grift-batch (Spine Sync).
+            replace_spine_intents: list[dict[str, Any]] = []
 
             for node_idx, node_obj in enumerate(batch_container.get("nodes", [])):
                 node_entity_id = node_obj["entity"]["entity_id"]
                 entity_type = node_obj["entity"]["entity_type"]
+                envelope_name = node_obj["entity"].get("name")
                 envelope_dims = node_obj["entity"].get("dimensions") or {}
                 payload = node_obj["node"]
                 node_path = f"{batch_path}.nodes[{node_idx}]"
 
                 if Entity.objects.filter(pk=uuid.UUID(node_entity_id)).exists():
                     ops.append(WriteOperation(verb="replace_node", target=node_entity_id, payload=payload))
+                    replace_spine_intents.append(
+                        {
+                            "entity_id": node_entity_id,
+                            "envelope_name": envelope_name,
+                            "envelope_dims": envelope_dims,
+                        }
+                    )
                 else:
                     ops.append(
                         WriteOperation(
@@ -1427,6 +1479,18 @@ def _execute_grift_batch(
                             )
                         raise _BatchFailed()
 
+                # req-grid-import-grift-batch (Spine Sync): for every successful
+                # replace_node, propagate the bundle's envelope-side spine fields
+                # (name, dimensions) to the Entity row when they differ. The
+                # service-layer replace verb intentionally leaves spine fields
+                # alone, but the GRIFT envelope is the bundle's declared truth on
+                # every import — so on re-import a renamed or re-dimensioned
+                # entity's spine must move with it. Direct Entity.objects.update
+                # is used (not save()) to avoid bumping version on a pure spine
+                # sync and to keep this post-pass cheap.
+                if replace_spine_intents:
+                    _sync_spine_for_replaced_nodes(replace_spine_intents)
+
             # req-grid-import-grift-batch-scoped-sweep: on force re-import,
             # detect entities the previous ingestion of this batch created
             # that are absent in the revised content, and tombstone (or purge)
@@ -1500,6 +1564,56 @@ def _execute_grift_batch(
         ),
         issues,
     )
+
+
+# ---------------------------------------------------------------------------
+# Spine-field sync for replaced nodes (req-grid-import-grift-batch / Spine Sync)
+# ---------------------------------------------------------------------------
+
+
+def _sync_spine_for_replaced_nodes(replace_intents: list[dict[str, Any]]) -> None:
+    """Propagate envelope-side spine fields onto existing Entity rows.
+
+    For each intent in ``replace_intents`` (the bundle's envelope `name` and
+    `dimensions` for an entity that already existed at import time), update
+    the Entity row in-place when the persisted value differs from the
+    bundle's declaration. This makes the GRIFT envelope authoritative for
+    spine values on every import — the service-layer ``replace_node`` verb
+    deliberately leaves spine fields untouched, so without this post-pass a
+    renamed or re-dimensioned entity in a re-imported bundle would silently
+    drift between model-side ``name`` and spine-side ``Entity.name``.
+
+    Uses ``Entity.objects.filter(...).update(...)`` rather than ``save()`` so
+    a pure spine sync does not bump the entity's version counter (the version
+    field tracks logical, model-level mutations) and to keep the post-pass
+    cheap. ``updated_at`` is bumped explicitly to reflect that something on
+    the row did change.
+    """
+    if not replace_intents:
+        return
+
+    now = timezone.now()
+    for intent in replace_intents:
+        entity_uuid = uuid.UUID(intent["entity_id"])
+        envelope_name = intent.get("envelope_name")
+        envelope_dims = intent.get("envelope_dims") or {}
+
+        # Read the persisted spine values to decide whether anything needs to
+        # change. A no-op update should not bump updated_at.
+        try:
+            persisted = Entity.objects.values("name", "dimensions").get(pk=entity_uuid)
+        except Entity.DoesNotExist:
+            continue
+
+        update_fields: dict[str, Any] = {}
+        if envelope_name is not None and envelope_name != persisted["name"]:
+            update_fields["name"] = envelope_name
+        if envelope_dims and envelope_dims != (persisted["dimensions"] or {}):
+            update_fields["dimensions"] = envelope_dims
+
+        if update_fields:
+            update_fields["updated_at"] = now
+            Entity.objects.filter(pk=entity_uuid).update(**update_fields)
 
 
 # ---------------------------------------------------------------------------

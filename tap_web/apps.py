@@ -79,6 +79,7 @@ class TapWebConfig(AppConfig):
     def ready(self) -> None:
         from tap_plugins.base import register_edge_types_from_list
         from tap_web.editor import EditorDescriptor
+        from tap_web.panels.chart import ChartPanelType
         from tap_web.panels.flip_panel import FlipPanelType
         from tap_web.panels.table_panel import TablePanelType
         from tap_web.panels.text_panel import TextPanelType
@@ -93,6 +94,7 @@ class TapWebConfig(AppConfig):
         panel_type_registry.register("flip", FlipPanelType)
         panel_type_registry.register("viewer", ViewerPanelType)
         panel_type_registry.register("editor", EditorPanelType)
+        panel_type_registry.register("chart", ChartPanelType)
 
         class _PanelEditorDescriptor(EditorDescriptor):
             """Redirects /object/panel/.../edit/ to the panel-specific editor."""

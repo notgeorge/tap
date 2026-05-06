@@ -217,6 +217,18 @@
     border-bottom: none;
 }
 
+/* Row click-through: inherits the row's text color and weight; no link
+   blue, no underline. Hover gives a subtle slate emphasis so it still
+   reads as interactive. */
+.tap-info-window__row-link {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+.tap-info-window__row-link:hover {
+    color: #1e293b;
+}
+
 .tap-info-window__loading,
 .tap-info-window__error {
     padding: 4px 0;

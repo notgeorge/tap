@@ -1,0 +1,10 @@
+/* tap_web Chart Panel — minimal v0 styling.
+
+   v0 reserves a vertical footprint on the mount div so the load-bearing-stub
+   panel isn't invisible on a page. No chart is drawn yet; sizing semantics
+   for the chart-spec layer land in a future revision. */
+
+.tap-panel--chart .tap-chart-mount {
+  min-height: 240px;
+  width: 100%;
+}
