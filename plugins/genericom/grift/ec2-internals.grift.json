@@ -36,7 +36,7 @@
             }
           },
           "node": {
-            "name": "eth0",
+            "name": "eth0 (web-a)",
             "interface_name": "eth0",
             "mac_address": "0a:1b:2c:3d:4e:01",
             "state": "up",
@@ -53,7 +53,7 @@
             }
           },
           "node": {
-            "name": "lo",
+            "name": "lo (web-a)",
             "interface_name": "lo",
             "mac_address": null,
             "state": "up",
@@ -88,7 +88,7 @@
             }
           },
           "node": {
-            "name": "127.0.0.1",
+            "name": "127.0.0.1 (web-a)",
             "address": "127.0.0.1",
             "version": 4,
             "configuration": {}
@@ -104,7 +104,7 @@
             }
           },
           "node": {
-            "name": ":80/tcp",
+            "name": ":80/tcp (web-a)",
             "port_number": 80,
             "transport": "tcp",
             "state": "listening",
@@ -121,7 +121,7 @@
             }
           },
           "node": {
-            "name": ":8000/tcp",
+            "name": ":8000/tcp (web-a)",
             "port_number": 8000,
             "transport": "tcp",
             "state": "listening",
@@ -138,7 +138,7 @@
             }
           },
           "node": {
-            "name": "*/tcp",
+            "name": "client\u2192RDS (web-a)",
             "port_number": null,
             "transport": "tcp",
             "state": "connected",
@@ -157,7 +157,7 @@
             }
           },
           "node": {
-            "name": "*/tcp",
+            "name": "client\u2192Redis (web-a)",
             "port_number": null,
             "transport": "tcp",
             "state": "connected",
@@ -176,7 +176,7 @@
             }
           },
           "node": {
-            "name": "gunicorn",
+            "name": "gunicorn (web-a)",
             "program_name": "gunicorn",
             "version": "22.0.0",
             "path": "/opt/genericom/venv/bin/gunicorn",
@@ -197,7 +197,7 @@
             }
           },
           "node": {
-            "name": "Django",
+            "name": "Django (web-a)",
             "program_name": "django",
             "version": "5.1.3",
             "path": "/opt/genericom/genericom/wsgi.py",
@@ -218,7 +218,7 @@
             }
           },
           "node": {
-            "name": "libssl.so.3",
+            "name": "libssl.so.3 (web-a)",
             "file_path": "/usr/lib64/libssl.so.3",
             "file_type": "shared-library",
             "version": "3.0.12",
@@ -239,7 +239,7 @@
             }
           },
           "node": {
-            "name": "gunicorn.conf.py",
+            "name": "gunicorn.conf.py (web-a)",
             "file_path": "/opt/genericom/gunicorn.conf.py",
             "file_type": "configuration",
             "version": "",
@@ -256,7 +256,7 @@
             }
           },
           "node": {
-            "name": "genericom.com.crt",
+            "name": "genericom.com.crt (web-a)",
             "file_path": "/etc/pki/tls/certs/genericom.com.crt",
             "file_type": "certificate",
             "version": "",
@@ -276,7 +276,7 @@
             }
           },
           "node": {
-            "name": "genericom.com.key",
+            "name": "genericom.com.key (web-a)",
             "file_path": "/etc/pki/tls/private/genericom.com.key",
             "file_type": "private-key",
             "version": "",
@@ -296,7 +296,7 @@
             }
           },
           "node": {
-            "name": "genericom.com pubkey",
+            "name": "genericom.com pubkey (web-a)",
             "algorithm": "RSA",
             "key_size": 2048,
             "fingerprint": "SHA256:xK9m2...",
@@ -313,7 +313,7 @@
             }
           },
           "node": {
-            "name": "genericom.com privkey",
+            "name": "genericom.com privkey (web-a)",
             "algorithm": "RSA",
             "key_size": 2048,
             "fingerprint": "SHA256:xK9m2...",
@@ -330,7 +330,7 @@
             }
           },
           "node": {
-            "name": "ALB \u2192 :80 (HTTP)",
+            "name": "ALB \u2192 web-a:80 (HTTP)",
             "state": "established",
             "configuration": {
               "protocol": "HTTP",
@@ -349,7 +349,7 @@
             }
           },
           "node": {
-            "name": "gunicorn \u2192 django",
+            "name": "gunicorn \u2192 django (web-a)",
             "state": "established",
             "configuration": {
               "protocol": "WSGI",
@@ -368,7 +368,7 @@
             }
           },
           "node": {
-            "name": "\u2192 RDS :5432",
+            "name": "web-a \u2192 RDS:5432",
             "state": "established",
             "configuration": {
               "protocol": "PostgreSQL",
@@ -386,7 +386,7 @@
             }
           },
           "node": {
-            "name": "\u2192 Redis :6379",
+            "name": "web-a \u2192 Redis:6379",
             "state": "established",
             "configuration": {
               "protocol": "Redis",
@@ -404,7 +404,7 @@
             }
           },
           "node": {
-            "name": "eth0",
+            "name": "eth0 (web-c)",
             "interface_name": "eth0",
             "mac_address": "0a:1b:2c:3d:4e:02",
             "state": "up",
@@ -421,7 +421,7 @@
             }
           },
           "node": {
-            "name": "lo",
+            "name": "lo (web-c)",
             "interface_name": "lo",
             "mac_address": null,
             "state": "up",
@@ -456,7 +456,7 @@
             }
           },
           "node": {
-            "name": "127.0.0.1",
+            "name": "127.0.0.1 (web-c)",
             "address": "127.0.0.1",
             "version": 4,
             "configuration": {}
@@ -472,7 +472,7 @@
             }
           },
           "node": {
-            "name": ":80/tcp",
+            "name": ":80/tcp (web-c)",
             "port_number": 80,
             "transport": "tcp",
             "state": "listening",
@@ -489,7 +489,7 @@
             }
           },
           "node": {
-            "name": ":8000/tcp",
+            "name": ":8000/tcp (web-c)",
             "port_number": 8000,
             "transport": "tcp",
             "state": "listening",
@@ -506,7 +506,7 @@
             }
           },
           "node": {
-            "name": "*/tcp",
+            "name": "client\u2192RDS (web-c)",
             "port_number": null,
             "transport": "tcp",
             "state": "connected",
@@ -525,7 +525,7 @@
             }
           },
           "node": {
-            "name": "*/tcp",
+            "name": "client\u2192Redis (web-c)",
             "port_number": null,
             "transport": "tcp",
             "state": "connected",
@@ -544,7 +544,7 @@
             }
           },
           "node": {
-            "name": "gunicorn",
+            "name": "gunicorn (web-c)",
             "program_name": "gunicorn",
             "version": "22.0.0",
             "path": "/opt/genericom/venv/bin/gunicorn",
@@ -565,7 +565,7 @@
             }
           },
           "node": {
-            "name": "Django",
+            "name": "Django (web-c)",
             "program_name": "django",
             "version": "5.1.3",
             "path": "/opt/genericom/genericom/wsgi.py",
@@ -586,7 +586,7 @@
             }
           },
           "node": {
-            "name": "libssl.so.3",
+            "name": "libssl.so.3 (web-c)",
             "file_path": "/usr/lib64/libssl.so.3",
             "file_type": "shared-library",
             "version": "3.0.12",
@@ -607,7 +607,7 @@
             }
           },
           "node": {
-            "name": "gunicorn.conf.py",
+            "name": "gunicorn.conf.py (web-c)",
             "file_path": "/opt/genericom/gunicorn.conf.py",
             "file_type": "configuration",
             "version": "",
@@ -624,7 +624,7 @@
             }
           },
           "node": {
-            "name": "genericom.com.crt",
+            "name": "genericom.com.crt (web-c)",
             "file_path": "/etc/pki/tls/certs/genericom.com.crt",
             "file_type": "certificate",
             "version": "",
@@ -644,7 +644,7 @@
             }
           },
           "node": {
-            "name": "genericom.com.key",
+            "name": "genericom.com.key (web-c)",
             "file_path": "/etc/pki/tls/private/genericom.com.key",
             "file_type": "private-key",
             "version": "",
@@ -664,7 +664,7 @@
             }
           },
           "node": {
-            "name": "genericom.com pubkey",
+            "name": "genericom.com pubkey (web-c)",
             "algorithm": "RSA",
             "key_size": 2048,
             "fingerprint": "SHA256:xK9m2...",
@@ -681,7 +681,7 @@
             }
           },
           "node": {
-            "name": "genericom.com privkey",
+            "name": "genericom.com privkey (web-c)",
             "algorithm": "RSA",
             "key_size": 2048,
             "fingerprint": "SHA256:xK9m2...",
@@ -698,7 +698,7 @@
             }
           },
           "node": {
-            "name": "ALB \u2192 :80 (HTTP)",
+            "name": "ALB \u2192 web-c:80 (HTTP)",
             "state": "established",
             "configuration": {
               "protocol": "HTTP",
@@ -717,7 +717,7 @@
             }
           },
           "node": {
-            "name": "gunicorn \u2192 django",
+            "name": "gunicorn \u2192 django (web-c)",
             "state": "established",
             "configuration": {
               "protocol": "WSGI",
@@ -736,7 +736,7 @@
             }
           },
           "node": {
-            "name": "\u2192 RDS :5432",
+            "name": "web-c \u2192 RDS:5432",
             "state": "established",
             "configuration": {
               "protocol": "PostgreSQL",
@@ -754,7 +754,7 @@
             }
           },
           "node": {
-            "name": "\u2192 Redis :6379",
+            "name": "web-c \u2192 Redis:6379",
             "state": "established",
             "configuration": {
               "protocol": "Redis",
@@ -772,7 +772,7 @@
             }
           },
           "node": {
-            "name": ":5432/tcp",
+            "name": ":5432/tcp (RDS)",
             "port_number": 5432,
             "transport": "tcp",
             "state": "listening",
@@ -789,7 +789,7 @@
             }
           },
           "node": {
-            "name": "10.0.20.44",
+            "name": "10.0.20.44 (RDS writer)",
             "address": "10.0.20.44",
             "version": 4,
             "configuration": {}
@@ -805,7 +805,7 @@
             }
           },
           "node": {
-            "name": ":6379/tcp",
+            "name": ":6379/tcp (Redis)",
             "port_number": 6379,
             "transport": "tcp",
             "state": "listening",
@@ -822,7 +822,7 @@
             }
           },
           "node": {
-            "name": "10.0.20.100",
+            "name": "Redis endpoint",
             "address": "10.0.20.100",
             "version": 4,
             "configuration": {
