@@ -26,6 +26,7 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-browser-disambiguation | [Browser Disambiguation](#browser-disambiguation) | Implemented | Phase 1 |
 | req-dev-multisession-spawn-script | [Spawn Script](#spawn-script) | Implemented | Phase 2; interactive |
 | req-dev-multisession-admin-bootstrap | [Admin User Bootstrap](#admin-user-bootstrap) | Implemented | Phase 2, sub-feature of spawn |
+| req-dev-multisession-spawn-import-strict | [Granular Grift Import Failure Mode](#granular-grift-import-failure-mode) | Backlog | Phase 3 polish on top of fail-fast |
 | req-dev-multisession-list-script | [List Script](#list-script) | Proposed | Phase 3 |
 | req-dev-multisession-named-routing | [Name-Based Routing via Reverse Proxy](#name-based-routing-via-reverse-proxy) | Backlog | Phase 3 polish |
 
@@ -199,6 +200,28 @@ A `--non-interactive` mode (taking `--name`, `--admin-password` flags) would mak
 | req-dev-multisession-spawn-script-2 | Idempotent failure | Proposed | Re-running spawn for a session with an existing worktree aborts before any mutation. | |
 | req-dev-multisession-spawn-script-3 | Registry collision rejection | Proposed | Names already present in `~/tap-sessions/.registry` are rejected with a clear error pointing at despawn. | |
 | req-dev-multisession-spawn-script-4 | Failure trap recovery | Proposed | On non-zero exit during spawn, the script prints recovery commands for the partial state. | |
+
+### Granular Grift Import Failure Mode
+----
+RID: `req-dev-multisession-spawn-import-strict`
+Status: `Backlog`
+
+Today, step 6 of the spawn script (`import_plugin_grift --all`) is fail-fast: any bundle failing validation raises `CommandError` and aborts the spawn so the developer doesn't end up in a session with borked data. That's the right default but it has one obvious downside — a single bad bundle aborts the whole spawn, even when nineteen others would have imported fine.
+
+This requirement adds an opt-in continue-on-error mode so developers iterating on a single plugin can still get a session up:
+
+- `--strict` (default for spawn): exit non-zero on the first failed bundle and abort. Matches today's behavior.
+- `--continue-on-error`: import every bundle the validator accepts, log each failure inline, and exit non-zero at the end with a one-line summary of what failed. Spawn does **not** use this mode by default — it's invoked manually after spawn (`scripts/dc exec web uv run python manage.py import_plugin_grift --all --continue-on-error`) when the developer wants a partial seed for plugin development.
+
+The motivating event: 2026-05-06, a `genericom/ec2-internals.grift.json` bundle failed `envelope_payload_name_mismatch` validation; spawn step 6 wrote a red error line but exited 0, and the session looked "ready" with silently-missing data. Layer 1 of the fix (`req-dev-multisession-spawn-script-5` below) made the import command exit non-zero. This requirement is the optional layer 2.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-spawn-import-strict-1 | Strict-by-default | Backlog | `import_plugin_grift` exits non-zero on first failed bundle when `--continue-on-error` is not passed. | Already implemented as part of req-dev-multisession-spawn-script-5. |
+| req-dev-multisession-spawn-import-strict-2 | Continue-on-error flag | Backlog | `--continue-on-error` causes the command to attempt every bundle and exit non-zero at the end with a per-bundle summary. | |
+| req-dev-multisession-spawn-import-strict-3 | Spawn defaults to strict | Backlog | `scripts/spawn-session.sh` invokes import without `--continue-on-error`, so a bad bundle aborts the spawn and fires the failure trap. | |
 
 ### Admin User Bootstrap
 ----
