@@ -22,7 +22,10 @@
 
 set -euo pipefail
 
-REPO="$(git rev-parse --show-toplevel)"
+# Resolve the repo root from this script's own location, not $PWD, so the
+# script can be invoked from anywhere (e.g. via a PATH symlink or alias).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 
 bold()  { printf "\n\033[1m==> %s\033[0m\n" "$1"; }
 info()  { printf "    %s\n" "$1"; }

@@ -22,7 +22,10 @@
 # NOT set -e — we want best-effort cleanup, not abort-on-first-failure.
 set -uo pipefail
 
-REPO="$(git rev-parse --show-toplevel)"
+# Resolve repo root from this script's own location, not $PWD, so the script
+# can be invoked from anywhere (e.g. via a PATH symlink or alias).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 REGISTRY="$HOME/tap-sessions/.registry"
 
 bold()   { printf "\n\033[1m==> %s\033[0m\n" "$1"; }
