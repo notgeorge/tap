@@ -13,3 +13,6 @@
 [submodule "plugins/lotr"]
 	path = plugins/lotr
 	url = https://github.com/notgeorge/tap-plugin-lotr.git
+[submodule "plugins/genericom"]
+	path = plugins/genericom
+	url = https://github.com/notgeorge/tap-plugin-genericom.git
