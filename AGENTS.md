@@ -13,6 +13,12 @@ Before designing or implementing anything substantial:
 
 Specifications are the canonical source of truth. If this guide conflicts with a spec, follow the spec and update this guide later.
 
+## Documentation Lookup
+
+Use the OpenAI developer documentation MCP server for current OpenAI API, ChatGPT Apps SDK, Codex, and related OpenAI product documentation. The server is configured as `openaiDeveloperDocs` and points to `https://developers.openai.com/mcp`.
+
+For non-OpenAI frameworks and libraries, prefer official upstream documentation and current installed package behavior when the answer may depend on version.
+
 ## Core TAP Rules
 
 - `Entity` is the canonical graph spine for TAP-managed nodes and edges.
