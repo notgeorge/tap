@@ -104,6 +104,18 @@ The core files every plugin needs:
 - `tap-plugin.toml` — manifest per `spec-plugin-manifest-v0.md`
 - `migrations/__init__.py` — empty
 - `tests/__init__.py` — empty
+- `.gitignore` — if the plugin will be its own git repo (the standalone-repo/submodule shape from Step 2), create one to keep Python bytecode and tooling caches out of the index. Plugin repos do not inherit the TAP repo's top-level `.gitignore`. Skip this step only if `.gitignore` is already tracked. Minimum recommended contents:
+
+  ```gitignore
+  __pycache__/
+  *.pyc
+  *.pyo
+  .pytest_cache/
+  .mypy_cache/
+  .ruff_cache/
+  ```
+
+  Without this, the first `git add -A` after running tests or migrations will quietly pull dozens of `.pyc` files into a commit.
 
 ## Step 5: Create Models
 
