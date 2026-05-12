@@ -221,6 +221,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # tasks in a separate worker process.
 TASKS = {
     "default": {
-        "BACKEND": "django.tasks.backends.ImmediateBackend",
+        "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",
     },
 }

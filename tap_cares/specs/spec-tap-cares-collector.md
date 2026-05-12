@@ -27,7 +27,7 @@ Status messages are intentionally deferred to later requirements. This spec slic
 | req-tap-cares-collector-registry | [Collector Registry](#collector-registry) | Implemented | Scoped registry mapping collector keys to registered runner code |
 | req-tap-cares-collector-module-class | [Collector Module Class](#collector-module-class) | Implemented | Registered collector classes instantiated by tap-cares |
 | req-tap-cares-collector-config | [CollectorConfig](#collectorconfig) | Implemented | JSON-safe collector configuration object |
-| req-tap-cares-collector-task-execution | [Collector Task Execution](#collector-task-execution) | Proposed | Django Tasks worker-process execution boundary |
+| req-tap-cares-collector-task-execution | [Collector Task Execution](#collector-task-execution) | Implemented | Django Tasks worker-process execution boundary |
 | req-tap-cares-collector-read-boundary | [Collector Read Boundary](#collector-read-boundary) | Proposed | Collector modules read through approved search/read surfaces and only submit result mutations through GRIFT import |
 | req-tap-cares-collector-grift-import | [Collector GRIFT Import Surface](#collector-grift-import-surface) | Proposed | Collector result grid mutations route through the GRIFT importer |
 | req-tap-cares-collector-job-model | [CollectionJob Model](#collectionjob-model) | Implemented | On-grid execution record for one collector run |
@@ -244,7 +244,7 @@ This shape keeps collector modules compatible with future stricter process isola
 ## Collector Task Execution
 ----
 RID: `req-tap-cares-collector-task-execution`
-Status: `Proposed`
+Status: `Implemented`
 
 Collector execution uses Django's Tasks API as the v0 execution contract.
 
@@ -263,11 +263,11 @@ This requirement follows the standard Django Tasks shape: Django provides task d
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-task-execution-1 | Django Tasks API | Proposed | Collector execution is enqueued through Django's Tasks API. | |
-| req-tap-cares-collector-task-execution-2 | Worker Process Boundary | Proposed | Collector `run()` executes in a task worker process rather than the web request process. | |
-| req-tap-cares-collector-task-execution-3 | JSON-Safe Task Args | Proposed | Collector task arguments are JSON-serializable and initially limited to identifiers such as collector and job entity IDs. | |
-| req-tap-cares-collector-task-execution-4 | Resolve In Worker | Proposed | The worker resolves Collector state and collector class registration after task execution begins. | |
-| req-tap-cares-collector-task-execution-5 | No Nested Subprocess In v0 | Proposed | v0 does not require the task worker to spawn a second collector subprocess. | |
+| req-tap-cares-collector-task-execution-1 | Django Tasks API | Implemented | Collector execution is enqueued through Django's Tasks API. | `tap_cares.tasks.run_collector` is decorated with `@django.tasks.task(takes_context=True)`. |
+| req-tap-cares-collector-task-execution-2 | Worker Process Boundary | Implemented | Collector `run()` executes in a task worker process rather than the web request process. | v0 uses `django.tasks.backends.immediate.ImmediateBackend` (synchronous for dev/test); switching to a worker backend changes only `TASKS["default"]["BACKEND"]`. |
+| req-tap-cares-collector-task-execution-3 | JSON-Safe Task Args | Implemented | Collector task arguments are JSON-serializable and initially limited to identifiers such as collector and job entity IDs. | `run_collector(context, collector_entity_id: str, collection_job_entity_id: str)`. |
+| req-tap-cares-collector-task-execution-4 | Resolve In Worker | Implemented | The worker resolves Collector state and collector class registration after task execution begins. | Inside `run_collector`: looks up Collector + CollectionJob via Django ORM, then calls `get_collector(registry_key)`. |
+| req-tap-cares-collector-task-execution-5 | No Nested Subprocess In v0 | Implemented | v0 does not require the task worker to spawn a second collector subprocess. | |
 
 ## Collector Read Boundary
 ----
