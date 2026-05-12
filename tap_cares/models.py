@@ -106,6 +106,15 @@ class Collector(BaseModel):
             raise ValidationError({"collector_registry": [str(exc)]}) from exc
 
 
+def _empty_results_dict() -> dict[str, list]:
+    """Default for `CollectionJob.results`.
+
+    Module-level callable so Django migrations can import it by path. Returns a
+    fresh dict per call (mutable defaults must never be shared).
+    """
+    return {"info": [], "warn": [], "error": []}
+
+
 class CollectionJobStatus(models.TextChoices):
     """v0 CollectionJob lifecycle states — mirror django.tasks.TaskResultStatus.
 
@@ -192,6 +201,11 @@ class CollectionJob(BaseModel):
     #     {"imported": ["<uuidv7>", ...], "skipped": ["<uuidv7>", ...]}
     # Per req-tap-cares-collector-grift-import-4 — minimal correlation in v0.
     grift_batches = models.JSONField(default=dict, blank=True)
+    # Structured per-event log for this run; appended by tap_cares.results
+    # record_info / record_warn / record_error helpers. Pinned shape lives at
+    # tap_cares/schemas/collection_job_results.schema.json. Per
+    # req-tap-cares-collector-job-model-9 through -16.
+    results = models.JSONField(default=_empty_results_dict, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "tap_cares_collection_job"
