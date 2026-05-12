@@ -86,6 +86,9 @@ INSTALLED_APPS = [
     # TAP apps (added as we scaffold each one)
     "tap_grid",
     "tap_plugins",
+    # tap_cares — runtime plumbing for collectors/receivers/emitters/actions/schedules.
+    # Loaded before plugins so collector_registry exists when plugin AppConfigs ready().
+    "tap_cares.apps.TapCaresConfig",
     # Administrivia plugin — TAP administrative pages and infrastructure
     "plugins.administrivia.apps.AdministriviaConfig",
     # LOTR plugin — Middle-earth entities for constraint testing
