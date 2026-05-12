@@ -115,6 +115,16 @@ def _empty_results_dict() -> dict[str, list]:
     return {"info": [], "warn": [], "error": []}
 
 
+def _empty_grift_batches() -> dict[str, list]:
+    """Default for `CollectionJob.grift_batches`.
+
+    Same pattern as `_empty_results_dict`: the field's shape is always
+    `{"imported": [...], "skipped": [...]}`, even before any GRIFT activity,
+    so consumers don't have to `.get("imported", [])` defensively.
+    """
+    return {"imported": [], "skipped": []}
+
+
 class CollectionJobStatus(models.TextChoices):
     """v0 CollectionJob lifecycle states — mirror django.tasks.TaskResultStatus.
 
@@ -200,7 +210,7 @@ class CollectionJob(BaseModel):
     # GriftImportResult returned by `grift_import()`. Shape:
     #     {"imported": ["<uuidv7>", ...], "skipped": ["<uuidv7>", ...]}
     # Per req-tap-cares-collector-grift-import-4 — minimal correlation in v0.
-    grift_batches = models.JSONField(default=dict, blank=True)
+    grift_batches = models.JSONField(default=_empty_grift_batches, blank=True)
     # Structured per-event log for this run; appended by tap_cares.results
     # record_info / record_warn / record_error helpers. Pinned shape lives at
     # tap_cares/schemas/collection_job_results.schema.json. Per

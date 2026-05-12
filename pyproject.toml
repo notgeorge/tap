@@ -123,8 +123,10 @@ django_settings_module = "tap.settings"
 DJANGO_SETTINGS_MODULE = "tap.settings"
 testpaths = ["tap_grid", "tap_plugins", "tap_api", "tap_web", "tap_viz", "plugins"]
 python_files = ["test_*.py", "*_test.py"]
-addopts = "-v --tb=short"
+# Skip live-fetch tests by default; opt in with `-m live_fetch`.
+addopts = "-v --tb=short -m 'not live_fetch'"
 markers = [
     "no_registry_isolation: opt out of search runner registry isolation between tests",
     "spec: link a test to one or more spec acceptance criteria by ACID",
+    "live_fetch: opt-in integration tests that hit real network upstreams; skipped by default",
 ]
