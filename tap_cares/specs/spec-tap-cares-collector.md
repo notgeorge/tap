@@ -23,7 +23,7 @@ Status messages are intentionally deferred to later requirements. This spec slic
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-tap-cares-collector-model | [Collector Model](#collector-model) | Proposed | On-grid TAP-managed collector node |
+| req-tap-cares-collector-model | [Collector Model](#collector-model) | Implemented | On-grid TAP-managed collector node |
 | req-tap-cares-collector-registry | [Collector Registry](#collector-registry) | Implemented | Scoped registry mapping collector keys to registered runner code |
 | req-tap-cares-collector-module-class | [Collector Module Class](#collector-module-class) | Implemented | Registered collector classes instantiated by tap-cares |
 | req-tap-cares-collector-config | [CollectorConfig](#collectorconfig) | Implemented | JSON-safe collector configuration object |
@@ -39,7 +39,7 @@ Status messages are intentionally deferred to later requirements. This spec slic
 ## Collector Model
 ----
 RID: `req-tap-cares-collector-model`
-Status: `Proposed`
+Status: `Implemented`
 
 `Collector` is the grid-side representation of a tap-cares collector capability.
 
@@ -66,14 +66,14 @@ The scheduler will use `Collector` nodes to determine which collector capability
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-model-1 | Standard BaseModel | Proposed | `Collector` is specified as a normal TAP-managed `BaseModel` node implemented through the model-building skill conventions. | |
-| req-tap-cares-collector-model-2 | Registry Field | Proposed | `Collector` has a top-level `collector_registry` field that stores the registered collector runner key. | |
-| req-tap-cares-collector-model-3 | Fully Qualified Key | Proposed | `collector_registry` values persisted on Collector nodes must use `scope:key` format. | |
-| req-tap-cares-collector-model-4 | No Short Keys | Proposed | Persisted Collector nodes reject short, unscoped registry keys. | |
-| req-tap-cares-collector-model-5 | Default Dimension | Proposed | New Collector nodes use the v0 default dimension `{"tap_cares": "collector"}`. | |
-| req-tap-cares-collector-model-6 | Dynamic Dimensions Deferred | Proposed | Instance-derived collector dimension values are explicitly deferred. | |
-| req-tap-cares-collector-model-7 | Unique Registry Key | Proposed | v0 `collector_registry` values are unique within a grid. Attempts to persist a second Collector with an existing `collector_registry` value fail validation. | Revisit when per-instance configuration exists. |
-| req-tap-cares-collector-model-8 | v0 Field Set | Proposed | v0 `Collector` exposes only `name`, `description`, and `collector_registry`. Per-instance configuration fields are deferred. | |
+| req-tap-cares-collector-model-1 | Standard BaseModel | Implemented | `Collector` is specified as a normal TAP-managed `BaseModel` node implemented through the model-building skill conventions. | |
+| req-tap-cares-collector-model-2 | Registry Field | Implemented | `Collector` has a top-level `collector_registry` field that stores the registered collector runner key. | |
+| req-tap-cares-collector-model-3 | Fully Qualified Key | Implemented | `collector_registry` values persisted on Collector nodes must use `scope:key` format. | |
+| req-tap-cares-collector-model-4 | No Short Keys | Implemented | Persisted Collector nodes reject short, unscoped registry keys. | |
+| req-tap-cares-collector-model-5 | Default Dimension | Implemented | New Collector nodes use the v0 default dimension `{"tap_cares": "collector"}`. | |
+| req-tap-cares-collector-model-6 | Dynamic Dimensions Deferred | Implemented | Instance-derived collector dimension values are explicitly deferred. | |
+| req-tap-cares-collector-model-7 | Unique Registry Key | Implemented | v0 `collector_registry` values are unique within a grid. Attempts to persist a second Collector with an existing `collector_registry` value fail validation. | Enforced via DB-level `unique=True`; revisit when per-instance configuration exists. |
+| req-tap-cares-collector-model-8 | v0 Field Set | Implemented | v0 `Collector` exposes only `name`, `description`, and `collector_registry`. Per-instance configuration fields are deferred. | |
 
 ## Collector Registry
 ----
