@@ -70,6 +70,7 @@ class GriftCounts:
     entities_swept: int = 0
     entities_purged: int = 0
     sweep_skipped: int = 0
+    entities_upserted: int = 0
     errors: int = 0
     warnings: int = 0
 
@@ -94,6 +95,21 @@ class GriftSweepSkipped:
 
 
 @dataclass
+class GriftUpsertedEntity:
+    """Per-entity record for a node or edge whose entity_id already existed in
+    the grid and was replaced in-place by this batch's content.
+
+    Emitted to make GRIFT's last-write-wins-per-entity contract visible during
+    development. See req-grid-import-grift-ordering.
+    """
+
+    entity_id: str
+    entity_type: str
+    name: str | None
+    kind: Literal["node", "edge"]
+
+
+@dataclass
 class GriftImportedBatch:
     """Per-batch summary for a successfully imported batch."""
 
@@ -109,12 +125,18 @@ class GriftImportedBatch:
     swept_entities: list[GriftSweptEntity] = None  # type: ignore[assignment]
     sweep_skipped: list[GriftSweepSkipped] = None  # type: ignore[assignment]
     sweep_strict_aborted: bool = False
+    # Per-entity upsert visibility: nodes/edges whose entity_id already existed
+    # in the grid and were replaced in-place by this batch. See
+    # req-grid-import-grift-ordering.
+    upserted_entities: list[GriftUpsertedEntity] = None  # type: ignore[assignment]
 
     def __post_init__(self):
         if self.swept_entities is None:
             self.swept_entities = []
         if self.sweep_skipped is None:
             self.sweep_skipped = []
+        if self.upserted_entities is None:
+            self.upserted_entities = []
 
 
 @dataclass
@@ -1278,6 +1300,7 @@ def _execute_grift_batch(
     swept_entities: list[GriftSweptEntity] = []
     sweep_skipped: list[GriftSweepSkipped] = []
     sweep_strict_aborted = False
+    upserted_entities: list[GriftUpsertedEntity] = []
 
     batch_entity = batch_container["batch_entity"]
     batch_node = batch_container["batch_node"]
@@ -1396,6 +1419,14 @@ def _execute_grift_batch(
                             "envelope_dims": envelope_dims,
                         }
                     )
+                    upserted_entities.append(
+                        GriftUpsertedEntity(
+                            entity_id=node_entity_id,
+                            entity_type=entity_type,
+                            name=envelope_name,
+                            kind="node",
+                        )
+                    )
                 else:
                     ops.append(
                         WriteOperation(
@@ -1439,6 +1470,14 @@ def _execute_grift_batch(
                 if Entity.objects.filter(pk=uuid.UUID(edge_entity_id)).exists():
                     ops.append(
                         WriteOperation(verb="replace_edge", target=edge_entity_id, payload={"properties": properties})
+                    )
+                    upserted_entities.append(
+                        GriftUpsertedEntity(
+                            entity_id=edge_entity_id,
+                            entity_type="edge",
+                            name=edge_obj["entity"].get("name"),
+                            kind="edge",
+                        )
                     )
                 else:
                     ops.append(
@@ -1520,7 +1559,9 @@ def _execute_grift_batch(
             close_batch(batch)
 
     except _BatchFailed:
-        pass  # Atomic block already rolled back; issues collected above.
+        # Atomic block already rolled back; clear upsert tracking since none
+        # of those replaces actually persisted.
+        upserted_entities = []
     except _SweepStrictAborted as exc:
         # Strict mode: surface an error and keep the skipped list for the report.
         sweep_strict_aborted = True
@@ -1533,6 +1574,7 @@ def _execute_grift_batch(
         edges_imported = 0
         edges_skipped = 0
         swept_entities = []
+        upserted_entities = []
         issues.append(
             _issue(
                 "sweep_strict_aborted",
@@ -1561,6 +1603,7 @@ def _execute_grift_batch(
             swept_entities=swept_entities,
             sweep_skipped=sweep_skipped,
             sweep_strict_aborted=sweep_strict_aborted,
+            upserted_entities=upserted_entities,
         ),
         issues,
     )
@@ -2166,6 +2209,7 @@ def grift_import(
             for b in imported_batches
         ),
         sweep_skipped=sum(len(b.sweep_skipped) for b in imported_batches),
+        entities_upserted=sum(len(b.upserted_entities) for b in imported_batches),
         errors=len(all_errors),
         warnings=len(all_warnings),
     )

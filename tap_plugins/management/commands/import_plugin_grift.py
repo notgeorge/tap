@@ -81,6 +81,18 @@ class Command(BaseCommand):
                 "only if DEBUG=True. See req-grid-import-grift-sweep-purge."
             ),
         )
+        parser.add_argument(
+            "--lint",
+            dest="lint",
+            action="store_true",
+            default=False,
+            help=(
+                "Scan every selected plugin's grift bundles in declared order "
+                "and report any entity_id that appears in more than one place. "
+                "No DB reads or writes. Exits non-zero if duplicates are found. "
+                "See req-grid-import-grift-ordering."
+            ),
+        )
 
     def handle(self, *args, **options):
         from django.conf import settings
@@ -92,6 +104,7 @@ class Command(BaseCommand):
         force_batches_raw = options["force_batches"]
         sweep_strict = options["sweep_strict"]
         purge = options["purge"]
+        lint = options["lint"]
 
         force_batches: list[str] = [
             b.strip() for b in force_batches_raw.split(",") if b.strip()
@@ -117,6 +130,13 @@ class Command(BaseCommand):
 
         if not plugin_configs:
             raise CommandError("No matching TAP plugins found.")
+
+        if lint:
+            # No DB reads/writes; just scan files.
+            ok = self._run_lint(plugin_configs, bundle_name)
+            if not ok:
+                raise CommandError("Lint found duplicate entity_id declarations across grift bundles.")
+            return
 
         if dry_run:
             self.stdout.write(self.style.WARNING("Dry-run mode: no database writes."))
@@ -299,11 +319,133 @@ class Command(BaseCommand):
                     + (f" ({counts.entities_purged} purged)" if counts.entities_purged else "")
                     + (f", {counts.sweep_skipped} sweep skip(s)" if counts.sweep_skipped else "")
                     + (f", {counts.edges_skipped} edge(s) skipped" if counts.edges_skipped else "")
+                    + (f", {counts.entities_upserted} upserted" if counts.entities_upserted else "")
                     + (f", {counts.warnings} warning(s)" if counts.warnings else "")
                     + "."
                 )
             )
+            # Per-entity upsert visibility (req-grid-import-grift-ordering): list
+            # every node/edge whose entity_id already existed in the grid and was
+            # replaced in-place. Helps developers see when a batch is overwriting
+            # content seeded by an earlier batch (within or across plugins).
+            for batch_summary in result.imported_batches:
+                for u in batch_summary.upserted_entities:
+                    name_part = f" '{u.name}'" if u.name else ""
+                    self.stdout.write(
+                        f"      [upsert] {u.kind} {u.entity_type} {u.entity_id}{name_part}"
+                    )
+            # Skipped-batch visibility: when a batch is skipped because its
+            # batch_entity_id already exists, surface it explicitly so the
+            # developer can decide whether --force-batches is warranted.
+            for sb in result.skipped_batches:
+                self.stdout.write(
+                    f"      [skip] batch {sb.batch_entity_id} already imported "
+                    f"(use --force-batches={sb.batch_entity_id} to re-run)"
+                )
         else:
             self.stderr.write(self.style.ERROR(f"    {label} FAILED:"))
             for issue in result.errors:
                 self.stderr.write(f"      [{issue.phase}] {issue.code} at {issue.path}: {issue.message}")
+
+    def _run_lint(
+        self,
+        plugin_configs: list[TapPluginConfig],
+        bundle_name: str | None,
+    ) -> bool:
+        """Scan every plugin's declared grift bundles in order and report any
+        entity_id that appears in more than one (plugin, bundle, batch) location.
+
+        GRIFT execution is last-write-wins per entity within the deterministic
+        ordering of plugin → manifest bundle → in-file batch (see
+        req-grid-import-grift-ordering). Duplicates are not always a bug —
+        sometimes a later seed legitimately overrides an earlier one — but
+        they should be intentional. Lint surfaces them so the developer can
+        confirm.
+
+        Returns True when no duplicates are found, False otherwise.
+        """
+        # entity_id -> ordered list of {plugin, bundle, path, name}
+        seen: dict[str, list[dict]] = {}
+
+        for config in plugin_configs:
+            manifest = config.manifest
+            if manifest is None:
+                continue
+            bundles = manifest.grift
+            if bundle_name:
+                bundles = [b for b in bundles if b.name == bundle_name]
+
+            for bundle in bundles:
+                grift_path = manifest.plugin_root / bundle.path
+                try:
+                    with open(grift_path) as fh:
+                        document = json.load(fh)
+                except (OSError, json.JSONDecodeError) as exc:
+                    self.stderr.write(self.style.ERROR(
+                        f"  [{manifest.slug}/{bundle.name}] Failed to read: {exc}"
+                    ))
+                    continue
+
+                for batch_idx, batch in enumerate(document.get("batches", [])):
+                    bep = batch.get("batch_entity", {})
+                    self._lint_record(
+                        seen, bep.get("entity_id"), bep.get("entity_type", "batch"),
+                        bep.get("name"), manifest.slug, bundle.name,
+                        f"$.batches[{batch_idx}].batch_entity",
+                    )
+                    for n_idx, node_obj in enumerate(batch.get("nodes", [])):
+                        env = node_obj.get("entity", {})
+                        self._lint_record(
+                            seen, env.get("entity_id"), env.get("entity_type"),
+                            env.get("name"), manifest.slug, bundle.name,
+                            f"$.batches[{batch_idx}].nodes[{n_idx}]",
+                        )
+                    for e_idx, edge_obj in enumerate(batch.get("edges", [])):
+                        env = edge_obj.get("entity", {})
+                        self._lint_record(
+                            seen, env.get("entity_id"), env.get("entity_type", "edge"),
+                            env.get("name"), manifest.slug, bundle.name,
+                            f"$.batches[{batch_idx}].edges[{e_idx}]",
+                        )
+
+        # Report duplicates.
+        duplicates = {eid: sites for eid, sites in seen.items() if len(sites) > 1}
+        if not duplicates:
+            self.stdout.write(self.style.SUCCESS(
+                f"Lint OK — scanned {sum(1 for _ in seen)} unique entity_id(s) across selected bundles; no duplicates."
+            ))
+            return True
+
+        self.stderr.write(self.style.WARNING(
+            f"Lint found {len(duplicates)} entity_id(s) declared in more than one place. "
+            f"Last-declared wins per req-grid-import-grift-ordering; confirm this is intentional."
+        ))
+        for eid, sites in duplicates.items():
+            etype = sites[0].get("entity_type") or "?"
+            self.stderr.write(f"\n  {etype} {eid}")
+            for site in sites:
+                name_part = f" ('{site['name']}')" if site.get("name") else ""
+                self.stderr.write(
+                    f"    - {site['plugin']}/{site['bundle']} at {site['path']}{name_part}"
+                )
+        return False
+
+    @staticmethod
+    def _lint_record(
+        seen: dict[str, list[dict]],
+        entity_id: str | None,
+        entity_type: str | None,
+        name: str | None,
+        plugin: str,
+        bundle: str,
+        path: str,
+    ) -> None:
+        if not entity_id:
+            return
+        seen.setdefault(entity_id, []).append({
+            "entity_type": entity_type,
+            "name": name,
+            "plugin": plugin,
+            "bundle": bundle,
+            "path": path,
+        })

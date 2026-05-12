@@ -31,6 +31,8 @@ This separation is deliberate. The file format should stay stable and portable, 
 | req-grid-import-grift-dangling | [Dangling Edge Modes](#dangling-edge-modes) | Implemented | Strict and permissive handling |
 | req-grid-import-grift-provenance | [Import-Side Provenance](#import-side-provenance) | Implemented | Local actor/history behavior |
 | req-grid-import-grift-results | [Import Results](#import-results) | Implemented | Structured reporting expectations |
+| req-grid-import-grift-ordering | [Deterministic Ordering And Last-Write-Wins](#deterministic-ordering-and-last-write-wins) | Implemented | Three-level ordering contract; last-write-wins per entity; lint surface |
+| req-grid-import-grift-ordering-strict | [Strict-No-Overwrite Mode](#strict-no-overwrite-mode) | Backlog | Optional fail-on-pre-existing-entity mode for production/federation use |
 
 ## Importer Scope
 ----
@@ -161,6 +163,96 @@ This rule applies on any import path that performs a replace, including force re
 ### Import Modes
 
 GRIFT itself is neutral about create, replace, patch, or upsert semantics. The importer may expose one or more execution modes, but whichever mode it chooses must operate on the canonical GRIFT identities and validated full-object payloads produced by preflight.
+
+## Deterministic Ordering And Last-Write-Wins
+----
+RID: `req-grid-import-grift-ordering`
+Status: `Implemented`
+
+GRIFT execution is deterministic by declaration. The same set of grift bundles imported on the same plugin set produces the same final graph, regardless of when the import runs or which session it runs in.
+
+### The Three Ordering Levels
+
+GRIFT execution traverses three nested ordering scopes. The contract at each level is *declaration order*:
+
+1. **Plugin order** — the order plugins appear in `INSTALLED_APPS` is the contract. Each TAP plugin's grift bundles are imported in the loop iteration where its `AppConfig` is processed, so the plugin order in `INSTALLED_APPS` determines the relative execution order of every grift bundle owned by different plugins. (Future work: `req-dev-multisession-spawn-script` may grow declared `dependencies = [...]` in `tap-plugin.toml` so the order can be derived from a topological sort rather than a developer-maintained list. For now, `INSTALLED_APPS` order *is* the dependency order, and changes to it are real semantic changes — review accordingly.)
+2. **Manifest bundle order** — within a plugin, the order of entries in the `[grift]` table of `tap-plugin.toml` is the contract. Python's `tomllib` preserves declaration order; the importer iterates that order without re-sorting.
+3. **In-file batch order** — within a single grift document, the `batches` array order is the contract. Within a single batch, `nodes` are processed before `edges`, and within each list the array order is preserved.
+
+These three levels nest: plugin A's bundle Z executes after plugin A's bundle Y, which executes after plugin (A-1)'s last bundle. The same logic applies recursively to batches inside a bundle.
+
+### Per-Entity Last-Write-Wins
+
+Within the deterministic order above, the importer is **upsert-by-default at the per-entity level**:
+
+- When a `nodes[]` or `edges[]` element declares an `entity_id` that already exists in the local grid, the importer routes the operation through the service-layer `replace_node` (or `replace_edge`) verb. The latest declaration wins.
+- When a batch declares an `entity_id` that does not yet exist, the importer routes through `create_node` (or `create_edge`).
+
+This is distinct from the *batch-level* skip-if-exists guard documented in [Identity And Matching](#identity-and-matching). The batch guard is the file-level idempotency contract: if a `batch_entity.entity_id` has been seen before, the entire batch is skipped (an explicit `--force-batches` opt-in is the bypass). Only batches that *do* execute apply per-entity last-write-wins.
+
+The combined semantics:
+
+| Scenario | Behavior |
+| --- | --- |
+| Same `batch_entity_id` re-imported with different content | **Skipped** — explicit `--force-batches` required to re-execute |
+| Different `batch_entity_id`s declaring the same `entity_id` | **Last-batch-wins** — the second batch's `replace_node` overrides the first batch's `create_node` |
+| Same plugin, two bundles, same `entity_id` | **Last-bundle-wins by manifest order** |
+| Two plugins, same `entity_id` | **Last-plugin-wins by `INSTALLED_APPS` order** |
+
+### Visibility Requirements
+
+Last-write-wins is a useful tool, but a silent one is a footgun. The importer must surface every override so a developer can confirm intent:
+
+- **Per-entity upsert log line** — for every node or edge whose `entity_id` already existed in the grid and was replaced, the import command emits a structured `[upsert]` line with kind, entity_type, entity_id, and envelope name. The `GriftImportedBatch` result carries an `upserted_entities` list of `GriftUpsertedEntity` records to support programmatic consumers.
+- **Skipped-batch log line** — when a batch is skipped because its `batch_entity_id` already exists, the import command emits a `[skip]` line that includes the `--force-batches=<id>` invocation that would re-run it. The `GriftImportResult.skipped_batches` list carries the same information.
+- **Lint mode** (`--lint`) — a non-mutating, non-DB scan that reads every selected plugin's bundles in declared order, groups by `entity_id`, and reports any id that appears in more than one location. Used as a CI guard and as a "do I really mean to override this?" check during development. Exits non-zero when duplicates are found.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-import-grift-ordering-1 | Plugin order is `INSTALLED_APPS` order | Implemented | Bundles owned by plugin A always execute before bundles owned by plugin B when A appears before B in `INSTALLED_APPS`. | |
+| req-grid-import-grift-ordering-2 | Manifest order preserved | Implemented | Bundles within a plugin execute in `tap-plugin.toml` `[grift]` declaration order. | |
+| req-grid-import-grift-ordering-3 | In-file batch order preserved | Implemented | Batches execute in `batches[]` array order; nodes-before-edges within each batch. | |
+| req-grid-import-grift-ordering-4 | Per-entity last-write-wins | Implemented | When two batches declare the same `entity_id`, the later one's content is the persisted state via `replace_node`/`replace_edge`. | |
+| req-grid-import-grift-ordering-5 | Per-entity upsert visibility | Implemented | Each entity replacement emits an `[upsert]` log line and is recorded on `GriftImportedBatch.upserted_entities`. | |
+| req-grid-import-grift-ordering-6 | Skipped-batch visibility | Implemented | Each skipped batch emits a `[skip]` log line that includes the explicit `--force-batches` recipe to re-run it. | |
+| req-grid-import-grift-ordering-7 | Lint mode | Implemented | `--lint` scans all selected bundles, reports cross-bundle `entity_id` duplicates, exits non-zero on any duplicate. | |
+
+## Strict-No-Overwrite Mode
+----
+RID: `req-grid-import-grift-ordering-strict`
+Status: `Backlog`
+
+A future opt-in mode that fails the import when any node or edge being processed declares an `entity_id` that already exists in the grid. Inverts the per-entity last-write-wins default for environments where overwrites should be a hard error rather than a soft override.
+
+### Motivation
+
+Last-write-wins is the right default for development seeding: edit a file, re-run, see the change. It is the wrong default for two future scenarios:
+
+- **Production-like seeding** — a one-shot `import_plugin_grift` run on a non-development environment, where any pre-existing entity probably indicates a misconfiguration (e.g. running a seed that was already applied) and silent overrides are dangerous.
+- **Federated imports** — when GRIFT bundles arrive from another grid (or another tenant) and the local grid is the canonical owner, an inbound bundle that would silently overwrite local state should fail with a clear error rather than apply.
+
+### Shape
+
+The exact spelling is open. Two reasonable forms:
+
+- **Command flag** — `--strict` (or `--mode=strict`) at invocation time. Cheap to add; appropriate for ad-hoc use.
+- **Batch-level field** — a `mode` value in the batch envelope or document metadata that declares the bundle's intent. Lets the *file* assert "this batch must not overwrite anything" so the contract travels with the data — useful for federation, where the receiving grid otherwise has no signal about the bundle's intent.
+
+A combined form is plausible: command flag overrides batch field; batch field overrides default. Defer the choice until the use case lands.
+
+### Out Of Scope
+
+- Federation transport, authentication, or routing — this requirement is about local enforcement only.
+- Production deployment policy. The importer's `DEBUG`-gated escape valves (`req-grid-import-grift-force-reimport`, `req-grid-import-grift-sweep-purge`) remain the operative control for production hygiene.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-import-grift-ordering-strict-1 | Strict mode rejects overwrites | Backlog | When strict mode is engaged and any node/edge `entity_id` already exists, the import fails before any writes and rolls back. | |
+| req-grid-import-grift-ordering-strict-2 | Per-entity report on failure | Backlog | The error report names every offending `entity_id` (not just the first hit) so a developer can fix all of them in one pass. | |
 
 ## Force Re-Import
 ----
