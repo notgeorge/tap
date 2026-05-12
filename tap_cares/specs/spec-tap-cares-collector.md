@@ -24,9 +24,9 @@ Status messages are intentionally deferred to later requirements. This spec slic
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-tap-cares-collector-model | [Collector Model](#collector-model) | Proposed | On-grid TAP-managed collector node |
-| req-tap-cares-collector-registry | [Collector Registry](#collector-registry) | Proposed | Scoped registry mapping collector keys to registered runner code |
-| req-tap-cares-collector-module-class | [Collector Module Class](#collector-module-class) | Proposed | Registered collector classes instantiated by tap-cares |
-| req-tap-cares-collector-config | [CollectorConfig](#collectorconfig) | Proposed | JSON-safe collector configuration object |
+| req-tap-cares-collector-registry | [Collector Registry](#collector-registry) | Implemented | Scoped registry mapping collector keys to registered runner code |
+| req-tap-cares-collector-module-class | [Collector Module Class](#collector-module-class) | Implemented | Registered collector classes instantiated by tap-cares |
+| req-tap-cares-collector-config | [CollectorConfig](#collectorconfig) | Implemented | JSON-safe collector configuration object |
 | req-tap-cares-collector-task-execution | [Collector Task Execution](#collector-task-execution) | Proposed | Django Tasks worker-process execution boundary |
 | req-tap-cares-collector-read-boundary | [Collector Read Boundary](#collector-read-boundary) | Proposed | Collector modules read through approved search/read surfaces and only submit result mutations through GRIFT import |
 | req-tap-cares-collector-grift-import | [Collector GRIFT Import Surface](#collector-grift-import-surface) | Proposed | Collector result grid mutations route through the GRIFT importer |
@@ -78,7 +78,7 @@ The scheduler will use `Collector` nodes to determine which collector capability
 ## Collector Registry
 ----
 RID: `req-tap-cares-collector-registry`
-Status: `Proposed`
+Status: `Implemented`
 
 The collector registry is the controlled mapping from on-grid collector definitions to executable collector code.
 
@@ -129,21 +129,21 @@ Validation runs on both `register()` and `get()`, so malformed runner registrati
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-registry-1 | Scoped Registry | Proposed | Collector runners are registered in a dedicated `collector_registry` backed by TAP's `ScopedRegistry` pattern. | |
-| req-tap-cares-collector-registry-2 | Separate From Search | Proposed | Collector runners do not share `search_runner_registry`. | |
-| req-tap-cares-collector-registry-3 | Startup Registration | Proposed | Apps and plugins register collector runners at startup before collector execution. | |
-| req-tap-cares-collector-registry-4 | Fully Qualified Lookup | Proposed | Runtime lookup uses the persisted fully qualified `scope:key` value from the Collector node. | |
-| req-tap-cares-collector-registry-5 | Duplicate Guard | Proposed | Duplicate registration of the same `(scope, key)` pair is a configuration error. | |
-| req-tap-cares-collector-registry-6 | No Dynamic Code Loading | Proposed | Collector execution never imports modules, reads filesystem paths, or evaluates code based on Collector node data. | |
-| req-tap-cares-collector-registry-7 | Provenance By Scope | Proposed | Fully qualified keys preserve the runner's registration provenance through the scope portion of `scope:key`. | |
-| req-tap-cares-collector-registry-8 | Public Helpers | Proposed | `tap_cares/registry.py` exposes `register_collector(key, cls, scope=None)` and `get_collector(collector_key)` as the public registration and lookup surface, mirroring `tap_grid.registry.register_search_runner` / `get_search_runner`. | |
-| req-tap-cares-collector-registry-9 | Format Validators | Proposed | `collector_registry` is constructed with `validate_key` and `validate_scope` callbacks (per `req-grid-registry-scope-validators`) that enforce `^[A-Za-z0-9][A-Za-z0-9_.\-]*$` on each half of `scope:key`. | |
-| req-tap-cares-collector-registry-10 | Shared Validator Helper | Proposed | The same validator function used by the registry is reused by `Collector.validate()` so format rules cannot drift between model-side and registry-side enforcement. | |
+| req-tap-cares-collector-registry-1 | Scoped Registry | Implemented | Collector runners are registered in a dedicated `collector_registry` backed by TAP's `ScopedRegistry` pattern. | |
+| req-tap-cares-collector-registry-2 | Separate From Search | Implemented | Collector runners do not share `search_runner_registry`. | |
+| req-tap-cares-collector-registry-3 | Startup Registration | Implemented | Apps and plugins register collector runners at startup before collector execution. | |
+| req-tap-cares-collector-registry-4 | Fully Qualified Lookup | Implemented | Runtime lookup uses the persisted fully qualified `scope:key` value from the Collector node. | |
+| req-tap-cares-collector-registry-5 | Duplicate Guard | Implemented | Duplicate registration of the same `(scope, key)` pair is a configuration error. | |
+| req-tap-cares-collector-registry-6 | No Dynamic Code Loading | Implemented | Collector execution never imports modules, reads filesystem paths, or evaluates code based on Collector node data. | |
+| req-tap-cares-collector-registry-7 | Provenance By Scope | Implemented | Fully qualified keys preserve the runner's registration provenance through the scope portion of `scope:key`. | |
+| req-tap-cares-collector-registry-8 | Public Helpers | Implemented | `tap_cares/registry.py` exposes `register_collector(key, cls, scope=None)` and `get_collector(collector_key)` as the public registration and lookup surface, mirroring `tap_grid.registry.register_search_runner` / `get_search_runner`. | |
+| req-tap-cares-collector-registry-9 | Format Validators | Implemented | `collector_registry` is constructed with `validate_key` and `validate_scope` callbacks (per `req-grid-registry-scope-validators`) that enforce `^[A-Za-z0-9][A-Za-z0-9_.\-]*$` on each half of `scope:key`. | |
+| req-tap-cares-collector-registry-10 | Shared Validator Helper | Implemented | The same validator function used by the registry is reused by `Collector.validate()` so format rules cannot drift between model-side and registry-side enforcement. | Validator helper now defined; Collector.validate() call site lands with the model in Phase 3. |
 
 ## Collector Module Class
 ----
 RID: `req-tap-cares-collector-module-class`
-Status: `Proposed`
+Status: `Implemented`
 
 The `collector_registry` registers collector classes that inherit from `CollectorBase`.
 
@@ -188,18 +188,18 @@ Collector classes should be written as thread/process-compatible units of work:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-module-class-1 | Registry Stores Classes | Proposed | `collector_registry` entries resolve to collector classes rather than filesystem paths, import strings, or factory functions. | |
-| req-tap-cares-collector-module-class-2 | Constructor Receives Config | Proposed | tap-cares instantiates collector classes with a `CollectorConfig` object. | |
-| req-tap-cares-collector-module-class-3 | Run Method | Proposed | Collector classes expose `run(self)` as the v0 execution method. | |
-| req-tap-cares-collector-module-class-4 | No Run Arguments | Proposed | v0 `run()` receives no direct arguments; per-run data flows through `CollectorConfig`. | |
-| req-tap-cares-collector-module-class-5 | Process-Compatible Shape | Proposed | Collector classes are specified so they can later execute outside the web process without changing the public class contract. | |
-| req-tap-cares-collector-module-class-6 | CollectorBase Subclass | Proposed | Registered collector classes must inherit from `tap_cares`'s `CollectorBase` abstract base. `register_collector` rejects non-subclasses at registration time. | |
-| req-tap-cares-collector-module-class-7 | Abstract Run | Proposed | `CollectorBase.run` is declared `@abstractmethod`, so concrete subclasses must override it before instantiation succeeds. | |
+| req-tap-cares-collector-module-class-1 | Registry Stores Classes | Implemented | `collector_registry` entries resolve to collector classes rather than filesystem paths, import strings, or factory functions. | |
+| req-tap-cares-collector-module-class-2 | Constructor Receives Config | Implemented | tap-cares instantiates collector classes with a `CollectorConfig` object. | |
+| req-tap-cares-collector-module-class-3 | Run Method | Implemented | Collector classes expose `run(self)` as the v0 execution method. | |
+| req-tap-cares-collector-module-class-4 | No Run Arguments | Implemented | v0 `run()` receives no direct arguments; per-run data flows through `CollectorConfig`. | |
+| req-tap-cares-collector-module-class-5 | Process-Compatible Shape | Implemented | Collector classes are specified so they can later execute outside the web process without changing the public class contract. | |
+| req-tap-cares-collector-module-class-6 | CollectorBase Subclass | Implemented | Registered collector classes must inherit from `tap_cares`'s `CollectorBase` abstract base. `register_collector` rejects non-subclasses at registration time. | |
+| req-tap-cares-collector-module-class-7 | Abstract Run | Implemented | `CollectorBase.run` is declared `@abstractmethod`, so concrete subclasses must override it before instantiation succeeds. | |
 
 ## CollectorConfig
 ----
 RID: `req-tap-cares-collector-config`
-Status: `Proposed`
+Status: `Implemented`
 
 `CollectorConfig` is the configuration object tap-cares passes to a collector class at construction time.
 
@@ -234,12 +234,12 @@ This shape keeps collector modules compatible with future stricter process isola
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-config-1 | Built By tap-cares | Proposed | tap-cares builds `CollectorConfig` before instantiating a collector class. | |
-| req-tap-cares-collector-config-2 | Constructor Input | Proposed | `CollectorConfig` is passed to the collector class constructor. | |
-| req-tap-cares-collector-config-3 | JSON-Safe Shape | Proposed | `CollectorConfig` is JSON-serializable or reducible to JSON-safe data. | |
-| req-tap-cares-collector-config-4 | No Live Model Requirement | Proposed | The public collector module contract does not require live Django model instances inside `CollectorConfig`. | |
-| req-tap-cares-collector-config-5 | Future Isolation Ready | Proposed | The config shape can be passed across a process boundary without changing the collector class contract. | |
-| req-tap-cares-collector-config-6 | v0 Shape Is Two IDs | Proposed | The v0 `CollectorConfig` is a frozen dataclass containing exactly `collector_entity_id: UUID` and `collection_job_entity_id: UUID`. No params dict, no scheduler overrides. | |
+| req-tap-cares-collector-config-1 | Built By tap-cares | Implemented | tap-cares builds `CollectorConfig` before instantiating a collector class. | Construction site lands with the task runtime in Phase 5; the type is callable from anywhere now. |
+| req-tap-cares-collector-config-2 | Constructor Input | Implemented | `CollectorConfig` is passed to the collector class constructor. | |
+| req-tap-cares-collector-config-3 | JSON-Safe Shape | Implemented | `CollectorConfig` is JSON-serializable or reducible to JSON-safe data. | |
+| req-tap-cares-collector-config-4 | No Live Model Requirement | Implemented | The public collector module contract does not require live Django model instances inside `CollectorConfig`. | |
+| req-tap-cares-collector-config-5 | Future Isolation Ready | Implemented | The config shape can be passed across a process boundary without changing the collector class contract. | |
+| req-tap-cares-collector-config-6 | v0 Shape Is Two IDs | Implemented | The v0 `CollectorConfig` is a frozen dataclass containing exactly `collector_entity_id: UUID` and `collection_job_entity_id: UUID`. No params dict, no scheduler overrides. | |
 
 ## Collector Task Execution
 ----
