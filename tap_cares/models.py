@@ -186,6 +186,12 @@ class CollectionJob(BaseModel):
     enqueued_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
+    # GRIFT batch entity IDs produced by this collection run.
+    # Populated by `tap_cares.grift.submit_collector_grift` from the
+    # GriftImportResult returned by `grift_import()`. Shape:
+    #     {"imported": ["<uuidv7>", ...], "skipped": ["<uuidv7>", ...]}
+    # Per req-tap-cares-collector-grift-import-4 — minimal correlation in v0.
+    grift_batches = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "tap_cares_collection_job"

@@ -28,8 +28,8 @@ Status messages are intentionally deferred to later requirements. This spec slic
 | req-tap-cares-collector-module-class | [Collector Module Class](#collector-module-class) | Implemented | Registered collector classes instantiated by tap-cares |
 | req-tap-cares-collector-config | [CollectorConfig](#collectorconfig) | Implemented | JSON-safe collector configuration object |
 | req-tap-cares-collector-task-execution | [Collector Task Execution](#collector-task-execution) | Implemented | Django Tasks worker-process execution boundary |
-| req-tap-cares-collector-read-boundary | [Collector Read Boundary](#collector-read-boundary) | Proposed | Collector modules read through approved search/read surfaces and only submit result mutations through GRIFT import |
-| req-tap-cares-collector-grift-import | [Collector GRIFT Import Surface](#collector-grift-import-surface) | Proposed | Collector result grid mutations route through the GRIFT importer |
+| req-tap-cares-collector-read-boundary | [Collector Read Boundary](#collector-read-boundary) | Implemented | Collector modules read through approved search/read surfaces and only submit result mutations through GRIFT import |
+| req-tap-cares-collector-grift-import | [Collector GRIFT Import Surface](#collector-grift-import-surface) | Implemented | Collector result grid mutations route through the GRIFT importer |
 | req-tap-cares-collector-job-model | [CollectionJob Model](#collectionjob-model) | Implemented | On-grid execution record for one collector run |
 | req-tap-cares-collector-job-edge | [Collector HAS_JOB Edge](#collector-has_job-edge) | Implemented | Graph relationship from Collector root node to its CollectionJob nodes |
 | req-tap-cares-collector-job-lifecycle | [CollectionJob Lifecycle Status](#collectionjob-lifecycle-status) | Implemented | Job status reflects Django Tasks lifecycle states |
@@ -272,7 +272,7 @@ This requirement follows the standard Django Tasks shape: Django provides task d
 ## Collector Read Boundary
 ----
 RID: `req-tap-cares-collector-read-boundary`
-Status: `Proposed`
+Status: `Implemented`
 
 Collector modules must not mutate TAP graph state through arbitrary write paths.
 
@@ -288,16 +288,16 @@ Because v0 collector code still runs as Python inside a Django task worker proce
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-read-boundary-1 | No Mutation Outside GRIFT | Proposed | Collector modules are prohibited by contract from directly creating, updating, or deleting TAP-managed nodes or edges outside the approved GRIFT import surface. | GRIFT import is the explicit exception. |
-| req-tap-cares-collector-read-boundary-2 | Approved Read Surfaces | Proposed | Collector modules read TAP state through approved search/read surfaces rather than ad hoc ORM access. | |
-| req-tap-cares-collector-read-boundary-3 | Runtime Owns Job Writes | Proposed | tap-cares execution services own grid writes for collector job state and status; collector result writes are permitted only through the approved GRIFT import path. | |
-| req-tap-cares-collector-read-boundary-4 | Future Auth Alignment | Proposed | Collector read design must remain compatible with future authorization and dimension-scoped security. | |
-| req-tap-cares-collector-read-boundary-5 | Enforcement Gap Named | Proposed | The spec explicitly recognizes that v0 in-process Python cannot fully sandbox collector code. | |
+| req-tap-cares-collector-read-boundary-1 | No Mutation Outside GRIFT | Implemented | Collector modules are prohibited by contract from directly creating, updating, or deleting TAP-managed nodes or edges outside the approved GRIFT import surface. | GRIFT import is the explicit exception (`tap_cares.grift.submit_collector_grift`). |
+| req-tap-cares-collector-read-boundary-2 | Approved Read Surfaces | Implemented | Collector modules read TAP state through approved search/read surfaces rather than ad hoc ORM access. | Contract; not enforced at runtime in v0 (see -5). |
+| req-tap-cares-collector-read-boundary-3 | Runtime Owns Job Writes | Implemented | tap-cares execution services own grid writes for collector job state and status; collector result writes are permitted only through the approved GRIFT import path. | run_collector uses `update_fields` so the collector's `grift_batches` update is not clobbered by the lifecycle save. |
+| req-tap-cares-collector-read-boundary-4 | Future Auth Alignment | Implemented | Collector read design must remain compatible with future authorization and dimension-scoped security. | |
+| req-tap-cares-collector-read-boundary-5 | Enforcement Gap Named | Implemented | The spec explicitly recognizes that v0 in-process Python cannot fully sandbox collector code. | |
 
 ## Collector GRIFT Import Surface
 ----
 RID: `req-tap-cares-collector-grift-import`
-Status: `Proposed`
+Status: `Implemented`
 
 Collector result mutations must route through TAP's GRIFT import surface.
 
@@ -313,11 +313,11 @@ Future strict isolation may replace the in-process call with a TAP API result-su
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-grift-import-1 | GRIFT Is Result Boundary | Proposed | Collector result mutations route through GRIFT import rather than ad hoc grid writes. | |
-| req-tap-cares-collector-grift-import-2 | v0 In-Process Import Allowed | Proposed | v0 collector execution may use in-process `grift_import()` or a tap-cares wrapper around it. | |
-| req-tap-cares-collector-grift-import-3 | No Raw write_batch | Proposed | Collector modules do not call `write_batch()` or lower-level node/edge mutation helpers directly. | |
-| req-tap-cares-collector-grift-import-4 | Job Correlation | Proposed | tap-cares can correlate a `CollectionJob` with the GRIFT batch entities imported or skipped by that job. | |
-| req-tap-cares-collector-grift-import-5 | Future API Compatible | Proposed | The v0 contract remains compatible with replacing in-process import with an API-based GRIFT submission surface under strict isolation. | |
+| req-tap-cares-collector-grift-import-1 | GRIFT Is Result Boundary | Implemented | Collector result mutations route through GRIFT import rather than ad hoc grid writes. | `tap_cares.grift.submit_collector_grift` wraps `grift_import()`. |
+| req-tap-cares-collector-grift-import-2 | v0 In-Process Import Allowed | Implemented | v0 collector execution may use in-process `grift_import()` or a tap-cares wrapper around it. | |
+| req-tap-cares-collector-grift-import-3 | No Raw write_batch | Implemented | Collector modules do not call `write_batch()` or lower-level node/edge mutation helpers directly. | Contract; not enforced at runtime in v0. |
+| req-tap-cares-collector-grift-import-4 | Job Correlation | Implemented | tap-cares can correlate a `CollectionJob` with the GRIFT batch entities imported or skipped by that job. | `CollectionJob.grift_batches` is a JSON field with `{"imported": [...], "skipped": [...]}` populated by `submit_collector_grift`. Imports across multiple `submit_collector_grift` calls in a single run accumulate. |
+| req-tap-cares-collector-grift-import-5 | Future API Compatible | Implemented | The v0 contract remains compatible with replacing in-process import with an API-based GRIFT submission surface under strict isolation. | `submit_collector_grift` takes a document and returns a `GriftImportResult`; replacing the in-process call with an API round trip changes only the helper internals. |
 
 ## CollectionJob Model
 ----

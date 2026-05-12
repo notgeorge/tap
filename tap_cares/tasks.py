@@ -50,9 +50,11 @@ def run_collector(
     now = datetime.now(UTC)
     job.status = CollectionJobStatus.RUNNING
     job.started_at = now
+    fields_to_save = ["status", "started_at"]
     if not job.task_result_id and context.task_result is not None:
         job.task_result_id = context.task_result.id
-    job.save()
+        fields_to_save.append("task_result_id")
+    job.save(update_fields=fields_to_save)
 
     try:
         collector = Collector.objects.get(entity_id=collector_entity_id)
@@ -62,14 +64,18 @@ def run_collector(
             collection_job_entity_id=job.entity_id,
         )
         instance = cls(config)
+        # The collector may update its own job (e.g. via submit_collector_grift
+        # writing grift_batches). We only own lifecycle fields, so the final
+        # save below uses update_fields to avoid clobbering collector-owned
+        # state.
         instance.run()
     except Exception as exc:
         job.status = CollectionJobStatus.FAILED
         job.error_summary = _safe_error_summary(exc)
         job.finished_at = datetime.now(UTC)
-        job.save()
+        job.save(update_fields=["status", "error_summary", "finished_at"])
         raise
     else:
         job.status = CollectionJobStatus.SUCCESSFUL
         job.finished_at = datetime.now(UTC)
-        job.save()
+        job.save(update_fields=["status", "finished_at"])
