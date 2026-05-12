@@ -1,9 +1,0 @@
-manifest_version = "0"
-plugin_version = "0.1.0"
-slug = "administrivia"
-name = "Administrivia"
-description = "TAP administrative pages, panels, searches, and infrastructure."
-
-[grift]
-grid-landing = "grift/grid-landing.grift.json"
-entity-pages = "grift/entity-pages.grift.json"

@@ -7,3 +7,6 @@
 [submodule "plugins/fedramp_20x_ksi"]
 	path = plugins/fedramp_20x_ksi
 	url = https://github.com/notgeorge/tap-plugin-fedramp-20x-ksi.git
+[submodule "plugins/administrivia"]
+	path = plugins/administrivia
+	url = https://github.com/notgeorge/tap-plugin-administrivia.git
