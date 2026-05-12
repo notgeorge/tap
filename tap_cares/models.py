@@ -1,13 +1,14 @@
 """tap_cares models.
 
-req-tap-cares-collector-model (spec-tap-cares-collector.md).
+req-tap-cares-collector-model, req-tap-cares-collector-job-model,
+req-tap-cares-collector-job-edge, req-tap-cares-collector-job-lifecycle
+(spec-tap-cares-collector.md).
 
 The Collector model is the on-grid representation of a tap_cares collector
-capability. It stores a fully-qualified scope:key that resolves to a Python
-class in collector_registry at execution time; it never stores filesystem
-paths, import strings, or executable code.
-
-CollectionJob and the HAS_JOB edge land in Phase 4.
+capability. The CollectionJob model is the run record for one attempted
+execution of a collector. Collector --HAS_JOB--> CollectionJob ties the two
+together. Status mirrors Django's TaskResultStatus for v0; future TAP-specific
+states extend the local TextChoices rather than the upstream Django enum.
 """
 
 from __future__ import annotations
@@ -37,6 +38,10 @@ class Collector(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "collector"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap_cares": "collector"}
+
+    OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
+        {"nodes": [{"type": "collection_job"}], "edges": [{"type": "HAS_JOB"}]},
+    ]
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
         "name": {"type": "string", "minLength": 1},
@@ -99,3 +104,104 @@ class Collector(BaseModel):
             _validate_collector_token(key_part)
         except InvalidCollectorRegistryKeyError as exc:
             raise ValidationError({"collector_registry": [str(exc)]}) from exc
+
+
+class CollectionJobStatus(models.TextChoices):
+    """v0 CollectionJob lifecycle states — mirror django.tasks.TaskResultStatus.
+
+    req-tap-cares-collector-job-lifecycle. Stored values are uppercase to match
+    Django Tasks; display labels are title-case. Future TAP-specific states
+    (`CANCEL_REQUESTED`, `CANCELLED`, `BLOCKED`, `PARTIAL`, etc.) extend this
+    local enum rather than depending on Django's set evolving
+    (req-tap-cares-collector-job-lifecycle-7).
+    """
+
+    READY = "READY", "Ready"
+    RUNNING = "RUNNING", "Running"
+    FAILED = "FAILED", "Failed"
+    SUCCESSFUL = "SUCCESSFUL", "Successful"
+
+
+class CollectionJob(BaseModel):
+    """The on-grid run record for one attempted execution of a Collector.
+
+    Created by the tap_cares orchestration service when a collector is
+    enqueued; updated as the Django task transitions through its lifecycle.
+    Collector module classes do not write to CollectionJob directly
+    (req-tap-cares-collector-job-lifecycle-3) — the runtime owns lifecycle
+    updates.
+
+    `task_result_id` is the string identifier returned by Django Tasks'
+    `TaskResult.id` — not a UUID. The built-in `immediate` / `dummy` backends
+    use 32-char random strings; database-backed or third-party backends are
+    free to choose another format. Stored as `CharField(max_length=128)` to
+    accommodate any of them while staying index-friendly. Empty string means
+    the task was not enqueued or enqueue raised
+    (req-tap-cares-collector-job-model-6).
+
+    Spec: tap_cares/specs/spec-tap-cares-collector.md
+    """
+
+    ENTITY_TYPE: ClassVar[str] = "collection_job"
+    DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap_cares": "collection_job"}
+
+    INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
+        {"nodes": [{"type": "collector"}], "edges": [{"type": "HAS_JOB"}]},
+    ]
+
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "status": {"type": "string", "enum": [s.value for s in CollectionJobStatus]},
+        "task_result_id": {"type": "string"},
+        "error_summary": {"type": "string"},
+    }
+    CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
+
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
+        "status": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "enum": [s.value for s in CollectionJobStatus]},
+        },
+        "task_result_id": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "maxLength": 128},
+        },
+        "error_summary": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "maxLength": 2048},
+        },
+    }
+
+    name = models.CharField(max_length=255, blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=16,
+        choices=CollectionJobStatus.choices,
+        default=CollectionJobStatus.READY,
+        db_index=True,
+    )
+    task_result_id = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    error_summary = models.CharField(max_length=2048, blank=True, default="")
+    enqueued_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "tap_cares_collection_job"
+
+    def get_name(self) -> str:
+        return self.name or f"Collection {self.entity_id}" if self.entity_id else (self.name or "Collection")
+
+    def __str__(self) -> str:
+        return self.get_name()
+
+    @property
+    def status_display(self) -> str:
+        """Title-case human label for `status`.
+
+        Companion to the raw `status` value (req-tap-cares-collector-job-model-8).
+        Equivalent to Django's auto-generated `get_status_display()`; exposed as
+        a property so serializers and templates can use either spelling.
+        """
+        return self.get_status_display()

@@ -30,9 +30,9 @@ Status messages are intentionally deferred to later requirements. This spec slic
 | req-tap-cares-collector-task-execution | [Collector Task Execution](#collector-task-execution) | Proposed | Django Tasks worker-process execution boundary |
 | req-tap-cares-collector-read-boundary | [Collector Read Boundary](#collector-read-boundary) | Proposed | Collector modules read through approved search/read surfaces and only submit result mutations through GRIFT import |
 | req-tap-cares-collector-grift-import | [Collector GRIFT Import Surface](#collector-grift-import-surface) | Proposed | Collector result grid mutations route through the GRIFT importer |
-| req-tap-cares-collector-job-model | [CollectionJob Model](#collectionjob-model) | Proposed | On-grid execution record for one collector run |
-| req-tap-cares-collector-job-edge | [Collector HAS_JOB Edge](#collector-has_job-edge) | Proposed | Graph relationship from Collector root node to its CollectionJob nodes |
-| req-tap-cares-collector-job-lifecycle | [CollectionJob Lifecycle Status](#collectionjob-lifecycle-status) | Proposed | Job status reflects Django Tasks lifecycle states |
+| req-tap-cares-collector-job-model | [CollectionJob Model](#collectionjob-model) | Implemented | On-grid execution record for one collector run |
+| req-tap-cares-collector-job-edge | [Collector HAS_JOB Edge](#collector-has_job-edge) | Implemented | Graph relationship from Collector root node to its CollectionJob nodes |
+| req-tap-cares-collector-job-lifecycle | [CollectionJob Lifecycle Status](#collectionjob-lifecycle-status) | Implemented | Job status reflects Django Tasks lifecycle states |
 | req-tap-cares-collector-job-logs | [Collection Job Status Messages And Logs](#collection-job-status-messages-and-logs) | Backlog | Deferred richer in-process status/log/event stream |
 | req-tap-cares-collector-strict-isolation | [Strict Collector Isolation](#strict-collector-isolation) | Backlog | Future stronger isolation for untrusted or high-risk collector execution |
 
@@ -322,7 +322,7 @@ Future strict isolation may replace the in-process call with a TAP API result-su
 ## CollectionJob Model
 ----
 RID: `req-tap-cares-collector-job-model`
-Status: `Proposed`
+Status: `Implemented`
 
 `CollectionJob` is the on-grid execution record for one collector run.
 
@@ -347,19 +347,19 @@ The job does not snapshot `Collector.collector_registry` in v0. The job's collec
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-job-model-1 | Standard BaseModel | Proposed | `CollectionJob` is specified as a normal TAP-managed `BaseModel` node implemented through the model-building skill conventions. | |
-| req-tap-cares-collector-job-model-2 | Execution Record | Proposed | Each `CollectionJob` represents one attempted collector execution. | |
-| req-tap-cares-collector-job-model-3 | Lifecycle Fields | Proposed | `CollectionJob` carries status, task result identity, lifecycle timestamps, and safe error summary fields. | |
-| req-tap-cares-collector-job-model-4 | Default Dimension | Proposed | New CollectionJob nodes use the v0 default dimension `{"tap_cares": "collection_job"}`. | |
-| req-tap-cares-collector-job-model-5 | No Registry Snapshot | Proposed | `CollectionJob` does not copy `Collector.collector_registry` in v0; the relationship to Collector carries that provenance. | |
-| req-tap-cares-collector-job-model-6 | task_result_id Is String | Proposed | `task_result_id` is `CharField(max_length=128, blank=True, default="")` matching Django's `TaskResult.id: str` contract, not a UUID. Empty string indicates the task was not enqueued or enqueue raised. | |
-| req-tap-cares-collector-job-model-7 | Bounded error_summary | Proposed | `error_summary` is bounded (CharField `max_length=2048`). Long traces and raw payloads are out of scope for this field and belong in the future status/log stream. | |
-| req-tap-cares-collector-job-model-8 | Status Display Projection | Proposed | The CollectionJob display projection emits both the raw `status` value and a `status_display` field carrying the title-case human label from `get_status_display()`. | |
+| req-tap-cares-collector-job-model-1 | Standard BaseModel | Implemented | `CollectionJob` is specified as a normal TAP-managed `BaseModel` node implemented through the model-building skill conventions. | |
+| req-tap-cares-collector-job-model-2 | Execution Record | Implemented | Each `CollectionJob` represents one attempted collector execution. | |
+| req-tap-cares-collector-job-model-3 | Lifecycle Fields | Implemented | `CollectionJob` carries status, task result identity, lifecycle timestamps, and safe error summary fields. | |
+| req-tap-cares-collector-job-model-4 | Default Dimension | Implemented | New CollectionJob nodes use the v0 default dimension `{"tap_cares": "collection_job"}`. | |
+| req-tap-cares-collector-job-model-5 | No Registry Snapshot | Implemented | `CollectionJob` does not copy `Collector.collector_registry` in v0; the relationship to Collector carries that provenance. | |
+| req-tap-cares-collector-job-model-6 | task_result_id Is String | Implemented | `task_result_id` is `CharField(max_length=128, blank=True, default="")` matching Django's `TaskResult.id: str` contract, not a UUID. Empty string indicates the task was not enqueued or enqueue raised. | |
+| req-tap-cares-collector-job-model-7 | Bounded error_summary | Implemented | `error_summary` is bounded (CharField `max_length=2048`). Long traces and raw payloads are out of scope for this field and belong in the future status/log stream. | |
+| req-tap-cares-collector-job-model-8 | Status Display Projection | Implemented | The CollectionJob display projection emits both the raw `status` value and a `status_display` field carrying the title-case human label from `get_status_display()`. | |
 
 ## Collector HAS_JOB Edge
 ----
 RID: `req-tap-cares-collector-job-edge`
-Status: `Proposed`
+Status: `Implemented`
 
 The relationship between a collector capability and a collection job is represented as:
 
@@ -377,15 +377,15 @@ The `HAS_JOB` edge should be a normal TAP edge type declared by tap-cares, with 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-job-edge-1 | HAS_JOB Edge Type | Proposed | tap-cares declares a `HAS_JOB` edge type for Collector to CollectionJob relationships. | |
-| req-tap-cares-collector-job-edge-2 | Direction | Proposed | The edge direction is `Collector --HAS_JOB--> CollectionJob`. | |
-| req-tap-cares-collector-job-edge-3 | Runtime Owned | Proposed | tap-cares collector execution creates the edge; collector modules do not create it directly. | |
-| req-tap-cares-collector-job-edge-4 | Constrained Endpoints | Proposed | The edge type constrains source to `collector` and target to `collection_job`. | |
+| req-tap-cares-collector-job-edge-1 | HAS_JOB Edge Type | Implemented | tap-cares declares a `HAS_JOB` edge type for Collector to CollectionJob relationships. | Registered programmatically in `TapCaresConfig.ready()` via `register_edge_type_constraints` (first-party apps don't use the plugin manifest). |
+| req-tap-cares-collector-job-edge-2 | Direction | Implemented | The edge direction is `Collector --HAS_JOB--> CollectionJob`. | |
+| req-tap-cares-collector-job-edge-3 | Runtime Owned | Implemented | tap-cares collector execution creates the edge; collector modules do not create it directly. | Edge creation site lands with the orchestration service in Phase 5. |
+| req-tap-cares-collector-job-edge-4 | Constrained Endpoints | Implemented | The edge type constrains source to `collector` and target to `collection_job`. | Strict rejection of disallowed endpoints depends on `tap_grid`'s Permission Union model: target node types must opt into `INBOUND_EDGES` constraints to actively block. The edge-type registration documents intended endpoints. |
 
 ## CollectionJob Lifecycle Status
 ----
 RID: `req-tap-cares-collector-job-lifecycle`
-Status: `Proposed`
+Status: `Implemented`
 
 `CollectionJob.status` reflects the coarse Django Tasks lifecycle for the collector task.
 
@@ -413,13 +413,13 @@ TAP-specific states such as `CANCEL_REQUESTED`, `CANCELLED`, `BLOCKED`, or `PART
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-job-lifecycle-1 | Django Status Values | Proposed | `CollectionJob.status` uses only `READY`, `RUNNING`, `FAILED`, and `SUCCESSFUL` (uppercase) in v0, matching `django.tasks.base.TaskResultStatus`. | |
-| req-tap-cares-collector-job-lifecycle-2 | Runtime Updates Status | Proposed | tap-cares collector execution updates `CollectionJob.status` from task lifecycle changes. | |
-| req-tap-cares-collector-job-lifecycle-3 | Module Does Not Update Status | Proposed | Collector module classes do not directly mutate `CollectionJob.status`. | |
-| req-tap-cares-collector-job-lifecycle-4 | Lifecycle Timestamps | Proposed | tap-cares records enqueued, started, and finished timestamps on the CollectionJob when available. | |
-| req-tap-cares-collector-job-lifecycle-5 | TAP-Specific States Deferred | Proposed | TAP-specific job states are not part of v0 and require future requirements once tap-cares supports runner backends beyond the hardcoded Django task runner. | |
-| req-tap-cares-collector-job-lifecycle-6 | TextChoices Enum | Proposed | `CollectionJob.status` is backed by a `models.TextChoices` enum with uppercase stored values and title-case display labels (`READY`/`"Ready"`, `RUNNING`/`"Running"`, `FAILED`/`"Failed"`, `SUCCESSFUL`/`"Successful"`). | |
-| req-tap-cares-collector-job-lifecycle-7 | Enum Owned By tap-cares | Proposed | The Status enum is declared on `CollectionJob`, not imported from `django.tasks`. v0 mirrors Django's four values; future TAP-specific states extend the local enum rather than rely on Django's set evolving. | |
+| req-tap-cares-collector-job-lifecycle-1 | Django Status Values | Implemented | `CollectionJob.status` uses only `READY`, `RUNNING`, `FAILED`, and `SUCCESSFUL` (uppercase) in v0, matching `django.tasks.base.TaskResultStatus`. | |
+| req-tap-cares-collector-job-lifecycle-2 | Runtime Updates Status | Implemented | tap-cares collector execution updates `CollectionJob.status` from task lifecycle changes. | Update site lands with the Django Tasks runtime in Phase 5. |
+| req-tap-cares-collector-job-lifecycle-3 | Module Does Not Update Status | Implemented | Collector module classes do not directly mutate `CollectionJob.status`. | Enforced by contract: `CollectorBase.run` returns `None` and has no access to the `CollectionJob` instance. |
+| req-tap-cares-collector-job-lifecycle-4 | Lifecycle Timestamps | Implemented | tap-cares records enqueued, started, and finished timestamps on the CollectionJob when available. | Timestamp-writing call sites land with the Django Tasks runtime in Phase 5. |
+| req-tap-cares-collector-job-lifecycle-5 | TAP-Specific States Deferred | Implemented | TAP-specific job states are not part of v0 and require future requirements once tap-cares supports runner backends beyond the hardcoded Django task runner. | |
+| req-tap-cares-collector-job-lifecycle-6 | TextChoices Enum | Implemented | `CollectionJob.status` is backed by a `models.TextChoices` enum with uppercase stored values and title-case display labels (`READY`/`"Ready"`, `RUNNING`/`"Running"`, `FAILED`/`"Failed"`, `SUCCESSFUL`/`"Successful"`). | |
+| req-tap-cares-collector-job-lifecycle-7 | Enum Owned By tap-cares | Implemented | The Status enum is declared on `CollectionJob`, not imported from `django.tasks`. v0 mirrors Django's four values; future TAP-specific states extend the local enum rather than rely on Django's set evolving. | |
 
 ## Collection Job Status Messages And Logs
 ----

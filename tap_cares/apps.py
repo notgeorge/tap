@@ -9,7 +9,13 @@ class TapCaresConfig(AppConfig):
     verbose_name = "TAP Cares"
 
     def ready(self) -> None:
-        # Intentionally empty until the first collector (FedRAMP 20x KSI) lands
-        # and needs to register at startup. See tap_cares/specs/spec-tap-cares-v0.md
-        # and spec-tap-cares-collector.md.
-        return
+        # Register tap_cares-owned edge types. Plugins use the manifest path
+        # (tap-plugin.toml + edges/*.edge.json); first-party apps register
+        # programmatically through the same constraints registry.
+        from tap_grid.constraints import register_edge_type_constraints
+
+        register_edge_type_constraints(
+            "HAS_JOB",
+            sources=[{"type": "collector"}],
+            targets=[{"type": "collection_job"}],
+        )
