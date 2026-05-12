@@ -337,11 +337,83 @@ CollectionJob-specific model requirements:
 - `CollectionJob` has a `status` `CharField` driven by a `models.TextChoices` enum (see [CollectionJob Lifecycle Status](#collectionjob-lifecycle-status)).
 - `CollectionJob` has a `task_result_id` `CharField(max_length=128, blank=True, default="")`. This stores the `TaskResult.id` returned by Django's Tasks API — a backend-defined string, **not** a UUID. The built-in `immediate` and `dummy` backends use 32-char random strings (`get_random_string(32)`); other backends may differ. `max_length=128` is comfortably above the current built-in but small enough to remain index-friendly. Empty string represents "not yet enqueued / enqueue raised."
 - `CollectionJob` has `enqueued_at`, `started_at`, and `finished_at` `DateTimeField(null=True, blank=True)` timestamps; each is populated as the corresponding lifecycle transition occurs.
-- `CollectionJob` has an `error_summary` `CharField(max_length=2048, blank=True, default="")` field for safe, short failure details. Long stack traces or raw payloads belong in the future status/log stream ([Collection Job Status Messages And Logs](#collection-job-status-messages-and-logs)), not here.
+- `CollectionJob` has an `error_summary` `CharField(max_length=2048, blank=True, default="")` field for the at-a-glance terminal-failure one-liner. Structured per-event detail (codes, messages, context) lives in `results` (below); `error_summary` is the human-facing single line that shows up wherever the job is summarized.
+- `CollectionJob` has a `results` `JSONField` carrying the structured per-event log for this run (see [CollectionJob Results Log](#collectionjob-results-log) below).
 - The `CollectionJob` display projection emits both the raw `status` value and a `status_display` field carrying the human-readable label (via Django's auto-generated `get_status_display()`).
 - The v0 default dimension is `{"tap_cares": "collection_job"}`.
 
 The job does not snapshot `Collector.collector_registry` in v0. The job's collector provenance comes from the `Collector --HAS_JOB--> CollectionJob` edge. If immutable runner snapshots become necessary, that should be added as a separate requirement.
+
+### CollectionJob Results Log
+
+The `results` field is the structured per-event log for one collector run. It captures successes, warnings, and errors uniformly so consumers (UIs, audits, future Action rules) have a single place to read what happened.
+
+#### Shape
+
+```python
+results = models.JSONField(default=_empty_results_dict, blank=True)
+
+def _empty_results_dict() -> dict[str, list]:
+    return {"info": [], "warn": [], "error": []}
+```
+
+Top-level shape is **pre-defined arrays per level**, never a flat list with embedded `level` fields. This keeps "show me errors" / "did anything warn?" as direct lookups (`results["error"]`) rather than filter operations, and keeps the JSON Schema strict — no level outside the three is permitted.
+
+Per-entry shape (same for all three buckets):
+
+```json
+{
+  "site":    "<UUIDv7>",
+  "code":    "<UPPER_SNAKE>",
+  "message": "<human-readable prose>",
+  "context": { /* free-form */ }
+}
+```
+
+| Field | Purpose |
+| --- | --- |
+| `site` | UUIDv7 hardcoded at the helper callsite, generated via `scripts/uuid7`. Identifies the exact line of code that emitted the entry. Survives refactors; grep the codebase for the UUID to locate the callsite. |
+| `code` | Machine-readable category (`MASS_DELETION`, `UPSTREAM_OVERSIZED`, `RUN_COMPLETED`, …). Stable across runs and rewordings; what filtering and future Action rules key off. |
+| `message` | Human-readable prose for this run. Includes specifics (counts, ratios, offending fragments); the `code` stays stable while `message` describes the particular occurrence. |
+| `context` | Free-form structured payload. Empty object when none. Collector-defined keys; consumers treat unknown keys as opaque. |
+
+All four fields are **required** in stored entries. The pinned JSON schema (below) rejects entries missing any of them.
+
+#### Pinned schema
+
+The shape is pinned at `tap_cares/schemas/collection_job_results.schema.json` per the JSON Schema Policy in `MEMORY.md`. The `record_*` helpers validate every entry against this schema before append; malformed entries raise rather than silently writing bad data.
+
+#### Service helpers
+
+`tap_cares/results.py`:
+
+```python
+def record_info(job, site, code, message, *, context=None) -> None: ...
+def record_warn(job, site, code, message, *, context=None) -> None: ...
+def record_error(job, site, code, message, *, context=None) -> None: ...
+```
+
+Each helper:
+
+1. Builds the entry from the four arguments (defaulting `context` to `{}` if `None`).
+2. Validates the entry against the pinned schema.
+3. Appends to `job.results[<level>]`, initializing the level array if absent.
+4. Saves with `update_fields=["results"]` so other concurrently-mutating fields (e.g. status transitions owned by the task runtime) are not overwritten.
+
+Collectors never manipulate `job.results` directly; they always go through the helpers. `site` is **required positional** — forgetting it raises `TypeError`, which keeps every entry traceable to a single line of source.
+
+#### Site UUID uniqueness
+
+A repository-wide pytest scans every `record_info(…)` / `record_warn(…)` / `record_error(…)` call literal in the codebase and asserts that no two callsites share the same UUIDv7. Catches copy-paste mistakes at CI time. The test lives in `tap_cares/tests/test_results_site_uniqueness.py`.
+
+#### `error_summary` vs `results["error"]`
+
+The two coexist with distinct roles:
+
+- `error_summary` (CharField 2048) — the at-a-glance one-liner for a terminal failure. The collector sets it explicitly when failing the run. Renders wherever the job is summarized (admin list, job detail header).
+- `results["error"]` — the full structured detail. One entry per discrete error event, each with its own site / code / context. Renders in the "what went wrong" expanded view.
+
+If a run produces multiple error events, `error_summary` reflects the most important one (collector's call); `results["error"]` carries the full set.
 
 ### Acceptance Criteria
 
@@ -355,6 +427,14 @@ The job does not snapshot `Collector.collector_registry` in v0. The job's collec
 | req-tap-cares-collector-job-model-6 | task_result_id Is String | Implemented | `task_result_id` is `CharField(max_length=128, blank=True, default="")` matching Django's `TaskResult.id: str` contract, not a UUID. Empty string indicates the task was not enqueued or enqueue raised. | |
 | req-tap-cares-collector-job-model-7 | Bounded error_summary | Implemented | `error_summary` is bounded (CharField `max_length=2048`). Long traces and raw payloads are out of scope for this field and belong in the future status/log stream. | |
 | req-tap-cares-collector-job-model-8 | Status Display Projection | Implemented | The CollectionJob display projection emits both the raw `status` value and a `status_display` field carrying the title-case human label from `get_status_display()`. | |
+| req-tap-cares-collector-job-model-9 | Results Field Exists | Proposed | `CollectionJob` has a `results` `JSONField` defaulting to `{"info": [], "warn": [], "error": []}` (via a callable default helper). | |
+| req-tap-cares-collector-job-model-10 | Pre-Defined Severity Buckets | Proposed | The top-level shape of `results` is three pre-defined arrays keyed `info` / `warn` / `error`. No flat-array form; entries never carry a `level` field (severity is implied by which bucket holds them). | |
+| req-tap-cares-collector-job-model-11 | Four-Field Entry Shape | Proposed | Every result entry has exactly four required fields: `site` (UUIDv7), `code` (UPPER_SNAKE), `message` (string), `context` (object). No other fields permitted. | |
+| req-tap-cares-collector-job-model-12 | Pinned Results Schema | Proposed | The results shape is pinned at `tap_cares/schemas/collection_job_results.schema.json` with `additionalProperties: false` at both the top-level and per-entry. | |
+| req-tap-cares-collector-job-model-13 | record_* Helpers | Proposed | `tap_cares/results.py` exposes `record_info(job, site, code, message, *, context=None)` and the `warn` / `error` siblings. Each validates against the pinned schema, appends to the right bucket, and saves with `update_fields=["results"]`. | |
+| req-tap-cares-collector-job-model-14 | Site Is Required Positional | Proposed | `site` is a required positional argument on the helpers. Calls missing it raise `TypeError` at runtime / fail type-checking, ensuring every stored entry traces to one line of source. | |
+| req-tap-cares-collector-job-model-15 | Site UUID Uniqueness Test | Proposed | A repository-wide pytest scans every `record_info` / `record_warn` / `record_error` callsite in the codebase and asserts no two share the same `site` UUID. | |
+| req-tap-cares-collector-job-model-16 | error_summary Stays Distinct | Proposed | `error_summary` (CharField 2048) survives as the at-a-glance terminal-failure one-liner; structured per-event detail lives in `results["error"]`. The two are complementary, not redundant. | |
 
 ## Collector HAS_JOB Edge
 ----
