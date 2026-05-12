@@ -107,6 +107,14 @@ class ScopedRegistry(Generic[T]):
     Scope is auto-inferred from value.__module__ at registration time.
     The same short key may be registered by different scopes without collision.
     The fully-qualified key format is 'scope:key'.
+
+    Optional ``validate_key`` / ``validate_scope`` callbacks enforce per-subsystem
+    format rules. When provided, they run on both ``register()`` and ``get()``
+    public entrypoints (including the parsed halves of a ``"scope:key"`` lookup)
+    so malformed inputs fail loud at the boundary rather than at first dictionary
+    use. Callbacks raise (typically ``ImproperlyConfigured`` for bad
+    registrations, a domain-specific exception for bad lookups); the registry
+    does not catch or wrap. Defaults of ``None`` preserve pre-validator behavior.
     """
 
     def __init__(
@@ -114,12 +122,16 @@ class ScopedRegistry(Generic[T]):
         name: str,
         merge_fn: Callable[[T, T], T] | None = None,
         *,
+        validate_key: Callable[[str], None] | None = None,
+        validate_scope: Callable[[str], None] | None = None,
         title: str = "",
         description: str = "",
         creator: str = "",
     ) -> None:
         self._name = name
         self._merge_fn = merge_fn
+        self._validate_key = validate_key
+        self._validate_scope = validate_scope
         self._data: dict[str, dict[str, T]] = {}  # scope → key → value
         self.title = title or name.replace("_", " ").title()
         self.description = description
@@ -137,8 +149,17 @@ class ScopedRegistry(Generic[T]):
         return module
 
     def register(self, key: str, value: T, scope: str | None = None) -> None:
-        """Register (scope, key) → value. Scope inferred from value.__module__ if not provided."""
+        """Register (scope, key) → value. Scope inferred from value.__module__ if not provided.
+
+        If ``validate_scope`` / ``validate_key`` were supplied at construction,
+        they run before any internal state is touched so a rejected registration
+        leaves the registry unchanged.
+        """
         effective_scope = self._infer_scope(value, scope)
+        if self._validate_scope is not None:
+            self._validate_scope(effective_scope)
+        if self._validate_key is not None:
+            self._validate_key(key)
         scope_data = self._data.setdefault(effective_scope, {})
         if key in scope_data:
             if self._merge_fn is not None:
@@ -155,10 +176,18 @@ class ScopedRegistry(Generic[T]):
         - Fully-qualified key ('scope:key') or scope kwarg: direct lookup.
         - Short key only: returns the single match if unambiguous; raises KeyError
           if zero matches or if multiple scopes have the same short key.
+
+        If validators were supplied at construction, they run on the resolved
+        scope and key before dictionary lookup, including the parsed halves of
+        a ``"scope:key"`` argument.
         """
         if ":" in key and scope is None:
-            scope_part, short_key = key.rsplit(":", 1)
-            return self.get(short_key, scope=scope_part)
+            scope, key = key.rsplit(":", 1)
+
+        if scope is not None and self._validate_scope is not None:
+            self._validate_scope(scope)
+        if self._validate_key is not None:
+            self._validate_key(key)
 
         if scope is not None:
             scope_data = self._data.get(scope, {})

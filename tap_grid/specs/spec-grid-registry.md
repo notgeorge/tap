@@ -34,6 +34,7 @@ Every registry is **self-describing**: each instance carries a `title`, `descrip
 | --- | --- | :---: | --- |
 | req-grid-registry | [Registry Class](#registry-class) | Implemented | Generic runtime key → value registry with named instance, duplicate guard, and descriptive miss |
 | req-grid-registry-scope | [Scoped Registry](#scoped-registry) | Implemented | `ScopedRegistry[T]` auto-infers key namespace from value's module; supports unambiguous short-key lookup |
+| req-grid-registry-scope-validators | [Scoped Registry Key Validators](#scoped-registry-key-validators) | Implemented | Optional `validate_key` / `validate_scope` callbacks on `ScopedRegistry`, applied on both `register()` and `get()` |
 | req-grid-registry-meta | [Meta-Registry](#meta-registry) | Implemented | Module-level `meta_registry` enumerates all named `Registry` instances |
 | req-grid-registry-admin | [Meta-Registry Admin View](#meta-registry-admin-view) | Implemented | Read-only Django admin view for live registry and meta-registry inspection |
 | req-grid-registry-entity | [Entity Model Registry Migration](#entity-model-registry-migration) | Implemented | Refactor `tap_grid/registry.py` to back the existing entity model registry with a `Registry` instance |
@@ -208,6 +209,76 @@ Duplicate is defined at the `(scope, key)` level. `ScopedRegistry` inherits the 
 | req-grid-registry-scope-11 | Title Field | Implemented | `ScopedRegistry` stores a `title: str` attribute. If not provided at construction, defaults to `name.replace("_", " ").title()`. | |
 | req-grid-registry-scope-12 | Description Field | Implemented | `ScopedRegistry` stores a `description: str` attribute (default `""`). | |
 | req-grid-registry-scope-13 | Creator Field | Implemented | `ScopedRegistry` stores a `creator: str` attribute set to the calling module's `__name__`. May be provided explicitly; auto-inferred via `inspect.stack()` if omitted. | |
+
+
+---
+
+
+### Scoped Registry Key Validators
+----
+RID: `req-grid-registry-scope-validators`
+Status: `Implemented`
+
+`ScopedRegistry[T]` accepts optional `validate_key` and `validate_scope` callbacks that enforce per-subsystem format rules on the `scope` and `key` strings.
+
+The motivation is that a `ScopedRegistry`'s fully-qualified-key format (`"scope:key"`) is parsed by `rsplit(":", 1)` — a key that contains a `:` registers successfully but mis-parses on lookup. Subsystems with stricter requirements (e.g., tap-cares' `collector_registry`, which forbids short keys and constrains character set) need a sanctioned place for that enforcement so the rules live with the registry rather than scattered across model `validate()` hooks.
+
+#### Interface
+
+```python
+from django.core.exceptions import ImproperlyConfigured
+from tap_grid.registry import ScopedRegistry
+
+def _validate_collector_key(key: str) -> None:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.\-]*", key):
+        raise ImproperlyConfigured(f"Invalid collector key: {key!r}")
+
+collector_registry: ScopedRegistry[type] = ScopedRegistry(
+    "collector",
+    validate_key=_validate_collector_key,
+    validate_scope=_validate_collector_key,  # same rule for both halves
+)
+```
+
+#### Semantics
+
+- Both callbacks are optional. `None` (default) preserves current behavior — no validation, identical to today's `ScopedRegistry`.
+- `validate_key` is invoked with the short key on `register(key, value, scope=...)` and on `get(key, scope=...)` (including the parsed key half of `"scope:key"`).
+- `validate_scope` is invoked with the resolved scope string (whether inferred from `value.__module__` or passed explicitly).
+- Callbacks raise an exception (typically `ImproperlyConfigured` at registration time, a registry-specific subclass at lookup time) to reject the input. The registry does not catch or wrap.
+- Validation runs *before* mutation on `register()` and *before* lookup on `get()` so failure leaves internal state untouched.
+- Validation is not applied to internal-only iteration paths (`keys()`, `all()`, `scopes()`, `get_all()`'s inner iteration), only to public `register()` and `get()` entrypoints.
+
+#### Implementation
+
+Two new constructor parameters on `ScopedRegistry.__init__`:
+
+```python
+def __init__(
+    self,
+    name: str,
+    merge_fn: Callable[[T, T], T] | None = None,
+    *,
+    validate_key: Callable[[str], None] | None = None,
+    validate_scope: Callable[[str], None] | None = None,
+    title: str = "",
+    description: str = "",
+    creator: str = "",
+) -> None:
+```
+
+`register()` calls `validate_scope(effective_scope)` and `validate_key(key)` before `_data.setdefault(...)`. `get()` parses `"scope:key"` (or accepts an explicit scope) and runs the same two callbacks before dictionary lookup.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-registry-scope-validators-1 | Optional Callbacks | Implemented | `ScopedRegistry.__init__` accepts optional `validate_key` and `validate_scope` keyword arguments; defaults of `None` preserve existing behavior. | |
+| req-grid-registry-scope-validators-2 | Register Validates | Implemented | `register(key, value, scope=None)` calls `validate_scope(effective_scope)` and `validate_key(key)` before storing; raised exceptions propagate and leave internal state unchanged. | |
+| req-grid-registry-scope-validators-3 | Get Validates | Implemented | `get(key, scope=None)` calls `validate_scope` and `validate_key` on the resolved scope and key (including the parsed halves of a `"scope:key"` argument) before dictionary lookup. | |
+| req-grid-registry-scope-validators-4 | Defaults Are No-Op | Implemented | When both callbacks are `None`, `register()` and `get()` behave identically to today. | |
+| req-grid-registry-scope-validators-5 | Exception Pass-Through | Implemented | The registry does not catch or wrap exceptions raised by the validators; callers see the original exception type and message. | |
+| req-grid-registry-scope-validators-6 | Public Entrypoints Only | Implemented | Validators are applied to `register()` and `get()`; internal iteration helpers (`keys()`, `all()`, `scopes()`, `get_all()`) do not re-validate already-stored entries. | |
 
 
 ---
