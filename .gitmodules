@@ -10,3 +10,6 @@
 [submodule "plugins/administrivia"]
 	path = plugins/administrivia
 	url = https://github.com/notgeorge/tap-plugin-administrivia.git
+[submodule "plugins/lotr"]
+	path = plugins/lotr
+	url = https://github.com/notgeorge/tap-plugin-lotr.git

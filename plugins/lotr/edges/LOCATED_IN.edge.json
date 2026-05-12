@@ -1,7 +1,0 @@
-{
-  "slug": "LOCATED_IN",
-  "name": "Located In",
-  "description": "Entity is located in a place.",
-  "sources": ["character"],
-  "targets": ["location"]
-}
