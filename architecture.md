@@ -106,7 +106,8 @@ Step-wise Priority Goals for v0
 3. tap_api - Manages API versioning, auth, and global API behavior, building out django ninja so there's an api layer that is minimal and effective and decide how to refactor plugins to support adding api endpoints in a sane way
 4. tab_web - Assets and helpers for building expressive dashboards and UIs which plugins will extend, once this is baked we can refactor the plugin from built in step 2 to include some pages to see things
 5. tap_viz - Visualization - present views of the data in visual graphical format (cytoscape), once we can see web pages we'll add cool visuals that will be a joyful thing to see
-6. tap_ai - Initial RAG / LLM Surfaces - read-only graph traversal, summarization, and suggestion helpers, the super-awesome stretch goal which takes this whole project to the next level
+6. tap_cares - Collect, Act, Receive, Emit, Schedule - on-grid automation plumbing for collectors, receivers, emitters, actions, schedules, run records, and GRIFT-batch-based grid updates
+7. tap_ai - Initial RAG / LLM Surfaces - read-only graph traversal, summarization, and suggestion helpers, the super-awesome stretch goal which takes this whole project to the next level
 
 Cross-cutting expectation: graph serialization, graph search, and graph interchange should converge on TAP-owned canonical contracts rather than app-specific ad hoc payloads. In practice this means service/search graph results should move toward Gryphon-backed reads and GRIFT-shaped node/edge responses where complete portable graph data is intended.
 
