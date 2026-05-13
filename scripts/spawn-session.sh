@@ -71,9 +71,8 @@ prompts for it interactively.
 Optional second arg auto-attaches an editor after spawn completes:
   cli     — cd into the worktree and exec \`claude\` (this script's process
             becomes the claude REPL)
-  codex   — launch the Codex desktop app scoped to the worktree via
-            \`codex app --cd <worktree>\` (non-blocking — Codex launches as a
-            separate app, already cd'd into the session directory)
+  codex   — open the worktree in the Codex desktop app via
+            \`codex app <worktree>\` (non-blocking — Codex launches separately)
   vscode  — open the worktree in VS Code via \`open -a "Visual Studio Code"\`
             (non-blocking — VS Code launches as a separate app)
 
@@ -180,7 +179,6 @@ fi
 [[ -n "$SESSION_NAME" ]] || fail "Session name is required."
 [[ "$SESSION_NAME" =~ ^[a-z][a-z0-9_-]*$ ]] || fail "Session name must be lowercase, start with a letter, and contain only letters/digits/_/-."
 [[ "$SESSION_NAME" != "default" ]] || fail "'default' is reserved for the primary stack. Pick another name."
-[[ "$SESSION_NAME" != "main" ]] || fail "'main' is reserved — the primary worktree lives at ~/tap-sessions/main/. Pick another name."
 
 # Reject collision with an existing registry entry.
 if grep -qE "^${SESSION_NAME} " "$REGISTRY"; then
@@ -485,7 +483,7 @@ info "  Read with: cat '$WORKTREE/.dev-credentials'"
 echo
 info "Attach Claude Code"
 info "  CLI:       cd $WORKTREE && claude"
-info "  Codex:     codex app --cd '$WORKTREE'"
+info "  Codex:     codex app '$WORKTREE'"
 info "  VSCode:    open '$WORKTREE' in a new VSCode window"
 echo
 info "Next: from inside the attached Claude session, run the smoke tests in"
@@ -498,9 +496,8 @@ echo
 # `cli` — exec claude in the worktree. This script's process becomes the
 #         claude REPL; when claude exits the user is back in their original
 #         shell.
-# `codex` — launch the Codex desktop app already cd'd into the worktree via
-#           `codex app --cd <worktree>`. Non-blocking, same shape as `vscode`.
-#           (A future `codex-cli` target can exec the CLI.)
+# `codex` — open the worktree in the Codex desktop app. Non-blocking, same
+#           shape as `vscode`, but routed through Codex's workspace-aware CLI.
 # `vscode` — open the worktree as a folder in VS Code. Non-blocking; the
 #            script exits normally after the open call returns.
 # ============================================================================
@@ -511,8 +508,8 @@ case "$LAUNCH_TARGET" in
     exec claude
     ;;
   codex)
-    bold "Launching Codex in $WORKTREE..."
-    codex app --cd "$WORKTREE"
+    bold "Opening $WORKTREE in Codex..."
+    codex app "$WORKTREE"
     ;;
   vscode)
     bold "Opening $WORKTREE in VS Code..."
