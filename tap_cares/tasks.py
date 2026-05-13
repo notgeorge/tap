@@ -41,6 +41,30 @@ def _safe_error_summary(exc: BaseException) -> str:
     return msg
 
 
+def _derive_error_summary(instance: object, exc: BaseException) -> str:
+    """Compose the at-a-glance one-liner for a FAILED terminal patch.
+
+    Precedence:
+        1. count of recorded error events — "Failed with N error(s)"
+        2. collector-set instance.error_summary, if any
+        3. exception class + message fallback
+
+    Per req-tap-cares-collector-failure-mode-3: the summary answers "how
+    bad was it" at a glance; the structured detail in results["error"] is
+    where operators dig in.
+    """
+    results = getattr(instance, "results", None)
+    if isinstance(results, dict):
+        errors = results.get("error") or []
+        if errors:
+            n = len(errors)
+            return f"Failed with {n} error{'s' if n != 1 else ''}"
+    explicit = getattr(instance, "error_summary", "")
+    if explicit:
+        return explicit[:_ERROR_SUMMARY_CAP]
+    return _safe_error_summary(exc)
+
+
 @task(takes_context=True)
 def run_collector(
     context: TaskContext,
@@ -94,7 +118,7 @@ def run_collector(
         # constructed (resolution / registry / instantiation failure), use
         # empty defaults for the accumulators.
         if instance is not None:
-            error_summary = instance.error_summary or _safe_error_summary(exc)
+            error_summary = _derive_error_summary(instance, exc)
             results = instance.results
             grift_batches = instance.grift_batches
         else:

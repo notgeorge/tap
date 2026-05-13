@@ -660,10 +660,10 @@ A repository-wide pytest scans every `self.record_info(…)` / `self.record_warn
 
 The two coexist with distinct roles:
 
-- `error_summary` (CharField 2048) — the at-a-glance one-liner for a terminal failure. The collector sets it explicitly when failing the run. Renders wherever the job is summarized (admin list, job detail header).
-- `results["error"]` — the full structured detail. One entry per discrete error event, each with its own site / code / context. Renders in the "what went wrong" expanded view.
+- `error_summary` (CharField 2048) — the at-a-glance one-liner for a terminal failure. Derived by the task body from the count of recorded error events: `"Failed with N error(s)"`. Renders wherever the job is summarized (admin list, job detail header).
+- `results["error"]` — the full structured detail. One entry per discrete error event, each with its own site / code / context. Renders in the per-run "what went wrong" view.
 
-If a run produces multiple error events, `error_summary` reflects the most important one (collector's call); `results["error"]` carries the full set.
+The count summary intentionally hides per-message content; operators dig into `results["error"]` for specifics. Collectors may still set `self.error_summary` as a fallback used only when the run raised without recording any errors; the count-derived summary wins whenever `results["error"]` is non-empty.
 
 ### Acceptance Criteria
 
@@ -813,25 +813,26 @@ How a collector signals a failed run is a framework convention, not a per-collec
 
 To fail a run, a collector:
 
-1. Calls `self.record_error(site, code, message, *, context=...)` to accumulate one or more structured error entries in `self.results["error"]`. Each entry traces to a specific source location via its UUIDv7 `site`.
-2. Optionally sets `self.error_summary` to a one-line description of the most important failure event. This is the human-facing at-a-glance string that renders in admin lists and job detail headers. If the collector doesn't set it, the task body derives a fallback from the raised exception.
-3. Raises a Python exception out of `run()`. The exception terminates the run; control returns to the task body, which writes terminal state.
+1. Calls `self.record_error(site, code, message, *, context=...)` one or more times to accumulate structured error entries in `self.results["error"]`. Each entry traces to a specific source location via its UUIDv7 `site`.
+2. Raises a Python exception out of `run()`. The exception terminates the run; control returns to the task body, which writes terminal state.
 
-Whether *any particular* `record_error` call must be paired with a raise is a per-collector decision. The KSI collector treats every recorded error as block-class and aborts on the first one; another collector could record multiple errors and continue, raising only when a threshold is reached. The framework's `record_error` does not auto-raise.
+Collectors do not set `self.error_summary` directly to convey a per-error message. The task body derives a count-based summary (`"Failed with N error(s)"`) from `self.results["error"]` at terminal write time. A collector may still set `self.error_summary` as a fallback for the unusual case where the run raised without recording any errors; the count-derived summary takes precedence whenever `results["error"]` is non-empty.
+
+Whether *any particular* `record_error` call must be paired with a raise is a per-collector decision. Collectors are encouraged to accumulate every detectable error in a single pass (e.g. report all schema-drift sites in one run) and raise once at the end so the operator gets a complete picture. The framework's `record_error` does not auto-raise.
 
 #### Failure protocol (runtime side)
 
 The `run_collector` task body:
 
 1. Catches any exception raised by `instance.run()`.
-2. Writes a single FAILED-state patch to `CollectionJob` per `req-tap-cares-collector-job-sole-writer`: `status=FAILED`, `finished_at`, `error_summary` (collector-set if present, otherwise derived from the exception's class and message), `results` (the full accumulator including all error entries), `grift_batches` (whatever was submitted before the abort).
+2. Writes a single FAILED-state patch to `CollectionJob` per `req-tap-cares-collector-job-sole-writer`: `status=FAILED`, `finished_at`, `error_summary` (derived from `len(results["error"])` as `"Failed with N error(s)"`; falls back to a collector-set value, then to the exception's class and message when no errors were recorded), `results` (the full accumulator including all error entries), `grift_batches` (whatever was submitted before the abort).
 3. Re-raises so Django Tasks' own failure machinery sees the failure.
 
 #### What this guarantees
 
 - Exactly one terminal-state write to `CollectionJob` per failed run.
 - Structured failure detail (codes, messages, context, source sites) lives in `results["error"]`.
-- At-a-glance failure summary lives in `error_summary`.
+- At-a-glance failure summary lives in `error_summary` and is a derived count (`"Failed with N error(s)"`) over the same accumulator.
 - Both come from the same accumulator at the same write moment — no risk of `results["error"]` and `error_summary` disagreeing about what failed.
 
 #### What this does not guarantee
@@ -845,7 +846,7 @@ The `run_collector` task body:
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-collector-failure-mode-1 | record_error + Raise Is The Protocol | Proposed | A collector fails a run by calling `self.record_error(...)` to accumulate structured detail and then raising an exception. The task body catches and persists. | |
 | req-tap-cares-collector-failure-mode-2 | Single Terminal Write | Proposed | Failure produces exactly one terminal-state patch to `CollectionJob`, carrying status=FAILED plus the full accumulator. | See `req-tap-cares-collector-job-sole-writer`. |
-| req-tap-cares-collector-failure-mode-3 | error_summary Source Of Truth | Proposed | `error_summary` is collector-set via `self.error_summary = "..."`; the task body persists it. If the collector did not set it, the task body derives a fallback from the raised exception. | |
+| req-tap-cares-collector-failure-mode-3 | error_summary Is Count-Derived | Proposed | `error_summary` is derived by the task body as `"Failed with N error(s)"` from `len(results["error"])`. A collector-set `self.error_summary` and an exception-message fallback are used only when no errors were recorded. | Replaces the prior "highest-severity-wins / collector-set message" pattern. |
 | req-tap-cares-collector-failure-mode-4 | Framework Does Not Auto-Halt | Proposed | `record_error` is a pure accumulator call; it does not raise. Per-collector policy decides whether a recorded error halts the run. | |
 | req-tap-cares-collector-failure-mode-5 | Re-Raise For Task Backend | Proposed | The task body re-raises after writing FAILED state so Django Tasks' own failure machinery sees the failure. | |
 | req-tap-cares-collector-failure-mode-6 | Plugin Specs Reference This | Proposed | Per-collector safety specs (KSI, future Emitter receivers, etc.) describe their own check vocabulary and policy but reference this requirement for the failure-signaling protocol instead of re-specifying mechanics. | |

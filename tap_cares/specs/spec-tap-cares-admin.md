@@ -272,6 +272,17 @@ Run history columns:
 
 v0 does not require a rich log/event stream because that remains backlog work in `spec-tap-cares-collector.md`. The UI should not pretend detailed logs exist until the run-record/log spec exists.
 
+#### Per-run deep dive
+
+The Run column links to a dedicated CARES Run Detail page at slug `/administrivia/cares/run` with query parameter `?entity_id=<CollectionJob entity_id>`. The page renders the full structured event record stored on `CollectionJob.results`:
+
+- Run header — collector name + link to its detail page, status pill, lifecycle timestamps, derived duration, `error_summary`, task result ID.
+- Counts strip — `info` / `warn` / `error` entry counts plus GRIFT imported / skipped batch counts.
+- Three structured event sections (Errors, Warnings, Info), each listing every entry with its `code`, `message`, `site` UUIDv7, and an expandable `context` payload (pretty-printed JSON).
+- GRIFT batches section listing imported and skipped batch entity IDs.
+
+The deep dive is read-only; running a collector remains the responsibility of the collector_table and collector_detail panels. The page exists so an operator can answer "what specifically went wrong in this run" without leaving the admin UI — particularly useful for collectors like KSI that accumulate every detected error in a single run.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
@@ -280,6 +291,7 @@ v0 does not require a rich log/event stream because that remains backlog work in
 | req-tap-cares-admin-run-observability-2 | Error Summary Visible | Implemented | Failed runs show bounded `error_summary` text. | |
 | req-tap-cares-admin-run-observability-3 | GRIFT Correlation Visible | Implemented | Imported and skipped GRIFT batch IDs/counts are visible from run history. | |
 | req-tap-cares-admin-run-observability-4 | Logs Not Invented | Implemented | UI does not invent rich logs before CARES specifies log/event records. | |
+| req-tap-cares-admin-run-observability-5 | Per-Run Deep-Dive Page | Implemented | Each run history row links to `/administrivia/cares/run?entity_id=<job_uuid>` which renders the full `results["info"]`, `results["warn"]`, `results["error"]` structured events plus per-entry context payloads. Read-only. | Implemented by the `cares_run_detail` panel in `plugins/administrivia/tap_cares/panels/run_detail/`. |
 
 ### FedRAMP KSI Collector Path
 ----

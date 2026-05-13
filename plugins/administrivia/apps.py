@@ -15,6 +15,9 @@ class AdministriviaConfig(TapPluginConfig):
         from plugins.administrivia.tap_cares.panels.collector_table import (
             CollectorTablePanelType,
         )
+        from plugins.administrivia.tap_cares.panels.run_detail import (
+            RunDetailPanelType,
+        )
         from tap_web.registry import panel_type_registry
 
         panel_type_registry.register(
@@ -22,4 +25,7 @@ class AdministriviaConfig(TapPluginConfig):
         )
         panel_type_registry.register(
             "cares_collector_detail", CollectorDetailPanelType
+        )
+        panel_type_registry.register(
+            "cares_run_detail", RunDetailPanelType
         )

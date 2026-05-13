@@ -4,15 +4,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e22ea-138f-738d-82cd-a425573a81c7",
+        "entity_id": "019e2307-a3ac-7053-9e70-f8690c570ff1",
         "entity_type": "batch",
-        "name": "Administrivia CARES Admin v0.1.0",
+        "name": "Administrivia CARES Admin v0.2.0",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.administrivia",
-        "name": "Administrivia CARES Admin v0.1.0",
-        "description": "Seeds the CARES administration surface: homepage with collector table at /administrivia/cares, and collector detail page at /administrivia/cares/collector. Implements req-tap-cares-admin-homepage, -collector-table, -manual-run, -htmx-trigger, -collector-detail, -run-observability, -ksi-path from tap_cares/specs/spec-tap-cares-admin.md."
+        "name": "Administrivia CARES Admin v0.2.0",
+        "description": "Seeds the CARES administration surface: homepage with collector table at /administrivia/cares, collector detail at /administrivia/cares/collector, and per-run deep-dive at /administrivia/cares/run. Implements req-tap-cares-admin-homepage, -collector-table, -manual-run, -htmx-trigger, -collector-detail, -run-observability, -ksi-path from tap_cares/specs/spec-tap-cares-admin.md."
       },
       "nodes": [
         {
@@ -88,6 +88,43 @@
               }
             }
           }
+        },
+        {
+          "entity": {
+            "entity_id": "019e2307-acac-706f-a575-4acd5a1a46e8",
+            "entity_type": "panel",
+            "name": "CARES Run Detail",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "administrivia-cares-run-detail",
+            "name": "CARES Run Detail",
+            "view": "administrivia/panels/run_detail.html",
+            "editor_view": "",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e2307-b24a-7100-a214-ee81efb13dc0",
+            "entity_type": "page",
+            "name": "CARES Run Detail",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "CARES Run Detail",
+            "slug": "/administrivia/cares/run",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {"panel-id": "run-detail", "height": "1fr"}
+                  }
+                }
+              }
+            }
+          }
         }
       ],
       "edges": [
@@ -117,6 +154,20 @@
             "to_entity_id": "019e22ea-1b80-7255-b28b-b1af795ffef2",
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "detail"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e2307-b584-7332-ba15-578f037a3440",
+            "entity_type": "edge",
+            "name": "CARES Run Detail Page USES_PANEL run-detail",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e2307-b24a-7100-a214-ee81efb13dc0",
+            "to_entity_id": "019e2307-acac-706f-a575-4acd5a1a46e8",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "run-detail"}}
           }
         }
       ]

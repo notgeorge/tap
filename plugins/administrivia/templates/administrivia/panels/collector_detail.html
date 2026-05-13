@@ -116,7 +116,11 @@
                 <tbody>
                     {% for run in runs %}
                     <tr class="tap-cares-detail__history-row {% if run.is_failed %}tap-cares-detail__history-row--err{% endif %}">
-                        <td>{{ run.name }}</td>
+                        <td>
+                            <a class="tap-cares-detail__run-link"
+                               href="/administrivia/cares/run?entity_id={{ run.entity_id }}"
+                               title="Open full run detail">{{ run.name }}</a>
+                        </td>
                         <td>
                             {% if run.is_successful %}
                                 <span class="tap-cares-pill tap-cares-pill--ok">{{ run.status_display }}</span>

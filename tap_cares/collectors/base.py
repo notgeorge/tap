@@ -26,9 +26,12 @@ through `grift_import`, never the CollectionJob row).
 
 #### Failure protocol
 
-To fail a run, a collector calls `self.record_error(...)`, optionally sets
-`self.error_summary = "..."`, and raises an exception. The task body catches,
-writes the FAILED terminal patch, and re-raises. See
+To fail a run, a collector calls `self.record_error(...)` (one or more times)
+and raises an exception. The task body catches, derives a count-based
+`error_summary` from `self.results["error"]` (e.g. "Failed with 14 errors"),
+writes the FAILED terminal patch, and re-raises. Collectors may still set
+`self.error_summary` explicitly as a fallback when no errors are recorded,
+but the count-derived summary takes precedence whenever errors exist. See
 `req-tap-cares-collector-failure-mode`.
 """
 
@@ -77,9 +80,10 @@ class CollectorBase(ABC):
         # The run_collector task body persists them to CollectionJob at terminal state.
         self.results: dict[str, list[dict[str, Any]]] = {"info": [], "warn": [], "error": []}
         self.grift_batches: dict[str, list[str]] = {"imported": [], "skipped": []}
-        # Optional one-line summary the collector sets before raising on terminal failure.
-        # If empty when the task body writes terminal state on a FAILED run, the body
-        # derives a fallback from the raised exception's class and message.
+        # Optional fallback one-liner. The task body's count-derived summary
+        # ("Failed with N errors") takes precedence whenever results["error"]
+        # is non-empty; this string is used only when no errors were recorded
+        # but the run still raised. Most collectors will leave it empty.
         self.error_summary: str = ""
 
     @abstractmethod

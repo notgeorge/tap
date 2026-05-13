@@ -1,0 +1,278 @@
+/* CARES Run Detail panel styles.
+ *
+ * Per-CollectionJob deep-dive. Reuses the .tap-cares-pill family from the
+ * collector_table/detail panels so badges stay visually consistent.
+ */
+
+.tap-panel--cares-run-detail {
+    padding: 16px 20px;
+}
+
+.tap-cares-run__error {
+    padding: 16px;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 6px;
+    color: #7f1d1d;
+}
+
+.tap-cares-run__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.tap-cares-run__name {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    color: #1e293b;
+    font-weight: 600;
+}
+.tap-cares-run__collector {
+    margin: 0;
+    color: #475569;
+    font-size: 13px;
+}
+.tap-cares-run__collector a {
+    color: #1d4ed8;
+    text-decoration: none;
+}
+.tap-cares-run__collector a:hover {
+    text-decoration: underline;
+}
+.tap-cares-run__registry {
+    margin-left: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    background: #f1f5f9;
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: #475569;
+}
+
+.tap-cares-run__meta {
+    margin: 0 0 16px 0;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px 24px;
+    font-variant-numeric: tabular-nums;
+}
+.tap-cares-run__meta-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.tap-cares-run__meta-row--err dd {
+    color: #7f1d1d;
+}
+.tap-cares-run__meta dt {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+}
+.tap-cares-run__meta dd {
+    margin: 0;
+    font-size: 13px;
+    color: #1e293b;
+}
+.tap-cares-run__meta code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    color: #1e293b;
+    background: #fff;
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid #e2e8f0;
+    word-break: break-all;
+}
+
+.tap-cares-run__counts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+    margin-bottom: 20px;
+}
+.tap-cares-run__count {
+    padding: 10px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #f8fafc;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.tap-cares-run__count-num {
+    display: block;
+    font-size: 22px;
+    font-weight: 700;
+    color: #1e293b;
+}
+.tap-cares-run__count-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    margin-top: 2px;
+}
+.tap-cares-run__count--err   { background: #fef2f2; border-color: #fecaca; }
+.tap-cares-run__count--err   .tap-cares-run__count-num { color: #991b1b; }
+.tap-cares-run__count--warn  { background: #fffbeb; border-color: #fde68a; }
+.tap-cares-run__count--warn  .tap-cares-run__count-num { color: #92400e; }
+.tap-cares-run__count--info  { background: #eff6ff; border-color: #bfdbfe; }
+.tap-cares-run__count--info  .tap-cares-run__count-num { color: #1e40af; }
+.tap-cares-run__count--batch { background: #f5f3ff; border-color: #ddd6fe; }
+.tap-cares-run__count--batch .tap-cares-run__count-num { color: #5b21b6; }
+
+.tap-cares-run__section {
+    margin-bottom: 20px;
+}
+.tap-cares-run__section h3 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+    font-weight: 600;
+}
+
+.tap-cares-run__entries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.tap-cares-run__entry {
+    padding: 10px 12px;
+    border-radius: 5px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+}
+.tap-cares-run__entry--err  { border-left: 3px solid #ef4444; background: #fef2f2; }
+.tap-cares-run__entry--warn { border-left: 3px solid #f59e0b; background: #fffbeb; }
+.tap-cares-run__entry--info { border-left: 3px solid #3b82f6; background: #f8fafc; }
+
+.tap-cares-run__entry-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.tap-cares-run__entry-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: #334155;
+}
+.tap-cares-run__entry-message {
+    font-size: 13px;
+    color: #1e293b;
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
+}
+.tap-cares-run__entry-site {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #64748b;
+}
+.tap-cares-run__entry-site code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.tap-cares-run__entry-ctx {
+    margin-top: 6px;
+}
+.tap-cares-run__entry-ctx summary {
+    cursor: pointer;
+    font-size: 11px;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.tap-cares-run__entry-ctx pre {
+    margin: 6px 0 0 0;
+    padding: 8px 10px;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+
+.tap-cares-run__batches-group {
+    margin-bottom: 8px;
+}
+.tap-cares-run__batches-group h4 {
+    margin: 0 0 4px 0;
+    font-size: 12px;
+    color: #475569;
+    font-weight: 600;
+}
+.tap-cares-run__batches {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+}
+.tap-cares-run__batches code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+}
+
+.tap-cares-run__empty {
+    padding: 16px;
+    text-align: center;
+    color: #64748b;
+    font-size: 13px;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 6px;
+}
+
+.tap-cares-run__back {
+    margin: 16px 0 0 0;
+    font-size: 13px;
+}
+.tap-cares-run__back a {
+    color: #1d4ed8;
+    text-decoration: none;
+}
+.tap-cares-run__back a:hover {
+    text-decoration: underline;
+}
+
+.tap-cares-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+}
+.tap-cares-pill--ok      { background: #d1fae5; color: #065f46; }
+.tap-cares-pill--warn    { background: #fef3c7; color: #92400e; }
+.tap-cares-pill--err     { background: #fee2e2; color: #991b1b; }
+.tap-cares-pill--running { background: #dbeafe; color: #1e40af; }
+.tap-cares-pill--neutral { background: #e2e8f0; color: #334155; }

@@ -182,6 +182,13 @@
 .tap-cares-detail__history-row--err {
     background: #fef2f2;
 }
+.tap-cares-detail__run-link {
+    color: #1d4ed8;
+    text-decoration: none;
+}
+.tap-cares-detail__run-link:hover {
+    text-decoration: underline;
+}
 .tap-cares-detail__task-result {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 11px;
