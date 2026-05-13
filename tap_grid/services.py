@@ -233,10 +233,16 @@ def _execute_write_pipeline(
     batch_id: str,
     user: Any,
     result_mode: Literal["minimal", "standard", "verbose"],
+    internal_only_bypass: bool = False,
 ) -> WriteResult:
     """Execute the write pipeline for a single WriteOperation.
 
     Returns a WriteResult. Never raises — errors are captured inside the result.
+
+    When `internal_only_bypass=True`, the pipeline does not reject INTERNAL_ONLY
+    model types. This flag is for trusted-internal callers (registration
+    helpers, lifecycle managers); it is not part of the public write API. See
+    `_create_node_internal` / `_patch_node_internal` in this module.
     """
     payload: dict[str, Any] = {k: v for k, v in (op.payload or {}).items() if v is not None}
 
@@ -264,7 +270,7 @@ def _execute_write_pipeline(
                 model_cls = get_model_class(op.type_slug)
             except KeyError:
                 raise ServiceNotFoundError(f"Unknown entity type: '{op.type_slug}'.")
-            if getattr(model_cls, "INTERNAL_ONLY", False):
+            if getattr(model_cls, "INTERNAL_ONLY", False) and not internal_only_bypass:
                 raise ServiceUnsupportedOperationError(
                     f"'{op.type_slug}' is an internal-only type and cannot be created through the generic service layer."
                 )
@@ -296,7 +302,7 @@ def _execute_write_pipeline(
                 model_cls = get_model_class(target_entity.entity_type)
             except KeyError:
                 raise ServiceNotFoundError(f"Unknown entity type: '{target_entity.entity_type}'.")
-            if getattr(model_cls, "INTERNAL_ONLY", False):
+            if getattr(model_cls, "INTERNAL_ONLY", False) and not internal_only_bypass:
                 raise ServiceUnsupportedOperationError(
                     f"'{target_entity.entity_type}' is an internal-only type and cannot be modified through the generic service layer."
                 )
@@ -483,6 +489,7 @@ def write_batch(
     caller_context: CallerContext | None = None,
     dry_run: bool = False,
     result_mode: Literal["minimal", "standard", "verbose"] = "standard",
+    _internal_only_bypass: bool = False,
 ) -> BatchWriteResult:
     """Execute multiple write operations atomically.
 
@@ -495,6 +502,10 @@ def write_batch(
         caller_context: Optional actor identity and existing batch scope.
         dry_run: If True, validate everything but roll back all writes.
         result_mode: Controls how much detail is included in each WriteResult.
+        _internal_only_bypass: Trusted-internal callers only. When True, the
+            pipeline does not reject INTERNAL_ONLY model types. Not part of the
+            public API; the leading underscore signals the boundary. See
+            `_create_node_internal` / `_patch_node_internal`.
 
     Returns:
         BatchWriteResult with per-operation results and overall success flag.
@@ -529,6 +540,7 @@ def write_batch(
                     batch_id=effective_batch_id,
                     user=user,
                     result_mode=result_mode,
+                    internal_only_bypass=_internal_only_bypass,
                 )
                 results.append(result)
                 if not result.success:
@@ -765,6 +777,167 @@ def delete_edge_by_entity(
         if batch_result.results
         else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
     )
+
+
+# ---------------------------------------------------------------------------
+# Trusted-internal write API
+#
+# These entry points run the full write pipeline (validation, name sync,
+# version, history, provenance, FLIP) minus the INTERNAL_ONLY gate. They are
+# the canonical path for subsystem registration helpers (e.g.
+# `tap_cares.registry._ensure_collector_node`) and lifecycle managers (e.g.
+# `tap_cares.services.run_collection` creating CollectionJob rows) that need
+# to write INTERNAL_ONLY model types.
+#
+# The leading underscore signals the boundary: these functions are not part of
+# the public service-layer API and must not be re-exported through
+# `tap_grid.__init__`. In-process malicious code can still call them; this is a
+# tripwire for accidental misuse, not a wall (see
+# `tap_grid/specs/spec-grid-entity.md` `req-grid-entity-internal`).
+# ---------------------------------------------------------------------------
+
+
+def _create_node_internal(
+    type_slug: str,
+    payload: dict[str, Any],
+    *,
+    caller_context: CallerContext | None = None,
+    entity_id: str | uuid.UUID | None = None,
+    dimensions: dict[str, str] | None = None,
+    result_mode: Literal["minimal", "standard", "verbose"] = "standard",
+) -> WriteResult:
+    """Trusted-internal create for INTERNAL_ONLY (or any) node type.
+
+    Runs the full write pipeline minus the INTERNAL_ONLY gate. Accepts an
+    optional `entity_id` so callers can produce deterministic identity
+    (e.g. UUIDv5 from `scope:key` in the dual-existence pattern).
+
+    Args:
+        type_slug: Registered entity type slug.
+        payload: Field values validated against SERVICE_CRUD_SCHEMA["create"].
+        caller_context: Optional actor identity and batch scope.
+        entity_id: Optional pre-specified entity_id (UUID or str).
+        dimensions: Optional caller dimensions; merged over DEFAULT_DIMENSIONS.
+        result_mode: Controls WriteResult detail level.
+
+    Returns:
+        WriteResult with entity_id populated on success.
+    """
+    op = WriteOperation(
+        verb="create_node",
+        type_slug=type_slug,
+        payload=payload,
+        entity_id=entity_id,
+        dimensions=dimensions,
+    )
+    batch_result = write_batch(
+        [op],
+        caller_context=caller_context,
+        result_mode=result_mode,
+        _internal_only_bypass=True,
+    )
+    return (
+        batch_result.results[0]
+        if batch_result.results
+        else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    )
+
+
+def _patch_node_internal(
+    target: str | uuid.UUID,
+    payload: dict[str, Any],
+    *,
+    caller_context: CallerContext | None = None,
+    result_mode: Literal["minimal", "standard", "verbose"] = "standard",
+) -> WriteResult:
+    """Trusted-internal patch for INTERNAL_ONLY (or any) node type.
+
+    Runs the full write pipeline minus the INTERNAL_ONLY gate. Same semantics
+    as `patch_node` for non-INTERNAL_ONLY types.
+
+    Args:
+        target: Entity UUID of the object to patch.
+        payload: Field values validated against SERVICE_CRUD_SCHEMA["patch"].
+        caller_context: Optional actor identity and batch scope.
+        result_mode: Controls WriteResult detail level.
+
+    Returns:
+        WriteResult with entity_id populated on success.
+    """
+    op = WriteOperation(verb="patch_node", target=target, payload=payload)
+    batch_result = write_batch(
+        [op],
+        caller_context=caller_context,
+        result_mode=result_mode,
+        _internal_only_bypass=True,
+    )
+    return (
+        batch_result.results[0]
+        if batch_result.results
+        else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    )
+
+
+def _create_node_internal_for_test(
+    type_slug: str,
+    payload: dict[str, Any],
+    *,
+    caller_context: CallerContext | None = None,
+    entity_id: str | uuid.UUID | None = None,
+    dimensions: dict[str, str] | None = None,
+    result_mode: Literal["minimal", "standard", "verbose"] = "standard",
+) -> WriteResult:
+    """Test-only trusted-internal create.
+
+    Same semantics as `_create_node_internal` but raises `RuntimeError` if not
+    running under Django test/DEBUG settings. This keeps production policy
+    clean while letting tests construct INTERNAL_ONLY entities directly when
+    they need to exercise model-level behavior (validation, dimension defaults,
+    display projection, etc.) without going through a subsystem helper.
+    """
+    _assert_test_or_debug("_create_node_internal_for_test")
+    return _create_node_internal(
+        type_slug,
+        payload,
+        caller_context=caller_context,
+        entity_id=entity_id,
+        dimensions=dimensions,
+        result_mode=result_mode,
+    )
+
+
+def _patch_node_internal_for_test(
+    target: str | uuid.UUID,
+    payload: dict[str, Any],
+    *,
+    caller_context: CallerContext | None = None,
+    result_mode: Literal["minimal", "standard", "verbose"] = "standard",
+) -> WriteResult:
+    """Test-only trusted-internal patch. See `_create_node_internal_for_test`."""
+    _assert_test_or_debug("_patch_node_internal_for_test")
+    return _patch_node_internal(
+        target,
+        payload,
+        caller_context=caller_context,
+        result_mode=result_mode,
+    )
+
+
+def _assert_test_or_debug(fn_name: str) -> None:
+    """Refuse to run when not in DEBUG / test settings.
+
+    Test detection: pytest sets `PYTEST_CURRENT_TEST` while a test is running.
+    DEBUG: Django's settings.DEBUG.
+    """
+    import os
+
+    from django.conf import settings
+
+    if not getattr(settings, "DEBUG", False) and "PYTEST_CURRENT_TEST" not in os.environ:
+        raise RuntimeError(
+            f"{fn_name} is for tests only; it refuses to run outside DEBUG / pytest. "
+            "Production code should use the subsystem-owned trusted-internal helper instead."
+        )
 
 
 # ---------------------------------------------------------------------------

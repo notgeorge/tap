@@ -6,7 +6,7 @@ land with the runtime.
 
 Uses Django's ImmediateBackend (configured in tap/settings.py), so enqueue()
 runs the task synchronously and the CollectionJob has its terminal state by
-the time enqueue_collection returns.
+the time run_collection returns.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import pytest
 from tap_cares.collectors.config import CollectorConfig
 from tap_cares.models import CollectionJobStatus, Collector
 from tap_cares.registry import collector_registry, register_collector
-from tap_cares.services import enqueue_collection
+from tap_cares.services import run_collection
 from tap_cares.tests.fakes import BoomCollector, HappyCollector
 
 
@@ -35,12 +35,22 @@ def reset_happy_runs():
     HappyCollector.runs.clear()
 
 
-def _make_collector(registry_key: str, name: str = "Test Collector") -> Collector:
-    return Collector.objects.create(
+def _register_and_fetch(key: str, cls, scope: str, *, name: str = "Test Collector") -> Collector:
+    """Register a collector and fetch the resulting on-grid Collector node.
+
+    Replaces the v0-pre-refactor pattern of `Collector.objects.create(...)` —
+    `register_collector` now performs the on-grid upsert as part of the
+    dual-existence registration. Tests fetch the resulting node by its
+    canonical `collector_registry` value.
+    """
+    register_collector(
+        key=key,
+        cls=cls,
+        scope=scope,
         name=name,
-        description="",
-        collector_registry=registry_key,
+        description="Fixture collector for tap_cares.tests.test_task_execution.",
     )
+    return Collector.objects.get(collector_registry=f"{scope}:{key}")
 
 
 # ---------------------------------------------------------------------------
@@ -51,9 +61,8 @@ def _make_collector(registry_key: str, name: str = "Test Collector") -> Collecto
 @pytest.mark.django_db
 class TestHappyPath:
     def test_run_succeeds_marks_job_successful(self, isolate_collector_registry):
-        register_collector("happy", HappyCollector, scope="tap_cares.tests.fakes")
-        col = _make_collector("tap_cares.tests.fakes:happy")
-        job = enqueue_collection(col)
+        col = _register_and_fetch("happy", HappyCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.SUCCESSFUL
         assert job.started_at is not None
@@ -61,17 +70,15 @@ class TestHappyPath:
         assert job.error_summary == ""
 
     def test_run_receives_correct_config(self, isolate_collector_registry):
-        register_collector("happy", HappyCollector, scope="tap_cares.tests.fakes")
-        col = _make_collector("tap_cares.tests.fakes:happy")
-        job = enqueue_collection(col)
+        col = _register_and_fetch("happy", HappyCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col)
         assert HappyCollector.runs == [str(job.entity_id)]
 
     def test_has_job_edge_created(self, isolate_collector_registry):
         from tap_grid.models import Edge
 
-        register_collector("happy", HappyCollector, scope="tap_cares.tests.fakes")
-        col = _make_collector("tap_cares.tests.fakes:happy")
-        job = enqueue_collection(col)
+        col = _register_and_fetch("happy", HappyCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col)
 
         edges = Edge.objects.filter(
             from_entity=col.entity,
@@ -90,22 +97,36 @@ class TestHappyPath:
 class TestFailurePath:
     """The Django immediate backend captures task exceptions on the TaskResult
     instead of re-raising to the caller (see
-    django/tasks/backends/immediate.py). `enqueue_collection` therefore returns
+    django/tasks/backends/immediate.py). `run_collection` therefore returns
     normally even when the underlying collector raises; the failure surfaces
     via CollectionJob.status and error_summary."""
 
     def test_run_raises_marks_job_failed(self, isolate_collector_registry):
-        register_collector("boom", BoomCollector, scope="tap_cares.tests.fakes")
-        col = _make_collector("tap_cares.tests.fakes:boom")
-        job = enqueue_collection(col)
+        col = _register_and_fetch("boom", BoomCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
         assert "boom from BoomCollector" in job.error_summary
         assert job.finished_at is not None
 
     def test_unregistered_collector_marks_job_failed(self, isolate_collector_registry):
-        col = _make_collector("tap_cares.tests.fakes:never-registered")
-        job = enqueue_collection(col)
+        # Special case: this test simulates a Collector node whose runner is NOT
+        # registered (the "uninstalled-plugin" scenario). We can't use
+        # _register_and_fetch because it would register the runner too. Construct
+        # the Collector node via the trusted-internal create path directly.
+        from tap_grid.services import _create_node_internal_for_test
+
+        result = _create_node_internal_for_test(
+            "collector",
+            {
+                "name": "Never Registered",
+                "description": "",
+                "collector_registry": "tap_cares.tests.fakes:never-registered",
+            },
+        )
+        assert result.success, result.errors
+        col = Collector.objects.get(entity_id=result.entity_id)
+        job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
         assert "CollectorNotFoundError" in job.error_summary
@@ -117,9 +138,8 @@ class TestFailurePath:
             def run(self) -> None:
                 raise RuntimeError("X" * 5000)
 
-        register_collector("long", LongBoom, scope="tap_cares.tests.fakes")
-        col = _make_collector("tap_cares.tests.fakes:long")
-        job = enqueue_collection(col)
+        col = _register_and_fetch("long", LongBoom, scope="tap_cares.tests.fakes")
+        job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
         assert len(job.error_summary) <= 2048
@@ -133,9 +153,8 @@ class TestFailurePath:
 @pytest.mark.django_db
 class TestTaskResultIdPropagation:
     def test_task_result_id_populated(self, isolate_collector_registry):
-        register_collector("happy", HappyCollector, scope="tap_cares.tests.fakes")
-        col = _make_collector("tap_cares.tests.fakes:happy")
-        job = enqueue_collection(col)
+        col = _register_and_fetch("happy", HappyCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col)
         assert job.task_result_id != ""
         assert len(job.task_result_id) <= 128
 
@@ -148,15 +167,13 @@ class TestTaskResultIdPropagation:
 @pytest.mark.django_db
 class TestLifecycleTimestamps:
     def test_enqueued_at_set_before_task(self, isolate_collector_registry):
-        register_collector("happy", HappyCollector, scope="tap_cares.tests.fakes")
-        col = _make_collector("tap_cares.tests.fakes:happy")
-        job = enqueue_collection(col)
+        col = _register_and_fetch("happy", HappyCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col)
         assert job.enqueued_at is not None
 
     def test_started_at_before_finished_at(self, isolate_collector_registry):
-        register_collector("happy", HappyCollector, scope="tap_cares.tests.fakes")
-        col = _make_collector("tap_cares.tests.fakes:happy")
-        job = enqueue_collection(col)
+        col = _register_and_fetch("happy", HappyCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col)
         job.refresh_from_db()
         assert job.started_at is not None and job.finished_at is not None
         assert job.started_at <= job.finished_at

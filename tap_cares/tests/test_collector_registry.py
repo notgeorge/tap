@@ -50,6 +50,23 @@ def _make_collector_class(name: str = "Fake", module: str = "tap_cares.tests.fak
     return _Fake
 
 
+def _register(key, cls, **kwargs):
+    """Test-only wrapper that supplies default name and description.
+
+    register_collector requires name and description per
+    req-tap-cares-collector-registration-3, but these registry-mechanics
+    tests only care about the sub-grid (ScopedRegistry) side. The on-grid
+    upsert silently skips when the DB isn't available (no @pytest.mark.django_db).
+    """
+    return register_collector(
+        key=key,
+        cls=cls,
+        name=kwargs.pop("name", f"Test collector {key}"),
+        description=kwargs.pop("description", "Fixture collector for registry tests."),
+        **kwargs,
+    )
+
+
 def _make_config() -> CollectorConfig:
     return CollectorConfig(collector_entity_id=uuid4(), collection_job_entity_id=uuid4())
 
@@ -153,17 +170,17 @@ class TestValidateCollectorToken:
 class TestRegisterCollector:
     def test_register_and_get_round_trip(self):
         Cls = _make_collector_class(module="my.plugin")
-        register_collector("alpha", Cls)
+        _register("alpha", Cls)
         assert get_collector("my.plugin:alpha") is Cls
 
     def test_scope_inferred_from_module(self):
         Cls = _make_collector_class(module="some.plugin.module")
-        register_collector("inferred", Cls)
+        _register("inferred", Cls)
         assert "some.plugin.module:inferred" in collector_registry
 
     def test_scope_can_be_overridden(self):
         Cls = _make_collector_class(module="default.scope")
-        register_collector("ovr", Cls, scope="explicit.scope")
+        _register("ovr", Cls, scope="explicit.scope")
         assert get_collector("explicit.scope:ovr") is Cls
 
     def test_non_class_rejected(self):
@@ -171,48 +188,48 @@ class TestRegisterCollector:
             return None
 
         with pytest.raises(ImproperlyConfigured, match="CollectorBase"):
-            register_collector("bad", not_a_class, scope="my.scope")  # type: ignore[arg-type]
+            _register("bad", not_a_class, scope="my.scope")  # type: ignore[arg-type]
 
     def test_non_collector_base_subclass_rejected(self):
         class NotACollector:
             pass
 
         with pytest.raises(ImproperlyConfigured, match="CollectorBase"):
-            register_collector("bad", NotACollector, scope="my.scope")  # type: ignore[arg-type]
+            _register("bad", NotACollector, scope="my.scope")  # type: ignore[arg-type]
 
     def test_bad_key_format_rejected(self):
         Cls = _make_collector_class()
         with pytest.raises(InvalidCollectorRegistryKeyError):
-            register_collector("bad key", Cls, scope="ok.scope")
+            _register("bad key", Cls, scope="ok.scope")
 
     def test_bad_scope_format_rejected(self):
         Cls = _make_collector_class()
         with pytest.raises(InvalidCollectorRegistryKeyError):
-            register_collector("ok", Cls, scope="bad scope")
+            _register("ok", Cls, scope="bad scope")
 
     def test_bad_inferred_scope_format_rejected(self):
         Cls = _make_collector_class(module="bad scope from module")
         with pytest.raises(InvalidCollectorRegistryKeyError):
-            register_collector("ok", Cls)
+            _register("ok", Cls)
 
     def test_duplicate_registration_raises(self):
         Cls = _make_collector_class(module="dup.scope")
-        register_collector("dup", Cls)
+        _register("dup", Cls)
         with pytest.raises(ImproperlyConfigured, match="already registered"):
-            register_collector("dup", Cls)
+            _register("dup", Cls)
 
     def test_different_scopes_same_key_coexist(self):
         A = _make_collector_class(name="A", module="scope.a")
         B = _make_collector_class(name="B", module="scope.b")
-        register_collector("shared", A)
-        register_collector("shared", B)
+        _register("shared", A)
+        _register("shared", B)
         assert get_collector("scope.a:shared") is A
         assert get_collector("scope.b:shared") is B
 
     def test_bad_format_register_leaves_registry_unchanged(self):
         Cls = _make_collector_class()
         try:
-            register_collector("bad key", Cls, scope="ok.scope")
+            _register("bad key", Cls, scope="ok.scope")
         except InvalidCollectorRegistryKeyError:
             pass
         assert collector_registry.keys() == []
@@ -229,7 +246,7 @@ class TestGetCollector:
             get_collector("some.scope:missing")
 
     def test_error_message_lists_registered_keys(self):
-        register_collector("present", _make_collector_class(module="some.scope"))
+        _register("present", _make_collector_class(module="some.scope"))
         with pytest.raises(CollectorNotFoundError) as exc_info:
             get_collector("some.scope:absent")
         assert "some.scope:present" in str(exc_info.value)

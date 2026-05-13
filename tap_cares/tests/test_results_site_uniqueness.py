@@ -45,7 +45,6 @@ _SKIP_DIR_NAMES = {
 # Files that are part of the testing/uniqueness machinery itself and use
 # fake / repeated UUIDs by design.
 _SKIP_FILES = {
-    Path("tap_cares/tests/test_results_helpers.py"),
     Path("tap_cares/tests/test_results_site_uniqueness.py"),
 }
 
@@ -54,9 +53,9 @@ _UUIDV7 = r"[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
 
 # record_info|record_warn|record_error followed (eventually) by a quoted
 # UUIDv7. Tolerates whitespace, newlines, intervening positional args.
-# Matches both:
-#   record_info(job, "<uuid>", ...)
-#   record_info(job=..., site="<uuid>", ...)
+# Matches the instance-method shape (`self.record_info("<uuid>", ...)`) and
+# any legacy free-function form that lingers; either way the site UUID is
+# the first quoted UUIDv7 inside the call.
 _RECORD_CALL = re.compile(
     r"record_(?:info|warn|error)\s*\(" + r"[^)]*?" + r'["\'](' + _UUIDV7 + r')["\']',
     re.DOTALL,
@@ -82,7 +81,7 @@ def test_record_callsite_uuids_are_unique():
     for path in _iter_python_files():
         try:
             text = path.read_text()
-        except OSError, UnicodeDecodeError:
+        except (OSError, UnicodeDecodeError):
             continue
         for match in _RECORD_CALL.finditer(text):
             uuid = match.group(1)

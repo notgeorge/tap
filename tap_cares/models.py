@@ -38,6 +38,7 @@ class Collector(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "collector"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap_cares": "collector"}
+    INTERNAL_ONLY: ClassVar[bool] = True
 
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {"nodes": [{"type": "collection_job"}], "edges": [{"type": "HAS_JOB"}]},
@@ -163,6 +164,7 @@ class CollectionJob(BaseModel):
 
     ENTITY_TYPE: ClassVar[str] = "collection_job"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap_cares": "collection_job"}
+    INTERNAL_ONLY: ClassVar[bool] = True
 
     INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {"nodes": [{"type": "collector"}], "edges": [{"type": "HAS_JOB"}]},
@@ -174,6 +176,17 @@ class CollectionJob(BaseModel):
         "status": {"type": "string", "enum": [s.value for s in CollectionJobStatus]},
         "task_result_id": {"type": "string"},
         "error_summary": {"type": "string"},
+        # Lifecycle timestamps — set by run_collection (enqueued_at) and the
+        # run_collector task body (started_at, finished_at). Datetimes flow in
+        # as ISO-8601 strings through the service-layer patch path; Django's
+        # DateTimeField parses them on save.
+        "enqueued_at": {"type": ["string", "null"], "format": "date-time"},
+        "started_at": {"type": ["string", "null"], "format": "date-time"},
+        "finished_at": {"type": ["string", "null"], "format": "date-time"},
+        # Accumulators — written once at terminal state by the task body from
+        # the collector instance's self.results / self.grift_batches.
+        "results": {"type": "object"},
+        "grift_batches": {"type": "object"},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
