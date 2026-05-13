@@ -1,9 +1,0 @@
-[submodule "plugins/aws_core"]
-	path = plugins/aws_core
-	url = https://github.com/notgeorge/tap-plugin-aws.git
-[submodule "plugins/computing_core"]
-	path = plugins/computing_core
-	url = https://github.com/notgeorge/tap-plugin-computing-core.git
-[submodule "plugins/fedramp_20x_ksi"]
-	path = plugins/fedramp_20x_ksi
-	url = https://github.com/notgeorge/tap-plugin-fedramp-20x-ksi.git

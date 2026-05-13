@@ -1,0 +1,31 @@
+{
+  "slug": "HAS_ACCESS_TO",
+  "name": "Has Access To",
+  "description": "IAM identity has access to a resource via policy grants.",
+  "sources": [
+    "aws_iam_user",
+    "aws_iam_role"
+  ],
+  "property_schema": {
+    "type": "object",
+    "properties": {
+      "actions": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Permitted IAM actions."
+      },
+      "effect": {
+        "type": "string",
+        "enum": [
+          "Allow",
+          "Deny"
+        ]
+      }
+    }
+  },
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

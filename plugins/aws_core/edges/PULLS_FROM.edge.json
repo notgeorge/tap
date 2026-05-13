@@ -1,0 +1,16 @@
+{
+  "slug": "PULLS_FROM",
+  "name": "Pulls From",
+  "description": "Container service pulls images from a registry.",
+  "sources": [
+    "aws_ecs_service",
+    "aws_ecs_task",
+    "aws_eks_cluster"
+  ],
+  "targets": [
+    "aws_ecr_repository"
+  ],
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

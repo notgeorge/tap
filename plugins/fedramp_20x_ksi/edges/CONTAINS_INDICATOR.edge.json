@@ -1,0 +1,10 @@
+{
+  "slug": "CONTAINS_INDICATOR",
+  "name": "Contains Indicator",
+  "description": "A KSI theme contains an individual KSI indicator.",
+  "sources": ["ksi_theme"],
+  "targets": ["ksi_indicator"],
+  "default_dimensions": {
+    "compliance": "fedramp-20x"
+  }
+}

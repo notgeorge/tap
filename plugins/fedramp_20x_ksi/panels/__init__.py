@@ -1,0 +1,1 @@
+"""KSI plugin panel types."""

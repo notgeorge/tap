@@ -1,0 +1,15 @@
+{
+  "slug": "ASSUMES",
+  "name": "Assumes",
+  "description": "IAM user or role assumes another IAM role.",
+  "sources": [
+    "aws_iam_user",
+    "aws_iam_role"
+  ],
+  "targets": [
+    "aws_iam_role"
+  ],
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

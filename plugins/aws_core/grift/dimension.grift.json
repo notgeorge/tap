@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e629e288cd8f",
+        "entity_type": "batch",
+        "name": "AWS Cloud dimension v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.aws_core",
+        "name": "AWS Cloud dimension v0.1.0",
+        "description": "Dimension node anchoring the tap.cloud=aws dimension."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e62ac923065d",
+            "entity_type": "dimension",
+            "name": "tap.cloud: aws",
+            "dimensions": {
+              "tap.meta": "dimension"
+            }
+          },
+          "node": {
+            "name": "tap.cloud: aws",
+            "description": "The AWS cloud dimension. All entity types and edges from the AWS Core plugin are tagged with {\"tap.cloud\": \"aws\"} as their default dimension. This dimension covers the 37 resource-type models common to most major AWS deployments — compute (EC2, Lambda, ECS, EKS), storage (S3, EBS), databases (RDS, DynamoDB, ElastiCache, OpenSearch), networking (VPC, Subnet, Security Group, ALB, ELB, Route 53, etc.), identity and access (IAM User, Role, Policy), security (ACM, Secrets Manager, SSM Parameter Store), AI (Bedrock, SageMaker), and infrastructure reference (Region, Availability Zone, Account). GovCloud, China partition, and non-core services are excluded from v0. This plugin is maintained at github.com/notgeorge/tap-plugin-aws and integrated into TAP as a git submodule."
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "slug": "RELATED_INDICATOR",
+  "name": "Related Indicator",
+  "description": "A finding relates to a compliance indicator it concerns. The relationship_type property classifies the nature of the relationship (passing, violation, informational, other). Vocabulary aligns with HAS_EVIDENCE.support_kind.",
+  "sources": ["finding"],
+  "targets": ["ksi_indicator"],
+  "property_schema": {
+    "type": "object",
+    "required": ["relationship_type"],
+    "additionalProperties": false,
+    "properties": {
+      "relationship_type": {
+        "type": "string",
+        "enum": ["passing", "violation", "informational", "other"]
+      },
+      "name": {"type": "string"},
+      "description": {"type": "string"}
+    }
+  },
+  "default_dimensions": {
+    "compliance": "fedramp-20x"
+  }
+}

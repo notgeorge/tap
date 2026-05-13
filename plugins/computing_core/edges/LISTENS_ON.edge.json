@@ -1,0 +1,14 @@
+{
+  "slug": "LISTENS_ON",
+  "name": "Listens On",
+  "description": "A program listens on a port for incoming connections.",
+  "sources": [
+    "program"
+  ],
+  "targets": [
+    "port"
+  ],
+  "default_dimensions": {
+    "tap.computing": "runtime"
+  }
+}

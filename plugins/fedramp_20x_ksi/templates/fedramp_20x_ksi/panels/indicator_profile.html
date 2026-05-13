@@ -1,0 +1,137 @@
+{% load static %}
+<div class="tap-panel tap-panel--ksi-profile">
+{% if ksi_error %}
+<div class="ksi-profile-error rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ ksi_error }}
+</div>
+
+{% elif not ksi %}
+<div class="text-sm text-slate-400 italic p-4">No indicator specified.</div>
+
+{% else %}
+
+{# ================================================================ #}
+{# BREADCRUMB                                                       #}
+{# ================================================================ #}
+<nav class="ksi-profile-breadcrumb">
+    <a href="/fedramp-ksi" class="ksi-breadcrumb-link">FedRAMP 20x KSI</a>
+    <span class="ksi-breadcrumb-sep">/</span>
+    {% if ksi.theme_name %}
+    <span class="ksi-breadcrumb-theme">
+        {% if ksi.theme_icon_url %}<img src="{{ ksi.theme_icon_url }}" alt="" class="ksi-breadcrumb-icon">{% endif %}
+        {{ ksi.theme_name }}
+    </span>
+    <span class="ksi-breadcrumb-sep">/</span>
+    {% endif %}
+    <span class="ksi-breadcrumb-current">{{ ksi.code }}</span>
+</nav>
+
+{# ================================================================ #}
+{# HERO HEADER                                                      #}
+{# ================================================================ #}
+<header class="ksi-profile-hero">
+    <h1 class="ksi-profile-name">{{ ksi.name }}</h1>
+    <div class="ksi-profile-hero-meta">
+        <span class="ksi-status ksi-status--{{ ksi.status }}">{{ ksi.status }}</span>
+        <div class="ksi-profile-classes" id="ksi-profile-classes">
+            {% for ci in ksi_class_info %}
+            <span class="ksi-class-badge{% if not ksi.has_variants %} ksi-class-badge--active{% elif forloop.first %} ksi-class-badge--active{% endif %}{% if ksi.has_variants %} ksi-class-badge--clickable{% endif %}"
+                  {% if ksi.has_variants %}data-class="{{ ci.key }}"{% endif %}
+                  title="{{ ci.label }}">{{ ci.key|upper }}</span>
+            {% endfor %}
+        </div>
+    </div>
+</header>
+
+{# ================================================================ #}
+{# STATEMENT                                                        #}
+{# ================================================================ #}
+<section class="ksi-profile-section">
+    <h2 class="ksi-profile-section-title">Requirement Statement</h2>
+    <div class="ksi-profile-statement" id="ksi-profile-statement">
+        <p class="ksi-profile-statement-text">{{ ksi_display_statement }}</p>
+    </div>
+</section>
+
+{# ================================================================ #}
+{# NIST CONTROLS + TERMS (side by side)                             #}
+{# ================================================================ #}
+{% if ksi.controls or ksi.terms %}
+<div class="ksi-profile-two-col">
+    {% if ksi.controls %}
+    <section class="ksi-profile-section">
+        <h2 class="ksi-profile-section-title">NIST 800-53 Controls</h2>
+        <div class="ksi-profile-chips">
+            {% for ctrl in ksi.controls %}
+            <span class="ksi-control-chip">{{ ctrl }}</span>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+    {% if ksi.terms %}
+    <section class="ksi-profile-section">
+        <h2 class="ksi-profile-section-title">Referenced Terms</h2>
+        <div class="ksi-profile-chips">
+            {% for term in ksi.terms %}
+            <span class="ksi-term-chip">{{ term }}</span>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endif %}
+
+{# ================================================================ #}
+{# REFERENCE                                                        #}
+{# ================================================================ #}
+{% if ksi.reference or ksi.reference_url %}
+<section class="ksi-profile-section">
+    <h2 class="ksi-profile-section-title">Reference</h2>
+    <div class="ksi-profile-reference">
+        {% if ksi.reference_url %}
+        <a href="{{ ksi.reference_url }}" class="ksi-reference-link" target="_blank" rel="noopener noreferrer">
+            {{ ksi.reference|default:ksi.reference_url }}
+            <svg class="ksi-external-icon" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                <path fill-rule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h5a.75.75 0 010 1.5h-5zm7.25-.75a.75.75 0 01.75-.75h3.5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0V6.31l-5.47 5.47a.75.75 0 01-1.06-1.06l5.47-5.47H12.25a.75.75 0 01-.75-.75z" clip-rule="evenodd"/>
+            </svg>
+        </a>
+        {% else %}
+        <span class="ksi-reference-text">{{ ksi.reference }}</span>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+
+{# ================================================================ #}
+{# FINDINGS AFFECTING THIS INDICATOR                                #}
+{# ================================================================ #}
+<section class="ksi-profile-section">
+    <h2 class="ksi-profile-section-title">Findings Affecting This Indicator</h2>
+    <div id="ksi-profile-findings-table" class="ksi-profile-findings-table"></div>
+</section>
+<script type="application/json" id="ksi-profile-findings">{{ ksi_findings_json|safe }}</script>
+
+{# ================================================================ #}
+{# CHANGE LOG                                                       #}
+{# ================================================================ #}
+{% if ksi.updated_log %}
+<section class="ksi-profile-section">
+    <h2 class="ksi-profile-section-title">Change Log</h2>
+    <div class="ksi-profile-changelog">
+        {% for entry in ksi.updated_log reversed %}
+        <div class="ksi-changelog-entry">
+            <span class="ksi-changelog-date">{{ entry.date }}</span>
+            <span class="ksi-changelog-comment">{{ entry.comment }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{# Class variants data for JS toggle #}
+{% if ksi.has_variants %}
+<script type="application/json" id="ksi-profile-variants">{{ ksi_variants_json|safe }}</script>
+{% endif %}
+
+{% endif %}{# end ksi #}
+</div>

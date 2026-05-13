@@ -1,0 +1,11 @@
+{
+  "slug": "RUNS_ON",
+  "name": "Runs On",
+  "description": "A program or process runs on a compute environment.",
+  "sources": [
+    "program"
+  ],
+  "default_dimensions": {
+    "tap.computing": "runtime"
+  }
+}

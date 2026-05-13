@@ -1,0 +1,8 @@
+{
+  "slug": "BELONGS_TO",
+  "name": "Belongs To",
+  "description": "Resource belongs to an AWS account.",
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

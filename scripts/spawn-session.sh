@@ -240,58 +240,11 @@ fi
 # Spec: req-dev-multisession-spawn-script — worktrees live OUTSIDE the repo at
 #       ~/tap-sessions/<name> on a new branch session/<name>. Working tree
 #       isolation is goal #2 of spec-dev-multisession.md.
-#
-# `git worktree add` does NOT auto-initialize submodules — those land as empty
-# directories and Django fails to import any app declared via a submodule
-# (plugins/aws_core, plugins/computing_core, plugins/fedramp_20x_ksi). After
-# the worktree is created we run `git submodule update --init --recursive` so
-# every submodule mirrors the one in the primary checkout.
 # ============================================================================
 bold "Step 2: Creating worktree at $WORKTREE"
 git worktree add "$WORKTREE" -b "session/$SESSION_NAME"
 cd "$WORKTREE"
 info "Created. Now on branch session/$SESSION_NAME."
-
-if [[ -f .gitmodules ]]; then
-  # Set up each submodule as its own git worktree of the primary's submodule
-  # repo, on a new `session/<name>` branch starting at the gitlink SHA. This:
-  #   - Shares .git infrastructure with the primary's submodule, so unpushed
-  #     primary commits are visible without copying or re-cloning.
-  #   - Lets pushes from the session land on the submodule's real origin
-  #     (typically GitHub) — no URL override hackery.
-  #   - Gives each session its own submodule branch, mirroring the supermodule
-  #     pattern (session/<name>).
-  # Despawn must remove these submodule worktrees before tearing down the
-  # supermodule worktree. See spec-dev-multisession-teardown.md.
-  info "Setting up submodule worktrees on session/$SESSION_NAME branches..."
-
-  # Pre-check: every submodule must be initialized in the primary, and the
-  # session branch must not already exist in any of them.
-  while IFS= read -r path; do
-    PRIMARY_SM="$REPO/$path"
-    if [[ ! -e "$PRIMARY_SM/.git" ]]; then
-      fail "Primary submodule '$path' is not initialized. Run 'git submodule update --init --recursive' in $REPO first."
-    fi
-    if git -C "$PRIMARY_SM" show-ref --verify --quiet "refs/heads/session/$SESSION_NAME"; then
-      fail "Branch 'session/$SESSION_NAME' already exists in submodule '$path'. Delete it first:
-    git -C '$PRIMARY_SM' branch -D session/$SESSION_NAME"
-    fi
-  done < <(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
-
-  # Create the worktrees.
-  while IFS= read -r path; do
-    PRIMARY_SM="$REPO/$path"
-    # Gitlink SHA from the supermodule's HEAD — this is the commit each
-    # submodule should start at.
-    SHA="$(git ls-tree HEAD "$path" | awk '{print $3}')"
-    [[ -n "$SHA" ]] || fail "Could not read gitlink SHA for $path."
-    # `git worktree add` (supermodule) created an empty directory at the
-    # submodule path; remove it so we can install a real worktree there.
-    rmdir "$path" 2>/dev/null || true
-    [[ ! -e "$path" ]] || fail "$path is not empty — can't add submodule worktree."
-    git -C "$PRIMARY_SM" worktree add -b "session/$SESSION_NAME" "$WORKTREE/$path" "$SHA"
-  done < <(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
-fi
 
 # ============================================================================
 # Step 3: Write .env.local

@@ -1,0 +1,28 @@
+{
+  "slug": "EXPOSES",
+  "name": "Exposes",
+  "description": "Security group or load balancer exposes ports or endpoints.",
+  "sources": [
+    "aws_security_group",
+    "aws_alb",
+    "aws_elb"
+  ],
+  "property_schema": {
+    "type": "object",
+    "properties": {
+      "port": {
+        "type": "integer"
+      },
+      "protocol": {
+        "type": "string"
+      },
+      "cidr": {
+        "type": "string",
+        "description": "Source/destination CIDR for the exposure."
+      }
+    }
+  },
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

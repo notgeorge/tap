@@ -1,0 +1,22 @@
+{
+  "slug": "LAUNCHED",
+  "name": "Launched",
+  "description": "IAM user or role launched or created a resource.",
+  "sources": [
+    "aws_iam_user",
+    "aws_iam_role"
+  ],
+  "property_schema": {
+    "type": "object",
+    "properties": {
+      "launched_at": {
+        "type": "string",
+        "format": "date-time",
+        "description": "When the resource was launched."
+      }
+    }
+  },
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

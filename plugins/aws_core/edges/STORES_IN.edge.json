@@ -1,0 +1,16 @@
+{
+  "slug": "STORES_IN",
+  "name": "Stores In",
+  "description": "Service stores data in a storage or database resource.",
+  "targets": [
+    "aws_s3_bucket",
+    "aws_ebs_volume",
+    "aws_rds_instance",
+    "aws_dynamodb_table",
+    "aws_elasticache_cluster",
+    "aws_elasticsearch_domain"
+  ],
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

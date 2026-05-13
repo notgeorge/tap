@@ -1,0 +1,2960 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "1a34b4ae-0d58-50a0-8ef4-94aab941fab3",
+        "entity_type": "batch",
+        "name": "FedRAMP 20x KSI initial catalog seed",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.fedramp_20x_ksi",
+        "name": "FedRAMP 20x KSI initial catalog seed",
+        "description": "One-time initial snapshot of the FedRAMP 20x KSI catalog. Ongoing updates land via the runtime KSICollector \u2014 see plugins/fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-collector.md.",
+        "description_json": {
+          "format": "tap.fedramp_20x_ksi.seed-v0",
+          "data": {
+            "schema_version": "v0",
+            "source": {
+              "url": "https://github.com/FedRAMP/rules.git",
+              "rules_version": "2026.0.1.1-wip-preview",
+              "rules_commit": "d2cc9288c3e1f6909d336e7af0eae2846ab5e375",
+              "content_sha256": "8725c7d5b3af6d83034487c81d482cd9ea00741bc5b0bf78a093f21c54508f77"
+            },
+            "seeded_at": "2026-04-23T00:45:39.643367Z",
+            "note": "One-time initial catalog snapshot. Ongoing updates come from the runtime KSICollector (plugins.fedramp_20x_ksi.collectors.ksi_catalog)."
+          }
+        }
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "a695945a-8c0d-54fc-a177-5a11a0d9b90a",
+            "entity_type": "ksi_theme",
+            "name": "Cybersecurity Education",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CED",
+            "name": "Cybersecurity Education",
+            "short_name": "CED",
+            "web_name": "cybersecurity-education",
+            "description": "",
+            "sort_order": 100
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "4c4ca97d-9076-5bb0-bb49-500e3d1a0bad",
+            "entity_type": "ksi_theme",
+            "name": "Change Management",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CMT",
+            "name": "Change Management",
+            "short_name": "CMT",
+            "web_name": "change-management",
+            "description": "",
+            "sort_order": 60
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
+            "entity_type": "ksi_theme",
+            "name": "Cloud Native Architecture",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CNA",
+            "name": "Cloud Native Architecture",
+            "short_name": "CNA",
+            "web_name": "cloud-native-architecture",
+            "description": "",
+            "sort_order": 30
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
+            "entity_type": "ksi_theme",
+            "name": "Identity and Access Management",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-IAM",
+            "name": "Identity and Access Management",
+            "short_name": "IAM",
+            "web_name": "identity-and-access-management",
+            "description": "",
+            "sort_order": 20
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "0c34865f-4a9a-5dfc-a43b-a987524db1ca",
+            "entity_type": "ksi_theme",
+            "name": "Incident Response",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-INR",
+            "name": "Incident Response",
+            "short_name": "INR",
+            "web_name": "incident-response",
+            "description": "",
+            "sort_order": 80
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
+            "entity_type": "ksi_theme",
+            "name": "Monitoring, Logging, and Auditing",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-MLA",
+            "name": "Monitoring, Logging, and Auditing",
+            "short_name": "MLA",
+            "web_name": "monitoring-logging-and-auditing",
+            "description": "",
+            "sort_order": 50
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
+            "entity_type": "ksi_theme",
+            "name": "Policy and Inventory",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-PIY",
+            "name": "Policy and Inventory",
+            "short_name": "PIY",
+            "web_name": "policy-and-inventory",
+            "description": "",
+            "sort_order": 10
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "20f22c94-b674-5360-a35e-ac943a10bab1",
+            "entity_type": "ksi_theme",
+            "name": "Recovery Planning",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-RPL",
+            "name": "Recovery Planning",
+            "short_name": "RPL",
+            "web_name": "recovery-planning",
+            "description": "",
+            "sort_order": 90
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "a1e67d87-376b-50cf-8eed-84357d1e8c36",
+            "entity_type": "ksi_theme",
+            "name": "Supply Chain Risk",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SCR",
+            "name": "Supply Chain Risk",
+            "short_name": "SCR",
+            "web_name": "supply-chain-risk",
+            "description": "",
+            "sort_order": 70
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
+            "entity_type": "ksi_theme",
+            "name": "Service Configuration",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SVC",
+            "name": "Service Configuration",
+            "short_name": "SVC",
+            "web_name": "service-configuration",
+            "description": "",
+            "sort_order": 40
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "8b859f9c-0a0e-54cd-91c2-ffb424a5a024",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing All Training",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CED-RAT",
+            "name": "Reviewing All Training",
+            "description": "The effectiveness of relevant cybersecurity education and training is persistently reviewed, including at least general training for all employees, role-specific training for employees in high risk roles, training for development and engineering staff on secure software delivery, and training for staff involved with incident response or disaster recovery.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cp-3",
+              "ir-2",
+              "ps-6",
+              "at-2",
+              "at-2.2",
+              "at-2.3",
+              "at-3.5",
+              "at-4",
+              "ir-2.3",
+              "at-2",
+              "at-2.3",
+              "at-3",
+              "sr-11.1"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Incident",
+              "Persistently",
+              "Vulnerability Response"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "605faedc-390e-50c5-960a-467b4893c186",
+            "entity_type": "ksi_indicator",
+            "name": "Logging Changes",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CMT-LMC",
+            "name": "Logging Changes",
+            "description": "Modifications to the cloud service offering are logged and monitored.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "au-2",
+              "cm-3",
+              "cm-3.2",
+              "cm-4.2",
+              "cm-6",
+              "cm-8.3",
+              "ma-2"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Cloud Service Offering"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "f219e31f-a55e-5cee-8595-a54d60c19bbc",
+            "entity_type": "ksi_indicator",
+            "name": "Redeploying vs Modifying",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CMT-RMV",
+            "name": "Redeploying vs Modifying",
+            "description": "Changes to machine-based information resources are executed through the redeployment of version controlled resources rather than direct modification wherever reasonable.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cm-2",
+              "cm-3",
+              "cm-5",
+              "cm-6",
+              "cm-7",
+              "cm-8.1",
+              "si-3"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "11cc3ca7-aa6d-5fe1-b9ed-7e24e1d9102e",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing Change Procedures",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CMT-RVP",
+            "name": "Reviewing Change Procedures",
+            "description": "The effectiveness of documented change management procedures is persistently reviewed.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cm-3",
+              "cm-3.2",
+              "cm-3.4",
+              "cm-5",
+              "cm-7.1",
+              "cm-9"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "7fb38e9a-ed3f-5015-be48-f033d704b977",
+            "entity_type": "ksi_indicator",
+            "name": "Validating Throughout Deployment",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CMT-VTD",
+            "name": "Validating Throughout Deployment",
+            "description": "Persistent testing and validation of changes throughout deployment is automated.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cm-3",
+              "cm-3.2",
+              "cm-4.2",
+              "si-2"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistent Validation",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "19edad6e-918d-5a92-b12c-5caf0e748b03",
+            "entity_type": "ksi_indicator",
+            "name": "Defining Functionality and Privileges",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CNA-DFP",
+            "name": "Defining Functionality and Privileges",
+            "description": "The functionality and privileges for infrastructure and services are strictly defined.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cm-2",
+              "si-3"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "aa31709d-de45-5667-a637-ab12b784e19e",
+            "entity_type": "ksi_indicator",
+            "name": "Enforcing Intended State",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CNA-EIS",
+            "name": "Enforcing Intended State",
+            "description": "",
+            "classes": [
+              "b",
+              "c"
+            ],
+            "class_variants": {
+              "b": {
+                "statement": "**Optional:** Automated services are used to persistently assess the security of all machine-based information resources and automatically enforce their intended operational state."
+              },
+              "c": {
+                "statement": "Automated services are used to persistently assess the security of all machine-based information resources and automatically enforce their intended operational state."
+              }
+            },
+            "controls": [
+              "ca-2.1",
+              "ca-7.1"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "26fb8249-23b7-59a0-bb8b-276f7e18ba16",
+            "entity_type": "ksi_indicator",
+            "name": "Implementing Best Practices",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CNA-IBP",
+            "name": "Implementing Best Practices",
+            "description": "The use and configuration of third-party machine-based information resources is persistently compared against the original provider's best practices and guidance.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-17.3",
+              "cm-2",
+              "pl-10"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "f7d3201a-e39e-5ce4-a106-ab39f5795059",
+            "entity_type": "ksi_indicator",
+            "name": "Minimizing Attack Surface",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CNA-MAT",
+            "name": "Minimizing Attack Surface",
+            "description": "Machine-based information resources are persistently reviewed to ensure they have a minimal attack surface and that lateral movement is minimized if compromised.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-17.3",
+              "ac-18.1",
+              "ac-18.3",
+              "ac-20.1",
+              "ca-9",
+              "sc-7.3",
+              "sc-7.4",
+              "sc-7.5",
+              "sc-7.8",
+              "sc-8",
+              "sc-10",
+              "si-10",
+              "si-11",
+              "si-16"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "0274c0ea-4491-57de-a69a-b12f8ce2596a",
+            "entity_type": "ksi_indicator",
+            "name": "Optimizing for Availability",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CNA-OFA",
+            "name": "Optimizing for Availability",
+            "description": "Machine-based information resources are persistently reviewed to ensure they are appropriately optimized for high availability and rapid recovery.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "6add504d-f2e5-5ff5-9d1f-f9529199243b",
+            "entity_type": "ksi_indicator",
+            "name": "Restricting Network Traffic",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CNA-RNT",
+            "name": "Restricting Network Traffic",
+            "description": "Machine-based information resources are persistently reviewed to ensure they are appropriately configured to limit inbound and outbound network traffic.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-17.3",
+              "ca-9",
+              "cm-7.1",
+              "sc-7.5",
+              "si-8"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "c2538cc0-e405-5b39-bf43-b5c18c8b56fb",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing Protections",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CNA-RVP",
+            "name": "Reviewing Protections",
+            "description": "The effectiveness of protection against denial of service attacks and other unwanted activity for machine-based information resources is persistently reviewed.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "sc-5",
+              "si-8",
+              "si-8.2"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "331220a6-2eb9-5ff6-9ac1-079d31a68bec",
+            "entity_type": "ksi_indicator",
+            "name": "Using Logical Networking",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-CNA-ULN",
+            "name": "Using Logical Networking",
+            "description": "Logical networking and related capabilities are used and persistently reviewed to enforce traffic flow controls.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-12",
+              "ac-17.3",
+              "ca-9",
+              "sc-4",
+              "sc-7",
+              "sc-7.7",
+              "sc-8",
+              "sc-10"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "9683950e-50a8-573e-aa4c-a65772cff3f2",
+            "entity_type": "ksi_indicator",
+            "name": "Automating Account Management",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-IAM-AAM",
+            "name": "Automating Account Management",
+            "description": "The lifecycle and privileges of all accounts, roles, and groups are securely managed using automation.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-2.2",
+              "ac-2.3",
+              "ac-2.13",
+              "ac-6.7",
+              "ia-4.4",
+              "ia-12",
+              "ia-12.2",
+              "ia-12.3",
+              "ia-12.5"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "0a3317fd-2586-507e-86ce-2630056c5786",
+            "entity_type": "ksi_indicator",
+            "name": "Adopting Passwordless Methods",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-IAM-APM",
+            "name": "Adopting Passwordless Methods",
+            "description": "Secure passwordless methods are used for user authentication and authorization when feasible, otherwise strong passwords with phishing-resistant MFA is used.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-2",
+              "ac-3",
+              "ia-2.1",
+              "ia-2.2",
+              "ia-2.8",
+              "ia-5.1",
+              "ia-5.2",
+              "ia-5.6",
+              "ia-6",
+              "ac-2",
+              "ia-2",
+              "ia-2.1",
+              "ia-2.2",
+              "ia-2.8",
+              "ia-5",
+              "ia-8",
+              "sc-23"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "5502a982-4675-55d5-8f50-6a7545781115",
+            "entity_type": "ksi_indicator",
+            "name": "Ensuring Least Privilege",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-IAM-ELP",
+            "name": "Ensuring Least Privilege",
+            "description": "Identity and access management measures are used and persistently reviewed to ensure each user or device can only access the resources they need.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-2.5",
+              "ac-2.6",
+              "ac-3",
+              "ac-4",
+              "ac-6",
+              "ac-12",
+              "ac-14",
+              "ac-17",
+              "ac-17.1",
+              "ac-17.2",
+              "ac-17.3",
+              "ac-20",
+              "ac-20.1",
+              "cm-2.7",
+              "cm-9",
+              "ia-2",
+              "ia-3",
+              "ia-4",
+              "ia-4.4",
+              "ia-5.2",
+              "ia-5.6",
+              "ia-11",
+              "ps-2",
+              "ps-3",
+              "ps-4",
+              "ps-5",
+              "ps-6",
+              "sc-4",
+              "sc-20",
+              "sc-21",
+              "sc-22",
+              "sc-23",
+              "sc-39",
+              "si-3"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "beb54397-e386-5bb8-b116-a1af2348fe49",
+            "entity_type": "ksi_indicator",
+            "name": "Authorizing Just-in-Time",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-IAM-JIT",
+            "name": "Authorizing Just-in-Time",
+            "description": "A least-privileged, role and attribute-based, and just-in-time security authorization model is used and persistently reviewed for all user and non-user accounts and services.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-2",
+              "ac-2.1",
+              "ac-2.2",
+              "ac-2.3",
+              "ac-2.4",
+              "ac-2.6",
+              "ac-3",
+              "ac-4",
+              "ac-5",
+              "ac-6",
+              "ac-6.1",
+              "ac-6.2",
+              "ac-6.5",
+              "ac-6.7",
+              "ac-6.9",
+              "ac-6.10",
+              "ac-7",
+              "ac-20.1",
+              "ac-17",
+              "au-9.4",
+              "cm-5",
+              "cm-7",
+              "cm-7.2",
+              "cm-7.5",
+              "cm-9",
+              "ia-4",
+              "ia-4.4",
+              "ia-7",
+              "ps-2",
+              "ps-3",
+              "ps-4",
+              "ps-5",
+              "ps-6",
+              "ps-9",
+              "ra-5.5",
+              "sc-2",
+              "sc-23",
+              "sc-39"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "76ff1614-d128-5f81-b857-857a4f71566e",
+            "entity_type": "ksi_indicator",
+            "name": "Securing Non-User Authentication",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-IAM-SNU",
+            "name": "Securing Non-User Authentication",
+            "description": "Appropriately secure authentication methods are used and persistently reviewed for non-user accounts and services.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-2",
+              "ac-2.2",
+              "ac-4",
+              "ac-6.5",
+              "ia-3",
+              "ia-5.2",
+              "ra-5.5"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "aa60a7e1-748b-58b5-89dd-498d1eb49171",
+            "entity_type": "ksi_indicator",
+            "name": "Responding to Suspicious Activity",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-IAM-SUS",
+            "name": "Responding to Suspicious Activity",
+            "description": "Accounts with privileged access are disabled or otherwise secured in response to suspicious activity.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-2",
+              "ac-2.1",
+              "ac-2.3",
+              "ac-2.13",
+              "ac-7",
+              "ps-4",
+              "ps-8"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Vulnerability Response"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "8df320f9-d6c9-5ad5-b230-2ddc2026abf1",
+            "entity_type": "ksi_indicator",
+            "name": "Generating After Action Reports",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-INR-AAR",
+            "name": "Generating After Action Reports",
+            "description": "Incident after action reports are generated and lessons learned are persistently incorporated.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ir-3",
+              "ir-4",
+              "ir-4.1",
+              "ir-8"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Incident",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "d5d6e76c-015f-589d-ade2-c6154cf556b7",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing Incident Response Procedures",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-INR-RIR",
+            "name": "Reviewing Incident Response Procedures",
+            "description": "The effectiveness of documented incident response procedures is persistently reviewed.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ir-4",
+              "ir-4.1",
+              "ir-6",
+              "ir-6.1",
+              "ir-6.3",
+              "ir-7",
+              "ir-7.1",
+              "ir-8",
+              "ir-8.1",
+              "si-4.5"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Incident",
+              "Persistently",
+              "Vulnerability Response"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "21dbd178-a559-5469-9059-43100d426ab7",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing Past Incidents",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-INR-RPI",
+            "name": "Reviewing Past Incidents",
+            "description": "Past incidents are persistently reviewed for patterns or vulnerabilities that were not previously apparent or identified.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ir-3",
+              "ir-4",
+              "ir-4.1",
+              "ir-5",
+              "ir-8"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Incident",
+              "Persistently",
+              "Vulnerability"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "54792ee3-9e93-5a84-a3f6-52764ce71c6a",
+            "entity_type": "ksi_indicator",
+            "name": "Authorizing Log Access",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-MLA-ALA",
+            "name": "Authorizing Log Access",
+            "description": "",
+            "classes": [
+              "b",
+              "c"
+            ],
+            "class_variants": {
+              "b": {
+                "statement": "**Optional:** A least-privileged, role and attribute-based, and just-in-time access authorization model is used and persistently reviewed for access to log data based on organizationally defined data sensitivity."
+              },
+              "c": {
+                "statement": "A least-privileged, role and attribute-based, and just-in-time access authorization model is used and persistently reviewed for access to log data based on organizationally defined data sensitivity."
+              }
+            },
+            "controls": [
+              "si-11"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "6492702b-98cc-5163-bee2-6b928b38dd8a",
+            "entity_type": "ksi_indicator",
+            "name": "Evaluating Configurations",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-MLA-EVC",
+            "name": "Evaluating Configurations",
+            "description": "The configuration of machine-based information resources, especially infrastructure as code, is persistently evaluated and tested.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ca-7",
+              "cm-2",
+              "cm-6",
+              "si-7.7"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "f6dabe09-bcd1-5edc-ad47-81850d3e766b",
+            "entity_type": "ksi_indicator",
+            "name": "Logging Event Types",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-MLA-LET",
+            "name": "Logging Event Types",
+            "description": "A list of information resources and event types that will be logged, monitored, and audited is maintained and persistently reviewed to ensure these activities occur.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-2.4",
+              "ac-6.9",
+              "ac-17.1",
+              "ac-20.1",
+              "au-2",
+              "au-7.1",
+              "au-12",
+              "si-4.4",
+              "si-4.5",
+              "si-7.7"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "d90b2348-6af3-519a-b7bd-11358bc8d310",
+            "entity_type": "ksi_indicator",
+            "name": "Operating SIEM Capability",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-MLA-OSM",
+            "name": "Operating SIEM Capability",
+            "description": "A Security Information and Event Management (SIEM) or similar system(s) is used and persistently reviewed for centralized, tamper-resistant logging of events, activities, and changes.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-17.1",
+              "ac-20.1",
+              "au-2",
+              "au-3",
+              "au-3.1",
+              "au-4",
+              "au-5",
+              "au-6.1",
+              "au-6.3",
+              "au-7",
+              "au-7.1",
+              "au-8",
+              "au-9",
+              "au-11",
+              "ir-4.1",
+              "si-4.2",
+              "si-4.4",
+              "si-7.7"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "807ff29a-2d2b-57fa-996d-141ae79720be",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing Logs",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-MLA-RVL",
+            "name": "Reviewing Logs",
+            "description": "Logs are persistently reviewed and audited.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-2.4",
+              "ac-6.9",
+              "au-2",
+              "au-6",
+              "au-6.1",
+              "si-4",
+              "si-4.4"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "7ea09f84-80b2-5b5e-95b0-51e16db6c211",
+            "entity_type": "ksi_indicator",
+            "name": "Generating Inventories",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-PIY-GIV",
+            "name": "Generating Inventories",
+            "description": "Authoritative sources are used to automatically generate real-time inventories of all information resources when needed.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cm-2.2",
+              "cm-7.5",
+              "cm-8",
+              "cm-8.1",
+              "cm-12",
+              "cm-12.1",
+              "cp-2.8"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "a5c4a9f7-70ff-5955-a5ba-0c8f2beb0887",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing Executive Support",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-PIY-RES",
+            "name": "Reviewing Executive Support",
+            "description": "Executive support for achieving the provider's security goals is persistently reviewed and demonstrated.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "2ddfcffe-504a-5bec-9923-361383fbeaa0",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing Investments in Security",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-PIY-RIS",
+            "name": "Reviewing Investments in Security",
+            "description": "The effectiveness of the provider's investments in achieving security goals is persistently reviewed.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-5",
+              "ca-2",
+              "cp-2.1",
+              "cp-4.1",
+              "ir-3.2",
+              "pm-3",
+              "sa-2",
+              "sa-3",
+              "sr-2.1"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "c8fb53a9-49f9-5f29-bc03-95fa4cc99845",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing Security in the SDLC",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-PIY-RSD",
+            "name": "Reviewing Security in the SDLC",
+            "description": "The effectiveness of building security and privacy considerations into the Software Development Lifecycle and aligning with CISA Secure By Design principles is persistently reviewed.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-5",
+              "au-3.3",
+              "cm-3.4",
+              "pl-8",
+              "pm-7",
+              "sa-3",
+              "sa-8",
+              "sc-4",
+              "sc-18",
+              "si-10",
+              "si-11",
+              "si-16"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "69694d68-aaf8-5aa2-92cd-216ad2e62ae4",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing Vulnerability Disclosures",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-PIY-RVD",
+            "name": "Reviewing Vulnerability Disclosures",
+            "description": "The effectiveness of the provider's vulnerability disclosure program is persistently reviewed.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ra-5.11"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently",
+              "Vulnerability"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "e9c32bef-37f3-5993-95fb-f342cf3e0894",
+            "entity_type": "ksi_indicator",
+            "name": "Aligning Backups with Objectives",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-RPL-ABO",
+            "name": "Aligning Backups with Objectives",
+            "description": "The alignment of machine-based information resource backups with defined recovery objectives is persistently reviewed.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cm-2.3",
+              "cp-6",
+              "cp-9",
+              "cp-10",
+              "cp-10.2",
+              "si-12"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "6b2b8ce9-d8a3-5e34-8bf7-4e4986b9d3a7",
+            "entity_type": "ksi_indicator",
+            "name": "Aligning Recovery Plan",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-RPL-ARP",
+            "name": "Aligning Recovery Plan",
+            "description": "The alignment of recovery plans with defined recovery objectives is persistently reviewed.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cp-2",
+              "cp-2.1",
+              "cp-2.3",
+              "cp-4.1",
+              "cp-6",
+              "cp-6.1",
+              "cp-6.3",
+              "cp-7",
+              "cp-7.1",
+              "cp-7.2",
+              "cp-7.3",
+              "cp-8",
+              "cp-8.1",
+              "cp-8.2",
+              "cp-10",
+              "cp-10.2"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "a5f1ba55-b969-5f3d-861b-7daef1fbf3d9",
+            "entity_type": "ksi_indicator",
+            "name": "Reviewing Recovery Objectives",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-RPL-RRO",
+            "name": "Reviewing Recovery Objectives",
+            "description": "The desired Recovery Time Objectives (RTO) and Recovery Point Objectives (RPO) are persistently reviewed for alignment with the provider's business needs and capabilities.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cp-2.3",
+              "cp-10"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "81bd2765-7b76-50f8-9ccb-0c575cec7288",
+            "entity_type": "ksi_indicator",
+            "name": "Testing Recovery Capabilities",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-RPL-TRC",
+            "name": "Testing Recovery Capabilities",
+            "description": "The capability to recover from incidents and contingencies aligned with defined recovery objectives is persistently tested.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cp-2.1",
+              "cp-2.3",
+              "cp-4",
+              "cp-4.1",
+              "cp-6",
+              "cp-6.1",
+              "cp-9.1",
+              "cp-10",
+              "ir-3",
+              "ir-3.2"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Incident",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "e88f4649-f444-5fda-8da3-cce026727e80",
+            "entity_type": "ksi_indicator",
+            "name": "Mitigating Supply Chain Risk",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SCR-MIT",
+            "name": "Mitigating Supply Chain Risk",
+            "description": "Persistently identify, review, and mitigate potential supply chain risks.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-20",
+              "ra-3.1",
+              "sa-9",
+              "sa-10",
+              "sa-11",
+              "sa-15.3",
+              "sa-22",
+              "si-7.1",
+              "sr-5",
+              "sr-6",
+              "ca-7.4",
+              "sc-18"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "63d04011-a9fd-5eaa-881c-8dc331d20f44",
+            "entity_type": "ksi_indicator",
+            "name": "Monitoring Supply Chain Risk",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SCR-MON",
+            "name": "Monitoring Supply Chain Risk",
+            "description": "Third party software information resources are automatically monitored for upstream vulnerabilities using mechanisms that may include contractual notification requirements or active monitoring services.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-20",
+              "ca-3",
+              "ir-6.3",
+              "ps-7",
+              "ra-5",
+              "sa-9",
+              "si-5",
+              "sr-5",
+              "sr-6",
+              "sr-8"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Vulnerability"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "4365d6b0-65bb-5680-8aa9-28b1a59c4464",
+            "entity_type": "ksi_indicator",
+            "name": "Automating Configuration Management",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SVC-ACM",
+            "name": "Automating Configuration Management",
+            "description": "The configuration of machine-based information resources is managed using automation and persistently reviewed for drift.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-2.4",
+              "cm-2",
+              "cm-2.2",
+              "cm-2.3",
+              "cm-6",
+              "cm-7.1",
+              "pl-9",
+              "pl-10",
+              "sa-5",
+              "si-5",
+              "sr-10"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Drift",
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "c85d3c5b-a017-56c2-ba42-b6023b998f32",
+            "entity_type": "ksi_indicator",
+            "name": "Automating Secret Management",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SVC-ASM",
+            "name": "Automating Secret Management",
+            "description": "Management, protection, and regular rotation of digital keys, certificates, and other secrets is automated and persistently reviewed.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-17.2",
+              "ia-5.2",
+              "ia-5.6",
+              "sc-12",
+              "sc-17"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Persistently",
+              "Regularly"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "fdbe63cb-45e0-5157-a505-bb791e403ae4",
+            "entity_type": "ksi_indicator",
+            "name": "Evaluating and Improving Security",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SVC-EIS",
+            "name": "Evaluating and Improving Security",
+            "description": "Implement improvements based on persistent evaluation of information resources for opportunities to improve security.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cm-7.1",
+              "cm-12.1",
+              "ma-2",
+              "pl-8",
+              "sc-7",
+              "sc-39",
+              "si-2.2",
+              "si-4",
+              "sr-10"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "742bb019-a628-58e5-ac3f-659981723d6f",
+            "entity_type": "ksi_indicator",
+            "name": "Preventing Residual Risk",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SVC-PRR",
+            "name": "Preventing Residual Risk",
+            "description": "",
+            "classes": [
+              "b",
+              "c"
+            ],
+            "class_variants": {
+              "b": {
+                "statement": "**Optional:** Plans, procedures, and the state of information resources are persistently reviewed after making changes to limit and remove unwanted residual elements that would likely negatively affect the confidentiality, integrity, or availability of federal customer data."
+              },
+              "c": {
+                "statement": "Plans, procedures, and the state of information resources are persistently reviewed after making changes to limit and remove unwanted residual elements that would likely negatively affect the confidentiality, integrity, or availability of federal customer data."
+              }
+            },
+            "controls": [
+              "sc-4"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Federal Customer Data",
+              "Information Resource",
+              "Likely",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "39c0b5dc-999a-5011-93af-fc83bf9883a2",
+            "entity_type": "ksi_indicator",
+            "name": "Removing Unwanted Data",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SVC-RUD",
+            "name": "Removing Unwanted Data",
+            "description": "",
+            "classes": [
+              "b",
+              "c"
+            ],
+            "class_variants": {
+              "b": {
+                "statement": "**Optional:** Unwanted federal customer data is removed promptly when requested by an agency in alignment with customer agreements, including from backups if appropriate; this typically applies when a customer spills information or when a customer seeks to remove information from a service due to a change in usage."
+              },
+              "c": {
+                "statement": "Unwanted federal customer data is removed promptly when requested by an agency in alignment with customer agreements, including from backups if appropriate; this typically applies when a customer spills information or when a customer seeks to remove information from a service due to a change in usage."
+              }
+            },
+            "controls": [
+              "si-12.3",
+              "si-18.4"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Agency",
+              "Federal Customer Data",
+              "Promptly"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "39301287-1b39-5358-82c3-f9aee118eb7b",
+            "entity_type": "ksi_indicator",
+            "name": "Securing Network Traffic",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SVC-SNT",
+            "name": "Securing Network Traffic",
+            "description": "Encrypt or otherwise secure network traffic.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "ac-1",
+              "ac-17.2",
+              "cp-9.8",
+              "sc-8",
+              "sc-8.1",
+              "sc-13",
+              "sc-20",
+              "sc-21",
+              "sc-22",
+              "sc-23"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "3e9e25c8-7bee-5108-8601-bcb0be83af0f",
+            "entity_type": "ksi_indicator",
+            "name": "Validating Communications",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SVC-VCM",
+            "name": "Validating Communications",
+            "description": "",
+            "classes": [
+              "b",
+              "c"
+            ],
+            "class_variants": {
+              "b": {
+                "statement": "**Optional:** The authenticity and integrity of communications between machine-based information resources is persistently validated using automation."
+              },
+              "c": {
+                "statement": "The authenticity and integrity of communications between machine-based information resources is persistently validated using automation."
+              }
+            },
+            "controls": [
+              "sc-23",
+              "si-7.1"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistent Validation",
+              "Persistently"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "a6936d71-9693-5110-9e39-b89b66048aa1",
+            "entity_type": "ksi_indicator",
+            "name": "Validating Resource Integrity",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "node": {
+            "code": "KSI-SVC-VRI",
+            "name": "Validating Resource Integrity",
+            "description": "Use cryptographic methods to validate the integrity of machine-based information resources.",
+            "classes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "class_variants": null,
+            "controls": [
+              "cm-2.2",
+              "cm-8.3",
+              "sc-13",
+              "sc-23",
+              "si-7",
+              "si-7.1",
+              "sr-10"
+            ],
+            "updated_log": [
+              {
+                "date": "2026-06-01",
+                "comment": "Revisited and baselined against the Consolidated Rules for 2026."
+              }
+            ],
+            "terms": [
+              "Information Resource",
+              "Machine-Based (Information Resources)",
+              "Persistent Validation"
+            ],
+            "reference": "",
+            "reference_url": "",
+            "status": "published"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "8e02e1c2-5d04-54fa-97e4-ec1b6fcdf503",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "a695945a-8c0d-54fc-a177-5a11a0d9b90a",
+            "to_entity_id": "8b859f9c-0a0e-54cd-91c2-ffb424a5a024",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "5fae6587-5f8b-5288-805c-aa45b67564f9",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "4c4ca97d-9076-5bb0-bb49-500e3d1a0bad",
+            "to_entity_id": "605faedc-390e-50c5-960a-467b4893c186",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "caeab284-7144-52c3-8149-6411e3e79c75",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "4c4ca97d-9076-5bb0-bb49-500e3d1a0bad",
+            "to_entity_id": "f219e31f-a55e-5cee-8595-a54d60c19bbc",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "167b16c2-efd9-5cd7-a8ef-ff1722179c62",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "4c4ca97d-9076-5bb0-bb49-500e3d1a0bad",
+            "to_entity_id": "11cc3ca7-aa6d-5fe1-b9ed-7e24e1d9102e",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "b02915ae-bd38-5ca4-b04a-f56301498132",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "4c4ca97d-9076-5bb0-bb49-500e3d1a0bad",
+            "to_entity_id": "7fb38e9a-ed3f-5015-be48-f033d704b977",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "8582f933-610a-540e-9de6-e7d474d3c641",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
+            "to_entity_id": "19edad6e-918d-5a92-b12c-5caf0e748b03",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "46e9cdf6-69d8-5fdb-ac3d-724ddbf4a75c",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
+            "to_entity_id": "aa31709d-de45-5667-a637-ab12b784e19e",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "3ec49087-7a7c-5d6a-a6d0-8e4dd25dc5cd",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
+            "to_entity_id": "26fb8249-23b7-59a0-bb8b-276f7e18ba16",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "708fb103-07bb-5a3d-96ba-40bfda9c404f",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
+            "to_entity_id": "f7d3201a-e39e-5ce4-a106-ab39f5795059",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "da0e942b-bf35-591b-8665-edacdb461bba",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
+            "to_entity_id": "0274c0ea-4491-57de-a69a-b12f8ce2596a",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "87ce2908-e229-5549-b016-5dd15c61c64b",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
+            "to_entity_id": "6add504d-f2e5-5ff5-9d1f-f9529199243b",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "eaf568cc-e638-5143-95bf-976f02a41d43",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
+            "to_entity_id": "c2538cc0-e405-5b39-bf43-b5c18c8b56fb",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "ed47c28f-89ed-58dc-ba96-afdd8d2e94ae",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
+            "to_entity_id": "331220a6-2eb9-5ff6-9ac1-079d31a68bec",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "370e285e-1a5f-51b6-83ee-1d7831038179",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
+            "to_entity_id": "9683950e-50a8-573e-aa4c-a65772cff3f2",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "a64c60e0-18ca-54ef-a86a-1035d301eb50",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
+            "to_entity_id": "0a3317fd-2586-507e-86ce-2630056c5786",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "feb3e7b9-e566-5404-801f-483741e03b2b",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
+            "to_entity_id": "5502a982-4675-55d5-8f50-6a7545781115",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "209fe3b5-fd1c-55e6-b577-a97d82116d14",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
+            "to_entity_id": "beb54397-e386-5bb8-b116-a1af2348fe49",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "317deee6-2dcf-54cd-9bec-6340551e08ec",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
+            "to_entity_id": "76ff1614-d128-5f81-b857-857a4f71566e",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "9768c02a-bff4-5880-807d-dd3233c01c73",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
+            "to_entity_id": "aa60a7e1-748b-58b5-89dd-498d1eb49171",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "87e19027-c307-5c62-93c7-30ccac1970bf",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "0c34865f-4a9a-5dfc-a43b-a987524db1ca",
+            "to_entity_id": "8df320f9-d6c9-5ad5-b230-2ddc2026abf1",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "31ae328c-91fe-524a-aa8a-e0dd655cfa88",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "0c34865f-4a9a-5dfc-a43b-a987524db1ca",
+            "to_entity_id": "d5d6e76c-015f-589d-ade2-c6154cf556b7",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "6a4a7d97-1851-518b-a909-861b3c401121",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "0c34865f-4a9a-5dfc-a43b-a987524db1ca",
+            "to_entity_id": "21dbd178-a559-5469-9059-43100d426ab7",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "0c819dd0-3416-5050-bcdd-68478326e4f9",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
+            "to_entity_id": "54792ee3-9e93-5a84-a3f6-52764ce71c6a",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "846ac935-c7db-597a-8313-01d2d07ce928",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
+            "to_entity_id": "6492702b-98cc-5163-bee2-6b928b38dd8a",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "d3d979af-6bce-5908-994b-fa0a63e55b6f",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
+            "to_entity_id": "f6dabe09-bcd1-5edc-ad47-81850d3e766b",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "13c5828d-e53a-50bd-9dce-1784f9d7c46b",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
+            "to_entity_id": "d90b2348-6af3-519a-b7bd-11358bc8d310",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "8f5aef40-09ab-581c-8376-f93f2e3c09ef",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
+            "to_entity_id": "807ff29a-2d2b-57fa-996d-141ae79720be",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "1c268824-1f5a-58f9-9a52-38313ae69298",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
+            "to_entity_id": "7ea09f84-80b2-5b5e-95b0-51e16db6c211",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "8898922b-7906-57ec-9273-56014f6d3d43",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
+            "to_entity_id": "a5c4a9f7-70ff-5955-a5ba-0c8f2beb0887",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "4ccee502-c8ce-5af3-8058-416ef4b64d5b",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
+            "to_entity_id": "2ddfcffe-504a-5bec-9923-361383fbeaa0",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "5ee82351-a3d3-5595-84f3-5a6c94d40089",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
+            "to_entity_id": "c8fb53a9-49f9-5f29-bc03-95fa4cc99845",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "ab9537d0-f4b6-55eb-a0f1-16286e3ba9ab",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
+            "to_entity_id": "69694d68-aaf8-5aa2-92cd-216ad2e62ae4",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "ade0fcd2-cc72-5349-935c-6457c4372e8f",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "20f22c94-b674-5360-a35e-ac943a10bab1",
+            "to_entity_id": "e9c32bef-37f3-5993-95fb-f342cf3e0894",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "0641ef4d-27e7-53ed-a99a-3eeb4dedd1f3",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "20f22c94-b674-5360-a35e-ac943a10bab1",
+            "to_entity_id": "6b2b8ce9-d8a3-5e34-8bf7-4e4986b9d3a7",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "dca5af22-61ce-597e-a6dc-1b97a1b46cb3",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "20f22c94-b674-5360-a35e-ac943a10bab1",
+            "to_entity_id": "a5f1ba55-b969-5f3d-861b-7daef1fbf3d9",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "0f306c8e-d9b3-5cea-98d8-6c6494f338b9",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "20f22c94-b674-5360-a35e-ac943a10bab1",
+            "to_entity_id": "81bd2765-7b76-50f8-9ccb-0c575cec7288",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "6fe68049-cbfc-5f45-9bfe-9d634f29c8d4",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "a1e67d87-376b-50cf-8eed-84357d1e8c36",
+            "to_entity_id": "e88f4649-f444-5fda-8da3-cce026727e80",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "2faed63d-eae6-5690-ad18-c62d9b5d2a19",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "a1e67d87-376b-50cf-8eed-84357d1e8c36",
+            "to_entity_id": "63d04011-a9fd-5eaa-881c-8dc331d20f44",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "64e78e03-2adc-5a9a-82db-8d617b9652ef",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
+            "to_entity_id": "4365d6b0-65bb-5680-8aa9-28b1a59c4464",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "3fa72592-dc52-5ab8-8825-9f3c5271320b",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
+            "to_entity_id": "c85d3c5b-a017-56c2-ba42-b6023b998f32",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "0f5ce7ce-fb64-54ca-8282-244155bff7c3",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
+            "to_entity_id": "fdbe63cb-45e0-5157-a505-bb791e403ae4",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "b5461cda-32f4-50bf-b771-92b51bd5d67b",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
+            "to_entity_id": "742bb019-a628-58e5-ac3f-659981723d6f",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "caf71857-8176-50a5-afdf-c72588bface8",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
+            "to_entity_id": "39c0b5dc-999a-5011-93af-fc83bf9883a2",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "ff0045f2-9e2b-5a42-bbb3-d1ee653289bd",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
+            "to_entity_id": "39301287-1b39-5358-82c3-f9aee118eb7b",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "1c3ba5b1-ed2f-5b0e-a9aa-838e3ce183b4",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
+            "to_entity_id": "3e9e25c8-7bee-5108-8601-bcb0be83af0f",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "aa843c81-3d2e-59f3-ac77-66cc28a2c80e",
+            "entity_type": "edge",
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
+          },
+          "edge": {
+            "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
+            "to_entity_id": "a6936d71-9693-5110-9e39-b89b66048aa1",
+            "edge_type": "CONTAINS_INDICATOR",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}

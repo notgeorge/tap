@@ -1,0 +1,27 @@
+{
+  "slug": "ROUTES_TO",
+  "name": "Routes To",
+  "description": "Route table, load balancer, or DNS zone routes traffic to a target.",
+  "sources": [
+    "aws_route_table",
+    "aws_alb",
+    "aws_elb",
+    "aws_route53_zone"
+  ],
+  "property_schema": {
+    "type": "object",
+    "properties": {
+      "destination_cidr": {
+        "type": "string",
+        "description": "Destination CIDR block for route table entries."
+      },
+      "port": {
+        "type": "integer",
+        "description": "Target port for load balancer routing."
+      }
+    }
+  },
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

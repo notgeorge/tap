@@ -1,0 +1,14 @@
+{
+  "slug": "AVAILABLE_AT",
+  "name": "Available At",
+  "description": "A port is available at an IP address, even when the concrete interface is not known.",
+  "sources": [
+    "port"
+  ],
+  "targets": [
+    "ip_address"
+  ],
+  "default_dimensions": {
+    "tap.computing": "network"
+  }
+}

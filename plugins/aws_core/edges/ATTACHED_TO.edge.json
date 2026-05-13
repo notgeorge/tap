@@ -1,0 +1,17 @@
+{
+  "slug": "ATTACHED_TO",
+  "name": "Attached To",
+  "description": "Resource is attached to another resource (EBS to EC2, policy to role, EIP to instance, ACL to subnet, etc.).",
+  "property_schema": {
+    "type": "object",
+    "properties": {
+      "device": {
+        "type": "string",
+        "description": "Device name or attachment identifier."
+      }
+    }
+  },
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

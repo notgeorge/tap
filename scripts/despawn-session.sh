@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # scripts/despawn-session.sh — fully tear down a multi-session dev environment.
 #
-# Removes everything: docker containers + volumes + networks, submodule worktrees
-# and their session/<name> branches, the supermodule worktree (with all
-# uncommitted files), the supermodule's session/<name> branch, and the registry
+# Removes everything: docker containers + volumes + networks, the worktree
+# (with all uncommitted files), the session/<name> branch, and the registry
 # row. Best-effort: individual step failures log a warning and we continue —
 # the goal is "leave nothing behind."
 #
@@ -83,9 +82,7 @@ PROJECT="tap_${SESSION_NAME}"
 bold "Despawn plan for '$SESSION_NAME'"
 info "  Docker project:        $PROJECT"
 info "  Worktree:              $WORKTREE  (entire directory + all uncommitted files)"
-info "  Supermodule branch:    session/$SESSION_NAME"
-info "  Submodule worktrees:   per .gitmodules in $REPO"
-info "  Submodule branches:    session/$SESSION_NAME in each submodule"
+info "  Branch:                session/$SESSION_NAME"
 info "  Registry row:          $REGISTRY"
 [[ "$PURGE_IMAGE" -eq 1 ]] && info "  Per-project image:     ${PROJECT}-web (force rebuild on next spawn)"
 echo
@@ -133,31 +130,11 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Submodule worktrees + session branches. Submodule worktree state lives
-#    in the primary submodule's repo, NOT in the supermodule worktree, so we
-#    have to ask each submodule to remove it.
-# ---------------------------------------------------------------------------
-bold "Removing submodule worktrees and branches"
-if [[ -f "$REPO/.gitmodules" ]]; then
-  while IFS= read -r path; do
-    [[ -n "$path" ]] || continue
-    if [[ -d "$REPO/$path/.git" || -f "$REPO/$path/.git" ]]; then
-      info "  $path"
-      git -C "$REPO/$path" worktree remove --force "$WORKTREE/$path" 2>/dev/null && info "    worktree removed" || true
-      git -C "$REPO/$path" branch -D "session/$SESSION_NAME" 2>/dev/null && info "    branch deleted" || true
-      git -C "$REPO/$path" worktree prune 2>/dev/null
-    fi
-  done < <(git -C "$REPO" config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
-else
-  info "  no .gitmodules"
-fi
-
-# ---------------------------------------------------------------------------
-# 4. Supermodule worktree + branch. --force ignores uncommitted files (the
+# 3. Worktree + branch. --force ignores uncommitted files (the
 #    user explicitly asked for nuke). If the directory survives somehow
 #    (e.g. removed outside git's awareness), rm -rf it.
 # ---------------------------------------------------------------------------
-bold "Removing supermodule worktree and branch"
+bold "Removing worktree and branch"
 git -C "$REPO" worktree remove --force "$WORKTREE" 2>/dev/null && info "  worktree removed via git" || info "  worktree not in git's list"
 git -C "$REPO" worktree prune 2>/dev/null
 if [[ -e "$WORKTREE" ]]; then

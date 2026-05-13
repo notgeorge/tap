@@ -1,0 +1,20 @@
+{
+  "slug": "CONTAINS",
+  "name": "Contains",
+  "description": "Parent resource contains child resources (VPC contains subnets, ECS cluster contains services, etc.).",
+  "sources": [
+    "aws_vpc",
+    "aws_ecs_cluster",
+    "aws_region",
+    "aws_route53_zone"
+  ],
+  "targets": [
+    "aws_subnet",
+    "aws_ecs_service",
+    "aws_az",
+    "aws_vpc"
+  ],
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

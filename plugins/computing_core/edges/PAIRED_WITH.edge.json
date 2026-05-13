@@ -1,0 +1,14 @@
+{
+  "slug": "PAIRED_WITH",
+  "name": "Paired With",
+  "description": "A public key is paired with a private key in a cryptographic key pair.",
+  "sources": [
+    "public_key"
+  ],
+  "targets": [
+    "private_key"
+  ],
+  "default_dimensions": {
+    "tap.computing": "storage"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "slug": "INVOKES",
+  "name": "Invokes",
+  "description": "One service invokes another (Lambda calls another Lambda, ECS calls an API, etc.).",
+  "property_schema": {
+    "type": "object",
+    "properties": {
+      "method": {
+        "type": "string",
+        "description": "Invocation method or API action."
+      }
+    }
+  },
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

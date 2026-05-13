@@ -1,0 +1,42 @@
+{% load static %}
+<div class="tap-panel tap-panel--ksi-compliance">
+    {% include "tap_web/panel_header.html" %}
+
+    {% if ksi_error %}
+    <div class="tap-panel-error rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ ksi_error }}
+    </div>
+    {% else %}
+
+    {# Controls bar: search input + class selector + result count #}
+    <div class="ksi-controls-bar" id="ksi-controls-{{ panel.entity_id }}">
+        <input type="text"
+               id="ksi-search-{{ panel.entity_id }}"
+               placeholder="Search indicators..."
+               class="ksi-search-input" />
+        <select id="ksi-class-select-{{ panel.entity_id }}" class="ksi-class-select">
+            <option value="all">All Classes</option>
+            <option value="a">Class A &mdash; Pilot</option>
+            <option value="b">Class B &mdash; Low</option>
+            <option value="c">Class C &mdash; Moderate</option>
+            <option value="d">Class D &mdash; High</option>
+        </select>
+        <span id="ksi-count-{{ panel.entity_id }}" class="ksi-result-count"></span>
+    </div>
+
+    {# Tabulator mount point #}
+    <div id="ksi-table-{{ panel.entity_id }}"
+         data-ksi-panel-id="{{ panel.entity_id }}"
+         data-static-icons="{% static 'fedramp_20x_ksi/icons/' %}"
+         class="ksi-table-container"></div>
+
+    {# Embedded subgraph payload — safe_json output only #}
+    <script type="application/json"
+            id="ksi-data-{{ panel.entity_id }}">{{ ksi_subgraph_json|safe }}</script>
+
+    {% comment %}Server-resolved default class from ComplianceContext (regime=fedramp_20x). See spec-fedramp-20x-ksi-compliance-view.md req-ksi-compview-class-select.{% endcomment %}
+    <script type="application/json"
+            id="ksi-default-class-{{ panel.entity_id }}">{{ ksi_default_class_json|safe }}</script>
+
+    {% endif %}
+</div>

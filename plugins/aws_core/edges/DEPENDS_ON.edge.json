@@ -1,0 +1,8 @@
+{
+  "slug": "DEPENDS_ON",
+  "name": "Depends On",
+  "description": "Resource has a runtime dependency on another resource.",
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

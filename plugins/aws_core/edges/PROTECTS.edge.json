@@ -1,0 +1,14 @@
+{
+  "slug": "PROTECTS",
+  "name": "Protects",
+  "description": "Security group, network ACL, or firewall protects a resource.",
+  "sources": [
+    "aws_security_group",
+    "aws_network_acl",
+    "aws_network_firewall",
+    "aws_acm_certificate"
+  ],
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

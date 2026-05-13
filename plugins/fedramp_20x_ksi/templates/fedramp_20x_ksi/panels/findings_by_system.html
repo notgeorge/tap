@@ -1,0 +1,30 @@
+{% load static %}
+<div class="tap-panel tap-panel--findings-by-system">
+    {# Breadcrumb — matches the finding profile page hint. #}
+    <nav class="finding-profile-breadcrumb">
+        <a href="/fedramp-ksi" class="finding-breadcrumb-link">FedRAMP 20x KSI</a>
+        <span class="finding-breadcrumb-sep">/</span>
+        <span class="finding-breadcrumb-current">Findings</span>
+    </nav>
+
+    {% if not panel.config.hide_header %}{% include "tap_web/panel_header.html" %}{% endif %}
+
+    {% if findings_error %}
+    <div class="tap-panel-error rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ findings_error }}
+    </div>
+    {% else %}
+
+    <div class="findings-table-meta">
+        <span class="findings-table-count">{{ findings_count }} open finding{{ findings_count|pluralize }}</span>
+    </div>
+
+    <div id="findings-by-system-table-{{ panel.entity_id }}"
+         data-findings-by-system-panel-id="{{ panel.entity_id }}"
+         class="findings-table-container"></div>
+
+    <script type="application/json"
+            id="findings-by-system-data-{{ panel.entity_id }}">{{ findings_rows_json|safe }}</script>
+
+    {% endif %}
+</div>

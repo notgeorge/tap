@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e6736008051e",
+        "entity_type": "batch",
+        "name": "FedRAMP 20x KSI dimension v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.fedramp_20x_ksi",
+        "name": "FedRAMP 20x KSI dimension v0.1.0",
+        "description": "Dimension node anchoring the compliance=fedramp-20x dimension."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e674128c4a73",
+            "entity_type": "dimension",
+            "name": "compliance: fedramp-20x",
+            "dimensions": {
+              "tap.meta": "dimension"
+            }
+          },
+          "node": {
+            "name": "compliance: fedramp-20x",
+            "description": "The FedRAMP 20x compliance dimension. All TAP-managed types from the FedRAMP 20x KSI plugin are tagged with {\"compliance\": \"fedramp-20x\"} as their default dimension. This dimension covers the Key Security Indicator (KSI) catalog defined by the FedRAMP 20x program: top-level KSI themes (KSI-ABF, KSI-CHM, KSI-CNA, KSI-CYE, KSI-IAM, KSI-INC, KSI-MLA, KSI-POI, KSI-RCP, KSI-SVC, KSI-SCR as of April 2026) and the individual indicators within each theme, with applicable FedRAMP impact baselines (low, moderate) and source-faithful validation criteria. The `compliance` dimension key is intended as the shared root for all compliance-framework plugins; future frameworks such as NIST 800-53 and ISO 27001 should use the same key with their own value. This plugin is maintained at github.com/notgeorge/tap-plugin-fedramp-20x-ksi and integrated into TAP as a git submodule."
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

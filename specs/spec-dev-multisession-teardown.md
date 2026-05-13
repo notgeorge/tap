@@ -55,19 +55,13 @@ The script lives at `scripts/despawn-session.sh` and is checked into the repo. I
 Sequence:
 
 1. **Pick the session.** If `<name>` is provided, use it. Otherwise display the registry and prompt. Names not in the registry are accepted (cleaning up a half-spawned session may not have a registry row).
-2. **Show the plan and confirm.** Lists what will be removed (containers, volumes, networks, worktree path including all uncommitted files, supermodule branch, submodule worktrees and branches, registry row, optionally the per-project image). Skip with `--yes`.
+2. **Show the plan and confirm.** Lists what will be removed (containers, volumes, networks, worktree path including all uncommitted files, branch, registry row, optionally the per-project image). Skip with `--yes`.
 3. **Stop the stack.** Prefer `cd <worktree> && scripts/dc down -v --remove-orphans` so `.env.local` resolves the project name correctly. Fall back to `docker compose -p tap_<name> down -v --remove-orphans` if the worktree is unavailable.
 4. **Belt-and-suspenders volume / network cleanup.** Even after step 3, named volumes / networks under `tap_<name>_` are matched and removed explicitly. This catches the failure mode where a previous `dc down` couldn't identify the project (missing `.env.local`).
-5. **Remove submodule worktrees and branches.** For each path in `.gitmodules`:
-   - `git -C <primary>/<path> worktree remove --force <worktree>/<path>`
-   - `git -C <primary>/<path> branch -D session/<name>`
-   - `git -C <primary>/<path> worktree prune` to clear any stale registrations.
-6. **Remove the supermodule worktree and branch.** `git worktree remove --force` followed by `git branch -D session/<name>`. If the worktree directory survives somehow (e.g. removed outside git's awareness), `rm -rf` it.
-7. **Remove the registry row.** `sed -i.bak "/^<name> /d" ~/tap-sessions/.registry`, freeing the band for reuse. See [req-dev-multisession-port-registry](spec-dev-multisession.md#per-machine-session-registry).
-8. **(Optional) Purge the per-project image** with `--purge-image`: `docker rmi` for any image matching `tap_<name>-web`. Forces a no-cache rebuild on the next spawn — necessary when uv cache, wheel state, or other image-baked dependency state is poisoned, because despawn alone doesn't touch image layers.
-9. **Print a verification block** with the commands the operator can run to confirm everything's gone.
-
-Step 5 must precede step 6: removing the supermodule worktree while submodule worktrees are still nested inside it would leave dangling worktree registrations in the submodule repos. `git worktree prune` in each submodule recovers those, but ordering it correctly avoids the cleanup-the-cleanup case.
+5. **Remove the worktree and branch.** `git worktree remove --force` followed by `git branch -D session/<name>`. If the worktree directory survives somehow (e.g. removed outside git's awareness), `rm -rf` it.
+6. **Remove the registry row.** `sed -i.bak "/^<name> /d" ~/tap-sessions/.registry`, freeing the band for reuse. See [req-dev-multisession-port-registry](spec-dev-multisession.md#per-machine-session-registry).
+7. **(Optional) Purge the per-project image** with `--purge-image`: `docker rmi` for any image matching `tap_<name>-web`. Forces a no-cache rebuild on the next spawn — necessary when uv cache, wheel state, or other image-baked dependency state is poisoned, because despawn alone doesn't touch image layers.
+8. **Print a verification block** with the commands the operator can run to confirm everything's gone.
 
 #### Best-effort semantics
 
@@ -94,9 +88,7 @@ After a successful (non-dry-run, non-`--keep-branch`) teardown for session `<nam
 - Networks owned by project `tap_<name>`.
 - Volumes owned by project `tap_<name>` (notably `tap_<name>_postgres_data`).
 - The worktree directory `~/tap-sessions/<name>`.
-- The git branch `session/<name>` in the supermodule.
-- The git branch `session/<name>` in each submodule (one per `.gitmodules` entry).
-- Worktree registrations in any submodule's `.git/worktrees/<name>/` (these would otherwise survive `git worktree prune`).
+- The git branch `session/<name>`.
 - The session's row in `~/tap-sessions/.registry` (band must be freed for reuse).
 
 #### Verification
@@ -152,12 +144,6 @@ REPO=~/Documents/code/tap
 cd ~/tap-sessions/$NAME
 git status                                        # confirm clean
 scripts/dc down -v --remove-orphans
-
-# Submodule worktrees first — each lives in the primary submodule's repo.
-git -C $REPO config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}' | while read -r path; do
-  git -C $REPO/$path worktree remove ~/tap-sessions/$NAME/$path 2>/dev/null
-  git -C $REPO/$path branch -D session/$NAME 2>/dev/null
-done
 
 cd $REPO
 git worktree remove ~/tap-sessions/$NAME

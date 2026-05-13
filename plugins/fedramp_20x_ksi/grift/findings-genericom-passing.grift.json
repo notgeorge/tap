@@ -1,0 +1,101 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019df84e-65af-7481-beb8-ba3e9586744b",
+        "entity_type": "batch",
+        "name": "fedramp_20x_ksi findings-genericom-passing v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.fedramp_20x_ksi",
+        "name": "fedramp_20x_ksi findings-genericom-passing v0.1.0",
+        "description": "Seeds the first 'passing' finding for the Genericom demo: DNSSEC enabled on the genericom.com Route53 zone, backed by dig scanner output evidence. Demonstrates the verdict-on-edge model — Finding.status stays as lifecycle (open), HAS_EVIDENCE.support_kind=passing carries the verdict, RELATED_INDICATOR.relationship_type=passing aligns the indicator linkage to the same vocabulary."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019df84e-65af-7481-beb8-ba3f13d8199c",
+            "entity_type": "finding",
+            "name": "DNSSEC enabled",
+            "dimensions": {"compliance": "fedramp-20x"}
+          },
+          "node": {
+            "name": "DNSSEC enabled",
+            "summary": "DNSSEC signing on genericom.com is enabled and verifies end-to-end via an external resolver.",
+            "description": "DNSSEC signing is enabled on the genericom.com Route53 hosted zone. Resolvers that validate DNSSEC will detect any forged or modified responses for genericom.com, materially reducing the blast radius of DNS-layer attacks against this domain.",
+            "status": "open"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019df84e-65af-7481-beb8-ba4068e2d4f8",
+            "entity_type": "evidence",
+            "name": "dig confirms DNSSEC",
+            "dimensions": {"compliance": "fedramp-20x"}
+          },
+          "node": {
+            "name": "dig confirms DNSSEC",
+            "kind": "scanner_output",
+            "description": "Automated check: `dig +dnssec +multi DNSKEY genericom.com @1.1.1.1`\n\nThe check queries an external resolver (Cloudflare 1.1.1.1) for the DNSKEY records of genericom.com with the DNSSEC OK (DO) bit set and the multi-line output flag enabled. A passing result requires three things to all be true in the response: (1) the answer section contains DNSKEY records, (2) the answer section contains an RRSIG record covering those DNSKEY records, and (3) the response header carries the `ad` (Authenticated Data) flag, indicating the validating resolver successfully verified the chain of trust from the root.\n\nLast run: 2026-05-05 12:34:18 UTC. Result: PASS.\n\n--- raw output ---\n\n; <<>> DiG 9.18.30 <<>> +dnssec +multi DNSKEY genericom.com @1.1.1.1\n;; global options: +cmd\n;; Got answer:\n;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 41072\n;; flags: qr rd ra ad; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 1\n\n;; OPT PSEUDOSECTION:\n; EDNS: version: 0, flags: do; udp: 1232\n;; QUESTION SECTION:\n;genericom.com.         IN DNSKEY\n\n;; ANSWER SECTION:\ngenericom.com.       3600 IN DNSKEY 256 3 13 (\n                K7gOJU5bNzDqfM7T6/X8eW3vZqI9Nl0c9qj1y6+0aH3lCJ5XwPq5n2VK\n                fSRSqj9p3hXp5GqOYn3oQyx4u8aA2g==\n                ) ; ZSK; alg = ECDSAP256SHA256 ; key id = 28734\ngenericom.com.       3600 IN DNSKEY 257 3 13 (\n                mdsswUyr3DPW132mOi8V9xESWE8jTo0dxCjjnopKl+GqJxpVXckHAeF+\n                KkxLbxILfDLUT0rAK9iUzy1L53eKGQ==\n                ) ; KSK; alg = ECDSAP256SHA256 ; key id = 19036\ngenericom.com.       3600 IN RRSIG DNSKEY 13 2 3600 (\n                20260601000000 20260501000000 19036 genericom.com.\n                gLcz1Uj9Q1pM7w6P0n0Z3cZ7fZqg+m5wXyVa4iGZ7uFjK9Y2tT0xYn8m\n                3xqj8FJK8XpW5lMq3sR2bqgWkJzXVA== )\n\n;; Query time: 12 msec\n;; SERVER: 1.1.1.1#53(1.1.1.1) (UDP)\n;; WHEN: Tue May 05 12:34:18 UTC 2026\n;; MSG SIZE  rcvd: 384\n\n--- what we are seeing ---\n\nflags: qr rd ra **ad**\n  └── the `ad` flag (Authenticated Data) confirms that the upstream\n      validating resolver verified the DNSSEC chain of trust from the\n      root zone down to genericom.com. Without `ad`, the records would\n      have been served but their authenticity would be unverified.\n\nANSWER SECTION contains:\n  - DNSKEY 256 (ZSK, key id 28734) — Zone Signing Key\n  - DNSKEY 257 (KSK, key id 19036) — Key Signing Key (the trust anchor\n      that the parent .com zone has a DS record for)\n  - RRSIG over DNSKEY signed by KSK 19036, valid through 2026-06-01\n  └── the presence of an RRSIG covering the DNSKEY RRset, signed by\n      the KSK referenced in the parent zone's DS record, completes\n      the chain. Resolvers can independently cryptographically\n      verify that these DNSKEYs are the authentic ones for this zone.\n\nResult: DNSSEC is enabled, configured correctly, and verifying end-to-end."
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019df84e-65af-7481-beb8-ba4179bec1e6",
+            "entity_type": "edge",
+            "name": "genericom.com HAS_FINDING DNSSEC enabled",
+            "dimensions": {"compliance": "fedramp-20x"}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e64f1d4de436",
+            "to_entity_id": "019df84e-65af-7481-beb8-ba3f13d8199c",
+            "edge_type": "HAS_FINDING",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019df84e-65af-7481-beb8-ba43161967eb",
+            "entity_type": "edge",
+            "name": "DNSSEC enabled RELATED_INDICATOR KSI-SVC-SNT",
+            "dimensions": {"compliance": "fedramp-20x"}
+          },
+          "edge": {
+            "from_entity_id": "019df84e-65af-7481-beb8-ba3f13d8199c",
+            "to_entity_id": "39301287-1b39-5358-82c3-f9aee118eb7b",
+            "edge_type": "RELATED_INDICATOR",
+            "properties": {
+              "relationship_type": "passing",
+              "name": "DNSSEC enabled",
+              "description": "DNSSEC signing on the genericom.com zone passes the Securing Network Traffic indicator: DNS responses for the domain are cryptographically authenticatable end-to-end."
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019df84e-65af-7481-beb8-ba42c674646b",
+            "entity_type": "edge",
+            "name": "DNSSEC enabled HAS_EVIDENCE dig confirms DNSSEC",
+            "dimensions": {"compliance": "fedramp-20x"}
+          },
+          "edge": {
+            "from_entity_id": "019df84e-65af-7481-beb8-ba3f13d8199c",
+            "to_entity_id": "019df84e-65af-7481-beb8-ba4068e2d4f8",
+            "edge_type": "HAS_EVIDENCE",
+            "properties": {
+              "support_kind": "passing",
+              "note": "Automated dig check against Cloudflare resolver returns DNSKEY + RRSIG with ad flag set."
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

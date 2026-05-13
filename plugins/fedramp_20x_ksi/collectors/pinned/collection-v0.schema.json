@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tap.dev/schemas/tap.fedramp_20x_ksi.collection-v0.schema.json",
+  "title": "tap.fedramp_20x_ksi.collection-v0",
+  "description": "description_json.data shape for a KSI collector GRIFT batch. Pins the per-batch provenance and change-counts payload emitted by KSICollector.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source", "changes"],
+  "properties": {
+    "schema_version": {"const": "v0"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "fetched_at", "content_sha256", "byte_size", "rules_version"],
+      "properties": {
+        "url": {"type": "string", "format": "uri"},
+        "fetched_at": {"type": "string", "format": "date-time"},
+        "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "byte_size": {"type": "integer", "minimum": 0},
+        "rules_version": {"type": "string"}
+      }
+    },
+    "changes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "themes_new", "themes_modified", "themes_deprecated",
+        "indicators_new", "indicators_modified", "indicators_deprecated",
+        "catalog_size_before", "catalog_size_after", "deletion_ratio"
+      ],
+      "properties": {
+        "themes_new": {"type": "integer", "minimum": 0},
+        "themes_modified": {"type": "integer", "minimum": 0},
+        "themes_deprecated": {"type": "integer", "minimum": 0},
+        "indicators_new": {"type": "integer", "minimum": 0},
+        "indicators_modified": {"type": "integer", "minimum": 0},
+        "indicators_deprecated": {"type": "integer", "minimum": 0},
+        "catalog_size_before": {"type": "integer", "minimum": 0},
+        "catalog_size_after": {"type": "integer", "minimum": 0},
+        "deletion_ratio": {"type": "number", "minimum": 0}
+      }
+    }
+  }
+}

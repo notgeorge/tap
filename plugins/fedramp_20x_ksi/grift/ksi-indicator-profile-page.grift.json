@@ -1,0 +1,86 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e69aa92b3613",
+        "entity_type": "batch",
+        "name": "FedRAMP 20x KSI indicator profile page v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.fedramp_20x_ksi",
+        "name": "FedRAMP 20x KSI indicator profile page v0.1.0",
+        "description": "Seeds the KSI indicator profile page and panel."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e69b115283b4",
+            "entity_type": "panel",
+            "name": "FedRAMP 20x KSI Indicator Profile",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "slug": "fedramp-20x-ksi-indicator-profile",
+            "name": "FedRAMP 20x KSI Indicator Profile",
+            "description": "Detailed profile view for a single FedRAMP 20x Key Security Indicator.",
+            "view": "fedramp_20x_ksi/panels/indicator_profile.html",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e69c61d75d0a",
+            "entity_type": "page",
+            "name": "KSI Indicator",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "KSI Indicator",
+            "slug": "/fedramp-ksi/indicator",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {"panel-id": "profile"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e69d4d679e93",
+            "entity_type": "edge",
+            "name": "USES_PANEL",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019dd143-3e8f-73e4-b0fa-e69c61d75d0a",
+            "to_entity_id": "019dd143-3e8f-73e4-b0fa-e69b115283b4",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "profile"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

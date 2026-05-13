@@ -1,0 +1,9 @@
+{
+  "slug": "HAS_FINDING",
+  "name": "Has Finding",
+  "description": "An asset has a finding observed against it. Source may be any entity type; target is a finding.",
+  "targets": ["finding"],
+  "default_dimensions": {
+    "compliance": "fedramp-20x"
+  }
+}

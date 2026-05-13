@@ -1,0 +1,13 @@
+{
+  "slug": "HOSTS",
+  "name": "Hosts",
+  "description": "A compute environment hosts a resource such as a network interface, program, or file.",
+  "targets": [
+    "network_interface",
+    "program",
+    "file"
+  ],
+  "default_dimensions": {
+    "tap.computing": "host"
+  }
+}
