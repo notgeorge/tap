@@ -244,7 +244,7 @@ When a plugin is uninstalled, or when a previously-registered capability stops b
 
 Future work should decide:
 
-- Whether the grid node should be marked unavailable (status field) when the runner is missing, so admin surfaces can render the difference clearly.
+- Whether the grid node should be marked unavailable (status field) when the runner is missing, so Administrivia surfaces can render the difference clearly.
 - Whether plugin uninstallation should tombstone (`Entity.deleted_at`) the capability's grid node, preserving the historical record but excluding it from live queries.
 - Whether a separate `unregister_<thing>(...)` entry point should exist for plugins that want to cleanly retract a capability.
 

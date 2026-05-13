@@ -5,8 +5,8 @@ Renders one CollectionJob identified by ?entity_id=<uuid>. Sections:
   - Counts strip (info / warn / error / grift batches)
   - Structured event sections (info, warn, error) with full site / code / message / context
 
-Spec: tap_cares/specs/spec-tap-cares-admin.md
-  req-tap-cares-admin-run-observability
+Spec: tap_cares/specs/spec-tap-cares-administrivia.md
+  req-tap-cares-administrivia-run-observability
 
 The page is reached by clicking through from a CARES Collector Detail run-history
 row; the row passes ?entity_id=<job_uuid>. No write actions; this is a read-only

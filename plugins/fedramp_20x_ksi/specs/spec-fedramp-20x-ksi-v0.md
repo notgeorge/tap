@@ -218,7 +218,7 @@ The pinned source schema already declares `status` as an optional string on each
 - Add `status: CharField(max_length=16, blank=True, default="")` to `KsiTheme`, with a permissive validation schema (string, optional). The KSI indicator's three-value enum (`draft` / `published` / `deprecated`) is a useful precedent but the theme-side vocabulary should be re-checked against FedRAMP's actual usage at implementation time rather than presumed.
 - Extend `_theme_state_from_source` in `plugins/fedramp_20x_ksi/collectors/ksi_catalog.py` to read `theme.get("status", "")` into the source-state dict.
 - Add a migration.
-- Decide whether the existing CARES admin / KSI compliance surfaces should expose theme status visually (icon, pill, etc.) or just store it as data.
+- Decide whether the existing CARES Administrivia surface / KSI compliance surfaces should expose theme status visually (icon, pill, etc.) or just store it as data.
 
 #### Acceptance Criteria
 

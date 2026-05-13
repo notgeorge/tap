@@ -85,7 +85,7 @@ def register_collector(
     Rejects anything that is not a CollectorBase subclass
     (req-tap-cares-collector-module-class-6). `name` and `description` are
     required: every collector that lands on the grid carries human-readable
-    identity for admin surfaces (req-tap-cares-collector-registration-3).
+    identity for Administrivia surfaces (req-tap-cares-collector-registration-3).
 
     Spec: req-tap-cares-collector-registration.
     """

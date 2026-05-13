@@ -8,10 +8,10 @@ Sections:
   - Manual Run button (HTMX POST)
   - Run history table
 
-Spec: tap_cares/specs/spec-tap-cares-admin.md
-  req-tap-cares-admin-collector-detail
-  req-tap-cares-admin-run-observability
-  req-tap-cares-admin-manual-run
+Spec: tap_cares/specs/spec-tap-cares-administrivia.md
+  req-tap-cares-administrivia-collector-detail
+  req-tap-cares-administrivia-run-observability
+  req-tap-cares-administrivia-manual-run
 
 Reuses the collector_table panel's run-button POST handling shape; both
 adapter helpers (`run_collection`, `get_collector`) and the Current Deviation
@@ -59,7 +59,7 @@ def _runner_available(registry_key: str) -> bool:
 def _job_rows(collector_entity_id: str) -> list[dict[str, Any]]:
     """Run history rows for the detail page, newest first.
 
-    Per req-tap-cares-admin-run-observability columns: name, status,
+    Per req-tap-cares-administrivia-run-observability columns: name, status,
     enqueued/started/finished, duration, task_result_id, grift_batches counts,
     summary.
     """

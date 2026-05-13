@@ -7,8 +7,8 @@ class AdministriviaConfig(TapPluginConfig):
     def ready(self) -> None:
         super().ready()
 
-        # CARES admin panels (req-tap-cares-admin-* in
-        # tap_cares/specs/spec-tap-cares-admin.md).
+        # CARES Administrivia panels (req-tap-cares-administrivia-* in
+        # tap_cares/specs/spec-tap-cares-administrivia.md).
         from plugins.administrivia.tap_cares.panels.collector_detail import (
             CollectorDetailPanelType,
         )

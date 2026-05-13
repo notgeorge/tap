@@ -195,7 +195,7 @@ def register_collector(
     """
 ```
 
-`name` and `description` are required keyword arguments. Plugin authors must provide human-readable identity for the on-grid node; collectors that ship to a TAP installation become visible in admin UIs and must carry display metadata appropriate for that visibility. There is no v0 default value or implicit fallback.
+`name` and `description` are required keyword arguments. Plugin authors must provide human-readable identity for the on-grid node; collectors that ship to a TAP installation become visible in Administrivia surfaces and must carry display metadata appropriate for that visibility. There is no v0 default value or implicit fallback.
 
 #### Plugin-side usage
 
@@ -277,7 +277,7 @@ This requirement intentionally scopes v0 concurrency to one `Collector` node. To
 | req-tap-cares-collector-concurrency-1 | Field Declared | Backlog | `Collector` declares a positive integer `max_concurrent_runs` field with default `1`. | |
 | req-tap-cares-collector-concurrency-2 | Positive Value Required | Backlog | `max_concurrent_runs` must be greater than or equal to `1`; `0` is invalid. | Disablement remains a separate backlog concern. |
 | req-tap-cares-collector-concurrency-3 | Service-Layer Guard | Backlog | `run_collection()` refuses to create/enqueue a new job when linked `RUNNING` jobs meet or exceed the collector limit. | |
-| req-tap-cares-collector-concurrency-4 | UI Reflects Policy | Backlog | Admin surfaces disable, guard, or explain manual Run actions when the concurrency limit is already reached. | Service layer remains authoritative. |
+| req-tap-cares-collector-concurrency-4 | UI Reflects Policy | Backlog | Administrivia surfaces disable, guard, or explain manual Run actions when the concurrency limit is already reached. | Service layer remains authoritative. |
 | req-tap-cares-collector-concurrency-5 | KSI Singleton | Backlog | The FedRAMP 20x KSI collector is configured for one simultaneous run. | |
 | req-tap-cares-collector-concurrency-6 | Future Shared Runner Scope Deferred | Backlog | Any runner-level or shared-key concurrency across multiple Collector nodes is deferred until per-instance collector configuration exists. | |
 
@@ -432,7 +432,7 @@ def run_collection(
 
 #### v0 callers
 
-The intended steady-state caller is the future scheduler subsystem. Until that subsystem exists, the only permitted v0 caller is the Administrivia HTMX panel handler (per `spec-tap-cares-admin.md` → `req-tap-cares-admin-manual-run`). Direct calls from arbitrary plugin code are not permitted; the path is "create a scheduler trigger" (future) or "use the Administrivia handler" (v0).
+The intended steady-state caller is the future scheduler subsystem. Until that subsystem exists, the only permitted v0 caller is the Administrivia HTMX panel handler (per `spec-tap-cares-administrivia.md` → `req-tap-cares-administrivia-manual-run`). Direct calls from arbitrary plugin code are not permitted; the path is "create a scheduler trigger" (future) or "use the Administrivia handler" (v0).
 
 **Current Deviation (v0).** The eventual flow is: scheduler creates a `ScheduledCollection` (or run-now trigger) → scheduler calls `run_collection`. The scheduler subsystem is not yet specced or built. In its absence the Administrivia HTMX panel handler calls `run_collection` directly. This deviation is intentional and temporary: the run_collection contract (signature, side effects, sole-writer invariant) does not change when the scheduler lands; only the upstream caller does. Tracked here so future readers see the gap explicitly rather than discovering it by surprise.
 
@@ -450,7 +450,7 @@ The intended steady-state caller is the future scheduler subsystem. Until that s
 | req-tap-cares-collector-run-collection-4 | Edge Through Service Layer | Proposed | The HAS_JOB edge is created via `tap_grid.services.create_edge`. | |
 | req-tap-cares-collector-run-collection-5 | Concurrency Chokepoint | Proposed | `run_collection` is where the future concurrency guard (`req-tap-cares-collector-concurrency`) fires; manual, scheduled, and future API triggers all share it. | |
 | req-tap-cares-collector-run-collection-6 | Scheduler Is Caller, Not Owner | Proposed | The future scheduler subsystem invokes `run_collection`; it does not reach behind it to create CollectionJobs or enqueue tasks directly. | |
-| req-tap-cares-collector-run-collection-7 | Admin Caller Permitted In v0 | Proposed | The Administrivia HTMX panel handler is the permitted v0 caller. The path migrates to scheduler-mediated triggering when the scheduler spec lands; `run_collection`'s contract does not change. | See `spec-tap-cares-admin.md` `req-tap-cares-admin-manual-run`. |
+| req-tap-cares-collector-run-collection-7 | Administrivia Caller Permitted In v0 | Proposed | The Administrivia HTMX panel handler is the permitted v0 caller. The path migrates to scheduler-mediated triggering when the scheduler spec lands; `run_collection`'s contract does not change. | See `spec-tap-cares-administrivia.md` `req-tap-cares-administrivia-manual-run`. |
 | req-tap-cares-collector-run-collection-8 | Post-Enqueue Return | Proposed | The function returns the CollectionJob in its post-enqueue state. Under ImmediateBackend the job reflects terminal status; under worker backends it reflects READY or RUNNING. | |
 
 ## Collector Task Execution
@@ -660,7 +660,7 @@ A repository-wide pytest scans every `self.record_info(…)` / `self.record_warn
 
 The two coexist with distinct roles:
 
-- `summary` (CharField 2048) — the at-a-glance one-liner for a run (success or failure). Collectors set `self.summary` directly with whatever description fits ("Imported 46 indicators", "No changes", "Upstream returned malformed JSON"). When a collector fails without setting `self.summary`, the task body falls back to a count-derived `"Failed with N error(s)"`, then to the exception message. Renders wherever the job is summarized (admin list, job detail header).
+- `summary` (CharField 2048) — the at-a-glance one-liner for a run (success or failure). Collectors set `self.summary` directly with whatever description fits ("Imported 46 indicators", "No changes", "Upstream returned malformed JSON"). When a collector fails without setting `self.summary`, the task body falls back to a count-derived `"Failed with N error(s)"`, then to the exception message. Renders wherever the job is summarized (Administrivia list, job detail header).
 - `results["error"]` — the full structured detail. One entry per discrete error event, each with its own site / code / context. Renders in the per-run "what went wrong" view.
 
 The summary intentionally hides per-message content; operators dig into `results["error"]` for specifics.

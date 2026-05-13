@@ -46,7 +46,7 @@ def run_collection(
 
     The future scheduler subsystem is the intended steady-state caller. v0
     permits the Administrivia HTMX panel handler to call this directly per
-    `spec-tap-cares-admin.md` `req-tap-cares-admin-manual-run`.
+    `spec-tap-cares-administrivia.md` `req-tap-cares-administrivia-manual-run`.
     """
     ctx = caller_context or CallerContext()
     now = datetime.now(UTC)

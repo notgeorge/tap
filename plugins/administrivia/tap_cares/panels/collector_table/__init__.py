@@ -3,10 +3,10 @@
 Renders the collectors table for the CARES homepage and handles the HTMX
 Run button POST that triggers `tap_cares.services.run_collection`.
 
-Spec: tap_cares/specs/spec-tap-cares-admin.md
-  req-tap-cares-admin-collector-table
-  req-tap-cares-admin-manual-run
-  req-tap-cares-admin-htmx-trigger
+Spec: tap_cares/specs/spec-tap-cares-administrivia.md
+  req-tap-cares-administrivia-collector-table
+  req-tap-cares-administrivia-manual-run
+  req-tap-cares-administrivia-htmx-trigger
 
 Data loading is via the Django ORM in v0 because we aggregate the latest
 CollectionJob per Collector (last status, last_run_at, last summary),
@@ -108,7 +108,7 @@ def _row_for_collector(collector: Collector) -> dict[str, Any]:
 def _build_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate per-row state into the summary strip values.
 
-    Per req-tap-cares-admin-homepage-3.
+    Per req-tap-cares-administrivia-homepage-3.
     """
     total = len(rows)
     available = sum(1 for r in rows if r["available"])
@@ -161,9 +161,10 @@ class CollectorTablePanelType:
         context with a per-row class so the user sees what happened.
 
         Current Deviation (v0): this handler calls `run_collection` directly.
-        The eventual flow inserts the scheduler subsystem between admin POST
-        and run_collection — see req-tap-cares-collector-run-collection and
-        req-tap-cares-admin-manual-run.
+        The eventual flow inserts the scheduler subsystem between the
+        Administrivia panel POST and run_collection — see
+        req-tap-cares-collector-run-collection and
+        req-tap-cares-administrivia-manual-run.
         """
         run_message = ""
         run_error = ""
