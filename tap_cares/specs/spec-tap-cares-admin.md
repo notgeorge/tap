@@ -115,26 +115,31 @@ Initial columns:
 | Column | Source | Notes |
 | --- | --- | --- |
 | Name | `Collector.name` | Row opens collector detail page |
-| Source Plugin | inferred from `collector_registry` scope | For `plugins.fedramp_20x_ksi.collectors:ksi-catalog`, show FedRAMP 20x KSI where possible |
-| Description | `Collector.description` | Plain text |
-| Registry Key | `Collector.collector_registry` | Full `scope:key`, useful for debugging |
-| Availability | registry lookup | `available` or `missing runner` |
+| Source Plugin | `collector_registry` scope (raw dotted path) | Shown as a small code badge. Human-readable plugin names are a future enhancement (deferred — see Future). |
+| Description | `Collector.description` | Plain text; gets the dominant horizontal column space |
 | Run State | latest `CollectionJob.status` | `idle`, `running`, or current status |
 | Last Run | latest finished `CollectionJob.status` | `successful`, `failed`, or `never run` |
 | Last Run At | latest finished `CollectionJob.finished_at` | Empty for never run |
 | Last Error | latest failed `CollectionJob.error_summary` | Short bounded error |
 | Action | admin POST | Manual Run button |
 
-The table should avoid implying that registry availability and last run outcome are the same thing. A collector can be available even if its last run failed, and a collector can have a historical successful run while its current runner code is missing.
+Availability is no longer a column. The Run button stays disabled when the registry has no runner for the collector's `collector_registry` value, and that row is tinted to indicate the unavailable state. The previous explicit `available` / `missing runner` pill column was redundant once the Run button conveyed the same state through its disabled affordance.
+
+The Registry Key column was removed because the full `scope:key` is already visible on the collector detail page; the homepage table doesn't need to repeat it.
+
+The table auto-refreshes via a quiet HTMX GET poll every 5 seconds so manual-Run state and in-flight job lifecycle transitions appear without an operator reload. The poll is rooted on the panel container and re-issued each swap.
+
+The table should avoid implying that registry availability and last run outcome are the same thing. A collector with no registered runner can still have a historical successful run; the row tint and disabled Run button surface the current availability without conflating it with the last-run outcome.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-admin-collector-table-1 | All Collectors Listed | Implemented | Table includes every on-grid `Collector` node. | |
-| req-tap-cares-admin-collector-table-2 | Availability Distinct | Implemented | Registry resolution is displayed separately from run outcome. | |
+| req-tap-cares-admin-collector-table-2 | Availability Distinct | Implemented | Registry resolution is shown by row tint + disabled Run button, separate from last-run outcome columns. | |
 | req-tap-cares-admin-collector-table-3 | Latest Job Summarized | Implemented | Table displays latest run state, last finished run, timestamp, and bounded error summary. | |
 | req-tap-cares-admin-collector-table-4 | Row Drilldown | Implemented | Clicking a collector row opens the collector-specific admin page. | |
+| req-tap-cares-admin-collector-table-5 | Quiet Auto-Refresh | Implemented | The table polls itself via HTMX GET every 5 seconds and replaces its outer HTML in place, so manual-Run state and in-flight job transitions appear without a page reload. | |
 
 ### Manual Collector Execution
 ----
@@ -363,3 +368,4 @@ The future API endpoint must call the same CARES execution service as the v0 HTM
 - Add receiver, emitter, and action sections to the CARES homepage.
 - Define a richer run detail page once status/log/event records are specified.
 - Add admin affordances for reviewing GRIFT batches before merge if the collector workflow separates collection and merge in a later phase.
+- Replace the raw `collector_registry` scope in the Source Plugin column with the owning plugin's human-readable display name. A first attempt added per-scope display metadata to `ScopedRegistry`; it was backed out in favor of focusing on functional fixes. The durable path is a dedicated TAP-level plugin registry that lets any admin surface look up plugin display metadata by slug; that registry doesn't exist yet and should be specified before the column copy changes.

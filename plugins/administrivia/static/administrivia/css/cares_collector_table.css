@@ -106,17 +106,23 @@
     text-decoration: underline;
 }
 .tap-cares-collectors__desc {
-    max-width: 320px;
+    min-width: 360px;
     color: #475569;
+    line-height: 1.45;
 }
-.tap-cares-collectors__scope,
-.tap-cares-collectors__regkey {
+.tap-cares-collectors__scope {
+    display: inline-block;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 11px;
     color: #475569;
     background: #f1f5f9;
     padding: 1px 4px;
     border-radius: 3px;
+    vertical-align: middle;
 }
 .tap-cares-collectors__err {
     max-width: 200px;

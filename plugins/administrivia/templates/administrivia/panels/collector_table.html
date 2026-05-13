@@ -1,5 +1,8 @@
 {% load static %}
-<div class="tap-panel tap-panel--cares-collectors">
+<div class="tap-panel tap-panel--cares-collectors"
+     hx-get="/panel/{{ panel.slug }}--{{ panel.entity_id }}/"
+     hx-trigger="every 5s"
+     hx-swap="outerHTML">
     {% if not panel.config.hide_header %}{% include "tap_web/panel_header.html" %}{% endif %}
 
     {% if run_message %}<div class="tap-cares-collectors__flash tap-cares-collectors__flash--ok">{{ run_message }}</div>{% endif %}
@@ -42,8 +45,6 @@
                     <th>Name</th>
                     <th>Source plugin</th>
                     <th>Description</th>
-                    <th>Registry key</th>
-                    <th>Availability</th>
                     <th>Run state</th>
                     <th>Last run</th>
                     <th>Last run at</th>
@@ -59,14 +60,6 @@
                     </td>
                     <td><code class="tap-cares-collectors__scope">{{ row.source_plugin }}</code></td>
                     <td class="tap-cares-collectors__desc">{{ row.description }}</td>
-                    <td><code class="tap-cares-collectors__regkey">{{ row.registry_key }}</code></td>
-                    <td>
-                        {% if row.available %}
-                            <span class="tap-cares-pill tap-cares-pill--ok">available</span>
-                        {% else %}
-                            <span class="tap-cares-pill tap-cares-pill--warn">missing runner</span>
-                        {% endif %}
-                    </td>
                     <td>
                         {% if row.is_running %}
                             <span class="tap-cares-pill tap-cares-pill--running">running</span>
