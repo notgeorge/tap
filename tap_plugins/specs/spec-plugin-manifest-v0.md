@@ -648,6 +648,7 @@ Proposed so the first concrete schema does not grow into a full plugin platform 
 The v0 manifest does not define:
 
 - plugin dependencies
+- uv-installable Python package dependencies
 - API router declarations
 - task or job declarations
 - install or uninstall metadata
@@ -662,6 +663,7 @@ The v0 manifest does not define:
 | req-plugin-manifest-v0-nongoals-2 | Wider UI And API Surfaces Deferred | Proposed | Beyond editor declarations, v0 does not define API, panel, or broader UI contribution fields. | |
 | req-plugin-manifest-v0-nongoals-3 | Rich Search Metadata Deferred | Proposed | v0 declares search runners but does not add richer search metadata such as labels, parameters, or categories. | |
 | req-plugin-manifest-v0-nongoals-4 | Per-Bundle Import Modes Deferred | Proposed | v0 always imports GRIFT bundles in upsert mode; per-bundle mode fields are not declared in the manifest. | |
+| req-plugin-manifest-v0-nongoals-5 | Python Dependencies Stay Out Of Manifest | Proposed | uv-installable Python package dependencies are not declared in `tap-plugin.toml`; future plugin-local dependency work belongs in plugin `pyproject.toml` files and the uv workspace shape. | See `req-plugin-arch-python-deps` in `spec-plugin-architecture.md`. |
 
 #### Future
 The next likely additions are broader UI contribution surfaces and search-related declarations once enough real plugins exist to justify them.
