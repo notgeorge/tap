@@ -36,6 +36,7 @@ Status messages are intentionally deferred to later requirements. This spec slic
 | req-tap-cares-collector-job-lifecycle | [CollectionJob Lifecycle Status](#collectionjob-lifecycle-status) | Implemented | Job status reflects Django Tasks lifecycle states |
 | req-tap-cares-collector-job-logs | [Collection Job Status Messages And Logs](#collection-job-status-messages-and-logs) | Backlog | Deferred richer in-process status/log/event stream |
 | req-tap-cares-collector-strict-isolation | [Strict Collector Isolation](#strict-collector-isolation) | Backlog | Future stronger isolation for untrusted or high-risk collector execution |
+| req-tap-cares-collector-runtime-helpers | [Shared Collector Runtime Helpers](#shared-collector-runtime-helpers) | Backlog | Standard helper modules (git, http, archive, …) collectors can compose from |
 
 ## Collector Model
 ----
@@ -589,8 +590,44 @@ Strict isolation is not required for v0 collector execution. The v0 module and c
 | req-tap-cares-collector-strict-isolation-5 | Validated Return Channel | Backlog | Isolated collector output returns through a validated channel owned by tap-cares. | |
 | req-tap-cares-collector-strict-isolation-6 | Kill Controls Considered | Backlog | Strict isolation design includes process-level termination controls or explicitly rejects them with rationale. | |
 
+## Shared Collector Runtime Helpers
+----
+RID: `req-tap-cares-collector-runtime-helpers`
+Status: `Backlog`
+
+Standard collector tasks — cloning a git repo, fetching a URL, unpacking an archive, parsing a known file format — should be available as shared helpers so each new collector does not reimplement them. The Collector Module Class spec already nods at this direction ("Reusable behavior belongs in tap-cares collector runtime helpers and shared base classes, not in plugin-specific factory setup"); this requirement names the surface and defers its construction until concrete duplication appears.
+
+The proposed shape is composition-first, not inheritance:
+
+- Helpers live in a `tap_cares/helpers/` package, one module per concern (e.g. `git.py`, `http.py`, `archive.py`).
+- Collectors discover helpers through ordinary Python imports (`from tap_cares.helpers.git import clone`). No registry — helpers are utilities, not pluggable interfaces, and do not need to be addressable from grid data the way collectors are.
+- Helpers are functions returning small dataclasses. No singletons, no module-level state.
+- Helpers accept what they need as keyword arguments (tmpdir paths, log sinks, secrets, retry policy) rather than reaching into a global context.
+
+Plugin-local helpers may live in `plugins/<slug>/helpers/`. They graduate to `tap_cares/helpers/` when a second collector needs the same capability. This "wait for N=2" discipline keeps the shared surface small and grounded in real reuse.
+
+An open design question that this requirement deliberately defers: whether collectors should receive a `CollectorContext` object that bundles tmpdir lifecycle, a log sink that feeds `CollectionJob.results`, secret resolution, and retry/rate-limit policy. The first two helpers (likely `git.clone` and `http.fetch`) should accept raw kwargs; the context shape, if it materializes, should be crystallized only after three concrete collectors agree on what they actually need passed in.
+
+This work is explicitly **not blocking v0**. The first concrete collector (FedRAMP 20x KSI) hardcodes its behavior; helpers become valuable when the second and third collectors arrive and start duplicating each other. Until then, prefer copy-paste over premature abstraction.
+
+A subclass-based `CollectorBase` extension (e.g. a `GitCollectorBase` that owns clone + checkout lifecycle) is explicitly **not** the v0 direction. Inheritance designed off a single concrete collector tends to misfit the next one; the helper-composition path stays open to crystallizing into a base class later, but does not force the shape early.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-collector-runtime-helpers-1 | Backlog Requirement Exists | Backlog | Shared collector runtime helpers are tracked as a named backlog requirement. | |
+| req-tap-cares-collector-runtime-helpers-2 | Helpers Package Location | Backlog | Shared collector helpers live in `tap_cares/helpers/`, one module per concern (e.g. `git.py`, `http.py`, `archive.py`). | |
+| req-tap-cares-collector-runtime-helpers-3 | Plain Import Discovery | Backlog | Collectors discover helpers through ordinary Python imports. No registry, no scope:key lookup, no grid-driven helper resolution. | |
+| req-tap-cares-collector-runtime-helpers-4 | Function-First Shape | Backlog | Helpers are functions returning small dataclasses. Reusable subclass bases of `CollectorBase` are not added until at least three concrete collectors demonstrate a shared lifecycle. | |
+| req-tap-cares-collector-runtime-helpers-5 | Kwargs Not Globals | Backlog | Helpers accept tmpdir paths, log sinks, secrets, and policy via keyword arguments rather than reaching into a shared global or module-level context. | |
+| req-tap-cares-collector-runtime-helpers-6 | CollectorContext Deferred | Backlog | A bundled `CollectorContext` object passed into collectors is explicitly deferred until at least three concrete collectors agree on its contents. | |
+| req-tap-cares-collector-runtime-helpers-7 | Promotion On Reuse | Backlog | Plugin-local helpers in `plugins/<slug>/helpers/` are promoted to `tap_cares/helpers/` only when a second collector adopts them. | |
+| req-tap-cares-collector-runtime-helpers-8 | Not Required For v0 | Backlog | v0 collector execution is not required to use or provide shared helpers. The first concrete collector (FedRAMP 20x KSI) hardcodes its behavior. | |
+
 ## Future
 
 - Define collection job status/log/error nodes and edges beyond coarse lifecycle status.
 - Define richer collection result records and job-to-batch graph relationships.
 - Define management surfaces for collectors and collection jobs.
+- Build out shared collector runtime helpers once a second concrete collector demonstrates the duplication pattern (see [Shared Collector Runtime Helpers](#shared-collector-runtime-helpers)).
