@@ -7,4 +7,4 @@ description = "TAP administrative pages, panels, searches, and infrastructure."
 [grift]
 grid-landing = "grift/grid-landing.grift.json"
 entity-pages = "grift/entity-pages.grift.json"
-cares-admin = "grift/cares-admin.grift.json"
+cares-administrivia = "grift/cares-administrivia.grift.json"

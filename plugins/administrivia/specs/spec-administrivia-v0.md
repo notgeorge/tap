@@ -58,9 +58,9 @@ This index is intentionally not a duplicate specification. It should answer: whe
 | Surface | Code Location | Canonical Spec | Route |
 | --- | --- | --- | --- |
 | Administrivia landing/grid overview | `plugins/administrivia/grift/grid-landing.grift.json` | This spec; TAP Web page/panel specs | `/administrivia` |
-| CARES homepage (collectors table) | `plugins/administrivia/tap_cares/panels/collector_table/`, `plugins/administrivia/grift/cares-admin.grift.json` | `tap_cares/specs/spec-tap-cares-administrivia.md` | `/administrivia/cares` |
-| CARES collector detail | `plugins/administrivia/tap_cares/panels/collector_detail/`, `plugins/administrivia/grift/cares-admin.grift.json` | `tap_cares/specs/spec-tap-cares-administrivia.md` | `/administrivia/cares/collector?entity_id=<uuid>` |
-| CARES run detail (per-run deep dive) | `plugins/administrivia/tap_cares/panels/run_detail/`, `plugins/administrivia/grift/cares-admin.grift.json` | `tap_cares/specs/spec-tap-cares-administrivia.md` | `/administrivia/cares/run?entity_id=<job_uuid>` |
+| CARES homepage (collectors table) | `plugins/administrivia/tap_cares/panels/collector_table/`, `plugins/administrivia/grift/cares-administrivia.grift.json` | `tap_cares/specs/spec-tap-cares-administrivia.md` | `/administrivia/cares` |
+| CARES collector detail | `plugins/administrivia/tap_cares/panels/collector_detail/`, `plugins/administrivia/grift/cares-administrivia.grift.json` | `tap_cares/specs/spec-tap-cares-administrivia.md` | `/administrivia/cares/collector?entity_id=<uuid>` |
+| CARES run detail (per-run deep dive) | `plugins/administrivia/tap_cares/panels/run_detail/`, `plugins/administrivia/grift/cares-administrivia.grift.json` | `tap_cares/specs/spec-tap-cares-administrivia.md` | `/administrivia/cares/run?entity_id=<job_uuid>` |
 
 #### Acceptance Criteria
 

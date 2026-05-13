@@ -4,15 +4,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e2307-a3ac-7053-9e70-f8690c570ff1",
+        "entity_id": "019e239d-ecbd-7409-a1d1-435602bcf134",
         "entity_type": "batch",
-        "name": "Administrivia CARES Admin v0.2.0",
+        "name": "Administrivia CARES Administrivia v0.3.0",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.administrivia",
-        "name": "Administrivia CARES Admin v0.2.0",
-        "description": "Seeds the CARES administration surface: homepage with collector table at /administrivia/cares, collector detail at /administrivia/cares/collector, and per-run deep-dive at /administrivia/cares/run. Implements req-tap-cares-admin-homepage, -collector-table, -manual-run, -htmx-trigger, -collector-detail, -run-observability, -ksi-path from tap_cares/specs/spec-tap-cares-admin.md."
+        "name": "Administrivia CARES Administrivia v0.3.0",
+        "description": "Seeds the CARES Administrivia surface: homepage with collector table at /administrivia/cares, collector detail at /administrivia/cares/collector, and per-run deep-dive at /administrivia/cares/run. Implements req-tap-cares-administrivia-homepage, -collector-table, -manual-run, -htmx-trigger, -collector-detail, -run-observability, -ksi-path from tap_cares/specs/spec-tap-cares-administrivia.md. v0.3.0 renames the bundle from cares-admin.grift.json to cares-administrivia.grift.json so the operator-surface family is consistent across spec, RID, and bundle naming."
       },
       "nodes": [
         {
