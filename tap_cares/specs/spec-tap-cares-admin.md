@@ -25,7 +25,7 @@ This surface is intentionally human-triggered. Pressing a Run button is explicit
 | req-tap-cares-admin-ownership | [Administrative Ownership](#administrative-ownership) | Proposed | CARES owns semantics; Administrivia hosts the UI implementation |
 | req-tap-cares-admin-homepage | [CARES Homepage](#cares-homepage) | Proposed | Overview page for CARES subsystem status, starting with collectors |
 | req-tap-cares-admin-collector-table | [Collector Table](#collector-table) | Proposed | Table listing available collectors and their latest run state |
-| req-tap-cares-admin-manual-run | [Manual Collector Execution](#manual-collector-execution) | Proposed | Human-triggered run action calls `enqueue_collection()` |
+| req-tap-cares-admin-manual-run | [Manual Collector Execution](#manual-collector-execution) | Proposed | Human-triggered run action calls `run_collection()` |
 | req-tap-cares-admin-htmx-trigger | [HTMX Trigger Surface](#htmx-trigger-surface) | Proposed | v0 browser POST path for manual collector execution |
 | req-tap-cares-admin-collector-detail | [Collector Detail Page](#collector-detail-page) | Proposed | Collector-specific page with metadata and run history |
 | req-tap-cares-admin-run-observability | [Run Observability](#run-observability) | Proposed | Display timestamps, status, errors, task IDs, and GRIFT batch correlation |
@@ -53,7 +53,7 @@ The admin UI must use existing CARES services and models:
 - `CollectionJob` for run history
 - `HAS_JOB` for collector-to-run provenance
 - `tap_cares.registry.get_collector()` or equivalent registry inspection for runner availability
-- `tap_cares.services.enqueue_collection()` for manual execution
+- `tap_cares.services.run_collection()` for manual execution
 - `CollectionJob.grift_batches` for imported/skipped GRIFT batch correlation
 
 #### Acceptance Criteria
@@ -62,7 +62,7 @@ The admin UI must use existing CARES services and models:
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-admin-ownership-1 | Spec Lives With CARES | Proposed | CARES administrative behavior is specified under `tap_cares/specs/`. | |
 | req-tap-cares-admin-ownership-2 | UI Code In Administrivia | Proposed | Initial implementation code lives under `plugins/administrivia/tap_cares/`. | |
-| req-tap-cares-admin-ownership-3 | Service Layer Execution | Proposed | Manual execution routes through `tap_cares.services.enqueue_collection()`. | |
+| req-tap-cares-admin-ownership-3 | Service Layer Execution | Proposed | Manual execution routes through `tap_cares.services.run_collection()`. | |
 | req-tap-cares-admin-ownership-4 | No New Execution Path | Proposed | The admin UI does not bypass collector registry, Django Tasks, CollectionJob, or GRIFT import contracts. | |
 
 ### CARES Homepage
@@ -147,13 +147,13 @@ The Run action is a human-triggered POST. It must:
 
 1. Resolve the target `Collector` by entity ID.
 2. Verify that the collector's registry key resolves to a registered runner.
-3. Call `tap_cares.services.enqueue_collection(collector)`.
+3. Call `tap_cares.services.run_collection(collector)`.
 4. Return or display the created `CollectionJob`.
 5. Refresh the homepage row or navigate to the collector detail page.
 
 The Run button may guard against obvious duplicate manual runs, such as a collector already showing a `RUNNING` job, but the general collector concurrency policy is Backlog until the enqueue path and scheduler behavior are specified together. The future service-layer concurrency policy is tracked in `tap_cares/specs/spec-tap-cares-collector.md` (`req-tap-cares-collector-concurrency`).
 
-The UI handler must not create `CollectionJob` nodes or `HAS_JOB` edges directly. It is an adapter from a browser POST into the CARES execution service. `enqueue_collection()` owns job creation, edge creation, task enqueueing, and concurrency enforcement, and that service must route TAP-managed node and edge creation through the grid service layer.
+The UI handler must not create `CollectionJob` nodes or `HAS_JOB` edges directly. It is an adapter from a browser POST into the CARES execution service. `run_collection()` owns job creation, edge creation, task enqueueing, and concurrency enforcement, and that service must route TAP-managed node and edge creation through the grid service layer.
 
 #### Acceptance Criteria
 
@@ -161,7 +161,7 @@ The UI handler must not create `CollectionJob` nodes or `HAS_JOB` edges directly
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-admin-manual-run-1 | POST Only | Proposed | Manual execution uses a POST action, not a GET link. | |
 | req-tap-cares-admin-manual-run-2 | Registry Checked | Proposed | UI checks runner availability before enqueuing and surfaces missing runner errors. | |
-| req-tap-cares-admin-manual-run-3 | Uses enqueue_collection | Proposed | Manual execution calls `tap_cares.services.enqueue_collection()`. | |
+| req-tap-cares-admin-manual-run-3 | Uses run_collection | Proposed | Manual execution calls `tap_cares.services.run_collection()`. | |
 | req-tap-cares-admin-manual-run-4 | Job Visible | Proposed | The resulting `CollectionJob` is visible after the action completes. | |
 | req-tap-cares-admin-manual-run-5 | Duplicate Running Guard | Proposed | UI may prevent or warn against starting a second manual run when the collector already has a `RUNNING` job. | Full concurrency policy is Backlog; cross-ref `req-tap-cares-collector-concurrency`. |
 | req-tap-cares-admin-manual-run-6 | No Direct Node Creation In UI | Proposed | The UI handler does not directly create `CollectionJob` nodes or `HAS_JOB` edges. | Creation belongs to CARES services and the grid service layer. |
@@ -180,7 +180,7 @@ The preferred v0 flow:
 3. The form posts to the panel endpoint with HTMX.
 4. The panel type implements `handle_post(panel, request)`.
 5. `handle_post()` validates the action and target collector entity ID.
-6. `handle_post()` calls `tap_cares.services.enqueue_collection()`.
+6. `handle_post()` calls `tap_cares.services.run_collection()`.
 7. The panel re-renders itself or the affected row with updated job state.
 
 The POST target is the existing TAP Web panel endpoint:
@@ -212,7 +212,7 @@ Because bespoke HTMX POST handlers can become scattered management chokepoints, 
 | req-tap-cares-admin-htmx-trigger-1 | Panel POST Surface | Proposed | v0 manual collector execution is triggered by HTMX POST to a TAP Web panel endpoint. | |
 | req-tap-cares-admin-htmx-trigger-2 | handle_post Dispatch | Proposed | The CARES admin panel type handles POSTs through `handle_post(panel, request)`. | |
 | req-tap-cares-admin-htmx-trigger-3 | Action Validated | Proposed | The handler validates the requested action and collector entity ID before calling services. | |
-| req-tap-cares-admin-htmx-trigger-4 | Service Layer Only | Proposed | The handler calls `enqueue_collection()` and does not create nodes, edges, jobs, or tasks directly. | |
+| req-tap-cares-admin-htmx-trigger-4 | Service Layer Only | Proposed | The handler calls `run_collection()` and does not create nodes, edges, jobs, or tasks directly. | |
 | req-tap-cares-admin-htmx-trigger-5 | Fragment Refresh | Proposed | Successful or failed POSTs return a refreshed panel or row fragment with visible state. | |
 
 ### Collector Detail Page
@@ -310,7 +310,7 @@ The KSI collector's source parsing, safety checks, diff, and GRIFT generation re
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-admin-ksi-path-1 | KSI Row Visible | Proposed | CARES homepage includes a FedRAMP 20x KSI collector row when the collector node is seeded. | |
 | req-tap-cares-admin-ksi-path-2 | KSI Runner Available | Proposed | The row reports available when the KSI collector runner is registered. | |
-| req-tap-cares-admin-ksi-path-3 | KSI Manual Run | Proposed | Pressing Run enqueues the KSI collector through `enqueue_collection()`. | |
+| req-tap-cares-admin-ksi-path-3 | KSI Manual Run | Proposed | Pressing Run enqueues the KSI collector through `run_collection()`. | |
 | req-tap-cares-admin-ksi-path-4 | KSI Job Observable | Proposed | The resulting job status, error summary, and GRIFT batch correlation are visible in CARES admin. | |
 
 ### API Trigger Surface

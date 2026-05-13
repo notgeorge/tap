@@ -241,7 +241,9 @@ That boundary will likely be useful in several places beyond batches.
 | req-grid-entity-internal-1 | Internal Only Class Variable | Implemented | `BaseModel` subclasses may declare `INTERNAL_ONLY` to mark the type as not writable through the default service CRUD surface. | `INTERNAL_ONLY: ClassVar[bool] = False` on `BaseModel`; `Batch` sets `True` |
 | req-grid-entity-internal-2 | Default Is False | Implemented | Model types are not internal-only unless they explicitly declare that capability. | `BaseModel.INTERNAL_ONLY = False` default |
 | req-grid-entity-internal-3 | Still First-Class Entities | Implemented | Internal-only model types remain graph-native entities rather than second-class hidden tables. | `Batch` extends `BaseModel`, has Entity on spine |
-| req-grid-entity-internal-4 | Dedicated Services Still Allowed | Implemented | Internal-only model types may still be managed through dedicated subsystem services. | `tap_grid/batch.py` service functions bypass the generic pipeline |
+| req-grid-entity-internal-4 | Dedicated Services Still Allowed | Implemented | Internal-only model types may still be managed through dedicated subsystem services. | `tap_grid/batch.py` service functions and `_ensure_batch` in `tap_grid/services.py` are the v0 example, using direct ORM. |
+| req-grid-entity-internal-5 | Trusted-Internal Create Path | Proposed | New INTERNAL_ONLY types are created through `_create_node_internal` in `tap_grid/services.py` (see `req-grid-service-write-internal-create` in `spec-grid-service-write.md`), which runs the full write pipeline minus the INTERNAL_ONLY gate. | Canonical for `Collector`, `CollectionJob`, and future `Emitter`/`Action`. `Batch`'s existing direct-ORM path remains and may be migrated incidentally. |
+| req-grid-entity-internal-6 | Dual-Existence Pattern Consumer | Proposed | Plugin-declared capabilities follow the dual-existence pattern (see `tap_grid/specs/spec-grid-dual-existence.md`): grid-side `INTERNAL_ONLY = True`, sub-grid registry, single `register_<thing>(...)` entry point, deterministic UUIDv5 identity. | |
 
 ---
 

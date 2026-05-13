@@ -21,6 +21,7 @@ Write operations are where the TAP service layer earns its keep. The write contr
 | req-grid-service-write-surface | [Write Operation Surface](#write-operation-surface) | Implemented | Canonical public write verbs |
 | req-grid-service-write-payloads | [Write Payload Semantics](#write-payload-semantics) | Implemented | Slug-driven payload handling and strict rejection |
 | req-grid-service-write-internal | [Internal-Only Write Exclusion](#internal-only-write-exclusion) | Implemented | Default service-layer CRUD verbs reject internal-only model types |
+| req-grid-service-write-internal-create | [Trusted-Internal Create Entry Point](#trusted-internal-create-entry-point) | Proposed | `_create_node_internal` runs the full write pipeline minus the `INTERNAL_ONLY` gate for trusted subsystem helpers |
 | req-grid-service-write-schema-cleanup | [Service Schema Simplification](#service-schema-simplification) | Implemented | Replace per-verb `SERVICE_CRUD_SCHEMA` with a simpler writable-field contract |
 | req-grid-service-write-patch | [Patch And Replace Rules](#patch-and-replace-rules) | Implemented | Deep merge and immutable edge type rules |
 | req-grid-service-write-validate | [Write Validation Stack](#write-validation-stack) | Implemented | full_clean, constraints, hotlinks |
@@ -127,7 +128,80 @@ This keeps public CRUD predictable while still letting TAP model internal graph-
 | req-grid-service-write-internal-1 | Generic Create Rejects Internal Only | Implemented | `create_node` rejects model types marked internal-only. | `ServiceUnsupportedOperationError` |
 | req-grid-service-write-internal-2 | Generic Update Rejects Internal Only | Implemented | `patch_node` and `replace_node` reject internal-only model types. | Check after target entity resolution |
 | req-grid-service-write-internal-3 | Generic Delete Rejects Internal Only | Implemented | `delete_node` rejects internal-only model types unless a future dedicated rule says otherwise. | |
-| req-grid-service-write-internal-4 | Dedicated Services Still Allowed | Implemented | Internal-only types may still be written through dedicated subsystem service APIs. | `tap_grid/batch.py` uses direct ORM |
+| req-grid-service-write-internal-4 | Trusted-Internal Path Defined | Proposed | Internal-only types are written through `_create_node_internal` (see [Trusted-Internal Create Entry Point](#trusted-internal-create-entry-point)), which runs the full write pipeline minus the `INTERNAL_ONLY` gate. | Replaces the old "direct ORM" pattern for new internal-only types. `Batch`'s direct-ORM creation in `tap_grid/batch.py` may be migrated incidentally. |
+
+
+### Trusted-Internal Create Entry Point
+----
+RID: `req-grid-service-write-internal-create`
+Status: `Proposed`
+
+INTERNAL_ONLY model types must still be created somewhere. Today the convention is "dedicated subsystem services use direct ORM" (`_ensure_batch` in `tap_grid/services.py` does this for `Batch`). That approach is fine for `Batch` because Batch is intentionally minimal — no `validate()` hooks, no `get_name()` projection, no provenance needed for the provenance row itself. It is not appropriate for richer INTERNAL_ONLY types like `Collector` and `CollectionJob`, which have `FIELD_VALIDATION_SCHEMA`, `validate()` hooks, `get_name()` projections, version semantics, and benefit from provenance and FLIP.
+
+Direct ORM for every internal helper means each helper re-implements pipeline features inconsistently. The fix is one private entry point that runs the same pipeline as `create_node` minus the `INTERNAL_ONLY` gate.
+
+#### Implementation
+
+A new private function in `tap_grid/services.py`:
+
+```python
+def _create_node_internal(
+    type_slug: str,
+    payload: dict[str, Any],
+    *,
+    caller_context: CallerContext | None = None,
+    entity_id: uuid.UUID | None = None,
+    dimensions: dict[str, str] | None = None,
+    result_mode: Literal["minimal", "standard", "verbose"] = "standard",
+) -> WriteResult:
+    """Trusted-internal create for INTERNAL_ONLY types.
+
+    Runs the full write pipeline — validation, full_clean, name sync from
+    get_name(), version increment, history record, provenance, FLIP stamp —
+    minus the INTERNAL_ONLY gate. Callers are limited by convention to
+    subsystem registration helpers (e.g. `register_collector`'s
+    `_ensure_collector_node`); the leading underscore signals the
+    boundary.
+    """
+```
+
+Properties:
+
+- **Leading underscore.** Not re-exported from `tap_grid.services` or `tap_grid.__init__`. Importable only via the private path; the underscore is the discipline tripwire.
+- **Pipeline parity.** Runs every step `create_node` runs (input normalization, schema validation, model `full_clean`, graph constraints, hotlinks, persistence, provenance, FLIP) except the `INTERNAL_ONLY` gate at `_execute_write_pipeline` step 3.
+- **Greppable callers.** Every legitimate use is locatable in one repo search. New uses are visible in code review.
+- **Deterministic entity_id support.** Accepts an optional `entity_id` (UUIDv5-derived in the dual-existence pattern) so registration helpers can produce stable cross-grid identity.
+- **Honest threat model.** This is a tripwire for accidental misuse, not a wall against in-process malicious code. In Python, anything in-process can call private functions. The real security boundary lives at the network ingress layer (`tap_api`, panel POST handlers); INTERNAL_ONLY + leading underscore are sufficient inside the process.
+
+#### Test escape hatch
+
+Tests legitimately need to create INTERNAL_ONLY entities for assertions about model behavior, dimension defaults, validation, and registration semantics. A separate DEBUG-gated entry point provides the test bypass without polluting production policy:
+
+```python
+def _create_node_internal_for_test(...) -> WriteResult:
+    """Same as _create_node_internal, intended for tests only.
+
+    Raises RuntimeError if called outside DEBUG / test settings.
+    """
+```
+
+The DEBUG gate keeps the test bypass out of production code paths; the explicit naming keeps test invocations visible and auditable.
+
+#### Migration
+
+- New INTERNAL_ONLY types (`Collector`, `CollectionJob`, future `Emitter`, `Action`, etc.) use `_create_node_internal` from day one.
+- `Batch`'s existing `_ensure_batch` continues to use direct ORM; migrating it to `_create_node_internal` is an incidental improvement that should be considered when the surrounding code is next touched, but is not blocking.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-write-internal-create-1 | Private Entry Point Exists | Proposed | `_create_node_internal` is defined in `tap_grid/services.py` and is not re-exported from public modules. | |
+| req-grid-service-write-internal-create-2 | Full Pipeline Minus Gate | Proposed | The function runs every step of the existing `_execute_write_pipeline` for `create_node` verbs except the `INTERNAL_ONLY` check at services.py:267. | |
+| req-grid-service-write-internal-create-3 | Deterministic Entity ID Accepted | Proposed | The function accepts an optional `entity_id` argument and uses it for the created Entity row when provided. | Required for dual-existence registration helpers. |
+| req-grid-service-write-internal-create-4 | Convention-Based Caller Discipline | Proposed | The leading underscore and module location are the only enforcement; the spec acknowledges this is a tripwire, not a wall against in-process misuse. | |
+| req-grid-service-write-internal-create-5 | DEBUG-Gated Test Bypass | Proposed | A separate `_create_node_internal_for_test` entry point provides the same semantics for tests; raises `RuntimeError` if called outside DEBUG / test settings. | |
+| req-grid-service-write-internal-create-6 | History And Provenance Preserved | Proposed | INTERNAL_ONLY creates through `_create_node_internal` record `BatchEvent` provenance and `HistoricalRecord` rows the same way ordinary creates do. | |
 
 
 ### Write Payload Semantics
