@@ -351,13 +351,13 @@ Backlog because [Browser Disambiguation](#browser-disambiguation) already gives 
 
 The canonical, step-by-step procedure for spawning a new isolated session lives in the doc [docs/doc-dev-multisession-onboarding.md](../docs/doc-dev-multisession-onboarding.md), owned by [spec-dev-multisession-onboarding-doc.md](spec-dev-multisession-onboarding-doc.md). Read the doc to onboard; this spec stays focused on *what* the system does, not *how* to use it.
 
-After onboarding completes, the developer attaches a Claude Code session inside the new worktree, and that session runs the smoke tests in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md). Teardown is documented in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md).
+After onboarding completes, the developer attaches an agent/editor session inside the new worktree, and that session runs the smoke tests in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md). Teardown is documented in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md).
 
 ## Operational Notes
 
 ### Per-session Claude Code attachment
 
-Each worktree is a self-contained working directory, so attach Claude Code (CLI or VSCode) by `cd`-ing into the worktree before starting it. The VSCode extension picks up the workspace folder it's opened against; the CLI picks up `pwd`.
+Each worktree is a self-contained working directory, so attach Claude Code or Codex against the worktree before starting work. Claude CLI picks up `pwd`, Codex Desktop picks up the path passed to `codex app <worktree>`, and VSCode picks up the workspace folder it's opened against.
 
 ### Shared infrastructure
 
