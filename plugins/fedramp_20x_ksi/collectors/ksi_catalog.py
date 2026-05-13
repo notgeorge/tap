@@ -412,9 +412,14 @@ class KSICollector(CollectorBase):
         Computes, per path-prefix (everything except the trailing array index),
         the mean string length across siblings. Any string > OUTLIER_LENGTH_MULTIPLIER
         times the mean AND >= OUTLIER_LENGTH_MIN_ABS triggers a block.
+
+        Scoped to `$.KSI` only: outlier-length signals are meaningful for content
+        we render to humans, not for the FRR/FRD/info sibling sections we accept
+        as opaque (req-fedramp-20x-ksi-collector-validation-scope).
         """
+        ksi = source.get("KSI", {})
         groups: dict[str, list[tuple[str, str]]] = {}
-        for path, text in _walk_strings(source):
+        for path, text in _walk_strings(ksi, path="$.KSI"):
             # group by stripping a trailing [N] (or the trailing dict-key when
             # array semantics aren't applicable).
             group_key = re.sub(r"\[\d+\]", "[*]", path)

@@ -39,6 +39,7 @@ This spec inherits the catalog vocabulary (Theme, Indicator, Certification Class
 | req-fedramp-20x-ksi-collector-class | [Collector Class](#collector-class) | Proposed | `KSICollector(CollectorBase)` registered at AppConfig.ready() |
 | req-fedramp-20x-ksi-collector-fetch | [Upstream Fetch](#upstream-fetch) | Proposed | HTTPS fetch from raw.githubusercontent.com |
 | req-fedramp-20x-ksi-collector-pin | [Pinned Schema and UUID Namespace](#pinned-schema-and-uuid-namespace) | Proposed | Schema + UUIDv5 namespace ported from refresh.py's pinned/ into plugin source |
+| req-fedramp-20x-ksi-collector-validation-scope | [Validation Scope](#validation-scope) | Implemented | KSI subtree strict, info/FRR/FRD opaque sibling data; outlier walk scoped to KSI |
 | req-fedramp-20x-ksi-collector-safety | [Runtime Safety Model](#runtime-safety-model) | Proposed | All flags block; CI-specific provenance checks dropped (recovered by future git collector base) |
 | req-fedramp-20x-ksi-collector-diff | [Live Diff Against Grid](#live-diff-against-grid) | Proposed | Prior state read from local grid; not from replayed waves |
 | req-fedramp-20x-ksi-collector-grift | [GRIFT Batch Output](#grift-batch-output) | Proposed | One batch per run via `CollectorBase.submit_grift`; `description_json` carries collection-v0 metadata |
@@ -128,7 +129,7 @@ Status: `Proposed`
 
 Two pinned files survive from the old refresh tooling, but they relocate from the tool's `pinned/` directory into the plugin's normal source tree:
 
-- `plugins/fedramp_20x_ksi/collectors/pinned/source_schema.json` — byte-exact JSON Schema for the upstream consolidated-rules document. The collector validates fetched content against this; schema drift is a block flag.
+- `plugins/fedramp_20x_ksi/collectors/pinned/source_schema.json` — KSI-scoped JSON Schema for the upstream consolidated-rules document. The collector validates fetched content against this; drift in the KSI subtree is a block flag. The schema treats `$.info`, `$.FRR`, and `$.FRD` as opaque sibling sections (validated only as present + object-typed) per `req-fedramp-20x-ksi-collector-validation-scope`.
 - `plugins/fedramp_20x_ksi/collectors/pinned/uuid_namespace.txt` — UUIDv5 namespace string. Theme entity_ids derive from `uuid5(namespace, f"ksi_theme:{code}")`; indicator entity_ids derive from `uuid5(namespace, f"ksi_indicator:{code}")`. This must never change.
 
 Updating either file is a deliberate, reviewed code change. The collector does not auto-update them, ever.
@@ -141,6 +142,44 @@ Updating either file is a deliberate, reviewed code change. The collector does n
 | req-fedramp-20x-ksi-collector-pin-2 | Pinned Namespace Location | Proposed | UUIDv5 namespace lives at `plugins/fedramp_20x_ksi/collectors/pinned/uuid_namespace.txt`. | Same value as today's `0197fed0-4000-7000-8000-000000000100`. |
 | req-fedramp-20x-ksi-collector-pin-3 | Entity ID Derivation | Proposed | Theme and indicator entity IDs derive from `uuid5(namespace, "<kind>:<code>")`, identical to today's tool. | |
 | req-fedramp-20x-ksi-collector-pin-4 | No Auto-Update | Proposed | The collector never writes to either pinned file. | |
+
+---
+
+### Validation Scope
+----
+RID: `req-fedramp-20x-ksi-collector-validation-scope`
+Status: `Implemented`
+
+The upstream document is now "FedRAMP Consolidated Rules for 2026" — it carries definitions (FRD), requirements (FRR), and key security indicators (KSI). The plugin only ingests the KSI subtree. The pinned schema's strictness matches the scope of ingestion: paranoid where we depend on shape, opaque where we don't.
+
+#### Scope levels
+
+| Path | Validation posture | Why |
+| --- | --- | --- |
+| Top-level | Strict: `required: [info, FRD, FRR, KSI]`, `additionalProperties: false` | Detects "upstream removed a section" or "upstream added a new top-level section" — both trust-anchor signals worth flagging. |
+| `$.KSI.*` | Strict: themes, indicators, and all nested shapes validated against the pinned subschema | This is the load-bearing data we ingest. Drift here changes what the grid sees. |
+| `$.info`, `$.FRR`, `$.FRD` | Opaque: validated only as present and object-typed (`{"type": "object"}`) | These sibling sections exist in the upstream document but we never read them. Validating their interiors would block on every upstream editorial change without protecting anything we depend on. The upstream FedRAMP team is actively iterating on FRR/FRD shape (front_matter, status, purpose, tag, do_not_link, artifacts, effective_date, revision-splitting `both` → `20x`/`rev5`). |
+
+#### Safety walk scope
+
+The non-schema safety checks distinguish between *tamper-resistance* walks (which apply to the whole document) and *content-rendering* walks (which apply only to data we present to humans):
+
+| Check | Scope | Rationale |
+| --- | --- | --- |
+| `_check_structural_caps` (byte cap, theme cap, indicator cap, array len, string len) | whole doc | A bloated FRR section is just as suspicious as a bloated KSI section for trust-anchor purposes. |
+| `_check_character_classes` (BiDi overrides, control chars) | whole doc | Adversarial character signals are concerning anywhere. |
+| `_check_denylist` (prompt-injection heuristics) | `$.KSI` only | We render KSI content; prompt-injection denylist matches on FRR rule statements would be noise. |
+| `_check_outliers` (anomalously long strings vs siblings) | `$.KSI` only | Long FRR rule statements are upstream's editorial choice, not a tamper signal in data we don't present. |
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-fedramp-20x-ksi-collector-validation-scope-1 | Top-Level Strict | Implemented | Pinned schema enforces `required: [info, FRD, FRR, KSI]` and `additionalProperties: false` at the document root. | |
+| req-fedramp-20x-ksi-collector-validation-scope-2 | KSI Subtree Strict | Implemented | `$.KSI.*` is validated against the full pinned subschema (theme shape, indicator shape, varies-by-class, updated_list, etc.). | |
+| req-fedramp-20x-ksi-collector-validation-scope-3 | Sibling Sections Opaque | Implemented | `$.info`, `$.FRR`, and `$.FRD` are validated only as present and object-typed. Their interiors may change shape upstream without affecting KSI ingestion. | |
+| req-fedramp-20x-ksi-collector-validation-scope-4 | Outlier Walk Scoped | Implemented | `_check_outliers` walks only the `$.KSI` subtree because outlier-length signals are meaningful for content we render, not for sibling data. | |
+| req-fedramp-20x-ksi-collector-validation-scope-5 | Tamper-Resistance Walks Stay Global | Implemented | `_check_structural_caps` and `_check_character_classes` continue to walk the whole document — they are about adversarial-content detection, not ingestion semantics. | |
 
 ---
 
@@ -206,7 +245,7 @@ The safety denylist content moves from `skills/refresh-ksi-catalog/safety/denyli
 | req-fedramp-20x-ksi-collector-safety-4 | Denylist Ported | Proposed | The existing safety denylist content is moved into the plugin's `collectors/safety/` directory byte-for-byte. | |
 | req-fedramp-20x-ksi-collector-safety-5 | Trust Model Documented | Proposed | The spec explicitly states the HTTPS-only trust model and its limitations relative to a future git-backed fetch. | |
 | req-fedramp-20x-ksi-collector-safety-6 | Dropped Checks Documented | Proposed | CI-specific checks (integrity rewind, origin URL, commit metadata) are documented as not-applicable to v0 HTTPS fetch and named as recovered-by the future git collector base. | |
-| req-fedramp-20x-ksi-collector-safety-7 | Schema Drift Accumulates | Proposed | Pinned-schema validation uses `jsonschema.Draft202012Validator(schema).iter_errors(source)` and records one `SCHEMA_DRIFT` entry per validation error before raising. The operator gets the full drift picture in a single run instead of fixing one site, re-running, and discovering the next. | The upstream FedRAMP schema is actively evolving; accumulating drift sites surfaces the full delta per run. |
+| req-fedramp-20x-ksi-collector-safety-7 | Schema Drift Accumulates | Proposed | Pinned-schema validation uses `jsonschema.Draft202012Validator(schema).iter_errors(source)` and records one `SCHEMA_DRIFT` entry per validation error before raising. The operator gets the full drift picture in a single run instead of fixing one site, re-running, and discovering the next. | Drift is reported per `req-fedramp-20x-ksi-collector-validation-scope`: KSI subtree errors block; sibling-section interiors are not validated and therefore cannot drift. |
 
 ---
 

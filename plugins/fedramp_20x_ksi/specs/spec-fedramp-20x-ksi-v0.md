@@ -44,6 +44,7 @@ Phases (Phase One, Phase Two) are a program-level concept. The plugin tracks whi
 | req-fedramp-20x-ksi-dimensions | [Dimension Strategy](#dimension-strategy) | Implemented | `compliance: fedramp-20x` default dimensions plus seeded dimension node |
 | req-fedramp-20x-ksi-models | [Model Catalog](#model-catalog) | Implemented | `ksi_theme` and `ksi_indicator` |
 | req-fedramp-20x-ksi-status | [Indicator Status](#indicator-status) | Implemented | Indicators carry `status` of `draft`, `published`, or `deprecated` |
+| req-fedramp-20x-ksi-theme-status | [Theme Status](#theme-status) | Backlog | Capture upstream theme `status` (e.g. `"stable"`) on `KsiTheme` so future theme lifecycle transitions are visible |
 | req-fedramp-20x-ksi-classes | [Indicator Certification Classes](#indicator-certification-classes) | Implemented | Indicators carry a `classes` list identifying applicable FedRAMP Certification Classes |
 | req-fedramp-20x-ksi-class-variants | [Class-Specific Statement Variants](#class-specific-statement-variants) | Implemented | Indicators preserve source `varies_by_class` shape when present |
 | req-fedramp-20x-ksi-controls | [NIST Control References](#nist-control-references) | Implemented | Indicators carry a `controls` list of NIST 800-53 control IDs |
@@ -202,6 +203,30 @@ Per-status transition history is not tracked separately by the plugin in v0. Onc
 | req-fedramp-20x-ksi-status-1 | Three-Value Status | Implemented | `status` is one of `draft`, `published`, `deprecated`. | Enforced via `FIELD_VALIDATION_SCHEMA` enum |
 | req-fedramp-20x-ksi-status-2 | Required On Indicator | Implemented | Every `ksi_indicator` has an explicit `status`; there is no implicit default. | Declared in `CREATE_REQUIRED` |
 | req-fedramp-20x-ksi-status-3 | Refresh Marks Removed As Deprecated | Proposed | The refresh workflow marks indicators that disappear from source as `deprecated` rather than deleting them. | Contract declared; implementation lives in the refresh skill |
+
+### Theme Status
+----
+RID: `req-fedramp-20x-ksi-theme-status`
+Status: `Backlog`
+
+Upstream KSI themes carry a `status` field (currently `"stable"` for all eleven themes in the 2026 Public Preview) that we drop on ingest. `KsiTheme` has no `status` column and `_theme_state_from_source` in the KSI collector ignores the upstream value. The moment FedRAMP transitions a theme out of `"stable"` (e.g. marks one `"deprecated"` or `"draft"`) we'd silently keep presenting it as live.
+
+The pinned source schema already declares `status` as an optional string on each theme, so the field is acknowledged but unused. This requirement closes the loop: persist it on `KsiTheme` and surface it on admin/compliance views the way indicator status already is.
+
+#### Implementation (when picked up)
+
+- Add `status: CharField(max_length=16, blank=True, default="")` to `KsiTheme`, with a permissive validation schema (string, optional). The KSI indicator's three-value enum (`draft` / `published` / `deprecated`) is a useful precedent but the theme-side vocabulary should be re-checked against FedRAMP's actual usage at implementation time rather than presumed.
+- Extend `_theme_state_from_source` in `plugins/fedramp_20x_ksi/collectors/ksi_catalog.py` to read `theme.get("status", "")` into the source-state dict.
+- Add a migration.
+- Decide whether the existing CARES admin / KSI compliance surfaces should expose theme status visually (icon, pill, etc.) or just store it as data.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-fedramp-20x-ksi-theme-status-1 | Persisted On Theme | Backlog | `KsiTheme` carries a `status` field populated from upstream `theme.status`. | |
+| req-fedramp-20x-ksi-theme-status-2 | Collector Reads Source Field | Backlog | `KSICollector._theme_state_from_source` extracts `status` into the state dict so the diff sees changes. | |
+| req-fedramp-20x-ksi-theme-status-3 | Vocabulary Pinned At Implementation | Backlog | The accepted set of theme-status values is declared in the spec when this requirement is picked up — not presumed to match the indicator status enum. | Check FedRAMP usage before pinning |
 
 ### Indicator Certification Classes
 ----
