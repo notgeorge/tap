@@ -25,6 +25,7 @@ Status messages are intentionally deferred to later requirements. This spec slic
 | --- | --- | :---: | --- |
 | req-tap-cares-collector-model | [Collector Model](#collector-model) | Implemented | On-grid TAP-managed collector node |
 | req-tap-cares-collector-registry | [Collector Registry](#collector-registry) | Implemented | Scoped registry mapping collector keys to registered runner code |
+| req-tap-cares-collector-concurrency | [Collector Concurrency Policy](#collector-concurrency-policy) | Backlog | Future per-collector maximum simultaneous run count |
 | req-tap-cares-collector-module-class | [Collector Module Class](#collector-module-class) | Implemented | Registered collector classes instantiated by tap-cares |
 | req-tap-cares-collector-config | [CollectorConfig](#collectorconfig) | Implemented | JSON-safe collector configuration object |
 | req-tap-cares-collector-task-execution | [Collector Task Execution](#collector-task-execution) | Implemented | Django Tasks worker-process execution boundary |
@@ -139,6 +140,42 @@ Validation runs on both `register()` and `get()`, so malformed runner registrati
 | req-tap-cares-collector-registry-8 | Public Helpers | Implemented | `tap_cares/registry.py` exposes `register_collector(key, cls, scope=None)` and `get_collector(collector_key)` as the public registration and lookup surface, mirroring `tap_grid.registry.register_search_runner` / `get_search_runner`. | |
 | req-tap-cares-collector-registry-9 | Format Validators | Implemented | `collector_registry` is constructed with `validate_key` and `validate_scope` callbacks (per `req-grid-registry-scope-validators`) that enforce `^[A-Za-z0-9][A-Za-z0-9_.\-]*$` on each half of `scope:key`. | |
 | req-tap-cares-collector-registry-10 | Shared Validator Helper | Implemented | The same validator function used by the registry is reused by `Collector.validate()` so format rules cannot drift between model-side and registry-side enforcement. | Validator helper now defined; Collector.validate() call site lands with the model in Phase 3. |
+
+## Collector Concurrency Policy
+----
+RID: `req-tap-cares-collector-concurrency`
+Status: `Backlog`
+
+Each `Collector` should eventually declare how many simultaneous runs of that collector may be active.
+
+Possible future model field:
+
+```python
+max_concurrent_runs = models.PositiveIntegerField(default=1)
+```
+
+This requirement is intentionally Backlog until the collector enqueue path, scheduler behavior, and future API trigger surface are untangled together. Concurrency touches all three: manual runs, scheduled runs, and any future externally-triggered collection request need one authoritative policy.
+
+The likely shape is a field stored on the on-grid `Collector` node. Concurrency would be evaluated per `Collector` entity: before enqueuing a new collection job, tap-cares would count active `CollectionJob` records linked from that collector through `HAS_JOB` whose status is `RUNNING`. If the active count is greater than or equal to `Collector.max_concurrent_runs`, the service layer would refuse to enqueue another job.
+
+The expected default is `1` because most collectors are safer as singleton execution paths until a concrete need for parallel collection exists. The FedRAMP 20x KSI catalog collector should remain singleton; there is no useful reason to refresh the same catalog source multiple times at once.
+
+`max_concurrent_runs` must be a positive integer. `0` is not a disablement mechanism; capability enable/disable is separately tracked as backlog work in `spec-tap-cares-v0.md`.
+
+When implemented, the service layer must be authoritative. Administrative pages may disable or guard Run buttons based on this field, but UI behavior is advisory. Manual runs, future scheduler-triggered runs, and any API-triggered runs must all route through the same concurrency guard.
+
+This requirement intentionally scopes v0 concurrency to one `Collector` node. Today `collector_registry` is unique, so a collector node and a registered runner are effectively one-to-one. If future per-instance configuration allows multiple Collector nodes to share one runner, a later requirement should decide whether concurrency remains per node or moves to a shared `concurrency_key` / runner-level policy.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-collector-concurrency-1 | Field Declared | Backlog | `Collector` declares a positive integer `max_concurrent_runs` field with default `1`. | |
+| req-tap-cares-collector-concurrency-2 | Positive Value Required | Backlog | `max_concurrent_runs` must be greater than or equal to `1`; `0` is invalid. | Disablement remains a separate backlog concern. |
+| req-tap-cares-collector-concurrency-3 | Service-Layer Guard | Backlog | `enqueue_collection()` refuses to create/enqueue a new job when linked `RUNNING` jobs meet or exceed the collector limit. | |
+| req-tap-cares-collector-concurrency-4 | UI Reflects Policy | Backlog | Admin surfaces disable, guard, or explain manual Run actions when the concurrency limit is already reached. | Service layer remains authoritative. |
+| req-tap-cares-collector-concurrency-5 | KSI Singleton | Backlog | The FedRAMP 20x KSI collector is configured for one simultaneous run. | |
+| req-tap-cares-collector-concurrency-6 | Future Shared Runner Scope Deferred | Backlog | Any runner-level or shared-key concurrency across multiple Collector nodes is deferred until per-instance collector configuration exists. | |
 
 ## Collector Module Class
 ----
