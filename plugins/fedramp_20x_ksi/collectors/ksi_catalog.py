@@ -15,8 +15,10 @@ Pipeline:
 Each pipeline stage emits structured events into `self.results` via
 `self.record_info` / `self.record_error`. The task body persists the full
 accumulator to `CollectionJob.results` at terminal state. Block-class flags
-raise `KSICollectorError` after recording the structured detail and setting
-`self.error_summary`; the task body then writes the FAILED terminal patch.
+record an error and raise `KSICollectorError`; the task body then writes
+the FAILED terminal patch. At the end of every successful run the
+collector writes a human-readable one-liner to `self.summary` describing
+what landed (imported counts, "no changes", etc.).
 
 The collector is HTTPS-only in v0; provenance posture is documented in the
 spec's Runtime Safety Model section. A future `GitCollectorBase` will recover
@@ -97,9 +99,11 @@ class KSICollectorError(Exception):
     """A block-class safety flag fired during collection.
 
     Raised from `_abort()` after structured error detail is recorded into
-    `self.results["error"]` and `self.error_summary` is set. The `run_collector`
-    task body catches the exception and writes the FAILED terminal patch to
-    `CollectionJob` (status, finished_at, error_summary, results, grift_batches).
+    `self.results["error"]`. The `run_collector` task body catches the
+    exception and writes the FAILED terminal patch to `CollectionJob`
+    (status, finished_at, summary, results, grift_batches). The task body
+    derives the failure summary from the recorded errors when this collector
+    does not set `self.summary` directly.
     """
 
 
@@ -185,6 +189,9 @@ class KSICollector(CollectorBase):
                     "catalog_size": len(prior["indicators"]),
                 },
             )
+            self.summary = (
+                f"No changes — already up to date ({len(prior['indicators'])} indicators)."
+            )
         else:
             document = self._assemble_batch(
                 source=source,
@@ -204,11 +211,12 @@ class KSICollector(CollectorBase):
                     "skipped": [str(b.batch_entity_id) for b in result.skipped_batches],
                 },
             )
+            self.summary = self._summarize_import(diff, result)
 
         self.record_info(_SITE_RUN_COMPLETED, "RUN_COMPLETED", "KSI catalog collection complete.")
-        # On exception: KSICollectorError propagates with self.error_summary already
-        # set in _abort() and self.results["error"] populated; the run_collector
-        # task body catches and persists the FAILED terminal patch.
+        # On exception: KSICollectorError propagates with self.results["error"]
+        # populated; the run_collector task body catches, derives a count-based
+        # summary, and persists the FAILED terminal patch.
 
     # -- Pipeline stages -----------------------------------------------------
 
@@ -302,7 +310,7 @@ class KSICollector(CollectorBase):
             )
 
         # Raise once after the full sweep so the task body's terminal patch carries
-        # every recorded error. The count-based error_summary is derived from
+        # every recorded error. The count-based failure summary is derived from
         # self.results["error"] at terminal write time.
         if self.results["error"]:
             raise KSICollectorError(
@@ -727,13 +735,54 @@ class KSICollector(CollectorBase):
 
     # -- Helpers -------------------------------------------------------------
 
+    def _summarize_import(self, diff: dict[str, Any], result: Any) -> str:
+        """Compose the at-a-glance summary written to `self.summary` on a successful import.
+
+        Reads the diff's added/modified/removed counts and the GRIFT import
+        result. Keeps the format compact so the CARES Summary column can show
+        it without truncation in the common case.
+        """
+        t_add = len(diff["themes_added"])
+        t_mod = len(diff["themes_modified"])
+        t_rem = len(diff["themes_removed"])
+        i_add = len(diff["indicators_added"])
+        i_mod = len(diff["indicators_modified"])
+        i_rem = len(diff["indicators_removed"])
+        # Count batches off the list, not result.counts, so the summary's
+        # batch count agrees with CollectionJob.grift_batches.imported.
+        imported = len(result.imported_batches)
+        skipped = len(result.skipped_batches)
+
+        ind_parts: list[str] = []
+        if i_add:
+            ind_parts.append(f"{i_add} new")
+        if i_mod:
+            ind_parts.append(f"{i_mod} modified")
+        if i_rem:
+            ind_parts.append(f"{i_rem} deprecated")
+        ind = ", ".join(ind_parts) or "no indicator changes"
+
+        theme_parts: list[str] = []
+        if t_add:
+            theme_parts.append(f"{t_add} new")
+        if t_mod:
+            theme_parts.append(f"{t_mod} modified")
+        if t_rem:
+            theme_parts.append(f"{t_rem} deprecated")
+        theme_suffix = f"; themes: {', '.join(theme_parts)}" if theme_parts else ""
+
+        batch_part = f"{imported} batch" if imported == 1 else f"{imported} batches"
+        if skipped:
+            batch_part += f" ({skipped} skipped)"
+        return f"Imported {batch_part} — indicators: {ind}{theme_suffix}."
+
     def _abort(self, site: str, code: str, message: str, *, context: dict[str, Any] | None = None) -> None:
         """Record a block-class flag and raise KSICollectorError to halt the run.
 
         Follows the framework failure protocol (req-tap-cares-collector-failure-mode):
-        record the structured error and raise. The task body's terminal patch
-        derives `error_summary` from the count of recorded errors, so the
-        collector does not set it directly.
+        record the structured error and raise. The task body derives the
+        failure `summary` from the count of recorded errors when this
+        collector does not set `self.summary` directly.
         """
         self.record_error(site, code, message, context=context)
         raise KSICollectorError(message)

@@ -1,7 +1,7 @@
 """CARES Run Detail panel — single-CollectionJob deep-dive view.
 
 Renders one CollectionJob identified by ?entity_id=<uuid>. Sections:
-  - Run header (collector name, status, durations, error summary)
+  - Run header (collector name, status, durations, summary)
   - Counts strip (info / warn / error / grift batches)
   - Structured event sections (info, warn, error) with full site / code / message / context
 
@@ -118,7 +118,7 @@ def _build_context(job_entity_id: str) -> dict[str, Any]:
             "finished_at": job.finished_at,
             "duration": _format_duration(job.started_at, job.finished_at),
             "task_result_id": job.task_result_id,
-            "error_summary": job.error_summary,
+            "summary": job.summary,
         },
         "collector": (
             {

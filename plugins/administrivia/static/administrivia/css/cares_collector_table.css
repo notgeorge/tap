@@ -124,9 +124,9 @@
     border-radius: 3px;
     vertical-align: middle;
 }
-.tap-cares-collectors__err {
-    max-width: 200px;
-    color: #7f1d1d;
+.tap-cares-collectors__summary {
+    max-width: 360px;
+    color: #334155;
     font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;

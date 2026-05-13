@@ -120,7 +120,7 @@ Initial columns:
 | Run State | latest `CollectionJob.status` | `idle`, `running`, or current status |
 | Last Run | latest finished `CollectionJob.status` | `successful`, `failed`, or `never run` |
 | Last Run At | latest finished `CollectionJob.finished_at` | Empty for never run |
-| Last Error | latest failed `CollectionJob.error_summary` | Short bounded error |
+| Summary | latest finished `CollectionJob.summary` | At-a-glance one-liner describing the last run (success or failure); collector-authored on success, count-derived fallback on failure. Empty for collectors that don't set one. |
 | Action | admin POST | Manual Run button |
 
 Availability is no longer a column. The Run button stays disabled when the registry has no runner for the collector's `collector_registry` value, and that row is tinted to indicate the unavailable state. The previous explicit `available` / `missing runner` pill column was redundant once the Run button conveyed the same state through its disabled affordance.
@@ -273,7 +273,7 @@ Run history columns:
 | Duration | derived from timestamps | Blank while running |
 | Task Result ID | `CollectionJob.task_result_id` | Backend-defined string |
 | GRIFT Batches | `CollectionJob.grift_batches` | imported/skipped counts and IDs |
-| Error Summary | `CollectionJob.error_summary` | Only populated on failure |
+| Summary | `CollectionJob.summary` | At-a-glance one-liner for the run (success or failure); collector-authored when set, count-derived fallback on failure. |
 
 v0 does not require a rich log/event stream because that remains backlog work in `spec-tap-cares-collector.md`. The UI should not pretend detailed logs exist until the run-record/log spec exists.
 
@@ -281,7 +281,7 @@ v0 does not require a rich log/event stream because that remains backlog work in
 
 The Run column links to a dedicated CARES Run Detail page at slug `/administrivia/cares/run` with query parameter `?entity_id=<CollectionJob entity_id>`. The page renders the full structured event record stored on `CollectionJob.results`:
 
-- Run header — collector name + link to its detail page, status pill, lifecycle timestamps, derived duration, `error_summary`, task result ID.
+- Run header — collector name + link to its detail page, status pill, lifecycle timestamps, derived duration, `summary`, task result ID.
 - Counts strip — `info` / `warn` / `error` entry counts plus GRIFT imported / skipped batch counts.
 - Three structured event sections (Errors, Warnings, Info), each listing every entry with its `code`, `message`, `site` UUIDv7, and an expandable `context` payload (pretty-printed JSON).
 - GRIFT batches section listing imported and skipped batch entity IDs.
@@ -293,7 +293,7 @@ The deep dive is read-only; running a collector remains the responsibility of th
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-admin-run-observability-1 | Lifecycle Fields Visible | Implemented | Run history displays status and lifecycle timestamps. | |
-| req-tap-cares-admin-run-observability-2 | Error Summary Visible | Implemented | Failed runs show bounded `error_summary` text. | |
+| req-tap-cares-admin-run-observability-2 | Summary Visible | Implemented | Every finished run shows its bounded `summary` text — collector-authored on success ("Imported 46 indicators (rev_pin v0.1.4)"), count-derived or exception-derived on failure. Empty for collectors that don't set one on a successful run. | |
 | req-tap-cares-admin-run-observability-3 | GRIFT Correlation Visible | Implemented | Imported and skipped GRIFT batch IDs/counts are visible from run history. | |
 | req-tap-cares-admin-run-observability-4 | Logs Not Invented | Implemented | UI does not invent rich logs before CARES specifies log/event records. | |
 | req-tap-cares-admin-run-observability-5 | Per-Run Deep-Dive Page | Implemented | Each run history row links to `/administrivia/cares/run?entity_id=<job_uuid>` which renders the full `results["info"]`, `results["warn"]`, `results["error"]` structured events plus per-entry context payloads. Read-only. | Implemented by the `cares_run_detail` panel in `plugins/administrivia/tap_cares/panels/run_detail/`. |

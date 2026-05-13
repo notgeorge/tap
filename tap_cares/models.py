@@ -175,7 +175,7 @@ class CollectionJob(BaseModel):
         "description": {"type": "string"},
         "status": {"type": "string", "enum": [s.value for s in CollectionJobStatus]},
         "task_result_id": {"type": "string"},
-        "error_summary": {"type": "string"},
+        "summary": {"type": "string"},
         # Lifecycle timestamps — set by run_collection (enqueued_at) and the
         # run_collector task body (started_at, finished_at). Datetimes flow in
         # as ISO-8601 strings through the service-layer patch path; Django's
@@ -199,7 +199,7 @@ class CollectionJob(BaseModel):
             "validation": "jsonschema",
             "schema": {"type": "string", "maxLength": 128},
         },
-        "error_summary": {
+        "summary": {
             "validation": "jsonschema",
             "schema": {"type": "string", "maxLength": 2048},
         },
@@ -214,7 +214,7 @@ class CollectionJob(BaseModel):
         db_index=True,
     )
     task_result_id = models.CharField(max_length=128, blank=True, default="", db_index=True)
-    error_summary = models.CharField(max_length=2048, blank=True, default="")
+    summary = models.CharField(max_length=2048, blank=True, default="")
     enqueued_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)

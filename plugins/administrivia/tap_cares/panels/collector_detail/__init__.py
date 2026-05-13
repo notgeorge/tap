@@ -61,7 +61,7 @@ def _job_rows(collector_entity_id: str) -> list[dict[str, Any]]:
 
     Per req-tap-cares-admin-run-observability columns: name, status,
     enqueued/started/finished, duration, task_result_id, grift_batches counts,
-    error_summary.
+    summary.
     """
     from tap_grid.models import Edge
 
@@ -109,7 +109,7 @@ def _job_rows(collector_entity_id: str) -> list[dict[str, Any]]:
                 "grift_skipped_count": len(skipped),
                 "grift_imported": imported,
                 "grift_skipped": skipped,
-                "error_summary": j.error_summary,
+                "summary": j.summary,
                 "is_failed": j.status == CollectionJobStatus.FAILED.value,
                 "is_running": j.status == CollectionJobStatus.RUNNING.value,
                 "is_successful": j.status == CollectionJobStatus.SUCCESSFUL.value,

@@ -140,12 +140,15 @@
     color: #64748b;
     margin-bottom: 2px;
 }
-.tap-cares-detail__latest-error {
+.tap-cares-detail__latest-summary {
     grid-column: 1 / -1;
 }
-.tap-cares-detail__err-text {
-    color: #7f1d1d;
+.tap-cares-detail__summary-text {
+    color: #334155;
     font-size: 13px;
+}
+.tap-cares-detail__latest-summary--err .tap-cares-detail__summary-text {
+    color: #7f1d1d;
 }
 
 /* Run history table. */
@@ -208,12 +211,15 @@
     background: #e2e8f0;
     color: #475569;
 }
-.tap-cares-detail__err-cell {
-    max-width: 220px;
-    color: #7f1d1d;
+.tap-cares-detail__summary-cell {
+    max-width: 360px;
+    color: #334155;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.tap-cares-detail__summary-cell--err {
+    color: #7f1d1d;
 }
 
 .tap-cares-detail__empty {

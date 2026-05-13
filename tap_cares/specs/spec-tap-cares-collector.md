@@ -577,7 +577,7 @@ CollectionJob-specific model requirements:
 - `CollectionJob` has a `status` `CharField` driven by a `models.TextChoices` enum (see [CollectionJob Lifecycle Status](#collectionjob-lifecycle-status)).
 - `CollectionJob` has a `task_result_id` `CharField(max_length=128, blank=True, default="")`. This stores the `TaskResult.id` returned by Django's Tasks API — a backend-defined string, **not** a UUID. The built-in `immediate` and `dummy` backends use 32-char random strings (`get_random_string(32)`); other backends may differ. `max_length=128` is comfortably above the current built-in but small enough to remain index-friendly. Empty string represents "not yet enqueued / enqueue raised."
 - `CollectionJob` has `enqueued_at`, `started_at`, and `finished_at` `DateTimeField(null=True, blank=True)` timestamps; each is populated as the corresponding lifecycle transition occurs.
-- `CollectionJob` has an `error_summary` `CharField(max_length=2048, blank=True, default="")` field for the at-a-glance terminal-failure one-liner. Structured per-event detail (codes, messages, context) lives in `results` (below); `error_summary` is the human-facing single line that shows up wherever the job is summarized.
+- `CollectionJob` has a `summary` `CharField(max_length=2048, blank=True, default="")` field for the at-a-glance one-liner describing what happened on this run — success or failure. Structured per-event detail (codes, messages, context) lives in `results` (below); `summary` is the human-facing single line that shows up wherever the job is summarized.
 - `CollectionJob` has a `results` `JSONField` carrying the structured per-event log for this run (see [CollectionJob Results Log](#collectionjob-results-log) below).
 - `CollectionJob` has a `grift_batches` `JSONField` carrying `{"imported": [<UUIDv7>...], "skipped": [<UUIDv7>...]}` — the lists of GRIFT batch entity IDs the run imported and skipped. Populated by the task body at terminal state from the collector instance's accumulator (see `req-tap-cares-collector-grift-import-5`).
 - The `CollectionJob` display projection emits both the raw `status` value and a `status_display` field carrying the human-readable label (via Django's auto-generated `get_status_display()`).
@@ -656,14 +656,14 @@ The `tap_cares/results.py` module that previously exposed `record_info(job, ...)
 
 A repository-wide pytest scans every `self.record_info(…)` / `self.record_warn(…)` / `self.record_error(…)` call literal across collector subclasses and asserts that no two callsites share the same UUIDv7. Catches copy-paste mistakes at CI time. The test lives in `tap_cares/tests/test_results_site_uniqueness.py` (or migrates with the helpers; the test continues to scan for the same UUIDv7-uniqueness invariant under the new call shape).
 
-#### `error_summary` vs `results["error"]`
+#### `summary` vs `results["error"]`
 
 The two coexist with distinct roles:
 
-- `error_summary` (CharField 2048) — the at-a-glance one-liner for a terminal failure. Derived by the task body from the count of recorded error events: `"Failed with N error(s)"`. Renders wherever the job is summarized (admin list, job detail header).
+- `summary` (CharField 2048) — the at-a-glance one-liner for a run (success or failure). Collectors set `self.summary` directly with whatever description fits ("Imported 46 indicators", "No changes", "Upstream returned malformed JSON"). When a collector fails without setting `self.summary`, the task body falls back to a count-derived `"Failed with N error(s)"`, then to the exception message. Renders wherever the job is summarized (admin list, job detail header).
 - `results["error"]` — the full structured detail. One entry per discrete error event, each with its own site / code / context. Renders in the per-run "what went wrong" view.
 
-The count summary intentionally hides per-message content; operators dig into `results["error"]` for specifics. Collectors may still set `self.error_summary` as a fallback used only when the run raised without recording any errors; the count-derived summary wins whenever `results["error"]` is non-empty.
+The summary intentionally hides per-message content; operators dig into `results["error"]` for specifics.
 
 ### Acceptance Criteria
 
@@ -671,11 +671,11 @@ The count summary intentionally hides per-message content; operators dig into `r
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-collector-job-model-1 | Standard BaseModel | Implemented | `CollectionJob` is specified as a normal TAP-managed `BaseModel` node implemented through the model-building skill conventions. | |
 | req-tap-cares-collector-job-model-2 | Execution Record | Implemented | Each `CollectionJob` represents one attempted collector execution. | |
-| req-tap-cares-collector-job-model-3 | Lifecycle Fields | Implemented | `CollectionJob` carries status, task result identity, lifecycle timestamps, and safe error summary fields. | |
+| req-tap-cares-collector-job-model-3 | Lifecycle Fields | Implemented | `CollectionJob` carries status, task result identity, lifecycle timestamps, and a bounded summary field. | |
 | req-tap-cares-collector-job-model-4 | Default Dimension | Implemented | New CollectionJob nodes use the v0 default dimension `{"tap_cares": "collection_job"}`. | |
 | req-tap-cares-collector-job-model-5 | No Registry Snapshot | Implemented | `CollectionJob` does not copy `Collector.collector_registry` in v0; the relationship to Collector carries that provenance. | |
 | req-tap-cares-collector-job-model-6 | task_result_id Is String | Implemented | `task_result_id` is `CharField(max_length=128, blank=True, default="")` matching Django's `TaskResult.id: str` contract, not a UUID. Empty string indicates the task was not enqueued or enqueue raised. | |
-| req-tap-cares-collector-job-model-7 | Bounded error_summary | Implemented | `error_summary` is bounded (CharField `max_length=2048`). Long traces and raw payloads are out of scope for this field and belong in the future status/log stream. | |
+| req-tap-cares-collector-job-model-7 | Bounded summary | Implemented | `summary` is bounded (CharField `max_length=2048`). Long traces and raw payloads are out of scope for this field and belong in the future status/log stream. | |
 | req-tap-cares-collector-job-model-8 | Status Display Projection | Implemented | The CollectionJob display projection emits both the raw `status` value and a `status_display` field carrying the title-case human label from `get_status_display()`. | |
 | req-tap-cares-collector-job-model-9 | Results Field Exists | Implemented | `CollectionJob` has a `results` `JSONField` defaulting to `{"info": [], "warn": [], "error": []}` (via a callable default helper). | |
 | req-tap-cares-collector-job-model-10 | Pre-Defined Severity Buckets | Implemented | The top-level shape of `results` is three pre-defined arrays keyed `info` / `warn` / `error`. No flat-array form; entries never carry a `level` field (severity is implied by which bucket holds them). | |
@@ -684,7 +684,7 @@ The count summary intentionally hides per-message content; operators dig into `r
 | req-tap-cares-collector-job-model-13 | record_* Are Instance Methods | Proposed | The result-recording helpers are methods on `CollectorBase` (`self.record_info(site, code, message, *, context=None)` and the `warn` / `error` siblings). Each validates against the pinned schema and appends to `self.results[<level>]`. They do not accept a `CollectionJob` and do not write to the database. | Replaces the previous free-function shape in `tap_cares/results.py`. |
 | req-tap-cares-collector-job-model-14 | Site Is Required Positional | Implemented | `site` is a required positional argument on the helpers. Calls missing it raise `TypeError` at runtime / fail type-checking, ensuring every stored entry traces to one line of source. | |
 | req-tap-cares-collector-job-model-15 | Site UUID Uniqueness Test | Implemented | A repository-wide pytest scans every `self.record_info` / `self.record_warn` / `self.record_error` callsite across collector subclasses and asserts no two share the same `site` UUID. | `tap_cares/tests/test_results_site_uniqueness.py`. |
-| req-tap-cares-collector-job-model-16 | error_summary Stays Distinct | Implemented | `error_summary` (CharField 2048) survives as the at-a-glance terminal-failure one-liner; structured per-event detail lives in `results["error"]`. The two are complementary, not redundant. | |
+| req-tap-cares-collector-job-model-16 | summary Stays Distinct | Implemented | `summary` (CharField 2048) is the at-a-glance one-liner for a run (success or failure); structured per-event detail lives in `results["error"]`. The two are complementary, not redundant. | |
 | req-tap-cares-collector-job-model-17 | INTERNAL_ONLY | Proposed | `CollectionJob.INTERNAL_ONLY = True`. Generic `create_node` / `patch_node` / `replace_node` / `delete_node` and GRIFT import all reject the `collection_job` entity type. | |
 | req-tap-cares-collector-job-model-18 | run_collection Is Sole Creator | Proposed | The only legal path that creates a CollectionJob row is `run_collection(...)` (see [Run Collection Entry Point](#run-collection-entry-point)), which uses `_create_node_internal` from `tap_grid.services`. | |
 | req-tap-cares-collector-job-model-19 | Accumulator Pattern For results | Proposed | The collector instance accumulates result entries in `self.results` during `run()`. The task body persists the accumulated dict to `CollectionJob.results` in a single patch at terminal state. No mid-run writes to the row. | Resolves the v0-pre-refactor staleness pattern. |
@@ -703,8 +703,8 @@ Exactly one piece of code mutates a `CollectionJob` row in a given run, and it d
 | --- | --- | --- | --- |
 | Run kickoff | `run_collection` | `_create_node_internal("collection_job", ...)` | `name`, initial `status` (`READY`), `enqueued_at`, default fields |
 | Task start | `run_collector` task body | `_patch_node_internal` (or service-layer patch routed through `_create_node_internal`'s sibling for INTERNAL_ONLY types) | `status` (`RUNNING`), `started_at`, `task_result_id` |
-| Task success | `run_collector` task body | one patch | `status` (`SUCCESSFUL`), `finished_at`, `results`, `grift_batches` |
-| Task failure | `run_collector` task body | one patch | `status` (`FAILED`), `finished_at`, `error_summary`, `results`, `grift_batches` |
+| Task success | `run_collector` task body | one patch | `status` (`SUCCESSFUL`), `finished_at`, `summary`, `results`, `grift_batches` |
+| Task failure | `run_collector` task body | one patch | `status` (`FAILED`), `finished_at`, `summary`, `results`, `grift_batches` |
 
 Three writes per run, total. None of them race. The task body holds no long-lived ORM instance across `collector.run()`; each patch is a fresh service-layer call.
 
@@ -816,7 +816,7 @@ To fail a run, a collector:
 1. Calls `self.record_error(site, code, message, *, context=...)` one or more times to accumulate structured error entries in `self.results["error"]`. Each entry traces to a specific source location via its UUIDv7 `site`.
 2. Raises a Python exception out of `run()`. The exception terminates the run; control returns to the task body, which writes terminal state.
 
-Collectors do not set `self.error_summary` directly to convey a per-error message. The task body derives a count-based summary (`"Failed with N error(s)"`) from `self.results["error"]` at terminal write time. A collector may still set `self.error_summary` as a fallback for the unusual case where the run raised without recording any errors; the count-derived summary takes precedence whenever `results["error"]` is non-empty.
+Collectors may set `self.summary` with a human-readable description of what went wrong (e.g. "Upstream returned malformed JSON", "Mass-deletion threshold exceeded"). When the collector does not set `self.summary`, the task body derives a count-based fallback (`"Failed with N error(s)"`) from `self.results["error"]`, then falls back to the exception's class and message when no errors were recorded. The collector-set value wins whenever it is non-empty.
 
 Whether *any particular* `record_error` call must be paired with a raise is a per-collector decision. Collectors are encouraged to accumulate every detectable error in a single pass (e.g. report all schema-drift sites in one run) and raise once at the end so the operator gets a complete picture. The framework's `record_error` does not auto-raise.
 
@@ -825,15 +825,15 @@ Whether *any particular* `record_error` call must be paired with a raise is a pe
 The `run_collector` task body:
 
 1. Catches any exception raised by `instance.run()`.
-2. Writes a single FAILED-state patch to `CollectionJob` per `req-tap-cares-collector-job-sole-writer`: `status=FAILED`, `finished_at`, `error_summary` (derived from `len(results["error"])` as `"Failed with N error(s)"`; falls back to a collector-set value, then to the exception's class and message when no errors were recorded), `results` (the full accumulator including all error entries), `grift_batches` (whatever was submitted before the abort).
+2. Writes a single FAILED-state patch to `CollectionJob` per `req-tap-cares-collector-job-sole-writer`: `status=FAILED`, `finished_at`, `summary` (collector-set `self.summary` if non-empty; otherwise derived from `len(results["error"])` as `"Failed with N error(s)"`; otherwise the exception's class and message), `results` (the full accumulator including all error entries), `grift_batches` (whatever was submitted before the abort).
 3. Re-raises so Django Tasks' own failure machinery sees the failure.
 
 #### What this guarantees
 
 - Exactly one terminal-state write to `CollectionJob` per failed run.
 - Structured failure detail (codes, messages, context, source sites) lives in `results["error"]`.
-- At-a-glance failure summary lives in `error_summary` and is a derived count (`"Failed with N error(s)"`) over the same accumulator.
-- Both come from the same accumulator at the same write moment — no risk of `results["error"]` and `error_summary` disagreeing about what failed.
+- At-a-glance failure summary lives in `summary` — either the collector-set string or a derived count (`"Failed with N error(s)"`) over the same accumulator.
+- Both come from the same accumulator at the same write moment — no risk of `results["error"]` and `summary` disagreeing about what failed.
 
 #### What this does not guarantee
 
@@ -846,10 +846,11 @@ The `run_collector` task body:
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-collector-failure-mode-1 | record_error + Raise Is The Protocol | Proposed | A collector fails a run by calling `self.record_error(...)` to accumulate structured detail and then raising an exception. The task body catches and persists. | |
 | req-tap-cares-collector-failure-mode-2 | Single Terminal Write | Proposed | Failure produces exactly one terminal-state patch to `CollectionJob`, carrying status=FAILED plus the full accumulator. | See `req-tap-cares-collector-job-sole-writer`. |
-| req-tap-cares-collector-failure-mode-3 | error_summary Is Count-Derived | Proposed | `error_summary` is derived by the task body as `"Failed with N error(s)"` from `len(results["error"])`. A collector-set `self.error_summary` and an exception-message fallback are used only when no errors were recorded. | Replaces the prior "highest-severity-wins / collector-set message" pattern. |
+| req-tap-cares-collector-failure-mode-3 | Failure summary precedence | Proposed | On failure the task body writes `summary` using this precedence: (1) collector-set `self.summary` if non-empty, (2) count-derived `"Failed with N error(s)"` from `len(results["error"])`, (3) the exception's class and message. Collectors that know what failed should set `self.summary` directly; the count-derived fallback covers collectors that just call `record_error` and raise. | Replaces the prior "count-always-wins" pattern; the collector now owns the summary on both success and failure. |
 | req-tap-cares-collector-failure-mode-4 | Framework Does Not Auto-Halt | Proposed | `record_error` is a pure accumulator call; it does not raise. Per-collector policy decides whether a recorded error halts the run. | |
 | req-tap-cares-collector-failure-mode-5 | Re-Raise For Task Backend | Proposed | The task body re-raises after writing FAILED state so Django Tasks' own failure machinery sees the failure. | |
 | req-tap-cares-collector-failure-mode-6 | Plugin Specs Reference This | Proposed | Per-collector safety specs (KSI, future Emitter receivers, etc.) describe their own check vocabulary and policy but reference this requirement for the failure-signaling protocol instead of re-specifying mechanics. | |
+| req-tap-cares-collector-failure-mode-7 | Collectors Set summary On Success | Implemented | Collectors should set `self.summary` near the end of a successful run with a human-readable one-liner describing what landed (counts, identifiers, "no changes"). The task body writes `self.summary` verbatim to `CollectionJob.summary` on the SUCCESSFUL terminal patch. Empty is allowed (the field stays blank in the UI) but discouraged. | Mirrors the failure-side precedence in `-3`; keeps the collector as the single source of truth for the summary on both outcomes. |
 
 ## Collection Job Status Messages And Logs
 ----

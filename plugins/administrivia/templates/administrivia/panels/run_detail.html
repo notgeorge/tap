@@ -54,10 +54,10 @@
                 <dt>Task result</dt>
                 <dd><code>{{ job.task_result_id|default:"—" }}</code></dd>
             </div>
-            {% if job.error_summary %}
-            <div class="tap-cares-run__meta-row tap-cares-run__meta-row--err">
-                <dt>Error summary</dt>
-                <dd>{{ job.error_summary }}</dd>
+            {% if job.summary %}
+            <div class="tap-cares-run__meta-row {% if job.is_failed %}tap-cares-run__meta-row--err{% endif %}">
+                <dt>Summary</dt>
+                <dd>{{ job.summary }}</dd>
             </div>
             {% endif %}
         </dl>

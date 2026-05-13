@@ -48,7 +48,7 @@
                     <th>Run state</th>
                     <th>Last run</th>
                     <th>Last run at</th>
-                    <th>Last error</th>
+                    <th>Summary</th>
                     <th class="tap-cares-collectors__action-col">Run</th>
                 </tr>
             </thead>
@@ -83,8 +83,8 @@
                     <td>
                         {% if row.last_run_at %}{{ row.last_run_at|date:"Y-m-d H:i:s" }}{% else %}—{% endif %}
                     </td>
-                    <td class="tap-cares-collectors__err" title="{{ row.last_error }}">
-                        {{ row.last_error|truncatechars:80 }}
+                    <td class="tap-cares-collectors__summary" title="{{ row.last_summary }}">
+                        {{ row.last_summary|truncatechars:80|default:"—" }}
                     </td>
                     <td class="tap-cares-collectors__action-col">
                         <form hx-post="/panel/{{ panel.slug }}--{{ panel.entity_id }}/"

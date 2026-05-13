@@ -85,10 +85,10 @@
                     <span class="tap-cares-detail__latest-label">Duration</span>
                     {{ latest_run.duration|default:"—" }}
                 </div>
-                {% if latest_run.is_failed and latest_run.error_summary %}
-                <div class="tap-cares-detail__latest-error">
-                    <span class="tap-cares-detail__latest-label">Error</span>
-                    <span class="tap-cares-detail__err-text">{{ latest_run.error_summary }}</span>
+                {% if latest_run.summary %}
+                <div class="tap-cares-detail__latest-summary {% if latest_run.is_failed %}tap-cares-detail__latest-summary--err{% endif %}">
+                    <span class="tap-cares-detail__latest-label">Summary</span>
+                    <span class="tap-cares-detail__summary-text">{{ latest_run.summary }}</span>
                 </div>
                 {% endif %}
             </div>
@@ -110,7 +110,7 @@
                         <th>Duration</th>
                         <th>Task result</th>
                         <th>GRIFT batches</th>
-                        <th>Error</th>
+                        <th>Summary</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -143,8 +143,8 @@
                                 {% if run.grift_skipped_count %}<span class="tap-cares-detail__batch-count tap-cares-detail__batch-count--skip">{{ run.grift_skipped_count }} skipped</span>{% endif %}
                             {% else %}—{% endif %}
                         </td>
-                        <td class="tap-cares-detail__err-cell" title="{{ run.error_summary }}">
-                            {{ run.error_summary|truncatechars:60|default:"—" }}
+                        <td class="tap-cares-detail__summary-cell {% if run.is_failed %}tap-cares-detail__summary-cell--err{% endif %}" title="{{ run.summary }}">
+                            {{ run.summary|truncatechars:60|default:"—" }}
                         </td>
                     </tr>
                     {% endfor %}

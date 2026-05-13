@@ -11,12 +11,12 @@ run().
 #### The accumulator pattern
 
 Collector instances carry three accumulator attributes — `self.results`,
-`self.grift_batches`, `self.error_summary` — that the collector mutates
+`self.grift_batches`, `self.summary` — that the collector mutates
 during `run()` via helper methods (`record_info` / `record_warn` /
 `record_error` / `submit_grift`). The accumulators live entirely in memory
 during the run. The `run_collector` task body persists the accumulated state
 to `CollectionJob` in a single terminal patch (status + finished_at +
-error_summary + results + grift_batches) after `run()` returns or raises.
+summary + results + grift_batches) after `run()` returns or raises.
 
 This is the structural fix for the v0-pre-refactor multi-writer / staleness
 pattern. The task body is the sole writer to CollectionJob; collector code
@@ -24,15 +24,18 @@ never sees a CollectionJob handle and cannot write to the database except
 through `self.submit_grift(...)` (which writes Batch + node + edge rows
 through `grift_import`, never the CollectionJob row).
 
-#### Failure protocol
+#### The summary field
 
-To fail a run, a collector calls `self.record_error(...)` (one or more times)
-and raises an exception. The task body catches, derives a count-based
-`error_summary` from `self.results["error"]` (e.g. "Failed with 14 errors"),
-writes the FAILED terminal patch, and re-raises. Collectors may still set
-`self.error_summary` explicitly as a fallback when no errors are recorded,
-but the count-derived summary takes precedence whenever errors exist. See
-`req-tap-cares-collector-failure-mode`.
+`self.summary` is the at-a-glance one-line description of what happened on
+this run — success or failure. Collectors set it when they have something
+to say (e.g. "Imported 46 indicators (rev_pin v0.1.4)" on success;
+"Upstream returned malformed JSON" on failure). The task body writes
+`self.summary` verbatim to `CollectionJob.summary` at terminal state.
+
+When a collector fails without setting `self.summary`, the task body
+derives a count-based fallback from `self.results["error"]`
+("Failed with N error(s)"), and ultimately falls back to the exception's
+class and message. See `req-tap-cares-collector-failure-mode`.
 """
 
 from __future__ import annotations
@@ -69,7 +72,7 @@ class CollectorBase(ABC):
     Subclasses implement `run()`. They use `self.record_info` / `record_warn` /
     `record_error` to accumulate structured events and `self.submit_grift` to
     push collected data through the GRIFT import surface. The task runtime
-    reads `self.results`, `self.grift_batches`, and `self.error_summary` after
+    reads `self.results`, `self.grift_batches`, and `self.summary` after
     `run()` returns or raises and writes them to `CollectionJob` in a single
     terminal patch.
     """
@@ -80,11 +83,11 @@ class CollectorBase(ABC):
         # The run_collector task body persists them to CollectionJob at terminal state.
         self.results: dict[str, list[dict[str, Any]]] = {"info": [], "warn": [], "error": []}
         self.grift_batches: dict[str, list[str]] = {"imported": [], "skipped": []}
-        # Optional fallback one-liner. The task body's count-derived summary
-        # ("Failed with N errors") takes precedence whenever results["error"]
-        # is non-empty; this string is used only when no errors were recorded
-        # but the run still raised. Most collectors will leave it empty.
-        self.error_summary: str = ""
+        # At-a-glance one-line description of what happened on this run.
+        # Collectors set this freely on either success or failure. On failure
+        # without a collector-set summary, the task body derives a count-based
+        # fallback ("Failed with N error(s)").
+        self.summary: str = ""
 
     @abstractmethod
     def run(self) -> None:

@@ -13,11 +13,11 @@ writes per run total:
   - run_collection writes the row at READY (kickoff)
   - this task body writes RUNNING + started_at + task_result_id (task start)
   - this task body writes the terminal SUCCESSFUL or FAILED state + finished_at
-    + error_summary + results + grift_batches (task end)
+    + summary + results + grift_batches (task end)
 
 The collector instance accumulates `self.results`, `self.grift_batches`, and
-`self.error_summary` in memory during run(); the task body reads them at
-terminal state and persists them in the terminal patch.
+`self.summary` in memory during run(); the task body reads them at terminal
+state and persists them in the terminal patch.
 """
 
 from __future__ import annotations
@@ -31,38 +31,39 @@ from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
 from tap_cares.registry import get_collector
 from tap_grid.services import _patch_node_internal
 
-_ERROR_SUMMARY_CAP = 2048
+_SUMMARY_CAP = 2048
 
 
-def _safe_error_summary(exc: BaseException) -> str:
+def _safe_summary(exc: BaseException) -> str:
     msg = f"{type(exc).__name__}: {exc}"
-    if len(msg) > _ERROR_SUMMARY_CAP:
-        msg = msg[:_ERROR_SUMMARY_CAP]
+    if len(msg) > _SUMMARY_CAP:
+        msg = msg[:_SUMMARY_CAP]
     return msg
 
 
-def _derive_error_summary(instance: object, exc: BaseException) -> str:
-    """Compose the at-a-glance one-liner for a FAILED terminal patch.
+def _derive_failure_summary(instance: object, exc: BaseException) -> str:
+    """Compose the at-a-glance summary for a FAILED terminal patch.
 
     Precedence:
-        1. count of recorded error events — "Failed with N error(s)"
-        2. collector-set instance.error_summary, if any
+        1. collector-set instance.summary, if any
+        2. count of recorded error events — "Failed with N error(s)"
         3. exception class + message fallback
 
-    Per req-tap-cares-collector-failure-mode-3: the summary answers "how
-    bad was it" at a glance; the structured detail in results["error"] is
-    where operators dig in.
+    A collector that knows what went wrong should set self.summary directly;
+    when it doesn't, the count-derived fallback gives operators "how bad was
+    it" at a glance, and the structured detail in results["error"] is where
+    they dig in. Per req-tap-cares-collector-failure-mode-3.
     """
+    explicit = getattr(instance, "summary", "")
+    if explicit:
+        return explicit[:_SUMMARY_CAP]
     results = getattr(instance, "results", None)
     if isinstance(results, dict):
         errors = results.get("error") or []
         if errors:
             n = len(errors)
             return f"Failed with {n} error{'s' if n != 1 else ''}"
-    explicit = getattr(instance, "error_summary", "")
-    if explicit:
-        return explicit[:_ERROR_SUMMARY_CAP]
-    return _safe_error_summary(exc)
+    return _safe_summary(exc)
 
 
 @task(takes_context=True)
@@ -100,7 +101,7 @@ def run_collector(
     instance = None
     try:
         # Resolve the collector class and instantiate. The instance owns its
-        # own accumulator state (self.results, self.grift_batches, self.error_summary).
+        # own accumulator state (self.results, self.grift_batches, self.summary).
         collector = Collector.objects.get(entity_id=collector_entity_id)
         cls = get_collector(collector.collector_registry)
         config = CollectorConfig(
@@ -108,21 +109,21 @@ def run_collector(
             collection_job_entity_id=collection_job_entity_id,
         )
         instance = cls(config)
-        # Run the collector. It accumulates results/grift_batches/error_summary
-        # on itself; nothing it does touches the CollectionJob row.
+        # Run the collector. It accumulates results/grift_batches/summary on
+        # itself; nothing it does touches the CollectionJob row.
         instance.run()
     except Exception as exc:
         # Terminal write: FAILED. One patch carries the full accumulator. If
-        # the collector set self.error_summary, that wins; otherwise derive a
-        # one-liner from the exception itself. If the instance never got
-        # constructed (resolution / registry / instantiation failure), use
-        # empty defaults for the accumulators.
+        # the collector set self.summary, that wins; otherwise derive a count
+        # summary from results["error"], finally falling back to the exception
+        # itself. If the instance never got constructed (resolution / registry
+        # / instantiation failure), use empty defaults for the accumulators.
         if instance is not None:
-            error_summary = _derive_error_summary(instance, exc)
+            summary = _derive_failure_summary(instance, exc)
             results = instance.results
             grift_batches = instance.grift_batches
         else:
-            error_summary = _safe_error_summary(exc)
+            summary = _safe_summary(exc)
             results = {"info": [], "warn": [], "error": []}
             grift_batches = {"imported": [], "skipped": []}
         _patch_node_internal(
@@ -130,7 +131,7 @@ def run_collector(
             {
                 "status": CollectionJobStatus.FAILED.value,
                 "finished_at": datetime.now(UTC).isoformat(),
-                "error_summary": error_summary,
+                "summary": summary,
                 "results": results,
                 "grift_batches": grift_batches,
             },
@@ -139,12 +140,14 @@ def run_collector(
         # (req-tap-cares-collector-failure-mode-5).
         raise
 
-    # Terminal write: SUCCESSFUL. One patch carries the full accumulator.
+    # Terminal write: SUCCESSFUL. One patch carries the full accumulator,
+    # including whatever the collector wrote to self.summary.
     _patch_node_internal(
         collection_job_entity_id,
         {
             "status": CollectionJobStatus.SUCCESSFUL.value,
             "finished_at": datetime.now(UTC).isoformat(),
+            "summary": (instance.summary or "")[:_SUMMARY_CAP],
             "results": instance.results,
             "grift_batches": instance.grift_batches,
         },

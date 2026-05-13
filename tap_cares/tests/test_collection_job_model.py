@@ -149,25 +149,25 @@ class TestTaskResultId:
 
 
 # ---------------------------------------------------------------------------
-# error_summary — req-tap-cares-collector-job-model-7
+# summary — req-tap-cares-collector-job-model-7
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
-class TestErrorSummary:
+class TestSummary:
     def test_default_is_empty_string(self):
         j = CollectionJob.objects.create(**_job_kwargs())
-        assert j.error_summary == ""
+        assert j.summary == ""
 
     def test_under_cap_accepted(self):
-        j = CollectionJob(**_job_kwargs(error_summary="boom"))
+        j = CollectionJob(**_job_kwargs(summary="imported 7 indicators"))
         j.full_validate()
 
     def test_over_cap_rejected(self):
-        j = CollectionJob(**_job_kwargs(error_summary="x" * 2049))
+        j = CollectionJob(**_job_kwargs(summary="x" * 2049))
         with pytest.raises(ValidationError) as exc_info:
             j.full_validate()
-        assert "error_summary" in exc_info.value.message_dict
+        assert "summary" in exc_info.value.message_dict
 
 
 # ---------------------------------------------------------------------------

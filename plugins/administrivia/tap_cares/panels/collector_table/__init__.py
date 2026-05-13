@@ -9,7 +9,7 @@ Spec: tap_cares/specs/spec-tap-cares-admin.md
   req-tap-cares-admin-htmx-trigger
 
 Data loading is via the Django ORM in v0 because we aggregate the latest
-CollectionJob per Collector (last status, last_run_at, last_error_summary),
+CollectionJob per Collector (last status, last_run_at, last summary),
 which is awkward to express in gryphon as of v0. Tracked as a future
 gryphon-traversable query when the aggregation primitives land.
 """
@@ -98,7 +98,7 @@ def _row_for_collector(collector: Collector) -> dict[str, Any]:
         "last_run_status": latest_finished.status if latest_finished is not None else "",
         "last_run_status_display": latest_finished.get_status_display() if latest_finished is not None else "",
         "last_run_at": latest_finished.finished_at if latest_finished is not None else None,
-        "last_error": latest_finished.error_summary if latest_finished is not None else "",
+        "last_summary": latest_finished.summary if latest_finished is not None else "",
         "is_running": bool(
             latest is not None and latest.status == CollectionJobStatus.RUNNING.value
         ),

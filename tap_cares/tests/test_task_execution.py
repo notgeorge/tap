@@ -67,7 +67,9 @@ class TestHappyPath:
         assert job.status == CollectionJobStatus.SUCCESSFUL
         assert job.started_at is not None
         assert job.finished_at is not None
-        assert job.error_summary == ""
+        # HappyCollector does not set self.summary, so the task body writes
+        # an empty string on success.
+        assert job.summary == ""
 
     def test_run_receives_correct_config(self, isolate_collector_registry):
         col = _register_and_fetch("happy", HappyCollector, scope="tap_cares.tests.fakes")
@@ -99,14 +101,16 @@ class TestFailurePath:
     instead of re-raising to the caller (see
     django/tasks/backends/immediate.py). `run_collection` therefore returns
     normally even when the underlying collector raises; the failure surfaces
-    via CollectionJob.status and error_summary."""
+    via CollectionJob.status and summary."""
 
     def test_run_raises_marks_job_failed(self, isolate_collector_registry):
         col = _register_and_fetch("boom", BoomCollector, scope="tap_cares.tests.fakes")
         job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
-        assert "boom from BoomCollector" in job.error_summary
+        # BoomCollector raises without calling record_error or setting
+        # self.summary, so the task body falls back to the exception message.
+        assert "boom from BoomCollector" in job.summary
         assert job.finished_at is not None
 
     def test_unregistered_collector_marks_job_failed(self, isolate_collector_registry):
@@ -129,9 +133,9 @@ class TestFailurePath:
         job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
-        assert "CollectorNotFoundError" in job.error_summary
+        assert "CollectorNotFoundError" in job.summary
 
-    def test_error_summary_capped_at_2048(self, isolate_collector_registry):
+    def test_summary_capped_at_2048(self, isolate_collector_registry):
         from tap_cares.collectors import CollectorBase
 
         class LongBoom(CollectorBase):
@@ -142,7 +146,7 @@ class TestFailurePath:
         job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
-        assert len(job.error_summary) <= 2048
+        assert len(job.summary) <= 2048
 
 
 # ---------------------------------------------------------------------------

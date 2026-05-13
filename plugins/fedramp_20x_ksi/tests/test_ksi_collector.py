@@ -113,7 +113,10 @@ class TestHappyPathFreshInstall:
         job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.SUCCESSFUL
-        assert job.error_summary == ""
+        # On a fresh import the collector writes a human-readable summary
+        # describing what landed.
+        assert "Imported" in job.summary
+        assert "indicators" in job.summary
         assert len(job.grift_batches["imported"]) == 1
         codes = [e["code"] for e in job.results["info"]]
         assert "RUN_STARTED" in codes
@@ -194,7 +197,7 @@ class TestBlockFlags:
         assert job.grift_batches["imported"] == []
         codes = [e["code"] for e in job.results["error"]]
         assert expected_code in codes, f"Expected {expected_code} in {codes}"
-        assert job.error_summary
+        assert job.summary
         return job
 
     def test_bad_content_type(self, isolate_collector_registry):
