@@ -19,6 +19,7 @@ Backward-compatible low-level helpers (kept for existing callers):
 
 import logging
 import uuid
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import jsonschema
@@ -776,6 +777,175 @@ def delete_edge_by_entity(
         batch_result.results[0]
         if batch_result.results
         else WriteResult(success=False, batch_id=batch_result.batch_id, errors=batch_result.errors)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Service-layer purge — DEBUG-only hard-delete
+#
+# req-grid-service-purge in spec-grid-service-delete.md. Narrow escape hatch
+# for hard-deleting a single entity along with its touching edges and history
+# rows. Default delete semantics remain tombstone; this is the explicit
+# exception when an operator needs the entity gone rather than hidden.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PurgeResult:
+    """Outcome of a single purge_node call.
+
+    `purged_edges` lists Entity UUIDs of Edge rows hard-deleted as part of the
+    cascade. `purged_entity_id` is the Entity UUID that was the purge target.
+    """
+
+    success: bool
+    purged_entity_id: str | None
+    purged_entity_type: str | None
+    purged_edges: list[str] = field(default_factory=list)
+    error: str | None = None
+
+
+def _assert_debug_for_purge() -> None:
+    """Enforce the DEBUG-only invariant on purge_node.
+
+    Mirrors req-grid-import-grift-sweep-purge so the "purges are DEBUG-only"
+    rule reads consistently across the GRIFT sweep purge and the service-layer
+    purge. There is no alternate flag, env var, or settings key that enables
+    purge in any other configuration.
+    """
+    from django.conf import settings
+
+    if not getattr(settings, "DEBUG", False):
+        raise ServiceConflictError(
+            "purge_node is permitted only when DEBUG=True (purge_refused_production); "
+            "see req-grid-service-purge."
+        )
+
+
+def purge_node(
+    entity_id: str | uuid.UUID,
+    *,
+    caller_context: CallerContext | None = None,
+    reason: str,
+) -> PurgeResult:
+    """Hard-delete an entity, its touching edges, and history rows.
+
+    DEBUG-only. Removes the typed BaseModel row + Entity-spine row + every
+    Edge row touching the entity at either end + the history rows for both
+    the typed model and the edges + the BatchEvent rows referencing any of
+    them. Neighbor entities at the far end of touching edges are NOT purged
+    — cascade is edges-only.
+
+    See req-grid-service-purge for the full contract. This function and
+    `_apply_sweep_purge` in the GRIFT importer share the same DEBUG gate and
+    the same hard-delete semantics; a future refactor will route the GRIFT
+    sweep through this primitive.
+
+    Args:
+        entity_id: Entity UUID of the node to purge.
+        caller_context: Optional actor identity, captured in the log line.
+        reason: Required free-form description of why the purge is happening.
+            Captured in the application log alongside the entity_id and actor.
+
+    Returns:
+        PurgeResult describing what was removed.
+
+    Raises:
+        ServiceConflictError: If `settings.DEBUG` is False.
+        ServiceValidationError: If entity_id cannot be coerced, or `reason` is empty.
+        ServiceNotFoundError: If no Entity with that UUID exists.
+    """
+    _assert_debug_for_purge()
+
+    if not reason or not reason.strip():
+        raise ServiceValidationError("purge_node requires a non-empty `reason`.")
+
+    try:
+        target_uuid = _coerce_uuid(entity_id)
+    except (ValueError, TypeError) as exc:
+        raise ServiceValidationError(
+            f"entity_id is not a valid UUID: {entity_id!r}"
+        ) from exc
+    if target_uuid is None:
+        raise ServiceValidationError("entity_id must be provided.")
+
+    entity = Entity.objects.filter(pk=target_uuid).first()
+    if entity is None:
+        raise ServiceNotFoundError(f"No Entity with entity_id={target_uuid}.")
+    entity_type = entity.entity_type
+
+    if entity_type == "edge":
+        # Edges have their own delete path (delete_edge_by_entity); purge is
+        # scoped to node-style entities so we don't conflate purging a node
+        # (which cascades to its edges) with purging an edge directly.
+        raise ServiceConflictError(
+            f"purge_node targets node entities; entity {target_uuid} is an edge. "
+            "Purging an edge directly is not supported in v0."
+        )
+
+    actor = caller_context.user if caller_context is not None else None
+
+    # Find touching edges before we delete the spine. Both directions, including
+    # tombstoned edges (Edge.all_objects), so the purge actually clears them.
+    from django.db.models import Q
+
+    from tap_grid.models import BatchEvent
+    from tap_grid.registry import get_model_class
+
+    touching_edge_ids = list(
+        Edge.all_objects.filter(
+            Q(from_entity_id=target_uuid) | Q(to_entity_id=target_uuid)
+        ).values_list("entity_id", flat=True)
+    )
+
+    try:
+        model_cls = get_model_class(entity_type)
+    except KeyError:
+        model_cls = None
+
+    with transaction.atomic():
+        # Order matters here: we MUST delete the Entity rows (which cascade to
+        # the typed BaseModel rows via OneToOneField(on_delete=CASCADE)) BEFORE
+        # sweeping history. django-simple-history's post_delete signal fires on
+        # the cascade and would create a fresh "delete" history row that would
+        # then survive a pre-cascade history sweep. Deleting history after the
+        # cascade catches every row, including the signal-generated ones.
+
+        # 1) Touching edges: delete Entity rows first (cascades the typed Edge).
+        if touching_edge_ids:
+            Entity.objects.filter(pk__in=touching_edge_ids).delete()
+
+        # 2) The target Entity itself. Cascades the typed BaseModel row.
+        Entity.objects.filter(pk=target_uuid).delete()
+
+        # 3) Now sweep history rows for the typed model and the touching edges.
+        #    django-simple-history doesn't cascade-delete history with the live
+        #    row; explicit deletion is required.
+        if model_cls is not None and hasattr(model_cls, "history"):
+            model_cls.history.filter(entity_id=target_uuid).delete()
+        if touching_edge_ids:
+            Edge.history.filter(entity_id__in=touching_edge_ids).delete()
+
+        # 4) BatchEvent rows referencing the purged entity or edges so no
+        #    orphan event rows survive.
+        BatchEvent.objects.filter(entity_id=target_uuid).delete()
+        if touching_edge_ids:
+            BatchEvent.objects.filter(entity_id__in=touching_edge_ids).delete()
+
+    logger.info(
+        "purge_node: entity_id=%s entity_type=%s touching_edges=%d actor=%s reason=%r",
+        target_uuid,
+        entity_type,
+        len(touching_edge_ids),
+        actor,
+        reason,
+    )
+
+    return PurgeResult(
+        success=True,
+        purged_entity_id=str(target_uuid),
+        purged_entity_type=entity_type,
+        purged_edges=[str(eid) for eid in touching_edge_ids],
     )
 
 

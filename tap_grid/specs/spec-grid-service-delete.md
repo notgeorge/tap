@@ -20,6 +20,7 @@ Delete behavior is a critical part of the service-layer contract because it dete
 | req-grid-service-delete-baseline | [Baseline Delete Semantics](#baseline-delete-semantics) | Implemented | Node/edge delete with entity cascade |
 | req-grid-service-delete-scope | [Delete Scope And Wrappers](#delete-scope-and-wrappers) | Implemented | delete_node + delete_edge_by_entity route through write pipeline |
 | req-grid-service-delete-tombstone | [Tombstoned Delete Semantics](#tombstoned-delete-semantics) | Implemented | Delete behavior uses `deleted_at` tombstones through the service layer |
+| req-grid-service-purge | [Service-Layer Purge](#service-layer-purge) | Implemented | DEBUG-only hard-delete escape hatch; `purge_node` + `manage.py purge_entities` |
 | req-grid-service-delete-future | [Deferred Delete Policy Design](#deferred-delete-policy-design) | Refactoring | Explicit deferral narrowed now that tombstones are specified here |
 
 
@@ -129,6 +130,88 @@ Delete results use the same structured `WriteResult` envelope and `ServiceError`
 
 #### Future
 Rename `delete_edge_by_entity` to `delete_edge` once the legacy compat wrapper is removed.
+
+
+### Service-Layer Purge
+----
+RID: `req-grid-service-purge`
+Status: `Implemented`
+
+A DEBUG-only escape hatch for hard-deleting a single entity along with its touching edges and history rows. The default delete contract remains tombstone (`req-grid-service-delete-tombstone`); purge is the explicit, narrow exception when an operator needs the entity gone rather than hidden — primarily for dev resets where accumulated tombstones obscure the grid state under test.
+
+#### Status Details
+`purge_node(entity_id, *, caller_context, reason)` lives in `tap_grid/services.py` and is fronted by the `manage.py purge_entities` management command. Both refuse to run unless Django's `DEBUG` setting is `True`.
+
+#### Implementation
+
+Function shape:
+
+```python
+def purge_node(
+    entity_id: str | uuid.UUID,
+    *,
+    caller_context: CallerContext | None = None,
+    reason: str,
+) -> PurgeResult:
+    """Hard-delete an entity, its touching edges, and history rows."""
+```
+
+What gets deleted in one purge_node call:
+
+1. The typed BaseModel row identified by `entity_id` (cascades from the Entity-spine delete via the OneToOneField).
+2. The typed model's `historical_X` rows for that entity_id.
+3. Every Edge row touching the entity at either end (both directions) — Edge typed rows, their history, and their Entity spines.
+4. `BatchEvent` rows referencing the purged entity (and the purged edges), so no orphan event rows survive.
+5. The Entity-spine row itself.
+
+What is NOT deleted:
+
+- Neighbor entities at the other end of any touching edge. Purge cascades to edges, not to nodes. (Spec note: full cascade-delete policy is still open — see [Deferred Delete Policy Design](#deferred-delete-policy-design). For now, purge is deliberately narrow.)
+- `Batch` rows. A `Batch` is itself a first-class entity; purging a typed row that came from a batch does not remove the batch.
+- Other entities of the same type. Purge is per-entity. The CLI's `--all-of-type` flag enumerates entities and calls `purge_node` once per entity_id.
+
+`reason` is a required string argument and is captured in the application log alongside the entity_id, entity_type, and the caller_context actor. There is no `PurgeLog` table in v0; the application log is the only durable trace. A future requirement may add a `PurgeLog` table if/when production use cases (GDPR erasure, bad-ingest rollback) land.
+
+`INTERNAL_ONLY` does NOT block purge. The flag prevents accidental writes through the generic CRUD verbs (`create_node` et al.); purge is deliberate and explicit, so the same protection is unnecessary. CollectionJob, Batch metadata, etc. are all purgeable through this path.
+
+#### DEBUG-only invariant
+
+**Invariant:** `purge_node` and `manage.py purge_entities` are permitted if and only if Django's `DEBUG` setting is `True` at the moment of invocation. No alternate flag, environment variable, settings key, or caller-context field enables purge in any other configuration. This mirrors the invariant on `req-grid-import-grift-sweep-purge` so the "purges are DEBUG-only" rule reads consistently across both surfaces.
+
+When `DEBUG` is `False`, calling `purge_node` raises `ServiceConflictError` with code `purge_refused_production`. The CLI surfaces the same error and exits non-zero.
+
+#### CLI: `manage.py purge_entities`
+
+```
+manage.py purge_entities --entity-type <type> (--all-of-type | --entity-id <uuid>...) --reason "<text>"
+```
+
+- `--entity-type` (required): the registered entity type slug (e.g. `ksi_indicator`). Scoping by type makes "purge every entity of this type" unmistakable in intent.
+- `--all-of-type` (mutually exclusive with `--entity-id`): purge every entity of `--entity-type` currently on the grid (tombstoned or live). Reads as "purge every <type> entity", NOT "purge everything in the database".
+- `--entity-id` (mutually exclusive with `--all-of-type`, repeatable): purge specific entity IDs. Each ID must match `--entity-type`; mismatches abort the run before any writes.
+- `--reason` (required): free-form text recorded in the application log alongside each purge.
+
+The command iterates the targets and calls `purge_node` once per entity. Output is one line per entity (`purged: <entity_type> <entity_id>`) plus a final tally.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-purge-1 | DEBUG-only gate | Implemented | `purge_node` raises `ServiceConflictError` with code `purge_refused_production` when `settings.DEBUG` is `False`. The CLI surfaces the same error. | Mirrors `req-grid-import-grift-sweep-purge`'s gate. |
+| req-grid-service-purge-2 | Edge-only cascade | Implemented | Purging an entity hard-deletes every Edge touching it at either end, including the Edge's history rows, its `BatchEvent` rows, and its Entity-spine row. Neighbor entities at the far end of those edges are NOT purged. | Full cascade-delete policy remains deferred per [Deferred Delete Policy Design](#deferred-delete-policy-design). |
+| req-grid-service-purge-3 | History rows go with the entity | Implemented | The typed BaseModel's `historical_X` rows for the purged entity_id are hard-deleted alongside the Entity spine. | django-simple-history's history table FK does not enforce cascade by itself; `purge_node` deletes explicitly. |
+| req-grid-service-purge-4 | BatchEvent rows go with the entity | Implemented | Every `BatchEvent` referencing the purged entity (or any purged edge) is hard-deleted so no orphan event rows survive the purge. | |
+| req-grid-service-purge-5 | INTERNAL_ONLY does not block | Implemented | `INTERNAL_ONLY` entity types are purgeable through `purge_node`. The flag is about preventing accidental generic-CRUD writes, not about preventing deliberate hard-delete. | |
+| req-grid-service-purge-6 | Reason required | Implemented | `purge_node`'s `reason` argument is required and captured in the application log alongside the entity_id, entity_type, and actor. No purge log row in v0. | |
+| req-grid-service-purge-7 | CLI scope by type | Implemented | `manage.py purge_entities --entity-type <type>` is required. `--all-of-type` means "every entity of this type", never "every entity in the database". | |
+| req-grid-service-purge-8 | CLI mutual exclusion | Implemented | `--all-of-type` and `--entity-id` are mutually exclusive. Mismatched `--entity-id` / `--entity-type` aborts before any writes. | |
+
+#### Future
+
+- **Chokepoint with the GRIFT batch sweep purge.** The GRIFT importer's `_apply_sweep_purge` path (`req-grid-import-grift-sweep-purge`) currently inlines the hard-delete sequence. A future refactor should route per-entity purge through `purge_node` so that both surfaces share one hard-delete primitive, one DEBUG gate, one log format, and any future changes (PurgeLog, cascade policy revisions) land in a single place. The GRIFT sweep would retain its batch-scoped ownership guardrails (Guardrail A / B) on top of the shared per-entity primitive. Tracked by this Future note and a sibling note on `req-grid-import-grift-sweep-purge`.
+- **`purge_edge`.** v0 purge is node-only — `purge_node` refuses edge entities. A future `purge_edge(entity_id, *, caller_context, reason)` would hard-delete a single Edge entity (typed row + Entity spine + Edge history + BatchEvent rows) under the same DEBUG-only gate. It would NOT cascade — edges have no neighbors of their own to take with them. Useful cases: surgically removing a tombstoned edge that's cluttering analysis, or cleaning up orphan Edge `Entity` rows whose typed row was lost (a pathology that shouldn't happen in normal operation but can arise from hand-rolled `.delete()` calls during dev iteration). The CLI would gain `--entity-type edge` support so the same `manage.py purge_entities` surface handles both cases.
+- **PurgeLog table.** When the first production use case arrives (GDPR right-to-erasure, bad-ingest rollback), add a `PurgeLog` row per purge with no FK back to the purged entity, so the application can answer "was entity X ever here, when did it leave, and why" without resurrecting the row.
+- **REST exposure.** Not in v0; revisit when TAP has a real auth + permissions model that can distinguish "operator with purge rights" from any other actor.
 
 
 ### Deferred Delete Policy Design

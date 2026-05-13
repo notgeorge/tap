@@ -428,6 +428,12 @@ The importer's force-reimport report must include:
 - `--purge` does not purge batch metadata or other batches' records. Scope is strictly the sweep's output for this invocation.
 - `--purge` is not a general-purpose hard-delete tool. Any other hard-delete use case must be proposed as a separate requirement with its own gating.
 
+### Future: Chokepoint With Service-Layer Purge
+
+A sibling requirement, `req-grid-service-purge` (in `tap_grid/specs/spec-grid-service-delete.md`), introduces a general per-entity hard-delete primitive (`purge_node`) for the dev-reset use case. Both surfaces enforce the same DEBUG-only invariant and the same "edges go with the entity, neighbors do not" cascade. They were implemented separately so the GRIFT sweep purge's batch-scoped guardrails (Guardrail A / B) stay in place and the dev-reset CLI could land without re-touching the importer.
+
+A future refactor should route this requirement's per-entity hard-delete sequence through `purge_node`, so there is exactly one place that knows how to remove a typed row + Entity row + touching edges + history rows + BatchEvent rows from the grid. The GRIFT sweep retains its batch-scoped ownership guardrails on top of the shared primitive. Until that refactor lands, the two surfaces are kept in sync by hand; any change to the hard-delete sequence here must also land in `purge_node` and vice versa. Tracked by this Future note and the sibling note on `req-grid-service-purge`.
+
 ## Dangling Edge Modes
 ----
 RID: `req-grid-import-grift-dangling`
