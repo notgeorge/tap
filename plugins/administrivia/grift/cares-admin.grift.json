@@ -1,0 +1,125 @@
+{
+  "metadata": {"grift_version": "0"},
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e22ea-138f-738d-82cd-a425573a81c7",
+        "entity_type": "batch",
+        "name": "Administrivia CARES Admin v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.administrivia",
+        "name": "Administrivia CARES Admin v0.1.0",
+        "description": "Seeds the CARES administration surface: homepage with collector table at /administrivia/cares, and collector detail page at /administrivia/cares/collector. Implements req-tap-cares-admin-homepage, -collector-table, -manual-run, -htmx-trigger, -collector-detail, -run-observability, -ksi-path from tap_cares/specs/spec-tap-cares-admin.md."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e22ea-19b6-7019-9477-7d81485511ff",
+            "entity_type": "panel",
+            "name": "CARES Collectors",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "administrivia-cares-collector-table",
+            "name": "CARES Collectors",
+            "view": "administrivia/panels/collector_table.html",
+            "editor_view": "",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e22ea-1b80-7255-b28b-b1af795ffef2",
+            "entity_type": "panel",
+            "name": "CARES Collector Detail",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "administrivia-cares-collector-detail",
+            "name": "CARES Collector Detail",
+            "view": "administrivia/panels/collector_detail.html",
+            "editor_view": "",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e22ea-15f6-70db-97d3-a47238f50704",
+            "entity_type": "page",
+            "name": "CARES",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "CARES",
+            "slug": "/administrivia/cares",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {"panel-id": "collectors", "height": "1fr"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e22ea-17bc-7188-95b1-a9030c1dee39",
+            "entity_type": "page",
+            "name": "CARES Collector Detail",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "CARES Collector Detail",
+            "slug": "/administrivia/cares/collector",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {"panel-id": "detail", "height": "1fr"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e22ea-1d48-76e2-b26c-ff5c71ea7166",
+            "entity_type": "edge",
+            "name": "CARES Page USES_PANEL collectors",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e22ea-15f6-70db-97d3-a47238f50704",
+            "to_entity_id": "019e22ea-19b6-7019-9477-7d81485511ff",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "collectors"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e22ea-1e7d-71ef-9596-6343dd3bd9cd",
+            "entity_type": "edge",
+            "name": "CARES Collector Detail Page USES_PANEL detail",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e22ea-17bc-7188-95b1-a9030c1dee39",
+            "to_entity_id": "019e22ea-1b80-7255-b28b-b1af795ffef2",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "detail"}}
+          }
+        }
+      ]
+    }
+  ]
+}

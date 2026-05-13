@@ -22,20 +22,20 @@ This surface is intentionally human-triggered. Pressing a Run button is explicit
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-tap-cares-admin-ownership | [Administrative Ownership](#administrative-ownership) | Proposed | CARES owns semantics; Administrivia hosts the UI implementation |
-| req-tap-cares-admin-homepage | [CARES Homepage](#cares-homepage) | Proposed | Overview page for CARES subsystem status, starting with collectors |
-| req-tap-cares-admin-collector-table | [Collector Table](#collector-table) | Proposed | Table listing available collectors and their latest run state |
-| req-tap-cares-admin-manual-run | [Manual Collector Execution](#manual-collector-execution) | Proposed | Human-triggered run action calls `run_collection()` |
-| req-tap-cares-admin-htmx-trigger | [HTMX Trigger Surface](#htmx-trigger-surface) | Proposed | v0 browser POST path for manual collector execution |
-| req-tap-cares-admin-collector-detail | [Collector Detail Page](#collector-detail-page) | Proposed | Collector-specific page with metadata and run history |
-| req-tap-cares-admin-run-observability | [Run Observability](#run-observability) | Proposed | Display timestamps, status, errors, task IDs, and GRIFT batch correlation |
-| req-tap-cares-admin-ksi-path | [FedRAMP KSI Collector Path](#fedramp-ksi-collector-path) | Proposed | Initial happy path for executing the KSI collector from the homepage |
+| req-tap-cares-admin-ownership | [Administrative Ownership](#administrative-ownership) | Implemented | CARES owns semantics; Administrivia hosts the UI implementation |
+| req-tap-cares-admin-homepage | [CARES Homepage](#cares-homepage) | Implemented | Overview page for CARES subsystem status, starting with collectors |
+| req-tap-cares-admin-collector-table | [Collector Table](#collector-table) | Implemented | Table listing available collectors and their latest run state |
+| req-tap-cares-admin-manual-run | [Manual Collector Execution](#manual-collector-execution) | Implemented | Human-triggered run action calls `run_collection()` |
+| req-tap-cares-admin-htmx-trigger | [HTMX Trigger Surface](#htmx-trigger-surface) | Implemented | v0 browser POST path for manual collector execution |
+| req-tap-cares-admin-collector-detail | [Collector Detail Page](#collector-detail-page) | Implemented | Collector-specific page with metadata and run history |
+| req-tap-cares-admin-run-observability | [Run Observability](#run-observability) | Implemented | Display timestamps, status, errors, task IDs, and GRIFT batch correlation |
+| req-tap-cares-admin-ksi-path | [FedRAMP KSI Collector Path](#fedramp-ksi-collector-path) | Implemented | Initial happy path for executing the KSI collector from the homepage |
 | req-tap-cares-admin-api-trigger | [API Trigger Surface](#api-trigger-surface) | Backlog | Future API chokepoint for collector execution requests |
 
 ### Administrative Ownership
 ----
 RID: `req-tap-cares-admin-ownership`
-Status: `Proposed`
+Status: `Implemented`
 
 The CARES administration requirements live in `tap_cares/specs/` because the behavior being administered belongs to `tap_cares`.
 
@@ -60,15 +60,15 @@ The admin UI must use existing CARES services and models:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-admin-ownership-1 | Spec Lives With CARES | Proposed | CARES administrative behavior is specified under `tap_cares/specs/`. | |
-| req-tap-cares-admin-ownership-2 | UI Code In Administrivia | Proposed | Initial implementation code lives under `plugins/administrivia/tap_cares/`. | |
-| req-tap-cares-admin-ownership-3 | Service Layer Execution | Proposed | Manual execution routes through `tap_cares.services.run_collection()`. | |
-| req-tap-cares-admin-ownership-4 | No New Execution Path | Proposed | The admin UI does not bypass collector registry, Django Tasks, CollectionJob, or GRIFT import contracts. | |
+| req-tap-cares-admin-ownership-1 | Spec Lives With CARES | Implemented | CARES administrative behavior is specified under `tap_cares/specs/`. | |
+| req-tap-cares-admin-ownership-2 | UI Code In Administrivia | Implemented | Initial implementation code lives under `plugins/administrivia/tap_cares/`. | |
+| req-tap-cares-admin-ownership-3 | Service Layer Execution | Implemented | Manual execution routes through `tap_cares.services.run_collection()`. | |
+| req-tap-cares-admin-ownership-4 | No New Execution Path | Implemented | The admin UI does not bypass collector registry, Django Tasks, CollectionJob, or GRIFT import contracts. | |
 
 ### CARES Homepage
 ----
 RID: `req-tap-cares-admin-homepage`
-Status: `Proposed`
+Status: `Implemented`
 
 The CARES homepage is the top-level administrative page for CARES subsystem status.
 
@@ -98,15 +98,15 @@ Recommended summary values:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-admin-homepage-1 | Route Exists | Proposed | CARES homepage is reachable at `/administrivia/cares`. | |
-| req-tap-cares-admin-homepage-2 | Collector Focus | Proposed | v0 homepage shows collector status before other CARES subsystems exist. | |
-| req-tap-cares-admin-homepage-3 | Summary Strip | Proposed | Homepage includes aggregate collector health and run-state summary values. | |
-| req-tap-cares-admin-homepage-4 | Future Subsystems Reserved | Proposed | Layout leaves room for future receivers, emitters, actions, and schedules. | |
+| req-tap-cares-admin-homepage-1 | Route Exists | Implemented | CARES homepage is reachable at `/administrivia/cares`. | |
+| req-tap-cares-admin-homepage-2 | Collector Focus | Implemented | v0 homepage shows collector status before other CARES subsystems exist. | |
+| req-tap-cares-admin-homepage-3 | Summary Strip | Implemented | Homepage includes aggregate collector health and run-state summary values. | |
+| req-tap-cares-admin-homepage-4 | Future Subsystems Reserved | Implemented | Layout leaves room for future receivers, emitters, actions, and schedules. | |
 
 ### Collector Table
 ----
 RID: `req-tap-cares-admin-collector-table`
-Status: `Proposed`
+Status: `Implemented`
 
 The collectors table lists all on-grid `Collector` nodes and summarizes their execution readiness and recent run outcome.
 
@@ -131,15 +131,15 @@ The table should avoid implying that registry availability and last run outcome 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-admin-collector-table-1 | All Collectors Listed | Proposed | Table includes every on-grid `Collector` node. | |
-| req-tap-cares-admin-collector-table-2 | Availability Distinct | Proposed | Registry resolution is displayed separately from run outcome. | |
-| req-tap-cares-admin-collector-table-3 | Latest Job Summarized | Proposed | Table displays latest run state, last finished run, timestamp, and bounded error summary. | |
-| req-tap-cares-admin-collector-table-4 | Row Drilldown | Proposed | Clicking a collector row opens the collector-specific admin page. | |
+| req-tap-cares-admin-collector-table-1 | All Collectors Listed | Implemented | Table includes every on-grid `Collector` node. | |
+| req-tap-cares-admin-collector-table-2 | Availability Distinct | Implemented | Registry resolution is displayed separately from run outcome. | |
+| req-tap-cares-admin-collector-table-3 | Latest Job Summarized | Implemented | Table displays latest run state, last finished run, timestamp, and bounded error summary. | |
+| req-tap-cares-admin-collector-table-4 | Row Drilldown | Implemented | Clicking a collector row opens the collector-specific admin page. | |
 
 ### Manual Collector Execution
 ----
 RID: `req-tap-cares-admin-manual-run`
-Status: `Proposed`
+Status: `Implemented`
 
 The CARES admin UI provides a manual Run action for a collector.
 
@@ -155,21 +155,23 @@ The Run button may guard against obvious duplicate manual runs, such as a collec
 
 The UI handler must not create `CollectionJob` nodes or `HAS_JOB` edges directly. It is an adapter from a browser POST into the CARES execution service. `run_collection()` owns job creation, edge creation, task enqueueing, and concurrency enforcement, and that service must route TAP-managed node and edge creation through the grid service layer.
 
+**Current Deviation (v0).** The eventual flow inserts the scheduler subsystem between the admin POST and `run_collection`: the admin handler creates a `ScheduledCollection` (or run-now trigger) and the scheduler picks it up and calls `run_collection`. The scheduler subsystem is not yet specced or built. Until it lands, the admin handler calls `run_collection` directly. This is documented in the collector spec at `req-tap-cares-collector-run-collection` and is the same temporary state described there.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-admin-manual-run-1 | POST Only | Proposed | Manual execution uses a POST action, not a GET link. | |
-| req-tap-cares-admin-manual-run-2 | Registry Checked | Proposed | UI checks runner availability before enqueuing and surfaces missing runner errors. | |
-| req-tap-cares-admin-manual-run-3 | Uses run_collection | Proposed | Manual execution calls `tap_cares.services.run_collection()`. | |
-| req-tap-cares-admin-manual-run-4 | Job Visible | Proposed | The resulting `CollectionJob` is visible after the action completes. | |
-| req-tap-cares-admin-manual-run-5 | Duplicate Running Guard | Proposed | UI may prevent or warn against starting a second manual run when the collector already has a `RUNNING` job. | Full concurrency policy is Backlog; cross-ref `req-tap-cares-collector-concurrency`. |
-| req-tap-cares-admin-manual-run-6 | No Direct Node Creation In UI | Proposed | The UI handler does not directly create `CollectionJob` nodes or `HAS_JOB` edges. | Creation belongs to CARES services and the grid service layer. |
+| req-tap-cares-admin-manual-run-1 | POST Only | Implemented | Manual execution uses a POST action, not a GET link. | |
+| req-tap-cares-admin-manual-run-2 | Registry Checked | Implemented | UI checks runner availability before enqueuing and surfaces missing runner errors. | |
+| req-tap-cares-admin-manual-run-3 | Uses run_collection | Implemented | Manual execution calls `tap_cares.services.run_collection()`. | |
+| req-tap-cares-admin-manual-run-4 | Job Visible | Implemented | The resulting `CollectionJob` is visible after the action completes. | |
+| req-tap-cares-admin-manual-run-5 | Duplicate Running Guard | Implemented | UI may prevent or warn against starting a second manual run when the collector already has a `RUNNING` job. | Full concurrency policy is Backlog; cross-ref `req-tap-cares-collector-concurrency`. |
+| req-tap-cares-admin-manual-run-6 | No Direct Node Creation In UI | Implemented | The UI handler does not directly create `CollectionJob` nodes or `HAS_JOB` edges. | Creation belongs to CARES services and the grid service layer. |
 
 ### HTMX Trigger Surface
 ----
 RID: `req-tap-cares-admin-htmx-trigger`
-Status: `Proposed`
+Status: `Implemented`
 
 The initial browser trigger surface for manual collector execution is an HTMX POST handled by an Administrivia CARES panel type.
 
@@ -209,32 +211,26 @@ Because bespoke HTMX POST handlers can become scattered management chokepoints, 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-admin-htmx-trigger-1 | Panel POST Surface | Proposed | v0 manual collector execution is triggered by HTMX POST to a TAP Web panel endpoint. | |
-| req-tap-cares-admin-htmx-trigger-2 | handle_post Dispatch | Proposed | The CARES admin panel type handles POSTs through `handle_post(panel, request)`. | |
-| req-tap-cares-admin-htmx-trigger-3 | Action Validated | Proposed | The handler validates the requested action and collector entity ID before calling services. | |
-| req-tap-cares-admin-htmx-trigger-4 | Service Layer Only | Proposed | The handler calls `run_collection()` and does not create nodes, edges, jobs, or tasks directly. | |
-| req-tap-cares-admin-htmx-trigger-5 | Fragment Refresh | Proposed | Successful or failed POSTs return a refreshed panel or row fragment with visible state. | |
+| req-tap-cares-admin-htmx-trigger-1 | Panel POST Surface | Implemented | v0 manual collector execution is triggered by HTMX POST to a TAP Web panel endpoint. | |
+| req-tap-cares-admin-htmx-trigger-2 | handle_post Dispatch | Implemented | The CARES admin panel type handles POSTs through `handle_post(panel, request)`. | |
+| req-tap-cares-admin-htmx-trigger-3 | Action Validated | Implemented | The handler validates the requested action and collector entity ID before calling services. | |
+| req-tap-cares-admin-htmx-trigger-4 | Service Layer Only | Implemented | The handler calls `run_collection()` and does not create nodes, edges, jobs, or tasks directly. | |
+| req-tap-cares-admin-htmx-trigger-5 | Fragment Refresh | Implemented | Successful or failed POSTs return a refreshed panel or row fragment with visible state. | |
 
 ### Collector Detail Page
 ----
 RID: `req-tap-cares-admin-collector-detail`
-Status: `Proposed`
+Status: `Implemented`
 
 The collector detail page shows one collector's metadata, registry health, manual run action, and run history.
 
-Preferred URL shape:
-
-```text
-/administrivia/cares/collector/<collector_entity_id>
-```
-
-If current TAP Web routing cannot represent this route without new route support, v0 may use query parameters:
+URL shape (chosen for v0):
 
 ```text
 /administrivia/cares/collector?entity_id=<collector_entity_id>
 ```
 
-The chosen route must be documented in Administrivia's hosted surface index when implemented.
+TAP Web pages route from `Page.slug` directly; path parameters under a static page slug are not supported by current Page routing. v0 follows the same precedent the KSI Indicator Profile page uses (entity_id via query param). The Administrivia hosted-surface index records the actual route shape.
 
 Required sections:
 
@@ -248,15 +244,15 @@ Required sections:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-admin-collector-detail-1 | Single Collector Input | Proposed | Page resolves the collector from a URL-provided `collector_entity_id` or `entity_id`. | |
-| req-tap-cares-admin-collector-detail-2 | Registry Health Displayed | Proposed | Detail page displays registry key and whether it resolves. | |
-| req-tap-cares-admin-collector-detail-3 | Manual Run Available | Proposed | Detail page exposes the same human-triggered run action as the homepage. | |
-| req-tap-cares-admin-collector-detail-4 | Run History Table | Proposed | Detail page lists previous `CollectionJob` nodes for the collector. | |
+| req-tap-cares-admin-collector-detail-1 | Single Collector Input | Implemented | Page resolves the collector from a URL-provided `collector_entity_id` or `entity_id`. | |
+| req-tap-cares-admin-collector-detail-2 | Registry Health Displayed | Implemented | Detail page displays registry key and whether it resolves. | |
+| req-tap-cares-admin-collector-detail-3 | Manual Run Available | Implemented | Detail page exposes the same human-triggered run action as the homepage. | |
+| req-tap-cares-admin-collector-detail-4 | Run History Table | Implemented | Detail page lists previous `CollectionJob` nodes for the collector. | |
 
 ### Run Observability
 ----
 RID: `req-tap-cares-admin-run-observability`
-Status: `Proposed`
+Status: `Implemented`
 
 The collector detail page should make previous collection runs inspectable enough to diagnose first-order failures without leaving the CARES admin surface.
 
@@ -280,15 +276,15 @@ v0 does not require a rich log/event stream because that remains backlog work in
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-admin-run-observability-1 | Lifecycle Fields Visible | Proposed | Run history displays status and lifecycle timestamps. | |
-| req-tap-cares-admin-run-observability-2 | Error Summary Visible | Proposed | Failed runs show bounded `error_summary` text. | |
-| req-tap-cares-admin-run-observability-3 | GRIFT Correlation Visible | Proposed | Imported and skipped GRIFT batch IDs/counts are visible from run history. | |
-| req-tap-cares-admin-run-observability-4 | Logs Not Invented | Proposed | UI does not invent rich logs before CARES specifies log/event records. | |
+| req-tap-cares-admin-run-observability-1 | Lifecycle Fields Visible | Implemented | Run history displays status and lifecycle timestamps. | |
+| req-tap-cares-admin-run-observability-2 | Error Summary Visible | Implemented | Failed runs show bounded `error_summary` text. | |
+| req-tap-cares-admin-run-observability-3 | GRIFT Correlation Visible | Implemented | Imported and skipped GRIFT batch IDs/counts are visible from run history. | |
+| req-tap-cares-admin-run-observability-4 | Logs Not Invented | Implemented | UI does not invent rich logs before CARES specifies log/event records. | |
 
 ### FedRAMP KSI Collector Path
 ----
 RID: `req-tap-cares-admin-ksi-path`
-Status: `Proposed`
+Status: `Implemented`
 
 The first concrete workflow is the ability to open the CARES homepage and manually execute the FedRAMP 20x KSI collector.
 
@@ -308,10 +304,10 @@ The KSI collector's source parsing, safety checks, diff, and GRIFT generation re
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-admin-ksi-path-1 | KSI Row Visible | Proposed | CARES homepage includes a FedRAMP 20x KSI collector row when the collector node is seeded. | |
-| req-tap-cares-admin-ksi-path-2 | KSI Runner Available | Proposed | The row reports available when the KSI collector runner is registered. | |
-| req-tap-cares-admin-ksi-path-3 | KSI Manual Run | Proposed | Pressing Run enqueues the KSI collector through `run_collection()`. | |
-| req-tap-cares-admin-ksi-path-4 | KSI Job Observable | Proposed | The resulting job status, error summary, and GRIFT batch correlation are visible in CARES admin. | |
+| req-tap-cares-admin-ksi-path-1 | KSI Row Visible | Implemented | CARES homepage includes a FedRAMP 20x KSI collector row when the collector node is seeded. | |
+| req-tap-cares-admin-ksi-path-2 | KSI Runner Available | Implemented | The row reports available when the KSI collector runner is registered. | |
+| req-tap-cares-admin-ksi-path-3 | KSI Manual Run | Implemented | Pressing Run enqueues the KSI collector through `run_collection()`. | |
+| req-tap-cares-admin-ksi-path-4 | KSI Job Observable | Implemented | The resulting job status, error summary, and GRIFT batch correlation are visible in CARES admin. | |
 
 ### API Trigger Surface
 ----

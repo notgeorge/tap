@@ -1,0 +1,158 @@
+{% load static %}
+<div class="tap-panel tap-panel--cares-collector-detail">
+    {% if not panel.config.hide_header %}{% include "tap_web/panel_header.html" %}{% endif %}
+
+    {% if detail_error %}
+        <div class="tap-cares-detail__error">{{ detail_error }}</div>
+    {% elif collector %}
+        {% if run_message %}<div class="tap-cares-detail__flash tap-cares-detail__flash--ok">{{ run_message }}</div>{% endif %}
+        {% if run_error %}<div class="tap-cares-detail__flash tap-cares-detail__flash--err">{{ run_error }}</div>{% endif %}
+
+        <div class="tap-cares-detail__header">
+            <div>
+                <h2 class="tap-cares-detail__name">{{ collector.name }}</h2>
+                <p class="tap-cares-detail__description">{{ collector.description }}</p>
+            </div>
+            <form hx-post="/panel/{{ panel.slug }}--{{ panel.entity_id }}/?entity_id={{ collector.entity_id }}"
+                  hx-target="closest .tap-panel"
+                  hx-swap="outerHTML"
+                  class="tap-cares-detail__run-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="run_collector">
+                <input type="hidden" name="collector_entity_id" value="{{ collector.entity_id }}">
+                <button type="submit"
+                        class="tap-cares-detail__run-btn"
+                        {% if not collector.available or collector.is_running %}disabled{% endif %}
+                        title="{% if not collector.available %}Runner not registered{% elif collector.is_running %}Run already in progress{% else %}Run this collector now{% endif %}">
+                    Run collector
+                </button>
+            </form>
+        </div>
+
+        <dl class="tap-cares-detail__meta">
+            <div class="tap-cares-detail__meta-row">
+                <dt>Entity ID</dt>
+                <dd><code>{{ collector.entity_id }}</code></dd>
+            </div>
+            <div class="tap-cares-detail__meta-row">
+                <dt>Registry key</dt>
+                <dd><code>{{ collector.registry_key }}</code></dd>
+            </div>
+            <div class="tap-cares-detail__meta-row">
+                <dt>Source scope</dt>
+                <dd><code>{{ collector.registry_scope }}</code></dd>
+            </div>
+            <div class="tap-cares-detail__meta-row">
+                <dt>Local key</dt>
+                <dd><code>{{ collector.registry_local_key }}</code></dd>
+            </div>
+            <div class="tap-cares-detail__meta-row">
+                <dt>Availability</dt>
+                <dd>
+                    {% if collector.available %}
+                        <span class="tap-cares-pill tap-cares-pill--ok">available</span>
+                    {% else %}
+                        <span class="tap-cares-pill tap-cares-pill--warn">missing runner</span>
+                    {% endif %}
+                </dd>
+            </div>
+        </dl>
+
+        <h3 class="tap-cares-detail__section-h">Latest run</h3>
+        {% if latest_run %}
+            <div class="tap-cares-detail__latest">
+                <div>
+                    <span class="tap-cares-detail__latest-label">Status</span>
+                    {% if latest_run.is_successful %}
+                        <span class="tap-cares-pill tap-cares-pill--ok">{{ latest_run.status_display }}</span>
+                    {% elif latest_run.is_failed %}
+                        <span class="tap-cares-pill tap-cares-pill--err">{{ latest_run.status_display }}</span>
+                    {% elif latest_run.is_running %}
+                        <span class="tap-cares-pill tap-cares-pill--running">{{ latest_run.status_display }}</span>
+                    {% else %}
+                        <span class="tap-cares-pill tap-cares-pill--neutral">{{ latest_run.status_display }}</span>
+                    {% endif %}
+                </div>
+                <div>
+                    <span class="tap-cares-detail__latest-label">Started</span>
+                    {{ latest_run.started_at|date:"Y-m-d H:i:s"|default:"—" }}
+                </div>
+                <div>
+                    <span class="tap-cares-detail__latest-label">Finished</span>
+                    {{ latest_run.finished_at|date:"Y-m-d H:i:s"|default:"—" }}
+                </div>
+                <div>
+                    <span class="tap-cares-detail__latest-label">Duration</span>
+                    {{ latest_run.duration|default:"—" }}
+                </div>
+                {% if latest_run.is_failed and latest_run.error_summary %}
+                <div class="tap-cares-detail__latest-error">
+                    <span class="tap-cares-detail__latest-label">Error</span>
+                    <span class="tap-cares-detail__err-text">{{ latest_run.error_summary }}</span>
+                </div>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="tap-cares-detail__empty">No runs yet. Use the Run button above to trigger a collection.</div>
+        {% endif %}
+
+        <h3 class="tap-cares-detail__section-h">Run history</h3>
+        {% if runs %}
+        <div class="tap-cares-detail__history-wrap">
+            <table class="tap-cares-detail__history">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Enqueued</th>
+                        <th>Started</th>
+                        <th>Finished</th>
+                        <th>Duration</th>
+                        <th>Task result</th>
+                        <th>GRIFT batches</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for run in runs %}
+                    <tr class="tap-cares-detail__history-row {% if run.is_failed %}tap-cares-detail__history-row--err{% endif %}">
+                        <td>{{ run.name }}</td>
+                        <td>
+                            {% if run.is_successful %}
+                                <span class="tap-cares-pill tap-cares-pill--ok">{{ run.status_display }}</span>
+                            {% elif run.is_failed %}
+                                <span class="tap-cares-pill tap-cares-pill--err">{{ run.status_display }}</span>
+                            {% elif run.is_running %}
+                                <span class="tap-cares-pill tap-cares-pill--running">{{ run.status_display }}</span>
+                            {% else %}
+                                <span class="tap-cares-pill tap-cares-pill--neutral">{{ run.status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ run.enqueued_at|date:"Y-m-d H:i:s"|default:"—" }}</td>
+                        <td>{{ run.started_at|date:"Y-m-d H:i:s"|default:"—" }}</td>
+                        <td>{{ run.finished_at|date:"Y-m-d H:i:s"|default:"—" }}</td>
+                        <td>{{ run.duration|default:"—" }}</td>
+                        <td><code class="tap-cares-detail__task-result">{{ run.task_result_id|default:"—" }}</code></td>
+                        <td>
+                            {% if run.grift_imported_count or run.grift_skipped_count %}
+                                <span class="tap-cares-detail__batch-count">{{ run.grift_imported_count }} imported</span>
+                                {% if run.grift_skipped_count %}<span class="tap-cares-detail__batch-count tap-cares-detail__batch-count--skip">{{ run.grift_skipped_count }} skipped</span>{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="tap-cares-detail__err-cell" title="{{ run.error_summary }}">
+                            {{ run.error_summary|truncatechars:60|default:"—" }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+            <div class="tap-cares-detail__empty">No run history.</div>
+        {% endif %}
+
+        <p class="tap-cares-detail__back">
+            <a href="/administrivia/cares">← Back to CARES homepage</a>
+        </p>
+    {% endif %}
+</div>

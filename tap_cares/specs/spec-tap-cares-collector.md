@@ -434,6 +434,8 @@ def run_collection(
 
 The intended steady-state caller is the future scheduler subsystem. Until that subsystem exists, the only permitted v0 caller is the Administrivia HTMX panel handler (per `spec-tap-cares-admin.md` → `req-tap-cares-admin-manual-run`). Direct calls from arbitrary plugin code are not permitted; the path is "create a scheduler trigger" (future) or "use the Administrivia handler" (v0).
 
+**Current Deviation (v0).** The eventual flow is: scheduler creates a `ScheduledCollection` (or run-now trigger) → scheduler calls `run_collection`. The scheduler subsystem is not yet specced or built. In its absence the Administrivia HTMX panel handler calls `run_collection` directly. This deviation is intentional and temporary: the run_collection contract (signature, side effects, sole-writer invariant) does not change when the scheduler lands; only the upstream caller does. Tracked here so future readers see the gap explicitly rather than discovering it by surprise.
+
 #### Concurrency
 
 `run_collection` is the authoritative point for collector concurrency enforcement. When `req-tap-cares-collector-concurrency` lands, the guard fires here — before CollectionJob creation, so a rejected request never produces a grid mutation. Manual UI triggers, scheduler triggers, and future API triggers all converge on `run_collection` and therefore share one concurrency contract.

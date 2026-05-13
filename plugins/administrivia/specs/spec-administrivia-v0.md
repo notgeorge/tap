@@ -21,16 +21,16 @@ This keeps subsystem requirements close to the models and services they govern w
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-administrivia-v0-scope | [Plugin Scope](#plugin-scope) | Proposed | Defines administrivia as the first-party TAP admin UI plugin |
-| req-administrivia-v0-spec-index | [Hosted Surface Spec Index](#hosted-surface-spec-index) | Proposed | Administrivia keeps references to canonical subsystem specs |
-| req-administrivia-v0-code-layout | [Code Layout](#code-layout) | Proposed | Hosted subsystem code lives under app/package-aligned directories |
-| req-administrivia-v0-navigation | [Administrative Navigation](#administrative-navigation) | Proposed | Administrative pages should be reachable through stable TAP Web routes and navigation |
+| req-administrivia-v0-scope | [Plugin Scope](#plugin-scope) | Implemented | Defines administrivia as the first-party TAP admin UI plugin |
+| req-administrivia-v0-spec-index | [Hosted Surface Spec Index](#hosted-surface-spec-index) | Implemented | Administrivia keeps references to canonical subsystem specs |
+| req-administrivia-v0-code-layout | [Code Layout](#code-layout) | Implemented | Hosted subsystem code lives under app/package-aligned directories |
+| req-administrivia-v0-navigation | [Administrative Navigation](#administrative-navigation) | Implemented | Administrative pages should be reachable through stable TAP Web routes and navigation |
 | req-administrivia-v0-plugin-contrib | [Plugin-Contributed Admin Paths](#plugin-contributed-admin-paths) | Backlog | Formalize how other plugins contribute `/administrivia/...` pages |
 
 ### Plugin Scope
 ----
 RID: `req-administrivia-v0-scope`
-Status: `Proposed`
+Status: `Implemented`
 
 Administrivia hosts administrative pages, panels, templates, static assets, and supporting view or panel code for TAP's operator-facing UI.
 
@@ -42,14 +42,14 @@ Administrivia must not become a dumping ground for subsystem semantics. If a pag
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-administrivia-v0-scope-1 | First-Party Admin Plugin | Proposed | Administrivia is documented as TAP's first-party administrative UI plugin. | |
-| req-administrivia-v0-scope-2 | Subsystem Semantics Stay Owned | Proposed | Administrative behavior for another subsystem remains specified in that subsystem's specs. | |
-| req-administrivia-v0-scope-3 | Django Admin Not Primary UX | Proposed | Specs may use Administrivia pages instead of Django admin for operator workflows. | |
+| req-administrivia-v0-scope-1 | First-Party Admin Plugin | Implemented | Administrivia is documented as TAP's first-party administrative UI plugin. | |
+| req-administrivia-v0-scope-2 | Subsystem Semantics Stay Owned | Implemented | Administrative behavior for another subsystem remains specified in that subsystem's specs. | |
+| req-administrivia-v0-scope-3 | Django Admin Not Primary UX | Implemented | Specs may use Administrivia pages instead of Django admin for operator workflows. | |
 
 ### Hosted Surface Spec Index
 ----
 RID: `req-administrivia-v0-spec-index`
-Status: `Proposed`
+Status: `Implemented`
 
 Administrivia maintains a lightweight index of administrative surfaces it hosts and points each one at its canonical owning spec.
 
@@ -58,20 +58,21 @@ This index is intentionally not a duplicate specification. It should answer: whe
 | Surface | Code Location | Canonical Spec | Route |
 | --- | --- | --- | --- |
 | Administrivia landing/grid overview | `plugins/administrivia/grift/grid-landing.grift.json` | This spec; TAP Web page/panel specs | `/administrivia` |
-| CARES administration | `plugins/administrivia/tap_cares/` | `tap_cares/specs/spec-tap-cares-admin.md` | `/administrivia/cares` |
+| CARES homepage (collectors table) | `plugins/administrivia/tap_cares/panels/collector_table/`, `plugins/administrivia/grift/cares-admin.grift.json` | `tap_cares/specs/spec-tap-cares-admin.md` | `/administrivia/cares` |
+| CARES collector detail | `plugins/administrivia/tap_cares/panels/collector_detail/`, `plugins/administrivia/grift/cares-admin.grift.json` | `tap_cares/specs/spec-tap-cares-admin.md` | `/administrivia/cares/collector?entity_id=<uuid>` |
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-administrivia-v0-spec-index-1 | Hosted Surfaces Listed | Proposed | Administrivia lists the administrative surfaces it hosts. | |
-| req-administrivia-v0-spec-index-2 | Canonical Specs Linked | Proposed | Each hosted subsystem surface references the spec that owns its requirements. | |
-| req-administrivia-v0-spec-index-3 | No Requirement Duplication | Proposed | The index summarizes ownership and routing without duplicating subsystem requirements. | |
+| req-administrivia-v0-spec-index-1 | Hosted Surfaces Listed | Implemented | Administrivia lists the administrative surfaces it hosts. | |
+| req-administrivia-v0-spec-index-2 | Canonical Specs Linked | Implemented | Each hosted subsystem surface references the spec that owns its requirements. | |
+| req-administrivia-v0-spec-index-3 | No Requirement Duplication | Implemented | The index summarizes ownership and routing without duplicating subsystem requirements. | |
 
 ### Code Layout
 ----
 RID: `req-administrivia-v0-code-layout`
-Status: `Proposed`
+Status: `Implemented`
 
 Administrivia code for subsystem-specific admin surfaces should live under directories named after the exact Django app or plugin package that owns the administered subsystem.
 
@@ -93,14 +94,14 @@ When a hosted surface needs GRIFT page or panel seeds, those seeds may live in `
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-administrivia-v0-code-layout-1 | App-Aligned Directories | Proposed | Subsystem-specific admin implementation code lives under `plugins/administrivia/<app-or-plugin-package>/`. | |
-| req-administrivia-v0-code-layout-2 | Code Location Documented | Proposed | Each hosted surface records its implementation location in the hosted surface index. | |
-| req-administrivia-v0-code-layout-3 | GRIFT Location Clear | Proposed | GRIFT seeds for administrative pages have a documented plugin-owned location. | |
+| req-administrivia-v0-code-layout-1 | App-Aligned Directories | Implemented | Subsystem-specific admin implementation code lives under `plugins/administrivia/<app-or-plugin-package>/`. | |
+| req-administrivia-v0-code-layout-2 | Code Location Documented | Implemented | Each hosted surface records its implementation location in the hosted surface index. | |
+| req-administrivia-v0-code-layout-3 | GRIFT Location Clear | Implemented | GRIFT seeds for administrative pages have a documented plugin-owned location. | |
 
 ### Administrative Navigation
 ----
 RID: `req-administrivia-v0-navigation`
-Status: `Proposed`
+Status: `Implemented`
 
 Administrative pages should have stable TAP Web routes. Top-level administrative surfaces should be reachable from `/administrivia` or a future admin navigation menu.
 
@@ -117,9 +118,9 @@ Route design should follow TAP Web page slug and parameter conventions. If a des
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-administrivia-v0-navigation-1 | Stable Routes | Proposed | Administrative surfaces expose stable TAP Web routes. | |
-| req-administrivia-v0-navigation-2 | Prefix Conventions | Proposed | Subsystem admin pages use `/administrivia/<subsystem>` route prefixes. | |
-| req-administrivia-v0-navigation-3 | Routing Gaps Named | Proposed | Specs call out when current TAP Web routing cannot express a desired URL shape. | |
+| req-administrivia-v0-navigation-1 | Stable Routes | Implemented | Administrative surfaces expose stable TAP Web routes. | |
+| req-administrivia-v0-navigation-2 | Prefix Conventions | Implemented | Subsystem admin pages use `/administrivia/<subsystem>` route prefixes. | |
+| req-administrivia-v0-navigation-3 | Routing Gaps Named | Implemented | Specs call out when current TAP Web routing cannot express a desired URL shape. | |
 
 ### Plugin-Contributed Admin Paths
 ----
