@@ -22,6 +22,7 @@ states extend the local TextChoices rather than the upstream Django enum.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 from croniter import croniter
@@ -357,6 +358,28 @@ class Schedule(BaseModel):
                     ]
                 }
             )
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Stamp `enabled_at` on save when the schedule is enabled but unset.
+
+        Catches the case where a schedule is written by a path that does not
+        manage `enabled_at` explicitly — GRIFT import, direct ORM, or a
+        future entry point — and the field would otherwise stay null
+        forever. Keeps the field's semantic ("when the schedule became
+        enabled") honest across all entry paths
+        (req-tap-cares-scheduler-model-8).
+
+        Does not handle the false->true transition case — that lives in
+        `scheduler.set_schedule_enabled`, which sets `enabled_at` before
+        save so this branch is a no-op for the service path. Two writers
+        for one field is intentional: the model is the safety net for
+        non-service paths, the service is the explicit transition stamp.
+        We deliberately do NOT consult `self.history` to detect transitions
+        because the simple-history audit log is not application logic.
+        """
+        if self.enabled and self.enabled_at is None:
+            self.enabled_at = datetime.now(UTC)
+        super().save(*args, **kwargs)
 
 
 class ScheduleFireStatus(models.TextChoices):

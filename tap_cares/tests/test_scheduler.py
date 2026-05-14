@@ -175,6 +175,58 @@ class TestCreateSchedule:
 
 
 @pytest.mark.django_db
+class TestScheduleSaveStampsEnabledAt:
+    """req-tap-cares-scheduler-model-8 safety net.
+
+    Covers Schedule.save() auto-stamping `enabled_at` when a schedule is
+    written via a path that doesn't manage the field explicitly (GRIFT
+    import, direct ORM, etc.).
+    """
+
+    def test_grift_style_create_stamps_enabled_at(self, collector):
+        """GRIFT seeds enabled=True without enabled_at; save fills it in."""
+        schedule = create_schedule(
+            name="grift-style",
+            cron_expression="0 0 * * *",
+            collector=collector,
+        )
+        # Simulate the GRIFT path: force enabled_at back to None and re-save
+        # so the model-level safety net is the only thing stamping it.
+        Schedule.objects.filter(pk=schedule.pk).update(enabled_at=None)
+        schedule.refresh_from_db()
+        assert schedule.enabled_at is None
+        schedule.save()
+        schedule.refresh_from_db()
+        assert schedule.enabled_at is not None
+
+    def test_disabled_save_does_not_stamp(self, collector):
+        """Disabled schedule with enabled_at=None stays None across saves."""
+        schedule = create_schedule(
+            name="disabled grift-style",
+            cron_expression="0 0 * * *",
+            collector=collector,
+            enabled=False,
+        )
+        assert schedule.enabled_at is None
+        schedule.save()
+        schedule.refresh_from_db()
+        assert schedule.enabled_at is None
+
+    def test_existing_enabled_at_preserved(self, collector):
+        """If enabled_at is already set, save does not overwrite it."""
+        schedule = create_schedule(
+            name="preserve",
+            cron_expression="0 0 * * *",
+            collector=collector,
+        )
+        original = schedule.enabled_at
+        assert original is not None
+        schedule.save()
+        schedule.refresh_from_db()
+        assert schedule.enabled_at == original
+
+
+@pytest.mark.django_db
 class TestSetScheduleEnabled:
     def test_disable_then_enable_updates_enabled_at(self, collector):
         """req-tap-cares-scheduler-model-8: false->true transition refreshes enabled_at."""
