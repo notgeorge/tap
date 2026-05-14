@@ -72,6 +72,20 @@ TAP_PRODUCT_NAME = os.environ.get("TAP_PRODUCT_NAME", "TAP")
 TAP_SESSION_LABEL = os.environ.get("TAP_SESSION_LABEL", "")
 
 # =============================================================================
+# tap-cares Runtime Secrets
+# =============================================================================
+# Root directory tap-cares scans for `*.secret.json` files at startup.
+# Files live OFF the grid — values stay in memory once loaded, never on disk
+# in the repo or in any TAP-managed node.
+#
+# Default points at the Compose bind mount declared in docker-compose.yml.
+# If the directory is missing or empty the loader logs and returns; TAP starts
+# normally and capabilities that need a missing secret fail at run time.
+#
+# See tap_cares/specs/spec-tap-cares-secrets.md.
+TAP_SECRETS_ROOT = os.environ.get("TAP_SECRETS_ROOT", "/run/tap-secrets")
+
+# =============================================================================
 # Application Definition
 # =============================================================================
 INSTALLED_APPS = [
@@ -273,4 +287,3 @@ STEADY_QUEUE = Configuration.Options(
         ),
     ],
 )
-

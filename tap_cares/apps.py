@@ -9,6 +9,17 @@ class TapCaresConfig(AppConfig):
     verbose_name = "TAP Cares"
 
     def ready(self) -> None:
+        # Load runtime secrets from the configured mount root into
+        # secret_registry. No-op when the root is missing or empty; fails
+        # loud on malformed files or duplicate `scope:key` so an operator
+        # notices before any capability runs.
+        # See tap_cares/specs/spec-tap-cares-secrets.md.
+        from django.conf import settings
+
+        from tap_cares.secrets.loader import load_secrets
+
+        load_secrets(getattr(settings, "TAP_SECRETS_ROOT", None))
+
         # Register tap_cares-owned edge types. Plugins use the manifest path
         # (tap-plugin.toml + edges/*.edge.json); first-party apps register
         # programmatically through the same constraints registry.

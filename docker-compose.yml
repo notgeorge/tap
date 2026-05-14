@@ -77,6 +77,11 @@ services:
       - .:/app
       - venv:/app/.venv
       - uv_cache:/root/.cache/uv
+      # tap-cares runtime secrets — bind-mounted from a gitignored host
+      # directory the operator manages. Read-only inside the container; never
+      # populated by the repo or by tests. Loader no-ops cleanly when the
+      # directory is empty or missing. See tap_cares/specs/spec-tap-cares-secrets.md.
+      - ./tap_secrets:/run/tap-secrets:ro
 
     # Map container port 8000 to host port WEB_PORT (default 8000)
     # Access the app at http://localhost:${WEB_PORT}
@@ -114,6 +119,11 @@ services:
       # Product name shown in the UI title bar and header (default "TAP").
       # Set per-session in .env.local (e.g. "RAMPART") for branded demo instances.
       TAP_PRODUCT_NAME: "${TAP_PRODUCT_NAME:-TAP}"
+
+      # tap-cares runtime secrets root inside the container. Backed by the
+      # ./tap_secrets:/run/tap-secrets:ro bind mount above. See
+      # tap_cares/specs/spec-tap-cares-secrets.md.
+      TAP_SECRETS_ROOT: /run/tap-secrets
 
     # Wait for the database to be healthy before starting Django
     # Prevents errors from Django trying to connect before PostgreSQL is ready
