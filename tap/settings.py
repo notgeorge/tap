@@ -109,6 +109,8 @@ INSTALLED_APPS = [
     "tap_viz",
     # History tracking (django-simple-history)
     "simple_history",
+    # Huey periodic-task framework — tap_cares scheduler is the v0 consumer.
+    "huey.contrib.djhuey",
 ]
 
 MIDDLEWARE = [
@@ -222,5 +224,29 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 TASKS = {
     "default": {
         "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",
+    },
+}
+
+# =============================================================================
+# Huey configuration — tap_cares scheduler
+# =============================================================================
+# Per spec-tap-cares-scheduler.md req-tap-cares-scheduler-huey:
+# Huey is the v0 clock/worker that wakes once per minute and calls
+# tap_cares.scheduler.evaluate_tick(). Schedule state and fire history live on
+# the TAP grid; Huey is not the durable schedule store.
+#
+# v0 deploys a single Huey worker (req-tap-cares-scheduler-huey-4); multi-worker
+# is backlog. MemoryHuey is in-process and loses queued tasks on restart, which
+# is acceptable because the only Huey work is a periodic task — there is no
+# user-driven queue to lose. Periodic tasks resume automatically on the next
+# minute boundary after restart.
+HUEY = {
+    "huey_class": "huey.MemoryHuey",
+    "name": "tap_cares_scheduler",
+    "immediate": False,
+    "consumer": {
+        "workers": 1,
+        "worker_type": "thread",
+        "periodic": True,
     },
 }

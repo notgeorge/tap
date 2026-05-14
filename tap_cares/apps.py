@@ -35,3 +35,9 @@ class TapCaresConfig(AppConfig):
             sources=[{"type": "schedule_fire"}],
             targets=[{"type": "collection_job"}],
         )
+
+        # Import Huey periodic tasks so the scheduler tick is registered at
+        # startup. The Huey consumer process (`manage.py run_huey`) is the
+        # only thing that executes them; the web process loads the module
+        # too so test runs and shell sessions see consistent state.
+        from tap_cares import huey_tasks  # noqa: F401
