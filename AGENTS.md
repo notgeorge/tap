@@ -76,3 +76,8 @@ The current tap-cares spec lives at:
 - Do not overwrite unrelated user changes in the worktree.
 - Prefer small, inspectable changes over broad refactors.
 - When adding new capabilities, update specs first or alongside implementation.
+
+## Git Workflow
+
+- When asked to push changes upstream to `origin/main`, push the current work and then refresh the local `main` ref with `git fetch origin main:main` when Git allows it. This keeps sibling worktree sessions aligned after a successful push.
+- Only run `git fetch origin main:main` when `main` is not checked out in any linked worktree and local `main` is being treated as the shared upstream tracking ref. If Git refuses because `main` is checked out elsewhere, leave `main` alone and report that the checked-out main worktree must pull or fast-forward itself.
