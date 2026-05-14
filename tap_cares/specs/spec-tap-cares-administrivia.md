@@ -30,6 +30,9 @@ This surface is intentionally human-triggered. Pressing a Run button is explicit
 | req-tap-cares-administrivia-collector-detail | [Collector Detail Page](#collector-detail-page) | Implemented | Collector-specific page with metadata and run history |
 | req-tap-cares-administrivia-run-observability | [Run Observability](#run-observability) | Implemented | Display timestamps, status, errors, task IDs, and GRIFT batch correlation |
 | req-tap-cares-administrivia-ksi-path | [FedRAMP KSI Collector Path](#fedramp-ksi-collector-path) | Implemented | Initial happy path for executing the KSI collector from the homepage |
+| req-tap-cares-administrivia-schedule-table | [Schedule Table](#schedule-table) | Implemented | Schedules panel on the CARES homepage, alongside the collectors panel |
+| req-tap-cares-administrivia-schedule-detail | [Schedule Detail Page](#schedule-detail-page) | Implemented | Schedule-specific page with configuration, target, and fire history |
+| req-tap-cares-administrivia-fire-history | [Fire History](#fire-history) | Implemented | Per-schedule fire log surfaced on the detail page |
 | req-tap-cares-administrivia-api-trigger | [API Trigger Surface](#api-trigger-surface) | Backlog | Future API chokepoint for collector execution requests |
 
 ### Administrivia Ownership
@@ -55,6 +58,9 @@ The administrivia surface must use existing CARES services and models:
 - `tap_cares.registry.get_collector()` or equivalent registry inspection for runner availability
 - `tap_cares.services.run_collection()` for manual execution
 - `CollectionJob.grift_batches` for imported/skipped GRIFT batch correlation
+- `Schedule` for on-grid recurring policy rows
+- `ScheduleFire` for fire history
+- `SCHEDULED_TARGET` / `HAS_FIRED` / `TRIGGERED_JOB` edges for schedule-target, schedule-fire, and fire-job provenance
 
 #### Acceptance Criteria
 
@@ -73,7 +79,7 @@ Status: `Implemented`
 
 The CARES homepage is the top-level Administrivia page for CARES subsystem status.
 
-v0 focuses on collectors. The page should be structured so future sections can add receivers, emitters, actions, and schedules without redesigning the route.
+v0 focuses on collectors and schedules. The page should be structured so future sections can add receivers, emitters, and actions without redesigning the route.
 
 Initial route:
 
@@ -81,10 +87,11 @@ Initial route:
 /administrivia/cares
 ```
 
-Initial page content:
+Page content:
 
 - summary strip with collector counts and run health
 - collectors table
+- schedules table — see [Schedule Table](#schedule-table)
 
 Recommended summary values:
 
@@ -326,6 +333,117 @@ The KSI collector's source parsing, safety checks, diff, and GRIFT generation re
 | req-tap-cares-administrivia-ksi-path-2 | KSI Runner Available | Implemented | The row reports available when the KSI collector runner is registered. | |
 | req-tap-cares-administrivia-ksi-path-3 | KSI Manual Run | Implemented | Pressing Run enqueues the KSI collector through `run_collection()`. | |
 | req-tap-cares-administrivia-ksi-path-4 | KSI Job Observable | Implemented | The resulting job status, summary, and GRIFT batch correlation are visible in the CARES administrivia surface. | |
+
+### Schedule Table
+----
+RID: `req-tap-cares-administrivia-schedule-table`
+Status: `Implemented`
+
+The schedules table lists all on-grid `Schedule` nodes and summarizes their target collector and most recent fire outcome. It mounts as a second panel on the CARES homepage, immediately below the collectors table.
+
+The panel is read-only in v0. Enable/disable toggles, create/edit forms, and schedule deletion are deferred — schedules are created via GRIFT or shell while the operator surface stabilizes.
+
+Initial columns:
+
+| Column | Source | Notes |
+| --- | --- | --- |
+| Name | `Schedule.name` | Row links to `/administrivia/cares/schedule?entity_id=<schedule_entity_id>` |
+| Target collector | `SCHEDULED_TARGET` edge → `Collector.name` | Cell is a link to `/administrivia/cares/collector?entity_id=<collector_entity_id>`. Missing target (no edge) renders as a tinted error cell. |
+| Cron | `Schedule.cron_expression` | Code-style badge |
+| Enabled | `Schedule.enabled` | `enabled` / `disabled` pill. Disabled rows are tinted the same way unavailable-collector rows are tinted today. |
+| Last fire | latest `ScheduleFire.status` + `scheduled_for` | Status pill (TRIGGERED / SKIPPED / FAILED / PENDING) plus the slot timestamp. Blank for schedules with no fires yet. |
+| Active runs | derived count over `Schedule → HAS_FIRED → ScheduleFire → TRIGGERED_JOB → CollectionJob WHERE status IN (READY, RUNNING)` | Displayed `N / max_active_runs` so the operator sees both the current count and the cap. |
+| Summary | latest `ScheduleFire.summary` | Scheduler-authored one-liner. Truncated; full value in the cell title attribute. |
+
+Row tints:
+
+- Disabled schedules: greyed row, mirrors the "unavailable collector" treatment.
+- Missing target collector: error-tinted row. A schedule whose `SCHEDULED_TARGET` edge points at a Collector with no registered runner will fail every fire forever — surfacing the misconfig on the homepage matters.
+
+The table auto-refreshes via a quiet HTMX GET poll every 5 seconds, same pattern as the collectors table. The poll is rooted on the panel container and re-issued each swap.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-administrivia-schedule-table-1 | All Schedules Listed | Implemented | Table includes every on-grid `Schedule` node. | |
+| req-tap-cares-administrivia-schedule-table-2 | Target Linked | Implemented | Each row links to the schedule's target `Collector` detail page via the `SCHEDULED_TARGET` edge. | |
+| req-tap-cares-administrivia-schedule-table-3 | Last Fire Summarized | Implemented | Table shows the most recent `ScheduleFire` status, slot, and summary for each schedule. | |
+| req-tap-cares-administrivia-schedule-table-4 | Active Runs Visible | Implemented | Active-run count and `max_active_runs` cap are displayed per row. | |
+| req-tap-cares-administrivia-schedule-table-5 | Row Drilldown | Implemented | Clicking a schedule row opens the schedule detail page. | |
+| req-tap-cares-administrivia-schedule-table-6 | Quiet Auto-Refresh | Implemented | Table polls itself via HTMX GET every 5 seconds and replaces its outer HTML in place. | |
+| req-tap-cares-administrivia-schedule-table-7 | Misconfig Surfaced | Implemented | Disabled schedules and schedules with a missing-runner target are visually distinguished from healthy rows. | |
+| req-tap-cares-administrivia-schedule-table-8 | Read-Only v0 | Implemented | The table does not surface enable/disable toggles, create/edit forms, or delete actions in v0. | Schedule mutations come via GRIFT or shell until a dedicated edit surface lands. |
+
+### Schedule Detail Page
+----
+RID: `req-tap-cares-administrivia-schedule-detail`
+Status: `Implemented`
+
+The schedule detail page shows one schedule's identity, configuration, target collector, and fire history.
+
+URL shape:
+
+```text
+/administrivia/cares/schedule?entity_id=<schedule_entity_id>
+```
+
+Same query-parameter pattern as the collector detail page (`req-tap-cares-administrivia-collector-detail`). TAP Web pages route from `Page.slug` directly; path parameters under a static page slug are not supported.
+
+Required sections:
+
+- **Identity** — name, description, entity_id.
+- **Configuration** — `cron_expression`, `enabled`, `enabled_at`, `max_active_runs`, `last_schedule_fired`.
+- **Target** — link to the `Collector` detail page resolved via `SCHEDULED_TARGET`. If the target collector has no registered runner, surface a "missing runner" callout. If the schedule has no `SCHEDULED_TARGET` edge, surface a "no target" callout.
+- **Fire history** — see [Fire History](#fire-history).
+
+The detail page is read-only in v0, consistent with `req-tap-cares-administrivia-schedule-table-8`. The page also includes a "Back to CARES homepage" link, mirroring the collector detail page footer.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-administrivia-schedule-detail-1 | Single Schedule Input | Implemented | Page resolves the schedule from a URL-provided `entity_id`. | |
+| req-tap-cares-administrivia-schedule-detail-2 | Identity Block | Implemented | Detail page displays name, description, and entity_id. | |
+| req-tap-cares-administrivia-schedule-detail-3 | Configuration Block | Implemented | Detail page displays cron_expression, enabled, enabled_at, max_active_runs, and last_schedule_fired. | |
+| req-tap-cares-administrivia-schedule-detail-4 | Target Block | Implemented | Detail page surfaces the target collector with a link to its detail page; missing target or missing runner are flagged. | |
+| req-tap-cares-administrivia-schedule-detail-5 | Fire History Present | Implemented | Detail page includes the fire history table from `req-tap-cares-administrivia-fire-history`. | |
+| req-tap-cares-administrivia-schedule-detail-6 | Read-Only v0 | Implemented | The detail page does not surface enable/disable toggles, configuration edit forms, or delete actions in v0. | |
+| req-tap-cares-administrivia-schedule-detail-7 | Back Link | Implemented | Page includes a footer link back to `/administrivia/cares`. | |
+
+### Fire History
+----
+RID: `req-tap-cares-administrivia-fire-history`
+Status: `Implemented`
+
+The fire history table lists `ScheduleFire` rows for a single schedule, newest first, so operators can see what the scheduler has actually done for this schedule.
+
+Columns:
+
+| Column | Source | Notes |
+| --- | --- | --- |
+| Scheduled for | `ScheduleFire.scheduled_for` | UTC minute slot the scheduler evaluated. |
+| Fired at | `ScheduleFire.fired_at` | Wall-clock time when the scheduler ran. Useful for spotting tick lag (e.g. `fired_at` later than `scheduled_for + a few seconds` means the consumer was busy or delayed). |
+| Status | `ScheduleFire.status_display` | `TRIGGERED` / `SKIPPED` / `FAILED` / `PENDING` pill. |
+| Missed | `ScheduleFire.missed_count` | Small badge when greater than zero; dash otherwise. |
+| Summary | `ScheduleFire.summary` | Scheduler-authored one-liner. Truncated cell, full text in title attribute. |
+| Job | `TRIGGERED_JOB` edge → `CollectionJob` | For TRIGGERED fires, links to the run detail page (`/administrivia/cares/run?entity_id=<job>`). Blank for SKIPPED / FAILED / PENDING — no underlying job exists. |
+
+The fire history is capped at the most recent 100 fires in v0. Without a retention policy in place yet (see `spec-tap-cares-scheduler.md` Backlog), an every-minute schedule produces 1,440 fires per day; capping at 100 keeps the page usable. The cap is informational, not authoritative — `ScheduleFire` rows continue to accumulate on the grid; the table simply shows the top 100.
+
+The fire history table is read-only. The Job column hops directly to the existing run detail page rather than introducing a fire-specific detail page, since for TRIGGERED fires the run detail already shows every event the scheduler produced for that slot, and for non-TRIGGERED fires the row itself already shows the relevant information (status, summary, missed count).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-administrivia-fire-history-1 | Newest First | Implemented | Fire history rows are sorted by `scheduled_for` descending. | |
+| req-tap-cares-administrivia-fire-history-2 | Status Pill | Implemented | Each fire's status is shown as a TRIGGERED / SKIPPED / FAILED / PENDING pill. | |
+| req-tap-cares-administrivia-fire-history-3 | Slot And Wall-Clock | Implemented | Each row shows both `scheduled_for` (cron slot) and `fired_at` (wall-clock) so tick lag is observable. | |
+| req-tap-cares-administrivia-fire-history-4 | Missed Visible | Implemented | Missed slot count is shown when greater than zero. | |
+| req-tap-cares-administrivia-fire-history-5 | Job Drilldown | Implemented | TRIGGERED fires include a Job link to the underlying `CollectionJob` run detail page. | |
+| req-tap-cares-administrivia-fire-history-6 | Cap At 100 | Implemented | v0 displays the most recent 100 fires; older fires remain on the grid but are not rendered. | Cap is informational; retention policy is tracked in scheduler backlog. |
+| req-tap-cares-administrivia-fire-history-7 | No Standalone Fire Page | Implemented | v0 does not introduce a per-fire detail page; TRIGGERED fires drill to run detail, non-TRIGGERED fires are fully described by the row. | A standalone fire detail page can be added later if a concrete use case emerges. |
 
 ### API Trigger Surface
 ----

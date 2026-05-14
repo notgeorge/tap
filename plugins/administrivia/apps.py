@@ -18,6 +18,12 @@ class AdministriviaConfig(TapPluginConfig):
         from plugins.administrivia.tap_cares.panels.run_detail import (
             RunDetailPanelType,
         )
+        from plugins.administrivia.tap_cares.panels.schedule_detail import (
+            ScheduleDetailPanelType,
+        )
+        from plugins.administrivia.tap_cares.panels.schedule_table import (
+            ScheduleTablePanelType,
+        )
         from tap_web.registry import panel_type_registry
 
         panel_type_registry.register(
@@ -28,4 +34,10 @@ class AdministriviaConfig(TapPluginConfig):
         )
         panel_type_registry.register(
             "cares_run_detail", RunDetailPanelType
+        )
+        panel_type_registry.register(
+            "cares_schedule_table", ScheduleTablePanelType
+        )
+        panel_type_registry.register(
+            "cares_schedule_detail", ScheduleDetailPanelType
         )

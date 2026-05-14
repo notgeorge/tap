@@ -1,0 +1,149 @@
+/* CARES Schedule Table panel styles.
+ *
+ * Schedules table layout. Reuses .tap-cares-pill from cares_collector_table.css
+ * (the shared pill palette is loaded by both panels in their templates via the
+ * same CARES homepage). Slate palette per TAP convention.
+ */
+
+.tap-panel--cares-schedules {
+    padding: 16px 20px;
+}
+
+/* ----- table ----- */
+.tap-cares-schedules__table-wrap {
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+}
+.tap-cares-schedules__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.tap-cares-schedules__table thead th {
+    text-align: left;
+    padding: 8px 10px;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    color: #475569;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+.tap-cares-schedules__table tbody td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+    color: #1e293b;
+}
+
+/* row states */
+.tap-cares-schedules__row--disabled {
+    background: #f8fafc;
+}
+.tap-cares-schedules__row--disabled td {
+    color: #64748b;
+}
+.tap-cares-schedules__row--misconfig {
+    background: #fef2f2;
+}
+
+/* name cell */
+.tap-cares-schedules__name a {
+    color: #1d4ed8;
+    text-decoration: none;
+    font-weight: 600;
+}
+.tap-cares-schedules__name a:hover {
+    text-decoration: underline;
+}
+
+/* target cell */
+.tap-cares-schedules__target {
+    min-width: 180px;
+}
+.tap-cares-schedules__target a {
+    color: #1d4ed8;
+    text-decoration: none;
+}
+.tap-cares-schedules__target a:hover {
+    text-decoration: underline;
+}
+
+/* cron code badge */
+.tap-cares-schedules__cron {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    color: #475569;
+    background: #f1f5f9;
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+/* last-fire cell — pill + timestamp */
+.tap-cares-schedules__last-fire {
+    white-space: nowrap;
+}
+.tap-cares-schedules__last-fire-ts {
+    margin-left: 6px;
+    color: #64748b;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+}
+.tap-cares-schedules__missed {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* active-runs cell — "N / max" */
+.tap-cares-schedules__active {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: #334155;
+}
+.tap-cares-schedules__active-count {
+    font-weight: 600;
+}
+.tap-cares-schedules__active-sep {
+    margin: 0 2px;
+    color: #94a3b8;
+}
+.tap-cares-schedules__active-max {
+    color: #64748b;
+}
+
+/* summary cell */
+.tap-cares-schedules__summary {
+    max-width: 360px;
+    color: #334155;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* empty state */
+.tap-cares-schedules__empty {
+    padding: 24px;
+    text-align: center;
+    color: #64748b;
+    font-size: 14px;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 6px;
+}
+.tap-cares-schedules__empty code {
+    background: #fff;
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid #e2e8f0;
+    font-size: 12px;
+}

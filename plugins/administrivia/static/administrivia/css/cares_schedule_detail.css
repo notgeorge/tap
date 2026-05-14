@@ -1,0 +1,235 @@
+/* CARES Schedule Detail panel styles.
+ *
+ * Single-schedule detail + fire history. Reuses .tap-cares-pill from the
+ * collector-table CSS (loaded on the homepage); this panel loads its own
+ * page so we redeclare the pill rules here for self-contained styling.
+ * Slate palette per TAP convention.
+ */
+
+.tap-panel--cares-schedule-detail {
+    padding: 16px 20px;
+}
+
+/* ----- pills (redeclared for standalone page) ----- */
+.tap-cares-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+}
+.tap-cares-pill--ok      { background: #d1fae5; color: #065f46; }
+.tap-cares-pill--warn    { background: #fef3c7; color: #92400e; }
+.tap-cares-pill--err     { background: #fee2e2; color: #991b1b; }
+.tap-cares-pill--running { background: #dbeafe; color: #1e40af; }
+.tap-cares-pill--neutral { background: #e2e8f0; color: #334155; }
+.tap-cares-pill--idle    { background: #f1f5f9; color: #64748b; }
+
+/* ----- error ----- */
+.tap-cares-schedule-detail__error {
+    padding: 14px 16px;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 6px;
+    color: #7f1d1d;
+}
+
+/* ----- header ----- */
+.tap-cares-schedule-detail__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+.tap-cares-schedule-detail__name {
+    margin: 0 0 6px 0;
+    font-size: 22px;
+    color: #1e293b;
+}
+.tap-cares-schedule-detail__description {
+    margin: 0;
+    color: #475569;
+    line-height: 1.5;
+}
+
+/* ----- section headings ----- */
+.tap-cares-schedule-detail__section-h {
+    margin: 24px 0 8px 0;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* ----- metadata key/value ----- */
+.tap-cares-schedule-detail__meta {
+    margin: 0;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+}
+.tap-cares-schedule-detail__meta-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 16px;
+    padding: 4px 0;
+    align-items: baseline;
+}
+.tap-cares-schedule-detail__meta-row + .tap-cares-schedule-detail__meta-row {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 8px;
+    margin-top: 4px;
+}
+.tap-cares-schedule-detail__meta-row dt {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    font-weight: 600;
+}
+.tap-cares-schedule-detail__meta-row dd {
+    margin: 0;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+}
+.tap-cares-schedule-detail__meta-row code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    color: #475569;
+    background: #fff;
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid #e2e8f0;
+}
+.tap-cares-schedule-detail__cron {
+    background: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+}
+
+/* ----- callout (missing target, etc.) ----- */
+.tap-cares-schedule-detail__callout {
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.tap-cares-schedule-detail__callout--err {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    color: #7f1d1d;
+}
+.tap-cares-schedule-detail__callout code {
+    background: #fff;
+    border: 1px solid #fca5a5;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* ----- fire history table ----- */
+.tap-cares-schedule-detail__history-wrap {
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+}
+.tap-cares-schedule-detail__history {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.tap-cares-schedule-detail__history thead th {
+    text-align: left;
+    padding: 8px 10px;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    color: #475569;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+.tap-cares-schedule-detail__history tbody td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+}
+.tap-cares-schedule-detail__history-row--err {
+    background: #fef2f2;
+}
+.tap-cares-schedule-detail__history-row--warn {
+    background: #fffbeb;
+}
+.tap-cares-schedule-detail__slot {
+    white-space: nowrap;
+    font-weight: 600;
+}
+.tap-cares-schedule-detail__fired-at {
+    white-space: nowrap;
+    color: #475569;
+}
+.tap-cares-schedule-detail__missed {
+    text-align: center;
+}
+.tap-cares-schedule-detail__missed-badge {
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+}
+.tap-cares-schedule-detail__summary-cell {
+    max-width: 360px;
+    color: #334155;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tap-cares-schedule-detail__job-link {
+    color: #1d4ed8;
+    text-decoration: none;
+}
+.tap-cares-schedule-detail__job-link:hover {
+    text-decoration: underline;
+}
+
+/* ----- history cap note ----- */
+.tap-cares-schedule-detail__history-cap-note {
+    margin: 10px 0 0 0;
+    color: #64748b;
+    font-size: 12px;
+    font-style: italic;
+}
+
+/* ----- empty state ----- */
+.tap-cares-schedule-detail__empty {
+    padding: 24px;
+    text-align: center;
+    color: #64748b;
+    font-size: 14px;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 6px;
+}
+
+/* ----- back link ----- */
+.tap-cares-schedule-detail__back {
+    margin-top: 24px;
+    font-size: 13px;
+}
+.tap-cares-schedule-detail__back a {
+    color: #1d4ed8;
+    text-decoration: none;
+}
+.tap-cares-schedule-detail__back a:hover {
+    text-decoration: underline;
+}
