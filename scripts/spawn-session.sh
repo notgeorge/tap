@@ -235,6 +235,40 @@ if [[ -n "$STALE_CONTAINERS" ]]; then
 fi
 
 # ============================================================================
+# Step 1.5: Refresh local main from origin
+#
+# Spec: req-dev-multisession-push-workflow (step 4 + spawn-side guard).
+#       `git worktree add -b session/<name>` below branches from local `main`'s
+#       HEAD. If sibling sessions have pushed work to origin/main since this
+#       worktree's main ref last advanced, branching now would silently start
+#       the new session from stale code. Refresh first so the new session is
+#       always current.
+#
+#       The pull must run INSIDE the main worktree (not via `$REPO`, which is
+#       wherever the script was invoked from — possibly a session worktree).
+#       `git -C <main-worktree> pull` runs as if invoked there, so it advances
+#       `main` rather than whatever branch the invoking worktree has checked out.
+#
+#       --ff-only refuses non-fast-forward updates — if it fails, local main
+#       has either uncommitted changes (a discipline violation; never edit on
+#       main) or has diverged from origin (also a discipline violation). Surface
+#       the error rather than papering over it.
+# ============================================================================
+MAIN_WORKTREE="$HOME/tap-sessions/main"
+bold "Step 1.5: Refreshing local main from origin"
+if [[ ! -d "$MAIN_WORKTREE/.git" && ! -f "$MAIN_WORKTREE/.git" ]]; then
+  warn "Main worktree not found at $MAIN_WORKTREE — skipping refresh."
+  warn "If this is a non-standard checkout layout, advance local main manually before spawning."
+else
+  if ! git -C "$MAIN_WORKTREE" pull --ff-only origin main; then
+    fail "Local main is not fast-forwardable from origin/main.
+    Resolve manually in $MAIN_WORKTREE before spawning a new session.
+    Common causes: uncommitted changes in main (never edit there), or a divergent local main."
+  fi
+  info "Local main is current with origin/main."
+fi
+
+# ============================================================================
 # Step 2: Create the worktree
 #
 # Spec: req-dev-multisession-spawn-script — worktrees live OUTSIDE the repo at
