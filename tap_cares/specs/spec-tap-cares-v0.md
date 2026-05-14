@@ -30,7 +30,7 @@ tap-cares also acts as a future skill-tree anchor. As each subsystem stabilizes,
 | req-tap-cares-v0-receiver | [Receivers](#receivers) | Proposed | Open an inbound surface and accept pushed data |
 | req-tap-cares-v0-emitter | [Emitters](#emitters) | Proposed | Send data or notifications outward through explicit channels |
 | req-tap-cares-v0-action | [Actions](#actions) | Proposed | Generate and track proposed or executable responses to processed data |
-| req-tap-cares-v0-scheduler | [Scheduler](#scheduler) | Proposed | Periodically execute collector, emitter, receiver, or action capability nodes |
+| req-tap-cares-v0-scheduler | [Scheduler](#scheduler) | Proposed | Periodically execute collector capability nodes via the scheduler spec |
 | req-tap-cares-v0-merge | [Grid Merge Contract](#grid-merge-contract) | Proposed | Normalize collected or received data into GRIFT batches for service-layer grid writes |
 | req-tap-cares-v0-run-record | [Run Records And Observability](#run-records-and-observability) | Proposed | On-grid execution records for debugging, audit, and UI/API visibility |
 | req-tap-cares-v0-authenticator | [Authenticator Management](#authenticator-management) | Proposed | Phase 2 credential/authenticator abstraction for external systems |
@@ -173,17 +173,28 @@ Status: `Proposed`
 
 The scheduler periodically executes on-grid tap-cares capability nodes. The first scheduler target is recurring collection for the FedRAMP 20x KSI catalog.
 
-Schedules should reference capability nodes rather than importing implementation functions directly. A schedule should declare timing, enabled state, input parameters, concurrency behavior, failure handling, and run retention expectations.
+The scheduler is specified in `spec-tap-cares-scheduler.md`.
 
-The scheduler should be simple before it is clever. v0 can begin with management-command or Django Tasks backed execution, provided the schedule records are durable and the execution path is observable.
+v0 scheduler scope is intentionally narrow:
+
+- Huey evaluates schedules once per minute.
+- Schedules target `Collector` nodes only.
+- Schedule cadence is a five-field UTC cron expression.
+- Missed scheduled slots are counted on the next observed fire through `ScheduleFire.missed_count`; they are not backfilled.
+- Schedule overlap is controlled by per-schedule `max_active_runs`.
+- Scheduled collection invokes `run_collection(...)`; it does not create jobs or enqueue collector tasks directly.
+
+Schedules should reference collector capability nodes rather than importing implementation functions directly. Schedule state, fire history, missed counts, and links to collection jobs live on the TAP grid rather than in Huey.
 
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-v0-scheduler-1 | Capability Target | Proposed | Schedules execute tap-cares capability nodes by stable grid identity or capability key. | |
-| req-tap-cares-v0-scheduler-2 | Durable Schedule | Proposed | Enabled state, cadence, input parameters, and last/next run metadata are stored durably. | |
-| req-tap-cares-v0-scheduler-3 | Concurrency Policy | Proposed | Each schedule declares how overlapping runs are handled. | |
+| req-tap-cares-v0-scheduler-1 | Collector Target | Proposed | v0 schedules execute `Collector` nodes by stable grid identity. | See `spec-tap-cares-scheduler.md`. |
+| req-tap-cares-v0-scheduler-2 | Durable Schedule | Proposed | Enabled state, UTC cron expression, processed-slot cursor, and max active run limit are stored durably. | |
+| req-tap-cares-v0-scheduler-3 | Durable Fire History | Proposed | Each evaluated due slot creates a `ScheduleFire` recording triggered, skipped, or failed scheduler decision state. | |
+| req-tap-cares-v0-scheduler-4 | No Catch-Up Execution | Proposed | Missed slots are counted but not backfilled. | |
+| req-tap-cares-v0-scheduler-5 | run_collection Boundary | Proposed | Scheduled execution calls `run_collection(...)` and does not reach behind the collector runtime boundary. | |
 
 ## Grid Merge Contract
 ----
