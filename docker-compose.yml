@@ -62,6 +62,12 @@ services:
     # Syntax: ./local/path:/container/path
     # The dot (.) means "current directory"
     #
+    # venv is a NAMED VOLUME mounted over /app/.venv. The source tree is a
+    # bind mount, but Python virtualenvs are OS-specific; sharing one .venv
+    # between macOS host tools and the Linux container produces broken
+    # interpreter links. Keeping the container venv in a per-project volume
+    # isolates it from any host-side .venv or .venv-host.
+    #
     # uv_cache is a NAMED VOLUME for uv's wheel/extract cache. Keeping it out
     # of the image means Docker's layer cache can't fossilize a corrupted uv
     # state into every rebuild (a real problem we hit while debugging multi-
@@ -69,6 +75,7 @@ services:
     # are isolated; despawn's `dc down -v` removes it for free.
     volumes:
       - .:/app
+      - venv:/app/.venv
       - uv_cache:/root/.cache/uv
 
     # Map container port 8000 to host port WEB_PORT (default 8000)
@@ -123,7 +130,9 @@ services:
 # ============================================================================
 # Named volumes persist data and are managed by Docker
 # Docker stores them internally (not in your project folder)
-# Run 'docker volume ls' to see them, 'docker volume rm tap_postgres_data' to delete
+# Run 'docker volume ls' to see them; `scripts/dc down -v` removes the
+# compose project's volumes during teardown.
 volumes:
   postgres_data:  # Stores PostgreSQL data files
+  venv:           # Stores the container-owned Python virtualenv at /app/.venv.
   uv_cache:       # Stores uv's downloaded wheels + extracted archives. Per-project.

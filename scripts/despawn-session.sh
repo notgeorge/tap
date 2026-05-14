@@ -15,8 +15,7 @@
 #   scripts/despawn-session.sh <name> --purge-image
 #                                               # also force-remove the per-project
 #                                               # web image so the next spawn rebuilds
-#                                               # without cache (use when uv cache
-#                                               # or wheel state is poisoned).
+#                                               # without Docker image cache.
 
 # NOT set -e — we want best-effort cleanup, not abort-on-first-failure.
 set -uo pipefail
@@ -160,8 +159,8 @@ fi
 
 # ---------------------------------------------------------------------------
 # 6. Optional: purge the per-project web image so the next spawn rebuilds
-#    without cache. Use this when uv's cache or wheel state is poisoned —
-#    despawn alone won't fix that because the cache is baked into the image.
+#    without Docker image cache. Runtime Python state lives in compose volumes
+#    and is removed by `down -v` / residual volume cleanup above.
 # ---------------------------------------------------------------------------
 if [[ "$PURGE_IMAGE" -eq 1 ]]; then
   bold "Purging per-project image"

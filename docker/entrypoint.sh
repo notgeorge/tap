@@ -6,11 +6,11 @@
 # 2. Database migrations
 # 3. Django development server
 #
-# The dependency sync lives here (rather than in the Dockerfile) because both
-# /app/.venv and /root/.cache/uv are mounted at runtime — anything we install
-# at build time is hidden at runtime. Doing it in the entrypoint means the
-# install lands in the bind-mounted worktree and the named-volume cache, which
-# is what we actually want to use.
+# The dependency sync lives here (rather than in the Dockerfile) because
+# /app/.venv and /root/.cache/uv are named volumes mounted at runtime —
+# anything we install at build time is hidden at runtime. Doing it in the
+# entrypoint means the install lands in the per-project container venv and
+# uv cache volumes, which is what we actually want to use.
 #
 # Exit immediately if any command fails
 set -e

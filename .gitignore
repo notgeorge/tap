@@ -8,6 +8,7 @@ build/
 
 # Virtual environment (managed by UV)
 .venv/
+.venv-host/
 
 # UV lock file is committed (reproducible builds)
 # but the cache is not
