@@ -27,6 +27,7 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-spawn-script | [Spawn Script](#spawn-script) | Implemented | Phase 2; interactive |
 | req-dev-multisession-admin-bootstrap | [Admin User Bootstrap](#admin-user-bootstrap) | Implemented | Phase 2, sub-feature of spawn |
 | req-dev-multisession-spawn-import-strict | [Granular Grift Import Failure Mode](#granular-grift-import-failure-mode) | Backlog | Phase 3 polish on top of fail-fast |
+| req-dev-multisession-push-workflow | [Session → Main Push Workflow](#session-→-main-push-workflow) | Implemented | Always-on discipline; codifies how session worktrees advance origin/main and keep the local main worktree current |
 | req-dev-multisession-list-script | [List Script](#list-script) | Proposed | Phase 3 |
 | req-dev-multisession-named-routing | [Name-Based Routing via Reverse Proxy](#name-based-routing-via-reverse-proxy) | Backlog | Phase 3 polish |
 
@@ -222,6 +223,70 @@ The motivating event: 2026-05-06, a `genericom/ec2-internals.grift.json` bundle 
 | req-dev-multisession-spawn-import-strict-1 | Strict-by-default | Backlog | `import_plugin_grift` exits non-zero on first failed bundle when `--continue-on-error` is not passed. | Already implemented as part of req-dev-multisession-spawn-script-5. |
 | req-dev-multisession-spawn-import-strict-2 | Continue-on-error flag | Backlog | `--continue-on-error` causes the command to attempt every bundle and exit non-zero at the end with a per-bundle summary. | |
 | req-dev-multisession-spawn-import-strict-3 | Spawn defaults to strict | Backlog | `scripts/spawn-session.sh` invokes import without `--continue-on-error`, so a bad bundle aborts the spawn and fires the failure trap. | |
+
+### Session → Main Push Workflow
+----
+RID: `req-dev-multisession-push-workflow`
+Status: `Implemented`
+
+Multi-worktree development needs an unambiguous rule for how changes leave a session and become part of `main`. Without it, parallel sessions race each other on `origin/main`, new session spawns start from stale code, and the discipline becomes "whatever the current developer remembers." This requirement codifies the rule so every session — human or agent — follows the same four-step pattern.
+
+#### The discipline
+
+1. **Never edit `main` directly.** All work happens on a `session/<name>` branch inside a session worktree under `~/tap-sessions/<name>/`. The primary worktree at `~/tap-sessions/main/` is a passive reflection of `origin/main`; its working tree should never have uncommitted changes. Following this rule alone makes everything below succeed by default.
+2. **Pre-push merge.** Before pushing to advance `main`, the session worktree must catch up to whatever sibling sessions have already landed:
+
+   ```
+   git fetch origin main
+   git merge origin/main
+   ```
+
+   Resolve any conflicts on the session branch, commit, then continue. Skipping this step risks a non-fast-forward rejection at push time or, worse, silent overwrite of another session's work if anyone ever uses `--force`.
+3. **Push.** Advance `origin/main` directly from the session branch's tip:
+
+   ```
+   git push origin session/<name>:main
+   ```
+
+   This pattern keeps the session branch alive on origin under its own name *and* fast-forwards `origin/main`, all in one operation. There is no separate "merge into main" commit.
+4. **Sync the primary worktree.** Immediately after the push, advance the local `main` ref in the primary worktree so it matches `origin/main`:
+
+   ```
+   git -C /Users/george/tap-sessions/main pull --ff-only
+   ```
+
+   This step is load-bearing: `scripts/spawn-session.sh` runs `git worktree add <path> -b session/<name>` with no starting-point argument, which means new session branches start from whatever the local `main` ref currently points at. A stale local main = every newly-spawned session starts from old code. The post-push pull is the discipline that keeps spawn-session always-current.
+
+#### Why the naive form does not work
+
+The intuitive command for step 4 is `git fetch origin main:main` from inside the session worktree. Git rejects it:
+
+```
+fatal: refusing to fetch into branch 'refs/heads/main' checked out at '/Users/george/tap-sessions/main'
+```
+
+A branch ref cannot be advanced from outside the worktree that has it checked out — git enforces this to prevent the working tree and the ref from desynchronizing. The fetch-and-fast-forward has to happen *inside* the main worktree, which is exactly what `git -C /path/to/main pull --ff-only` does without requiring a `cd`.
+
+If `pull --ff-only` ever fails with "not a fast-forward", it means a sibling worktree pushed to main between this session's pre-push merge and this push. Surface the error, re-merge `origin/main` into the session branch, and re-run the push + post-push pull.
+
+#### What a partial workaround looks like
+
+`git fetch origin main` (no refspec) updates only the remote-tracking branch `origin/main`. It avoids the "refusing to fetch into checked-out branch" error but does **not** advance local `main`. It's a safe fallback that keeps `origin/main` current for the *next* session's pre-push merge, but it leaves the spawn-session staleness problem unsolved. Use only when `pull --ff-only` itself fails (e.g. someone forgot the "never edit on main" rule and left uncommitted changes); fix the underlying issue rather than relying on this fallback.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-push-workflow-1 | Never edit on main | Implemented | The primary worktree at `~/tap-sessions/main/` MUST NOT carry uncommitted changes or local commits that haven't traveled through a session branch. All edits live on `session/<name>` branches. | |
+| req-dev-multisession-push-workflow-2 | Pre-push merge required | Implemented | Before advancing `origin/main`, the session branch MUST be fast-forwardable to its target by merging `origin/main` first. | Prevents non-fast-forward push rejections and overwrites. |
+| req-dev-multisession-push-workflow-3 | Push form is `session:main` | Implemented | The push command is `git push origin session/<name>:main`. This advances `origin/main` and preserves the session branch on origin in one operation. | No separate merge commit; no checkout of `main`. |
+| req-dev-multisession-push-workflow-4 | Post-push primary sync | Implemented | After the push, the local `main` ref MUST be advanced via `git -C /Users/george/tap-sessions/main pull --ff-only`. | Load-bearing for `scripts/spawn-session.sh` correctness. |
+| req-dev-multisession-push-workflow-5 | Naive fetch form is wrong | Implemented | `git fetch origin main:main` from a session worktree is explicitly NOT the post-push sync. Git refuses to fast-forward a ref that's checked out elsewhere; the operation must run inside the main worktree (via `git -C`). | Documented so agents don't reinvent the workaround. |
+
+#### Future
+
+- A `scripts/promote-to-main.sh` wrapper could codify steps 2–4 as one invocation. Out of scope for v0 because the four commands are short and the discipline is the point; agents that follow the spec verbatim already get the right behavior. If multiple humans start landing work without agent assistance, the wrapper becomes more valuable.
+- A pre-push git hook could refuse `session/<name>:main` if the pre-push merge step was skipped, but hook installation in fresh worktrees is its own coordination problem.
 
 ### Admin User Bootstrap
 ----
