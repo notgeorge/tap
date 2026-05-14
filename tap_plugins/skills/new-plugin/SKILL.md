@@ -1,6 +1,6 @@
 ---
 name: new-plugin
-description: Scaffold a new TAP plugin with manifest, models, edges, tests, specs, icons, and README. Use when creating a new plugin from scratch.
+description: Scaffold a new TAP plugin with manifest, models, edges, tests, specs, icons, and docs. Use when creating a new plugin from scratch.
 disable-model-invocation: true
 allowed-tools: Read Write Edit Bash(git *) Bash(gh *) Bash(mkdir *) Bash(ls *) Glob Grep
 argument-hint: <slug> <display-name>
@@ -102,6 +102,7 @@ The core files every plugin needs:
 - `__init__.py` — package marker, docstring only
 - `apps.py` — single `TapPluginConfig` subclass, body is `pass`, no explicit `name`/`label`/`verbose_name`
 - `tap-plugin.toml` — manifest per `spec-plugin-manifest-v0.md`
+- `docs/README.md` — plugin-local developer and AI-agent orientation notes that travel with the plugin
 - `migrations/__init__.py` — empty
 - `tests/__init__.py` — empty
 - `.gitignore` — if the plugin will be its own git repo (the standalone-repo/submodule shape from Step 2), create one to keep Python bytecode and tooling caches out of the index. Plugin repos do not inherit the TAP repo's top-level `.gitignore`. Skip this step only if `.gitignore` is already tracked. Minimum recommended contents:
@@ -116,6 +117,18 @@ The core files every plugin needs:
   ```
 
   Without this, the first `git add -A` after running tests or migrations will quietly pull dozens of `.pyc` files into a commit.
+
+Create `docs/README.md` as soon as the plugin directory exists. This file is not marketing copy. It is the durable context page for future developers and AI agents working inside the plugin, especially after the plugin is split into its own repository or submodule. At minimum include:
+
+- what this plugin owns
+- what nearby TAP apps or plugins own instead
+- important specs and docs to read first
+- current model, edge, collector, and GRIFT scope
+- local validation and operational notes
+
+Keep it short at scaffold time, then maintain it as decisions accumulate. Do not leave it as a stale placeholder once the plugin has real behavior.
+
+Periodically revisit `docs/README.md` and any plugin-local docs during plugin work, especially after adding models, edges, collectors, GRIFT seed data, validation behavior, or operational assumptions. Treat stale plugin documentation as spec drift: update it in the same change set when the implementation or architecture moves.
 
 ## Step 5: Create Models
 
@@ -203,16 +216,22 @@ Before making the plugin public, strongly recommend that the author also run the
 
 Remember that structure-level validation confirms manifest, import, and path correctness, but it does not yet prove that plugin-backed database tables or migration state are present.
 
-## Step 11: Create README.md
+## Step 11: Update Plugin Documentation
 
-Write a concise README for the plugin repo covering:
+Update `docs/README.md` so it is useful to a future developer or AI agent landing directly in the plugin. Cover:
 
 - What the plugin does (1-2 sentences)
+- What this plugin owns versus what remains in TAP core or sibling plugins
 - Resource types modeled (organized by category)
 - Edge types
+- Collector, receiver, emitter, or schedule behavior, if any
+- GRIFT seed data and import expectations, if any
+- Important specs and source files to read before editing
 - How to install (`git submodule add`, `INSTALLED_APPS`, `migrate`)
 - How to validate (`python manage.py validate_plugin plugins/<slug> --level runs`)
 - Pointer to `specs/` for detailed documentation
+
+If the plugin is being published as a standalone repository, also create or update a root `README.md` for external repository visitors. The root README may stay concise and point into `docs/README.md` for developer/agent notes; `docs/README.md` remains the canonical plugin-local context page.
 
 ## Step 12: Commit And Push Progress
 
