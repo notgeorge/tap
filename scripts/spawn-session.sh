@@ -330,6 +330,31 @@ EOF
 info "Wrote $WORKTREE/.env.local (gitignored)."
 
 # ============================================================================
+# Step 3.5: Provision the tap_secrets/ bind-mount target
+#
+# Spec: req-tap-cares-secrets-files in tap_cares/specs/spec-tap-cares-secrets.md.
+#       docker-compose.yml bind-mounts ./tap_secrets:/run/tap-secrets:ro into
+#       the web container. Without this step, Docker auto-creates that host
+#       directory at `dc up` time as root, blocking the operator from dropping
+#       *.secret.json files in without sudo.
+#
+#       If $HOME/tap-secrets/ exists on the host, symlink the worktree's
+#       tap_secrets to it so one shared secrets directory feeds every session.
+#       Otherwise create an empty per-session directory; the tap-cares loader
+#       no-ops cleanly when the root is empty.
+# ============================================================================
+bold "Step 3.5: Provisioning tap_secrets/ bind-mount target"
+SHARED_SECRETS="$HOME/tap-secrets"
+if [[ -d "$SHARED_SECRETS" ]]; then
+  ln -s "$SHARED_SECRETS" "$WORKTREE/tap_secrets"
+  info "Linked $WORKTREE/tap_secrets -> $SHARED_SECRETS (shared across sessions)."
+else
+  mkdir -p "$WORKTREE/tap_secrets"
+  info "Created empty $WORKTREE/tap_secrets/ (per-session)."
+  info "Tip: 'mkdir $SHARED_SECRETS' to share one secrets directory across all sessions."
+fi
+
+# ============================================================================
 # Step 4: Build & start the Docker stack
 #
 # Spec: req-dev-multisession-env-cascade — must invoke compose via scripts/dc
@@ -477,6 +502,15 @@ info "  Username:  admin"
 info "  Password:  (saved to .dev-credentials — never printed to stdout)"
 info "  File:      $WORKTREE/.dev-credentials"
 info "  Read with: cat '$WORKTREE/.dev-credentials'"
+echo
+info "Secrets mount (tap-cares runtime secrets)"
+if [[ -L "$WORKTREE/tap_secrets" ]]; then
+  info "  Host path: $WORKTREE/tap_secrets -> $(readlink "$WORKTREE/tap_secrets")"
+else
+  info "  Host path: $WORKTREE/tap_secrets/"
+fi
+info "  Container: /run/tap-secrets (read-only)"
+info "  Drop:      <key>.secret.json  (see tap_cares/specs/spec-tap-cares-secrets.md)"
 echo
 info "Attach Claude Code"
 info "  CLI:       cd $WORKTREE && claude"

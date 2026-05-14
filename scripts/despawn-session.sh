@@ -84,6 +84,18 @@ info "  Worktree:              $WORKTREE  (entire directory + all uncommitted fi
 info "  Branch:                session/$SESSION_NAME"
 info "  Registry row:          $REGISTRY"
 [[ "$PURGE_IMAGE" -eq 1 ]] && info "  Per-project image:     ${PROJECT}-web (force rebuild on next spawn)"
+
+# tap-cares secrets mount — flag real per-session secrets that would be lost.
+# A symlink target (e.g. ~/tap-secrets/) is preserved because rm -rf doesn't
+# follow symlinks; we only warn when files are about to be deleted.
+if [[ -L "$WORKTREE/tap_secrets" ]]; then
+  info "  Secrets mount:         symlink to $(readlink "$WORKTREE/tap_secrets") (target preserved)"
+elif [[ -d "$WORKTREE/tap_secrets" ]]; then
+  SECRET_FILE_COUNT="$(find "$WORKTREE/tap_secrets" -name '*.secret.json' -type f 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ "$SECRET_FILE_COUNT" -gt 0 ]]; then
+    warn "  Secrets mount:         $SECRET_FILE_COUNT *.secret.json file(s) in $WORKTREE/tap_secrets/ WILL BE DELETED"
+  fi
+fi
 echo
 
 if [[ "$ASSUME_YES" -eq 0 ]]; then

@@ -89,6 +89,23 @@ Duplicate `scope:key` values are configuration errors even when they appear in d
   github/fedramp-source.secret.json
 ```
 
+### Multi-Session Host Convention
+
+In the multi-session dev workflow (`specs/spec-dev-multisession.md`),
+docker-compose.yml bind-mounts `./tap_secrets` (relative to each session's
+worktree) into `/run/tap-secrets:ro`. `scripts/spawn-session.sh` provisions
+that host path before `dc up` runs:
+
+- If `$HOME/tap-secrets/` exists, the spawn script symlinks
+  `<worktree>/tap_secrets -> $HOME/tap-secrets/` so a single host-side
+  secrets directory feeds every session. `rm -rf` and `git worktree remove`
+  do not follow the symlink, so despawn never touches the shared directory.
+- Otherwise the spawn script creates an empty per-session directory; the
+  loader no-ops cleanly and the operator can populate the session's
+  `tap_secrets/` later. Despawn deletes any `*.secret.json` files it finds
+  there — the despawn plan output flags this so a forgotten real secret is
+  not silently nuked.
+
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
