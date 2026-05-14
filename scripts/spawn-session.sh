@@ -274,11 +274,19 @@ fi
 # Spec: req-dev-multisession-spawn-script — worktrees live OUTSIDE the repo at
 #       ~/tap-sessions/<name> on a new branch session/<name>. Working tree
 #       isolation is goal #2 of spec-dev-multisession.md.
+#
+#       The explicit `main` start-point is load-bearing: without it,
+#       `git worktree add -b <new>` uses the INVOKING worktree's HEAD, not
+#       `main`. If spawn-session.sh is invoked from a session worktree (e.g.
+#       an agent inside vscode-prime spawning a sub-session), the new session
+#       would silently inherit that session's branch-local commits. Naming
+#       `main` makes the start point unambiguous and ties the new session to
+#       the local `main` ref that Step 1.5 just refreshed from origin.
 # ============================================================================
 bold "Step 2: Creating worktree at $WORKTREE"
-git worktree add "$WORKTREE" -b "session/$SESSION_NAME"
+git worktree add "$WORKTREE" -b "session/$SESSION_NAME" main
 cd "$WORKTREE"
-info "Created. Now on branch session/$SESSION_NAME."
+info "Created. Now on branch session/$SESSION_NAME (branched from main)."
 
 # ============================================================================
 # Step 3: Write .env.local

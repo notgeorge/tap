@@ -83,8 +83,8 @@ When advancing `origin/main` from a session branch, follow `req-dev-multisession
 
 1. **Never edit on `main`** — all work happens on `session/<name>`.
 2. **Pre-push merge** — `git fetch origin main && git merge origin/main` into the session branch so the push is a fast-forward.
-3. **Push** — `git push origin session/<name>:main`.
-4. **Post-push sync** — `git -C /Users/george/tap-sessions/main pull --ff-only` to advance the local `main` ref. This is required because `scripts/spawn-session.sh` branches new sessions off local `main`, so a stale ref means stale spawns.
+3. **Push (combined refspec)** — `git push origin session/<name>:main session/<name>:session/<name>`. Two refspecs in one push so `origin/main` and `origin/session/<name>` advance atomically. A single `:main` refspec advances only `origin/main` and does NOT preserve the session branch on origin.
+4. **Post-push sync** — `git -C /Users/george/tap-sessions/main pull --ff-only` to advance the local `main` ref. Required because `scripts/spawn-session.sh` branches new sessions off local `main` (via `git worktree add ... main`), so a stale ref means stale spawns.
 
 Do **not** use `git fetch origin main:main` from a session worktree — Git refuses to fast-forward a branch checked out in another worktree (`fatal: refusing to fetch into branch 'refs/heads/main' checked out at ...`). The `git -C <path> pull --ff-only` form does the equivalent work *inside* the main worktree, which is the path Git permits.
 

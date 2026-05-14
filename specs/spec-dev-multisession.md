@@ -242,20 +242,20 @@ Multi-worktree development needs an unambiguous rule for how changes leave a ses
    ```
 
    Resolve any conflicts on the session branch, commit, then continue. Skipping this step risks a non-fast-forward rejection at push time or, worse, silent overwrite of another session's work if anyone ever uses `--force`.
-3. **Push.** Advance `origin/main` directly from the session branch's tip:
+3. **Push.** Advance `origin/main` AND the session branch on origin in one atomic operation, using multiple refspecs on a single push:
 
    ```
-   git push origin session/<name>:main
+   git push origin session/<name>:main session/<name>:session/<name>
    ```
 
-   This pattern keeps the session branch alive on origin under its own name *and* fast-forwards `origin/main`, all in one operation. There is no separate "merge into main" commit.
+   Each refspec is `<local>:<remote>`. The first advances `origin/main` from the session tip; the second advances (or creates) `origin/session/<name>`. Git transmits both refspecs in one request and the server applies them atomically — either both refs advance or neither does. There is no separate "merge into main" commit. A single `:main` push by itself does NOT preserve the session branch on origin; the `session/<name>:session/<name>` refspec must be present (or run as a separate `git push origin session/<name>`).
 4. **Sync the primary worktree.** Immediately after the push, advance the local `main` ref in the primary worktree so it matches `origin/main`:
 
    ```
    git -C /Users/george/tap-sessions/main pull --ff-only
    ```
 
-   This step is load-bearing: `scripts/spawn-session.sh` runs `git worktree add <path> -b session/<name>` with no starting-point argument, which means new session branches start from whatever the local `main` ref currently points at. A stale local main = every newly-spawned session starts from old code. The post-push pull is the discipline that keeps spawn-session always-current.
+   This step is load-bearing: `scripts/spawn-session.sh` runs `git worktree add <path> -b session/<name> main` to branch the new session from the local `main` ref. If that ref is stale, every newly-spawned session starts from old code. The post-push pull keeps it current. (The spawn script also runs its own `pull --ff-only` against `main` at Step 1.5 as a belt-and-suspenders guard — see `req-dev-multisession-push-workflow-6`.)
 
 #### Why the naive form does not work
 
@@ -279,7 +279,7 @@ If `pull --ff-only` ever fails with "not a fast-forward", it means a sibling wor
 | --- | --- | :---: | --- | --- |
 | req-dev-multisession-push-workflow-1 | Never edit on main | Implemented | The primary worktree at `~/tap-sessions/main/` MUST NOT carry uncommitted changes or local commits that haven't traveled through a session branch. All edits live on `session/<name>` branches. | |
 | req-dev-multisession-push-workflow-2 | Pre-push merge required | Implemented | Before advancing `origin/main`, the session branch MUST be fast-forwardable to its target by merging `origin/main` first. | Prevents non-fast-forward push rejections and overwrites. |
-| req-dev-multisession-push-workflow-3 | Push form is `session:main` | Implemented | The push command is `git push origin session/<name>:main`. This advances `origin/main` and preserves the session branch on origin in one operation. | No separate merge commit; no checkout of `main`. |
+| req-dev-multisession-push-workflow-3 | Combined-refspec push | Implemented | The push command is `git push origin session/<name>:main session/<name>:session/<name>` — two refspecs on one push so `origin/main` and `origin/session/<name>` advance atomically. A single `:main` refspec advances only `origin/main` and does NOT preserve the session branch on origin; the second refspec is required (or run as a separate `git push origin session/<name>`, accepting non-atomic behavior). | No separate merge commit; no checkout of `main`. Git refuses both refs together if either fails (e.g. non-fast-forward on `origin/main`), preserving the all-or-nothing semantic. |
 | req-dev-multisession-push-workflow-4 | Post-push primary sync | Implemented | After the push, the local `main` ref MUST be advanced via `git -C /Users/george/tap-sessions/main pull --ff-only`. | Load-bearing for `scripts/spawn-session.sh` correctness. |
 | req-dev-multisession-push-workflow-5 | Naive fetch form is wrong | Implemented | `git fetch origin main:main` from a session worktree is explicitly NOT the post-push sync. Git refuses to fast-forward a ref that's checked out elsewhere; the operation must run inside the main worktree (via `git -C`). | Documented so agents don't reinvent the workaround. |
 | req-dev-multisession-push-workflow-6 | Spawn-side guard | Implemented | `scripts/spawn-session.sh` refreshes local `main` from `origin/main` BEFORE creating the new session worktree. The pull MUST run inside the main worktree (via `git -C "$HOME/tap-sessions/main" pull --ff-only origin main`), not via `$REPO` — `$REPO` is wherever the script was invoked from (possibly a session worktree), and pulling there would advance the session branch rather than main. A non-fast-forward (uncommitted changes on main, divergent local main) aborts the spawn loudly rather than silently starting a session from stale code. If the main worktree is missing at `$HOME/tap-sessions/main` (non-standard layout), the guard warns and skips rather than aborting. | Belt-and-suspenders with the post-push sync: that keeps siblings current between spawns; this guard ensures the *next* spawn is current even if the discipline slipped. |
