@@ -11,6 +11,7 @@
             <thead>
                 <tr>
                     <th>Name</th>
+                    <th>Description</th>
                     <th>Target collector</th>
                     <th>Cron</th>
                     <th>Enabled</th>
@@ -27,6 +28,7 @@
                     <td class="tap-cares-schedules__name">
                         <a href="/administrivia/cares/schedule?entity_id={{ row.entity_id }}">{{ row.name }}</a>
                     </td>
+                    <td class="tap-cares-schedules__desc">{{ row.description }}</td>
                     <td class="tap-cares-schedules__target">
                         {% if row.target %}
                             <a href="/administrivia/cares/collector?entity_id={{ row.target.entity_id }}">{{ row.target.name }}</a>

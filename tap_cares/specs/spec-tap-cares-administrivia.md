@@ -348,6 +348,7 @@ Initial columns:
 | Column | Source | Notes |
 | --- | --- | --- |
 | Name | `Schedule.name` | Row links to `/administrivia/cares/schedule?entity_id=<schedule_entity_id>` |
+| Description | `Schedule.description` | Plain text; gets the dominant horizontal column space, mirroring the collectors table treatment. |
 | Target collector | `SCHEDULED_TARGET` edge → `Collector.name` | Cell is a link to `/administrivia/cares/collector?entity_id=<collector_entity_id>`. Missing target (no edge) renders as a tinted error cell. |
 | Cron | `Schedule.cron_expression` | Code-style badge |
 | Enabled | `Schedule.enabled` | `enabled` / `disabled` pill. Disabled rows are tinted the same way unavailable-collector rows are tinted today. |

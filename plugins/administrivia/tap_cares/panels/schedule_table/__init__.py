@@ -113,6 +113,7 @@ def _row_for_schedule(schedule: Schedule) -> dict[str, Any]:
     return {
         "entity_id": str(schedule.entity_id),
         "name": schedule.name,
+        "description": schedule.description,
         "cron_expression": schedule.cron_expression,
         "enabled": schedule.enabled,
         "max_active_runs": schedule.max_active_runs,

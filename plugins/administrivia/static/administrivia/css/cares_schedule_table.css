@@ -60,6 +60,13 @@
     text-decoration: underline;
 }
 
+/* description cell — dominant horizontal space, mirrors collectors table */
+.tap-cares-schedules__desc {
+    min-width: 320px;
+    color: #475569;
+    line-height: 1.45;
+}
+
 /* target cell */
 .tap-cares-schedules__target {
     min-width: 180px;
