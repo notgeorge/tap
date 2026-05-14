@@ -24,23 +24,23 @@ The v0 scheduler should be deliberately small: UTC cron expressions, collector t
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-tap-cares-scheduler-scope | [Scheduler Scope](#scheduler-scope) | Proposed | Defines v0 as collector-only recurring execution |
-| req-tap-cares-scheduler-huey | [Huey Minute Tick](#huey-minute-tick) | Proposed | Huey evaluates enabled schedules once per minute |
-| req-tap-cares-scheduler-dependencies | [Implementation Dependencies](#implementation-dependencies) | Proposed | Huey and croniter as explicit uv-managed dependencies |
-| req-tap-cares-scheduler-model | [Schedule Model](#schedule-model) | Proposed | User-creatable on-grid schedule node |
-| req-tap-cares-scheduler-fire-model | [ScheduleFire Model](#schedulefire-model) | Proposed | Internal-only durable record for each evaluated due slot |
-| req-tap-cares-scheduler-edges | [Scheduler Edges](#scheduler-edges) | Proposed | Graph relationships between schedules, fires, collectors, and jobs |
-| req-tap-cares-scheduler-cron | [Cron Semantics](#cron-semantics) | Proposed | UTC, minute-resolution cron parsed with croniter, no catch-up execution |
-| req-tap-cares-scheduler-missed-count | [Missed Count](#missed-count) | Proposed | Detect schedule gaps without backfilling work |
-| req-tap-cares-scheduler-dedupe | [Slot Dedupe](#slot-dedupe) | Proposed | Atomic optimistic-update claim prevents duplicate fires |
-| req-tap-cares-scheduler-concurrency | [Schedule Concurrency](#schedule-concurrency) | Proposed | Per-schedule max active runs |
-| req-tap-cares-scheduler-trigger-provenance | [Trigger Provenance Handoff](#trigger-provenance-handoff) | Proposed | Scheduler hands off trigger metadata to the collector subsystem |
+| req-tap-cares-scheduler-scope | [Scheduler Scope](#scheduler-scope) | Implemented | Defines v0 as collector-only recurring execution |
+| req-tap-cares-scheduler-huey | [Huey Minute Tick](#huey-minute-tick) | Implemented | Huey evaluates enabled schedules once per minute |
+| req-tap-cares-scheduler-dependencies | [Implementation Dependencies](#implementation-dependencies) | Implemented | Huey and croniter as explicit uv-managed dependencies |
+| req-tap-cares-scheduler-model | [Schedule Model](#schedule-model) | Implemented | User-creatable on-grid schedule node |
+| req-tap-cares-scheduler-fire-model | [ScheduleFire Model](#schedulefire-model) | Implemented | Internal-only durable record for each evaluated due slot |
+| req-tap-cares-scheduler-edges | [Scheduler Edges](#scheduler-edges) | Implemented | Graph relationships between schedules, fires, collectors, and jobs |
+| req-tap-cares-scheduler-cron | [Cron Semantics](#cron-semantics) | Implemented | UTC, minute-resolution cron parsed with croniter, no catch-up execution |
+| req-tap-cares-scheduler-missed-count | [Missed Count](#missed-count) | Implemented | Detect schedule gaps without backfilling work |
+| req-tap-cares-scheduler-dedupe | [Slot Dedupe](#slot-dedupe) | Implemented | Atomic optimistic-update claim prevents duplicate fires |
+| req-tap-cares-scheduler-concurrency | [Schedule Concurrency](#schedule-concurrency) | Implemented | Per-schedule max active runs |
+| req-tap-cares-scheduler-trigger-provenance | [Trigger Provenance Handoff](#trigger-provenance-handoff) | Implemented | Scheduler hands off trigger metadata to the collector subsystem |
 | req-tap-cares-scheduler-backlog | [Backlog](#backlog) | Backlog | Deferred scheduler capabilities |
 
 ## Scheduler Scope
 ----
 RID: `req-tap-cares-scheduler-scope`
-Status: `Proposed`
+Status: `Implemented`
 
 v0 schedules target collectors only.
 
@@ -60,14 +60,14 @@ When a schedule fires successfully, it invokes `tap_cares.services.run_collectio
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-scope-1 | Collector-Only v0 | Proposed | v0 schedules can target `Collector` nodes and no other CARES capability type. | |
-| req-tap-cares-scheduler-scope-2 | Uses run_collection | Proposed | Successful scheduled execution invokes `run_collection(...)`; the scheduler does not reach behind that boundary. | See `spec-tap-cares-collector.md` `req-tap-cares-collector-run-collection`. |
-| req-tap-cares-scheduler-scope-3 | No Direct Task Enqueue | Proposed | The scheduler never calls `run_collector.enqueue(...)` directly. | |
+| req-tap-cares-scheduler-scope-1 | Collector-Only v0 | Implemented | v0 schedules can target `Collector` nodes and no other CARES capability type. | |
+| req-tap-cares-scheduler-scope-2 | Uses run_collection | Implemented | Successful scheduled execution invokes `run_collection(...)`; the scheduler does not reach behind that boundary. | See `spec-tap-cares-collector.md` `req-tap-cares-collector-run-collection`. |
+| req-tap-cares-scheduler-scope-3 | No Direct Task Enqueue | Implemented | The scheduler never calls `run_collector.enqueue(...)` directly. | |
 
 ## Huey Minute Tick
 ----
 RID: `req-tap-cares-scheduler-huey`
-Status: `Proposed`
+Status: `Implemented`
 
 Huey provides the v0 recurring process that wakes once per minute and evaluates schedules.
 
@@ -88,15 +88,15 @@ A separate host-level watcher that detects Huey death and multiple-worker condit
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-huey-1 | Minute Tick | Proposed | Huey runs the scheduler evaluation task once per minute. | No per-second evaluation in v0. |
-| req-tap-cares-scheduler-huey-2 | UTC Slot | Proposed | The scheduler evaluates an exact UTC minute slot, not arbitrary sub-minute wall-clock time. | |
-| req-tap-cares-scheduler-huey-3 | TAP Owns State | Proposed | Huey is only the clock/worker; durable scheduler state is stored in TAP graph objects. | |
-| req-tap-cares-scheduler-huey-4 | Single Worker v0 | Proposed | v0 runs exactly one Huey worker process; multi-worker deployment is out of scope. | Slot dedupe is correct under multi-worker but multi-worker is not v0-supported. |
+| req-tap-cares-scheduler-huey-1 | Minute Tick | Implemented | Huey runs the scheduler evaluation task once per minute. | No per-second evaluation in v0. |
+| req-tap-cares-scheduler-huey-2 | UTC Slot | Implemented | The scheduler evaluates an exact UTC minute slot, not arbitrary sub-minute wall-clock time. | |
+| req-tap-cares-scheduler-huey-3 | TAP Owns State | Implemented | Huey is only the clock/worker; durable scheduler state is stored in TAP graph objects. | |
+| req-tap-cares-scheduler-huey-4 | Single Worker v0 | Implemented | v0 runs exactly one Huey worker process; multi-worker deployment is out of scope. | Slot dedupe is correct under multi-worker but multi-worker is not v0-supported. |
 
 ## Implementation Dependencies
 ----
 RID: `req-tap-cares-scheduler-dependencies`
-Status: `Proposed`
+Status: `Implemented`
 
 The scheduler implementation requires:
 
@@ -111,15 +111,15 @@ This requirement is about dependency management only. It does not change the run
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-dependencies-1 | Huey Dependency | Proposed | Scheduler implementation adds Huey through uv rather than relying on an undeclared transitive import. | |
-| req-tap-cares-scheduler-dependencies-2 | croniter Dependency | Proposed | Cron parsing, validation, and slot iteration use the `croniter` library, added through uv. | One parser binds write-time validation to tick-time evaluation so they cannot disagree. |
-| req-tap-cares-scheduler-dependencies-3 | Workspace-Compatible | Proposed | If the uv workspace/plugin-dependency pattern lands first, scheduler dependency installation follows that pattern. | Cross-reference `tap_plugins/specs/spec-plugin-architecture.md` `req-plugin-arch-python-deps`. |
-| req-tap-cares-scheduler-dependencies-4 | State Boundary Unchanged | Proposed | Adding Huey as a dependency does not make Huey the durable schedule store. | |
+| req-tap-cares-scheduler-dependencies-1 | Huey Dependency | Implemented | Scheduler implementation adds Huey through uv rather than relying on an undeclared transitive import. | |
+| req-tap-cares-scheduler-dependencies-2 | croniter Dependency | Implemented | Cron parsing, validation, and slot iteration use the `croniter` library, added through uv. | One parser binds write-time validation to tick-time evaluation so they cannot disagree. |
+| req-tap-cares-scheduler-dependencies-3 | Workspace-Compatible | Implemented | If the uv workspace/plugin-dependency pattern lands first, scheduler dependency installation follows that pattern. | Cross-reference `tap_plugins/specs/spec-plugin-architecture.md` `req-plugin-arch-python-deps`. |
+| req-tap-cares-scheduler-dependencies-4 | State Boundary Unchanged | Implemented | Adding Huey as a dependency does not make Huey the durable schedule store. | |
 
 ## Schedule Model
 ----
 RID: `req-tap-cares-scheduler-model`
-Status: `Proposed`
+Status: `Implemented`
 
 `Schedule` is the on-grid policy node for recurring collector execution.
 
@@ -153,19 +153,19 @@ Minimal v0 fields:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-model-1 | Standard BaseModel | Proposed | `Schedule` is a TAP-managed `BaseModel` node with a backing `Entity`. | Implemented via the `add-model` skill. |
-| req-tap-cares-scheduler-model-2 | Name And Description | Proposed | `Schedule` has required `name` and `description` fields. | |
-| req-tap-cares-scheduler-model-3 | Minimal Fields | Proposed | v0 `Schedule` exposes only `name`, `description`, `enabled`, `enabled_at`, `cron_expression`, `last_schedule_fired`, and `max_active_runs`. | |
-| req-tap-cares-scheduler-model-4 | Processed-Slot Cursor | Proposed | `last_schedule_fired` records the most recent processed cron slot, not the most recent task completion time. | |
-| req-tap-cares-scheduler-model-5 | Default Overlap Guard | Proposed | `max_active_runs` defaults to `1` and must be greater than or equal to `1`. | |
-| req-tap-cares-scheduler-model-6 | User Creatable | Proposed | `Schedule` is not `INTERNAL_ONLY`; users may create and modify schedules through the standard public CRUD API and via GRIFT seed data. | Writes still route through the scheduler service for cron validation and default dimensions. |
-| req-tap-cares-scheduler-model-7 | Cron Validation At Write | Proposed | `cron_expression` is validated using `croniter` at write time; invalid expressions are rejected before save. | Enforced via `FIELD_VALIDATION_SCHEMA` and the scheduler service. |
-| req-tap-cares-scheduler-model-8 | Enabled-At Tracked | Proposed | `enabled_at` is set when `enabled` transitions `false → true` and is used as the lower bound for the missed-count walk. | |
+| req-tap-cares-scheduler-model-1 | Standard BaseModel | Implemented | `Schedule` is a TAP-managed `BaseModel` node with a backing `Entity`. | Implemented via the `add-model` skill. |
+| req-tap-cares-scheduler-model-2 | Name And Description | Implemented | `Schedule` has required `name` and `description` fields. | |
+| req-tap-cares-scheduler-model-3 | Minimal Fields | Implemented | v0 `Schedule` exposes only `name`, `description`, `enabled`, `enabled_at`, `cron_expression`, `last_schedule_fired`, and `max_active_runs`. | |
+| req-tap-cares-scheduler-model-4 | Processed-Slot Cursor | Implemented | `last_schedule_fired` records the most recent processed cron slot, not the most recent task completion time. | |
+| req-tap-cares-scheduler-model-5 | Default Overlap Guard | Implemented | `max_active_runs` defaults to `1` and must be greater than or equal to `1`. | |
+| req-tap-cares-scheduler-model-6 | User Creatable | Implemented | `Schedule` is not `INTERNAL_ONLY`; users may create and modify schedules through the standard public CRUD API and via GRIFT seed data. | Writes still route through the scheduler service for cron validation and default dimensions. |
+| req-tap-cares-scheduler-model-7 | Cron Validation At Write | Implemented | `cron_expression` is validated using `croniter` at write time; invalid expressions are rejected before save. | Enforced via `FIELD_VALIDATION_SCHEMA` and the scheduler service. |
+| req-tap-cares-scheduler-model-8 | Enabled-At Tracked | Implemented | `enabled_at` is set when `enabled` transitions `false → true` and is used as the lower bound for the missed-count walk. | |
 
 ## ScheduleFire Model
 ----
 RID: `req-tap-cares-scheduler-fire-model`
-Status: `Proposed`
+Status: `Implemented`
 
 `ScheduleFire` is the on-grid execution-decision record for one evaluated due slot of a schedule. It is **`INTERNAL_ONLY`** — only the scheduler subsystem may create or modify fire nodes.
 
@@ -208,21 +208,21 @@ The exact text is implementation-flexible; the requirement is that `summary` is 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-fire-model-1 | Standard BaseModel | Proposed | `ScheduleFire` is a TAP-managed `BaseModel` node with a backing `Entity`. | Implemented via the `add-model` skill. |
-| req-tap-cares-scheduler-fire-model-2 | Internal Only | Proposed | `ScheduleFire` is `INTERNAL_ONLY`; only the scheduler subsystem creates or modifies fire nodes. | |
-| req-tap-cares-scheduler-fire-model-3 | Name And Description | Proposed | `ScheduleFire` has required `name` and `description` fields. | |
-| req-tap-cares-scheduler-fire-model-4 | Decision Record | Proposed | Each `ScheduleFire` records the scheduler decision for one due cron slot. | |
-| req-tap-cares-scheduler-fire-model-5 | Scheduler Status Only | Proposed | `ScheduleFire.status` records scheduler decision state, not the terminal collector job state. The transient `pending` value at creation transitions to `triggered`, `skipped`, or `failed` in Stage 2. | |
-| req-tap-cares-scheduler-fire-model-6 | Missed Count Field | Proposed | `ScheduleFire` has an integer `missed_count` defaulting to `0`. | |
-| req-tap-cares-scheduler-fire-model-7 | Summary Field | Proposed | `ScheduleFire.summary` is a single freeform one-liner that covers triggered, skipped, and failed cases; the scheduler always sets it. | Replaces the earlier draft's separate `skip_reason` and `error_summary` fields. |
-| req-tap-cares-scheduler-fire-model-8 | Created Only On Match | Proposed | A `ScheduleFire` is created only when an enabled schedule's cron expression matches the current minute slot. | Non-matching Huey ticks produce no rows. |
-| req-tap-cares-scheduler-fire-model-9 | run_collection Failure | Proposed | If `run_collection(...)` raises during a triggered slot, the fire is recorded with `status = failed`, no `TRIGGERED_JOB` edge, and a `summary` describing the failure. | The transactional unit must close in this state — no half-triggered fires. |
-| req-tap-cares-scheduler-fire-model-10 | fired_at Non-Null | Proposed | `fired_at` is always set at fire creation; it is non-null. | |
+| req-tap-cares-scheduler-fire-model-1 | Standard BaseModel | Implemented | `ScheduleFire` is a TAP-managed `BaseModel` node with a backing `Entity`. | Implemented via the `add-model` skill. |
+| req-tap-cares-scheduler-fire-model-2 | Internal Only | Implemented | `ScheduleFire` is `INTERNAL_ONLY`; only the scheduler subsystem creates or modifies fire nodes. | |
+| req-tap-cares-scheduler-fire-model-3 | Name And Description | Implemented | `ScheduleFire` has required `name` and `description` fields. | |
+| req-tap-cares-scheduler-fire-model-4 | Decision Record | Implemented | Each `ScheduleFire` records the scheduler decision for one due cron slot. | |
+| req-tap-cares-scheduler-fire-model-5 | Scheduler Status Only | Implemented | `ScheduleFire.status` records scheduler decision state, not the terminal collector job state. The transient `pending` value at creation transitions to `triggered`, `skipped`, or `failed` in Stage 2. | |
+| req-tap-cares-scheduler-fire-model-6 | Missed Count Field | Implemented | `ScheduleFire` has an integer `missed_count` defaulting to `0`. | |
+| req-tap-cares-scheduler-fire-model-7 | Summary Field | Implemented | `ScheduleFire.summary` is a single freeform one-liner that covers triggered, skipped, and failed cases; the scheduler always sets it. | Replaces the earlier draft's separate `skip_reason` and `error_summary` fields. |
+| req-tap-cares-scheduler-fire-model-8 | Created Only On Match | Implemented | A `ScheduleFire` is created only when an enabled schedule's cron expression matches the current minute slot. | Non-matching Huey ticks produce no rows. |
+| req-tap-cares-scheduler-fire-model-9 | run_collection Failure | Implemented | If `run_collection(...)` raises during a triggered slot, the fire is recorded with `status = failed`, no `TRIGGERED_JOB` edge, and a `summary` describing the failure. | The transactional unit must close in this state — no half-triggered fires. |
+| req-tap-cares-scheduler-fire-model-10 | fired_at Non-Null | Implemented | `fired_at` is always set at fire creation; it is non-null. | |
 
 ## Scheduler Edges
 ----
 RID: `req-tap-cares-scheduler-edges`
-Status: `Proposed`
+Status: `Implemented`
 
 The v0 scheduler graph uses these edges:
 
@@ -259,17 +259,17 @@ Collector --HAS_JOB--> CollectionJob
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-edges-1 | SCHEDULED_TARGET Edge | Proposed | tap-cares declares `SCHEDULED_TARGET` from `Schedule` to `Collector` for v0. | Implemented via the `add-edge` skill. |
-| req-tap-cares-scheduler-edges-2 | One Target Per Schedule | Proposed | v0 requires exactly one `SCHEDULED_TARGET` edge per Schedule. | Multiple targets with ordering are backlog. |
-| req-tap-cares-scheduler-edges-3 | HAS_FIRED Edge | Proposed | tap-cares declares `HAS_FIRED` from `Schedule` to `ScheduleFire`. | |
-| req-tap-cares-scheduler-edges-4 | TRIGGERED_JOB Edge | Proposed | tap-cares declares `TRIGGERED_JOB` from `ScheduleFire` to `CollectionJob`. | Only present for triggered fires. |
-| req-tap-cares-scheduler-edges-5 | HAS_JOB Preserved | Proposed | Scheduled collection still creates the existing `Collector --HAS_JOB--> CollectionJob` edge through `run_collection(...)`. | |
-| req-tap-cares-scheduler-edges-6 | Edges Naked | Proposed | `SCHEDULED_TARGET`, `HAS_FIRED`, and `TRIGGERED_JOB` declare no `property_schema` in v0. | |
+| req-tap-cares-scheduler-edges-1 | SCHEDULED_TARGET Edge | Implemented | tap-cares declares `SCHEDULED_TARGET` from `Schedule` to `Collector` for v0. | Implemented via the `add-edge` skill. |
+| req-tap-cares-scheduler-edges-2 | One Target Per Schedule | Implemented | v0 requires exactly one `SCHEDULED_TARGET` edge per Schedule. | Multiple targets with ordering are backlog. |
+| req-tap-cares-scheduler-edges-3 | HAS_FIRED Edge | Implemented | tap-cares declares `HAS_FIRED` from `Schedule` to `ScheduleFire`. | |
+| req-tap-cares-scheduler-edges-4 | TRIGGERED_JOB Edge | Implemented | tap-cares declares `TRIGGERED_JOB` from `ScheduleFire` to `CollectionJob`. | Only present for triggered fires. |
+| req-tap-cares-scheduler-edges-5 | HAS_JOB Preserved | Implemented | Scheduled collection still creates the existing `Collector --HAS_JOB--> CollectionJob` edge through `run_collection(...)`. | |
+| req-tap-cares-scheduler-edges-6 | Edges Naked | Implemented | `SCHEDULED_TARGET`, `HAS_FIRED`, and `TRIGGERED_JOB` declare no `property_schema` in v0. | |
 
 ## Cron Semantics
 ----
 RID: `req-tap-cares-scheduler-cron`
-Status: `Proposed`
+Status: `Implemented`
 
 v0 schedules use five-field cron expressions:
 
@@ -285,16 +285,16 @@ There is no catch-up execution in v0. If Huey, the app, or the host is down when
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-cron-1 | Five-Field Cron | Proposed | `cron_expression` stores a five-field cron expression. | |
-| req-tap-cares-scheduler-cron-2 | UTC Only | Proposed | Cron matching is interpreted in UTC in v0. | |
-| req-tap-cares-scheduler-cron-3 | Minute Resolution | Proposed | The scheduler evaluates minute slots only; seconds are ignored. | |
-| req-tap-cares-scheduler-cron-4 | No Catch-Up Execution | Proposed | Missed slots are not backfilled or executed later in v0. | |
-| req-tap-cares-scheduler-cron-5 | croniter | Proposed | Cron parsing, validation, and slot iteration use the `croniter` library. | One parser binds write-time validation to tick-time evaluation. |
+| req-tap-cares-scheduler-cron-1 | Five-Field Cron | Implemented | `cron_expression` stores a five-field cron expression. | |
+| req-tap-cares-scheduler-cron-2 | UTC Only | Implemented | Cron matching is interpreted in UTC in v0. | |
+| req-tap-cares-scheduler-cron-3 | Minute Resolution | Implemented | The scheduler evaluates minute slots only; seconds are ignored. | |
+| req-tap-cares-scheduler-cron-4 | No Catch-Up Execution | Implemented | Missed slots are not backfilled or executed later in v0. | |
+| req-tap-cares-scheduler-cron-5 | croniter | Implemented | Cron parsing, validation, and slot iteration use the `croniter` library. | One parser binds write-time validation to tick-time evaluation. |
 
 ## Missed Count
 ----
 RID: `req-tap-cares-scheduler-missed-count`
-Status: `Proposed`
+Status: `Implemented`
 
 The scheduler detects gaps by comparing a lower bound on the schedule's history to the current matching slot.
 
@@ -336,16 +336,16 @@ Disabled schedules do not accumulate missed runs. The combination of `enabled_at
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-missed-count-1 | Lower-Bound Walk | Proposed | Missed slots are detected by walking from `max(last_schedule_fired, enabled_at)` to the current matching cron slot. | |
-| req-tap-cares-scheduler-missed-count-2 | Count Only | Proposed | Missed slots increment `missed_count`; they do not create backfilled collection jobs. | |
-| req-tap-cares-scheduler-missed-count-3 | Current Fire Carries Count | Proposed | The current slot's `ScheduleFire` stores the missed count summary. | |
-| req-tap-cares-scheduler-missed-count-4 | Disabled Ignored | Proposed | Disabled schedules do not accumulate or later report missed counts for disabled periods. | `enabled_at` is the lower bound so disabled stretches are excluded. |
-| req-tap-cares-scheduler-missed-count-5 | croniter Iteration | Proposed | Matching-slot iteration uses `croniter` rather than ad hoc minute math. | |
+| req-tap-cares-scheduler-missed-count-1 | Lower-Bound Walk | Implemented | Missed slots are detected by walking from `max(last_schedule_fired, enabled_at)` to the current matching cron slot. | |
+| req-tap-cares-scheduler-missed-count-2 | Count Only | Implemented | Missed slots increment `missed_count`; they do not create backfilled collection jobs. | |
+| req-tap-cares-scheduler-missed-count-3 | Current Fire Carries Count | Implemented | The current slot's `ScheduleFire` stores the missed count summary. | |
+| req-tap-cares-scheduler-missed-count-4 | Disabled Ignored | Implemented | Disabled schedules do not accumulate or later report missed counts for disabled periods. | `enabled_at` is the lower bound so disabled stretches are excluded. |
+| req-tap-cares-scheduler-missed-count-5 | croniter Iteration | Implemented | Matching-slot iteration uses `croniter` rather than ad hoc minute math. | |
 
 ## Slot Dedupe
 ----
 RID: `req-tap-cares-scheduler-dedupe`
-Status: `Proposed`
+Status: `Implemented`
 
 The scheduler must process a schedule/slot pair at most once.
 
@@ -394,16 +394,16 @@ except Exception as exc:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-dedupe-1 | Duplicate Slot No-Op | Proposed | If `last_schedule_fired == current_slot`, the scheduler does not create a `ScheduleFire`. | |
-| req-tap-cares-scheduler-dedupe-2 | Atomic Claim | Proposed | Claiming `last_schedule_fired` (optimistic conditional UPDATE) and creating the `ScheduleFire` happen inside one `transaction.atomic()` block. | |
-| req-tap-cares-scheduler-dedupe-3 | One Fire Per Slot | Proposed | A schedule cannot produce more than one `ScheduleFire` for the same `scheduled_for` slot. | Enforced by the atomic claim plus `INTERNAL_ONLY` on `ScheduleFire`. A DB-level unique constraint would require a denormalized `schedule` FK on `ScheduleFire`; deferred. |
-| req-tap-cares-scheduler-dedupe-4 | Conditional UPDATE Mechanism | Proposed | The atomic claim uses an optimistic conditional UPDATE on `Schedule.last_schedule_fired` and bails when rowcount is 0. | Chosen over `SELECT ... FOR UPDATE` because it remains lock-light under future multi-worker deployments. |
-| req-tap-cares-scheduler-dedupe-5 | Dispatch After Commit | Proposed | `run_collection(...)` is invoked only after the claim transaction commits. | Avoids holding the schedule row lock during collector execution and avoids synchronous-backend ordering hazards. |
+| req-tap-cares-scheduler-dedupe-1 | Duplicate Slot No-Op | Implemented | If `last_schedule_fired == current_slot`, the scheduler does not create a `ScheduleFire`. | |
+| req-tap-cares-scheduler-dedupe-2 | Atomic Claim | Implemented | Claiming `last_schedule_fired` (optimistic conditional UPDATE) and creating the `ScheduleFire` happen inside one `transaction.atomic()` block. | |
+| req-tap-cares-scheduler-dedupe-3 | One Fire Per Slot | Implemented | A schedule cannot produce more than one `ScheduleFire` for the same `scheduled_for` slot. | Enforced by the atomic claim plus `INTERNAL_ONLY` on `ScheduleFire`. A DB-level unique constraint would require a denormalized `schedule` FK on `ScheduleFire`; deferred. |
+| req-tap-cares-scheduler-dedupe-4 | Conditional UPDATE Mechanism | Implemented | The atomic claim uses an optimistic conditional UPDATE on `Schedule.last_schedule_fired` and bails when rowcount is 0. | Chosen over `SELECT ... FOR UPDATE` because it remains lock-light under future multi-worker deployments. |
+| req-tap-cares-scheduler-dedupe-5 | Dispatch After Commit | Implemented | `run_collection(...)` is invoked only after the claim transaction commits. | Avoids holding the schedule row lock during collector execution and avoids synchronous-backend ordering hazards. |
 
 ## Schedule Concurrency
 ----
 RID: `req-tap-cares-scheduler-concurrency`
-Status: `Proposed`
+Status: `Implemented`
 
 Each schedule limits its own active scheduled runs with `max_active_runs`.
 
@@ -435,15 +435,15 @@ This policy is intentionally similar to production systems that support "forbid 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-concurrency-1 | Per-Schedule Limit | Proposed | `max_active_runs` applies to runs triggered by the same schedule, not all runs of the target collector. | |
-| req-tap-cares-scheduler-concurrency-2 | Active Statuses | Proposed | `READY` and `RUNNING` collection jobs both count as active for scheduler overlap checks. | Counts enqueued-but-not-started together with currently-executing as in-flight. |
-| req-tap-cares-scheduler-concurrency-3 | Skipped Fire | Proposed | A due slot blocked by the active-run limit creates a skipped `ScheduleFire` with a `summary` explaining the reason. | |
-| req-tap-cares-scheduler-concurrency-4 | No Replace In v0 | Proposed | v0 does not cancel, replace, or interrupt already-active collection jobs. | |
+| req-tap-cares-scheduler-concurrency-1 | Per-Schedule Limit | Implemented | `max_active_runs` applies to runs triggered by the same schedule, not all runs of the target collector. | |
+| req-tap-cares-scheduler-concurrency-2 | Active Statuses | Implemented | `READY` and `RUNNING` collection jobs both count as active for scheduler overlap checks. | Counts enqueued-but-not-started together with currently-executing as in-flight. |
+| req-tap-cares-scheduler-concurrency-3 | Skipped Fire | Implemented | A due slot blocked by the active-run limit creates a skipped `ScheduleFire` with a `summary` explaining the reason. | |
+| req-tap-cares-scheduler-concurrency-4 | No Replace In v0 | Implemented | v0 does not cancel, replace, or interrupt already-active collection jobs. | |
 
 ## Trigger Provenance Handoff
 ----
 RID: `req-tap-cares-scheduler-trigger-provenance`
-Status: `Proposed`
+Status: `Implemented`
 
 Scheduled collector execution must preserve why the collector ran, but the **durable provenance fields live on `CollectionJob`**, not on the scheduler. The scheduler is one trigger source among several (scheduler today, manual UI button, future API) and hands the relevant trigger metadata to `run_collection(...)`; the collector subsystem owns persistence.
 
@@ -460,10 +460,10 @@ The full schema, validation, and migration story for `manual_run` / `manual_run_
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-trigger-provenance-1 | Scheduler Doesn't Set Manual | Proposed | Scheduler invocations of `run_collection(...)` do not set `manual_run`; the resulting `CollectionJob.manual_run` is `false`. | |
-| req-tap-cares-scheduler-trigger-provenance-2 | Scheduler Trigger Via Edge | Proposed | The scheduler-trigger relationship is captured by `ScheduleFire --TRIGGERED_JOB--> CollectionJob`, not by a field on the job. | The edge is the canonical record. |
-| req-tap-cares-scheduler-trigger-provenance-3 | Collector Spec Owns Fields | Proposed | Persistence and schema for `manual_run` / `manual_run_source` belong in `spec-tap-cares-collector.md`; this requirement is the handoff contract only. | Cross-reference the collector spec's manual-run-provenance requirement. |
-| req-tap-cares-scheduler-trigger-provenance-4 | Caller Context Separate | Proposed | `caller_context` remains the authority/user context; manual-run metadata describes the mechanism, not the actor. | |
+| req-tap-cares-scheduler-trigger-provenance-1 | Scheduler Doesn't Set Manual | Implemented | Scheduler invocations of `run_collection(...)` do not set `manual_run`; the resulting `CollectionJob.manual_run` is `false`. | |
+| req-tap-cares-scheduler-trigger-provenance-2 | Scheduler Trigger Via Edge | Implemented | The scheduler-trigger relationship is captured by `ScheduleFire --TRIGGERED_JOB--> CollectionJob`, not by a field on the job. | The edge is the canonical record. |
+| req-tap-cares-scheduler-trigger-provenance-3 | Collector Spec Owns Fields | Implemented | Persistence and schema for `manual_run` / `manual_run_source` belong in `spec-tap-cares-collector.md`; this requirement is the handoff contract only. | Cross-reference the collector spec's manual-run-provenance requirement. |
+| req-tap-cares-scheduler-trigger-provenance-4 | Caller Context Separate | Implemented | `caller_context` remains the authority/user context; manual-run metadata describes the mechanism, not the actor. | |
 
 ## Backlog
 ----
