@@ -36,8 +36,21 @@ class TapCaresConfig(AppConfig):
             targets=[{"type": "collection_job"}],
         )
 
-        # Import Huey periodic tasks so the scheduler tick is registered at
-        # startup. The Huey consumer process (`manage.py run_huey`) is the
-        # only thing that executes them; the web process loads the module
-        # too so test runs and shell sessions see consistent state.
-        from tap_cares import huey_tasks  # noqa: F401
+        # Import the Steady Queue task module so its @recurring scheduler
+        # tick is registered with steady_queue at startup. Steady Queue's
+        # Configuration.RecurringTask.discover() picks up @recurring
+        # callsites from imported modules; importing here makes the
+        # scheduler tick discoverable in every process (web and supervisor).
+        #
+        # Guarded on backend: under tests we configure ImmediateBackend
+        # (tap/test_settings.py), where @task() returns a plain Django Task
+        # that lacks the .serialize() method steady_queue's @recurring
+        # wrapper expects. Skipping the import there avoids an import-time
+        # AttributeError and is correct anyway — tests don't run the
+        # steady_queue supervisor, so a recurring task registration would
+        # have no effect.
+        from django.conf import settings
+
+        backend_path = settings.TASKS.get("default", {}).get("BACKEND", "")
+        if backend_path == "steady_queue.backend.SteadyQueueBackend":
+            from tap_cares import task_backend  # noqa: F401

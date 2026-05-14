@@ -109,12 +109,9 @@ INSTALLED_APPS = [
     "tap_viz",
     # History tracking (django-simple-history)
     "simple_history",
-    # Huey periodic-task framework — being phased out; replaced by Steady
-    # Queue's @recurring in the next migration commit. Kept for now so the
-    # backend swap can land in isolation and roll back cleanly if needed.
-    "huey.contrib.djhuey",
-    # Steady Queue — production-equivalent task backend for django.tasks.
-    # See tap_cares/specs/spec-tap-cares-task-backend.md.
+    # Steady Queue — production-equivalent task backend for django.tasks
+    # and the once-per-minute scheduler tick (via @recurring). See
+    # tap_cares/specs/spec-tap-cares-task-backend.md.
     "steady_queue",
 ]
 
@@ -277,20 +274,3 @@ STEADY_QUEUE = Configuration.Options(
     ],
 )
 
-# =============================================================================
-# Huey configuration — tap_cares scheduler (being phased out)
-# =============================================================================
-# Huey is being replaced by Steady Queue's @recurring in the next migration
-# commit (req-tap-cares-task-backend-huey-removal). Kept here for now so this
-# commit can land the Steady Queue backend swap in isolation and roll back
-# cleanly if needed.
-HUEY = {
-    "huey_class": "huey.MemoryHuey",
-    "name": "tap_cares_scheduler",
-    "immediate": False,
-    "consumer": {
-        "workers": 1,
-        "worker_type": "thread",
-        "periodic": True,
-    },
-}

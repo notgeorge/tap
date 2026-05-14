@@ -21,27 +21,20 @@ uv sync
 echo "==> Running database migrations..."
 uv run python manage.py migrate --noinput
 
-# Start the Huey consumer (tap_cares scheduler tick) as a background process.
-# Being phased out — see spec-tap-cares-task-backend.md
-# req-tap-cares-task-backend-huey-removal. The next migration commit replaces
-# this with the Steady Queue @recurring scheduler tick.
-echo "==> Starting Huey consumer (scheduler tick)..."
-uv run python manage.py run_huey -w 1 &
-HUEY_PID=$!
-
-# Start the Steady Queue supervisor as a background process. It forks one
-# worker process per Configuration.Worker in settings.STEADY_QUEUE — one for
-# the scheduler queue, one for the default queue — giving OS-level isolation
-# between the once-per-minute clock and collector execution
-# (req-tap-cares-task-backend-queue-isolation, req-tap-cares-task-backend-
-# deployment-1). Same in-container pattern Huey uses; trap kills it on exit.
-# Steady Queue does NOT auto-reload; restart the container if you edit task
-# code (req-tap-cares-task-backend-deployment-3).
+# Start the Steady Queue supervisor as a background process. It runs both
+# the once-per-minute scheduler tick (declared as a @recurring task in
+# tap_cares/task_backend.py) and the collector execution tasks. The
+# supervisor forks one worker process per Configuration.Worker in
+# settings.STEADY_QUEUE — one for the scheduler queue, one for the default
+# queue — giving OS-level isolation between the clock and collector
+# execution (req-tap-cares-task-backend-queue-isolation). Trap kills it on
+# exit. Steady Queue does NOT auto-reload; restart the container if you
+# edit task or scheduler code (req-tap-cares-task-backend-deployment-3).
 echo "==> Starting Steady Queue supervisor..."
 uv run python manage.py steady_queue &
 STEADY_QUEUE_PID=$!
 
-trap "kill ${HUEY_PID} ${STEADY_QUEUE_PID} 2>/dev/null || true" EXIT
+trap "kill ${STEADY_QUEUE_PID} 2>/dev/null || true" EXIT
 
 echo "==> Starting Django development server..."
 exec uv run python manage.py runserver 0.0.0.0:8000

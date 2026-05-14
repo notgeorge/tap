@@ -194,15 +194,6 @@ wheels = [
 ]
 
 [[package]]
-name = "huey"
-version = "3.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f0/12/45221a95f4b55a4e322cd5bfe23e9067d5c9fda37dde4389dfe8e0ad5574/huey-3.0.0.tar.gz", hash = "sha256:0cfc83617b90132b0d375a3a3726aa7263cd461e7ae12af79b3a94e2630afaf5", size = 252413, upload-time = "2026-04-14T20:04:17.79Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/44/6b158ee6a8cbbe646065c53ec1e83bf0982078939f12990eaaf7120a6f8e/huey-3.0.0-py3-none-any.whl", hash = "sha256:b92087253ab6e7c806e9ce3602d6f546eefb7c1b1ee7d1dc5be2b9691d23b28c", size = 85944, upload-time = "2026-04-14T20:04:16.234Z" },
-]
-
-[[package]]
 name = "iniconfig"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -616,7 +607,6 @@ dependencies = [
     { name = "django" },
     { name = "django-ninja" },
     { name = "django-simple-history" },
-    { name = "huey" },
     { name = "jsonschema" },
     { name = "lark" },
     { name = "psycopg", extra = ["binary"] },
@@ -641,7 +631,6 @@ requires-dist = [
     { name = "django", specifier = ">=6.0" },
     { name = "django-ninja", specifier = ">=1.5" },
     { name = "django-simple-history", specifier = ">=3.4" },
-    { name = "huey", specifier = ">=3.0.0" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "lark", specifier = ">=1.3.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },

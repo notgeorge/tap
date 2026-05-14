@@ -35,22 +35,22 @@ The bottom two rows are replaceable. Everything users edit lives on the grid.
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-tap-cares-task-backend-steady-queue | [Steady Queue](#steady-queue) | Proposed | Steady Queue is the v0 production-equivalent backend |
-| req-tap-cares-task-backend-django-tasks-interface | [Django Tasks Interface](#django-tasks-interface) | Proposed | TAP code uses only the DEP 0014 `@task` decorator and the `TASKS` settings dict |
-| req-tap-cares-task-backend-queue-isolation | [Queue Isolation](#queue-isolation) | Proposed | Scheduler tick runs on a dedicated queue with its own worker pool |
-| req-tap-cares-task-backend-transactional-integrity | [Transactional Integrity](#transactional-integrity) | Proposed | `run_collection` uses `transaction.on_commit` to defer enqueue past any outer transaction |
-| req-tap-cares-task-backend-test-settings | [Test Settings](#test-settings) | Proposed | Tests use `ImmediateBackend` to preserve synchronous-completion semantics |
-| req-tap-cares-task-backend-recurring-scope | [Recurring Scope](#recurring-scope) | Proposed | Steady Queue's `@recurring` is used ONLY for the TAP scheduler tick |
-| req-tap-cares-task-backend-deployment | [Deployment](#deployment) | Proposed | Steady Queue supervisor runs in the web container alongside Django |
-| req-tap-cares-task-backend-fork-safety | [Fork Safety](#fork-safety) | Proposed | Forked workers handle Django DB connections correctly |
-| req-tap-cares-task-backend-huey-removal | [Huey Removal](#huey-removal) | Proposed | Huey is removed from settings, deps, and infrastructure as part of this refactor |
-| req-tap-cares-task-backend-migration-plan | [Migration Plan](#migration-plan) | Proposed | Two-step rollout: backend swap first, then Huey replacement |
+| req-tap-cares-task-backend-steady-queue | [Steady Queue](#steady-queue) | Implemented | Steady Queue is the v0 production-equivalent backend |
+| req-tap-cares-task-backend-django-tasks-interface | [Django Tasks Interface](#django-tasks-interface) | Implemented | TAP code uses only the DEP 0014 `@task` decorator and the `TASKS` settings dict |
+| req-tap-cares-task-backend-queue-isolation | [Queue Isolation](#queue-isolation) | Implemented | Scheduler tick runs on a dedicated queue with its own worker pool |
+| req-tap-cares-task-backend-transactional-integrity | [Transactional Integrity](#transactional-integrity) | Implemented | `run_collection` uses `transaction.on_commit` to defer enqueue past any outer transaction |
+| req-tap-cares-task-backend-test-settings | [Test Settings](#test-settings) | Implemented | Tests use `ImmediateBackend` to preserve synchronous-completion semantics |
+| req-tap-cares-task-backend-recurring-scope | [Recurring Scope](#recurring-scope) | Implemented | Steady Queue's `@recurring` is used ONLY for the TAP scheduler tick |
+| req-tap-cares-task-backend-deployment | [Deployment](#deployment) | Implemented | Steady Queue supervisor runs in the web container alongside Django |
+| req-tap-cares-task-backend-fork-safety | [Fork Safety](#fork-safety) | Implemented | Forked workers handle Django DB connections correctly |
+| req-tap-cares-task-backend-huey-removal | [Huey Removal](#huey-removal) | Implemented | Huey is removed from settings, deps, and infrastructure as part of this refactor |
+| req-tap-cares-task-backend-migration-plan | [Migration Plan](#migration-plan) | Implemented | Two-step rollout: backend swap first, then Huey replacement |
 | req-tap-cares-task-backend-backlog | [Backlog](#backlog) | Backlog | Multi-machine workers, alternative backends, observability surfaces |
 
 ## Steady Queue
 ----
 RID: `req-tap-cares-task-backend-steady-queue`
-Status: `Proposed`
+Status: `Implemented`
 
 Steady Queue (a Python port of Rails' Solid Queue) is the v0 production-equivalent task backend. It is a drop-in implementation of the `django.tasks` `TaskBackend` interface, and ships its own cron-style scheduler via the `@recurring` decorator.
 
@@ -73,15 +73,15 @@ Known limitations (from upstream docs) that we accept:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-steady-queue-1 | Selected Backend | Proposed | `steady_queue.backend.SteadyQueueBackend` is the configured `TASKS["default"]["BACKEND"]` in dev and prod settings. | |
-| req-tap-cares-task-backend-steady-queue-2 | Dependency Added | Proposed | `steady_queue` is added through `uv` and declared in `pyproject.toml`. | |
-| req-tap-cares-task-backend-steady-queue-3 | Installed App | Proposed | `steady_queue` is in `INSTALLED_APPS` so its migrations apply. | |
-| req-tap-cares-task-backend-steady-queue-4 | Migrations Applied | Proposed | The container entrypoint's `manage.py migrate` step applies Steady Queue's tables alongside TAP's. | |
+| req-tap-cares-task-backend-steady-queue-1 | Selected Backend | Implemented | `steady_queue.backend.SteadyQueueBackend` is the configured `TASKS["default"]["BACKEND"]` in dev and prod settings. | |
+| req-tap-cares-task-backend-steady-queue-2 | Dependency Added | Implemented | `steady_queue` is added through `uv` and declared in `pyproject.toml`. | |
+| req-tap-cares-task-backend-steady-queue-3 | Installed App | Implemented | `steady_queue` is in `INSTALLED_APPS` so its migrations apply. | |
+| req-tap-cares-task-backend-steady-queue-4 | Migrations Applied | Implemented | The container entrypoint's `manage.py migrate` step applies Steady Queue's tables alongside TAP's. | |
 
 ## Django Tasks Interface
 ----
 RID: `req-tap-cares-task-backend-django-tasks-interface`
-Status: `Proposed`
+Status: `Implemented`
 
 TAP code only uses the DEP 0014 `@task` decorator from `django.tasks` and the `TASKS` settings dict to configure backends. No TAP module imports Steady Queue classes or types beyond the settings file and the (single) `@recurring` declaration.
 
@@ -91,14 +91,14 @@ This keeps the backend swap surface tiny: replacing Steady Queue later (e.g. wit
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-django-tasks-interface-1 | Task Definitions Unchanged | Proposed | `run_collector` and other `@task`-decorated functions in `tap_cares/tasks.py` are unchanged by this refactor. | |
-| req-tap-cares-task-backend-django-tasks-interface-2 | No Backend Imports In TAP | Proposed | No file outside `tap/settings.py` and the recurring-tick module imports `steady_queue`. | One concession: the recurring-tick declaration uses `@recurring` from `steady_queue.recurring_task`. That import is the documented exception. |
-| req-tap-cares-task-backend-django-tasks-interface-3 | Replaceable Backend | Proposed | Swapping Steady Queue for another DEP 0014 backend is a settings + process change, not a TAP code change. | |
+| req-tap-cares-task-backend-django-tasks-interface-1 | Task Definitions Unchanged | Implemented | `run_collector` and other `@task`-decorated functions in `tap_cares/tasks.py` are unchanged by this refactor. | |
+| req-tap-cares-task-backend-django-tasks-interface-2 | No Backend Imports In TAP | Implemented | No file outside `tap/settings.py` and the recurring-tick module imports `steady_queue`. | One concession: the recurring-tick declaration uses `@recurring` from `steady_queue.recurring_task`. That import is the documented exception. |
+| req-tap-cares-task-backend-django-tasks-interface-3 | Replaceable Backend | Implemented | Swapping Steady Queue for another DEP 0014 backend is a settings + process change, not a TAP code change. | |
 
 ## Queue Isolation
 ----
 RID: `req-tap-cares-task-backend-queue-isolation`
-Status: `Proposed`
+Status: `Implemented`
 
 The scheduler tick runs on a **dedicated queue** with its **own worker pool**. A backlog of collector tasks cannot delay the once-per-minute clock.
 
@@ -136,16 +136,16 @@ Revising the thread count is a settings change with no schema or behavioral impl
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-queue-isolation-1 | Dedicated Scheduler Queue | Proposed | The TAP scheduler tick is tagged `queue_name="scheduler"`. | |
-| req-tap-cares-task-backend-queue-isolation-2 | Dedicated Scheduler Worker | Proposed | `STEADY_QUEUE` configuration declares a `Worker` with `queues=["scheduler"]` separate from the default-queue worker. | One thread is sufficient for v0. |
-| req-tap-cares-task-backend-queue-isolation-3 | Collectors On Default Queue | Proposed | `run_collector` and other collector-execution tasks are NOT tagged with a queue and therefore run on the `default` queue worker. | |
-| req-tap-cares-task-backend-queue-isolation-4 | OS-Level Isolation | Proposed | The two queue workers run in separate forked processes under one supervisor; no thread-level sharing between scheduler and default queues. | Guaranteed by Steady Queue's supervisor model. |
-| req-tap-cares-task-backend-queue-isolation-5 | Thread-Count Revisit Trigger | Proposed | The default worker's thread count is revisited when p95 of (`CollectionJob.started_at` - `CollectionJob.enqueued_at`) exceeds ~30 seconds, or when `READY` jobs persistently accumulate while host CPU is idle, or when operator-perceived run-button latency becomes a complaint. | Settings change only — no schema or behavioral implications, low bar for revisiting. |
+| req-tap-cares-task-backend-queue-isolation-1 | Dedicated Scheduler Queue | Implemented | The TAP scheduler tick is tagged `queue_name="scheduler"`. | |
+| req-tap-cares-task-backend-queue-isolation-2 | Dedicated Scheduler Worker | Implemented | `STEADY_QUEUE` configuration declares a `Worker` with `queues=["scheduler"]` separate from the default-queue worker. | One thread is sufficient for v0. |
+| req-tap-cares-task-backend-queue-isolation-3 | Collectors On Default Queue | Implemented | `run_collector` and other collector-execution tasks are NOT tagged with a queue and therefore run on the `default` queue worker. | |
+| req-tap-cares-task-backend-queue-isolation-4 | OS-Level Isolation | Implemented | The two queue workers run in separate forked processes under one supervisor; no thread-level sharing between scheduler and default queues. | Guaranteed by Steady Queue's supervisor model. |
+| req-tap-cares-task-backend-queue-isolation-5 | Thread-Count Revisit Trigger | Implemented | The default worker's thread count is revisited when p95 of (`CollectionJob.started_at` - `CollectionJob.enqueued_at`) exceeds ~30 seconds, or when `READY` jobs persistently accumulate while host CPU is idle, or when operator-perceived run-button latency becomes a complaint. | Settings change only — no schema or behavioral implications, low bar for revisiting. |
 
 ## Transactional Integrity
 ----
 RID: `req-tap-cares-task-backend-transactional-integrity`
-Status: `Proposed`
+Status: `Implemented`
 
 Steady Queue stores task rows in the same Postgres database that holds `CollectionJob`, `Schedule`, `ScheduleFire`, and the rest of the TAP grid. That coupling is desirable — no second store to keep in sync — but it introduces a subtle hazard around transactional ordering.
 
@@ -159,15 +159,15 @@ This keeps the contract simple: callers do not need to know about transaction st
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-transactional-integrity-1 | on_commit Wrapping | Proposed | `run_collection` wraps `run_collector.enqueue(...)` in `django.db.transaction.on_commit(...)`. | Defers the enqueue until any outer transaction commits; fires immediately if none. |
-| req-tap-cares-task-backend-transactional-integrity-2 | Caller Contract | Proposed | Callers of `run_collection` do not need to inspect transaction state; the function is safe both inside and outside an outer `transaction.atomic()` block. | |
-| req-tap-cares-task-backend-transactional-integrity-3 | No Behavior Change For Current Callers | Proposed | Wrapping in `on_commit` does not change behavior for current callers (Administrivia handlers, scheduler Stage 2) because none of them run inside an outer atomic block. | Verified by the existing test suite continuing to pass. |
-| req-tap-cares-task-backend-transactional-integrity-4 | Test Marker For Lifecycle Assertions | Proposed | Tests that exercise `run_collection` and assert post-task `CollectionJob` state use `@pytest.mark.django_db(transaction=True)`. The default `@pytest.mark.django_db` wrapper runs each test inside an atomic block that rolls back at end-of-test, so `on_commit` callbacks would never fire under ImmediateBackend. | Standard Django pattern when production uses `transaction.on_commit`. |
+| req-tap-cares-task-backend-transactional-integrity-1 | on_commit Wrapping | Implemented | `run_collection` wraps `run_collector.enqueue(...)` in `django.db.transaction.on_commit(...)`. | Defers the enqueue until any outer transaction commits; fires immediately if none. |
+| req-tap-cares-task-backend-transactional-integrity-2 | Caller Contract | Implemented | Callers of `run_collection` do not need to inspect transaction state; the function is safe both inside and outside an outer `transaction.atomic()` block. | |
+| req-tap-cares-task-backend-transactional-integrity-3 | No Behavior Change For Current Callers | Implemented | Wrapping in `on_commit` does not change behavior for current callers (Administrivia handlers, scheduler Stage 2) because none of them run inside an outer atomic block. | Verified by the existing test suite continuing to pass. |
+| req-tap-cares-task-backend-transactional-integrity-4 | Test Marker For Lifecycle Assertions | Implemented | Tests that exercise `run_collection` and assert post-task `CollectionJob` state use `@pytest.mark.django_db(transaction=True)`. The default `@pytest.mark.django_db` wrapper runs each test inside an atomic block that rolls back at end-of-test, so `on_commit` callbacks would never fire under ImmediateBackend. | Standard Django pattern when production uses `transaction.on_commit`. |
 
 ## Test Settings
 ----
 RID: `req-tap-cares-task-backend-test-settings`
-Status: `Proposed`
+Status: `Implemented`
 
 Tests use `ImmediateBackend` for `TASKS["default"]["BACKEND"]` so synchronous-completion semantics are preserved. Existing tests (`test_task_execution.py`, `test_scheduler.py::TestEvaluateTickTriggered`, etc.) assume the `CollectionJob` is in its terminal state by the time `run_collection` returns — that assumption is correct under `ImmediateBackend` and is preserved.
 
@@ -179,16 +179,16 @@ Cleanest separation: easiest to grep, no env-var flag conditionals in `settings.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-test-settings-1 | Tests Use ImmediateBackend | Proposed | `pytest` invocation uses `tap/test_settings.py` where `TASKS["default"]["BACKEND"]` is `django.tasks.backends.immediate.ImmediateBackend`. | |
-| req-tap-cares-task-backend-test-settings-2 | Existing Tests Unchanged | Proposed | No test file requires modification to keep passing under this refactor. Tests that rely on synchronous task completion continue to work. | |
-| req-tap-cares-task-backend-test-settings-3 | Dev / Prod Use Steady Queue | Proposed | `scripts/dc up` (and any production deploy) configures `TASKS["default"]["BACKEND"]` as `steady_queue.backend.SteadyQueueBackend` via `tap/settings.py`. | |
-| req-tap-cares-task-backend-test-settings-4 | Test Settings Inherit | Proposed | `tap/test_settings.py` imports from `tap/settings.py` and overrides only the test-relevant values (`TASKS`, etc.); it does not re-declare the full settings surface. | Keeps settings drift between dev and test minimal. |
-| req-tap-cares-task-backend-test-settings-5 | pytest-django Configured | Proposed | `pyproject.toml` (or `pytest.ini`) sets `DJANGO_SETTINGS_MODULE = "tap.test_settings"` for pytest discovery. | |
+| req-tap-cares-task-backend-test-settings-1 | Tests Use ImmediateBackend | Implemented | `pytest` invocation uses `tap/test_settings.py` where `TASKS["default"]["BACKEND"]` is `django.tasks.backends.immediate.ImmediateBackend`. | |
+| req-tap-cares-task-backend-test-settings-2 | Existing Tests Unchanged | Implemented | No test file requires modification to keep passing under this refactor. Tests that rely on synchronous task completion continue to work. | |
+| req-tap-cares-task-backend-test-settings-3 | Dev / Prod Use Steady Queue | Implemented | `scripts/dc up` (and any production deploy) configures `TASKS["default"]["BACKEND"]` as `steady_queue.backend.SteadyQueueBackend` via `tap/settings.py`. | |
+| req-tap-cares-task-backend-test-settings-4 | Test Settings Inherit | Implemented | `tap/test_settings.py` imports from `tap/settings.py` and overrides only the test-relevant values (`TASKS`, etc.); it does not re-declare the full settings surface. | Keeps settings drift between dev and test minimal. |
+| req-tap-cares-task-backend-test-settings-5 | pytest-django Configured | Implemented | `pyproject.toml` (or `pytest.ini`) sets `DJANGO_SETTINGS_MODULE = "tap.test_settings"` for pytest discovery. | |
 
 ## Recurring Scope
 ----
 RID: `req-tap-cares-task-backend-recurring-scope`
-Status: `Proposed`
+Status: `Implemented`
 
 Steady Queue's `@recurring` decorator is used for **exactly one** task: the TAP scheduler tick. **This is a hard rule, not a v0 starting point.** No future TAP work introduces additional `@recurring` declarations.
 
@@ -222,15 +222,15 @@ This makes the rule self-enforcing: a contributor who adds a second `@recurring`
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-recurring-scope-1 | Single Recurring Task | Proposed | The codebase declares exactly one `@recurring`-decorated task: the TAP scheduler tick. **Hard rule, not a v0 starting point.** Future scheduling needs use the on-grid `Schedule` entity instead. | |
-| req-tap-cares-task-backend-recurring-scope-2 | Schedule Stays Grid-Authoritative | Proposed | TAP `Schedule` entities are not migrated to or duplicated in Steady Queue's recurring-task table. New scheduled work always routes through `Schedule`. | |
-| req-tap-cares-task-backend-recurring-scope-3 | Tick Defers To evaluate_tick | Proposed | The recurring task body's only logic is `evaluate_tick()`; no inline scheduler decisions. | |
-| req-tap-cares-task-backend-recurring-scope-4 | Test Enforces Single Recurring | Proposed | A repository-wide pytest scans for `@recurring(` callsites and asserts exactly one match. | Mirrors `test_results_site_uniqueness.py`. |
+| req-tap-cares-task-backend-recurring-scope-1 | Single Recurring Task | Implemented | The codebase declares exactly one `@recurring`-decorated task: the TAP scheduler tick. **Hard rule, not a v0 starting point.** Future scheduling needs use the on-grid `Schedule` entity instead. | |
+| req-tap-cares-task-backend-recurring-scope-2 | Schedule Stays Grid-Authoritative | Implemented | TAP `Schedule` entities are not migrated to or duplicated in Steady Queue's recurring-task table. New scheduled work always routes through `Schedule`. | |
+| req-tap-cares-task-backend-recurring-scope-3 | Tick Defers To evaluate_tick | Implemented | The recurring task body's only logic is `evaluate_tick()`; no inline scheduler decisions. | |
+| req-tap-cares-task-backend-recurring-scope-4 | Test Enforces Single Recurring | Implemented | A repository-wide pytest scans for `@recurring(` callsites and asserts exactly one match. | Mirrors `test_results_site_uniqueness.py`. |
 
 ## Deployment
 ----
 RID: `req-tap-cares-task-backend-deployment`
-Status: `Proposed`
+Status: `Implemented`
 
 Steady Queue's supervisor runs alongside Django `runserver` inside the existing web container. Same pattern the Huey consumer follows today: `docker/entrypoint.sh` backgrounds `manage.py steady_queue` before `exec`-ing into `runserver`, with a `trap` to clean up on exit.
 
@@ -242,15 +242,15 @@ Future production deployments may move Steady Queue to a separate container or h
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-deployment-1 | In-Container Supervisor | Proposed | `docker/entrypoint.sh` starts `manage.py steady_queue` as a background process in the web container. | |
-| req-tap-cares-task-backend-deployment-2 | Trap Cleanup | Proposed | The entrypoint's exit trap kills the Steady Queue supervisor when the container stops. | |
-| req-tap-cares-task-backend-deployment-3 | No Auto-Reload | Proposed | Steady Queue workers do not auto-reload on file changes; documentation reflects this. | Same constraint Huey had. |
-| req-tap-cares-task-backend-deployment-4 | No Separate Service In v0 | Proposed | v0 does not introduce a separate compose service for Steady Queue. | Future deployments may. |
+| req-tap-cares-task-backend-deployment-1 | In-Container Supervisor | Implemented | `docker/entrypoint.sh` starts `manage.py steady_queue` as a background process in the web container. | |
+| req-tap-cares-task-backend-deployment-2 | Trap Cleanup | Implemented | The entrypoint's exit trap kills the Steady Queue supervisor when the container stops. | |
+| req-tap-cares-task-backend-deployment-3 | No Auto-Reload | Implemented | Steady Queue workers do not auto-reload on file changes; documentation reflects this. | Same constraint Huey had. |
+| req-tap-cares-task-backend-deployment-4 | No Separate Service In v0 | Implemented | v0 does not introduce a separate compose service for Steady Queue. | Future deployments may. |
 
 ## Fork Safety
 ----
 RID: `req-tap-cares-task-backend-fork-safety`
-Status: `Proposed`
+Status: `Implemented`
 
 Steady Queue forks worker processes; Django ORM connections must be reset post-fork or they fence-post on TCP sockets. Steady Queue's worker model handles this internally per its docs, but the migration verification includes a smoke test that:
 
@@ -265,13 +265,13 @@ If post-fork connection handling has any sharp edges, this is where they surface
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-fork-safety-1 | Post-Fork Smoke Test | Proposed | A manual two-collector smoke test passes without Django DB connection errors. | Documented in commit message of the implementing change. |
-| req-tap-cares-task-backend-fork-safety-2 | Connection Errors Surfaced | Proposed | Any connection-handling regression surfaces as a test failure or visible Administrivia UI error, not silent data loss. | |
+| req-tap-cares-task-backend-fork-safety-1 | Post-Fork Smoke Test | Implemented | A manual two-collector smoke test passes without Django DB connection errors. | Documented in commit message of the implementing change. |
+| req-tap-cares-task-backend-fork-safety-2 | Connection Errors Surfaced | Implemented | Any connection-handling regression surfaces as a test failure or visible Administrivia UI error, not silent data loss. | |
 
 ## Huey Removal
 ----
 RID: `req-tap-cares-task-backend-huey-removal`
-Status: `Proposed`
+Status: `Implemented`
 
 Huey is removed from the codebase as part of this refactor, in a separate commit after Steady Queue has been verified as the `TASKS` backend.
 
@@ -290,16 +290,16 @@ The spec `spec-tap-cares-scheduler.md` requirements that reference Huey explicit
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-huey-removal-1 | Dependency Removed | Proposed | `huey` is no longer in `pyproject.toml` dependencies. | |
-| req-tap-cares-task-backend-huey-removal-2 | Module Removed | Proposed | `tap_cares/huey_tasks.py` is deleted; `tap_cares/apps.py` no longer imports it. | |
-| req-tap-cares-task-backend-huey-removal-3 | Settings Cleaned | Proposed | `INSTALLED_APPS` and the `HUEY` settings block no longer reference Huey. | |
-| req-tap-cares-task-backend-huey-removal-4 | Entrypoint Cleaned | Proposed | `docker/entrypoint.sh` no longer starts `manage.py run_huey`. | |
-| req-tap-cares-task-backend-huey-removal-5 | Scheduler Spec Updated | Proposed | `spec-tap-cares-scheduler.md` Huey requirements are rewritten in terms of Steady Queue and queue isolation. | |
+| req-tap-cares-task-backend-huey-removal-1 | Dependency Removed | Implemented | `huey` is no longer in `pyproject.toml` dependencies. | |
+| req-tap-cares-task-backend-huey-removal-2 | Module Removed | Implemented | `tap_cares/huey_tasks.py` is deleted; `tap_cares/apps.py` no longer imports it. | |
+| req-tap-cares-task-backend-huey-removal-3 | Settings Cleaned | Implemented | `INSTALLED_APPS` and the `HUEY` settings block no longer reference Huey. | |
+| req-tap-cares-task-backend-huey-removal-4 | Entrypoint Cleaned | Implemented | `docker/entrypoint.sh` no longer starts `manage.py run_huey`. | |
+| req-tap-cares-task-backend-huey-removal-5 | Scheduler Spec Updated | Implemented | `spec-tap-cares-scheduler.md` Huey requirements are rewritten in terms of Steady Queue and queue isolation. | |
 
 ## Migration Plan
 ----
 RID: `req-tap-cares-task-backend-migration-plan`
-Status: `Proposed`
+Status: `Implemented`
 
 The refactor lands in two commits with a verified-working state between them.
 
@@ -329,10 +329,10 @@ After Commit 2: one task backend, two isolated workers, the on-grid scheduler un
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-migration-plan-1 | Two-Commit Rollout | Proposed | The refactor lands in two commits — backend swap, then Huey removal — with a verifiably working state between them. | |
-| req-tap-cares-task-backend-migration-plan-2 | Rollback Available | Proposed | Reverting Commit 1 alone returns to the prior `ImmediateBackend` configuration without code changes elsewhere. | |
-| req-tap-cares-task-backend-migration-plan-3 | Spec Sync At Commit 2 | Proposed | `spec-tap-cares-scheduler.md` is updated in the same commit that removes Huey, so scheduler spec and code never disagree. | |
-| req-tap-cares-task-backend-migration-plan-4 | Test Suite Continuity | Proposed | The full `pytest tap_cares/tests/` suite passes both at the boundary between Commit 1 and Commit 2 and after Commit 2. | |
+| req-tap-cares-task-backend-migration-plan-1 | Two-Commit Rollout | Implemented | The refactor lands in two commits — backend swap, then Huey removal — with a verifiably working state between them. | |
+| req-tap-cares-task-backend-migration-plan-2 | Rollback Available | Implemented | Reverting Commit 1 alone returns to the prior `ImmediateBackend` configuration without code changes elsewhere. | |
+| req-tap-cares-task-backend-migration-plan-3 | Spec Sync At Commit 2 | Implemented | `spec-tap-cares-scheduler.md` is updated in the same commit that removes Huey, so scheduler spec and code never disagree. | |
+| req-tap-cares-task-backend-migration-plan-4 | Test Suite Continuity | Implemented | The full `pytest tap_cares/tests/` suite passes both at the boundary between Commit 1 and Commit 2 and after Commit 2. | |
 
 ## Backlog
 ----

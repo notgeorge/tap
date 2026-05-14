@@ -6,7 +6,7 @@ The tap-cares scheduler is TAP's on-grid recurring trigger system.
 
 The scheduler decides when a collector should run. It does not own collector execution. Once a schedule determines that a collector should run, it calls `run_collection(...)` and lets the collector runtime create the `CollectionJob`, create the `HAS_JOB` edge, enqueue the task, and manage the job lifecycle.
 
-Huey is the v0 clock and worker mechanism for evaluating schedules once per minute. TAP schedule nodes remain the source of truth. Huey should not be used as the durable schedule registry, the schedule history, or the audit record.
+Steady Queue's recurring-task scheduler is the v0 clock that wakes once per minute and dispatches a tick task on the dedicated `scheduler` queue. The tick task calls `tap_cares.scheduler.evaluate_tick()`. TAP schedule nodes remain the source of truth — Steady Queue is replaceable infrastructure under the on-grid scheduling model. See `spec-tap-cares-task-backend.md` for the task backend choice; this spec covers the TAP-level scheduler service that runs on top of it.
 
 The v0 scheduler should be deliberately small: UTC cron expressions, collector targets only, no catch-up execution, durable fire records, and one simple overlap guard.
 
@@ -25,8 +25,8 @@ The v0 scheduler should be deliberately small: UTC cron expressions, collector t
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-tap-cares-scheduler-scope | [Scheduler Scope](#scheduler-scope) | Implemented | Defines v0 as collector-only recurring execution |
-| req-tap-cares-scheduler-huey | [Huey Minute Tick](#huey-minute-tick) | Implemented | Huey evaluates enabled schedules once per minute |
-| req-tap-cares-scheduler-dependencies | [Implementation Dependencies](#implementation-dependencies) | Implemented | Huey and croniter as explicit uv-managed dependencies |
+| req-tap-cares-scheduler-tick | [Minute Tick](#minute-tick) | Implemented | A Steady Queue `@recurring` task evaluates enabled schedules once per minute on a dedicated queue |
+| req-tap-cares-scheduler-dependencies | [Implementation Dependencies](#implementation-dependencies) | Implemented | croniter (cron parsing); Steady Queue task backend per `spec-tap-cares-task-backend.md` |
 | req-tap-cares-scheduler-model | [Schedule Model](#schedule-model) | Implemented | User-creatable on-grid schedule node |
 | req-tap-cares-scheduler-fire-model | [ScheduleFire Model](#schedulefire-model) | Implemented | Internal-only durable record for each evaluated due slot |
 | req-tap-cares-scheduler-edges | [Scheduler Edges](#scheduler-edges) | Implemented | Graph relationships between schedules, fires, collectors, and jobs |
@@ -64,34 +64,37 @@ When a schedule fires successfully, it invokes `tap_cares.services.run_collectio
 | req-tap-cares-scheduler-scope-2 | Uses run_collection | Implemented | Successful scheduled execution invokes `run_collection(...)`; the scheduler does not reach behind that boundary. | See `spec-tap-cares-collector.md` `req-tap-cares-collector-run-collection`. |
 | req-tap-cares-scheduler-scope-3 | No Direct Task Enqueue | Implemented | The scheduler never calls `run_collector.enqueue(...)` directly. | |
 
-## Huey Minute Tick
+## Minute Tick
 ----
-RID: `req-tap-cares-scheduler-huey`
+RID: `req-tap-cares-scheduler-tick`
 Status: `Implemented`
 
-Huey provides the v0 recurring process that wakes once per minute and evaluates schedules.
+A Steady Queue `@recurring` task wakes once per minute and evaluates schedules.
 
-The Huey task should:
+The tick task (`tap_cares.task_backend.scheduler_tick`) is declared with `@recurring(schedule="* * * * *", key="tap_cares_scheduler_tick", queue_name="scheduler")` and:
 
-1. Compute the current UTC minute slot by truncating wall-clock time to minute precision.
-2. Find enabled `Schedule` nodes.
-3. Evaluate each schedule's cron expression against the current slot.
-4. For matching schedules, claim the slot, create a `ScheduleFire`, apply the overlap guard, and call `run_collection(...)` when allowed.
+1. Computes the current UTC minute slot by truncating wall-clock time to minute precision.
+2. Finds enabled `Schedule` nodes.
+3. Evaluates each schedule's cron expression against the current slot.
+4. For matching schedules, claims the slot, creates a `ScheduleFire`, applies the overlap guard, and calls `run_collection(...)` when allowed.
 
-Huey is not the schedule database. Schedule state, schedule targets, fire history, missed counts, and links to collection jobs live on the TAP grid.
+Steady Queue is not the schedule database. Schedule state, schedule targets, fire history, missed counts, and links to collection jobs all live on the TAP grid — Steady Queue's `steady_queue_recurringexecution` table holds exactly one row (the tick task itself).
 
-v0 deploys a **single Huey worker**. Multi-worker deployments are out of scope. The slot dedupe in `req-tap-cares-scheduler-dedupe` is correct under multiple workers because of the optimistic atomic claim, but multi-worker support is not exercised, not benchmarked, and not part of the v0 acceptance surface. This is an intentional, explicit choice — not a presumption — so that future work to support multiple workers or a hot/standby pair can change it deliberately.
+The tick task is dispatched to the dedicated `scheduler` queue, served by a single forked worker process. A backlog of collector tasks on the `default` queue cannot starve the clock — see `spec-tap-cares-task-backend.md` `req-tap-cares-task-backend-queue-isolation` for the worker topology.
 
-A separate host-level watcher that detects Huey death and multiple-worker conditions is tracked in the backlog.
+v0 deploys a single scheduler-queue worker. Multi-worker deployments are out of scope. The slot dedupe in `req-tap-cares-scheduler-dedupe` is correct under multiple workers because of the optimistic atomic claim, but multi-worker support is not exercised, not benchmarked, and not part of the v0 acceptance surface. This is an intentional, explicit choice — not a presumption — so that future work to support multiple workers or a hot/standby pair can change it deliberately.
+
+A separate host-level watcher that detects Steady Queue supervisor death and multiple-supervisor conditions is tracked in the backlog.
 
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-huey-1 | Minute Tick | Implemented | Huey runs the scheduler evaluation task once per minute. | No per-second evaluation in v0. |
-| req-tap-cares-scheduler-huey-2 | UTC Slot | Implemented | The scheduler evaluates an exact UTC minute slot, not arbitrary sub-minute wall-clock time. | |
-| req-tap-cares-scheduler-huey-3 | TAP Owns State | Implemented | Huey is only the clock/worker; durable scheduler state is stored in TAP graph objects. | |
-| req-tap-cares-scheduler-huey-4 | Single Worker v0 | Implemented | v0 runs exactly one Huey worker process; multi-worker deployment is out of scope. | Slot dedupe is correct under multi-worker but multi-worker is not v0-supported. |
+| req-tap-cares-scheduler-tick-1 | Minute Tick | Implemented | Steady Queue's recurring-task scheduler dispatches the tick once per minute. | No per-second evaluation in v0. |
+| req-tap-cares-scheduler-tick-2 | UTC Slot | Implemented | The scheduler evaluates an exact UTC minute slot, not arbitrary sub-minute wall-clock time. | |
+| req-tap-cares-scheduler-tick-3 | TAP Owns State | Implemented | Steady Queue is only the clock/worker; durable scheduler state is stored in TAP graph objects. | |
+| req-tap-cares-scheduler-tick-4 | Single Worker v0 | Implemented | v0 runs exactly one Steady Queue scheduler-queue worker process; multi-worker deployment is out of scope. | Slot dedupe is correct under multi-worker but multi-worker is not v0-supported. |
+| req-tap-cares-scheduler-tick-5 | Dedicated Queue | Implemented | The tick task is tagged with `queue_name="scheduler"` and served by a worker that polls only the scheduler queue, so collector workload cannot starve the clock. | Cross-ref `spec-tap-cares-task-backend.md` `req-tap-cares-task-backend-queue-isolation`. |
 
 ## Implementation Dependencies
 ----
@@ -100,21 +103,19 @@ Status: `Implemented`
 
 The scheduler implementation requires:
 
-- **Huey** — periodic-tick mechanism and task worker.
-- **croniter** — cron-expression parsing, validation, and slot iteration (used by the missed-count walk and tick-time match check).
+- **croniter** — cron-expression parsing, validation, and slot iteration (used by the missed-count walk and tick-time match check), added through uv.
+- **Steady Queue** — the task backend that hosts both the once-per-minute tick task and the collector execution. Its dependency and deployment are governed by `spec-tap-cares-task-backend.md` `req-tap-cares-task-backend-steady-queue`; the scheduler spec does not re-declare them.
 
-Both are added through uv. Because `tap_cares` is a first-party TAP app, dependencies may live in the root project unless the uv workspace/plugin-dependency work lands first. If the workspace pattern lands before scheduler implementation, the scheduler should use that pattern as the first real proving ground for installing the dependency cleanly while preserving the eventual ability to separate plugin and app dependency ownership.
-
-This requirement is about dependency management only. It does not change the runtime rule that Huey is the clock/worker and TAP graph objects are the durable schedule source of truth.
+This requirement is about scheduler-specific dependency management only. It does not change the runtime rule that Steady Queue is the clock/worker and TAP graph objects are the durable schedule source of truth.
 
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-scheduler-dependencies-1 | Huey Dependency | Implemented | Scheduler implementation adds Huey through uv rather than relying on an undeclared transitive import. | |
-| req-tap-cares-scheduler-dependencies-2 | croniter Dependency | Implemented | Cron parsing, validation, and slot iteration use the `croniter` library, added through uv. | One parser binds write-time validation to tick-time evaluation so they cannot disagree. |
+| req-tap-cares-scheduler-dependencies-1 | croniter Dependency | Implemented | Cron parsing, validation, and slot iteration use the `croniter` library, added through uv. | One parser binds write-time validation to tick-time evaluation so they cannot disagree. |
+| req-tap-cares-scheduler-dependencies-2 | Task Backend Cross-Ref | Implemented | The task backend (Steady Queue) is spec'd in `spec-tap-cares-task-backend.md`; the scheduler depends on whatever DEP 0014 backend that spec selects. | Replaceable infra; scheduler spec does not own the choice. |
 | req-tap-cares-scheduler-dependencies-3 | Workspace-Compatible | Implemented | If the uv workspace/plugin-dependency pattern lands first, scheduler dependency installation follows that pattern. | Cross-reference `tap_plugins/specs/spec-plugin-architecture.md` `req-plugin-arch-python-deps`. |
-| req-tap-cares-scheduler-dependencies-4 | State Boundary Unchanged | Implemented | Adding Huey as a dependency does not make Huey the durable schedule store. | |
+| req-tap-cares-scheduler-dependencies-4 | State Boundary Unchanged | Implemented | Adding a task backend dependency does not make the backend the durable schedule store. | |
 
 ## Schedule Model
 ----
@@ -171,7 +172,7 @@ Status: `Implemented`
 
 A `ScheduleFire` is not the collector run. The collector run is still represented by `CollectionJob`. `ScheduleFire` records the scheduler's decision for a due slot and links to a `CollectionJob` only when the schedule actually triggers collection.
 
-A `ScheduleFire` is created **only when an enabled schedule's cron expression matches the current minute slot**. Ticks where no schedules match the current minute do not produce `ScheduleFire` rows. This keeps the fire history tightly correlated with per-schedule decisions rather than recording every Huey wake-up.
+A `ScheduleFire` is created **only when an enabled schedule's cron expression matches the current minute slot**. Ticks where no schedules match the current minute do not produce `ScheduleFire` rows. This keeps the fire history tightly correlated with per-schedule decisions rather than recording every scheduler-tick wake-up.
 
 Every `ScheduleFire` has a human-readable `name` and plain-text `description`.
 
@@ -215,7 +216,7 @@ The exact text is implementation-flexible; the requirement is that `summary` is 
 | req-tap-cares-scheduler-fire-model-5 | Scheduler Status Only | Implemented | `ScheduleFire.status` records scheduler decision state, not the terminal collector job state. The transient `pending` value at creation transitions to `triggered`, `skipped`, or `failed` in Stage 2. | |
 | req-tap-cares-scheduler-fire-model-6 | Missed Count Field | Implemented | `ScheduleFire` has an integer `missed_count` defaulting to `0`. | |
 | req-tap-cares-scheduler-fire-model-7 | Summary Field | Implemented | `ScheduleFire.summary` is a single freeform one-liner that covers triggered, skipped, and failed cases; the scheduler always sets it. | Replaces the earlier draft's separate `skip_reason` and `error_summary` fields. |
-| req-tap-cares-scheduler-fire-model-8 | Created Only On Match | Implemented | A `ScheduleFire` is created only when an enabled schedule's cron expression matches the current minute slot. | Non-matching Huey ticks produce no rows. |
+| req-tap-cares-scheduler-fire-model-8 | Created Only On Match | Implemented | A `ScheduleFire` is created only when an enabled schedule's cron expression matches the current minute slot. | Non-matching scheduler ticks produce no rows. |
 | req-tap-cares-scheduler-fire-model-9 | run_collection Failure | Implemented | If `run_collection(...)` raises during a triggered slot, the fire is recorded with `status = failed`, no `TRIGGERED_JOB` edge, and a `summary` describing the failure. | The transactional unit must close in this state — no half-triggered fires. |
 | req-tap-cares-scheduler-fire-model-10 | fired_at Non-Null | Implemented | `fired_at` is always set at fire creation; it is non-null. | |
 
@@ -279,7 +280,7 @@ minute hour day-of-month month day-of-week
 
 Cron expressions are interpreted in UTC and parsed/iterated via `croniter`. The scheduler evaluates only minute-level slots. Sub-minute precision, named time zones, daylight-saving-time policy, seconds fields, calendars, and interval-specific fields are out of scope for v0.
 
-There is no catch-up execution in v0. If Huey, the app, or the host is down when a schedule would have matched, TAP does not enqueue historical collector runs for those missed slots.
+There is no catch-up execution in v0. If Steady Queue, the app, or the host is down when a schedule would have matched, TAP does not enqueue historical collector runs for those missed slots.
 
 ### Acceptance Criteria
 
@@ -384,8 +385,8 @@ except Exception as exc:
 
 ### Implications
 
-- **Multi-worker safe.** Two workers racing on the same slot produce at most one `ScheduleFire`; the loser sees rowcount 0 and exits before creating a fire row. This is the property that lets v0's single-worker assumption (`req-tap-cares-scheduler-huey-4`) be relaxed later without redesigning dedupe.
-- **Replay safe.** A retried Huey task is also a duplicate slot for the schedule, and the same exclusion logic short-circuits it.
+- **Multi-worker safe.** Two workers racing on the same slot produce at most one `ScheduleFire`; the loser sees rowcount 0 and exits before creating a fire row. This is the property that lets v0's single-worker assumption (`req-tap-cares-scheduler-tick-4`) be relaxed later without redesigning dedupe.
+- **Replay safe.** A retried tick task is also a duplicate slot for the schedule, and the same exclusion logic short-circuits it.
 - **Dispatch outside the claim.** `run_collection(...)` runs after Stage 1 commits, so a synchronous task backend (e.g. ImmediateBackend in tests) does not execute the collector body before the fire row is durable. It also means the claim row lock is not held while the collector runs.
 - **`ScheduleFire` has no denormalized `schedule` FK.** The canonical graph relationship is `Schedule --HAS_FIRED--> ScheduleFire`, matching the `Collector --HAS_JOB--> CollectionJob` pattern. v0 enforces "one fire per slot" with the atomic claim plus `INTERNAL_ONLY` on `ScheduleFire`; no DB-level unique constraint is added. If a third defense layer is wanted later, a denormalized `schedule` column + `UniqueConstraint(schedule, scheduled_for)` is a backlog-eligible addition.
 - **Status transitions are not atomic with the claim.** Fire status moves from its initial value (set at creation) to `triggered`, `skipped`, or `failed` in Stage 2. This is acceptable because the fire row exists from Stage 1 and observers see a row whose status converges shortly after.
@@ -484,8 +485,8 @@ The following are intentionally deferred:
 - schedule parameter payloads and per-run input overrides
 - schedule-fire retention and pruning
 - richer scheduler tick health metrics
-- **multi-worker Huey deployment** — relax `req-tap-cares-scheduler-huey-4` once we have a use case and benchmarks
-- **Huey watcher** — a separate host-level cron job (outside the Huey process) that detects whether Huey is alive and whether more than one Huey instance is running. The watcher could restart Huey or raise an alert; deferred until the alerts system exists
+- **multi-worker Steady Queue scheduler-queue deployment** — relax `req-tap-cares-scheduler-tick-4` once we have a use case and benchmarks
+- **Steady Queue supervisor watcher** — a separate host-level cron job (outside the Steady Queue supervisor) that detects whether the supervisor is alive and whether more than one instance is running. The watcher could restart it or raise an alert; deferred until the alerts system exists
 - **`INTERNAL_ONLY` enforcement on edges** — extend the existing `INTERNAL_ONLY` protection so edges that point to internal-only nodes (e.g. `HAS_FIRED`, `TRIGGERED_JOB`) cannot be created by user code. Important because these edges materially carry scheduler decision lineage
 - **Schedule cascade delete** — define how `ScheduleFire` rows and scheduler edges behave when a `Schedule` is deleted; revisit once the project's cascading-delete behavior is sorted
 
