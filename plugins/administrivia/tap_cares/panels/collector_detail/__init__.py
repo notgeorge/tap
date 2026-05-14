@@ -215,7 +215,11 @@ class CollectorDetailPanelType:
                     )
                 else:
                     try:
-                        job = run_collection(collector)
+                        job = run_collection(
+                            collector,
+                            manual_run=True,
+                            manual_run_source="administrivia.collector_detail",
+                        )
                     except Exception as exc:  # noqa: BLE001
                         logger.exception(
                             "run_collection failed for collector %s", collector.entity_id

@@ -27,26 +27,31 @@ def run_collection(
     collector: Collector,
     *,
     caller_context: CallerContext | None = None,
+    manual_run: bool = False,
+    manual_run_source: str = "",
 ) -> CollectionJob:
     """Start a collection run for the given Collector.
 
     Performs, in order:
       1. Creates a CollectionJob node via `_create_node_internal`
-         (CollectionJob is INTERNAL_ONLY).
+         (CollectionJob is INTERNAL_ONLY), persisting `manual_run` and
+         `manual_run_source` on the row (req-tap-cares-collector-run-collection-9).
       2. Creates a HAS_JOB edge from collector.entity to the new job via
          `tap_grid.services.create_edge`.
       3. Enqueues the `run_collector` Django Task with the JSON-safe
          collector + job entity IDs.
       4. Returns the CollectionJob in its post-enqueue state.
 
+    Manual surfaces (Administrivia run button today) call with
+    `manual_run=True` and a short `manual_run_source` identifier. Scheduler
+    invocations leave both at defaults; the scheduler-trigger relationship
+    is recorded by the inbound `ScheduleFire --TRIGGERED_JOB--> CollectionJob`
+    edge (req-tap-cares-scheduler-trigger-provenance-2).
+
     With ImmediateBackend (v0 default) the returned job will already reflect
     the terminal task outcome by the time this function returns; with a worker
     backend the job will be READY or RUNNING depending on worker pickup
     latency.
-
-    The future scheduler subsystem is the intended steady-state caller. v0
-    permits the Administrivia HTMX panel handler to call this directly per
-    `spec-tap-cares-administrivia.md` `req-tap-cares-administrivia-manual-run`.
     """
     ctx = caller_context or CallerContext()
     now = datetime.now(UTC)
@@ -57,6 +62,8 @@ def run_collection(
             "name": f"{collector.name or 'Collection'} {now.isoformat()}",
             "status": CollectionJobStatus.READY.value,
             "enqueued_at": now.isoformat(),
+            "manual_run": manual_run,
+            "manual_run_source": manual_run_source,
         },
         caller_context=ctx,
     )

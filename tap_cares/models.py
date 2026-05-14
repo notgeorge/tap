@@ -190,6 +190,11 @@ class CollectionJob(BaseModel):
         "status": {"type": "string", "enum": [s.value for s in CollectionJobStatus]},
         "task_result_id": {"type": "string"},
         "summary": {"type": "string"},
+        # Manual run provenance — req-tap-cares-collector-job-model-21.
+        # Scheduler-triggered runs leave both at defaults; the inbound
+        # TRIGGERED_JOB edge from ScheduleFire is the scheduler-trigger record.
+        "manual_run": {"type": "boolean"},
+        "manual_run_source": {"type": "string"},
         # Lifecycle timestamps — set by run_collection (enqueued_at) and the
         # run_collector task body (started_at, finished_at). Datetimes flow in
         # as ISO-8601 strings through the service-layer patch path; Django's
@@ -217,6 +222,10 @@ class CollectionJob(BaseModel):
             "validation": "jsonschema",
             "schema": {"type": "string", "maxLength": 2048},
         },
+        "manual_run_source": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "maxLength": 255},
+        },
     }
 
     name = models.CharField(max_length=255, blank=True, default="")
@@ -229,6 +238,8 @@ class CollectionJob(BaseModel):
     )
     task_result_id = models.CharField(max_length=128, blank=True, default="", db_index=True)
     summary = models.CharField(max_length=2048, blank=True, default="")
+    manual_run = models.BooleanField(default=False, db_index=True)
+    manual_run_source = models.CharField(max_length=255, blank=True, default="")
     enqueued_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)

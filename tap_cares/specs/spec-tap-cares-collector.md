@@ -396,16 +396,16 @@ def run_collection(
     collector: Collector,
     *,
     caller_context: CallerContext | None = None,
-    trigger_source: str,
-    trigger_description: str,
+    manual_run: bool = False,
+    manual_run_source: str = "",
 ) -> CollectionJob:
     """Start a collection run for the given Collector.
 
     Performs, in order:
     1. Enforce concurrency policy (req-tap-cares-collector-concurrency, Backlog).
     2. Create a CollectionJob node via _create_node_internal
-       (since CollectionJob is INTERNAL_ONLY), including durable trigger
-       provenance from trigger_source and trigger_description.
+       (since CollectionJob is INTERNAL_ONLY), persisting `manual_run` and
+       `manual_run_source` on the row.
     3. Create a HAS_JOB edge from collector.entity to the new job
        via the service-layer create_edge.
     4. Build a CollectorConfig from the collector and job entity IDs.
@@ -418,22 +418,24 @@ def run_collection(
     """
 ```
 
-#### Trigger provenance
+#### Manual run provenance
 
-`caller_context` and trigger metadata answer different questions:
+`caller_context` and manual-run metadata answer different questions:
 
-- `caller_context` captures who or what authority initiated the request.
-- `trigger_source` captures the mechanism that caused the run, such as `manual`, `scheduler`, `api`, `action`, or `system`.
-- `trigger_description` captures a plain-text explanation suitable for operators, such as `Manual Administrivia run from collector detail page` or `Scheduled run: FedRAMP KSI nightly refresh`.
+- `caller_context` captures who or what authority initiated the request (user, system actor, etc.).
+- `manual_run` is a boolean that records whether a human explicitly pushed a Run button or otherwise invoked a manual-execution path.
+- `manual_run_source` is a short string identifier of the manual surface — e.g. `administrivia.run_button`, `administrivia.collector_detail`, `shell`. Empty when `manual_run` is `false`.
 
-The trigger metadata must be durable with the `CollectionJob` or an immediately linked trigger/run context node. It must not exist only as transient task arguments. Scheduled runs use `trigger_source = "scheduler"` and a description naming the schedule; manual v0 admin runs use `trigger_source = "manual"` and a description naming the UI action.
+Manual runs (Administrivia run button today; future manual surfaces) call `run_collection(...)` with `manual_run=True` and an appropriate `manual_run_source`. Scheduler-triggered runs leave both at defaults — the scheduler-trigger relationship is the inbound `ScheduleFire --TRIGGERED_JOB--> CollectionJob` edge, which is the canonical scheduler-trigger record. A future API trigger source would extend the same pattern (e.g. an `api_run` flag or an analogous edge from an API trigger node).
+
+Both fields are durable on `CollectionJob`. They are not passed as transient task arguments.
 
 #### Responsibilities and boundaries
 
 `run_collection` owns:
 
 - CollectionJob node creation (via `_create_node_internal` since `CollectionJob.INTERNAL_ONLY = True`).
-- Durable trigger provenance for the CollectionJob kickoff.
+- Persisting `manual_run` / `manual_run_source` on the CollectionJob.
 - HAS_JOB edge creation (via `tap_grid.services.create_edge`).
 - Django Task enqueueing.
 - Returning the job in its post-enqueue state.
@@ -458,7 +460,7 @@ The intended steady-state caller is the future scheduler subsystem. Until that s
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-run-collection-1 | Public Entry Point | Proposed | `run_collection(collector, *, caller_context=None, trigger_source, trigger_description) -> CollectionJob` is the sole public callable for starting a collection. | Replaces the v0 internal `enqueue_collection` name. |
+| req-tap-cares-collector-run-collection-1 | Public Entry Point | Proposed | `run_collection(collector, *, caller_context=None, manual_run=False, manual_run_source="") -> CollectionJob` is the sole public callable for starting a collection. | Replaces the v0 internal `enqueue_collection` name. |
 | req-tap-cares-collector-run-collection-2 | Service-Layer Routing | Proposed | All grid mutations performed by `run_collection` (CollectionJob create, HAS_JOB create) route through the service layer or the trusted-internal create helper. No direct ORM writes for grid-managed types. | |
 | req-tap-cares-collector-run-collection-3 | CollectionJob Internal Create | Proposed | `run_collection` is the sole legal creator of CollectionJob rows, using `_create_node_internal` (since CollectionJob is INTERNAL_ONLY). | |
 | req-tap-cares-collector-run-collection-4 | Edge Through Service Layer | Proposed | The HAS_JOB edge is created via `tap_grid.services.create_edge`. | |
@@ -466,7 +468,7 @@ The intended steady-state caller is the future scheduler subsystem. Until that s
 | req-tap-cares-collector-run-collection-6 | Scheduler Is Caller, Not Owner | Proposed | The future scheduler subsystem invokes `run_collection`; it does not reach behind it to create CollectionJobs or enqueue tasks directly. | |
 | req-tap-cares-collector-run-collection-7 | Administrivia Caller Permitted In v0 | Proposed | The Administrivia HTMX panel handler is the permitted v0 caller. The path migrates to scheduler-mediated triggering when the scheduler spec lands; `run_collection`'s contract does not change. | See `spec-tap-cares-administrivia.md` `req-tap-cares-administrivia-manual-run`. |
 | req-tap-cares-collector-run-collection-8 | Post-Enqueue Return | Proposed | The function returns the CollectionJob in its post-enqueue state. Under ImmediateBackend the job reflects terminal status; under worker backends it reflects READY or RUNNING. | |
-| req-tap-cares-collector-run-collection-9 | Trigger Provenance | Proposed | `run_collection` records `trigger_source` and `trigger_description` durably with the created CollectionJob or an immediately linked trigger/run context node. | See `spec-tap-cares-scheduler.md` `req-tap-cares-scheduler-trigger-provenance`. |
+| req-tap-cares-collector-run-collection-9 | Manual Run Provenance | Proposed | `run_collection` persists `manual_run` and `manual_run_source` on the created CollectionJob. Scheduler-triggered runs leave both at defaults; the inbound `TRIGGERED_JOB` edge from `ScheduleFire` is the canonical scheduler record. | See `spec-tap-cares-scheduler.md` `req-tap-cares-scheduler-trigger-provenance`. |
 
 ## Collector Task Execution
 ----
@@ -589,7 +591,7 @@ CollectionJob-specific model requirements:
 
 - `CollectionJob` has a human-readable `name`.
 - `CollectionJob` has a plain-text `description`.
-- `CollectionJob` or an immediately linked trigger/run context node records `trigger_source` and `trigger_description`.
+- `CollectionJob` carries `manual_run` (bool, default `false`) and `manual_run_source` (string, default `""`) — see [Manual Run Provenance](#manual-run-provenance) below. Scheduler-triggered runs leave both at defaults; the scheduler-trigger relationship is recorded by the inbound `TRIGGERED_JOB` edge from `ScheduleFire`.
 - `CollectionJob` has a `status` `CharField` driven by a `models.TextChoices` enum (see [CollectionJob Lifecycle Status](#collectionjob-lifecycle-status)).
 - `CollectionJob` has a `task_result_id` `CharField(max_length=128, blank=True, default="")`. This stores the `TaskResult.id` returned by Django's Tasks API — a backend-defined string, **not** a UUID. The built-in `immediate` and `dummy` backends use 32-char random strings (`get_random_string(32)`); other backends may differ. `max_length=128` is comfortably above the current built-in but small enough to remain index-friendly. Empty string represents "not yet enqueued / enqueue raised."
 - `CollectionJob` has `enqueued_at`, `started_at`, and `finished_at` `DateTimeField(null=True, blank=True)` timestamps; each is populated as the corresponding lifecycle transition occurs.
@@ -705,7 +707,7 @@ The summary intentionally hides per-message content; operators dig into `results
 | req-tap-cares-collector-job-model-18 | run_collection Is Sole Creator | Proposed | The only legal path that creates a CollectionJob row is `run_collection(...)` (see [Run Collection Entry Point](#run-collection-entry-point)), which uses `_create_node_internal` from `tap_grid.services`. | |
 | req-tap-cares-collector-job-model-19 | Accumulator Pattern For results | Proposed | The collector instance accumulates result entries in `self.results` during `run()`. The task body persists the accumulated dict to `CollectionJob.results` in a single patch at terminal state. No mid-run writes to the row. | Resolves the v0-pre-refactor staleness pattern. |
 | req-tap-cares-collector-job-model-20 | grift_batches Field | Proposed | `CollectionJob.grift_batches` is a `JSONField` with shape `{"imported": [<UUIDv7>...], "skipped": [<UUIDv7>...]}`, populated by the task body at terminal state from `collector_instance.grift_batches`. | Field was present in v0-pre-refactor but undeclared in the spec; declaring it now. |
-| req-tap-cares-collector-job-model-21 | Trigger Provenance | Proposed | Each collection job preserves `trigger_source` and `trigger_description` either as direct fields or through an immediately linked trigger/run context node. | Direct fields are preferred for v0 simplicity unless implementation pressure points to a separate node. |
+| req-tap-cares-collector-job-model-21 | Manual Run Provenance | Proposed | `CollectionJob` carries `manual_run` (BooleanField, default `false`) and `manual_run_source` (CharField, default `""`) fields. Manual runs (Administrivia run button, future manual surfaces) set `manual_run=True` with a short source identifier. Scheduler-triggered runs leave both at defaults; the inbound `TRIGGERED_JOB` edge from `ScheduleFire` is the canonical scheduler-trigger record. See [Manual Run Provenance](#manual-run-provenance). | Replaces the earlier generic `trigger_source` / `trigger_description` framing per scheduler review feedback. |
 
 ## CollectionJob Sole-Writer Invariant
 ----
