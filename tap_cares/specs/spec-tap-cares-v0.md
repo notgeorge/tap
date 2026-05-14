@@ -31,6 +31,7 @@ tap-cares also acts as a future skill-tree anchor. As each subsystem stabilizes,
 | req-tap-cares-v0-emitter | [Emitters](#emitters) | Proposed | Send data or notifications outward through explicit channels |
 | req-tap-cares-v0-action | [Actions](#actions) | Proposed | Generate and track proposed or executable responses to processed data |
 | req-tap-cares-v0-scheduler | [Scheduler](#scheduler) | Proposed | Periodically execute collector capability nodes via the scheduler spec |
+| req-tap-cares-v0-secrets | [Secrets](#secrets) | Proposed | Mounted `*.secret.json` files resolved through tap-cares runtime registry |
 | req-tap-cares-v0-merge | [Grid Merge Contract](#grid-merge-contract) | Proposed | Normalize collected or received data into GRIFT batches for service-layer grid writes |
 | req-tap-cares-v0-run-record | [Run Records And Observability](#run-records-and-observability) | Proposed | On-grid execution records for debugging, audit, and UI/API visibility |
 | req-tap-cares-v0-authenticator | [Authenticator Management](#authenticator-management) | Proposed | Phase 2 credential/authenticator abstraction for external systems |
@@ -223,6 +224,32 @@ GRIFT batches are the only interchange shape for tap-cares grid mutation. Collec
 | req-tap-cares-v0-merge-3 | Outcome Summary | Proposed | Batch execution results report created, updated, skipped, deprecated, errored, and warning counts. | |
 | req-tap-cares-v0-merge-4 | Run Provenance | Proposed | Executed GRIFT batches are linked to the tap-cares run node that produced or approved them. | |
 
+## Secrets
+----
+RID: `req-tap-cares-v0-secrets`
+Status: `Proposed`
+
+tap-cares secrets are local runtime inputs for capabilities that need sensitive material, such as AWS collectors. The v0 design is specified in `spec-tap-cares-secrets.md`.
+
+v0 secrets are loaded from a configured mounted directory at Django startup. The loader scans recursively and considers only files named `*.secret.json`. Each file declares its own `scope`, `key`, `kind`, required free-form `description`, and `data` object. Directories are organizational only. The repository ignores `*.secret.json` so real secret files are not accidentally committed.
+
+Secret files are loaded into an internal `ScopedRegistry`; consumers resolve them through a `SecretRef` / `resolve_secret(...)` helper surface rather than passing raw strings or reading files directly. tap-cares performs only minimal registration-shape validation. Consumer-specific validation belongs to the collector, receiver, emitter, or action that knows the secret kind.
+
+Missing or invalid secrets fail the capability run visibly with redacted structured errors. Secret values are not stored on the grid in v0. A future `Secret` or `SecretReference` BaseModel may expose secret metadata, schema intent, policy, health, and usage relationships on the grid while keeping secret values off-grid.
+
+Encryption at rest for secret files is a backlog requirement and deliberately does not define a v0 file format.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-v0-secrets-1 | Mounted Secret Files | Proposed | tap-cares loads secret material from a configured mounted directory. | See `spec-tap-cares-secrets.md`. |
+| req-tap-cares-v0-secrets-2 | Obvious File Pattern | Proposed | Only `*.secret.json` files are loaded and the repo ignores that pattern. | |
+| req-tap-cares-v0-secrets-3 | Registry Resolution | Proposed | Runtime consumers resolve secrets through tap-cares helpers backed by a dedicated scoped registry. | |
+| req-tap-cares-v0-secrets-4 | Consumer Validation | Proposed | Secret-kind validation belongs to the consumer rather than centralized tap-cares schemas in v0. | |
+| req-tap-cares-v0-secrets-5 | No Grid Values | Proposed | Secret values are not stored on TAP-managed nodes, edges, GRIFT batches, or run records. | |
+| req-tap-cares-v0-secrets-6 | Future Secret Model Deferred | Backlog | A future on-grid Secret metadata model and generator command are tracked in the secrets spec. | |
+
 ## Run Records And Observability
 ----
 RID: `req-tap-cares-v0-run-record`
@@ -251,7 +278,7 @@ Status: `Proposed`
 
 Authenticator management is a known phase 2 requirement. The AWS collection target will require TAP to manage credentials, roles, profiles, tokens, or other source-specific authentication material.
 
-v0 should avoid designing a credential vault prematurely, but it should leave an explicit interface boundary so collectors, receivers, and emitters can declare authenticator needs without embedding secrets in schedules or capability nodes.
+v0 should avoid designing a credential vault prematurely. The runtime secret file and resolver contract in `spec-tap-cares-secrets.md` provides the immediate secret-material boundary while leaving an explicit interface for collectors, receivers, and emitters to declare authenticator needs without embedding secrets in schedules or capability nodes.
 
 Authenticator design must account for local-first deployments, secret redaction in logs, rotation, least privilege, and non-secret execution contexts such as local files.
 
@@ -261,7 +288,7 @@ Authenticator design must account for local-first deployments, secret redaction 
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-v0-authenticator-1 | Declared Auth Needs | Proposed | Capability nodes can declare authenticator requirements without storing secret values. | |
 | req-tap-cares-v0-authenticator-2 | No Secret Logs | Proposed | Run records and errors redact secrets and sensitive credential material. | |
-| req-tap-cares-v0-authenticator-3 | Phase 2 Boundary | Proposed | The KSI collector path can proceed without committing TAP to an AWS credential-management design. | |
+| req-tap-cares-v0-authenticator-3 | Phase 2 Boundary | Proposed | tap-cares can resolve mounted runtime secrets without committing TAP to a full credential-management or vault design. | See `spec-tap-cares-secrets.md`. |
 
 ## FedRAMP 20x KSI Collector
 ----
@@ -351,8 +378,9 @@ Initial sequencing is expected to be:
 2. Define the collector contract in more detail.
 3. Define the scheduler contract in enough detail to run collectors periodically.
 4. Implement the FedRAMP 20x KSI collector and GRIFT batch merge path.
-5. Add action behavior only when collection/merge processing produces a concrete need for alerts or notifications.
-6. Defer authenticator management until the AWS collection target requires it.
+5. Define the secrets runtime contract before implementing collectors that need external credentials.
+6. Add action behavior only when collection/merge processing produces a concrete need for alerts or notifications.
+7. Defer full authenticator management until the AWS collection target requires per-capability credential metadata beyond runtime secret references.
 
 ## Future
 
@@ -363,4 +391,5 @@ Open questions for follow-up specs:
 - How schedules should run in production: Django Tasks, management command plus cron, long-running worker, or another local-first mechanism.
 - What approval model is needed before actions can execute side-effecting emitters.
 - How authenticator records should integrate with Django auth, local deployments, and plugin-specific credential needs.
+- Whether a future Secret/SecretReference BaseModel should expose secret metadata, schemas, generator commands, health, and usage edges on the grid.
 - Whether "Synchronize" should become the explicit second "s" capability in tap-cares.

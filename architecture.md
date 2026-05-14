@@ -77,6 +77,7 @@ Critical, essential elements of TAP:
 14. TAP-managed types should be discoverable through registry-backed service-layer discovery rather than only through Python imports
 15. TAP should have one canonical graph interchange contract for portable node and edge responses; GRIFT and GRIFT-defined subgraphs are that contract
 16. Graph-native read/query behavior should be expressed through TAP search capabilities, including Gryphon for traversal-oriented reads, rather than proliferating one-off graph query helpers
+17. TAP-managed graph state may reference runtime capabilities and sensitive runtime inputs by stable keys, but executable code and secret material are resolved only through trusted runtime registries. The grid can make these references durable, inspectable, schedulable, and related to other graph objects; it must not become an arbitrary code loader or secret-value store.
 
 
 What TAP is definitely not

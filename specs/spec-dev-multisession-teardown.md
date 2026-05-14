@@ -42,7 +42,7 @@ Where `<name>` matches a session previously spawned via the procedure in [spec-d
 Flags:
 
 - `--yes` / `-y` — skip the confirmation prompt. Pair with the named form for one-line invocation in scripts.
-- `--purge-image` — also remove the per-project web image (`tap_<name>-web`) so the next spawn rebuilds without using the cached build state. Use when uv install state, wheel cache, or other image-baked dependency state is poisoned.
+- `--purge-image` — also remove the per-project web image (`tap_<name>-web`) so the next spawn rebuilds without using Docker image cache. Runtime Python state lives in compose volumes and is removed by normal despawn volume cleanup.
 
 #### Behavior
 
@@ -60,7 +60,7 @@ Sequence:
 4. **Belt-and-suspenders volume / network cleanup.** Even after step 3, named volumes / networks under `tap_<name>_` are matched and removed explicitly. This catches the failure mode where a previous `dc down` couldn't identify the project (missing `.env.local`).
 5. **Remove the worktree and branch.** `git worktree remove --force` followed by `git branch -D session/<name>`. If the worktree directory survives somehow (e.g. removed outside git's awareness), `rm -rf` it.
 6. **Remove the registry row.** `sed -i.bak "/^<name> /d" ~/tap-sessions/.registry`, freeing the band for reuse. See [req-dev-multisession-port-registry](spec-dev-multisession.md#per-machine-session-registry).
-7. **(Optional) Purge the per-project image** with `--purge-image`: `docker rmi` for any image matching `tap_<name>-web`. Forces a no-cache rebuild on the next spawn — necessary when uv cache, wheel state, or other image-baked dependency state is poisoned, because despawn alone doesn't touch image layers.
+7. **(Optional) Purge the per-project image** with `--purge-image`: `docker rmi` for any image matching `tap_<name>-web`. Forces a no-cache rebuild on the next spawn. Runtime Python state is not image-owned; `down -v` and the residual volume cleanup remove the Postgres data, container venv, and uv cache volumes.
 8. **Print a verification block** with the commands the operator can run to confirm everything's gone.
 
 #### Best-effort semantics
@@ -86,7 +86,7 @@ After a successful (non-dry-run, non-`--keep-branch`) teardown for session `<nam
 
 - Containers in project `tap_<name>`.
 - Networks owned by project `tap_<name>`.
-- Volumes owned by project `tap_<name>` (notably `tap_<name>_postgres_data`).
+- Volumes owned by project `tap_<name>` (notably `tap_<name>_postgres_data`, `tap_<name>_venv`, and `tap_<name>_uv_cache`).
 - The worktree directory `~/tap-sessions/<name>`.
 - The git branch `session/<name>`.
 - The session's row in `~/tap-sessions/.registry` (band must be freed for reuse).
@@ -108,7 +108,7 @@ git branch --list "session/<name>" | grep .                           # no outpu
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-dev-multisession-teardown-cleanup-1 | No containers | Proposed | No containers remain in the session's compose project. | |
-| req-dev-multisession-teardown-cleanup-2 | No volumes | Proposed | No volumes remain in the session's compose project. | |
+| req-dev-multisession-teardown-cleanup-2 | No volumes | Proposed | No volumes remain in the session's compose project, including Postgres data, the container Python virtualenv, and uv cache. | |
 | req-dev-multisession-teardown-cleanup-3 | No network | Proposed | No networks remain in the session's compose project. | |
 | req-dev-multisession-teardown-cleanup-4 | Worktree removed | Proposed | The `~/tap-sessions/<name>` directory is gone. | |
 | req-dev-multisession-teardown-cleanup-5 | Branch removed | Proposed | The `session/<name>` branch is gone (unless `--keep-branch`). | |

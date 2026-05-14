@@ -42,9 +42,9 @@ on_failure() {
     warn "spawn failed (exit $rc). To nuke the partial state and start clean:"
     warn "  scripts/despawn-session.sh $SESSION_NAME --yes"
     warn ""
-    warn "Add --purge-image if you suspect a poisoned image cache (uv install"
-    warn "errors, stale dependency state, etc.) — that forces a no-cache rebuild"
-    warn "on the next spawn."
+    warn "Add --purge-image if you suspect a poisoned Docker image cache — that"
+    warn "forces a no-cache rebuild on the next spawn. Runtime Python state is"
+    warn "owned by per-project compose volumes and despawn removes it."
   fi
 }
 trap on_failure EXIT
@@ -221,12 +221,14 @@ WORKTREE="$HOME/tap-sessions/$SESSION_NAME"
 
 # Catch stale Docker state from a previous failed spawn whose `dc down -v`
 # didn't actually target the right project (typically because .env.local was
-# missing at cleanup time). A leftover volume survives `git worktree remove`
-# and would silently inherit migration state into the new session.
-STALE_VOLUME="tap_${SESSION_NAME}_postgres_data"
-if docker volume inspect "$STALE_VOLUME" >/dev/null 2>&1; then
-  fail "Stale Docker volume '$STALE_VOLUME' exists from a previous session. Remove it first:
-    docker volume rm $STALE_VOLUME"
+# missing at cleanup time). Leftover volumes survive `git worktree remove`
+# and would silently inherit database, container venv, or uv cache state into
+# the new session.
+STALE_VOLUMES="$(docker volume ls --filter "name=tap_${SESSION_NAME}_" --format '{{.Name}}' 2>/dev/null || true)"
+if [[ -n "$STALE_VOLUMES" ]]; then
+  fail "Stale Docker volumes exist for project 'tap_${SESSION_NAME}':
+    $STALE_VOLUMES
+    Remove them first: scripts/despawn-session.sh $SESSION_NAME --yes"
 fi
 STALE_CONTAINERS="$(docker ps -a --filter "label=com.docker.compose.project=tap_${SESSION_NAME}" --format '{{.Names}}' 2>/dev/null || true)"
 if [[ -n "$STALE_CONTAINERS" ]]; then
@@ -343,7 +345,7 @@ scripts/dc up -d --build
 #
 # `dc up -d` returns the moment PID 1 (entrypoint.sh) starts, but the entrypoint
 # is still running `uv sync` (slow on first run — populates the named-volume
-# uv cache and the bind-mounted .venv) and then `migrate`. Running another
+# uv cache and container venv) and then `migrate`. Running another
 # `dc exec uv run ...` here would race those processes and one of them gets
 # SIGKILL'd by the lock contention (this caused exit 137 errors all day).
 #

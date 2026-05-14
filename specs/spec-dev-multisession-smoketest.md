@@ -95,7 +95,7 @@ Expected: at least one row prefixed with your `COMPOSE_PROJECT_NAME` (e.g. `tap_
 docker volume ls --format '{{.Name}}' | grep -E '^(tap_|tap-)'
 ```
 
-Expected: a `<project>_postgres_data` volume for your project. If the primary `tap` stack is also up, you'll see `tap_postgres_data` as a separate row.
+Expected: `<project>_postgres_data`, `<project>_venv`, and `<project>_uv_cache` volumes for your project. If the primary `tap` stack is also up, you'll see the primary stack's separate `tap_*` volumes as separate rows.
 
 ```bash
 # 3. Host ports do not collide.
@@ -118,7 +118,7 @@ Expected (if primary is up): both project listings show 2 services each, with no
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-dev-multisession-smoketest-isolation-1 | Containers namespaced | Proposed | Container names carry the project prefix. | |
-| req-dev-multisession-smoketest-isolation-2 | Volumes namespaced | Proposed | Postgres volume name is project-scoped. | |
+| req-dev-multisession-smoketest-isolation-2 | Volumes namespaced | Proposed | Postgres, container venv, and uv cache volume names are project-scoped. | |
 | req-dev-multisession-smoketest-isolation-3 | Ports match `.env.local` | Proposed | `docker compose port` returns the configured host ports. | |
 | req-dev-multisession-smoketest-isolation-4 | Coexistence with primary | Proposed | When primary is up, both projects run simultaneously. | Skip if primary is down |
 

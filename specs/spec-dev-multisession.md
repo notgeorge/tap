@@ -15,6 +15,7 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | 3. | Repeatable Spawn | Adding a new session is a single command that produces a working environment seeded with current data. |
 | 4. | Zero-Setup Default | The primary checkout works with `docker compose up` and no manual env configuration, preserving today's developer experience. |
 | 5. | Demand-Driven Allocation | Sessions get a port band the first time they're spawned, recorded in a per-machine registry. The primary's reservation (8000/5432) is fixed; everything else is allocated on demand. Ephemeral by default — despawn frees the band. |
+| 6. | Runtime Environment Isolation | The Linux container's Python virtualenv is isolated from any host-side Python virtualenv so host tools and container tools never rewrite each other's interpreter links. |
 
 ## Requirements
 
@@ -50,8 +51,9 @@ Status: `Implemented`
 - `docker-compose.yml` uses `${VAR:-default}` substitution syntax so the file remains valid with no `.env` present.
 - A checked-in `.env` carries the defaults so `docker compose up` works out of the box in the primary checkout.
 - Container-internal ports (`8000`, `5432`) stay fixed; only host-side mappings move.
+- **The container virtualenv lives in a per-project named volume** (`venv:/app/.venv`) mounted over the worktree's `.venv` path. This is a deliberate host/container isolation choice: macOS host tools and the Linux container cannot safely share one Python virtualenv because interpreter paths, scripts, and binary wheels are platform-specific. The container owns `/app/.venv`; host-side tools that need Python should use a separate environment such as `.venv-host` via `UV_PROJECT_ENVIRONMENT=.venv-host`.
 - **uv cache lives in a per-project named volume** (`uv_cache:/root/.cache/uv`) rather than being baked into the image at build time. This is a deliberate isolation choice: image layers carrying uv's cache caused Docker's build cache to fossilize corrupted uv state and replay it across every rebuild (a real problem hit during multi-session debugging on 2026-04-27). Per-project named volumes mean (a) cache corruption can't leak between sessions, (b) `dc down -v` (already part of despawn) clears it, and (c) image rebuilds don't carry old cache state forward.
-- **Dependency sync runs in the entrypoint, not the Dockerfile.** Because both `/app/.venv` (worktree bind mount) and `/root/.cache/uv` (named volume) are runtime mounts that hide image content, build-time `uv sync` is wasted work — anything installed lands in image layers nobody can read at runtime. `docker/entrypoint.sh` runs `uv sync` on first container start; subsequent starts are near-instant no-ops because the venv and cache persist in their respective mounts.
+- **Dependency sync runs in the entrypoint, not the Dockerfile.** Because both `/app/.venv` and `/root/.cache/uv` are runtime named volumes that hide image content, build-time `uv sync` is wasted work — anything installed lands in image layers nobody can read at runtime. `docker/entrypoint.sh` runs `uv sync` on first container start; subsequent starts are near-instant no-ops because the venv and cache persist in their respective mounts.
 
 #### Future
 If we add Redis, mailcatcher, or other host-exposed services, follow the same pattern: add `<SERVICE>_PORT` variable with a default, allocate it a fixed offset in the port registry.
@@ -64,7 +66,9 @@ If we add Redis, mailcatcher, or other host-exposed services, follow the same pa
 | req-dev-multisession-compose-parameterized-2 | Override applied | Proposed | Setting `COMPOSE_PROJECT_NAME=tap_cli WEB_PORT=8001 POSTGRES_PORT=5433` and running compose produces containers in the `tap_cli` project listening on host `8001` / `5433`. | |
 | req-dev-multisession-compose-parameterized-3 | Two stacks coexist | Proposed | Two checkouts running compose with different namespaces produce two simultaneously-running, non-conflicting Docker stacks. | |
 | req-dev-multisession-compose-parameterized-4 | uv cache is a per-project named volume | Proposed | The web service mounts `uv_cache:/root/.cache/uv`. Each compose project gets its own volume; cache corruption is per-session and cleared by `dc down -v`. | |
-| req-dev-multisession-compose-parameterized-5 | Dependency sync at entrypoint | Proposed | `uv sync` runs from `docker/entrypoint.sh`, not the Dockerfile, so the install lands in the bind-mounted worktree and the named-volume cache rather than in image layers. | |
+| req-dev-multisession-compose-parameterized-5 | Dependency sync at entrypoint | Proposed | `uv sync` runs from `docker/entrypoint.sh`, not the Dockerfile, so the install lands in the container venv and uv cache named volumes rather than in image layers. | |
+| req-dev-multisession-compose-parameterized-6 | Container venv is a named volume | Proposed | The web service mounts `venv:/app/.venv` so container-side `uv sync` never writes the host worktree's `.venv` directory. | Prevents host/container virtualenv path and binary-wheel collisions. |
+| req-dev-multisession-compose-parameterized-7 | Host Python uses a separate env | Proposed | Documentation and scripts treat `/app/.venv` as container-owned; any host-side Python workflow uses a distinct env path such as `.venv-host`. | Avoids two OSes mutating one virtualenv. |
 
 ### Env File Cascade
 ----
@@ -176,7 +180,7 @@ Status: `Implemented`
 `scripts/spawn-session.sh` provisions a new isolated environment interactively. The script prompts only for decisions the developer must make (Keychain setup if missing, session name) and runs everything else automatically:
 
 1. **Step 0 — Keychain check.** If `tap-dev-default` is missing, offers to set it. macOS-only; non-Darwin platforms skip this step and fall back to env var or random per session.
-2. **Step 1 — Session name and band allocation.** Displays the current live sessions from `~/tap-sessions/.registry` (initializing the file with a header on first use). Prompts for a name; validates against `^[a-z][a-z0-9_-]*$` and rejects `default` (reserved for the primary stack). Rejects names already in the registry. Allocates the smallest free band (per [Per-Machine Session Registry](#per-machine-session-registry)) and computes web/db ports. Also runs the stale-Docker pre-check so leftover state from a prior failed spawn (volume or containers under `tap_<name>`) aborts the run cleanly with a "remove this first" message.
+2. **Step 1 — Session name and band allocation.** Displays the current live sessions from `~/tap-sessions/.registry` (initializing the file with a header on first use). Prompts for a name; validates against `^[a-z][a-z0-9_-]*$` and rejects `default` (reserved for the primary stack). Rejects names already in the registry. Allocates the smallest free band (per [Per-Machine Session Registry](#per-machine-session-registry)) and computes web/db ports. Also runs the stale-Docker pre-check so leftover state from a prior failed spawn (volumes or containers under `tap_<name>`, including `postgres_data`, `venv`, and `uv_cache`) aborts the run cleanly with a "remove this first" message.
 3. **Step 2 — Worktree.** Creates the worktree at `~/tap-sessions/<name>` on a new branch `session/<name>`. Aborts if the worktree path already exists. All plugins live in-tree under `plugins/` (no submodules), so no additional worktree setup is needed.
 4. **Step 3 — `.env.local`.** Generates fresh `TAP_GRID_ID` via Python's `uuid.uuid7()`. Writes `COMPOSE_PROJECT_NAME`, `WEB_PORT`, `POSTGRES_PORT`, `TAP_GRID_ID`, `TAP_SESSION_LABEL`.
 5. **Step 4 — Build + start.** `scripts/dc up -d --build`.
@@ -429,6 +433,11 @@ Each worktree is a self-contained working directory, so attach Claude Code or Co
 
 - **Playwright MCP**: stateless per call, safe to share across sessions. Each Claude session points at the same MCP server.
 - **`.git`**: worktrees share the underlying repo, so commits/branches are visible across sessions immediately. Cross-session merges happen locally without a GitHub round-trip.
+
+### Python environments
+
+- **Container runtime:** `/app/.venv` is container-owned and backed by the compose project's `venv` named volume. Run app commands and tests through `scripts/dc exec web ...` so they use the Linux container environment.
+- **Host tools:** do not point host-side Python, pytest, or editors at the container-owned `.venv`. If host-side Python is needed, use a separate environment path such as `UV_PROJECT_ENVIRONMENT=.venv-host uv sync`, and keep `.venv-host/` ignored.
 
 ### Future services
 
