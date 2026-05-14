@@ -166,11 +166,12 @@ def create_schedule(
     """Create a Schedule and its SCHEDULED_TARGET edge.
 
     Cron validation happens at write time (Schedule.validate() runs croniter
-    on every save — req-tap-cares-scheduler-model-7). `enabled_at` is set to
-    the current UTC time when `enabled=True` (req-tap-cares-scheduler-model-8).
+    on every save — req-tap-cares-scheduler-model-7). `enabled_at` is stamped
+    automatically by Schedule.save() when `enabled=True`
+    (req-tap-cares-scheduler-model-8); not passed in the payload because the
+    field is scheduler-owned and intentionally absent from FIELD_CRUD_SCHEMA.
     """
     ctx = caller_context or CallerContext()
-    now = datetime.now(UTC)
 
     payload: dict[str, Any] = {
         "name": name,
@@ -179,8 +180,6 @@ def create_schedule(
         "cron_expression": cron_expression,
         "max_active_runs": max_active_runs,
     }
-    if enabled:
-        payload["enabled_at"] = now.isoformat()
 
     result = create_node("schedule", payload, caller_context=ctx)
     if not result.success:
@@ -209,17 +208,30 @@ def set_schedule_enabled(
     Transitioning False -> True sets `enabled_at` to the current UTC time so
     the missed-count walk's lower bound excludes the disabled stretch
     (req-tap-cares-scheduler-missed-count-4).
+
+    The `enabled` flip goes through `patch_node` so the policy change shows
+    up in history. The `enabled_at` stamp on transitions goes through direct
+    ORM `.update()` because the field is scheduler-owned and intentionally
+    absent from FIELD_CRUD_SCHEMA (same pattern as `last_schedule_fired` in
+    the atomic claim). The two writes are wrapped in one transaction so a
+    failure between them doesn't leave the schedule with a stale cursor.
     """
     ctx = caller_context or CallerContext()
-    payload: dict[str, Any] = {"enabled": enabled}
-    if enabled and not schedule.enabled:
-        payload["enabled_at"] = datetime.now(UTC).isoformat()
+    transitioning = enabled and not schedule.enabled
 
-    result = patch_node(schedule.entity_id, payload, caller_context=ctx)
-    if not result.success:
-        raise SchedulerError(
-            f"set_schedule_enabled failed: {[(e.code, e.message) for e in result.errors]}"
+    with transaction.atomic():
+        result = patch_node(
+            schedule.entity_id, {"enabled": enabled}, caller_context=ctx
         )
+        if not result.success:
+            raise SchedulerError(
+                f"set_schedule_enabled failed: "
+                f"{[(e.code, e.message) for e in result.errors]}"
+            )
+        if transitioning:
+            Schedule.objects.filter(pk=schedule.pk).update(
+                enabled_at=datetime.now(UTC)
+            )
     schedule.refresh_from_db()
     return schedule
 

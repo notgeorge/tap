@@ -294,13 +294,18 @@ class Schedule(BaseModel):
         {"nodes": [{"type": "schedule_fire"}], "edges": [{"type": "HAS_FIRED"}]},
     ]
 
+    # Public CRUD surface — what users can set via create_node / patch_node.
+    # `enabled_at` and `last_schedule_fired` are deliberately omitted: they are
+    # scheduler-owned bookkeeping fields (the missed-count lower bound and the
+    # dedupe cursor respectively). Letting users patch them would let callers
+    # skip slot evaluation or fabricate missed-count gaps. The scheduler
+    # service writes both via direct ORM; first-save `enabled_at` is stamped
+    # automatically by Schedule.save() (req-tap-cares-scheduler-model-8).
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
         "name": {"type": "string", "minLength": 1},
         "description": {"type": "string"},
         "enabled": {"type": "boolean"},
-        "enabled_at": {"type": ["string", "null"], "format": "date-time"},
         "cron_expression": {"type": "string", "minLength": 1},
-        "last_schedule_fired": {"type": ["string", "null"], "format": "date-time"},
         "max_active_runs": {"type": "integer", "minimum": 1},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name", "cron_expression"]
@@ -347,8 +352,25 @@ class Schedule(BaseModel):
         (req-tap-cares-scheduler-model-7). Invalid expressions are rejected
         before save so a bad schedule cannot enter the database and produce
         failed fires forever.
+
+        Enforces five-field cron explicitly before delegating to croniter.
+        croniter.is_valid accepts six-field (seconds) and seven-field (year)
+        variants depending on version, but `req-tap-cares-scheduler-cron-1`
+        pins v0 to five-field; widening the contract via library defaults
+        would silently change scheduler semantics.
         """
         expr = self.cron_expression or ""
+        field_count = len(expr.split())
+        if field_count != 5:
+            raise ValidationError(
+                {
+                    "cron_expression": [
+                        f"Must be a five-field cron expression "
+                        f"(minute hour day-of-month month day-of-week); "
+                        f"got {field_count} field(s) in {expr!r}.",
+                    ]
+                }
+            )
         if not croniter.is_valid(expr):
             raise ValidationError(
                 {

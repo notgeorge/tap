@@ -165,13 +165,67 @@ class TestCreateSchedule:
         assert schedule.enabled_at is None
 
     def test_create_schedule_rejects_invalid_cron(self, collector):
-        """req-tap-cares-scheduler-model-7: invalid cron rejected at write."""
+        """req-tap-cares-scheduler-model-7: invalid cron rejected at write.
+
+        Uses a five-field expression with an out-of-range value so the
+        croniter substance check fires (the explicit field-count guard
+        would short-circuit before croniter on a non-five-field input).
+        """
         with pytest.raises(SchedulerError, match="Invalid cron expression"):
             create_schedule(
                 name="bad",
-                cron_expression="not a cron",
+                cron_expression="60 * * * *",  # minute=60 is out of range
                 collector=collector,
             )
+
+    def test_create_schedule_rejects_six_field_cron(self, collector):
+        """req-tap-cares-scheduler-cron-1: only five-field cron is accepted.
+
+        croniter.is_valid accepts six-field (seconds) and seven-field (year)
+        variants depending on version; the explicit length check in
+        Schedule.validate keeps v0 pinned to the spec'd field count.
+        """
+        with pytest.raises(SchedulerError, match="five-field cron"):
+            create_schedule(
+                name="six-field",
+                cron_expression="0 0 0 * * *",  # six fields (with seconds)
+                collector=collector,
+            )
+
+    def test_create_schedule_rejects_seven_field_cron(self, collector):
+        """Same as the six-field guard, for the year-extension variant."""
+        with pytest.raises(SchedulerError, match="five-field cron"):
+            create_schedule(
+                name="seven-field",
+                cron_expression="0 0 0 * * * 2026",  # seven fields (with year)
+                collector=collector,
+            )
+
+    def test_create_schedule_payload_omits_cursor_fields(self, collector):
+        """req-tap-cares-scheduler-model: enabled_at and last_schedule_fired
+        are scheduler-owned and must not be in FIELD_CRUD_SCHEMA.
+
+        Public create_node with these fields in the payload should be
+        rejected by the CRUD schema, not silently accepted.
+        """
+        from tap_grid.caller_context import CallerContext
+        from tap_grid.services import create_node
+
+        result = create_node(
+            "schedule",
+            {
+                "name": "cursor-injected",
+                "cron_expression": "0 0 * * *",
+                "enabled_at": "2026-05-14T00:00:00Z",
+                "last_schedule_fired": "2026-05-14T00:00:00Z",
+            },
+            caller_context=CallerContext(),
+        )
+        assert result.success is False
+        assert any(
+            "enabled_at" in (e.message or "") or "enabled_at" == (e.field or "")
+            for e in result.errors
+        ), f"expected enabled_at rejection, got {result.errors}"
 
 
 @pytest.mark.django_db
