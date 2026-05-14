@@ -129,6 +129,17 @@ INSTALLED_APPS = [
     "steady_queue",
 ]
 
+# =============================================================================
+# Logging
+# =============================================================================
+# Single LOGGING dict assembled from per-component contributions. See
+# specs/spec-tap-logging.md (req-tap-logging-config-location). Override
+# per-logger levels at runtime with TAP_LOG_LEVELS=name=LEVEL,name=LEVEL,...;
+# override the root logger with TAP_LOG_LEVEL=LEVEL.
+from tap.logging import build_logging_config  # noqa: E402
+
+LOGGING = build_logging_config(INSTALLED_APPS)
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
