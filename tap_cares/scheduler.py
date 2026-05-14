@@ -264,6 +264,10 @@ def _claim_and_create_fire(
             "schedule_fire",
             {
                 "name": f"{schedule.name} fire {current_slot.isoformat()}",
+                "description": (
+                    f"Scheduler decision for {schedule.name!r} at cron "
+                    f"slot {current_slot.isoformat()}."
+                ),
                 "scheduled_for": current_slot.isoformat(),
                 "fired_at": fired_at.isoformat(),
                 "missed_count": missed,

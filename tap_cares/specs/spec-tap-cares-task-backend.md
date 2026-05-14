@@ -38,6 +38,7 @@ The bottom two rows are replaceable. Everything users edit lives on the grid.
 | req-tap-cares-task-backend-steady-queue | [Steady Queue](#steady-queue) | Proposed | Steady Queue is the v0 production-equivalent backend |
 | req-tap-cares-task-backend-django-tasks-interface | [Django Tasks Interface](#django-tasks-interface) | Proposed | TAP code uses only the DEP 0014 `@task` decorator and the `TASKS` settings dict |
 | req-tap-cares-task-backend-queue-isolation | [Queue Isolation](#queue-isolation) | Proposed | Scheduler tick runs on a dedicated queue with its own worker pool |
+| req-tap-cares-task-backend-transactional-integrity | [Transactional Integrity](#transactional-integrity) | Proposed | `run_collection` uses `transaction.on_commit` to defer enqueue past any outer transaction |
 | req-tap-cares-task-backend-test-settings | [Test Settings](#test-settings) | Proposed | Tests use `ImmediateBackend` to preserve synchronous-completion semantics |
 | req-tap-cares-task-backend-recurring-scope | [Recurring Scope](#recurring-scope) | Proposed | Steady Queue's `@recurring` is used ONLY for the TAP scheduler tick |
 | req-tap-cares-task-backend-deployment | [Deployment](#deployment) | Proposed | Steady Queue supervisor runs in the web container alongside Django |
@@ -51,7 +52,9 @@ The bottom two rows are replaceable. Everything users edit lives on the grid.
 RID: `req-tap-cares-task-backend-steady-queue`
 Status: `Proposed`
 
-Steady Queue (a Python port of Rails' Solid Queue) is the v0 production-equivalent task backend. It is a drop-in implementation of the `django.tasks` `TaskBackend` interface, uses PostgreSQL as its only storage backend via `FOR UPDATE SKIP LOCKED`, and ships its own cron-style scheduler via the `@recurring` decorator.
+Steady Queue (a Python port of Rails' Solid Queue) is the v0 production-equivalent task backend. It is a drop-in implementation of the `django.tasks` `TaskBackend` interface, and ships its own cron-style scheduler via the `@recurring` decorator.
+
+TAP configures Steady Queue on Postgres — the same database TAP already runs — so the task backend introduces no new infrastructure. Steady Queue uses `FOR UPDATE SKIP LOCKED` for lock-free polling on Postgres and MySQL 8+. Upstream also supports MySQL and SQLite, but TAP standardizes on Postgres.
 
 Chosen because:
 
@@ -138,6 +141,28 @@ Revising the thread count is a settings change with no schema or behavioral impl
 | req-tap-cares-task-backend-queue-isolation-3 | Collectors On Default Queue | Proposed | `run_collector` and other collector-execution tasks are NOT tagged with a queue and therefore run on the `default` queue worker. | |
 | req-tap-cares-task-backend-queue-isolation-4 | OS-Level Isolation | Proposed | The two queue workers run in separate forked processes under one supervisor; no thread-level sharing between scheduler and default queues. | Guaranteed by Steady Queue's supervisor model. |
 | req-tap-cares-task-backend-queue-isolation-5 | Thread-Count Revisit Trigger | Proposed | The default worker's thread count is revisited when p95 of (`CollectionJob.started_at` - `CollectionJob.enqueued_at`) exceeds ~30 seconds, or when `READY` jobs persistently accumulate while host CPU is idle, or when operator-perceived run-button latency becomes a complaint. | Settings change only — no schema or behavioral implications, low bar for revisiting. |
+
+## Transactional Integrity
+----
+RID: `req-tap-cares-task-backend-transactional-integrity`
+Status: `Proposed`
+
+Steady Queue stores task rows in the same Postgres database that holds `CollectionJob`, `Schedule`, `ScheduleFire`, and the rest of the TAP grid. That coupling is desirable — no second store to keep in sync — but it introduces a subtle hazard around transactional ordering.
+
+The hazard: if `run_collection(...)` is called inside an uncommitted outer `transaction.atomic()` block, `.enqueue()` inserts a row into `steady_queue_ready_executions` *inside that same transaction*. A Steady Queue worker polling on a different DB connection cannot see the new task row until the outer transaction commits — and the `CollectionJob` row + `HAS_JOB` edge that the task body looks up are also not committed yet. In a race between worker pickup and outer commit, the worker can pick up a task whose row data is not yet visible, producing spurious lookup failures.
+
+**Mitigation in TAP**: `run_collection` wraps the `.enqueue()` call in `django.db.transaction.on_commit(...)` so the enqueue is deferred until the outermost transaction commits. When there is no outer transaction (the current state for the Administrivia run-button handlers and the scheduler tick Stage 2), `on_commit` fires the callback immediately — so existing call sites see no behavioral change. When there IS an outer transaction (a future caller wrapping multiple service calls in an atomic block), the enqueue correctly waits for the commit.
+
+This keeps the contract simple: callers do not need to know about transaction state. `run_collection` does the right thing regardless.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-task-backend-transactional-integrity-1 | on_commit Wrapping | Proposed | `run_collection` wraps `run_collector.enqueue(...)` in `django.db.transaction.on_commit(...)`. | Defers the enqueue until any outer transaction commits; fires immediately if none. |
+| req-tap-cares-task-backend-transactional-integrity-2 | Caller Contract | Proposed | Callers of `run_collection` do not need to inspect transaction state; the function is safe both inside and outside an outer `transaction.atomic()` block. | |
+| req-tap-cares-task-backend-transactional-integrity-3 | No Behavior Change For Current Callers | Proposed | Wrapping in `on_commit` does not change behavior for current callers (Administrivia handlers, scheduler Stage 2) because none of them run inside an outer atomic block. | Verified by the existing test suite continuing to pass. |
+| req-tap-cares-task-backend-transactional-integrity-4 | Test Marker For Lifecycle Assertions | Proposed | Tests that exercise `run_collection` and assert post-task `CollectionJob` state use `@pytest.mark.django_db(transaction=True)`. The default `@pytest.mark.django_db` wrapper runs each test inside an atomic block that rolls back at end-of-test, so `on_commit` callbacks would never fire under ImmediateBackend. | Standard Django pattern when production uses `transaction.on_commit`. |
 
 ## Test Settings
 ----

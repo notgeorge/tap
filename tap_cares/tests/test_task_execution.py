@@ -58,7 +58,7 @@ def _register_and_fetch(key: str, cls, scope: str, *, name: str = "Test Collecto
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 class TestHappyPath:
     def test_run_succeeds_marks_job_successful(self, isolate_collector_registry):
         col = _register_and_fetch("happy", HappyCollector, scope="tap_cares.tests.fakes")
@@ -95,7 +95,7 @@ class TestHappyPath:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 class TestFailurePath:
     """The Django immediate backend captures task exceptions on the TaskResult
     instead of re-raising to the caller (see
@@ -154,7 +154,7 @@ class TestFailurePath:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 class TestTaskResultIdPropagation:
     def test_task_result_id_populated(self, isolate_collector_registry):
         col = _register_and_fetch("happy", HappyCollector, scope="tap_cares.tests.fakes")
@@ -168,7 +168,7 @@ class TestTaskResultIdPropagation:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 class TestLifecycleTimestamps:
     def test_enqueued_at_set_before_task(self, isolate_collector_registry):
         col = _register_and_fetch("happy", HappyCollector, scope="tap_cares.tests.fakes")

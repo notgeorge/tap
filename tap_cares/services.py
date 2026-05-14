@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from django.db import transaction
+
 from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
 from tap_cares.tasks import run_collector
 from tap_grid.caller_context import CallerContext
@@ -56,10 +58,22 @@ def run_collection(
     ctx = caller_context or CallerContext()
     now = datetime.now(UTC)
 
+    collector_label = collector.name or "Collection"
+    if manual_run and manual_run_source:
+        description = (
+            f"Manual run of {collector_label!r} triggered from "
+            f"{manual_run_source} at {now.isoformat()}."
+        )
+    elif manual_run:
+        description = f"Manual run of {collector_label!r} at {now.isoformat()}."
+    else:
+        description = f"Collection run of {collector_label!r} enqueued at {now.isoformat()}."
+
     job_create = _create_node_internal(
         "collection_job",
         {
-            "name": f"{collector.name or 'Collection'} {now.isoformat()}",
+            "name": f"{collector_label} {now.isoformat()}",
+            "description": description,
             "status": CollectionJobStatus.READY.value,
             "enqueued_at": now.isoformat(),
             "manual_run": manual_run,
@@ -82,9 +96,17 @@ def run_collection(
         caller_context=ctx,
     )
 
-    run_collector.enqueue(
-        str(collector.entity_id),
-        str(job.entity_id),
+    # Defer the enqueue until any surrounding transaction commits, so the
+    # Steady Queue worker (on a separate DB connection) never picks up a
+    # task whose CollectionJob row hasn't been flushed yet
+    # (req-tap-cares-task-backend-transactional-integrity-1). With no
+    # outer transaction in progress, transaction.on_commit fires the
+    # callback immediately — preserving current behavior for the
+    # Administrivia handlers and scheduler Stage 2 call sites.
+    collector_entity_id = str(collector.entity_id)
+    job_entity_id = str(job.entity_id)
+    transaction.on_commit(
+        lambda: run_collector.enqueue(collector_entity_id, job_entity_id)
     )
 
     # Refresh once to pick up whatever terminal state the task body wrote

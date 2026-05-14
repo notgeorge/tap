@@ -307,7 +307,7 @@ class TestSetScheduleEnabled:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 class TestEvaluateTickTriggered:
     def test_matching_slot_creates_triggered_fire(self, collector):
         """req-tap-cares-scheduler-edges + req-tap-cares-scheduler-fire-model.
