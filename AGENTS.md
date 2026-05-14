@@ -79,5 +79,13 @@ The current tap-cares spec lives at:
 
 ## Git Workflow
 
-- When asked to push changes upstream to `origin/main`, push the current work and then refresh the local `main` ref with `git fetch origin main:main` when Git allows it. This keeps sibling worktree sessions aligned after a successful push.
-- Only run `git fetch origin main:main` when `main` is not checked out in any linked worktree and local `main` is being treated as the shared upstream tracking ref. If Git refuses because `main` is checked out elsewhere, leave `main` alone and report that the checked-out main worktree must pull or fast-forward itself.
+When advancing `origin/main` from a session branch, follow `req-dev-multisession-push-workflow` in [`specs/spec-dev-multisession.md`](specs/spec-dev-multisession.md). The four-step pattern is:
+
+1. **Never edit on `main`** — all work happens on `session/<name>`.
+2. **Pre-push merge** — `git fetch origin main && git merge origin/main` into the session branch so the push is a fast-forward.
+3. **Push** — `git push origin session/<name>:main`.
+4. **Post-push sync** — `git -C /Users/george/tap-sessions/main pull --ff-only` to advance the local `main` ref. This is required because `scripts/spawn-session.sh` branches new sessions off local `main`, so a stale ref means stale spawns.
+
+Do **not** use `git fetch origin main:main` from a session worktree — Git refuses to fast-forward a branch checked out in another worktree (`fatal: refusing to fetch into branch 'refs/heads/main' checked out at ...`). The `git -C <path> pull --ff-only` form does the equivalent work *inside* the main worktree, which is the path Git permits.
+
+See the spec section for the full rationale and acceptance criteria.
