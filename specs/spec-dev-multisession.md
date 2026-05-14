@@ -29,6 +29,8 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-admin-bootstrap | [Admin User Bootstrap](#admin-user-bootstrap) | Implemented | Phase 2, sub-feature of spawn |
 | req-dev-multisession-spawn-import-strict | [Granular Grift Import Failure Mode](#granular-grift-import-failure-mode) | Backlog | Phase 3 polish on top of fail-fast |
 | req-dev-multisession-push-workflow | [Session → Main Push Workflow](#session-→-main-push-workflow) | Implemented | Always-on discipline; codifies how session worktrees advance origin/main and keep the local main worktree current |
+| req-dev-multisession-promote-script | [Promote-to-Main Script](#promote-to-main-script) | Implemented | Per-session wrapper around the push-workflow discipline |
+| req-dev-multisession-promote-all-script | [Promote-All-Sessions Script](#promote-all-sessions-script) | Implemented | Registry-driven orchestrator over the per-session script |
 | req-dev-multisession-list-script | [List Script](#list-script) | Proposed | Phase 3 |
 | req-dev-multisession-named-routing | [Name-Based Routing via Reverse Proxy](#name-based-routing-via-reverse-proxy) | Backlog | Phase 3 polish |
 
@@ -290,8 +292,55 @@ If `pull --ff-only` ever fails with "not a fast-forward", it means a sibling wor
 
 #### Future
 
-- A `scripts/promote-to-main.sh` wrapper could codify steps 2–4 as one invocation. Out of scope for v0 because the four commands are short and the discipline is the point; agents that follow the spec verbatim already get the right behavior. If multiple humans start landing work without agent assistance, the wrapper becomes more valuable.
 - A pre-push git hook could refuse `session/<name>:main` if the pre-push merge step was skipped, but hook installation in fresh worktrees is its own coordination problem.
+
+### Promote-to-Main Script
+----
+RID: `req-dev-multisession-promote-script`
+Status: `Implemented`
+
+`scripts/promote-to-main.sh` is a single-invocation wrapper around the four-step discipline in [Session → Main Push Workflow](#session-→-main-push-workflow). It runs from inside a session worktree and:
+
+1. Fetches `origin/main`.
+2. Performs the pre-push merge of `origin/main` into the session branch when the branch is behind. Skips when not behind to avoid a redundant empty merge commit.
+3. Pushes with `git push --atomic origin session/<name>:main session/<name>:session/<name>` so `origin/main` and `origin/session/<name>` advance together (req-dev-multisession-push-workflow-3).
+4. Advances the local `main` ref via `git -C $HOME/tap-sessions/main pull --ff-only origin main` so the next spawn branches from current code (req-dev-multisession-push-workflow-4).
+
+The script is the canonical implementation of the push workflow. Agents (Claude, Codex, or otherwise) and humans alike SHOULD invoke it rather than re-typing the four commands; the script is part of the contract so both the action and its discoverability live in one place under version control.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-promote-script-1 | Operates on current worktree | Implemented | The script resolves the target via `git rev-parse --show-toplevel` and rejects invocation outside a worktree or on a non-`session/<name>` branch. | Lets the orchestrator `cd` into each worktree and call this script without arguments. |
+| req-dev-multisession-promote-script-2 | Clean working tree required | Implemented | Aborts when there are staged or unstaged changes. Untracked files are permitted because `.env.local` and `.dev-credentials` are always untracked. | |
+| req-dev-multisession-promote-script-3 | Pre-push merge | Implemented | Runs `git merge --no-edit origin/main` only when the branch is behind. Conflicts abort the merge and surface a manual-resolution message. | Skipping when not behind avoids needless merge commits. |
+| req-dev-multisession-promote-script-4 | Atomic dual-refspec push | Implemented | Uses `git push --atomic origin session/<name>:main session/<name>:session/<name>` verbatim per req-dev-multisession-push-workflow-3. | |
+| req-dev-multisession-promote-script-5 | Post-push primary sync | Implemented | Runs `git -C $HOME/tap-sessions/main pull --ff-only origin main` after a successful push. Warns and skips if the main worktree is absent (non-standard layout). | |
+| req-dev-multisession-promote-script-6 | Dry-run mode | Implemented | `--dry-run` reports each step as `[dry-run] would: ...` without invoking any write operation, including the fetch. | |
+
+### Promote-All-Sessions Script
+----
+RID: `req-dev-multisession-promote-all-script`
+Status: `Implemented`
+
+`scripts/promote-all-sessions.sh` is the orchestrator companion to `scripts/promote-to-main.sh`. It reads the per-machine session registry at `$HOME/tap-sessions/.registry` and runs the per-session promote script in each session worktree, in registry order.
+
+Sequential is intentional: each per-session promote pushes its tip to `origin/main`, and the next session's pre-push merge then folds that change into its branch before its own push. Parallelism here would only create the non-fast-forward races the workflow already prevents.
+
+A human running this script from any shell can promote every active session with one command; an agent inside a single session worktree continues to use the per-session script (it has no business reaching into sibling worktrees without operator intent).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-promote-all-script-1 | Registry-driven session list | Implemented | Reads `$HOME/tap-sessions/.registry`, ignoring comment and empty lines, to determine which session worktrees to promote. | |
+| req-dev-multisession-promote-all-script-2 | Sequential execution | Implemented | Sessions are promoted one at a time, in registry order. The per-session script runs inside its own worktree (via subshell `cd`). | Each pre-push merge picks up earlier sessions' pushes. |
+| req-dev-multisession-promote-all-script-3 | Stop on first failure by default | Implemented | A failed per-session promote aborts the orchestrator with a non-zero exit. `--keep-going` flips the default and runs every remaining session, exiting non-zero only if any failed. | |
+| req-dev-multisession-promote-all-script-4 | Missing worktree skip | Implemented | A registry row whose worktree directory is absent is skipped with a warning (not failed). | The row is stale; the operator should `despawn` it to clean up. |
+| req-dev-multisession-promote-all-script-5 | Pre-feature-branch skip | Implemented | A worktree without `scripts/promote-to-main.sh` is skipped with a warning. | Lets older session branches coexist while the convention rolls out. |
+| req-dev-multisession-promote-all-script-6 | Summary output | Implemented | Prints ok / failed / skipped session names at the end so the operator sees what landed at a glance. | |
+| req-dev-multisession-promote-all-script-7 | Dry-run mode | Implemented | `--dry-run` forwards `--dry-run` to each per-session invocation. | |
 
 ### Admin User Bootstrap
 ----
