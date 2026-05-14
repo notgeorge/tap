@@ -22,14 +22,26 @@ echo "==> Running database migrations..."
 uv run python manage.py migrate --noinput
 
 # Start the Huey consumer (tap_cares scheduler tick) as a background process.
-# v0 deploys a single Huey worker (req-tap-cares-scheduler-huey-4). Running it
-# alongside runserver keeps dev to a single container — when the container
-# stops, the trap kills Huey too. Note: Huey does NOT auto-reload on file
-# changes; restart the container if you edit scheduler or task code.
+# Being phased out — see spec-tap-cares-task-backend.md
+# req-tap-cares-task-backend-huey-removal. The next migration commit replaces
+# this with the Steady Queue @recurring scheduler tick.
 echo "==> Starting Huey consumer (scheduler tick)..."
 uv run python manage.py run_huey -w 1 &
 HUEY_PID=$!
-trap "kill ${HUEY_PID} 2>/dev/null || true" EXIT
+
+# Start the Steady Queue supervisor as a background process. It forks one
+# worker process per Configuration.Worker in settings.STEADY_QUEUE — one for
+# the scheduler queue, one for the default queue — giving OS-level isolation
+# between the once-per-minute clock and collector execution
+# (req-tap-cares-task-backend-queue-isolation, req-tap-cares-task-backend-
+# deployment-1). Same in-container pattern Huey uses; trap kills it on exit.
+# Steady Queue does NOT auto-reload; restart the container if you edit task
+# code (req-tap-cares-task-backend-deployment-3).
+echo "==> Starting Steady Queue supervisor..."
+uv run python manage.py steady_queue &
+STEADY_QUEUE_PID=$!
+
+trap "kill ${HUEY_PID} ${STEADY_QUEUE_PID} 2>/dev/null || true" EXIT
 
 echo "==> Starting Django development server..."
 exec uv run python manage.py runserver 0.0.0.0:8000

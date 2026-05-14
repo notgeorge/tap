@@ -22,7 +22,7 @@ from django.db import transaction
 from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
 from tap_cares.tasks import run_collector
 from tap_grid.caller_context import CallerContext
-from tap_grid.services import _create_node_internal, create_edge
+from tap_grid.services import _create_node_internal, _patch_node_internal, create_edge
 
 
 def run_collection(
@@ -103,11 +103,23 @@ def run_collection(
     # outer transaction in progress, transaction.on_commit fires the
     # callback immediately — preserving current behavior for the
     # Administrivia handlers and scheduler Stage 2 call sites.
+    #
+    # Also captures task_result.id from the returned TaskResult and
+    # patches it onto CollectionJob.task_result_id. We do it on the
+    # enqueue side rather than from inside run_collector because
+    # Steady Queue 0.2.0 doesn't honor takes_context=True; see the
+    # comment on run_collector in tap_cares/tasks.py.
     collector_entity_id = str(collector.entity_id)
     job_entity_id = str(job.entity_id)
-    transaction.on_commit(
-        lambda: run_collector.enqueue(collector_entity_id, job_entity_id)
-    )
+
+    def _enqueue_and_record_task_id() -> None:
+        task_result = run_collector.enqueue(collector_entity_id, job_entity_id)
+        if task_result.id:
+            _patch_node_internal(
+                job_entity_id, {"task_result_id": task_result.id}
+            )
+
+    transaction.on_commit(_enqueue_and_record_task_id)
 
     # Refresh once to pick up whatever terminal state the task body wrote
     # under ImmediateBackend. Under a worker backend the row may still be in

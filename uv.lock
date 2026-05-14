@@ -85,6 +85,12 @@ wheels = [
 ]
 
 [[package]]
+name = "crontab"
+version = "1.0.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/36/a255b6f5a2e22df03fd2b2f3088974b44b8c9e9407e26b44742cb7cfbf5b/crontab-1.0.5.tar.gz", hash = "sha256:f80e01b4f07219763a9869f926dd17147278e7965a928089bca6d3dc80ae46d5", size = 21963, upload-time = "2025-07-09T17:09:38.264Z" }
+
+[[package]]
 name = "dj-database-url"
 version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -588,6 +594,19 @@ wheels = [
 ]
 
 [[package]]
+name = "steady-queue"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "crontab" },
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9a/f5/6b028b646ef699ee2d8fd7e72d10237dc7afef3de3b97293a1ad9725f735/steady_queue-0.2.0.tar.gz", hash = "sha256:30db44f670d2e16d76ad912566f46f7278ac916b6ad42258e3e8cf62a6af095f", size = 83372, upload-time = "2026-04-18T06:53:10.194Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/9c/23812e61454e5a5509e13f47db27e9b2965db314b058e32e3171fac62de4/steady_queue-0.2.0-py3-none-any.whl", hash = "sha256:2c4cc3da6f9f6ba67889bcfa0acb7bc9e00344a43edb43afcbdc0066847fc5be", size = 64089, upload-time = "2026-04-18T06:53:08.433Z" },
+]
+
+[[package]]
 name = "tap"
 version = "0.1.0"
 source = { virtual = "." }
@@ -601,6 +620,7 @@ dependencies = [
     { name = "jsonschema" },
     { name = "lark" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "steady-queue" },
 ]
 
 [package.dev-dependencies]
@@ -625,6 +645,7 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "lark", specifier = ">=1.3.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "steady-queue", specifier = ">=0.2.0" },
 ]
 
 [package.metadata.requires-dev]

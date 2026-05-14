@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from django.tasks import TaskContext, task
+from django.tasks import task
 
 from tap_cares.collectors.config import CollectorConfig
 from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
@@ -66,31 +66,34 @@ def _derive_failure_summary(instance: object, exc: BaseException) -> str:
     return _safe_summary(exc)
 
 
-@task(takes_context=True)
+@task()
 def run_collector(
-    context: TaskContext,
     collector_entity_id: str,
     collection_job_entity_id: str,
 ) -> None:
     """Execute one collector run.
 
     Args:
-        context: Django Tasks context — `context.task_result.id` is the
-            backend-defined string identifier persisted on
-            `CollectionJob.task_result_id`.
         collector_entity_id: UUIDv7 of the Collector node (as string).
         collection_job_entity_id: UUIDv7 of the CollectionJob node (as string).
+
+    Note on `takes_context`: this task does NOT use Django Tasks'
+    `takes_context=True` mechanism. Steady Queue 0.2.0 doesn't honor that
+    flag — its `ClaimedExecution.perform()` calls `task.func(*args, **kwargs)`
+    without injecting a `TaskContext`, so a context-taking task fails with
+    a "missing positional argument" error when picked up by a steady_queue
+    worker. We capture `task_result.id` on the enqueue side instead
+    (see `tap_cares.services.run_collection`). Restore `takes_context=True`
+    once upstream gains support.
     """
-    # Task start: RUNNING transition. One patch carries status, started_at,
-    # and (if available) task_result_id. No long-lived job instance is held
-    # across collector.run() — each patch is a fresh service-layer round trip.
+    # Task start: RUNNING transition. Patches status + started_at; the
+    # task_result_id is set on the enqueue side in run_collection so this
+    # task body doesn't depend on backend-specific context plumbing.
     now = datetime.now(UTC)
     start_payload: dict[str, str] = {
         "status": CollectionJobStatus.RUNNING.value,
         "started_at": now.isoformat(),
     }
-    if context.task_result is not None:
-        start_payload["task_result_id"] = context.task_result.id
 
     _patch_node_internal(collection_job_entity_id, start_payload)
 

@@ -109,8 +109,13 @@ INSTALLED_APPS = [
     "tap_viz",
     # History tracking (django-simple-history)
     "simple_history",
-    # Huey periodic-task framework — tap_cares scheduler is the v0 consumer.
+    # Huey periodic-task framework — being phased out; replaced by Steady
+    # Queue's @recurring in the next migration commit. Kept for now so the
+    # backend swap can land in isolation and roll back cleanly if needed.
     "huey.contrib.djhuey",
+    # Steady Queue — production-equivalent task backend for django.tasks.
+    # See tap_cares/specs/spec-tap-cares-task-backend.md.
+    "steady_queue",
 ]
 
 MIDDLEWARE = [
@@ -218,28 +223,67 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # the need for Celery in most cases. It provides the API for defining and
 # queuing tasks, while backends handle execution.
 #
-# ImmediateBackend runs tasks synchronously in the same thread - fine for
-# development and testing. For production, switch to a backend that runs
-# tasks in a separate worker process.
+# Dev / prod default: Steady Queue
+# (req-tap-cares-task-backend-steady-queue-1). Steady Queue is a Solid Queue
+# port that implements the django.tasks TaskBackend interface and runs
+# against the existing Postgres database with no extra infrastructure.
+#
+# Tests use ImmediateBackend (synchronous, same-thread) via tap/test_settings.py
+# so post-task assertions don't need to wait for worker pickup
+# (req-tap-cares-task-backend-test-settings-1).
 TASKS = {
     "default": {
-        "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",
+        "BACKEND": "steady_queue.backend.SteadyQueueBackend",
+        "QUEUES": ["default", "scheduler"],
+        "OPTIONS": {},
     },
 }
 
 # =============================================================================
-# Huey configuration — tap_cares scheduler
+# Steady Queue configuration
 # =============================================================================
-# Per spec-tap-cares-scheduler.md req-tap-cares-scheduler-huey:
-# Huey is the v0 clock/worker that wakes once per minute and calls
-# tap_cares.scheduler.evaluate_tick(). Schedule state and fire history live on
-# the TAP grid; Huey is not the durable schedule store.
+# Worker / queue split per req-tap-cares-task-backend-queue-isolation:
+#   - scheduler queue, 1 thread: dedicated lane for the once-per-minute
+#     scheduler tick. Isolated from collector workload so a backed-up
+#     collector pool cannot starve the clock.
+#   - default queue, 3 threads: collectors and any other background work.
 #
-# v0 deploys a single Huey worker (req-tap-cares-scheduler-huey-4); multi-worker
-# is backlog. MemoryHuey is in-process and loses queued tasks on restart, which
-# is acceptable because the only Huey work is a periodic task — there is no
-# user-driven queue to lose. Periodic tasks resume automatically on the next
-# minute boundary after restart.
+# The supervisor forks one process per Worker config, giving OS-level
+# isolation between the two queues. See
+# tap_cares/specs/spec-tap-cares-task-backend.md for details, including the
+# heuristic for when to revisit threads=3.
+from datetime import timedelta  # noqa: E402
+
+from steady_queue.configuration import Configuration  # noqa: E402
+
+STEADY_QUEUE = Configuration.Options(
+    dispatchers=[
+        Configuration.Dispatcher(
+            polling_interval=timedelta(seconds=1),
+            batch_size=500,
+        ),
+    ],
+    workers=[
+        Configuration.Worker(
+            queues=["scheduler"],
+            threads=1,
+            polling_interval=timedelta(seconds=0.1),
+        ),
+        Configuration.Worker(
+            queues=["default"],
+            threads=3,
+            polling_interval=timedelta(seconds=0.1),
+        ),
+    ],
+)
+
+# =============================================================================
+# Huey configuration — tap_cares scheduler (being phased out)
+# =============================================================================
+# Huey is being replaced by Steady Queue's @recurring in the next migration
+# commit (req-tap-cares-task-backend-huey-removal). Kept here for now so this
+# commit can land the Steady Queue backend swap in isolation and roll back
+# cleanly if needed.
 HUEY = {
     "huey_class": "huey.MemoryHuey",
     "name": "tap_cares_scheduler",
