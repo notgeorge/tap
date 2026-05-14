@@ -19,3 +19,19 @@ class TapCaresConfig(AppConfig):
             sources=[{"type": "collector"}],
             targets=[{"type": "collection_job"}],
         )
+        # Scheduler edges — req-tap-cares-scheduler-edges.
+        register_edge_type_constraints(
+            "SCHEDULED_TARGET",
+            sources=[{"type": "schedule"}],
+            targets=[{"type": "collector"}],
+        )
+        register_edge_type_constraints(
+            "HAS_FIRED",
+            sources=[{"type": "schedule"}],
+            targets=[{"type": "schedule_fire"}],
+        )
+        register_edge_type_constraints(
+            "TRIGGERED_JOB",
+            sources=[{"type": "schedule_fire"}],
+            targets=[{"type": "collection_job"}],
+        )

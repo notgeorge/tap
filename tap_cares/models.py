@@ -4,6 +4,15 @@ req-tap-cares-collector-model, req-tap-cares-collector-job-model,
 req-tap-cares-collector-job-edge, req-tap-cares-collector-job-lifecycle
 (spec-tap-cares-collector.md).
 
+req-tap-cares-scheduler-model, req-tap-cares-scheduler-fire-model,
+req-tap-cares-scheduler-edges (spec-tap-cares-scheduler.md). The Schedule
+model is the on-grid policy node for recurring collector execution. The
+ScheduleFire model is the durable decision record for one evaluated cron
+slot. Schedule --SCHEDULED_TARGET--> Collector binds a schedule to its
+collector. Schedule --HAS_FIRED--> ScheduleFire records the fire history.
+ScheduleFire --TRIGGERED_JOB--> CollectionJob bridges scheduled fires to
+collector runs.
+
 The Collector model is the on-grid representation of a tap_cares collector
 capability. The CollectionJob model is the run record for one attempted
 execution of a collector. Collector --HAS_JOB--> CollectionJob ties the two
@@ -15,6 +24,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
+from croniter import croniter
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -42,6 +52,9 @@ class Collector(BaseModel):
 
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {"nodes": [{"type": "collection_job"}], "edges": [{"type": "HAS_JOB"}]},
+    ]
+    INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
+        {"nodes": [{"type": "schedule"}], "edges": [{"type": "SCHEDULED_TARGET"}]},
     ]
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
@@ -168,6 +181,7 @@ class CollectionJob(BaseModel):
 
     INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {"nodes": [{"type": "collector"}], "edges": [{"type": "HAS_JOB"}]},
+        {"nodes": [{"type": "schedule_fire"}], "edges": [{"type": "TRIGGERED_JOB"}]},
     ]
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
@@ -247,4 +261,189 @@ class CollectionJob(BaseModel):
         Equivalent to Django's auto-generated `get_status_display()`; exposed as
         a property so serializers and templates can use either spelling.
         """
+        return self.get_status_display()
+
+
+class Schedule(BaseModel):
+    """An on-grid recurring policy that says "run this collector when cron matches."
+
+    `Schedule` is user-creatable: writes flow through the tap_cares scheduler
+    service for cron validation and `enabled_at` tracking, but the type is not
+    `INTERNAL_ONLY` and may be seeded via GRIFT.
+
+    Spec: tap_cares/specs/spec-tap-cares-scheduler.md
+    """
+
+    ENTITY_TYPE: ClassVar[str] = "schedule"
+    DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap_cares": "schedule"}
+
+    OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
+        {"nodes": [{"type": "collector"}], "edges": [{"type": "SCHEDULED_TARGET"}]},
+        {"nodes": [{"type": "schedule_fire"}], "edges": [{"type": "HAS_FIRED"}]},
+    ]
+
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "enabled": {"type": "boolean"},
+        "enabled_at": {"type": ["string", "null"], "format": "date-time"},
+        "cron_expression": {"type": "string", "minLength": 1},
+        "last_schedule_fired": {"type": ["string", "null"], "format": "date-time"},
+        "max_active_runs": {"type": "integer", "minimum": 1},
+    }
+    CREATE_REQUIRED: ClassVar[list[str]] = ["name", "cron_expression"]
+
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
+        "name": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "minLength": 1},
+        },
+        "cron_expression": {
+            "validation": "jsonschema",
+            # JSON-schema layer is a loose minLength check; strict croniter
+            # validation lives in validate() so the error message names
+            # cron_expression directly.
+            "schema": {"type": "string", "minLength": 1},
+        },
+        "max_active_runs": {
+            "validation": "jsonschema",
+            "schema": {"type": "integer", "minimum": 1},
+        },
+    }
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    enabled = models.BooleanField(default=True, db_index=True)
+    enabled_at = models.DateTimeField(null=True, blank=True)
+    cron_expression = models.CharField(max_length=255)
+    last_schedule_fired = models.DateTimeField(null=True, blank=True, db_index=True)
+    max_active_runs = models.PositiveIntegerField(default=1)
+
+    class Meta(BaseModel.Meta):
+        db_table = "tap_cares_schedule"
+
+    def get_name(self) -> str:
+        return self.name or ""
+
+    def __str__(self) -> str:
+        return self.name
+
+    def validate(self) -> None:
+        """Whole-record validation hook.
+
+        Validates `cron_expression` with croniter at write time
+        (req-tap-cares-scheduler-model-7). Invalid expressions are rejected
+        before save so a bad schedule cannot enter the database and produce
+        failed fires forever.
+        """
+        expr = self.cron_expression or ""
+        if not croniter.is_valid(expr):
+            raise ValidationError(
+                {
+                    "cron_expression": [
+                        f"Invalid cron expression: {expr!r}. "
+                        "Use five-field cron (minute hour day-of-month month day-of-week).",
+                    ]
+                }
+            )
+
+
+class ScheduleFireStatus(models.TextChoices):
+    """ScheduleFire lifecycle states (req-tap-cares-scheduler-fire-model).
+
+    `PENDING` is the initial value at Stage 1 (slot claim) and is transient —
+    Stage 2 transitions to one of the three terminal values. A fire stuck in
+    `PENDING` for more than a tick indicates the scheduler crashed between
+    Stage 1 commit and Stage 2 completion.
+    """
+
+    PENDING = "PENDING", "Pending"
+    TRIGGERED = "TRIGGERED", "Triggered"
+    SKIPPED = "SKIPPED", "Skipped"
+    FAILED = "FAILED", "Failed"
+
+
+class ScheduleFire(BaseModel):
+    """The on-grid execution-decision record for one evaluated cron slot.
+
+    Created in Stage 1 of the scheduler tick (slot claim, status=PENDING) and
+    updated to a terminal status (TRIGGERED/SKIPPED/FAILED) in Stage 2. Only
+    the scheduler subsystem may create or modify fires — `INTERNAL_ONLY = True`
+    (req-tap-cares-scheduler-fire-model-2).
+
+    The relationship back to `Schedule` is the canonical `HAS_FIRED` edge,
+    matching the `Collector --HAS_JOB--> CollectionJob` pattern. "One fire per
+    slot" is enforced by the atomic claim on `Schedule.last_schedule_fired`
+    plus `INTERNAL_ONLY` (req-tap-cares-scheduler-dedupe-3); no denormalized
+    `schedule` FK is needed for v0.
+
+    Spec: tap_cares/specs/spec-tap-cares-scheduler.md
+    """
+
+    ENTITY_TYPE: ClassVar[str] = "schedule_fire"
+    DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap_cares": "schedule_fire"}
+    INTERNAL_ONLY: ClassVar[bool] = True
+
+    INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
+        {"nodes": [{"type": "schedule"}], "edges": [{"type": "HAS_FIRED"}]},
+    ]
+    OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
+        {"nodes": [{"type": "collection_job"}], "edges": [{"type": "TRIGGERED_JOB"}]},
+    ]
+
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "status": {"type": "string", "enum": [s.value for s in ScheduleFireStatus]},
+        "scheduled_for": {"type": "string", "format": "date-time"},
+        "fired_at": {"type": "string", "format": "date-time"},
+        "missed_count": {"type": "integer", "minimum": 0},
+        "summary": {"type": "string"},
+    }
+    CREATE_REQUIRED: ClassVar[list[str]] = ["name", "scheduled_for", "fired_at"]
+
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
+        "status": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "enum": [s.value for s in ScheduleFireStatus]},
+        },
+        "missed_count": {
+            "validation": "jsonschema",
+            "schema": {"type": "integer", "minimum": 0},
+        },
+        "summary": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "maxLength": 2048},
+        },
+    }
+
+    name = models.CharField(max_length=255, blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=16,
+        choices=ScheduleFireStatus.choices,
+        default=ScheduleFireStatus.PENDING,
+        db_index=True,
+    )
+    scheduled_for = models.DateTimeField(db_index=True)
+    fired_at = models.DateTimeField()
+    missed_count = models.PositiveIntegerField(default=0)
+    summary = models.CharField(max_length=2048, blank=True, default="")
+
+    class Meta(BaseModel.Meta):
+        db_table = "tap_cares_schedule_fire"
+
+    def get_name(self) -> str:
+        if self.name:
+            return self.name
+        if self.scheduled_for:
+            return f"Fire {self.scheduled_for.isoformat()}"
+        return "Fire"
+
+    def __str__(self) -> str:
+        return self.get_name()
+
+    @property
+    def status_display(self) -> str:
+        """Title-case human label for `status`."""
         return self.get_status_display()
