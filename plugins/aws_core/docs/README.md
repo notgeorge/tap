@@ -23,6 +23,10 @@ The first inventory artifact is:
 
 - `steampipe-aws-table-inventory.yaml`
 
+The collector design spec is:
+
+- `../specs/spec-aws-steampipe-collector-v0.md`
+
 The inventory compares the upstream Steampipe AWS table catalog to the
 current `aws_core` model surface. It is a planning artifact for phased
 collector work, not a promise that every Steampipe table should become a
@@ -84,3 +88,9 @@ The first collector should be deliberately small:
 - produce a useful `CollectionJob.summary`
 
 No deletion, reaping, or implied absence semantics belong in the first slice.
+
+Current implementation status: the collector shell, config validator, trusted
+`vpc-subnet-v0` profile, Steampipe subprocess wrapper, and collector
+registration exist under `plugins/aws_core/collectors/`. The next implementation
+step is to connect the incoming `tap_cares` secrets implementation and then add
+VPC/subnet normalization into GRIFT.
