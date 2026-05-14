@@ -88,4 +88,6 @@ When advancing `origin/main` from a session branch, follow `req-dev-multisession
 
 Do **not** use `git fetch origin main:main` from a session worktree — Git refuses to fast-forward a branch checked out in another worktree (`fatal: refusing to fetch into branch 'refs/heads/main' checked out at ...`). The `git -C <path> pull --ff-only` form does the equivalent work *inside* the main worktree, which is the path Git permits.
 
-See the spec section for the full rationale and acceptance criteria.
+The canonical implementation of the four-step pattern is `scripts/promote-to-main.sh`, invoked from inside the session worktree. For "consolidate every session at once", `scripts/promote-all-sessions.sh` iterates `$HOME/tap-sessions/.registry` and runs the per-session script in each worktree sequentially. Both support `--dry-run`. When the user expresses intent to advance `origin/main` from session branches (phrases like "consolidate sessions", "ship the sessions", "sync to main"), prefer the script over retyping the four git commands — the script is the contract.
+
+See the spec section for the full rationale and acceptance criteria (`req-dev-multisession-promote-script`, `req-dev-multisession-promote-all-script`).

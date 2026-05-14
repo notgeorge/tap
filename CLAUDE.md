@@ -138,7 +138,14 @@ Multi-session worktrees
     Per-session config lives in .env.local (COMPOSE_PROJECT_NAME, WEB_PORT, POSTGRES_PORT, TAP_GRID_ID).
     Always use `scripts/dc` instead of `docker compose` directly — it merges .env + .env.local
     so commands target this session's containers, not the primary `tap` stack on 8000/5432.
-    See spec-dev-multisession.md for port bands and the spawn/despawn workflow.
+    Lifecycle scripts (canonical implementations of the multi-session workflow):
+        scripts/spawn-session.sh          — create a new session worktree + Compose stack
+        scripts/despawn-session.sh        — tear it down
+        scripts/promote-to-main.sh        — push this session into origin/main (pre-push merge + atomic dual-refspec push + main sync)
+        scripts/promote-all-sessions.sh   — run promote-to-main.sh across every session in the registry
+    When the user says "consolidate sessions", "ship the sessions", or otherwise asks to advance
+    origin/main from session branches, run the promote scripts rather than retyping the git steps.
+    See spec-dev-multisession.md for port bands, spawn/despawn, and the push workflow.
 
 Documentation (specs ↔ docs alignment)
     Specs (specs/, <app>/specs/) are authoritative for behavior. Docs (docs/) are derived how-to surfaces.
