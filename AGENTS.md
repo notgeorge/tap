@@ -33,6 +33,14 @@ For non-OpenAI frameworks and libraries, prefer official upstream documentation 
 - Do not introduce multi-tenancy.
 - Do not introduce autonomous agent actions without an explicit spec change.
 
+## Logging Conventions
+
+- `logger = logging.getLogger(__name__)` at module top — never hardcode a logger name.
+- INFO/WARNING/ERROR/CRITICAL/exception messages start with a stable site ID `[<slug>-<hex>]` where `<slug>` is the containing first-party app (e.g. `tap_cares`) or plugin slug (e.g. `fedramp_20x_ksi`) and `<hex>` is 4 random hex chars from `python -c 'import secrets; print(secrets.token_hex(2))'`.
+- DEBUG calls are exempt from the site-ID requirement.
+- Use `%s` placeholders, not f-strings, in log message arguments — the formatter needs structured args for future JSON output.
+- `tap/logging.py` builds `settings.LOGGING` and runs the site-ID scanner enforced by `tap/tests/test_log_site_ids.py`; see [`specs/spec-tap-logging.md`](specs/spec-tap-logging.md) for the full convention.
+
 ## Important Grid Specs
 
 When working on graph data model behavior, read these first:
