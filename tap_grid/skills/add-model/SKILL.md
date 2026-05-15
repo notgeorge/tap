@@ -86,7 +86,7 @@ class <Model>(BaseModel):
         db_table = "<table_name>"
 
     def get_name(self) -> str:
-        return self.name
+        return self.name or ""
 
     def __str__(self) -> str:
         return self.get_name()
@@ -102,6 +102,8 @@ class <Model>(BaseModel):
 ### `get_name()` is the source of truth
 
 Per `req-grid-node-display`, `Entity.name` is a subordinate projection of `get_name()` and gets re-synced on every save. Don't store a separate canonical-display name; derive it from your fields in `get_name()`.
+
+If the model has a `name` field, it must explicitly override `get_name()` (usually `return self.name or ""`). Do not rely on `__str__()` or the presence of a `name` field; inherited `BaseModel.get_name()` returns `""`, and the save pipeline will project that empty value onto `Entity.name`.
 
 ## Step 3: Re-export From `models/__init__.py`
 

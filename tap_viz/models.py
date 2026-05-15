@@ -76,6 +76,9 @@ class Arrangement(BaseModel):
         db_table = "tap_arrangement"
         ordering = ["-entity__created_at"]
 
+    def get_name(self) -> str:
+        return self.name or ""
+
     def __str__(self) -> str:
         return self.name
 
@@ -154,6 +157,9 @@ class Layout(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "tap_layout"
         ordering = ["-entity__created_at"]
+
+    def get_name(self) -> str:
+        return self.name or ""
 
     def __str__(self) -> str:
         return self.name
@@ -249,6 +255,9 @@ class Elevation(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "tap_elevation"
         ordering = ["-entity__created_at"]
+
+    def get_name(self) -> str:
+        return self.name or ""
 
     def __str__(self) -> str:
         return self.name

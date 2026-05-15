@@ -10,10 +10,26 @@ from tap_grid.constraints import (
     register_edge_property_schema,
 )
 from tap_grid.exceptions import EdgePropertyValidationError
-from tap_grid.models import Edge, Entity, EntityType
+from tap_grid.models import BaseModel, Edge, Entity, EntityType
 from tap_grid.registry import get_model_class, register_entity_type, resolve_entity
 from tap_grid.services import create_entity
 from tap_plugins.base import TapPluginConfig
+
+
+class TestBaseModelDisplayNameContract:
+    def test_name_field_models_override_get_name(self):
+        """A model-level name field must be the source for Entity.name sync."""
+        missing = []
+        for model_cls in apps.get_models():
+            if not isinstance(model_cls, type):
+                continue
+            if not issubclass(model_cls, BaseModel) or model_cls._meta.abstract:
+                continue
+            field_names = {field.name for field in model_cls._meta.fields}
+            if "name" in field_names and "get_name" not in model_cls.__dict__:
+                missing.append(f"{model_cls.__module__}.{model_cls.__name__}")
+
+        assert missing == []
 
 
 @pytest.mark.django_db
