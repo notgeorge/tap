@@ -1,6 +1,6 @@
 # AWS Core Developer Notes
 
-This directory holds developer and AI-agent notes for the AWS Core plugin.
+This file holds developer and AI-agent notes for the AWS Core plugin.
 It is intentionally plugin-local so the material can travel with `aws_core`
 when the plugin later moves back into its own repository or submodule.
 
@@ -21,11 +21,15 @@ and GRIFT import boundary. AWS-specific collection behavior belongs here.
 
 The first inventory artifact is:
 
-- `steampipe-aws-table-inventory.yaml`
+- `docs/steampipe-aws-table-inventory.yaml`
 
 The collector design spec is:
 
-- `../specs/spec-aws-steampipe-collector-v0.md`
+- `specs/spec-aws-steampipe-collector-v0.md`
+
+The live-run setup guide is:
+
+- `docs/setup-steampipe-collector.md`
 
 The inventory compares the upstream Steampipe AWS table catalog to the
 current `aws_core` model surface. It is a planning artifact for phased

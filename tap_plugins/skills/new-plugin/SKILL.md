@@ -102,7 +102,8 @@ The core files every plugin needs:
 - `__init__.py` — package marker, docstring only
 - `apps.py` — single `TapPluginConfig` subclass, body is `pass`, no explicit `name`/`label`/`verbose_name`
 - `tap-plugin.toml` — manifest per `spec-plugin-manifest-v0.md`
-- `docs/README.md` — plugin-local developer and AI-agent orientation notes that travel with the plugin
+- `README.md` — plugin-local developer and AI-agent orientation notes that travel with the plugin
+- `docs/` — setup guides, runbooks, inventories, and deeper operational/design notes
 - `migrations/__init__.py` — empty
 - `tests/__init__.py` — empty
 - `.gitignore` — if the plugin will be its own git repo (the standalone-repo/submodule shape from Step 2), create one to keep Python bytecode and tooling caches out of the index. Plugin repos do not inherit the TAP repo's top-level `.gitignore`. Skip this step only if `.gitignore` is already tracked. Minimum recommended contents:
@@ -118,7 +119,7 @@ The core files every plugin needs:
 
   Without this, the first `git add -A` after running tests or migrations will quietly pull dozens of `.pyc` files into a commit.
 
-Create `docs/README.md` as soon as the plugin directory exists. This file is not marketing copy. It is the durable context page for future developers and AI agents working inside the plugin, especially after the plugin is split into its own repository or submodule. At minimum include:
+Create root `README.md` as soon as the plugin directory exists. This file is not marketing copy. It is the durable context page for future developers and AI agents working inside the plugin, especially after the plugin is split into its own repository or submodule. At minimum include:
 
 - what this plugin owns
 - what nearby TAP apps or plugins own instead
@@ -128,7 +129,7 @@ Create `docs/README.md` as soon as the plugin directory exists. This file is not
 
 Keep it short at scaffold time, then maintain it as decisions accumulate. Do not leave it as a stale placeholder once the plugin has real behavior.
 
-Periodically revisit `docs/README.md` and any plugin-local docs during plugin work, especially after adding models, edges, collectors, GRIFT seed data, validation behavior, or operational assumptions. Treat stale plugin documentation as spec drift: update it in the same change set when the implementation or architecture moves.
+Periodically revisit root `README.md` and any plugin-local docs during plugin work, especially after adding models, edges, collectors, GRIFT seed data, validation behavior, or operational assumptions. Treat stale plugin documentation as spec drift: update it in the same change set when the implementation or architecture moves. Use `docs/` for setup guides, operator runbooks, inventories, and longer design notes that would make the root README hard to scan.
 
 ## Step 5: Create Models
 
@@ -218,7 +219,7 @@ Remember that structure-level validation confirms manifest, import, and path cor
 
 ## Step 11: Update Plugin Documentation
 
-Update `docs/README.md` so it is useful to a future developer or AI agent landing directly in the plugin. Cover:
+Update root `README.md` so it is useful to a future developer or AI agent landing directly in the plugin. Cover:
 
 - What the plugin does (1-2 sentences)
 - What this plugin owns versus what remains in TAP core or sibling plugins
@@ -231,7 +232,7 @@ Update `docs/README.md` so it is useful to a future developer or AI agent landin
 - How to validate (`python manage.py validate_plugin plugins/<slug> --level runs`)
 - Pointer to `specs/` for detailed documentation
 
-If the plugin is being published as a standalone repository, also create or update a root `README.md` for external repository visitors. The root README may stay concise and point into `docs/README.md` for developer/agent notes; `docs/README.md` remains the canonical plugin-local context page.
+Create or update `docs/` files for operational setup, runbooks, generated inventories, and longer implementation notes. The root README should point into those docs rather than absorbing all details.
 
 ## Step 12: Commit And Push Progress
 
