@@ -37,7 +37,7 @@ collection profiles.
 | req-aws-steampipe-scope | [Collector Scope](#collector-scope) | In Development | AWS plugin owns Steampipe-backed inventory collection |
 | req-aws-steampipe-inventory | [Steampipe Coverage Inventory](#steampipe-coverage-inventory) | Implemented | `docs/steampipe-aws-table-inventory.yaml` is the planning map |
 | req-aws-steampipe-model-expansion | [Model Expansion Heuristic](#model-expansion-heuristic) | Proposed | ARN-bearing durable resources are model candidates, not automatic models |
-| req-aws-steampipe-secrets | [AWS Credential Resolution](#aws-credential-resolution) | Proposed | v0 uses `tap_cares` AWS static credentials |
+| req-aws-steampipe-secrets | [AWS Credential Resolution](#aws-credential-resolution) | Implemented | v0 uses the `tap_cares.secrets` backend with AWS static credentials |
 | req-aws-steampipe-config | [Collector Configuration](#collector-configuration) | Implemented | v0 defines a simple config shape for secret, account, regions, and profile |
 | req-aws-steampipe-runner | [Steampipe Execution](#steampipe-execution) | In Development | Steampipe is invoked as the extraction backend |
 | req-aws-steampipe-identity | [Provider Identity Resolution](#provider-identity-resolution) | Proposed | Stable AWS source identity resolves to existing TAP entity IDs before minting new UUIDv7s |
@@ -153,12 +153,28 @@ is a sign the table may belong in `configuration`, evidence, or a later phase.
 ## AWS Credential Resolution
 ----
 RID: `req-aws-steampipe-secrets`
-Status: `Proposed`
+Status: `Implemented`
 
-The v0 AWS collector resolves credentials through `tap_cares` secrets. Secret
-values are off-grid runtime material. Collector nodes, configuration records,
-GRIFT batches, and run records may reference a non-secret `SecretRef`, but they
-must never store access keys, session tokens, or other credential values.
+The v0 AWS collector resolves credentials through the `tap_cares.secrets`
+backend. Secret values are off-grid runtime material loaded from mounted
+`*.secret.json` files into the tap-cares runtime registry. Collector nodes,
+configuration records, GRIFT batches, and run records may reference a non-secret
+`tap_cares.secrets.SecretRef`, but they must never store access keys, session
+tokens, or other credential values.
+
+The collector's runtime flow is:
+
+1. Parse collector configuration into an `AwsSteampipeCollectorConfig`
+   containing only a `SecretRef`.
+2. Resolve the secret with `tap_cares.secrets.resolve_secret(...)`.
+3. Validate `kind` and `data` with `tap_cares.secrets.require_secret_kind(...)`
+   and an AWS-plugin-owned JSON Schema.
+4. Build a transient Steampipe subprocess environment containing AWS credential
+   variables.
+5. Run trusted profile queries.
+6. Drop credential material after the subprocess boundary. Only redacted
+   diagnostics and non-secret `SecretRef` identity may reach run records or
+   logs.
 
 v0 supports the `tap_cares` AWS static credential shape:
 
@@ -170,8 +186,11 @@ v0 supports the `tap_cares` AWS static credential shape:
 
 The AWS collector validates this consumer-specific shape after resolving the
 secret. Missing, malformed, or kind-mismatched secrets fail the run visibly with
-redacted structured errors. Secret material must not appear in subprocess
-arguments, logs, `CollectionJob.results`, GRIFT payloads, or rendered UI.
+redacted structured errors. `SecretRef` identity is safe to record; any
+structured diagnostic context that may contain secret-shaped fields must be
+redacted with `tap_cares.secrets.redact(...)` before it reaches run records or
+logs. Secret material must not appear in subprocess arguments, logs,
+`CollectionJob.results`, GRIFT payloads, or rendered UI.
 
 Steampipe credential configuration should be created in a transient runtime
 location for the duration of the run, using environment variables or temporary
@@ -183,11 +202,11 @@ cannot be mistaken for plugin state.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-aws-steampipe-secrets-1 | tap-cares Resolver | Proposed | The collector resolves AWS credentials through `tap_cares` secret helpers. | |
-| req-aws-steampipe-secrets-2 | Static Credentials v0 | Proposed | v0 supports `aws_static_access_key` with optional session token and region. | |
-| req-aws-steampipe-secrets-3 | Consumer Validation | Proposed | The AWS collector validates kind and required data fields before invoking Steampipe. | |
-| req-aws-steampipe-secrets-4 | Redacted Failure | Proposed | Missing or invalid secrets fail the run with redacted structured diagnostics. | |
-| req-aws-steampipe-secrets-5 | No Secret Persistence | Proposed | Secret values are not written to grid nodes, edges, GRIFT batches, run records, logs, or source-controlled files. | |
+| req-aws-steampipe-secrets-1 | tap-cares Resolver | Implemented | The collector resolves AWS credentials through `tap_cares.secrets.resolve_secret(...)`. | `resolve_aws_static_credentials(...)`. |
+| req-aws-steampipe-secrets-2 | Static Credentials v0 | Implemented | v0 supports `aws_static_access_key` with optional session token and region. | Schema and env mapping implemented in `credentials.py`. |
+| req-aws-steampipe-secrets-3 | Consumer Validation | Implemented | The AWS collector validates kind and required data fields before invoking Steampipe. | Uses `require_secret_kind(...)` with AWS-owned schema. |
+| req-aws-steampipe-secrets-4 | Redacted Failure | Implemented | Missing or invalid secrets fail the run with redacted structured diagnostics. | Missing secrets record `SECRET_INVALID`; Steampipe diagnostics scrub secret values. |
+| req-aws-steampipe-secrets-5 | No Secret Persistence | Implemented | Secret values are not written to grid nodes, edges, GRIFT batches, run records, logs, or source-controlled files. | Tests cover env construction, secret repr, and diagnostic redaction. |
 
 ## Collector Configuration
 ----
@@ -275,7 +294,7 @@ the target node's `configuration`.
 | req-aws-steampipe-runner-2 | Trusted Queries | Implemented | Queries are owned by plugin code and selected by profile, not supplied by grid data. | |
 | req-aws-steampipe-runner-3 | Availability Failure | Implemented | Missing Steampipe binary/configuration fails the run visibly. | |
 | req-aws-steampipe-runner-4 | Scoped Regions | In Development | The runner applies the configured region list rather than silently scanning every region. | Current shell sets primary region env; Steampipe multi-region config still pending. |
-| req-aws-steampipe-runner-5 | Redacted Diagnostics | In Development | Command diagnostics are captured without leaking credential material. | Initial marker redaction exists; secret-value redaction lands with secrets. |
+| req-aws-steampipe-runner-5 | Redacted Diagnostics | Implemented | Command diagnostics are captured without leaking credential material. | Marker and secret-value redaction implemented. |
 
 ## Provider Identity Resolution
 ----
@@ -493,9 +512,9 @@ Credential values and credential-shaped diagnostics must be redacted.
 | --- | --- | :---: | --- | --- |
 | req-aws-steampipe-observability-1 | Summary | In Development | Successful runs produce a concise human-readable `CollectionJob.summary`. | Shell summary reports row counts; GRIFT counts pending. |
 | req-aws-steampipe-observability-2 | Structured Results | In Development | Runs populate JSON-safe table, node, edge, region, and warning counts. | Table counts implemented; node/edge counts pending normalization. |
-| req-aws-steampipe-observability-3 | Redacted Errors | In Development | Failure diagnostics are structured and redacted. | Initial command marker redaction exists; secret-value redaction lands with secrets. |
+| req-aws-steampipe-observability-3 | Redacted Errors | Implemented | Failure diagnostics are structured and redacted. | Config, profile, secret, and Steampipe failures record safe context. |
 | req-aws-steampipe-observability-4 | Source Context | Implemented | Results include target key, account ID, partition, regions, and profile. | |
-| req-aws-steampipe-observability-5 | No Secret Values | Proposed | Results and summaries never include AWS access keys, secret keys, or session tokens. | |
+| req-aws-steampipe-observability-5 | No Secret Values | Implemented | Results and summaries never include AWS access keys, secret keys, or session tokens. | Secret values are passed only through subprocess env. |
 
 ## v0 Non-Goals
 ----

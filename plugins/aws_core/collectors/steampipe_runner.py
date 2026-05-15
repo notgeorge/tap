@@ -64,11 +64,17 @@ class SteampipeRunner:
         config: AwsSteampipeCollectorConfig,
         *,
         env: dict[str, str] | None = None,
+        redaction_values: tuple[str, ...] = (),
     ) -> SteampipeProfileResult:
         rows_by_table: dict[str, list[dict[str, Any]]] = {}
         warnings: list[str] = []
         for query in profile.queries:
-            result = self.run_query(query, config=config, env=env)
+            result = self.run_query(
+                query,
+                config=config,
+                env=env,
+                redaction_values=redaction_values,
+            )
             rows_by_table[query.table] = result.rows
             if result.stderr:
                 warnings.append(f"{query.table}: {result.stderr}")
@@ -80,6 +86,7 @@ class SteampipeRunner:
         *,
         config: AwsSteampipeCollectorConfig,
         env: dict[str, str] | None = None,
+        redaction_values: tuple[str, ...] = (),
     ) -> SteampipeQueryResult:
         command = [self.binary, "query", query.sql, "--output", "json"]
         run_env = self._build_env(config, env)
@@ -102,7 +109,10 @@ class SteampipeRunner:
                 f"Steampipe query for {query.table} timed out after {self.timeout_seconds}s."
             ) from exc
 
-        stderr = redact_credential_values(completed.stderr.strip())
+        stderr = redact_credential_values(
+            completed.stderr.strip(),
+            extra_values=redaction_values,
+        )
         if completed.returncode != 0:
             raise SteampipeExecutionError(
                 f"Steampipe query for {query.table} exited {completed.returncode}: {stderr}"
@@ -146,7 +156,11 @@ def _parse_rows(raw: str) -> list[dict[str, Any]]:
     return rows
 
 
-def redact_credential_values(value: str) -> str:
+def redact_credential_values(
+    value: str,
+    *,
+    extra_values: tuple[str, ...] = (),
+) -> str:
     """Best-effort redaction for diagnostics before they reach run records."""
     redacted = value
     sensitive_markers = (
@@ -159,4 +173,7 @@ def redact_credential_values(value: str) -> str:
     )
     for marker in sensitive_markers:
         redacted = redacted.replace(marker, "[redacted-key]")
+    for secret_value in extra_values:
+        if secret_value:
+            redacted = redacted.replace(secret_value, "[redacted-value]")
     return redacted

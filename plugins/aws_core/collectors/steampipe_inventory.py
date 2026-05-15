@@ -5,10 +5,13 @@ Spec: plugins/aws_core/specs/spec-aws-steampipe-collector-v0.md
 
 from __future__ import annotations
 
+import logging
+
 from plugins.aws_core.collectors.config import (
     AwsSteampipeConfigError,
     load_aws_steampipe_collector_config,
 )
+from plugins.aws_core.collectors.credentials import resolve_aws_static_credentials
 from plugins.aws_core.collectors.profiles import AwsSteampipeProfileError, get_profile
 from plugins.aws_core.collectors.steampipe_runner import (
     SteampipeProfileResult,
@@ -16,10 +19,14 @@ from plugins.aws_core.collectors.steampipe_runner import (
     SteampipeRunnerError,
 )
 from tap_cares.collectors import CollectorBase, CollectorConfig
+from tap_cares.exceptions import SecretError
+
+logger = logging.getLogger(__name__)
 
 _SITE_RUN_STARTED = "019e27be-3a6c-71c3-a443-7b79931e0ef9"
 _SITE_CONFIG_INVALID = "019e27be-3a6d-7287-b2e9-dc25104be557"
 _SITE_PROFILE_INVALID = "019e27be-3a6d-7287-b2e9-dc26f8156779"
+_SITE_SECRET_INVALID = "019e2987-932f-71a8-8f5e-8a08acb54915"
 _SITE_STEAMPIPE_FAILED = "019e27be-3a6d-7287-b2e9-dc27592f1be1"
 _SITE_PROFILE_COLLECTED = "019e27be-3a6d-7287-b2e9-dc28a97b7a5f"
 _SITE_RUN_COMPLETED = "019e27be-3a6d-7287-b2e9-dc2913127c83"
@@ -40,6 +47,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             "RUN_STARTED",
             "AWS Steampipe inventory collection started.",
         )
+        logger.info("[aws_core-2d3c] aws_steampipe_collection_started")
 
         try:
             target_config = load_aws_steampipe_collector_config()
@@ -49,6 +57,8 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 "CONFIG_INVALID",
                 str(exc),
             )
+            self.summary = "AWS Steampipe collector configuration is invalid."
+            logger.exception("[aws_core-23ab] aws_steampipe_config_invalid")
             raise
 
         try:
@@ -60,16 +70,56 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 str(exc),
                 context=target_config.to_context(),
             )
+            self.summary = f"AWS Steampipe profile {target_config.profile!r} is invalid."
+            logger.exception(
+                "[aws_core-efc4] aws_steampipe_profile_invalid target=%s profile=%s",
+                target_config.target_key,
+                target_config.profile,
+            )
             raise
 
         try:
-            result = self.runner_cls().run_profile(profile, target_config)
+            credentials = resolve_aws_static_credentials(target_config.secret_ref)
+        except SecretError as exc:
+            self.record_error(
+                _SITE_SECRET_INVALID,
+                "SECRET_INVALID",
+                str(exc),
+                context=target_config.to_context(),
+            )
+            self.summary = (
+                f"AWS Steampipe credentials for {target_config.target_key} "
+                f"{profile.key} are invalid or missing."
+            )
+            logger.exception(
+                "[aws_core-d15e] aws_steampipe_secret_invalid target=%s secret_ref=%s",
+                target_config.target_key,
+                target_config.secret_ref.qualified,
+            )
+            raise
+
+        try:
+            result = self.runner_cls().run_profile(
+                profile,
+                target_config,
+                env=credentials.as_steampipe_env(region=target_config.regions[0]),
+                redaction_values=credentials.redaction_values(),
+            )
         except SteampipeRunnerError as exc:
             self.record_error(
                 _SITE_STEAMPIPE_FAILED,
                 "STEAMPIPE_FAILED",
                 str(exc),
                 context=target_config.to_context(),
+            )
+            self.summary = (
+                f"AWS Steampipe run failed for {target_config.target_key} "
+                f"{profile.key}."
+            )
+            logger.exception(
+                "[aws_core-a8b9] aws_steampipe_runner_failed target=%s profile=%s",
+                target_config.target_key,
+                profile.key,
             )
             raise
 
@@ -87,6 +137,12 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 "warnings": result.warnings,
             },
         )
+        logger.info(
+            "[aws_core-7f31] aws_steampipe_profile_collected target=%s profile=%s tables=%s",
+            target_config.target_key,
+            profile.key,
+            sorted(result.rows_by_table),
+        )
 
         vpc_rows = result.row_count("aws_vpc")
         subnet_rows = result.row_count("aws_vpc_subnet")
@@ -100,4 +156,9 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             "RUN_COMPLETED",
             "AWS Steampipe inventory collection complete.",
             context={"summary": self.summary},
+        )
+        logger.info(
+            "[aws_core-44d2] aws_steampipe_collection_completed target=%s profile=%s",
+            target_config.target_key,
+            profile.key,
         )
