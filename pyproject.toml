@@ -126,7 +126,7 @@ django_settings_module = "tap.settings"
 # ImmediateBackend regardless of what the dev/prod tap/settings.py sets it
 # to. See spec-tap-cares-task-backend.md req-tap-cares-task-backend-test-settings.
 DJANGO_SETTINGS_MODULE = "tap.test_settings"
-testpaths = ["tap_grid", "tap_plugins", "tap_api", "tap_web", "tap_viz", "plugins"]
+testpaths = ["tap", "tap_grid", "tap_plugins", "tap_api", "tap_web", "tap_viz", "plugins"]
 python_files = ["test_*.py", "*_test.py"]
 # Skip live-fetch tests by default; opt in with `-m live_fetch`.
 addopts = "-v --tb=short -m 'not live_fetch'"
