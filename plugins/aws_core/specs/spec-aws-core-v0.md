@@ -153,14 +153,14 @@ The plugin declares 15 semantically meaningful edge types organized by relations
 
 | Category | Edge Types | Description |
 | --- | --- | --- |
-| Structural | RESIDES_IN, BELONGS_TO, CONTAINS, ATTACHED_TO | Physical and organizational containment |
-| Operational | LAUNCHED, INVOKES, ROUTES_TO, EXPOSES | Runtime actions and traffic flow |
-| Access/Security | HAS_ACCESS_TO, ASSUMES, PROTECTS, STORES_IN | IAM permissions, security boundaries, data storage |
-| Dependency | DEPENDS_ON, PULLS_FROM, BACKED_BY | Runtime and infrastructure dependencies |
+| Structural | RESIDES_IN, BELONGS_TO_ACCOUNT, CONTAINS, ATTACHED_TO | Physical and organizational containment |
+| Operational | LAUNCHED, INVOKES, ROUTES_TRAFFIC_TO, EXPOSES_NETWORK_ACCESS | Runtime actions and traffic flow |
+| Access/Security | HAS_POLICY_ACCESS_TO, ASSUMES_ROLE, PROTECTS, STORES_DATA_IN | IAM permissions, security boundaries, data storage |
+| Dependency | DEPENDS_ON, PULLS_IMAGE_FROM, BACKED_BY | Runtime and infrastructure dependencies |
 
-Edge types use explicit `sources` and `targets` constraints where the relationship is well-defined (e.g. `ASSUMES` only goes from IAM users/roles to IAM roles). Edges that are broadly applicable (e.g. `DEPENDS_ON`, `ATTACHED_TO`) use wildcard sources/targets.
+Edge types use explicit `sources` and `targets` constraints where the relationship is well-defined (e.g. `ASSUMES_ROLE` only goes from IAM users/roles to IAM roles). Edges that are broadly applicable (e.g. `DEPENDS_ON`, `ATTACHED_TO`) use wildcard sources/targets.
 
-Several edge types declare `property_schema` for structured edge metadata (e.g. `LAUNCHED` has `launched_at`, `HAS_ACCESS_TO` has `actions` and `effect`, `ROUTES_TO` has `destination_cidr` and `port`).
+Several edge types declare `property_schema` for structured edge metadata (e.g. `LAUNCHED` has `launched_at`, `HAS_POLICY_ACCESS_TO` has `actions` and `effect`, `ROUTES_TRAFFIC_TO` has `destination_cidr` and `port`).
 
 #### Acceptance Criteria
 

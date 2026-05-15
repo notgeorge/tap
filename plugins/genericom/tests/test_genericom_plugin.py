@@ -123,21 +123,21 @@ class TestGenericomImport:
         from collections import Counter
 
         edge_types = Counter(genericom_edges.values_list("edge_type", flat=True))
-        # 4 BELONGS_TO (VPC, Route53, ACM, RDS -> account)
+        # 4 BELONGS_TO_ACCOUNT (VPC, Route53, ACM, RDS -> account)
         # 7 CONTAINS (region->VPC + VPC->6 subnets)
         # 1 ATTACHED_TO (IGW -> VPC)
         # 12 RESIDES_IN (6 subnet->AZ + 2 ALB->subnet + 2 EC2->subnet + 2 RDS->subnet)
         # 3 BACKED_BY (ALB->cert, TG->EC2a, TG->EC2c)
-        # 2 ROUTES_TO (Route53->ALB, ALB->TG)
-        # 2 STORES_IN (each EC2 -> RDS)
+        # 2 ROUTES_TRAFFIC_TO (Route53->ALB, ALB->TG)
+        # 2 STORES_DATA_IN (each EC2 -> RDS)
         assert edge_types == {
-            "BELONGS_TO": 4,
+            "BELONGS_TO_ACCOUNT": 4,
             "CONTAINS": 7,
             "ATTACHED_TO": 1,
             "RESIDES_IN": 12,
             "BACKED_BY": 3,
-            "ROUTES_TO": 2,
-            "STORES_IN": 2,
+            "ROUTES_TRAFFIC_TO": 2,
+            "STORES_DATA_IN": 2,
         }
 
 
@@ -182,13 +182,13 @@ class TestGenericomRequestPath:
     def test_route53_routes_to_alb(self):
         _import_all_bundles()
         zone = Entity.objects.get(entity_type="aws_route53_zone", name="genericom.com")
-        edge = Edge.objects.get(from_entity=zone, edge_type="ROUTES_TO")
+        edge = Edge.objects.get(from_entity=zone, edge_type="ROUTES_TRAFFIC_TO")
         assert edge.to_entity.entity_type == "aws_alb"
 
     def test_alb_routes_to_target_group(self):
         _import_all_bundles()
         alb = Entity.objects.get(entity_type="aws_alb")
-        edge = Edge.objects.get(from_entity=alb, edge_type="ROUTES_TO")
+        edge = Edge.objects.get(from_entity=alb, edge_type="ROUTES_TRAFFIC_TO")
         assert edge.to_entity.entity_type == "aws_target_group"
 
     def test_target_group_backed_by_two_ec2s(self):
@@ -203,7 +203,7 @@ class TestGenericomRequestPath:
         web_a = Entity.objects.get(entity_type="aws_ec2_instance", name="genericom-prod-web-a")
         web_c = Entity.objects.get(entity_type="aws_ec2_instance", name="genericom-prod-web-c")
         for ec2 in (web_a, web_c):
-            edge = Edge.objects.get(from_entity=ec2, edge_type="STORES_IN")
+            edge = Edge.objects.get(from_entity=ec2, edge_type="STORES_DATA_IN")
             assert edge.to_entity.name == "genericom-prod-postgres"
 
     def test_alb_backed_by_acm_cert(self):

@@ -1,6 +1,6 @@
 {
-  "slug": "STORES_IN",
-  "name": "Stores In",
+  "slug": "STORES_DATA_IN",
+  "name": "Stores Data In",
   "description": "Service stores data in a storage or database resource.",
   "targets": [
     "aws_s3_bucket",

@@ -389,8 +389,8 @@ known:
 | `RESIDES_IN` | `aws_subnet` | `aws_region` | Subnet lives in region |
 | `RESIDES_IN` | `aws_subnet` | `aws_vpc` | Subnet lives in VPC |
 | `RESIDES_IN` | `aws_subnet` | `aws_az` | Created when the AZ reference node can be resolved |
-| `BELONGS_TO` | `aws_vpc` | `aws_account` | Created when the account node exists or is collected in the same batch |
-| `BELONGS_TO` | `aws_subnet` | `aws_account` | Created when the account node exists or is collected in the same batch |
+| `BELONGS_TO_ACCOUNT` | `aws_vpc` | `aws_account` | Created when the account node exists or is collected in the same batch |
+| `BELONGS_TO_ACCOUNT` | `aws_subnet` | `aws_account` | Created when the account node exists or is collected in the same batch |
 
 The first implementation may create a minimal `AwsAccount` node for the
 configured account if one does not already exist, but it should not collect broad
@@ -477,7 +477,7 @@ Collected AWS demo vpc-subnet-v0: 3 VPCs, 12 subnets, 18 edges, 1 GRIFT batch.
   },
   "normalized": {
     "nodes": {"aws_vpc": 3, "aws_subnet": 12},
-    "edges": {"CONTAINS": 13, "RESIDES_IN": 24, "BELONGS_TO": 15}
+    "edges": {"CONTAINS": 13, "RESIDES_IN": 24, "BELONGS_TO_ACCOUNT": 15}
   },
   "warnings": []
 }

@@ -72,7 +72,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6606415fb1b",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6376bbb66bb",
-            "edge_type": "BELONGS_TO",
+            "edge_type": "BELONGS_TO_ACCOUNT",
             "properties": {}
           }
         },
@@ -120,7 +120,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e655683af8b9",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6606415fb1b",
-            "edge_type": "STORES_IN",
+            "edge_type": "STORES_DATA_IN",
             "properties": {}
           }
         },
@@ -136,7 +136,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e656a8aacce7",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6606415fb1b",
-            "edge_type": "STORES_IN",
+            "edge_type": "STORES_DATA_IN",
             "properties": {}
           }
         }

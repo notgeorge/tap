@@ -24,7 +24,7 @@ If a spec contradicts a pattern in code, flag it to the user — do not silently
 Before authoring the edge file, gather:
 
 1. **Plugin slug** the edge belongs to (e.g. `fedramp_20x_ksi`).
-2. **Edge slug** (`SCREAMING_SNAKE_CASE`, e.g. `HAS_EVIDENCE`). The slug is the canonical edge type — used in service-layer calls, GRIFT, and gryphon queries.
+2. **Edge slug** (`SCREAMING_SNAKE_CASE`, e.g. `HAS_EVIDENCE`). The slug is the canonical edge type — used in service-layer calls, GRIFT, and gryphon queries. Edge slugs should be compact semantic predicates that help `source node + edge + target node` read like a coherent sentence.
 3. **Human-readable name** and **description** (one or two sentences explaining what the edge represents and when to use it).
 4. **`sources` and `targets`** — list the entity-type slugs allowed at each end. Wildcard (`omit`) is permitted but should be justified; explicit lists are strongly preferred for typed plugins.
 5. **`property_schema`** (optional) — JSON Schema for structured edge properties. Use this when the edge carries semantically meaningful data (e.g. an enum that classifies the relationship). The user's case for adding a `support_kind` enum here is a textbook example.
@@ -32,6 +32,18 @@ Before authoring the edge file, gather:
 7. **Hotlink integration** — is this edge the materialization of a JSON reference on a model? If yes, plan the `HOTLINKS` declaration on the model alongside the edge.
 
 Write down the agreed shape before generating the file; it becomes the spec section in Step 5.
+
+### Edge naming checklist
+
+Default to compact, semantically rich predicate names. Avoid bare generic verbs like `USES`, `RUNS`, `HAS`, `ROUTES`, `STORES`, or `PULLS` when the relationship has an obvious missing object. Add the missing noun inside the predicate instead:
+
+- Prefer `STORES_DATA_IN` over `STORES_IN`.
+- Prefer `ROUTES_TRAFFIC_TO` over `ROUTES_TO`.
+- Prefer `PULLS_IMAGE_FROM` over `PULLS_FROM`.
+- Prefer `HAS_POLICY_ACCESS_TO` over `HAS_ACCESS_TO`.
+- Prefer `ASSUMES_ROLE` over `ASSUMES`.
+
+Do not overfit by repeating both endpoint type names unless the relation would otherwise be ambiguous. For example, `VPC_CONTAINS_SUBNET` may be warranted when distinguishing it from other containment semantics, but `CONTAINS` can still be acceptable for strict hierarchy when the endpoints already supply the needed nouns. The goal is for `source node + edge + target node` to be close to a useful sentence without turning every edge slug into a paragraph. Future semantic templates and predicate metadata may carry fuller natural-language phrasing; the slug should remain concise and meaningful.
 
 ### Property schema design checklist
 
@@ -192,6 +204,7 @@ Once green:
 
 - **Slug case mismatch.** The edge slug, filename, and manifest key must match exactly. `Has_Evidence` ≠ `HAS_EVIDENCE`.
 - **`additionalProperties: true` (or omitted) on `property_schema`.** Default to `false`. Silent property growth makes the edge type's contract unstable.
+- **Bare generic edge slugs.** Names like `USES`, `RUNS`, `HAS`, `ROUTES`, `STORES`, or `PULLS` usually need a semantic noun in the predicate (`USES_SEARCH`, `ROUTES_TRAFFIC_TO`, `STORES_DATA_IN`, `PULLS_IMAGE_FROM`) so graph triples read coherently.
 - **Wildcard sources/targets without justification.** Typed plugins should constrain edge endpoints. Wildcards are appropriate for cross-plugin edges (e.g. `HAS_FINDING` from any asset to a finding), but they should be a deliberate choice, not the default.
 - **Forgetting `default_dimensions`.** Edges should carry the same dimension convention as their endpoints; missing dimensions cause silent scoping bugs later.
 - **Authoring GRIFT edges without a UUIDv7.** Use `scripts/uuid7`; never hand-shape edge entity_ids.
