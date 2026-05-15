@@ -227,7 +227,7 @@ def _render_graph_panel_context(
                 )
                 edges.setdefault(key, edge_data)
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Synthetic graph panel search failed for panel %s", panel.entity_id)
+        logger.exception("[tap_web-240a] Synthetic graph panel search failed for panel %s", panel.entity_id)
         return {
             "graph_nodes_json": safe_json([]),
             "graph_edges_json": safe_json([]),
@@ -294,7 +294,7 @@ def _render_synthetic_panel(
     try:
         return render_to_string(panel.view, ctx, request=request)
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Failed to render synthetic panel %s (view=%s)", panel.entity_id, panel.view)
+        logger.exception("[tap_web-ac97] Failed to render synthetic panel %s (view=%s)", panel.entity_id, panel.view)
         return f'<div class="text-red-600 text-sm p-4">Panel render error: {exc}</div>'
 
 

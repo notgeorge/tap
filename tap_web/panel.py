@@ -47,7 +47,7 @@ def get_panel_search(panel: Panel) -> Search | None:
         return Search.objects.select_related("entity").get(entity=edge.to_entity)
     except Search.DoesNotExist:
         logger.warning(
-            "USES_SEARCH edge %s points to missing Search entity %s",
+            "[tap_web-6b04] USES_SEARCH edge %s points to missing Search entity %s",
             edge.pk,
             edge.to_entity_id,
         )

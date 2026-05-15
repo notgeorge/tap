@@ -87,7 +87,7 @@ class KsiInstanceFindingsPanelType:
                 search, inputs={"entity_id": entity_id}, layer="extended"
             )
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Instance findings search failed for %s", entity_id)
+            logger.exception("[fedramp_20x_ksi-efc9] Instance findings search failed for %s", entity_id)
             return {
                 "instance_findings_error": f"Failed to load findings: {exc}",
                 "instance_findings_rows_json": safe_json([]),
