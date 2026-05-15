@@ -83,6 +83,10 @@ services:
       # directory is empty or missing. See tap_cares/specs/spec-tap-cares-secrets.md.
       - ./tap_secrets:/run/tap-secrets:ro
 
+    # Use the bind-mounted entrypoint so dev-time changes to startup plumbing
+    # (including background workers) do not require rebuilding the image.
+    entrypoint: ["/app/docker/entrypoint.sh"]
+
     # Map container port 8000 to host port WEB_PORT (default 8000)
     # Access the app at http://localhost:${WEB_PORT}
     #
