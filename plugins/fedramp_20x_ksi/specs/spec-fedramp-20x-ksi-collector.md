@@ -381,7 +381,7 @@ The KSI collector uses the existing `CollectionJob` lifecycle states (`READY`/`R
 - `status = SUCCESSFUL`
 - `summary` carries a collector-authored one-liner describing the import (counts of new / modified / deprecated indicators and themes plus imported batch count). See `_summarize_import` in `ksi_catalog.py`.
 - `grift_batches.imported` contains the single batch entity_id this run produced.
-- `results["info"]` contains entries for: `RUN_STARTED`, `UPSTREAM_FETCHED`, `DIFF_COMPUTED` (with counts in context), `GRIFT_SUBMITTED` (with batch entity_id in context), `RUN_COMPLETED`.
+- `results["info"]` contains entries for: `RUN_STARTED`, `UPSTREAM_FETCHED`, `DIFF_COMPUTED` (with counts in `message_data`), `GRIFT_SUBMITTED` (with batch entity_id in `message_data`), `RUN_COMPLETED`.
 - `results["error"]` empty.
 
 #### Failed run
@@ -389,7 +389,7 @@ The KSI collector uses the existing `CollectionJob` lifecycle states (`READY`/`R
 - `status = FAILED`
 - `summary` carries the count-derived one-liner (`"Failed with N error(s)"`) computed by the task body from `len(results["error"])` — KSI does not set `self.summary` on the failure path. See `req-tap-cares-collector-failure-mode-3`.
 - `grift_batches = {"imported": [], "skipped": []}` — nothing reached the grid.
-- `results["error"]` contains one entry per flag raised, each with its own `site` UUIDv7, `code`, `message`, and `context` (the dict of relevant counts, fragments, or paths into the source document — collector's call what's useful for the investigator). Schema-drift runs in particular accumulate one entry per `iter_errors` validation failure so a single run surfaces every drift site rather than only the first.
+- `results["error"]` contains one entry per flag raised, each with its own 4-hex `site` token, `message_code`, `message`, and `message_data` (the dict of relevant counts, fragments, or paths into the source document — collector's call what's useful for the investigator). Schema-drift runs in particular accumulate one entry per `iter_errors` validation failure so a single run surfaces every drift site rather than only the first.
 - `results["info"]` may contain partial-run breadcrumbs (`RUN_STARTED`, `UPSTREAM_FETCHED`) for runs that got past initial steps before failing.
 
 #### Result event vocabulary (v0)

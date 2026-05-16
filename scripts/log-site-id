@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Mint one or more fresh, collision-checked log site tokens.
+#
+# A site token is the `[<hex>]` identifier required at the start of every
+# committed log message (req-tap-logging-site-ids in
+# specs/spec-tap-logging.md). The hex only has to be unique within its file,
+# but this tool checks the whole source tree so a minted token is never wrong
+# regardless of which file it lands in.
+#
+# Usage:
+#   scripts/log-site-id            # one token, e.g. a8f3
+#   scripts/log-site-id N          # N tokens, one per line
+#
+# Implementation: generates secrets.token_hex(2) on the host (stdlib, no
+# container needed) and rejects any candidate already present as the bracketed
+# token `[<hex>]` in a committed/tracked .py file. Surfaced as an agent-runnable
+# tool alongside scripts/uuid7 — see CLAUDE.md / AGENTS.md.
+
+set -euo pipefail
+
+count="${1:-1}"
+
+cd "$(git rev-parse --show-toplevel)"
+
+# Pre-collect every existing bracketed hex token across tracked Python source.
+# One pass is enough; minting N tokens just keeps drawing until each is unused
+# and also distinct from the others minted in this run.
+existing="$(git grep -hoE '\[[0-9a-f]{4}\]' -- '*.py' 2>/dev/null | tr -d '[]' | sort -u || true)"
+
+python3 - "$count" <<'PY' "$existing"
+import secrets
+import sys
+
+count = int(sys.argv[1])
+taken = set(filter(None, sys.argv[2].split("\n")))
+
+minted: list[str] = []
+for _ in range(count):
+    for _attempt in range(10000):
+        tok = secrets.token_hex(2)
+        if tok not in taken:
+            break
+    else:
+        sys.exit("log-site-id: exhausted attempts finding a free token (hex space saturated?)")
+    taken.add(tok)
+    minted.append(tok)
+
+print("\n".join(minted))
+PY

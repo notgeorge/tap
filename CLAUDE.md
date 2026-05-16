@@ -147,6 +147,12 @@ Multi-session worktrees
     origin/main from session branches, run the promote scripts rather than retyping the git steps.
     See spec-dev-multisession.md for port bands, spawn/despawn, and the push workflow.
 
+Developer token tools (use these instead of hand-rolling identifiers)
+    scripts/uuid7 [N]          — mint UUIDv7(s) (e.g. record_* call-site IDs, entity IDs)
+    scripts/log-site-id [N]    — mint collision-checked `[<hex>]` log site token(s)
+                                 (req-tap-logging-site-ids). Run this when adding any
+                                 logger.* call rather than guessing a hex by hand.
+
 Documentation (specs ↔ docs alignment)
     Specs (specs/, <app>/specs/) are authoritative for behavior. Docs (docs/) are derived how-to surfaces.
     See specs/spec-docs.md for the full documentation system contract.

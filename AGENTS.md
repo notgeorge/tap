@@ -91,3 +91,10 @@ Do **not** use `git fetch origin main:main` from a session worktree — Git refu
 The canonical implementation of the four-step pattern is `scripts/promote-to-main.sh`, invoked from inside the session worktree. For "consolidate every session at once", `scripts/promote-all-sessions.sh` iterates `$HOME/tap-sessions/.registry` and runs the per-session script in each worktree sequentially. Both support `--dry-run`. When the user expresses intent to advance `origin/main` from session branches (phrases like "consolidate sessions", "ship the sessions", "sync to main"), prefer the script over retyping the four git commands — the script is the contract.
 
 See the spec section for the full rationale and acceptance criteria (`req-dev-multisession-promote-script`, `req-dev-multisession-promote-all-script`).
+
+## Developer Tooling
+
+Mint identifiers with the provided scripts rather than hand-rolling them — both are agent-runnable and collision-safe:
+
+- `scripts/uuid7 [N]` — UUIDv7(s) for `record_*` call-site IDs, entity IDs, etc.
+- `scripts/log-site-id [N]` — collision-checked `[<hex>]` log site token(s). Run this whenever you add a `logger.*` call; every committed log call at every level needs one (`req-tap-logging-site-ids` in `specs/spec-tap-logging.md`). Do not guess a hex by hand — the script greps the tree so the token is never a collision.
