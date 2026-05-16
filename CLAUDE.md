@@ -47,13 +47,13 @@ Code Quality Standards
     Sort imports with isort
     Use f-strings for string formatting
 
-Logging Conventions
-    Use `logger = logging.getLogger(__name__)` at module top — never hardcode a logger name.
-    INFO/WARNING/ERROR/CRITICAL/exception messages start with a stable site ID `[<slug>-<hex>]`.
-    The <slug> is the containing first-party app (tap_cares, tap_grid, ...) or plugin slug (fedramp_20x_ksi, ...); generate <hex> via `python -c 'import secrets; print(secrets.token_hex(2))'`.
-    DEBUG calls are exempt from the site-ID requirement.
+Logging Conventions (Option A — see specs/spec-tap-logging.md)
+    Use `logger = logging.getLogger(__name__)` at module top — never hardcode a logger name. The logger name IS the callsite path: derived, never authored.
+    Every committed log call at EVERY level (DEBUG through CRITICAL, plus exception) starts with a bare 4-hex site token `[<hex>]` — no slug, no prefix.
+    Mint the hex with `scripts/log-site-id` (never hand-pick one). It only has to be unique within its file; the module path namespaces it.
+    `# noqa: TAP-LOG-ID` on the same line is the narrow, review-visible escape hatch (e.g. tight high-volume loops).
     Use `%s` placeholders, not f-strings, in log message arguments — the formatter needs structured args for future JSON output.
-    `tap/logging.py` builds settings.LOGGING and runs the site-ID scanner enforced by tap/tests/test_log_site_ids.py; see specs/spec-tap-logging.md for the full convention.
+    `tap/logging.py` builds settings.LOGGING and runs the site-token scanner (format + within-file hex uniqueness, baseline-ratchet) enforced by tap/tests/test_log_site_ids.py; see specs/spec-tap-logging.md for the full convention.
 
 Testing Framework
     pytest with Django integration
@@ -154,6 +154,12 @@ Multi-session worktrees
     When the user says "consolidate sessions", "ship the sessions", or otherwise asks to advance
     origin/main from session branches, run the promote scripts rather than retyping the git steps.
     See spec-dev-multisession.md for port bands, spawn/despawn, and the push workflow.
+
+Developer token tools (use these instead of hand-rolling identifiers)
+    scripts/uuid7 [N]          — mint UUIDv7(s) (e.g. record_* call-site IDs, entity IDs)
+    scripts/log-site-id [N]    — mint collision-checked `[<hex>]` log site token(s)
+                                 (req-tap-logging-site-ids). Run this when adding any
+                                 logger.* call rather than guessing a hex by hand.
 
 Documentation (specs ↔ docs alignment)
     Specs (specs/, <app>/specs/) are authoritative for behavior. Docs (docs/) are derived how-to surfaces.

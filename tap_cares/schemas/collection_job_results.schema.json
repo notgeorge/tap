@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tap.dev/schemas/collection_job_results.schema.json",
   "title": "CollectionJob.results",
-  "description": "Structured per-level result log for one collector run. Top-level keys are the three severity buckets; each holds an ordered list of entry objects appended by the tap_cares.results.record_* helpers.",
+  "description": "Structured per-level result log for one collector run. Top-level keys are the three severity buckets; each holds an ordered list of entry objects appended by the tap_cares CollectorBase.record_* helpers. Each entry is the grid-sink form of the unified message object (req-tap-logging-message-object in specs/spec-tap-logging.md): same site/message_code/message/message_data fields, different sink.",
   "type": "object",
   "additionalProperties": false,
   "required": ["info", "warn", "error"],
@@ -15,25 +15,25 @@
     "entry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["site", "code", "message", "context"],
+      "required": ["site", "message_code", "message", "message_data"],
       "properties": {
         "site": {
           "type": "string",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-          "description": "UUIDv7 hardcoded at the helper callsite. Uniquely identifies a single record_* invocation in source. Generated via scripts/uuid7. Grep the codebase for this value to find the exact line that emitted the entry."
+          "pattern": "^[0-9a-f]{4}$",
+          "description": "4-hex call-site token (e.g. 'a8f3'), minted via scripts/log-site-id. Identifies the line of code that emitted the entry; need only be unique within its file (the module namespaces it). Grep the hex to locate the callsite. See req-tap-logging-site-ids."
         },
-        "code": {
+        "message_code": {
           "type": "string",
           "pattern": "^[A-Z][A-Z0-9_]*$",
-          "description": "Machine-readable category in UPPER_SNAKE. Stable across runs and rewordings; what programmatic filtering / future Action rules key off of."
+          "description": "Machine-readable category in UPPER_SNAKE. Stable across runs and rewordings; what programmatic filtering / future Action rules key off, and the discriminator for the shape of message_data."
         },
         "message": {
           "type": "string",
-          "description": "Human-readable run-specific prose. Includes specifics (counts, ratios, fragments) that vary per run; the code stays stable while the message describes the particular occurrence."
+          "description": "Human-readable run-specific prose. Includes specifics (counts, ratios, fragments) that vary per run; message_code stays stable while message describes the particular occurrence."
         },
-        "context": {
+        "message_data": {
           "type": "object",
-          "description": "Free-form structured payload. Empty object when no extra context is needed. Collector-defined shape; consumers should treat unrecognized keys as opaque."
+          "description": "Free-form structured payload. Empty object when no extra data is needed. Collector-defined shape; consumers treat unrecognized keys as opaque unless they recognize message_code."
         }
       }
     }

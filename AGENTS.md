@@ -38,11 +38,11 @@ For non-OpenAI frameworks and libraries, prefer official upstream documentation 
 
 ## Logging Conventions
 
-- `logger = logging.getLogger(__name__)` at module top — never hardcode a logger name.
-- INFO/WARNING/ERROR/CRITICAL/exception messages start with a stable site ID `[<slug>-<hex>]` where `<slug>` is the containing first-party app (e.g. `tap_cares`) or plugin slug (e.g. `fedramp_20x_ksi`) and `<hex>` is 4 random hex chars from `python -c 'import secrets; print(secrets.token_hex(2))'`.
-- DEBUG calls are exempt from the site-ID requirement.
+- `logger = logging.getLogger(__name__)` at module top — never hardcode a logger name. The logger name *is* the callsite path: derived, never authored.
+- Every committed log call at **every** level (DEBUG through CRITICAL, plus `exception`) starts with a bare 4-hex site token `[<hex>]` — no slug, no prefix (Option A, `req-tap-logging-site-ids`). Mint it with `scripts/log-site-id` (see Developer Tooling); never hand-pick a hex. The hex only has to be unique *within its file* — the module path namespaces it.
+- `# noqa: TAP-LOG-ID` on the same line is the narrow, review-visible escape hatch (e.g. tight high-volume diagnostic loops).
 - Use `%s` placeholders, not f-strings, in log message arguments — the formatter needs structured args for future JSON output.
-- `tap/logging.py` builds `settings.LOGGING` and runs the site-ID scanner enforced by `tap/tests/test_log_site_ids.py`; see [`specs/spec-tap-logging.md`](specs/spec-tap-logging.md) for the full convention.
+- `tap/logging.py` builds `settings.LOGGING` and runs the site-token scanner (format + within-file hex uniqueness, baseline-ratchet) enforced by `tap/tests/test_log_site_ids.py`; see [`specs/spec-tap-logging.md`](specs/spec-tap-logging.md) for the full convention.
 
 ## Important Grid Specs
 
@@ -105,3 +105,10 @@ Do **not** use `git fetch origin main:main` from a session worktree — Git refu
 The canonical implementation of the four-step pattern is `scripts/promote-to-main.sh`, invoked from inside the session worktree. For "consolidate every session at once", `scripts/promote-all-sessions.sh` iterates `$HOME/tap-sessions/.registry` and runs the per-session script in each worktree sequentially. Both support `--dry-run`. When the user expresses intent to advance `origin/main` from session branches (phrases like "consolidate sessions", "ship the sessions", "sync to main"), prefer the script over retyping the four git commands — the script is the contract.
 
 See the spec section for the full rationale and acceptance criteria (`req-dev-multisession-promote-script`, `req-dev-multisession-promote-all-script`).
+
+## Developer Tooling
+
+Mint identifiers with the provided scripts rather than hand-rolling them — both are agent-runnable and collision-safe:
+
+- `scripts/uuid7 [N]` — UUIDv7(s) for `record_*` call-site IDs, entity IDs, etc.
+- `scripts/log-site-id [N]` — collision-checked `[<hex>]` log site token(s). Run this whenever you add a `logger.*` call; every committed log call at every level needs one (`req-tap-logging-site-ids` in `specs/spec-tap-logging.md`). Do not guess a hex by hand — the script greps the tree so the token is never a collision.

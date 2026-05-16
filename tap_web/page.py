@@ -56,7 +56,7 @@ def get_page_panels(page: Page) -> list[tuple[str, Panel]]:
             panel = Panel.objects.select_related("entity").get(entity=edge.to_entity)
             results.append((panel_id, panel))
         except Panel.DoesNotExist:
-            logger.warning("[tap_web-42e3] USES_PANEL edge %s points to missing Panel entity %s", edge.pk, edge.to_entity_id)
+            logger.warning("[42e3] USES_PANEL edge %s points to missing Panel entity %s", edge.pk, edge.to_entity_id)
 
     return results
 
@@ -90,7 +90,7 @@ def get_landing_page() -> Page | None:
     try:
         return Page.objects.select_related("entity").get(entity=edge.to_entity)
     except Page.DoesNotExist:
-        logger.warning("[tap_web-de9b] USES_LANDING_PAGE edge %s points to missing Page entity %s", edge.pk, edge.to_entity_id)
+        logger.warning("[de9b] USES_LANDING_PAGE edge %s points to missing Page entity %s", edge.pk, edge.to_entity_id)
         return None
 
 

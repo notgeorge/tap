@@ -136,7 +136,7 @@ def _ensure_collector_node(
         # DB not migrated yet, or tap_cares tables don't exist.
         # Silent skip; the next app.ready() will pick it up after migrate.
         logger.debug(
-            "Collector grid-node upsert skipped (DB not ready): %s", qualified_key
+            "[ae7c] Collector grid-node upsert skipped (DB not ready): %s", qualified_key
         )
         return
     except Exception:
@@ -146,7 +146,7 @@ def _ensure_collector_node(
         # still succeeded; the on-grid upsert can wait for a context that
         # actually has a database available.
         logger.debug(
-            "Collector grid-node upsert skipped (DB access blocked): %s",
+            "[df83] Collector grid-node upsert skipped (DB access blocked): %s",
             qualified_key,
         )
         return

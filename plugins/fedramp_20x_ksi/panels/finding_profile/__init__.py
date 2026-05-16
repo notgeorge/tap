@@ -152,7 +152,7 @@ class KsiFindingProfilePanelType:
                 search, inputs={"entity_id": entity_id}, layer="extended"
             )
         except Exception as exc:  # noqa: BLE001
-            logger.exception("[fedramp_20x_ksi-52c8] Finding profile search failed for %s", entity_id)
+            logger.exception("[52c8] Finding profile search failed for %s", entity_id)
             return {
                 "finding_error": f"Failed to load finding: {exc}",
                 "finding": None,

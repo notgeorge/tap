@@ -1,11 +1,16 @@
-# Site-ID scanner baseline — spec-tap-logging.md req-tap-logging-site-id-scanner-6.
+# Site-ID scanner baseline — spec-tap-logging.md req-tap-logging-site-id-scanner-5.
 #
-# Each line is <relative-path>:<lineno> identifying a log call site that
-# currently lacks a [<slug>-<hex>] site ID or violates a call-site convention.
-# The scanner test requires the live set to equal this file exactly:
+# Each non-comment line is <relative-path>:<lineno> identifying a log call
+# site that currently lacks a bare 4-hex [<hex>] site token (Option A —
+# req-tap-logging-site-ids-1) or violates a call-site convention
+# (req-tap-logging-site-id-scanner-7). The scanner test requires the live set
+# to equal this file exactly:
 #   * Adding a new uncovered call site fails the test ("baseline grew").
-#   * Fixing an entry (adding a proper site ID) also fails until that line is
+#   * Fixing an entry (adding a proper token) also fails until that line is
 #     removed from this file ("baseline ratchets down").
 #
-# Driving this list to zero is Stage 3. Until then, new log calls should be
-# authored *with* site IDs so they don't land in this file.
+# This file is intentionally EMPTY: the Option-A reconciliation tagged every
+# committed log call (DEBUG included — no level exemption) so the scanner runs
+# in effective strict mode. New log calls must be authored *with* a token,
+# minted via `scripts/log-site-id`. Do not add entries here except as a
+# genuine last resort.

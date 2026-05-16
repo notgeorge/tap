@@ -130,41 +130,43 @@ class CollectorBase(ABC):
     def record_info(
         self,
         site: str,
-        code: str,
+        message_code: str,
         message: str,
         *,
-        context: dict[str, Any] | None = None,
+        message_data: dict[str, Any] | None = None,
     ) -> None:
         """Record an info-level event into `self.results["info"]`.
 
         Args:
-            site: UUIDv7 hardcoded at the callsite (generated via scripts/uuid7).
-                Required positional — forgetting it raises TypeError. Survives
-                refactors; grep the codebase for the UUID to locate the callsite.
-            code: Machine-readable category in UPPER_SNAKE.
+            site: 4-hex call-site token, minted via `scripts/log-site-id`.
+                Required positional — forgetting it raises TypeError. Need only
+                be unique within this file; grep the hex to locate the callsite.
+                See req-tap-logging-site-ids.
+            message_code: Machine-readable category in UPPER_SNAKE; the
+                discriminator for `message_data`'s shape.
             message: Human-readable prose specific to this occurrence.
-            context: Free-form structured payload. Defaults to {}.
+            message_data: Free-form structured payload. Defaults to {}.
         """
-        self._record("info", site, code, message, context)
+        self._record("info", site, message_code, message, message_data)
 
     def record_warn(
         self,
         site: str,
-        code: str,
+        message_code: str,
         message: str,
         *,
-        context: dict[str, Any] | None = None,
+        message_data: dict[str, Any] | None = None,
     ) -> None:
         """Record a warn-level event. Same shape as `record_info`; goes to the warn bucket."""
-        self._record("warn", site, code, message, context)
+        self._record("warn", site, message_code, message, message_data)
 
     def record_error(
         self,
         site: str,
-        code: str,
+        message_code: str,
         message: str,
         *,
-        context: dict[str, Any] | None = None,
+        message_data: dict[str, Any] | None = None,
     ) -> None:
         """Record an error-level event. Same shape as `record_info`; goes to the error bucket.
 
@@ -172,24 +174,24 @@ class CollectorBase(ABC):
         collector raises an exception after calling `record_error` (per
         `req-tap-cares-collector-failure-mode-4`).
         """
-        self._record("error", site, code, message, context)
+        self._record("error", site, message_code, message, message_data)
 
     def _record(
         self,
         level: str,
         site: str,
-        code: str,
+        message_code: str,
         message: str,
-        context: dict[str, Any] | None,
+        message_data: dict[str, Any] | None,
     ) -> None:
         if level not in _LEVELS:
             raise ValueError(f"Invalid level {level!r}; expected one of {_LEVELS}.")
 
         entry: dict[str, Any] = {
             "site": site,
-            "code": code,
+            "message_code": message_code,
             "message": message,
-            "context": context if context is not None else {},
+            "message_data": message_data if message_data is not None else {},
         }
         _validate_entry(entry)
 

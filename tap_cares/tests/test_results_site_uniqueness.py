@@ -1,19 +1,23 @@
-"""Assert that every record_info / record_warn / record_error callsite in the
-codebase uses a unique UUIDv7 in its `site` argument.
+"""Assert that record_* site tokens are unique *within each file*.
 
-req-tap-cares-collector-job-model-15 (spec-tap-cares-collector.md).
+req-tap-cares-collector-job-model-15 (spec-tap-cares-collector.md), aligned
+with req-tap-logging-site-id-scanner-4 (spec-tap-logging.md).
 
-The site UUID is the stable identifier of a callsite — what consumers grep
-for in stored results to locate the exact line of source that emitted an
-entry. Copy-pasting a record_* call without bumping the UUID would silently
-collapse two callsites into one, defeating the locator. This test scans the
-codebase for all record_* invocations and asserts no two share a site value.
+Under the unified message object (Option A), `site` is a 4-hex token, not a
+UUIDv7, and the unique callsite *path* is the logger/module — so the hex only
+has to be unique **within its file**. Copy-pasting a record_* call (or its
+`_SITE_*` constant) within a file without bumping the hex would collapse two
+callsites into one; copy-pasting *across* files is inherently safe because the
+file namespaces the hex, and is explicitly NOT a violation.
 
-It uses static text scanning (regex) rather than AST parsing on purpose:
-fast, no Python import side-effects, robust to syntax errors in unrelated
-files. The cost is that it requires the `site=...` literal to be either the
-first positional argument or a keyword argument — which is the documented
-calling convention anyway.
+Collectors define their site tokens as module constants
+(`_SITE_RUN_STARTED = "7f18"`) and pass the constant to the call. So the
+realistic failure mode is two `_SITE_*` constants in one file sharing a hex,
+plus any inline-literal first argument to a record_* call. This scans for
+both, per file.
+
+Static text scanning (regex) on purpose: fast, no import side-effects, robust
+to unrelated syntax errors. Mint fresh tokens with `scripts/log-site-id`.
 """
 
 from __future__ import annotations
@@ -27,8 +31,6 @@ import pytest
 # Project root: parent of `tap_cares/`.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Directories to skip when scanning. Test fixtures and the helper module
-# itself intentionally contain repeated UUIDs / placeholder values.
 _SKIP_DIR_NAMES = {
     ".git",
     ".venv",
@@ -42,22 +44,20 @@ _SKIP_DIR_NAMES = {
     ".ruff_cache",
 }
 
-# Files that are part of the testing/uniqueness machinery itself and use
-# fake / repeated UUIDs by design.
+# This scanner module itself uses example hexes in its docstring.
 _SKIP_FILES = {
     Path("tap_cares/tests/test_results_site_uniqueness.py"),
 }
 
-# UUIDv7 regex — matches the project's standard UUIDv7 format.
-_UUIDV7 = r"[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+_HEX = r"[0-9a-f]{4}"
 
-# record_info|record_warn|record_error followed (eventually) by a quoted
-# UUIDv7. Tolerates whitespace, newlines, intervening positional args.
-# Matches the instance-method shape (`self.record_info("<uuid>", ...)`) and
-# any legacy free-function form that lingers; either way the site UUID is
-# the first quoted UUIDv7 inside the call.
-_RECORD_CALL = re.compile(
-    r"record_(?:info|warn|error)\s*\(" + r"[^)]*?" + r'["\'](' + _UUIDV7 + r')["\']',
+# A `_SITE_<NAME> = "<hex>"` module/class constant assignment.
+_SITE_CONST = re.compile(r"^\s*_SITE_[A-Z0-9_]+\s*=\s*[\"'](" + _HEX + r")[\"']\s*$", re.MULTILINE)
+
+# An inline first-positional string literal to a record_* call:
+# `record_info("7f18", ...)`. Constant-based calls are covered by _SITE_CONST.
+_RECORD_INLINE = re.compile(
+    r"record_(?:info|warn|error)\s*\(\s*[\"'](" + _HEX + r")[\"']",
     re.DOTALL,
 )
 
@@ -67,37 +67,41 @@ def _iter_python_files() -> list[Path]:
     for path in _REPO_ROOT.rglob("*.py"):
         if any(part in _SKIP_DIR_NAMES for part in path.parts):
             continue
-        rel = path.relative_to(_REPO_ROOT)
-        if rel in _SKIP_FILES:
+        if path.relative_to(_REPO_ROOT) in _SKIP_FILES:
             continue
         files.append(path)
     return files
 
 
-def test_record_callsite_uuids_are_unique():
-    """No two record_* invocations in the codebase share the same site UUID."""
-    seen: dict[str, list[tuple[Path, int]]] = defaultdict(list)
+def test_record_site_tokens_unique_within_file():
+    """No file defines/uses the same record_* site hex twice.
+
+    Cross-file reuse is allowed and intentionally not checked — the module
+    path namespaces the hex (req-tap-logging-site-id-scanner-4).
+    """
+    offenders: list[str] = []
 
     for path in _iter_python_files():
         try:
             text = path.read_text()
-        except (OSError, UnicodeDecodeError):
+        except OSError, UnicodeDecodeError:
             continue
-        for match in _RECORD_CALL.finditer(text):
-            uuid = match.group(1)
-            line_no = text.count("\n", 0, match.start()) + 1
-            seen[uuid].append((path.relative_to(_REPO_ROOT), line_no))
 
-    duplicates = {uuid: sites for uuid, sites in seen.items() if len(sites) > 1}
-    if duplicates:
-        lines = ["Duplicate record_* site UUIDs found:"]
-        for uuid, sites in sorted(duplicates.items()):
-            lines.append(f"  {uuid}")
-            for path, line_no in sites:
-                lines.append(f"    {path}:{line_no}")
-        lines.append("")
-        lines.append(
-            "Each record_info / record_warn / record_error callsite must use a "
-            "unique UUIDv7. Generate fresh ones with `scripts/uuid7`."
+        seen: dict[str, list[int]] = defaultdict(list)
+        for match in _SITE_CONST.finditer(text):
+            seen[match.group(1)].append(text.count("\n", 0, match.start()) + 1)
+        for match in _RECORD_INLINE.finditer(text):
+            seen[match.group(1)].append(text.count("\n", 0, match.start()) + 1)
+
+        rel = path.relative_to(_REPO_ROOT)
+        for hex_tok, lines in sorted(seen.items()):
+            if len(lines) > 1:
+                offenders.append(f"  {rel}: '{hex_tok}' at lines {sorted(lines)}")
+
+    if offenders:
+        pytest.fail(
+            "Duplicate record_* site hex within a file:\n"
+            + "\n".join(offenders)
+            + "\n\nEach site token must be unique within its file. "
+            "Mint fresh ones with `scripts/log-site-id`."
         )
-        pytest.fail("\n".join(lines))

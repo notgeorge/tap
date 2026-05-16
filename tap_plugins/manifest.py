@@ -466,7 +466,7 @@ def warn_undeclared_convention_files(manifest: PluginManifest) -> None:
             rel = str(grift_file.relative_to(manifest.plugin_root))
             if rel not in declared_grift_paths:
                 logger.warning(
-                    "[tap_plugins-5fcb] Plugin '%s': undeclared GRIFT file '%s' in grift/ — not part of load contract",
+                    "[5fcb] Plugin '%s': undeclared GRIFT file '%s' in grift/ — not part of load contract",
                     manifest.slug,
                     rel,
                 )
@@ -477,7 +477,7 @@ def warn_undeclared_convention_files(manifest: PluginManifest) -> None:
             rel = str(edge_file.relative_to(manifest.plugin_root))
             if rel not in declared_edge_paths:
                 logger.warning(
-                    "[tap_plugins-924b] Plugin '%s': undeclared edge file '%s' in edges/ — not part of load contract",
+                    "[924b] Plugin '%s': undeclared edge file '%s' in edges/ — not part of load contract",
                     manifest.slug,
                     rel,
                 )

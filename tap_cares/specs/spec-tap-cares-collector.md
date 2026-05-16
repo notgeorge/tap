@@ -871,25 +871,33 @@ Per-entry shape (same for all three buckets):
 
 ```json
 {
-  "site":    "<UUIDv7>",
-  "code":    "<UPPER_SNAKE>",
-  "message": "<human-readable prose>",
-  "context": { /* free-form */ }
+  "site":         "<hex>",
+  "message_code": "<UPPER_SNAKE>",
+  "message":      "<human-readable prose>",
+  "message_data": { /* free-form */ }
 }
 ```
 
 | Field | Purpose |
 | --- | --- |
-| `site` | UUIDv7 hardcoded at the helper callsite, generated via `scripts/uuid7`. Identifies the exact line of code that emitted the entry. Survives refactors; grep the codebase for the UUID to locate the callsite. |
-| `code` | Machine-readable category (`MASS_DELETION`, `UPSTREAM_OVERSIZED`, `RUN_COMPLETED`, …). Stable across runs and rewordings; what filtering and future Action rules key off. |
-| `message` | Human-readable prose for this run. Includes specifics (counts, ratios, offending fragments); the `code` stays stable while `message` describes the particular occurrence. |
-| `context` | Free-form structured payload. Empty object when none. Collector-defined keys; consumers treat unknown keys as opaque. |
+| `site` | 4-hex call-site token (e.g. `a8f3`), minted via `scripts/log-site-id`. Identifies the line of code that emitted the entry; unique within its file (the file/module namespaces it). Grep the hex to locate the callsite. |
+| `message_code` | Machine-readable category (`MASS_DELETION`, `UPSTREAM_OVERSIZED`, `RUN_COMPLETED`, …). Stable across runs and rewordings; what filtering and future Action rules key off, and the discriminator for `message_data`'s shape. |
+| `message` | Human-readable prose for this run. Includes specifics (counts, ratios, offending fragments); `message_code` stays stable while `message` describes the particular occurrence. |
+| `message_data` | Free-form structured payload. Empty object when none. Collector-defined keys; consumers treat unknown keys as opaque unless they recognize `message_code`. |
 
 All four fields are **required** in stored entries. The pinned JSON schema (below) rejects entries missing any of them.
+
+#### Unified message-object convergence
+
+This per-entry shape is the grid-sink form of the canonical message object specified in [`spec-tap-logging.md`](../../specs/spec-tap-logging.md) (`req-tap-logging-message-object`). `site` / `message_code` / `message` / `message_data` are the same fields with the same meanings; the only difference is the sink — the log stream is ephemeral, `CollectionJob.results` is durable grid state. The optional envelope correlation fields of the message object (`entity_id`, `task_result_id`) are deliberately **not** duplicated per entry here: the parent `CollectionJob` row already *is* the grid subject and already carries `task_result_id`, so per-entry copies would be redundant. Same vocabulary, one place each fact lives.
 
 #### Pinned schema
 
 The shape is pinned at `tap_cares/schemas/collection_job_results.schema.json` per the JSON Schema Policy in `MEMORY.md`. The `record_*` helpers validate every entry against this schema before append; malformed entries raise rather than silently writing bad data.
+
+#### Migration (rename to the unified vocabulary)
+
+The field rename — `code`→`message_code`, `context`→`message_data`, and `site` from UUIDv7 to a 4-hex token — is a **clean cutover**, not a versioned migration. Verified: the pinned schema is enforced only at append time (`CollectorBase._record` → `_validate_entry`); nothing re-validates stored `CollectionJob.results` on read (the Administrivia run-detail reader is defensive — `isinstance` guard, `.get(level) or []`, no schema check). Combined with single-developer v0 and no production data, there is nothing to preserve: no transitional dual-accept regex, no data migration, no read-path throw risk on legacy rows. Existing dev-DB rows with the old field names are disposable; re-seed dev databases after the rename. (`scripts/uuid7` is no longer used to mint result `site` values; `scripts/log-site-id` is — UUIDv7 minting remains for entity IDs and GRIFT batch IDs.)
 
 #### Service helpers
 
@@ -902,14 +910,14 @@ class CollectorBase(ABC):
         self.results: dict[str, list] = {"info": [], "warn": [], "error": []}
         self._produced_batches: list[tuple[str, str]] = []  # (batch_entity_id, disposition)
 
-    def record_info(self, site: str, code: str, message: str, *, context: dict | None = None) -> None: ...
-    def record_warn(self, site: str, code: str, message: str, *, context: dict | None = None) -> None: ...
-    def record_error(self, site: str, code: str, message: str, *, context: dict | None = None) -> None: ...
+    def record_info(self, site: str, message_code: str, message: str, *, message_data: dict | None = None) -> None: ...
+    def record_warn(self, site: str, message_code: str, message: str, *, message_data: dict | None = None) -> None: ...
+    def record_error(self, site: str, message_code: str, message: str, *, message_data: dict | None = None) -> None: ...
 ```
 
 Each helper:
 
-1. Builds the entry from the four arguments (defaulting `context` to `{}` if `None`).
+1. Builds the entry from the four arguments (defaulting `message_data` to `{}` if `None`).
 2. Validates the entry against the pinned schema.
 3. Appends to `self.results[<level>]`.
 
@@ -919,16 +927,16 @@ Collectors never manipulate `CollectionJob.results` directly; they always go thr
 
 The `tap_cares/results.py` module that previously exposed `record_info(job, ...)` free functions is being removed as part of the refactor.
 
-#### Site UUID uniqueness
+#### Site token uniqueness
 
-A repository-wide pytest scans every `self.record_info(…)` / `self.record_warn(…)` / `self.record_error(…)` call literal across collector subclasses and asserts that no two callsites share the same UUIDv7. Catches copy-paste mistakes at CI time. The test lives in `tap_cares/tests/test_results_site_uniqueness.py` (or migrates with the helpers; the test continues to scan for the same UUIDv7-uniqueness invariant under the new call shape).
+`site` follows the unified site-token rule (`req-tap-logging-site-ids` in `spec-tap-logging.md`): a 4-hex token that need only be unique **within its file**, because the module/file namespaces it. A repository-wide pytest scans every `self.record_info(…)` / `self.record_warn(…)` / `self.record_error(…)` call literal across collector subclasses and asserts no two callsites **in the same file** share a hex. Catches copy-paste mistakes at CI time. The test lives in `tap_cares/tests/test_results_site_uniqueness.py`; its invariant aligns with the logging scanner's within-file uniqueness check (`req-tap-logging-site-id-scanner-4`) — cross-file reuse is not a violation.
 
 #### `summary` vs `results["error"]`
 
 The two coexist with distinct roles:
 
 - `summary` (CharField 2048) — the at-a-glance one-liner for a run (success or failure). Collectors set `self.summary` directly with whatever description fits ("Imported 46 indicators", "No changes", "Upstream returned malformed JSON"). When a collector fails without setting `self.summary`, the task body falls back to a count-derived `"Failed with N error(s)"`, then to the exception message. Renders wherever the job is summarized (Administrivia list, job detail header).
-- `results["error"]` — the full structured detail. One entry per discrete error event, each with its own site / code / context. Renders in the per-run "what went wrong" view.
+- `results["error"]` — the full structured detail. One entry per discrete error event, each with its own site / message_code / message_data. Renders in the per-run "what went wrong" view.
 
 The summary intentionally hides per-message content; operators dig into `results["error"]` for specifics.
 
@@ -946,11 +954,11 @@ The summary intentionally hides per-message content; operators dig into `results
 | req-tap-cares-collector-job-model-8 | Status Display Projection | Implemented | The CollectionJob display projection emits both the raw `status` value and a `status_display` field carrying the title-case human label from `get_status_display()`. | |
 | req-tap-cares-collector-job-model-9 | Results Field Exists | Implemented | `CollectionJob` has a `results` `JSONField` defaulting to `{"info": [], "warn": [], "error": []}` (via a callable default helper). | |
 | req-tap-cares-collector-job-model-10 | Pre-Defined Severity Buckets | Implemented | The top-level shape of `results` is three pre-defined arrays keyed `info` / `warn` / `error`. No flat-array form; entries never carry a `level` field (severity is implied by which bucket holds them). | |
-| req-tap-cares-collector-job-model-11 | Four-Field Entry Shape | Implemented | Every result entry has exactly four required fields: `site` (UUIDv7), `code` (UPPER_SNAKE), `message` (string), `context` (object). No other fields permitted. | |
-| req-tap-cares-collector-job-model-12 | Pinned Results Schema | Implemented | The results shape is pinned at `tap_cares/schemas/collection_job_results.schema.json` with `additionalProperties: false` at both the top-level and per-entry. | |
-| req-tap-cares-collector-job-model-13 | record_* Are Instance Methods | Proposed | The result-recording helpers are methods on `CollectorBase` (`self.record_info(site, code, message, *, context=None)` and the `warn` / `error` siblings). Each validates against the pinned schema and appends to `self.results[<level>]`. They do not accept a `CollectionJob` and do not write to the database. | Replaces the previous free-function shape in `tap_cares/results.py`. |
+| req-tap-cares-collector-job-model-11 | Four-Field Entry Shape | Implemented | Every result entry has exactly four required fields: `site` (4-hex token), `message_code` (UPPER_SNAKE), `message` (string), `message_data` (object). No other fields permitted. Converges on the unified message object (`req-tap-logging-message-object`). | Renamed from `code`/`context`; `site` is now a 4-hex token, not UUIDv7. |
+| req-tap-cares-collector-job-model-12 | Pinned Results Schema | Implemented | The results shape is pinned at `tap_cares/schemas/collection_job_results.schema.json` with `additionalProperties: false` at both the top-level and per-entry. Field names match the unified message object in `spec-tap-logging.md`. | Clean cutover; see Migration note. |
+| req-tap-cares-collector-job-model-13 | record_* Are Instance Methods | Proposed | The result-recording helpers are methods on `CollectorBase` (`self.record_info(site, message_code, message, *, message_data=None)` and the `warn` / `error` siblings). Each validates against the pinned schema and appends to `self.results[<level>]`. They do not accept a `CollectionJob` and do not write to the database. | Replaces the previous free-function shape in `tap_cares/results.py`. |
 | req-tap-cares-collector-job-model-14 | Site Is Required Positional | Implemented | `site` is a required positional argument on the helpers. Calls missing it raise `TypeError` at runtime / fail type-checking, ensuring every stored entry traces to one line of source. | |
-| req-tap-cares-collector-job-model-15 | Site UUID Uniqueness Test | Implemented | A repository-wide pytest scans every `self.record_info` / `self.record_warn` / `self.record_error` callsite across collector subclasses and asserts no two share the same `site` UUID. | `tap_cares/tests/test_results_site_uniqueness.py`. |
+| req-tap-cares-collector-job-model-15 | Site Token Uniqueness Test | Implemented | A repository-wide pytest scans every `self.record_info` / `self.record_warn` / `self.record_error` callsite across collector subclasses and asserts no two **in the same file** share a `site` hex. Aligns with `req-tap-logging-site-id-scanner-4` (within-file uniqueness); cross-file reuse is not a violation. | `tap_cares/tests/test_results_site_uniqueness.py`. |
 | req-tap-cares-collector-job-model-16 | summary Stays Distinct | Implemented | `summary` (CharField 2048) is the at-a-glance one-liner for a run (success or failure); structured per-event detail lives in `results["error"]`. The two are complementary, not redundant. | |
 | req-tap-cares-collector-job-model-17 | INTERNAL_ONLY | Proposed | `CollectionJob.INTERNAL_ONLY = True`. Generic `create_node` / `patch_node` / `replace_node` / `delete_node` and GRIFT import all reject the `collection_job` entity type. | |
 | req-tap-cares-collector-job-model-18 | run_collection Is Sole Creator | Proposed | The only legal path that creates a CollectionJob row is `run_collection(...)` (see [Run Collection Entry Point](#run-collection-entry-point)), which uses `_create_node_internal` from `tap_grid.services`. | |
@@ -1082,7 +1090,7 @@ How a collector signals a failed run is a framework convention, not a per-collec
 
 To fail a run, a collector:
 
-1. Calls `self.record_error(site, code, message, *, context=...)` one or more times to accumulate structured error entries in `self.results["error"]`. Each entry traces to a specific source location via its UUIDv7 `site`.
+1. Calls `self.record_error(site, message_code, message, *, message_data=...)` one or more times to accumulate structured error entries in `self.results["error"]`. Each entry traces to a specific source location via its 4-hex `site` token.
 2. Raises a Python exception out of `run()`. The exception terminates the run; control returns to the task body, which writes terminal state.
 
 Collectors may set `self.summary` with a human-readable description of what went wrong (e.g. "Upstream returned malformed JSON", "Mass-deletion threshold exceeded"). When the collector does not set `self.summary`, the task body derives a count-based fallback (`"Failed with N error(s)"`) from `self.results["error"]`, then falls back to the exception's class and message when no errors were recorded. The collector-set value wins whenever it is non-empty.
