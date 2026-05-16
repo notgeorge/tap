@@ -53,7 +53,7 @@ class FindingsBySystemPanelType:
             result = execute_search(search, layer="extended")
         except Exception as exc:  # noqa: BLE001
             logger.exception(
-                "[fedramp_20x_ksi-ba4a] findings_by_system search execution failed for panel %s",
+                "[ba4a] findings_by_system search execution failed for panel %s",
                 panel.entity_id,
             )
             return {

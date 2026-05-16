@@ -45,8 +45,8 @@ def scheduler_tick() -> None:
     try:
         fires = evaluate_tick()
     except Exception:  # noqa: BLE001
-        logger.exception("[tap_cares-5985] scheduler_tick: evaluate_tick raised")
+        logger.exception("[5985] scheduler_tick: evaluate_tick raised")
         return
 
     if fires:
-        logger.info("[tap_cares-5d7f] scheduler_tick: produced %d fire(s)", len(fires))
+        logger.info("[5d7f] scheduler_tick: produced %d fire(s)", len(fires))

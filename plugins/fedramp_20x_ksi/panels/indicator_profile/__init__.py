@@ -113,7 +113,7 @@ class KsiIndicatorProfilePanelType:
                 search, inputs={"entity_id": entity_id}, layer="extended"
             )
         except Exception as exc:  # noqa: BLE001
-            logger.exception("[fedramp_20x_ksi-500c] KSI profile search failed for %s", entity_id)
+            logger.exception("[500c] KSI profile search failed for %s", entity_id)
             return {"ksi_error": f"Failed to load indicator: {exc}", "ksi": None}
 
         # Extract subgraph from paginated or flat result.
@@ -230,7 +230,7 @@ def _load_findings_rows(indicator_entity_id: str) -> list[dict[str, Any]]:
         )
     except Exception:  # noqa: BLE001
         logger.exception(
-            "[fedramp_20x_ksi-7ead] KSI indicator findings query failed for %s", indicator_entity_id
+            "[7ead] KSI indicator findings query failed for %s", indicator_entity_id
         )
         return []
 

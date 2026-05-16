@@ -281,8 +281,8 @@ class TestAwsSteampipeInventoryCollector:
         with pytest.raises(Exception, match="No secret registered"):
             collector.run()
 
-        assert collector.results["error"][0]["code"] == "SECRET_INVALID"
-        assert collector.results["error"][0]["context"]["secret_ref"] == {
+        assert collector.results["error"][0]["message_code"] == "SECRET_INVALID"
+        assert collector.results["error"][0]["message_data"]["secret_ref"] == {
             "scope": "aws",
             "key": "demo-readonly",
         }

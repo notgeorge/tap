@@ -196,7 +196,7 @@ class CollectorTablePanelType:
                         )
                     except Exception as exc:  # noqa: BLE001
                         logger.exception(
-                            "[administrivia-2721] run_collection failed for collector %s", collector.entity_id
+                            "[2721] run_collection failed for collector %s", collector.entity_id
                         )
                         run_error = f"Failed to enqueue: {type(exc).__name__}: {exc}"
                     else:

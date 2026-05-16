@@ -35,11 +35,11 @@ For non-OpenAI frameworks and libraries, prefer official upstream documentation 
 
 ## Logging Conventions
 
-- `logger = logging.getLogger(__name__)` at module top — never hardcode a logger name.
-- INFO/WARNING/ERROR/CRITICAL/exception messages start with a stable site ID `[<slug>-<hex>]` where `<slug>` is the containing first-party app (e.g. `tap_cares`) or plugin slug (e.g. `fedramp_20x_ksi`) and `<hex>` is 4 random hex chars from `python -c 'import secrets; print(secrets.token_hex(2))'`.
-- DEBUG calls are exempt from the site-ID requirement.
+- `logger = logging.getLogger(__name__)` at module top — never hardcode a logger name. The logger name *is* the callsite path: derived, never authored.
+- Every committed log call at **every** level (DEBUG through CRITICAL, plus `exception`) starts with a bare 4-hex site token `[<hex>]` — no slug, no prefix (Option A, `req-tap-logging-site-ids`). Mint it with `scripts/log-site-id` (see Developer Tooling); never hand-pick a hex. The hex only has to be unique *within its file* — the module path namespaces it.
+- `# noqa: TAP-LOG-ID` on the same line is the narrow, review-visible escape hatch (e.g. tight high-volume diagnostic loops).
 - Use `%s` placeholders, not f-strings, in log message arguments — the formatter needs structured args for future JSON output.
-- `tap/logging.py` builds `settings.LOGGING` and runs the site-ID scanner enforced by `tap/tests/test_log_site_ids.py`; see [`specs/spec-tap-logging.md`](specs/spec-tap-logging.md) for the full convention.
+- `tap/logging.py` builds `settings.LOGGING` and runs the site-token scanner (format + within-file hex uniqueness, baseline-ratchet) enforced by `tap/tests/test_log_site_ids.py`; see [`specs/spec-tap-logging.md`](specs/spec-tap-logging.md) for the full convention.
 
 ## Important Grid Specs
 

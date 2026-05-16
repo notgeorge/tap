@@ -67,7 +67,7 @@ class GenericomOpenAlertsPanelType:
             result = execute_search(search, layer="extended")
         except Exception as exc:  # noqa: BLE001
             logger.exception(
-                "[genericom-6e34] Genericom open-alerts search execution failed for panel %s",
+                "[6e34] Genericom open-alerts search execution failed for panel %s",
                 panel.entity_id,
             )
             return {
@@ -137,7 +137,7 @@ def _build_rows(envelope: dict[str, Any]) -> list[dict[str, Any]]:
         parent_id = parents_by_finding.get(finding_id)
         if parent_id is None:
             logger.warning(
-                "[genericom-d639] Genericom open-alerts: finding %s has no HAS_FINDING parent; skipping",
+                "[d639] Genericom open-alerts: finding %s has no HAS_FINDING parent; skipping",
                 finding_id,
             )
             continue
@@ -145,7 +145,7 @@ def _build_rows(envelope: dict[str, Any]) -> list[dict[str, Any]]:
         parent = nodes_by_id.get(parent_id)
         if parent is None:
             logger.warning(
-                "[genericom-00ce] Genericom open-alerts: HAS_FINDING parent %s for finding %s not in envelope; skipping",
+                "[00ce] Genericom open-alerts: HAS_FINDING parent %s for finding %s not in envelope; skipping",
                 parent_id,
                 finding_id,
             )

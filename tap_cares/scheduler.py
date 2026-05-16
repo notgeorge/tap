@@ -305,7 +305,7 @@ def _finalize_fire_skipped(
     )
     if not result.success:
         logger.exception(
-            "[tap_cares-14b5] scheduler: SKIPPED patch failed for fire %s: %s",
+            "[14b5] scheduler: SKIPPED patch failed for fire %s: %s",
             fire.entity_id,
             result.errors,
         )
@@ -324,7 +324,7 @@ def _finalize_fire_failed(
     )
     if not result.success:
         logger.exception(
-            "[tap_cares-cd53] scheduler: FAILED patch failed for fire %s: %s",
+            "[cd53] scheduler: FAILED patch failed for fire %s: %s",
             fire.entity_id,
             result.errors,
         )
@@ -406,7 +406,7 @@ def evaluate_tick(
             )
         except Exception:
             logger.exception(
-                "[tap_cares-0cd1] scheduler: Stage 1 failed for schedule %s slot %s",
+                "[0cd1] scheduler: Stage 1 failed for schedule %s slot %s",
                 schedule.entity_id,
                 current_slot.isoformat(),
             )
@@ -433,7 +433,7 @@ def evaluate_tick(
                 job = run_collection(collector, caller_context=ctx)
             except Exception as exc:  # noqa: BLE001
                 logger.exception(
-                    "[tap_cares-48df] scheduler: run_collection raised for schedule %s",
+                    "[48df] scheduler: run_collection raised for schedule %s",
                     schedule.entity_id,
                 )
                 _finalize_fire_failed(
@@ -451,7 +451,7 @@ def evaluate_tick(
             )
         except Exception as exc:  # noqa: BLE001
             logger.exception(
-                "[tap_cares-9f18] scheduler: Stage 2 failed for fire %s",
+                "[9f18] scheduler: Stage 2 failed for fire %s",
                 fire.entity_id,
             )
             try:
@@ -462,7 +462,7 @@ def evaluate_tick(
                 )
             except Exception:
                 logger.exception(
-                    "[tap_cares-0b38] scheduler: even fire FAILED patch failed for %s",
+                    "[0b38] scheduler: even fire FAILED patch failed for %s",
                     fire.entity_id,
                 )
 

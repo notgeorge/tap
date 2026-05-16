@@ -78,12 +78,12 @@ def load_secrets(
     target = registry if registry is not None else secret_registry
 
     if root is None:
-        logger.info("[tap_cares-f769] tap-cares secrets: no root configured; skipping load.")
+        logger.info("[f769] tap-cares secrets: no root configured; skipping load.")
         return []
 
     root_path = Path(root)
     if not root_path.exists():
-        logger.info("[tap_cares-eb76] tap-cares secrets: root %s does not exist; skipping load.", root_path)
+        logger.info("[eb76] tap-cares secrets: root %s does not exist; skipping load.", root_path)
         return []
     if not root_path.is_dir():
         raise SecretLoadError(f"tap-cares secrets root {root_path!s} exists but is not a directory.")
@@ -108,7 +108,7 @@ def load_secrets(
         loaded.append(secret.ref)
 
     logger.info(
-        "[tap_cares-d644] tap-cares secrets: loaded %d secret(s) from %s.",
+        "[d644] tap-cares secrets: loaded %d secret(s) from %s.",
         len(loaded),
         root_path,
     )

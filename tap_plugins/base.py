@@ -204,7 +204,7 @@ class TapPluginConfig(AppConfig):
                 )
 
         except OperationalError, ProgrammingError:
-            logger.debug("EntityType table not ready; skipping type registration.")
+            logger.debug("[26a8] EntityType table not ready; skipping type registration.")
 
     # ---------------------------------------------------------------------------
     # Editor registration

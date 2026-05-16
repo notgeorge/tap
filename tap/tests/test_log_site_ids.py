@@ -1,16 +1,22 @@
-"""Site-ID scanner enforcement — `req-tap-logging-site-id-scanner`.
+"""Site-ID scanner enforcement — `req-tap-logging-site-id-scanner` (Option A).
 
 Scans first-party apps and plugins for `logger.<level>(...)` calls and asserts:
 
-* Format — site IDs match `\\[<slug>-<4 hex>\\]` (`req-tap-logging-site-id-scanner-3`).
-* Uniqueness — every (prefix, suffix) pair is globally unique
+* Format — site tokens are a bare `[<4 hex>]`, no slug/prefix
+  (`req-tap-logging-site-id-scanner-3`, aligned with `req-tap-logging-site-ids-1`).
+* Within-file uniqueness — no hex appears more than once among the well-formed
+  tokens *in the same file*; the logger name (module path) namespaces the hex,
+  so cross-file reuse is explicitly NOT a violation
   (`req-tap-logging-site-id-scanner-4`).
-* Locality — every site ID's prefix matches the slug of its containing app or
-  plugin (`req-tap-logging-site-id-scanner-5`).
 * Baseline ratchet — the set of missing-ID and convention-violation call sites
-  must equal the contents of `_log_site_id_baseline.txt`; new entries fail
-  the test, fixed entries become stale and must be removed
-  (`req-tap-logging-site-id-scanner-6`, `-8`).
+  must equal the contents of `_log_site_id_baseline.txt`; new entries fail the
+  test, fixed entries become stale and must be removed
+  (`req-tap-logging-site-id-scanner-5`, `-7`).
+
+Option A removed the prior locality test: the callsite path is the derived
+logger name (`__name__`), which a developer never authors, so there is nothing
+for the scanner to validate about it. Mint fresh tokens with
+`scripts/log-site-id`.
 
 The scanner itself is in `tap.logging`. This file is the enforcement surface.
 """
@@ -21,9 +27,10 @@ from pathlib import Path
 
 from tap.logging import (
     CallSite,
+    ScanResult,
     WellFormedSite,
-    find_duplicate_ids,
-    find_locality_violations,
+    discover_scan_roots,
+    find_within_file_duplicates,
     scan_log_sites,
 )
 
@@ -33,6 +40,10 @@ _BASELINE_PATH = Path(__file__).resolve().parent / "_log_site_id_baseline.txt"
 
 def _key(site: CallSite | WellFormedSite) -> str:
     return f"{site.path.relative_to(_REPO_ROOT)}:{site.lineno}"
+
+
+def _scan() -> ScanResult:
+    return scan_log_sites(discover_scan_roots(_REPO_ROOT))
 
 
 def _read_baseline() -> set[str]:
@@ -46,54 +57,51 @@ def _read_baseline() -> set[str]:
 
 
 def test_no_malformed_site_ids() -> None:
-    """Bracketed prefixes that don't match the canonical pattern are flagged."""
-    result = scan_log_sites(_REPO_ROOT)
+    """Bracketed prefixes that don't match the bare 4-hex pattern are flagged."""
+    result = _scan()
     if result.malformed_ids:
         lines = "\n  ".join(_key(s) for s in result.malformed_ids)
         raise AssertionError(
-            f"Found {len(result.malformed_ids)} malformed site IDs:\n  {lines}\n\n"
-            "Site IDs must match [<slug>-<4 hex>] — e.g. [tap_cares-a8f3]."
+            f"Found {len(result.malformed_ids)} malformed site tokens:\n  {lines}\n\n"
+            "Site tokens must be a bare 4-hex `[<hex>]` — e.g. `[a8f3]`. "
+            "There is no slug or prefix (Option A). Mint one with "
+            "`scripts/log-site-id`."
         )
 
 
-def test_site_id_uniqueness() -> None:
-    """Every (prefix, suffix) pair appears at most once across the codebase."""
-    result = scan_log_sites(_REPO_ROOT)
-    duplicates = find_duplicate_ids(result.well_formed)
+def test_site_id_within_file_uniqueness() -> None:
+    """No hex appears more than once among well-formed tokens in the same file.
+
+    Cross-file reuse is allowed and intentionally not checked — the module
+    path namespaces the hex (`req-tap-logging-site-id-scanner-4`).
+    """
+    result = _scan()
+    duplicates = find_within_file_duplicates(result.well_formed)
     if duplicates:
         lines: list[str] = []
-        for (prefix, suffix), sites in sorted(duplicates.items()):
-            site_list = ", ".join(_key(s) for s in sites)
-            lines.append(f"  [{prefix}-{suffix}]: {site_list}")
+        for (path, hex_token), sites in sorted(
+            duplicates.items(), key=lambda kv: (str(kv[0][0]), kv[0][1])
+        ):
+            rel = path.relative_to(_REPO_ROOT)
+            linenos = ", ".join(str(s.lineno) for s in sites)
+            lines.append(f"  {rel}: '{hex_token}' at lines {linenos}")
         raise AssertionError(
-            f"Duplicate site IDs found ({len(duplicates)} group(s)):\n"
+            f"Duplicate site hex within a file ({len(duplicates)} group(s)):\n"
             + "\n".join(lines)
-            + "\n\nLikely copy-paste — regenerate the suffix at one of the call sites."
-        )
-
-
-def test_site_id_locality() -> None:
-    """Every site ID's prefix matches the containing app or plugin slug."""
-    result = scan_log_sites(_REPO_ROOT)
-    violations = find_locality_violations(result.well_formed, _REPO_ROOT)
-    if violations:
-        lines = "\n  ".join(f"{_key(site)}: {reason}" for site, reason in violations)
-        raise AssertionError(
-            f"Site-ID locality violations ({len(violations)}):\n  {lines}\n\n"
-            "The prefix in each ID must match the slug of the file's containing "
-            "app (tap_*) or plugin (plugins/<slug>/)."
+            + "\n\nLikely copy-paste within the module — regenerate the hex at "
+            "one of the call sites with `scripts/log-site-id`."
         )
 
 
 def test_baseline_ratchet() -> None:
     """The missing-ID + convention-violation set must equal the baseline file.
 
-    New entries (count grew) fail the test — add stable site IDs to the new
+    New entries (count grew) fail the test — add stable site tokens to the new
     log calls or, only if you must, append the entries to the baseline.
     Stale entries (count shrunk) also fail — remove them so the baseline
     keeps ratcheting toward zero.
     """
-    result = scan_log_sites(_REPO_ROOT)
+    result = _scan()
     baseline = _read_baseline()
 
     current: set[str] = set()
@@ -110,10 +118,10 @@ def test_baseline_ratchet() -> None:
         listing = "\n  ".join(new_entries)
         messages.append(
             f"New log-site violations not in baseline ({len(new_entries)}):\n  {listing}\n\n"
-            "Add a stable site ID like `[<slug>-<hex>]` to each new log call "
-            "(generate the hex via `python -c \"import secrets; print(secrets.token_hex(2))\"`). "
-            "If you genuinely cannot fix these now, append the entries to "
-            "tap/tests/_log_site_id_baseline.txt — but only as a last resort."
+            "Add a bare 4-hex site token like `[a8f3]` to each new log call "
+            "(mint it with `scripts/log-site-id`). If you genuinely cannot fix "
+            "these now, append the entries to tap/tests/_log_site_id_baseline.txt "
+            "— but only as a last resort."
         )
     if stale_entries:
         listing = "\n  ".join(stale_entries)

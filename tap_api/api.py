@@ -54,5 +54,5 @@ def discover_plugin_routers() -> None:
 
         prefix = f"/plugins/{app_config.label}/"
         tag = str(app_config.verbose_name) if app_config.verbose_name else app_config.label
-        logger.info("[tap_api-acf9] Mounting plugin API router: %s -> %s", app_config.label, prefix)
+        logger.info("[acf9] Mounting plugin API router: %s -> %s", app_config.label, prefix)
         api.add_router(prefix, router, tags=[tag], auth=session_auth)

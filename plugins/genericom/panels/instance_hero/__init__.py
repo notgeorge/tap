@@ -76,7 +76,7 @@ class GenericomInstanceHeroPanelType:
                 search, inputs={"entity_id": entity_id}, layer="extended"
             )
         except Exception as exc:  # noqa: BLE001
-            logger.exception("[genericom-06a5] Instance hero search failed for %s", entity_id)
+            logger.exception("[06a5] Instance hero search failed for %s", entity_id)
             return {"hero_error": f"Failed to load instance: {exc}", "hero": None}
 
         envelope = result["results"] if "results" in result else result

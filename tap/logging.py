@@ -4,17 +4,18 @@ Implements `specs/spec-tap-logging.md`. Two halves share this module:
 
 * **Builder half** — `build_logging_config()` and helpers assemble the
   `dictConfig`-shaped dict assigned to `settings.LOGGING`.
-* **Scanner half** — `scan_log_sites()` walks first-party apps and plugins,
-  parses each `.py` file via `ast`, and classifies every `logger.<level>(...)`
-  call site against `req-tap-logging-site-ids` / `-callsite-convention`.
+* **Scanner half** — `scan_log_sites()` walks the given roots, parses each
+  `.py` file via `ast`, and classifies every `logger.<level>(...)` call site
+  against `req-tap-logging-site-ids` / `-callsite-convention`. Option A: the
+  site token is a bare 4-hex `[<hex>]` with no slug/prefix; the callsite path
+  is the derived logger name, so there is no locality check.
 
 Public API:
     build_logging_config(installed_apps, env) -> dict
     plugin_logger_config(installed_apps) -> dict
-    scan_log_sites(project_root) -> ScanResult
-    find_duplicate_ids(well_formed) -> dict
-    find_locality_violations(well_formed, project_root) -> list
-    expected_prefix_for_file(path, project_root) -> str | None
+    discover_scan_roots(project_root) -> list[Path]
+    scan_log_sites(roots) -> ScanResult
+    find_within_file_duplicates(well_formed) -> dict
 
 Builder merge order (`req-tap-logging-config-location-5`):
     1. First-party app loggers — req-tap-logging-app-loggers
@@ -273,29 +274,37 @@ def build_logging_config(
 
 
 # =============================================================================
-# Call-site scanner — req-tap-logging-site-id-scanner
+# Call-site scanner — req-tap-logging-site-id-scanner (Option A)
 # =============================================================================
-# AST-based scanner that walks first-party apps and plugins, classifies every
+# AST-based scanner that walks the given roots, classifies every
 # `logger.<level>(...)` call as well-formed / missing / malformed / noqa, and
 # also detects two convention violations from `req-tap-logging-callsite-convention`:
 # `getLogger(...)` calls whose argument is not `__name__`, and `logger.<level>`
 # calls whose first argument is an f-string.
 #
+# Option A site model (`req-tap-logging-site-ids`): the token is a bare 4-hex
+# `[<hex>]` with no slug or prefix. The structurally-unique callsite path is
+# the derived logger name (`__name__`), which a developer never authors — so
+# there is no locality check and no prefix derivation. The hex only has to be
+# unique *within its file*; the module path namespaces it.
+#
 # The scanner is intentionally permissive about *what* it reads (best-effort
 # AST parse; skip files that fail to parse) and strict about *what counts as
-# a site ID* (regex below). Multi-line log calls are handled because `ast`
+# a site token* (regex below). Multi-line log calls are handled because `ast`
 # resolves to the call's starting line for the noqa check.
 
-# req-tap-logging-site-ids-1: site IDs match `\[<slug>-<4 hex>\] `.
-_SITE_ID_PATTERN = re.compile(r"^\[([a-z][a-z0-9_]*)-([0-9a-f]{4})\] ")
-# A bracketed prefix that *isn't* a well-formed site ID — used to flag
-# malformed attempts (uppercase prefix, wrong-length suffix, etc.).
+# req-tap-logging-site-ids-1 / scanner-3: bare 4-hex token, no slug/prefix.
+_SITE_ID_PATTERN = re.compile(r"^\[([0-9a-f]{4})\] ")
+# A bracketed prefix that *isn't* a well-formed 4-hex token — flags malformed
+# attempts (uppercase, wrong length, leftover `[slug-hex]` form, etc.).
 _BRACKETED_PREFIX_PATTERN = re.compile(r"^\[[^\]]+\] ")
 
-# req-tap-logging-site-ids-2 / -3: required levels and DEBUG exemption.
-_LEVELS_REQUIRING_ID = frozenset({"info", "warning", "error", "critical", "exception"})
+# req-tap-logging-site-ids-2: every committed level, DEBUG included. No exemption.
+_LOGGER_LEVELS = frozenset(
+    {"debug", "info", "warning", "error", "critical", "exception"}
+)
 
-# req-tap-logging-site-ids-5: noqa escape hatch.
+# req-tap-logging-site-ids-5 / scanner-6: noqa escape hatch.
 _NOQA_TOKEN = "noqa: TAP-LOG-ID"
 
 
@@ -309,12 +318,11 @@ class CallSite:
 
 @dataclass(frozen=True)
 class WellFormedSite:
-    """A log call site whose message starts with a well-formed `[<slug>-<hex>]` ID."""
+    """A log call site whose message starts with a well-formed `[<hex>]` token."""
 
     path: Path
     lineno: int
-    prefix: str
-    suffix: str
+    hex_token: str
 
 
 @dataclass
@@ -329,7 +337,7 @@ class ScanResult:
     convention_violations: list[tuple[CallSite, str]] = field(default_factory=list)
 
 
-def _find_scan_roots(project_root: Path) -> list[Path]:
+def discover_scan_roots(project_root: Path) -> list[Path]:
     """Discover first-party app roots (`tap_*` with `apps.py`) and plugin roots
     (`plugins/<slug>` with `tap-plugin.toml`) by filesystem inspection.
 
@@ -348,26 +356,6 @@ def _find_scan_roots(project_root: Path) -> list[Path]:
     return roots
 
 
-def expected_prefix_for_file(path: Path, project_root: Path) -> str | None:
-    """Return the site-ID prefix expected for a file based on its location.
-
-    Returns None if the file isn't under a first-party app or a plugin root —
-    in that case the scanner shouldn't be applying locality checks.
-    """
-    try:
-        rel = path.relative_to(project_root)
-    except ValueError:
-        return None
-    parts = rel.parts
-    if not parts:
-        return None
-    if parts[0].startswith("tap_"):
-        return parts[0]
-    if parts[0] == "plugins" and len(parts) >= 2:
-        return parts[1]
-    return None
-
-
 def _is_getlogger_call(call: ast.Call) -> bool:
     """True if a `Call` node targets `logging.getLogger` or bare `getLogger`."""
     func = call.func
@@ -383,7 +371,7 @@ def _is_logger_level_call(call: ast.Call) -> tuple[bool, str | None]:
     func = call.func
     if not isinstance(func, ast.Attribute):
         return False, None
-    if func.attr not in _LEVELS_REQUIRING_ID and func.attr != "debug":
+    if func.attr not in _LOGGER_LEVELS:
         return False, None
     if not isinstance(func.value, ast.Name) or func.value.id != "logger":
         return False, None
@@ -418,8 +406,7 @@ def _scan_file(path: Path, source: str, result: ScanResult) -> None:
         if not matched:
             continue
         assert level is not None
-        if level == "debug":
-            continue  # req-tap-logging-site-ids-3: DEBUG is exempt.
+        # req-tap-logging-site-ids-2: no DEBUG exemption — every level checked.
 
         lineno = node.lineno
         line = source_lines[lineno - 1] if 0 < lineno <= len(source_lines) else ""
@@ -442,7 +429,7 @@ def _scan_file(path: Path, source: str, result: ScanResult) -> None:
             m = _SITE_ID_PATTERN.match(msg)
             if m:
                 result.well_formed.append(
-                    WellFormedSite(path, lineno, m.group(1), m.group(2))
+                    WellFormedSite(path, lineno, m.group(1))
                 )
             elif _BRACKETED_PREFIX_PATTERN.match(msg):
                 result.malformed_ids.append(CallSite(path, lineno))
@@ -454,14 +441,15 @@ def _scan_file(path: Path, source: str, result: ScanResult) -> None:
         result.missing_ids.append(CallSite(path, lineno))
 
 
-def scan_log_sites(project_root: Path) -> ScanResult:
-    """Walk first-party apps and plugins under `project_root` and classify log call sites.
+def scan_log_sites(roots: list[Path]) -> ScanResult:
+    """Walk each root and classify `logger.<level>(...)` call sites (Option A).
 
     Files that fail to parse are silently skipped (pytest's own collection will
-    catch real syntax errors elsewhere).
+    catch real syntax errors elsewhere). Use `discover_scan_roots()` to derive
+    the first-party-app + plugin roots from the project root.
     """
     result = ScanResult()
-    for root in _find_scan_roots(project_root):
+    for root in roots:
         for path in sorted(root.rglob("*.py")):
             if "__pycache__" in path.parts:
                 continue
@@ -473,26 +461,16 @@ def scan_log_sites(project_root: Path) -> ScanResult:
     return result
 
 
-def find_duplicate_ids(
+def find_within_file_duplicates(
     well_formed: list[WellFormedSite],
-) -> dict[tuple[str, str], list[WellFormedSite]]:
-    """Group well-formed site IDs by (prefix, suffix); return groups of >1."""
-    by_id: dict[tuple[str, str], list[WellFormedSite]] = {}
+) -> dict[tuple[Path, str], list[WellFormedSite]]:
+    """Group well-formed tokens by (file, hex); return groups of >1.
+
+    Cross-file reuse is *not* a violation — the logger name (module path)
+    namespaces the hex (`req-tap-logging-site-id-scanner-4`), so the same hex
+    in two different modules is two distinct call sites.
+    """
+    by_id: dict[tuple[Path, str], list[WellFormedSite]] = {}
     for site in well_formed:
-        by_id.setdefault((site.prefix, site.suffix), []).append(site)
+        by_id.setdefault((site.path, site.hex_token), []).append(site)
     return {k: v for k, v in by_id.items() if len(v) > 1}
-
-
-def find_locality_violations(
-    well_formed: list[WellFormedSite],
-    project_root: Path,
-) -> list[tuple[WellFormedSite, str]]:
-    """Return well-formed sites whose prefix doesn't match their containing app/plugin slug."""
-    violations: list[tuple[WellFormedSite, str]] = []
-    for site in well_formed:
-        expected = expected_prefix_for_file(site.path, project_root)
-        if expected is None:
-            violations.append((site, "could not determine expected prefix from file location"))
-        elif site.prefix != expected:
-            violations.append((site, f"prefix is {site.prefix!r}, expected {expected!r}"))
-    return violations
