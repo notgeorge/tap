@@ -48,6 +48,10 @@ from typing import Any
 import jsonschema
 
 from tap_cares.collectors.config import CollectorConfig
+from tap_cares.collectors.readiness import (
+    CollectorSelfTestResult,
+    check_pass,
+)
 
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "collection_job_results.schema.json"
 _SCHEMA: dict[str, Any] = json.loads(_SCHEMA_PATH.read_text())
@@ -99,6 +103,24 @@ class CollectorBase(ABC):
         other paths.
         """
         ...
+
+    @classmethod
+    def self_test(cls) -> CollectorSelfTestResult:
+        """Return collector readiness diagnostics.
+
+        Subclasses override this when they can validate configuration,
+        credentials, local tools, or read-only upstream reachability. The base
+        implementation only proves that a registered runner class exists.
+        """
+        return CollectorSelfTestResult.from_checks(
+            [
+                check_pass(
+                    "RUNNER_REGISTERED",
+                    "Collector runner is registered; no collector-specific self-test is defined.",
+                )
+            ],
+            summary="Collector runner is registered.",
+        )
 
     # ------------------------------------------------------------------
     # Result accumulators — mutate self.results in memory; the task body

@@ -140,6 +140,17 @@ def _empty_grift_batches() -> dict[str, list]:
     return {"imported": [], "skipped": []}
 
 
+def _empty_self_test() -> dict[str, Any]:
+    """Default for `CollectionJob.self_test`.
+
+    Empty until phase 1 runs. The run-task body writes the structured
+    `CollectorSelfTestResult.to_dict()` here at terminal state
+    (req-tap-cares-collector-self-test-2). Module-level callable so Django
+    migrations can import it by path; fresh dict per call.
+    """
+    return {}
+
+
 class CollectionJobStatus(models.TextChoices):
     """v0 CollectionJob lifecycle states — mirror django.tasks.TaskResultStatus.
 
@@ -154,6 +165,20 @@ class CollectionJobStatus(models.TextChoices):
     RUNNING = "RUNNING", "Running"
     FAILED = "FAILED", "Failed"
     SUCCESSFUL = "SUCCESSFUL", "Successful"
+
+
+class CollectionJobRunMode(models.TextChoices):
+    """Run-mode discriminator (req-tap-cares-collector-self-test-16).
+
+    `full` runs phase 1 (self-test) then, if runnable, phase 2 (collect).
+    `self_test_only` runs phase 1 and stops — a one-off readiness probe (the
+    Administrivia Self-test button, an agent probe) is simply a
+    `self_test_only` `CollectionJob` on the standard async path. Manual Run
+    and the scheduler create `full` jobs.
+    """
+
+    FULL = "full", "Full"
+    SELF_TEST_ONLY = "self_test_only", "Self-test only"
 
 
 class CollectionJob(BaseModel):
@@ -189,6 +214,9 @@ class CollectionJob(BaseModel):
         "name": {"type": "string"},
         "description": {"type": "string"},
         "status": {"type": "string", "enum": [s.value for s in CollectionJobStatus]},
+        # Run-mode discriminator (req-tap-cares-collector-self-test-16). Set
+        # at create by run_collection; not patched after.
+        "run_mode": {"type": "string", "enum": [m.value for m in CollectionJobRunMode]},
         "task_result_id": {"type": "string"},
         "summary": {"type": "string"},
         # Manual run provenance — req-tap-cares-collector-job-model-21.
@@ -207,6 +235,10 @@ class CollectionJob(BaseModel):
         # the collector instance's self.results / self.grift_batches.
         "results": {"type": "object"},
         "grift_batches": {"type": "object"},
+        # Phase-1 self-test result, written once at terminal state by the
+        # task body from the CollectorSelfTestResult (sole-writer invariant,
+        # req-tap-cares-collector-self-test-2). Distinct from `results`.
+        "self_test": {"type": "object"},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
@@ -214,6 +246,10 @@ class CollectionJob(BaseModel):
         "status": {
             "validation": "jsonschema",
             "schema": {"type": "string", "enum": [s.value for s in CollectionJobStatus]},
+        },
+        "run_mode": {
+            "validation": "jsonschema",
+            "schema": {"type": "string", "enum": [m.value for m in CollectionJobRunMode]},
         },
         "task_result_id": {
             "validation": "jsonschema",
@@ -237,6 +273,12 @@ class CollectionJob(BaseModel):
         default=CollectionJobStatus.READY,
         db_index=True,
     )
+    run_mode = models.CharField(
+        max_length=16,
+        choices=CollectionJobRunMode.choices,
+        default=CollectionJobRunMode.FULL,
+        db_index=True,
+    )
     task_result_id = models.CharField(max_length=128, blank=True, default="", db_index=True)
     summary = models.CharField(max_length=2048, blank=True, default="")
     manual_run = models.BooleanField(default=False, db_index=True)
@@ -255,6 +297,13 @@ class CollectionJob(BaseModel):
     # tap_cares/schemas/collection_job_results.schema.json. Per
     # req-tap-cares-collector-job-model-9 through -16.
     results = models.JSONField(default=_empty_results_dict, blank=True)
+    # Phase-1 self-test result (CollectorSelfTestResult.to_dict()), written
+    # once at terminal state by the run-task body. Empty {} until phase 1
+    # runs. Kept distinct from `results` so readiness stays queryable on its
+    # own: latest readiness for a collector = the most recent CollectionJob's
+    # self_test. Per req-tap-cares-collector-self-test-2; redaction-safe per
+    # req-tap-cares-collector-self-test-13.
+    self_test = models.JSONField(default=_empty_self_test, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "tap_cares_collection_job"

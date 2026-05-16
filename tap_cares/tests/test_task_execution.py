@@ -114,10 +114,12 @@ class TestFailurePath:
         assert job.finished_at is not None
 
     def test_unregistered_collector_marks_job_failed(self, isolate_collector_registry):
-        # Special case: this test simulates a Collector node whose runner is NOT
-        # registered (the "uninstalled-plugin" scenario). We can't use
-        # _register_and_fetch because it would register the runner too. Construct
-        # the Collector node via the trusted-internal create path directly.
+        # Special case: a Collector node whose runner is NOT registered (the
+        # "uninstalled-plugin" scenario). Under the phase-1 gate this now
+        # fails via the self-test service entry point (RUNNER_UNAVAILABLE),
+        # not via a phase-2 get_collector raise — so the operator gets a
+        # readiness reason, not a stack-trace class name. We can't use
+        # _register_and_fetch because it would register the runner too.
         from tap_grid.services import _create_node_internal_for_test
 
         result = _create_node_internal_for_test(
@@ -133,7 +135,13 @@ class TestFailurePath:
         job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
-        assert "CollectorNotFoundError" in job.summary
+        # Phase-1 standard failure mode: summary is the self-test summary.
+        assert job.summary == "Collector runner is not registered."
+        # The structured readiness result is persisted on the job.
+        assert job.self_test["status"] == "error"
+        assert job.self_test["runnable"] is False
+        assert job.self_test["checks"][0]["code"] == "RUNNER_UNAVAILABLE"
+        assert job.self_test["checked_at"]
 
     def test_summary_capped_at_2048(self, isolate_collector_registry):
         from tap_cares.collectors import CollectorBase
@@ -198,3 +206,104 @@ class TestTaskInputContract:
 
         as_dict = dataclasses.asdict(cfg)
         assert set(as_dict.keys()) == {"collector_entity_id", "collection_job_entity_id"}
+
+
+# ---------------------------------------------------------------------------
+# Phase-1 self-test gate — req-tap-cares-collector-self-test-{10,16}
+# ---------------------------------------------------------------------------
+
+
+from tap_cares.collectors import CollectorBase  # noqa: E402
+from tap_cares.collectors.readiness import (  # noqa: E402
+    CollectorReadinessStatus,
+    CollectorSelfTestResult,
+    check_fail,
+)
+from tap_cares.models import CollectionJobRunMode  # noqa: E402
+
+
+class _RunCountingCollector(CollectorBase):
+    """Tracks whether run() was invoked, to prove phase gating."""
+
+    run_calls: list[str] = []
+
+    def run(self) -> None:
+        type(self).run_calls.append(str(self.config.collection_job_entity_id))
+
+
+class HappySelfTestCollector(_RunCountingCollector):
+    """Default self_test (ready); run() succeeds."""
+
+
+class NotReadyCollector(_RunCountingCollector):
+    """A collector whose self-test reports a non-runnable status."""
+
+    @classmethod
+    def self_test(cls) -> CollectorSelfTestResult:
+        return CollectorSelfTestResult.from_checks(
+            [
+                check_fail(
+                    "FAKE_MISCONFIGURED",
+                    "Fake collector is deliberately misconfigured for this test.",
+                    readiness_status=CollectorReadinessStatus.MISCONFIGURED,
+                )
+            ],
+            summary="Fake collector is misconfigured.",
+        )
+
+
+@pytest.fixture(autouse=True)
+def _reset_run_counter():
+    _RunCountingCollector.run_calls.clear()
+    yield
+    _RunCountingCollector.run_calls.clear()
+
+
+@pytest.mark.django_db(transaction=True)
+class TestPhaseOneGate:
+    def test_full_run_persists_self_test(self, isolate_collector_registry):
+        col = _register_and_fetch("happy-st", HappySelfTestCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col)
+        job.refresh_from_db()
+        assert job.status == CollectionJobStatus.SUCCESSFUL
+        assert job.run_mode == CollectionJobRunMode.FULL
+        # Phase-1 self_test rides on the successful terminal patch.
+        assert job.self_test["status"] == "ready"
+        assert job.self_test["runnable"] is True
+        assert job.self_test["checked_at"]
+        assert job.self_test["checks"][0]["code"] == "RUNNER_REGISTERED"
+        assert _RunCountingCollector.run_calls == [str(job.entity_id)]
+
+    def test_self_test_only_passes_without_collecting(self, isolate_collector_registry):
+        col = _register_and_fetch("happy-sto", HappySelfTestCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col, run_mode=CollectionJobRunMode.SELF_TEST_ONLY)
+        job.refresh_from_db()
+        assert job.status == CollectionJobStatus.SUCCESSFUL
+        assert job.run_mode == CollectionJobRunMode.SELF_TEST_ONLY
+        assert job.summary == "Self-test passed; no collection performed."
+        assert job.self_test["status"] == "ready"
+        # run() must NOT have been called — phase 1 only.
+        assert _RunCountingCollector.run_calls == []
+
+    def test_non_runnable_self_test_fails_before_phase_two(self, isolate_collector_registry):
+        col = _register_and_fetch("not-ready", NotReadyCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col)
+        job.refresh_from_db()
+        assert job.status == CollectionJobStatus.FAILED
+        # Standard failure mode: summary is the self-test summary.
+        assert job.summary == "Fake collector is misconfigured."
+        assert job.self_test["status"] == "misconfigured"
+        assert job.self_test["runnable"] is False
+        assert job.self_test["checks"][0]["code"] == "FAKE_MISCONFIGURED"
+        # No phase-2 work, no partial collection.
+        assert _RunCountingCollector.run_calls == []
+
+    def test_self_test_only_still_fails_when_not_runnable(self, isolate_collector_registry):
+        col = _register_and_fetch("not-ready-sto", NotReadyCollector, scope="tap_cares.tests.fakes")
+        job = run_collection(col, run_mode=CollectionJobRunMode.SELF_TEST_ONLY)
+        job.refresh_from_db()
+        # A self_test_only job that is not runnable still fails — the run mode
+        # only changes what happens on a *passing* phase 1.
+        assert job.status == CollectionJobStatus.FAILED
+        assert job.self_test["runnable"] is False
+        assert _RunCountingCollector.run_calls == []

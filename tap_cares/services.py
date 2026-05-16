@@ -15,14 +15,112 @@ Spec: req-tap-cares-collector-run-collection (spec-tap-cares-collector.md).
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 from django.db import transaction
 
-from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
+from tap_cares.collectors.readiness import (
+    CollectorReadinessStatus,
+    CollectorSelfTestResult,
+    check_fail,
+)
+from tap_cares.exceptions import CollectorNotFoundError
+from tap_cares.models import (
+    CollectionJob,
+    CollectionJobRunMode,
+    CollectionJobStatus,
+    Collector,
+)
+from tap_cares.registry import get_collector
 from tap_cares.tasks import run_collector
 from tap_grid.caller_context import CallerContext
 from tap_grid.services import _create_node_internal, _patch_node_internal, create_edge
+
+logger = logging.getLogger(__name__)
+
+
+def self_test_collector(collector: Collector) -> CollectorSelfTestResult:
+    """Run a collector's readiness self-test and return a normalized result.
+
+    Single caller-facing entry point (req-tap-cares-collector-self-test-11).
+    Owns the cross-cutting concerns the pure hook deliberately excludes:
+    registry resolution (`RUNNER_UNAVAILABLE`), exception trapping
+    (`SELF_TEST_EXCEPTION`), stamping (`collector_registry` + `checked_at`),
+    and the redaction-safe site-ID log summary.
+
+    Returns the result synchronously; it does NOT write the grid. The
+    run-task body records it onto `CollectionJob.self_test` and, on a
+    non-runnable result, fails the job via the standard failure mode — that
+    preserves the `CollectionJob` sole-writer invariant.
+    """
+    now = datetime.now(UTC)
+    try:
+        cls = get_collector(collector.collector_registry)
+    except CollectorNotFoundError:
+        result = CollectorSelfTestResult.from_checks(
+            [
+                check_fail(
+                    "RUNNER_UNAVAILABLE",
+                    (f"No collector runner is registered for " f"{collector.collector_registry!r}."),
+                    readiness_status=CollectorReadinessStatus.ERROR,
+                    context={"collector_registry": collector.collector_registry},
+                )
+            ],
+            summary="Collector runner is not registered.",
+            collector_registry=collector.collector_registry,
+        )
+    else:
+        try:
+            result = cls.self_test().with_collector_registry(collector.collector_registry)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "[tap_cares-91bd] collector_self_test_failed collector=%s registry=%s",
+                collector.entity_id,
+                collector.collector_registry,
+            )
+            result = CollectorSelfTestResult.from_checks(
+                [
+                    check_fail(
+                        "SELF_TEST_EXCEPTION",
+                        f"Collector self-test failed with {type(exc).__name__}: {exc}",
+                        readiness_status=CollectorReadinessStatus.ERROR,
+                        context={
+                            "collector_registry": collector.collector_registry,
+                            "exception_type": type(exc).__name__,
+                        },
+                    )
+                ],
+                summary="Collector self-test raised an exception.",
+                collector_registry=collector.collector_registry,
+            )
+
+    # Stamp collector_registry + checked_at so every branch (success,
+    # RUNNER_UNAVAILABLE, SELF_TEST_EXCEPTION) returns a self-describing
+    # result carrying one authoritative instant
+    # (req-tap-cares-collector-self-test-11, stamping).
+    result = result.with_collector_registry(collector.collector_registry).with_checked_at(now)
+
+    # One redaction-safe site-ID summary per invocation
+    # (req-tap-cares-collector-self-test-8): INFO when runnable, WARNING
+    # when not. Per-check detail is DEBUG only.
+    counts = {"pass": 0, "warn": 0, "fail": 0, "skip": 0}
+    for check in result.checks:
+        counts[check.status.value] = counts.get(check.status.value, 0) + 1
+    log = logger.info if result.runnable else logger.warning
+    log(
+        "[tap_cares-a7b4] collector_self_test collector=%s registry=%s status=%s "
+        "pass=%s warn=%s fail=%s skip=%s summary=%s",
+        collector.entity_id,
+        collector.collector_registry,
+        result.status.value,
+        counts["pass"],
+        counts["warn"],
+        counts["fail"],
+        counts["skip"],
+        result.summary,
+    )
+    return result
 
 
 def run_collection(
@@ -31,13 +129,22 @@ def run_collection(
     caller_context: CallerContext | None = None,
     manual_run: bool = False,
     manual_run_source: str = "",
+    run_mode: str = CollectionJobRunMode.FULL,
 ) -> CollectionJob:
     """Start a collection run for the given Collector.
 
+    `run_collection` is the sole creator of `CollectionJob` rows
+    (req-tap-cares-collector-job-model-18). `run_mode` selects the vehicle:
+    `full` (phase 1 → phase 2 if runnable) or `self_test_only` (phase 1 →
+    stop) — a one-off readiness probe is just a `self_test_only` job on the
+    same async path (req-tap-cares-collector-self-test-16). Manual Run and
+    the scheduler use the default `full`.
+
     Performs, in order:
       1. Creates a CollectionJob node via `_create_node_internal`
-         (CollectionJob is INTERNAL_ONLY), persisting `manual_run` and
-         `manual_run_source` on the row (req-tap-cares-collector-run-collection-9).
+         (CollectionJob is INTERNAL_ONLY), persisting `manual_run`,
+         `manual_run_source`, and `run_mode` on the row
+         (req-tap-cares-collector-run-collection-9).
       2. Creates a HAS_JOB edge from collector.entity to the new job via
          `tap_grid.services.create_edge`.
       3. Enqueues the `run_collector` Django Task with the JSON-safe
@@ -58,12 +165,19 @@ def run_collection(
     ctx = caller_context or CallerContext()
     now = datetime.now(UTC)
 
-    collector_label = collector.name or "Collection"
-    if manual_run and manual_run_source:
-        description = (
-            f"Manual run of {collector_label!r} triggered from "
-            f"{manual_run_source} at {now.isoformat()}."
+    if run_mode not in CollectionJobRunMode.values:
+        raise ValueError(
+            f"run_collection: invalid run_mode {run_mode!r}; " f"expected one of {CollectionJobRunMode.values}."
         )
+    # Normalize enum-member or string input to the canonical stored string,
+    # mirroring how `status` is persisted as its `.value`.
+    run_mode = CollectionJobRunMode(run_mode).value
+
+    collector_label = collector.name or "Collection"
+    if run_mode == CollectionJobRunMode.SELF_TEST_ONLY:
+        description = f"Self-test-only run of {collector_label!r} enqueued at {now.isoformat()}."
+    elif manual_run and manual_run_source:
+        description = f"Manual run of {collector_label!r} triggered from " f"{manual_run_source} at {now.isoformat()}."
     elif manual_run:
         description = f"Manual run of {collector_label!r} at {now.isoformat()}."
     else:
@@ -75,6 +189,7 @@ def run_collection(
             "name": f"{collector_label} {now.isoformat()}",
             "description": description,
             "status": CollectionJobStatus.READY.value,
+            "run_mode": run_mode,
             "enqueued_at": now.isoformat(),
             "manual_run": manual_run,
             "manual_run_source": manual_run_source,
@@ -83,8 +198,7 @@ def run_collection(
     )
     if not job_create.success:
         raise RuntimeError(
-            f"run_collection: CollectionJob create failed: "
-            f"{[(e.code, e.message) for e in job_create.errors]}"
+            f"run_collection: CollectionJob create failed: " f"{[(e.code, e.message) for e in job_create.errors]}"
         )
 
     job = CollectionJob.objects.get(entity_id=job_create.entity_id)
@@ -115,9 +229,7 @@ def run_collection(
     def _enqueue_and_record_task_id() -> None:
         task_result = run_collector.enqueue(collector_entity_id, job_entity_id)
         if task_result.id:
-            _patch_node_internal(
-                job_entity_id, {"task_result_id": task_result.id}
-            )
+            _patch_node_internal(job_entity_id, {"task_result_id": task_result.id})
 
     transaction.on_commit(_enqueue_and_record_task_id)
 

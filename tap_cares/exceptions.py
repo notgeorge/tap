@@ -19,6 +19,20 @@ class InvalidCollectorRegistryKeyError(TapCaresError):
     pass
 
 
+class CollectorNotReadyError(TapCaresError):
+    """Raised by the run-task body when phase-1 self-test is not runnable.
+
+    The job has already been terminal-patched FAILED with the self-test
+    summary and full `self_test` detail (standard collector failure mode,
+    req-tap-cares-collector-failure-mode). This exception is then raised so
+    Django Tasks' own failure machinery sees the failure
+    (req-tap-cares-collector-failure-mode-5). It carries no secret-bearing
+    detail — only the operator-facing self-test summary.
+    """
+
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Secrets (spec-tap-cares-secrets.md)
 # ---------------------------------------------------------------------------
