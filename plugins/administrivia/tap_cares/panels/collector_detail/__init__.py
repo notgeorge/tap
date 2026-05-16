@@ -28,7 +28,12 @@ from django.http import HttpResponse
 from django.shortcuts import render
 
 from tap_cares.exceptions import CollectorNotFoundError
-from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
+from tap_cares.models import (
+    CollectionJob,
+    CollectionJobRunMode,
+    CollectionJobStatus,
+    Collector,
+)
 from tap_cares.registry import get_collector
 from tap_cares.services import run_collection
 
@@ -56,6 +61,67 @@ def _runner_available(registry_key: str) -> bool:
     return True
 
 
+def _readiness_from_persisted(self_test: dict[str, Any] | None) -> dict[str, Any]:
+    """Build the template readiness context from a persisted `CollectionJob.self_test`.
+
+    Per spec-tap-cares-administrivia req-tap-cares-administrivia-collector-readiness-1:
+    the surface reads the latest persisted self-test, it does NOT call
+    `self_test_collector` live. `self_test` is `CollectorSelfTestResult.to_dict()`
+    (req-tap-cares-collector-self-test-2). An empty/absent value means no run or
+    self-test has produced readiness yet — that is `unknown`, which is NOT a
+    non-runnable status (phase-1 of the run is authoritative, so the courtesy
+    gate stays open).
+    """
+    if not self_test:
+        return {
+            "known": False,
+            "status": "unknown",
+            "status_label": "unknown",
+            "pill_class": "neutral",
+            "summary": "No self-test recorded yet — readiness is unknown until the first run or Self-test.",
+            "runnable": True,
+            "checked_at": None,
+            "checks": [],
+        }
+    status = self_test.get("status", "unknown")
+    return {
+        "known": True,
+        "status": status,
+        "status_label": status.replace("_", " "),
+        "pill_class": _readiness_pill_class(status),
+        "summary": self_test.get("summary", ""),
+        "runnable": bool(self_test.get("runnable", False)),
+        "checked_at": self_test.get("checked_at"),
+        "checks": [
+            {
+                "code": check.get("code", ""),
+                "status": check.get("status", ""),
+                "message": check.get("message", ""),
+                "context": check.get("context", {}),
+                # Interim named stub: raw ref/label passthrough, no resolution
+                # or navigable link. Resolution is owned by
+                # specs/spec-docs.md req-docs-ref-resolution; web rendering by
+                # tap_web req-web-rendering-docref (both Backlog).
+                "docs": [
+                    {"label": doc.get("label") or doc.get("ref", ""), "ref": doc.get("ref", "")}
+                    for doc in check.get("docs", [])
+                ],
+            }
+            for check in self_test.get("checks", [])
+        ],
+    }
+
+
+def _readiness_pill_class(status: str) -> str:
+    if status == "ready":
+        return "ok"
+    if status in {"warning", "unconfigured", "misconfigured"}:
+        return "warn"
+    if status == "error":
+        return "err"
+    return "neutral"
+
+
 def _job_rows(collector_entity_id: str) -> list[dict[str, Any]]:
     """Run history rows for the detail page, newest first.
 
@@ -74,9 +140,7 @@ def _job_rows(collector_entity_id: str) -> list[dict[str, Any]]:
     if not job_ids:
         return []
 
-    jobs = list(
-        CollectionJob.objects.filter(entity_id__in=job_ids).order_by("-enqueued_at")
-    )
+    jobs = list(CollectionJob.objects.filter(entity_id__in=job_ids).order_by("-enqueued_at"))
 
     rows: list[dict[str, Any]] = []
     for j in jobs:
@@ -118,6 +182,33 @@ def _job_rows(collector_entity_id: str) -> list[dict[str, Any]]:
     return rows
 
 
+def _latest_self_test(collector_entity_id: str) -> dict[str, Any] | None:
+    """Most recent non-empty `CollectionJob.self_test` for this collector.
+
+    Every job (full or self_test_only) runs phase-1 self-test and the run-task
+    body persists the structured result onto `CollectionJob.self_test` at
+    terminal state. "Latest readiness" is therefore the most recently enqueued
+    job whose `self_test` is populated; a still-running job has `{}` and is
+    skipped. Returns None when nothing has produced readiness yet.
+    """
+    from tap_grid.models import Edge
+
+    job_ids = list(
+        Edge.objects.filter(
+            from_entity_id=collector_entity_id,
+            edge_type="HAS_JOB",
+        ).values_list("to_entity_id", flat=True)
+    )
+    if not job_ids:
+        return None
+    for st in (
+        CollectionJob.objects.filter(entity_id__in=job_ids).order_by("-enqueued_at").values_list("self_test", flat=True)
+    ):
+        if st:
+            return st
+    return None
+
+
 def _build_context(collector_entity_id: str, *, run_message: str = "", run_error: str = "") -> dict[str, Any]:
     """Resolve everything the detail template needs for one collector."""
     if not collector_entity_id:
@@ -140,6 +231,7 @@ def _build_context(collector_entity_id: str, *, run_message: str = "", run_error
 
     scope, key = _scope_and_key(collector.collector_registry)
     available = _runner_available(collector.collector_registry)
+    readiness = _readiness_from_persisted(_latest_self_test(str(collector.entity_id)))
     runs = _job_rows(str(collector.entity_id))
     latest = runs[0] if runs else None
     is_running = bool(latest and latest["is_running"])
@@ -153,6 +245,7 @@ def _build_context(collector_entity_id: str, *, run_message: str = "", run_error
             "registry_scope": scope,
             "registry_local_key": key,
             "available": available,
+            "readiness": readiness,
             "is_running": is_running,
         },
         "latest_run": latest,
@@ -179,15 +272,25 @@ class CollectorDetailPanelType:
 
     @classmethod
     def handle_post(cls, panel: Panel, request: HttpRequest) -> HttpResponse:
-        """Run button POST handler — same shape as the table panel.
+        """Run / Self-test button POST handler.
 
         Form fields:
-          action="run_collector"
+          action="run_collector" | "self_test"
           collector_entity_id=<uuid>
 
-        The detail page reads its subject from `?entity_id=`. The form posts
-        with the collector_entity_id in the body so the handler doesn't need
-        to inspect the page URL.
+        Both actions go through `run_collection` — the sole creator of
+        `CollectionJob` rows (req-tap-cares-collector-job-model-18). `run`
+        creates a `full` job; `self_test` creates a `self_test_only` job
+        (req-tap-cares-collector-self-test-16). The panel never calls
+        `self_test_collector` directly; readiness is read from the latest
+        persisted `CollectionJob.self_test` and surfaced via the polled
+        self-test block (req-tap-cares-administrivia-collector-readiness-1/-7).
+
+        The Run action applies a courtesy gate from the latest persisted
+        self-test (refuse a known-non-runnable collector); phase-1 of the run
+        is the authoritative gate (req-tap-cares-collector-self-test-10), so a
+        stale/unknown readiness still enqueues and fails visibly in-job if not
+        ready.
 
         Current Deviation (v0): direct call to run_collection. See
         req-tap-cares-collector-run-collection.
@@ -198,7 +301,7 @@ class CollectorDetailPanelType:
         action = request.POST.get("action", "")
         collector_entity_id = request.POST.get("collector_entity_id", "")
 
-        if action != "run_collector":
+        if action not in {"run_collector", "self_test"}:
             run_error = f"Unknown action '{action}'."
         elif not collector_entity_id:
             run_error = "Missing collector_entity_id."
@@ -208,28 +311,49 @@ class CollectorDetailPanelType:
             except Collector.DoesNotExist:
                 run_error = f"Collector '{collector_entity_id}' not found."
             else:
-                if not _runner_available(collector.collector_registry):
-                    run_error = (
-                        f"Collector '{collector.name}' has no registered runner for "
-                        f"'{collector.collector_registry}'."
-                    )
-                else:
+                if action == "self_test":
                     try:
                         job = run_collection(
                             collector,
+                            run_mode=CollectionJobRunMode.SELF_TEST_ONLY,
                             manual_run=True,
-                            manual_run_source="administrivia.collector_detail",
+                            manual_run_source="administrivia.collector_detail.self_test",
                         )
                     except Exception as exc:  # noqa: BLE001
                         logger.exception(
-                            "[administrivia-2583] run_collection failed for collector %s", collector.entity_id
+                            "[administrivia-2583] self-test run_collection failed for collector %s",
+                            collector.entity_id,
                         )
-                        run_error = f"Failed to enqueue: {type(exc).__name__}: {exc}"
+                        run_error = f"Failed to queue self-test: {type(exc).__name__}: {exc}"
                     else:
                         run_message = (
-                            f"Triggered '{collector.name}'. Latest job: "
-                            f"{job.get_status_display()}."
+                            f"Self-test queued for '{collector.name}' "
+                            f"(job {job.get_status_display()}). "
+                            f"Results appear below as it completes."
                         )
+                else:
+                    readiness = _readiness_from_persisted(_latest_self_test(str(collector.entity_id)))
+                    if readiness["known"] and not readiness["runnable"]:
+                        run_error = (
+                            f"Collector '{collector.name}' last self-test was "
+                            f"{readiness['status']}: {readiness['summary']} "
+                            f"Run a Self-test once it is addressed."
+                        )
+                    else:
+                        try:
+                            job = run_collection(
+                                collector,
+                                manual_run=True,
+                                manual_run_source="administrivia.collector_detail",
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            logger.exception(
+                                "[administrivia-2583] run_collection failed for collector %s",
+                                collector.entity_id,
+                            )
+                            run_error = f"Failed to enqueue: {type(exc).__name__}: {exc}"
+                        else:
+                            run_message = f"Triggered '{collector.name}'. Latest job: " f"{job.get_status_display()}."
 
         # Re-render with the same entity_id so the page state updates.
         ctx = _build_context(collector_entity_id, run_message=run_message, run_error=run_error)

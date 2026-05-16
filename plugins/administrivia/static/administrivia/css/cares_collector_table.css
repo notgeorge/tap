@@ -25,6 +25,10 @@
     border: 1px solid #fca5a5;
     color: #7f1d1d;
 }
+/* The synchronous inline self-test result block was removed when the table
+ * migrated to the async self_test_only contract (the Self-test button now
+ * queues a job; full results render on the collector detail page). Its
+ * styles intentionally do not live here anymore. */
 
 /* ----- summary strip ----- */
 .tap-cares-summary {
@@ -157,9 +161,11 @@
 
 /* ----- run button ----- */
 .tap-cares-collectors__form {
-    margin: 0;
+    display: inline-block;
+    margin: 0 0 0 6px;
 }
-.tap-cares-collectors__run-btn {
+.tap-cares-collectors__run-btn,
+.tap-cares-collectors__self-test-btn {
     background: #1d4ed8;
     color: #fff;
     border: 0;
@@ -169,8 +175,14 @@
     font-weight: 600;
     cursor: pointer;
 }
+.tap-cares-collectors__self-test-btn {
+    background: #475569;
+}
 .tap-cares-collectors__run-btn:hover:not(:disabled) {
     background: #1e40af;
+}
+.tap-cares-collectors__self-test-btn:hover:not(:disabled) {
+    background: #334155;
 }
 .tap-cares-collectors__run-btn:disabled {
     background: #cbd5e1;

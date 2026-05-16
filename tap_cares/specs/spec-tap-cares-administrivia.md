@@ -12,7 +12,7 @@ This surface is intentionally human-triggered. Pressing a Run button is explicit
 
 |    |                     |                                                                 |
 | :---: | ---              | ---                                                             |
-| 1. | Observable          | Show collector availability, run state, last outcome, and failures |
+| 1. | Observable          | Show collector readiness, run state, last outcome, and failures |
 | 2. | Executable          | Let a user manually execute an on-grid collector capability |
 | 3. | Drillable           | Let users inspect a collector's run history and GRIFT batch outcomes |
 | 4. | Implementation-Clear | Keep CARES semantics in `tap_cares` while hosting UI code in Administrivia |
@@ -25,6 +25,7 @@ This surface is intentionally human-triggered. Pressing a Run button is explicit
 | req-tap-cares-administrivia-ownership | [Administrivia Ownership](#administrivia-ownership) | Implemented | CARES owns semantics; Administrivia hosts the operator pages |
 | req-tap-cares-administrivia-homepage | [CARES Homepage](#cares-homepage) | Implemented | Overview page for CARES subsystem status, starting with collectors |
 | req-tap-cares-administrivia-collector-table | [Collector Table](#collector-table) | Implemented | Table listing available collectors and their latest run state |
+| req-tap-cares-administrivia-collector-readiness | [Collector Readiness Display](#collector-readiness-display) | Proposed | CARES surfaces collector self-test status and doc-linked next steps |
 | req-tap-cares-administrivia-manual-run | [Manual Collector Execution](#manual-collector-execution) | Implemented | Human-triggered run action calls `run_collection()` |
 | req-tap-cares-administrivia-htmx-trigger | [HTMX Trigger Surface](#htmx-trigger-surface) | Implemented | v0 browser POST path for manual collector execution |
 | req-tap-cares-administrivia-collector-detail | [Collector Detail Page](#collector-detail-page) | Implemented | Collector-specific page with metadata and run history |
@@ -56,8 +57,9 @@ The administrivia surface must use existing CARES services and models:
 - `CollectionJob` for run history
 - `HAS_JOB` for collector-to-run provenance
 - `tap_cares.registry.get_collector()` or equivalent registry inspection for runner availability
-- `tap_cares.services.run_collection()` for manual execution
-- `CollectionJob.grift_batches` for imported/skipped GRIFT batch correlation
+- `tap_cares.services.run_collection()` for manual execution and for Self-test-only runs (via its `run_mode` argument — `full` vs `self_test_only`, per `tap_cares/specs/spec-tap-cares-collector.md` `req-tap-cares-collector-self-test-16`)
+- `CollectionJob.self_test` for the persisted phase-1 readiness result (the surface reads the latest job's value; readiness is never written to the `Collector` node)
+- `CollectionJob --PRODUCED_BATCH--> Batch` edges for imported/skipped GRIFT batch correlation (`tap_grid/specs/spec-grid-edge.md` `req-grid-edge-produced-batch`; there is no `CollectionJob.grift_batches` field per `req-tap-cares-collector-grift-import-6`)
 - `Schedule` for on-grid recurring policy rows
 - `ScheduleFire` for fire history
 - `SCHEDULED_TARGET` / `HAS_FIRED` / `TRIGGERED_JOB` edges for schedule-target, schedule-fire, and fire-job provenance
@@ -98,6 +100,7 @@ Recommended summary values:
 - total collector nodes
 - collectors with resolvable runner code
 - collectors with missing runner code
+- collectors by readiness status (`ready`, `warning`, `unconfigured`, `misconfigured`, `error`)
 - currently running collection jobs
 - last successful collection time
 - collectors whose latest run failed
@@ -125,29 +128,78 @@ Initial columns:
 | Name | `Collector.name` | Row opens collector detail page |
 | Source Plugin | `collector_registry` scope (raw dotted path) | Shown as a small code badge. Human-readable plugin names are a future enhancement (deferred — see Future). |
 | Description | `Collector.description` | Plain text; gets the dominant horizontal column space |
+| Status | collector self-test result | `ready`, `warning`, `unconfigured`, `misconfigured`, or `error`, with short next-step text and docs link when applicable |
 | Run State | latest `CollectionJob.status` | `idle`, `running`, or current status |
 | Last Run | latest finished `CollectionJob.status` | `successful`, `failed`, or `never run` |
 | Last Run At | latest finished `CollectionJob.finished_at` | Empty for never run |
 | Summary | latest finished `CollectionJob.summary` | At-a-glance one-liner describing the last run (success or failure); collector-authored on success, count-derived fallback on failure. Empty for collectors that don't set one. |
-| Action | Administrivia panel POST | Manual Run button |
+| Action | Administrivia panel POST | Self-test button and Manual Run button |
 
-Availability is no longer a column. The Run button stays disabled when the registry has no runner for the collector's `collector_registry` value, and that row is tinted to indicate the unavailable state. The previous explicit `available` / `missing runner` pill column was redundant once the Run button conveyed the same state through its disabled affordance.
+The Status column is distinct from run history. A collector can have a successful previous run and still be `misconfigured` today because a secret file was removed, a binary disappeared, or a required upstream is unreachable. Conversely, a collector can be `ready` even if it has never been run.
+
+Availability is no longer a standalone column. Missing runner code is represented as readiness `error` with a `RUNNER_UNAVAILABLE` check. The Run button stays disabled for non-runnable readiness states, and those rows are tinted to indicate that operator action is needed.
 
 The Registry Key column was removed because the full `scope:key` is already visible on the collector detail page; the homepage table doesn't need to repeat it.
 
-The table auto-refreshes via a quiet HTMX GET poll every 5 seconds so manual-Run state and in-flight job lifecycle transitions appear without an operator reload. The poll is rooted on the panel container and re-issued each swap.
+The table auto-refreshes via a quiet HTMX GET poll every 5 seconds so manual-Run state and in-flight job lifecycle transitions appear without an operator reload. The poll is rooted on the panel container and re-issued each swap. The poll never runs a live self-test: the Status column renders from the latest persisted `CollectionJob.self_test` (a cheap field read). A fresh readiness check is only ever produced by an explicit Self-test action (a `self_test_only` `CollectionJob`), keeping live collector checks off the 5-second cadence.
 
-The table should avoid implying that registry availability and last run outcome are the same thing. A collector with no registered runner can still have a historical successful run; the row tint and disabled Run button surface the current availability without conflating it with the last-run outcome.
+The table should avoid implying that readiness and last run outcome are the same thing. A collector with a non-ready self-test result can still have a historical successful run; the row tint, status pill, and disabled Run button surface current readiness without conflating it with the last-run outcome.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-administrivia-collector-table-1 | All Collectors Listed | Implemented | Table includes every on-grid `Collector` node. | |
-| req-tap-cares-administrivia-collector-table-2 | Availability Distinct | Implemented | Registry resolution is shown by row tint + disabled Run button, separate from last-run outcome columns. | |
+| req-tap-cares-administrivia-collector-table-2 | Readiness Distinct | Proposed | Collector readiness is shown by Status column, row tint, and Run button state, separate from last-run outcome columns. | Replaces the previous registry-availability-only display. |
 | req-tap-cares-administrivia-collector-table-3 | Latest Job Summarized | Implemented | Table displays latest run state, last finished run, timestamp, and bounded error summary. | |
 | req-tap-cares-administrivia-collector-table-4 | Row Drilldown | Implemented | Clicking a collector row opens the collector-specific Administrivia page. | |
 | req-tap-cares-administrivia-collector-table-5 | Quiet Auto-Refresh | Implemented | The table polls itself via HTMX GET every 5 seconds and replaces its outer HTML in place, so manual-Run state and in-flight job transitions appear without a page reload. | |
+
+### Collector Readiness Display
+----
+RID: `req-tap-cares-administrivia-collector-readiness`
+Status: `Proposed`
+
+The CARES administrivia surface consumes the collector self-test contract from `tap_cares/specs/spec-tap-cares-collector.md` `req-tap-cares-collector-self-test`. It does not re-implement self-test mechanics; in particular it does not call the `self_test_collector` service entry point directly and does not persist readiness itself. Self-test is **phase 1 of a `CollectionJob`**, the run-task body is the sole writer of the structured result onto `CollectionJob.self_test` (`req-tap-cares-collector-self-test-2`), and `run_collection()` is the sole creator of `CollectionJob` rows (`req-tap-cares-collector-job-model-18`). Administrivia is a read-and-trigger surface over that contract.
+
+For each collector row, Administrivia should:
+
+1. Resolve the registered runner so a missing runner is shown as readiness `error` (a `RUNNER_UNAVAILABLE` check is produced by the self-test service; the surface displays it).
+2. Read the **latest `CollectionJob.self_test`** for the collector as current best-known readiness — a cheap field read, not a live check (`req-tap-cares-collector-self-test-9`).
+3. Display the top-level readiness status.
+4. Display or expose the self-test summary.
+5. Render individual checks on the collector detail page.
+6. Render documentation links from result/check `docs` references when present.
+7. Disable the Run button unless the latest-known status is `ready` or `warning` (UI courtesy gate; the authoritative gate is phase 1 of the run itself — `req-tap-cares-collector-self-test-10`).
+
+The table must **not** run live collector self-tests on its 5-second HTMX poll: the Status column is rendered from the latest persisted `CollectionJob.self_test`. A fresh readiness check is obtained only by an explicit Self-test action. Readiness is persisted exactly where the collector contract puts it — on `CollectionJob.self_test`, the unified run+readiness history — and never on the `Collector` grid node and never in a separate readiness store.
+
+The collector table and detail page both include a Self-test button. The button POST calls `tap_cares.services.run_collection(collector, run_mode="self_test_only")`, which creates a `self_test_only` `CollectionJob` on the standard async path (`req-tap-cares-collector-self-test-16`). Because the job is async, the result is **not** rendered synchronously in the POST response: the detail page surfaces it by polling (below), and the table surfaces only a "queued" flash plus its existing 5-second lifecycle poll — the full check list is viewed on the detail page, not inline in the table.
+
+**Unknown readiness.** When no `CollectionJob` has produced a `self_test` yet (a brand-new collector that has never run or self-tested), readiness is `unknown`. `unknown` is **not** a non-runnable status: it is neutral, the courtesy gate stays open, and phase-1 of the next run is the authoritative readiness check (`req-tap-cares-collector-self-test-10`). The surface invites the operator to queue a Self-test.
+
+**Detail page layout (operator-intent ordering).** The collector detail page orders actions by when the operator needs them:
+
+- The **Run** button is the page's primary action: large and prominent, top-right of the page header, alone (no Self-test button competing in the header). It is courtesy-gated from the latest persisted `CollectionJob.self_test` and disabled while a run is in progress.
+- The **Self-test** button is a secondary action co-located in the *same row/div as the self-test results*, lower down the page — where an operator already is when they are thinking about readiness. It is not in the header.
+- That self-test results block **HTMX-polls itself** (a scoped `hx-select` re-fetch on the standard panel route, ~5s) and re-renders from the **latest persisted `CollectionJob.self_test`**. The poll never triggers a live self-test — it re-reads persisted state — so an async `self_test_only` job's result appears in place without a manual reload, consistent with `req-tap-cares-collector-self-test-9` (cheap field read, not a live check on a timer).
+
+The detail page shows the full check list with pass/warn/fail/skip state, message, redaction-safe context, `checked_at`, and docs links. This is the first bridge between plugin-authored docs and the operator UI: errors should point to canonical docs rather than carry full setup instructions inline.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-administrivia-collector-readiness-1 | Self-Test Consumed | Proposed | The surface reads the latest `CollectionJob.self_test` for each collector; it does not call `self_test_collector` directly and does not run live self-tests on the table poll. | Cross-ref `req-tap-cares-collector-self-test-9`. |
+| req-tap-cares-administrivia-collector-readiness-2 | Status Column | Proposed | The collector table displays readiness status separately from latest run state and last run outcome. | |
+| req-tap-cares-administrivia-collector-readiness-3 | Run Button Gated | Proposed | Manual Run is disabled for `unconfigured`, `misconfigured`, and `error`; `ready` and `warning` are runnable in v0. This is a courtesy gate; the authoritative gate is phase 1 of the run. | Cross-ref `req-tap-cares-collector-self-test-10`. |
+| req-tap-cares-administrivia-collector-readiness-4 | Detail Checks | Proposed | The collector detail page renders the full accumulated self-test checks with messages, status, safe context, and docs links. | |
+| req-tap-cares-administrivia-collector-readiness-5 | Docs Links | Proposed | Docs references returned by self-tests render as links to canonical plugin documentation. Interim: raw `ref`/`label` shown, no link (the named stub). | Resolution owned by `specs/spec-docs.md` `req-docs-ref-resolution`; web rendering by `tap_web` `req-web-rendering-docref`; both Backlog. |
+| req-tap-cares-administrivia-collector-readiness-6 | No Separate Readiness Store | Proposed | Administrivia writes no readiness to the `Collector` node and keeps no separate readiness store; readiness is persisted by the run-task body on `CollectionJob.self_test` and the surface only reads the latest. | Cross-ref `req-tap-cares-collector-self-test-2`. |
+| req-tap-cares-administrivia-collector-readiness-7 | Self-Test Button | Proposed | Collector table and detail surfaces provide a Self-test button whose POST calls `run_collection(collector, run_mode="self_test_only")`, creating a `self_test_only` `CollectionJob`. Result is not rendered synchronously: detail page polls it in; table shows a queued flash and full results live on the detail page. | Cross-ref `req-tap-cares-collector-self-test-16`; replaces the earlier "without creating a CollectionJob" framing. |
+| req-tap-cares-administrivia-collector-readiness-8 | Detail Action Ordering | Proposed | On the collector detail page the Run button is the primary action, large/prominent/top-right/alone; the Self-test button is secondary, co-located in the same row/div as the self-test results lower down. | Operator-intent ordering. |
+| req-tap-cares-administrivia-collector-readiness-9 | Self-Test Block Polls | Proposed | The detail-page self-test results block HTMX-polls (scoped `hx-select`, ~5s) and re-renders from the latest persisted `CollectionJob.self_test`; the poll re-reads persisted state and never triggers a live self-test. | Cross-ref `req-tap-cares-collector-self-test-9`. |
+| req-tap-cares-administrivia-collector-readiness-10 | Unknown Readiness Is Open | Proposed | With no `CollectionJob.self_test` yet, readiness is `unknown`: neutral, not a non-runnable status, courtesy gate stays open; phase-1 of the next run is authoritative. | Cross-ref `req-tap-cares-collector-self-test-10`. |
 
 ### Manual Collector Execution
 ----
@@ -160,9 +212,10 @@ The Run action is a human-triggered POST. It must:
 
 1. Resolve the target `Collector` by entity ID.
 2. Verify that the collector's registry key resolves to a registered runner.
-3. Call `tap_cares.services.run_collection(collector)`.
-4. Return or display the created `CollectionJob`.
-5. Refresh the homepage row or navigate to the collector detail page.
+3. As a **courtesy** pre-check, read the latest `CollectionJob.self_test` and refuse the click for a non-runnable last-known status (`unconfigured` / `misconfigured` / `error`). This is convenience only — it is a cheap field read, not a fresh live check. The **authoritative** gate is phase 1 of the run itself: even if this courtesy check passes, `run_collection` runs phase-1 self-test and the job ends `FAILED` via the standard failure mode if readiness regressed (`req-tap-cares-collector-self-test-10`).
+4. Call `tap_cares.services.run_collection(collector)` (default `run_mode="full"`).
+5. Return or display the created `CollectionJob`.
+6. Refresh the homepage row or navigate to the collector detail page.
 
 The Run button may guard against obvious duplicate manual runs, such as a collector already showing a `RUNNING` job, but the general collector concurrency policy is Backlog until the enqueue path and scheduler behavior are specified together. The future service-layer concurrency policy is tracked in `tap_cares/specs/spec-tap-cares-collector.md` (`req-tap-cares-collector-concurrency`).
 
@@ -180,6 +233,7 @@ The UI handler must not create `CollectionJob` nodes or `HAS_JOB` edges directly
 | req-tap-cares-administrivia-manual-run-4 | Job Visible | Implemented | The resulting `CollectionJob` is visible after the action completes. | |
 | req-tap-cares-administrivia-manual-run-5 | Duplicate Running Guard | Implemented | UI may prevent or warn against starting a second manual run when the collector already has a `RUNNING` job. | Full concurrency policy is Backlog; cross-ref `req-tap-cares-collector-concurrency`. |
 | req-tap-cares-administrivia-manual-run-6 | No Direct Node Creation In UI | Implemented | The UI handler does not directly create `CollectionJob` nodes or `HAS_JOB` edges. | Creation belongs to CARES services and the grid service layer. |
+| req-tap-cares-administrivia-manual-run-7 | Readiness Courtesy Check | Proposed | UI reads the latest `CollectionJob.self_test` and refuses the click for a non-runnable last-known status, surfacing the self-test summary/docs links. This is a courtesy gate only; phase-1 of the run is authoritative. | Cross-ref `req-tap-cares-collector-self-test-9` (courtesy) and `-10` (authoritative). |
 
 ### HTMX Trigger Surface
 ----
@@ -245,12 +299,18 @@ URL shape (chosen for v0):
 
 TAP Web pages route from `Page.slug` directly; path parameters under a static page slug are not supported by current Page routing. v0 follows the same precedent the KSI Indicator Profile page uses (entity_id via query param). The Administrivia hosted-surface index records the actual route shape.
 
-Required sections:
+Required sections (ordered by operator intent — see
+`req-tap-cares-administrivia-collector-readiness-8`):
 
-- collector identity: name, description, entity ID
+- header: collector identity (name, description, entity ID) on the left; the
+  primary **Run** button large/prominent/alone on the right
 - registry details: full registry key, source scope, local key, resolution status
+- self-test block: current readiness status, summary, `checked_at`, docs links,
+  and accumulated checks, with the secondary **Self-test** button co-located in
+  the same row as the results; the block HTMX-polls itself and re-renders from
+  the latest persisted `CollectionJob.self_test`
+  (`req-tap-cares-administrivia-collector-readiness-9`)
 - latest run summary
-- manual Run button
 - run history table
 
 #### Acceptance Criteria
@@ -261,6 +321,7 @@ Required sections:
 | req-tap-cares-administrivia-collector-detail-2 | Registry Health Displayed | Implemented | Detail page displays registry key and whether it resolves. | |
 | req-tap-cares-administrivia-collector-detail-3 | Manual Run Available | Implemented | Detail page exposes the same human-triggered run action as the homepage. | |
 | req-tap-cares-administrivia-collector-detail-4 | Run History Table | Implemented | Detail page lists previous `CollectionJob` nodes for the collector. | |
+| req-tap-cares-administrivia-collector-detail-5 | Readiness Detail | Proposed | Detail page displays the full collector self-test result including headline status, summary, checks, safe context, and docs links. | Cross-ref `req-tap-cares-administrivia-collector-readiness`. |
 
 ### Run Observability
 ----
@@ -280,7 +341,7 @@ Run history columns:
 | Finished | `CollectionJob.finished_at` | |
 | Duration | derived from timestamps | Blank while running |
 | Task Result ID | `CollectionJob.task_result_id` | Backend-defined string |
-| GRIFT Batches | `CollectionJob.grift_batches` | imported/skipped counts and IDs |
+| GRIFT Batches | `CollectionJob --PRODUCED_BATCH--> Batch` edges | imported/skipped counts and IDs, from the edge `disposition` property (`req-grid-edge-produced-batch`); there is no `CollectionJob.grift_batches` field |
 | Summary | `CollectionJob.summary` | At-a-glance one-liner for the run (success or failure); collector-authored when set, count-derived fallback on failure. |
 
 v0 does not require a rich log/event stream because that remains backlog work in `spec-tap-cares-collector.md`. The UI should not pretend detailed logs exist until the run-record/log spec exists.
@@ -321,7 +382,7 @@ This requires:
 - a Run button for that row
 - the run creating a `CollectionJob`
 - the job recording success or failure visibly
-- any produced GRIFT batches appearing through `CollectionJob.grift_batches`
+- any produced GRIFT batches appearing through `CollectionJob --PRODUCED_BATCH--> Batch` edges
 
 The KSI collector's source parsing, safety checks, diff, and GRIFT generation remain governed by `spec-tap-cares-v0.md` and the FedRAMP KSI plugin specs. This requirement only defines the Administrivia path for invoking and observing the collector.
 
@@ -351,14 +412,14 @@ Initial columns:
 | Description | `Schedule.description` | Plain text; gets the dominant horizontal column space, mirroring the collectors table treatment. |
 | Target collector | `SCHEDULED_TARGET` edge → `Collector.name` | Cell is a link to `/administrivia/cares/collector?entity_id=<collector_entity_id>`. Missing target (no edge) renders as a tinted error cell. |
 | Cron | `Schedule.cron_expression` | Code-style badge |
-| Enabled | `Schedule.enabled` | `enabled` / `disabled` pill. Disabled rows are tinted the same way unavailable-collector rows are tinted today. |
+| Enabled | `Schedule.enabled` | `enabled` / `disabled` pill. Disabled rows are tinted the same way non-ready collector rows are tinted today. |
 | Last fire | latest `ScheduleFire.status` + `scheduled_for` | Status pill (TRIGGERED / SKIPPED / FAILED / PENDING) plus the slot timestamp. Blank for schedules with no fires yet. |
 | Active runs | derived count over `Schedule → HAS_FIRED → ScheduleFire → TRIGGERED_JOB → CollectionJob WHERE status IN (READY, RUNNING)` | Displayed `N / max_active_runs` so the operator sees both the current count and the cap. |
 | Summary | latest `ScheduleFire.summary` | Scheduler-authored one-liner. Truncated; full value in the cell title attribute. |
 
 Row tints:
 
-- Disabled schedules: greyed row, mirrors the "unavailable collector" treatment.
+- Disabled schedules: greyed row, mirrors the non-ready collector treatment.
 - Missing target collector: error-tinted row. A schedule whose `SCHEDULED_TARGET` edge points at a Collector with no registered runner will fail every fire forever — surfacing the misconfig on the homepage matters.
 
 The table auto-refreshes via a quiet HTMX GET poll every 5 seconds, same pattern as the collectors table. The poll is rooted on the panel container and re-issued each swap.

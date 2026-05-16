@@ -9,7 +9,7 @@
         {% if run_error %}<div class="tap-cares-detail__flash tap-cares-detail__flash--err">{{ run_error }}</div>{% endif %}
 
         <div class="tap-cares-detail__header">
-            <div>
+            <div class="tap-cares-detail__identity">
                 <h2 class="tap-cares-detail__name">{{ collector.name }}</h2>
                 <p class="tap-cares-detail__description">{{ collector.description }}</p>
             </div>
@@ -22,8 +22,8 @@
                 <input type="hidden" name="collector_entity_id" value="{{ collector.entity_id }}">
                 <button type="submit"
                         class="tap-cares-detail__run-btn"
-                        {% if not collector.available or collector.is_running %}disabled{% endif %}
-                        title="{% if not collector.available %}Runner not registered{% elif collector.is_running %}Run already in progress{% else %}Run this collector now{% endif %}">
+                        {% if collector.readiness.known and not collector.readiness.runnable or collector.is_running %}disabled{% endif %}
+                        title="{% if collector.readiness.known and not collector.readiness.runnable %}Last self-test {{ collector.readiness.status_label }}: {{ collector.readiness.summary }}{% elif collector.is_running %}Run already in progress{% else %}Run this collector now{% endif %}">
                     Run collector
                 </button>
             </form>
@@ -47,16 +47,63 @@
                 <dd><code>{{ collector.registry_local_key }}</code></dd>
             </div>
             <div class="tap-cares-detail__meta-row">
-                <dt>Availability</dt>
+                <dt>Readiness</dt>
                 <dd>
-                    {% if collector.available %}
-                        <span class="tap-cares-pill tap-cares-pill--ok">available</span>
-                    {% else %}
-                        <span class="tap-cares-pill tap-cares-pill--warn">missing runner</span>
-                    {% endif %}
+                    <span class="tap-cares-pill tap-cares-pill--{{ collector.readiness.pill_class }}">{{ collector.readiness.status_label }}</span>
+                    <span class="tap-cares-detail__readiness-summary">{{ collector.readiness.summary }}</span>
                 </dd>
             </div>
         </dl>
+
+        <div id="cares-self-test-block"
+             class="tap-cares-detail__self-test-block tap-cares-detail__self-test-block--{{ collector.readiness.status }}"
+             hx-get="/panel/{{ panel.slug }}--{{ panel.entity_id }}/?entity_id={{ collector.entity_id }}"
+             hx-trigger="every 5s"
+             hx-target="this"
+             hx-select="#cares-self-test-block"
+             hx-swap="outerHTML">
+            <div class="tap-cares-detail__self-test-head">
+                <h3 class="tap-cares-detail__section-h">Self-test</h3>
+                <span class="tap-cares-pill tap-cares-pill--{{ collector.readiness.pill_class }}">{{ collector.readiness.status_label }}</span>
+                {% if collector.readiness.checked_at %}
+                    <span class="tap-cares-detail__checked-at" title="When this readiness result was produced">checked {{ collector.readiness.checked_at }}</span>
+                {% endif %}
+                <form hx-post="/panel/{{ panel.slug }}--{{ panel.entity_id }}/?entity_id={{ collector.entity_id }}"
+                      hx-target="closest .tap-panel"
+                      hx-swap="outerHTML"
+                      class="tap-cares-detail__self-test-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="self_test">
+                    <input type="hidden" name="collector_entity_id" value="{{ collector.entity_id }}">
+                    <button type="submit"
+                            class="tap-cares-detail__self-test-btn"
+                            title="Queue a self-test-only run for this collector">
+                        Run self-test
+                    </button>
+                </form>
+            </div>
+            <p class="tap-cares-detail__self-test-summary">{{ collector.readiness.summary }}</p>
+            {% if collector.readiness.checks %}
+            <ul class="tap-cares-detail__checks">
+                {% for check in collector.readiness.checks %}
+                <li class="tap-cares-detail__check tap-cares-detail__check--{{ check.status }}">
+                    <code>{{ check.code }}</code>
+                    <span class="tap-cares-detail__check-status">{{ check.status }}</span>
+                    <span>{{ check.message }}</span>
+                    {% if check.docs %}
+                        <span class="tap-cares-detail__docs">
+                            {% for doc in check.docs %}
+                                <code title="{{ doc.label }}">{{ doc.ref }}</code>
+                            {% endfor %}
+                        </span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% elif not collector.readiness.known %}
+            <div class="tap-cares-detail__empty">No self-test recorded yet. Use “Run self-test” to queue one — results poll in here automatically.</div>
+            {% endif %}
+        </div>
 
         <h3 class="tap-cares-detail__section-h">Latest run</h3>
         {% if latest_run %}

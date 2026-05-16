@@ -56,23 +56,41 @@
     font-size: 14px;
     max-width: 720px;
 }
-.tap-cares-detail__run-form { margin: 0; }
+.tap-cares-detail__run-form { margin: 0; flex: 0 0 auto; }
+.tap-cares-detail__self-test-form { margin: 0; flex: 0 0 auto; }
+
+/* Run is the page's primary, prominent top-right action. */
 .tap-cares-detail__run-btn {
     background: #1d4ed8;
     color: #fff;
     border: 0;
-    border-radius: 4px;
-    padding: 8px 18px;
-    font-size: 13px;
-    font-weight: 600;
+    border-radius: 6px;
+    padding: 12px 28px;
+    font-size: 15px;
+    font-weight: 700;
     cursor: pointer;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
 }
 .tap-cares-detail__run-btn:hover:not(:disabled) { background: #1e40af; }
 .tap-cares-detail__run-btn:disabled {
     background: #cbd5e1;
     color: #64748b;
     cursor: not-allowed;
+    box-shadow: none;
 }
+
+/* Self-test is a secondary action that lives with its results, lower down. */
+.tap-cares-detail__self-test-btn {
+    background: #475569;
+    color: #fff;
+    border: 0;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.tap-cares-detail__self-test-btn:hover:not(:disabled) { background: #334155; }
 
 /* Identity / registry metadata. */
 .tap-cares-detail__meta {
@@ -110,6 +128,103 @@
     border-radius: 3px;
     border: 1px solid #e2e8f0;
     word-break: break-all;
+}
+.tap-cares-detail__readiness-summary {
+    display: block;
+    margin-top: 4px;
+    color: #475569;
+}
+
+.tap-cares-detail__identity { min-width: 0; }
+
+/* Self-test block: heading + status + checked-at + the Self-test button on
+ * one row, results below. HTMX-polls itself every 5s (hx-select scoped). */
+.tap-cares-detail__self-test-block {
+    padding: 10px 16px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    margin-bottom: 16px;
+}
+.tap-cares-detail__self-test-block--ready {
+    background: #ecfdf5;
+    border-color: #6ee7b7;
+}
+.tap-cares-detail__self-test-block--warning,
+.tap-cares-detail__self-test-block--unconfigured,
+.tap-cares-detail__self-test-block--misconfigured {
+    background: #fffbeb;
+    border-color: #fbbf24;
+}
+.tap-cares-detail__self-test-block--error {
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+.tap-cares-detail__self-test-block--unknown {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+.tap-cares-detail__self-test-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+.tap-cares-detail__self-test-head .tap-cares-detail__section-h {
+    margin: 0;
+}
+.tap-cares-detail__self-test-head .tap-cares-detail__self-test-form {
+    margin-left: auto;
+}
+.tap-cares-detail__checked-at {
+    font-size: 11px;
+    color: #64748b;
+    font-variant-numeric: tabular-nums;
+}
+.tap-cares-detail__self-test-summary {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    color: #334155;
+}
+.tap-cares-detail__checks {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 5px;
+}
+.tap-cares-detail__check {
+    display: grid;
+    grid-template-columns: minmax(140px, 220px) 52px minmax(220px, 1fr) minmax(120px, auto);
+    gap: 8px;
+    align-items: start;
+    color: #334155;
+    font-size: 12px;
+}
+.tap-cares-detail__check code,
+.tap-cares-detail__docs code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+}
+.tap-cares-detail__check-status {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #64748b;
+}
+.tap-cares-detail__check--fail .tap-cares-detail__check-status {
+    color: #991b1b;
+}
+.tap-cares-detail__check--warn .tap-cares-detail__check-status,
+.tap-cares-detail__check--skip .tap-cares-detail__check-status {
+    color: #92400e;
+}
+.tap-cares-detail__docs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    color: #475569;
 }
 
 .tap-cares-detail__section-h {

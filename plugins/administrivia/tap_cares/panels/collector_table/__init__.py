@@ -23,7 +23,12 @@ from django.http import HttpResponse
 from django.shortcuts import render
 
 from tap_cares.exceptions import CollectorNotFoundError
-from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
+from tap_cares.models import (
+    CollectionJob,
+    CollectionJobRunMode,
+    CollectionJobStatus,
+    Collector,
+)
 from tap_cares.registry import get_collector
 from tap_cares.services import run_collection
 
@@ -69,11 +74,7 @@ def _row_for_collector(collector: Collector) -> dict[str, Any]:
 
     latest = None
     if job_ids:
-        latest = (
-            CollectionJob.objects.filter(entity_id__in=job_ids)
-            .order_by("-enqueued_at")
-            .first()
-        )
+        latest = CollectionJob.objects.filter(entity_id__in=job_ids).order_by("-enqueued_at").first()
 
     latest_finished = None
     if latest is not None:
@@ -99,9 +100,7 @@ def _row_for_collector(collector: Collector) -> dict[str, Any]:
         "last_run_status_display": latest_finished.get_status_display() if latest_finished is not None else "",
         "last_run_at": latest_finished.finished_at if latest_finished is not None else None,
         "last_summary": latest_finished.summary if latest_finished is not None else "",
-        "is_running": bool(
-            latest is not None and latest.status == CollectionJobStatus.RUNNING.value
-        ),
+        "is_running": bool(latest is not None and latest.status == CollectionJobStatus.RUNNING.value),
     }
 
 
@@ -116,7 +115,11 @@ def _build_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     running = sum(1 for r in rows if r["is_running"])
     failed_last = sum(1 for r in rows if r["last_run_status"] == CollectionJobStatus.FAILED.value)
     last_success_at = max(
-        (r["last_run_at"] for r in rows if r["last_run_status"] == CollectionJobStatus.SUCCESSFUL.value and r["last_run_at"] is not None),
+        (
+            r["last_run_at"]
+            for r in rows
+            if r["last_run_status"] == CollectionJobStatus.SUCCESSFUL.value and r["last_run_at"] is not None
+        ),
         default=None,
     )
     return {
@@ -150,15 +153,19 @@ class CollectorTablePanelType:
 
     @classmethod
     def handle_post(cls, panel: Panel, request: HttpRequest) -> HttpResponse:
-        """Handle the Run button POST.
+        """Handle the Run / Self-test button POST.
 
         Form fields:
-          action="run_collector"
+          action="run_collector" | "self_test"
           collector_entity_id=<uuid>
 
-        On success or failure, re-renders the full panel fragment so the row
-        reflects the new state. Errors surface as `run_message` in the panel
-        context with a per-row class so the user sees what happened.
+        Both actions go through `run_collection` (sole CollectionJob creator,
+        req-tap-cares-collector-job-model-18): `run` → a `full` job;
+        `self_test` → a `self_test_only` job (req-tap-cares-collector-self-test-16).
+        The table never calls `self_test_collector`; readiness is the
+        run-task-persisted `CollectionJob.self_test` and the full result is
+        viewed on the collector detail page. The table's 5s self-poll surfaces
+        the resulting lifecycle state without an inline synchronous result.
 
         Current Deviation (v0): this handler calls `run_collection` directly.
         The eventual flow inserts the scheduler subsystem between the
@@ -172,7 +179,7 @@ class CollectorTablePanelType:
         action = request.POST.get("action", "")
         collector_entity_id = request.POST.get("collector_entity_id", "")
 
-        if action != "run_collector":
+        if action not in {"run_collector", "self_test"}:
             run_error = f"Unknown action '{action}'."
         elif not collector_entity_id:
             run_error = "Missing collector_entity_id."
@@ -182,28 +189,33 @@ class CollectorTablePanelType:
             except Collector.DoesNotExist:
                 run_error = f"Collector '{collector_entity_id}' not found."
             else:
-                if not _runner_available(collector.collector_registry):
-                    run_error = (
-                        f"Collector '{collector.name}' has no registered runner for "
-                        f"'{collector.collector_registry}'."
+                is_self_test = action == "self_test"
+                try:
+                    job = run_collection(
+                        collector,
+                        run_mode=(CollectionJobRunMode.SELF_TEST_ONLY if is_self_test else CollectionJobRunMode.FULL),
+                        manual_run=True,
+                        manual_run_source=(
+                            "administrivia.collector_table.self_test"
+                            if is_self_test
+                            else "administrivia.collector_table"
+                        ),
                     )
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception(
+                        "[administrivia-2721] run_collection failed for collector %s",
+                        collector.entity_id,
+                    )
+                    run_error = f"Failed to enqueue: {type(exc).__name__}: {exc}"
                 else:
-                    try:
-                        job = run_collection(
-                            collector,
-                            manual_run=True,
-                            manual_run_source="administrivia.collector_table",
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        logger.exception(
-                            "[administrivia-2721] run_collection failed for collector %s", collector.entity_id
-                        )
-                        run_error = f"Failed to enqueue: {type(exc).__name__}: {exc}"
-                    else:
+                    if is_self_test:
                         run_message = (
-                            f"Triggered '{collector.name}'. Latest job: "
-                            f"{job.get_status_display()}."
+                            f"Self-test queued for '{collector.name}' "
+                            f"(job {job.get_status_display()}). Open the collector "
+                            f"page for full results."
                         )
+                    else:
+                        run_message = f"Triggered '{collector.name}'. Latest job: " f"{job.get_status_display()}."
 
         # Re-render the full panel so the row reflects the new lifecycle state.
         ctx = cls.get_view_context(panel, request)
