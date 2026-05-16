@@ -84,9 +84,7 @@ class TestAwsSteampipeCollectorConfig:
             AwsSteampipeCollectorConfig.from_mapping(_config_payload(**overrides))
 
     def test_deduplicates_regions_preserving_order(self):
-        cfg = AwsSteampipeCollectorConfig.from_mapping(
-            _config_payload(regions=["us-east-1", "us-west-2", "us-east-1"])
-        )
+        cfg = AwsSteampipeCollectorConfig.from_mapping(_config_payload(regions=["us-east-1", "us-west-2", "us-east-1"]))
         assert cfg.regions == ("us-east-1", "us-west-2")
 
 
@@ -113,9 +111,7 @@ class TestSteampipeRunner:
         assert _parse_rows('[{"vpc_id": "vpc-1"}]') == [{"vpc_id": "vpc-1"}]
 
     def test_parse_rows_accepts_rows_object(self):
-        assert _parse_rows('{"rows": [{"subnet_id": "subnet-1"}]}') == [
-            {"subnet_id": "subnet-1"}
-        ]
+        assert _parse_rows('{"rows": [{"subnet_id": "subnet-1"}]}') == [{"subnet_id": "subnet-1"}]
 
     def test_run_query_unavailable(self):
         cfg = AwsSteampipeCollectorConfig.from_mapping(_config_payload())
@@ -165,12 +161,11 @@ class TestAwsSteampipeInventoryCollector:
         collector.run()
 
         assert collector.summary == (
-            "Collected AWS demo vpc-subnet-v0: 1 VPC rows, 2 subnet rows "
-            "(normalization pending)."
+            "Collected AWS demo vpc-subnet-v0: 1 VPC rows, 2 subnet rows " "(normalization pending)."
         )
         assert collector.profile_result is not None
         assert collector.results["error"] == []
-        assert [entry["code"] for entry in collector.results["info"]] == [
+        assert [entry["message_code"] for entry in collector.results["info"]] == [
             "RUN_STARTED",
             "PROFILE_COLLECTED",
             "RUN_COMPLETED",
@@ -183,7 +178,7 @@ class TestAwsSteampipeInventoryCollector:
         with pytest.raises(AwsSteampipeConfigError):
             collector.run()
 
-        assert collector.results["error"][0]["code"] == "CONFIG_INVALID"
+        assert collector.results["error"][0]["message_code"] == "CONFIG_INVALID"
 
 
 def test_aws_core_ready_registers_collector():
@@ -191,6 +186,4 @@ def test_aws_core_ready_registers_collector():
         get_collector("plugins.aws_core.collectors.steampipe_inventory:steampipe-inventory")
         is AwsSteampipeInventoryCollector
     )
-    assert "plugins.aws_core.collectors.steampipe_inventory:steampipe-inventory" in (
-        collector_registry.keys()
-    )
+    assert "plugins.aws_core.collectors.steampipe_inventory:steampipe-inventory" in (collector_registry.keys())

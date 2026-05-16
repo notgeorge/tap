@@ -17,12 +17,14 @@ from plugins.aws_core.collectors.steampipe_runner import (
 )
 from tap_cares.collectors import CollectorBase, CollectorConfig
 
-_SITE_RUN_STARTED = "019e27be-3a6c-71c3-a443-7b79931e0ef9"
-_SITE_CONFIG_INVALID = "019e27be-3a6d-7287-b2e9-dc25104be557"
-_SITE_PROFILE_INVALID = "019e27be-3a6d-7287-b2e9-dc26f8156779"
-_SITE_STEAMPIPE_FAILED = "019e27be-3a6d-7287-b2e9-dc27592f1be1"
-_SITE_PROFILE_COLLECTED = "019e27be-3a6d-7287-b2e9-dc28a97b7a5f"
-_SITE_RUN_COMPLETED = "019e27be-3a6d-7287-b2e9-dc2913127c83"
+# 4-hex site token per record_* callsite, minted via scripts/log-site-id.
+# Unique within this file (req-tap-logging-site-ids).
+_SITE_RUN_STARTED = "4bc1"
+_SITE_CONFIG_INVALID = "a16d"
+_SITE_PROFILE_INVALID = "3609"
+_SITE_STEAMPIPE_FAILED = "ce26"
+_SITE_PROFILE_COLLECTED = "a766"
+_SITE_RUN_COMPLETED = "ac11"
 
 
 class AwsSteampipeInventoryCollector(CollectorBase):
@@ -58,7 +60,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 _SITE_PROFILE_INVALID,
                 "PROFILE_INVALID",
                 str(exc),
-                context=target_config.to_context(),
+                message_data=target_config.to_context(),
             )
             raise
 
@@ -69,7 +71,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 _SITE_STEAMPIPE_FAILED,
                 "STEAMPIPE_FAILED",
                 str(exc),
-                context=target_config.to_context(),
+                message_data=target_config.to_context(),
             )
             raise
 
@@ -78,12 +80,9 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             _SITE_PROFILE_COLLECTED,
             "PROFILE_COLLECTED",
             f"AWS Steampipe profile {profile.key} collected successfully.",
-            context={
+            message_data={
                 **target_config.to_context(),
-                "tables": {
-                    table: {"rows": len(rows)}
-                    for table, rows in sorted(result.rows_by_table.items())
-                },
+                "tables": {table: {"rows": len(rows)} for table, rows in sorted(result.rows_by_table.items())},
                 "warnings": result.warnings,
             },
         )
@@ -99,5 +98,5 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             _SITE_RUN_COMPLETED,
             "RUN_COMPLETED",
             "AWS Steampipe inventory collection complete.",
-            context={"summary": self.summary},
+            message_data={"summary": self.summary},
         )
