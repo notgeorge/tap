@@ -321,7 +321,7 @@ class CollectorDetailPanelType:
                         )
                     except Exception as exc:  # noqa: BLE001
                         logger.exception(
-                            "[administrivia-2583] self-test run_collection failed for collector %s",
+                            "[050f] self-test run_collection failed for collector %s",
                             collector.entity_id,
                         )
                         run_error = f"Failed to queue self-test: {type(exc).__name__}: {exc}"
@@ -348,7 +348,7 @@ class CollectorDetailPanelType:
                             )
                         except Exception as exc:  # noqa: BLE001
                             logger.exception(
-                                "[administrivia-2583] run_collection failed for collector %s",
+                                "[63e0] run_collection failed for collector %s",
                                 collector.entity_id,
                             )
                             run_error = f"Failed to enqueue: {type(exc).__name__}: {exc}"

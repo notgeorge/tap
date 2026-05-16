@@ -75,7 +75,7 @@ def self_test_collector(collector: Collector) -> CollectorSelfTestResult:
             result = cls.self_test().with_collector_registry(collector.collector_registry)
         except Exception as exc:  # noqa: BLE001
             logger.exception(
-                "[tap_cares-91bd] collector_self_test_failed collector=%s registry=%s",
+                "[8797] collector_self_test_failed collector=%s registry=%s",
                 collector.entity_id,
                 collector.collector_registry,
             )
@@ -109,8 +109,7 @@ def self_test_collector(collector: Collector) -> CollectorSelfTestResult:
         counts[check.status.value] = counts.get(check.status.value, 0) + 1
     log = logger.info if result.runnable else logger.warning
     log(
-        "[tap_cares-a7b4] collector_self_test collector=%s registry=%s status=%s "
-        "pass=%s warn=%s fail=%s skip=%s summary=%s",
+        "[fa20] collector_self_test collector=%s registry=%s status=%s " "pass=%s warn=%s fail=%s skip=%s summary=%s",
         collector.entity_id,
         collector.collector_registry,
         result.status.value,

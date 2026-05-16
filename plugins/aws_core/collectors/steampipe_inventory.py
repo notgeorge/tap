@@ -82,15 +82,9 @@ def _aws_self_test_summary(checks: list[CollectorSelfTestCheck]) -> str:
         if any(check.is_skip or check.is_warning for check in checks):
             return "AWS Steampipe collector is runnable, with self-test notes."
         return "AWS Steampipe collector is ready."
-    if any(
-        check.readiness_status == CollectorReadinessStatus.UNCONFIGURED
-        for check in failures
-    ):
+    if any(check.readiness_status == CollectorReadinessStatus.UNCONFIGURED for check in failures):
         return "AWS Steampipe collector is not configured yet (no secret)."
-    if any(
-        check.readiness_status == CollectorReadinessStatus.MISCONFIGURED
-        for check in failures
-    ):
+    if any(check.readiness_status == CollectorReadinessStatus.MISCONFIGURED for check in failures):
         return "AWS Steampipe collector configuration needs attention."
     return "AWS Steampipe collector self-test failed."
 
@@ -272,7 +266,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             "RUN_STARTED",
             "AWS Steampipe inventory collection started.",
         )
-        logger.info("[aws_core-2d3c] aws_steampipe_collection_started")
+        logger.info("[9e82] aws_steampipe_collection_started")
 
         secret_ref = AWS_STEAMPIPE_SECRET_REF.qualified
         try:
@@ -291,15 +285,13 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 message,
                 context={
                     "secret_ref": secret_ref,
-                    "expected_secret_filename": (
-                        f"{AWS_STEAMPIPE_SECRET_REF.key}{SECRET_SUFFIX}"
-                    ),
+                    "expected_secret_filename": (f"{AWS_STEAMPIPE_SECRET_REF.key}{SECRET_SUFFIX}"),
                     "expected_secret_kind": "aws_static_access_key",
                 },
             )
             self.summary = "AWS Steampipe collector secret is not loaded."
             logger.exception(
-                "[aws_core-8263] aws_steampipe_secret_missing secret_ref=%s",
+                "[cdbb] aws_steampipe_secret_missing secret_ref=%s",
                 secret_ref,
             )
             raise
@@ -312,7 +304,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             )
             self.summary = "AWS Steampipe collector secret is invalid."
             logger.exception(
-                "[aws_core-d15e] aws_steampipe_secret_invalid secret_ref=%s",
+                "[740d] aws_steampipe_secret_invalid secret_ref=%s",
                 secret_ref,
             )
             raise
@@ -323,12 +315,9 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 str(exc),
                 context={"secret_ref": secret_ref},
             )
-            self.summary = (
-                "AWS Steampipe collector secret is missing required "
-                "region/account."
-            )
+            self.summary = "AWS Steampipe collector secret is missing required " "region/account."
             logger.exception(
-                "[aws_core-23ab] aws_steampipe_target_invalid secret_ref=%s",
+                "[78f2] aws_steampipe_target_invalid secret_ref=%s",
                 secret_ref,
             )
             raise
@@ -337,9 +326,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             result = self.runner_cls().run_query_set(
                 VPC_SUBNET_V0,
                 region=target.primary_region,
-                env=target.credentials.as_steampipe_env(
-                    region=target.primary_region
-                ),
+                env=target.credentials.as_steampipe_env(region=target.primary_region),
                 redaction_values=target.credentials.redaction_values(),
             )
         except SteampipeRunnerError as exc:
@@ -349,22 +336,16 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 str(exc),
                 context=target.to_context(),
             )
-            self.summary = (
-                f"AWS Steampipe run failed for account {target.account_id} "
-                f"({AWS_COLLECTION_SCOPE})."
-            )
+            self.summary = f"AWS Steampipe run failed for account {target.account_id} " f"({AWS_COLLECTION_SCOPE})."
             logger.exception(
-                "[aws_core-a8b9] aws_steampipe_runner_failed account=%s scope=%s",
+                "[f60f] aws_steampipe_runner_failed account=%s scope=%s",
                 target.account_id,
                 AWS_COLLECTION_SCOPE,
             )
             raise
 
         self.profile_result = result
-        tables = {
-            table: {"rows": len(rows)}
-            for table, rows in sorted(result.rows_by_table.items())
-        }
+        tables = {table: {"rows": len(rows)} for table, rows in sorted(result.rows_by_table.items())}
         self.record_info(
             _SITE_COLLECTED,
             "COLLECTED",
@@ -376,15 +357,16 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             },
         )
         logger.info(
-            "[aws_core-7f31] aws_steampipe_collected account=%s scope=%s tables=%s",
+            "[1d81] aws_steampipe_collected account=%s scope=%s tables=%s",
             target.account_id,
             AWS_COLLECTION_SCOPE,
             sorted(result.rows_by_table),
         )
-        # DEBUG is site-ID-exempt (CLAUDE.md). Warnings are already redacted by
-        # the runner. (req-aws-steampipe-runner-6)
+        # Option A: every committed log call carries a bare site token, DEBUG
+        # included (specs/spec-tap-logging.md req-tap-logging-site-ids).
+        # Warnings are already redacted by the runner. (req-aws-steampipe-runner-6)
         logger.debug(
-            "aws_steampipe run scope=%s account=%s region=%s tables=%s warnings=%s",
+            "[8517] aws_steampipe run scope=%s account=%s region=%s tables=%s warnings=%s",
             AWS_COLLECTION_SCOPE,
             target.account_id,
             target.primary_region,
@@ -406,7 +388,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             context={"summary": self.summary},
         )
         logger.info(
-            "[aws_core-44d2] aws_steampipe_collection_completed account=%s scope=%s",
+            "[58ca] aws_steampipe_collection_completed account=%s scope=%s",
             target.account_id,
             AWS_COLLECTION_SCOPE,
         )
