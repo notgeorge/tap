@@ -30,10 +30,14 @@ media/
 # tap-cares mounted secret files. Secret fixtures/templates must use a
 # non-matching suffix such as .secret.example.json.
 *.secret.json
-# Host-side bind-mount directory backing the tap-cares Compose secrets mount
-# (./tap_secrets:/run/tap-secrets:ro). Operator-managed at runtime; nothing
-# in the repo, nothing in tests. See tap_cares/specs/spec-tap-cares-secrets.md.
-/tap_secrets/
+# Host-side bind-mount target backing the tap-cares Compose secrets mount
+# (./tap_secrets:/run/tap-secrets:ro). May be a real directory OR a symlink
+# to a shared host dir ($HOME/tap-secrets) when worktrees share one secret
+# set. No trailing slash so the pattern matches the symlink too — a
+# directory-only pattern leaves the symlink showing as untracked.
+# Operator-managed at runtime; nothing in the repo, nothing in tests.
+# See tap_cares/specs/spec-tap-cares-secrets.md.
+/tap_secrets
 
 # IDE
 .vscode/
