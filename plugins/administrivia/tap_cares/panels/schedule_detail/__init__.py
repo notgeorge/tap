@@ -89,10 +89,7 @@ def _fire_rows(schedule_entity_id: str) -> list[dict[str, Any]]:
     if not fire_ids:
         return []
 
-    fires = list(
-        ScheduleFire.objects.filter(entity_id__in=fire_ids)
-        .order_by("-scheduled_for")[:FIRE_HISTORY_CAP]
-    )
+    fires = list(ScheduleFire.objects.filter(entity_id__in=fire_ids).order_by("-scheduled_for")[:FIRE_HISTORY_CAP])
 
     rows: list[dict[str, Any]] = []
     for f in fires:
@@ -123,9 +120,7 @@ def _build_context(schedule_entity_id: str) -> dict[str, Any]:
         }
 
     try:
-        schedule = Schedule.objects.select_related("entity").get(
-            entity_id=schedule_entity_id
-        )
+        schedule = Schedule.objects.select_related("entity").get(entity_id=schedule_entity_id)
     except Schedule.DoesNotExist:
         return {
             "schedule": None,
@@ -133,9 +128,7 @@ def _build_context(schedule_entity_id: str) -> dict[str, Any]:
         }
 
     target = _target_collector(schedule)
-    target_available = (
-        _runner_available(target.collector_registry) if target is not None else False
-    )
+    target_available = _runner_available(target.collector_registry) if target is not None else False
     fires = _fire_rows(str(schedule.entity_id))
     capped = len(fires) >= FIRE_HISTORY_CAP
 

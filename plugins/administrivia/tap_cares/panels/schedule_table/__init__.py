@@ -70,11 +70,7 @@ def _latest_fire(schedule: Schedule) -> ScheduleFire | None:
     )
     if not fire_ids:
         return None
-    return (
-        ScheduleFire.objects.filter(entity_id__in=fire_ids)
-        .order_by("-scheduled_for")
-        .first()
-    )
+    return ScheduleFire.objects.filter(entity_id__in=fire_ids).order_by("-scheduled_for").first()
 
 
 def _active_run_count(schedule: Schedule) -> int:
@@ -104,9 +100,7 @@ def _active_run_count(schedule: Schedule) -> int:
 
 def _row_for_schedule(schedule: Schedule) -> dict[str, Any]:
     target = _target_collector_for(schedule)
-    target_available = (
-        _runner_available(target.collector_registry) if target is not None else False
-    )
+    target_available = _runner_available(target.collector_registry) if target is not None else False
     latest = _latest_fire(schedule)
     active = _active_run_count(schedule)
 
