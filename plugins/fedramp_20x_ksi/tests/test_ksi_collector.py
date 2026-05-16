@@ -19,11 +19,10 @@ from pathlib import Path
 
 import pytest
 
+import plugins.fedramp_20x_ksi.collectors.ksi_catalog as ksi_module
 from plugins.fedramp_20x_ksi.collectors.ksi_catalog import (
     KSICollector,
-    KSICollectorError,
 )
-from tap_cares.collectors import CollectorConfig
 from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
 from tap_cares.registry import collector_registry, register_collector
 from tap_cares.services import run_collection
@@ -101,6 +100,34 @@ def isolate_collector_registry():
 # ---------------------------------------------------------------------------
 # Happy path
 # ---------------------------------------------------------------------------
+
+
+class _FakeHttpResponse:
+    status = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+def test_self_test_checks_upstream_reachability(monkeypatch):
+    def fake_urlopen(request, *, timeout):
+        assert request.get_method() == "HEAD"
+        assert timeout == ksi_module.UPSTREAM_TIMEOUT_SECONDS
+        return _FakeHttpResponse()
+
+    monkeypatch.setattr(ksi_module.urllib.request, "urlopen", fake_urlopen)
+
+    result = KSICollector.self_test()
+
+    assert result.status.value == "ready"
+    assert result.runnable is True
+    assert [check.code for check in result.checks] == [
+        "UPSTREAM_URL_CONFIGURED",
+        "UPSTREAM_REACHABLE",
+    ]
 
 
 @pytest.mark.django_db
@@ -203,8 +230,6 @@ class TestBlockFlags:
     def test_bad_content_type(self, isolate_collector_registry):
         class _BadCT(KSICollector):
             def _fetch_upstream_bytes(self):
-                from plugins.fedramp_20x_ksi.collectors.ksi_catalog import KSICollectorError
-
                 self._abort(
                     "019e1e15-b223-73f1-a349-b44ddaac1f3e",
                     "UPSTREAM_BAD_CONTENT_TYPE",
@@ -264,7 +289,7 @@ class TestBlockFlags:
         # Inject a control character into the first indicator's statement.
         for theme in doc["KSI"].values():
             indicators = theme.get("indicators", {})
-            for code, ind in indicators.items():
+            for _code, ind in indicators.items():
                 if ind.get("statement"):
                     ind["statement"] = "\x07evil" + ind["statement"]
                     break

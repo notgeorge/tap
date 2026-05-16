@@ -38,6 +38,7 @@ This spec inherits the catalog vocabulary (Theme, Indicator, Certification Class
 | --- | --- | :---: | --- |
 | req-fedramp-20x-ksi-collector-class | [Collector Class](#collector-class) | Proposed | `KSICollector(CollectorBase)` registered at AppConfig.ready() |
 | req-fedramp-20x-ksi-collector-fetch | [Upstream Fetch](#upstream-fetch) | Proposed | HTTPS fetch from raw.githubusercontent.com |
+| req-fedramp-20x-ksi-collector-self-test | [Collector Self-Test](#collector-self-test) | Proposed | Read-only reachability check for the pinned upstream URL |
 | req-fedramp-20x-ksi-collector-pin | [Pinned Schema and UUID Namespace](#pinned-schema-and-uuid-namespace) | Proposed | Schema + UUIDv5 namespace ported from refresh.py's pinned/ into plugin source |
 | req-fedramp-20x-ksi-collector-validation-scope | [Validation Scope](#validation-scope) | Implemented | KSI subtree strict, info/FRR/FRD opaque sibling data; outlier walk scoped to KSI |
 | req-fedramp-20x-ksi-collector-safety | [Runtime Safety Model](#runtime-safety-model) | Proposed | All flags block; CI-specific provenance checks dropped (recovered by future git collector base) |
@@ -119,6 +120,50 @@ The collector fetches the consolidated rules document directly over HTTPS from t
 | req-fedramp-20x-ksi-collector-fetch-4 | Content-Type Check | Proposed | Non-JSON `Content-Type` aborts the run with block flag `UPSTREAM_BAD_CONTENT_TYPE`. | |
 | req-fedramp-20x-ksi-collector-fetch-5 | Failure Surface | Proposed | Network errors fail the `CollectionJob` and surface in `summary`. | |
 | req-fedramp-20x-ksi-collector-fetch-6 | Content As Data | Proposed | Fetched content is never used as URL, path, or instruction. | |
+
+---
+
+### Collector Self-Test
+----
+RID: `req-fedramp-20x-ksi-collector-self-test`
+Status: `Proposed`
+
+The KSI collector implements the tap-cares self-test/readiness contract (`req-tap-cares-collector-self-test`) with a deliberately narrow scope: can this installed collector reach its configured upstream endpoint?
+
+The self-test is not a lightweight version of the collection pipeline. It must not validate the full upstream catalog, compute a diff, run safety checks, or submit GRIFT. Those are collection-run responsibilities. The self-test answers only whether the collector's own runtime path appears reachable enough that pressing Run is sensible.
+
+v0 checks:
+
+| Code | Status when healthy | Purpose |
+| --- | --- | --- |
+| `UPSTREAM_URL_CONFIGURED` | `pass` | Pinned URL is present and parseable as HTTPS. |
+| `UPSTREAM_REACHABLE` | `pass` | Read-only request to the pinned upstream URL succeeds within the self-test timeout. |
+
+The reachability check may use `HEAD` if the upstream supports it reliably; otherwise it may use a bounded `GET` that reads only enough bytes to prove the endpoint responds. It should reuse the same pinned URL constant as the collection run so the self-test and collector cannot drift.
+
+Expected readiness outcomes:
+
+- `ready` when the URL is configured and reachable.
+- `error` when the URL is malformed, not HTTPS, times out, returns a non-success response, or cannot be reached.
+
+The KSI collector has no v0 operator configuration, so it should not normally return `unconfigured` or `misconfigured`. If future KSI target configuration is introduced, this requirement should be revisited.
+
+The failure check should include a `CollectorDocRef` to the KSI collector docs or setup/operations section (this collector is an *emitter* only, `req-tap-cares-collector-self-test-5`; resolution is `specs/spec-docs.md` `req-docs-ref-resolution`, rendering is `tap_web` `req-web-rendering-docref`, both Backlog). The message should be short; canonical explanation belongs in docs.
+
+**Execution model is framework-owned (by reference, not re-specified).** KSI implements only the pure `self_test()` hook. Everything around it is the tap-cares contract and KSI does not restate it: self-test runs as **phase 1 of a `CollectionJob`** (`req-tap-cares-collector-self-test-10`), the run-task body is the sole writer of the structured result onto `CollectionJob.self_test` (`req-tap-cares-collector-self-test-2`), and a non-runnable result fails the job through the **standard collector failure mode** (`req-tap-cares-collector-failure-mode`) — `CollectionJob` ends `FAILED` with the self-test summary; there is no `blocked` status. The reachability timeout is bounded by the framework budget (`req-tap-cares-collector-self-test-12`), not a KSI-specific number. The Administrivia Self-test button is a `self_test_only` `CollectionJob` per `req-tap-cares-collector-self-test-16`; KSI neither knows nor cares which run mode invoked it.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-fedramp-20x-ksi-collector-self-test-1 | Implements tap-cares Contract | Proposed | `KSICollector` implements the tap-cares collector self-test/readiness hook. | Cross-ref `req-tap-cares-collector-self-test`. |
+| req-fedramp-20x-ksi-collector-self-test-2 | Reachability Only | Proposed | The KSI self-test checks only upstream URL configuration/reachability, not full catalog validity, diff, safety, or GRIFT import behavior. | |
+| req-fedramp-20x-ksi-collector-self-test-3 | No Mutation | Proposed | The KSI self-test performs no grid mutation and no GRIFT import. | |
+| req-fedramp-20x-ksi-collector-self-test-4 | Ready On Reachable | Proposed | Self-test status is `ready` when the pinned HTTPS upstream is reachable. | |
+| req-fedramp-20x-ksi-collector-self-test-5 | Error On Unreachable | Proposed | Self-test status is `error` when the upstream URL is malformed, unavailable, times out, or returns an unacceptable response. | |
+| req-fedramp-20x-ksi-collector-self-test-6 | Docs Reference | Proposed | Non-ready KSI self-test checks include a docs reference once plugin docs are renderable in-app. | |
+| req-fedramp-20x-ksi-collector-self-test-7 | Execution Model By Reference | Proposed | KSI implements only the pure hook; phase-1 gating, persistence on `CollectionJob.self_test`, and the no-`blocked` standard failure mode are inherited from the tap-cares contract, not re-specified here. | Cross-ref `req-tap-cares-collector-self-test-2`/`-10`/`-16`, `req-tap-cares-collector-failure-mode`. |
+| req-fedramp-20x-ksi-collector-self-test-8 | Bounded By Framework | Proposed | The reachability check is timeout-bounded per the framework budget, not a KSI-chosen number. | Cross-ref `req-tap-cares-collector-self-test-12`. |
 
 ---
 
@@ -368,11 +413,13 @@ Status: `Proposed`
 
 The KSI collector uses the existing `CollectionJob` lifecycle states (`READY`/`RUNNING`/`FAILED`/`SUCCESSFUL`) and the structured `results` field defined in `req-tap-cares-collector-job-model` (the `info` / `warn` / `error` buckets with four-field entries). No KSI-specific state, edge type, or metadata field. All structured failure surfacing flows through `self.record_error(...)` on the collector instance; all run-level successes flow through `self.record_info(...)`. Entries accumulate in `self.results` and are persisted by the task body at terminal state (see `req-tap-cares-collector-job-sole-writer`).
 
+Produced-batch correlation uses the canonical contract: a run's GRIFT batches are linked by `CollectionJob --PRODUCED_BATCH--> Batch` edges, each carrying a `disposition` property ∈ {`imported`,`skipped`}, created by the task body at terminal state. There is **no `CollectionJob.grift_batches` field** — see `tap_cares/specs/spec-tap-cares-collector.md` `req-tap-cares-collector-grift-import-6` / `req-tap-cares-collector-job-model-20` and `tap_grid/specs/spec-grid-edge.md` `req-grid-edge-produced-batch`. "Which batch did this run produce" is answered by traversing the `PRODUCED_BATCH` edge, not by reading a field.
+
 #### Successful run (no changes)
 
 - `status = SUCCESSFUL`
 - `summary` = `"No changes — already up to date (<N> indicators)."` (collector-set at end of `run()`).
-- `grift_batches = {"imported": [], "skipped": []}`
+- no `PRODUCED_BATCH` edges (the empty diff submits no GRIFT batch).
 - `results["info"]` contains entries for: `RUN_STARTED`, `UPSTREAM_FETCHED`, `DIFF_EMPTY`, `RUN_COMPLETED`.
 - `results["error"]` empty.
 
@@ -380,7 +427,7 @@ The KSI collector uses the existing `CollectionJob` lifecycle states (`READY`/`R
 
 - `status = SUCCESSFUL`
 - `summary` carries a collector-authored one-liner describing the import (counts of new / modified / deprecated indicators and themes plus imported batch count). See `_summarize_import` in `ksi_catalog.py`.
-- `grift_batches.imported` contains the single batch entity_id this run produced.
+- exactly one `CollectionJob --PRODUCED_BATCH--> Batch` edge with `disposition = imported`, pointing at the single `Batch` this run produced.
 - `results["info"]` contains entries for: `RUN_STARTED`, `UPSTREAM_FETCHED`, `DIFF_COMPUTED` (with counts in context), `GRIFT_SUBMITTED` (with batch entity_id in context), `RUN_COMPLETED`.
 - `results["error"]` empty.
 
@@ -388,7 +435,7 @@ The KSI collector uses the existing `CollectionJob` lifecycle states (`READY`/`R
 
 - `status = FAILED`
 - `summary` carries the count-derived one-liner (`"Failed with N error(s)"`) computed by the task body from `len(results["error"])` — KSI does not set `self.summary` on the failure path. See `req-tap-cares-collector-failure-mode-3`.
-- `grift_batches = {"imported": [], "skipped": []}` — nothing reached the grid.
+- no `PRODUCED_BATCH` edges — KSI aborts before `submit_grift`, so nothing reached the grid.
 - `results["error"]` contains one entry per flag raised, each with its own `site` UUIDv7, `code`, `message`, and `context` (the dict of relevant counts, fragments, or paths into the source document — collector's call what's useful for the investigator). Schema-drift runs in particular accumulate one entry per `iter_errors` validation failure so a single run surfaces every drift site rather than only the first.
 - `results["info"]` may contain partial-run breadcrumbs (`RUN_STARTED`, `UPSTREAM_FETCHED`) for runs that got past initial steps before failing.
 
@@ -422,7 +469,7 @@ The `warn` bucket is unused by the v0 KSI collector — every safety flag is blo
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-fedramp-20x-ksi-collector-job-result-1 | No New Status States | Proposed | The KSI collector uses only the existing `READY`/`RUNNING`/`FAILED`/`SUCCESSFUL` states. | |
-| req-fedramp-20x-ksi-collector-job-result-2 | Successful Empty | Proposed | A run that detects no changes still succeeds; `grift_batches.imported` is empty; `results["info"]` records `DIFF_EMPTY`. | |
+| req-fedramp-20x-ksi-collector-job-result-2 | Successful Empty | Proposed | A run that detects no changes still succeeds; no `PRODUCED_BATCH` edge is created; `results["info"]` records `DIFF_EMPTY`. | |
 | req-fedramp-20x-ksi-collector-job-result-3 | Block → FAILED | Proposed | Any block flag fails the job. `record_error` is called for every flag raised; the failure `summary` is the count-derived one-liner produced by the task body (see `req-tap-cares-collector-failure-mode-3`). | |
 | req-fedramp-20x-ksi-collector-job-result-4 | Vocabulary Documented | Proposed | The v0 event vocabulary above is the contract; new codes require updating the spec. | |
 | req-fedramp-20x-ksi-collector-job-result-5 | Site UUIDs Unique Per Callsite | Proposed | Each `record_*` call in the KSI collector code has a hardcoded UUIDv7 `site` value; the repo-wide uniqueness test (`req-tap-cares-collector-job-model-15`) covers KSI callsites. | |
@@ -456,7 +503,7 @@ Two test surfaces:
 | req-fedramp-20x-ksi-collector-test-strategy-1 | Fixture-Injected Unit Tests | Proposed | Unit tests cover happy path and every block flag by overriding `fetch_upstream()` with fixtures. | |
 | req-fedramp-20x-ksi-collector-test-strategy-2 | Pinned Fixture Committed | Proposed | `current.json` ships in the repo so tests are deterministic. | |
 | req-fedramp-20x-ksi-collector-test-strategy-3 | Live Fetch Test Gated | Proposed | A `@pytest.mark.live_fetch` integration test verifies real network fetch and parsing; skipped by default. | |
-| req-fedramp-20x-ksi-collector-test-strategy-4 | End-to-End Via tap_cares | Proposed | A unit test invokes `run_collection(collector)` and asserts that the `CollectionJob` transitions through the expected states and produces the expected `grift_batches`. | |
+| req-fedramp-20x-ksi-collector-test-strategy-4 | End-to-End Via tap_cares | Proposed | A unit test invokes `run_collection(collector)` and asserts that the `CollectionJob` transitions through the expected states and produces the expected `PRODUCED_BATCH` edge(s). | |
 
 ---
 

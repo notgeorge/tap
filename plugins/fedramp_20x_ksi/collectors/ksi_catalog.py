@@ -41,7 +41,14 @@ from uuid import UUID, uuid5, uuid7
 
 import jsonschema
 
-from tap_cares.collectors import CollectorBase, CollectorConfig
+from tap_cares.collectors import (
+    CollectorBase,
+    CollectorDocRef,
+    CollectorReadinessStatus,
+    CollectorSelfTestResult,
+    check_fail,
+    check_pass,
+)
 
 # ---------------------------------------------------------------------------
 # Pinned assets and constants
@@ -157,6 +164,32 @@ def _walk_arrays(obj: Any, path: str = "$") -> Iterable[tuple[str, list]]:
             yield from _walk_arrays(v, f"{path}[{i}]")
 
 
+def _append_ksi_reachability_check(
+    checks: list[Any],
+    status: int,
+    docs: tuple[CollectorDocRef, ...],
+) -> None:
+    if 200 <= status < 400:
+        checks.append(
+            check_pass(
+                "UPSTREAM_REACHABLE",
+                f"KSI upstream responded with HTTP {status}.",
+                context={"upstream_url": UPSTREAM_URL, "status": status},
+                docs=docs,
+            )
+        )
+    else:
+        checks.append(
+            check_fail(
+                "UPSTREAM_REACHABLE",
+                f"KSI upstream returned HTTP {status}.",
+                readiness_status=CollectorReadinessStatus.ERROR,
+                context={"upstream_url": UPSTREAM_URL, "status": status},
+                docs=docs,
+            )
+        )
+
+
 # ---------------------------------------------------------------------------
 # Collector
 # ---------------------------------------------------------------------------
@@ -170,6 +203,111 @@ class KSICollector(CollectorBase):
     # network.
 
     # -- Public entrypoint ---------------------------------------------------
+
+    @classmethod
+    def self_test(cls) -> CollectorSelfTestResult:
+        checks = []
+        docs = (
+            CollectorDocRef(
+                plugin="fedramp_20x_ksi",
+                doc="collector",
+                section="self-test",
+                label="FedRAMP 20x KSI collector self-test",
+            ),
+        )
+
+        if not UPSTREAM_URL.startswith("https://"):
+            checks.append(
+                check_fail(
+                    "UPSTREAM_URL_CONFIGURED",
+                    "KSI upstream URL must be configured as HTTPS.",
+                    readiness_status=CollectorReadinessStatus.ERROR,
+                    context={"upstream_url": UPSTREAM_URL},
+                    docs=docs,
+                )
+            )
+            return CollectorSelfTestResult.from_checks(
+                checks,
+                summary="KSI collector upstream URL is invalid.",
+                docs=docs,
+            )
+
+        checks.append(
+            check_pass(
+                "UPSTREAM_URL_CONFIGURED",
+                "KSI upstream URL is configured.",
+                context={"upstream_url": UPSTREAM_URL},
+                docs=docs,
+            )
+        )
+
+        try:
+            req = urllib.request.Request(
+                UPSTREAM_URL,
+                method="HEAD",
+                headers={"Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=UPSTREAM_TIMEOUT_SECONDS) as resp:
+                status = getattr(resp, "status", 200)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 405:
+                try:
+                    req = urllib.request.Request(
+                        UPSTREAM_URL,
+                        headers={
+                            "Accept": "application/json",
+                            "Range": "bytes=0-0",
+                        },
+                    )
+                    with urllib.request.urlopen(
+                        req,
+                        timeout=UPSTREAM_TIMEOUT_SECONDS,
+                    ) as resp:
+                        status = getattr(resp, "status", 200)
+                except (OSError, urllib.error.URLError) as retry_exc:
+                    checks.append(
+                        check_fail(
+                            "UPSTREAM_REACHABLE",
+                            f"KSI upstream reachability check failed: {retry_exc}",
+                            readiness_status=CollectorReadinessStatus.ERROR,
+                            context={"upstream_url": UPSTREAM_URL},
+                            docs=docs,
+                        )
+                    )
+                else:
+                    _append_ksi_reachability_check(checks, status, docs)
+            else:
+                checks.append(
+                    check_fail(
+                        "UPSTREAM_REACHABLE",
+                        f"KSI upstream returned HTTP {exc.code}.",
+                        readiness_status=CollectorReadinessStatus.ERROR,
+                        context={"upstream_url": UPSTREAM_URL, "status": exc.code},
+                        docs=docs,
+                    )
+                )
+        except (OSError, urllib.error.URLError) as exc:
+            checks.append(
+                check_fail(
+                    "UPSTREAM_REACHABLE",
+                    f"KSI upstream reachability check failed: {exc}",
+                    readiness_status=CollectorReadinessStatus.ERROR,
+                    context={"upstream_url": UPSTREAM_URL},
+                    docs=docs,
+                )
+            )
+        else:
+            _append_ksi_reachability_check(checks, status, docs)
+
+        return CollectorSelfTestResult.from_checks(
+            checks,
+            summary=(
+                "KSI collector can reach its upstream URL."
+                if all(not check.is_failure for check in checks)
+                else "KSI collector cannot reach its upstream URL."
+            ),
+            docs=docs,
+        )
 
     def run(self) -> None:
         self.record_info(_SITE_RUN_STARTED, "RUN_STARTED", "KSI catalog collection started.")
