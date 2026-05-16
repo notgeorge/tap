@@ -16,8 +16,8 @@ registration, execution, secrets, run records, and GRIFT import boundaries.
 This specification intentionally starts with a small, inspectable slice:
 inventory VPCs and subnets from a demo AWS account through Steampipe and place
 them on the grid. Broader AWS coverage should advance by updating the Steampipe
-coverage inventory, adding model/edge specs where needed, and then extending
-collection profiles.
+coverage inventory, adding model/edge specs where needed, and then widening
+the collector's hardcoded collection scope.
 
 ## Goals
 
@@ -25,7 +25,7 @@ collection profiles.
 | :---: | ---       | ---                                                             |
 | 1. | Inventory Map | Maintain an explicit Steampipe-to-TAP table coverage inventory |
 | 2. | Runtime Safe  | Resolve AWS credentials through `tap_cares` secrets without storing secret values on the grid |
-| 3. | Configurable  | Define how a collector run knows account, region, secret ref, and collection profile |
+| 3. | Zero-Config   | Discover the collection target from a single well-known on-disk AWS secret — no config object, Django setting, or UI |
 | 4. | Semantic      | Normalize Steampipe rows into AWS Core models and edges rather than generic raw blobs |
 | 5. | GRIFT Native  | Submit all grid mutations through inspectable GRIFT batches and the standard import path |
 | 6. | Incremental   | Start with VPC and subnet collection and defer deletes/reaping |
@@ -38,7 +38,10 @@ collection profiles.
 | req-aws-steampipe-inventory | [Steampipe Coverage Inventory](#steampipe-coverage-inventory) | Implemented | `docs/steampipe-aws-table-inventory.yaml` is the planning map |
 | req-aws-steampipe-model-expansion | [Model Expansion Heuristic](#model-expansion-heuristic) | Proposed | ARN-bearing durable resources are model candidates, not automatic models |
 | req-aws-steampipe-secrets | [AWS Credential Resolution](#aws-credential-resolution) | Implemented | v0 uses the `tap_cares.secrets` backend with AWS static credentials |
-| req-aws-steampipe-config | [Collector Configuration](#collector-configuration) | Implemented | v0 defines a simple config shape for secret, account, regions, and profile |
+| req-aws-steampipe-config | [ENV-Based Collector Config](#env-based-collector-config) | Deprecated | The removed env/Django-setting config object; superseded by secret-discovery |
+| req-aws-steampipe-config-object | [Collector Configuration](#collector-configuration) | Backlog | Future durable config object (once its shape is defined); where `target_regions`/collection-scoping migrates |
+| req-aws-steampipe-secret-discovery | [Secret-Discovered Target](#secret-discovered-target) | Proposed | Zero-config: one well-known `aws/steampipe-collector` secret carries creds + region + account; no config object |
+| req-aws-steampipe-self-test | [Collector Self-Test](#collector-self-test) | Proposed | Four accumulated readiness checks: secret present, secret valid, Steampipe available, AWS identity |
 | req-aws-steampipe-runner | [Steampipe Execution](#steampipe-execution) | In Development | Steampipe is invoked as the extraction backend |
 | req-aws-steampipe-identity | [Provider Identity Resolution](#provider-identity-resolution) | Proposed | Stable AWS source identity resolves to existing TAP entity IDs before minting new UUIDv7s |
 | req-aws-steampipe-vpc-subnet | [First Collector Slice: VPC And Subnet](#first-collector-slice-vpc-and-subnet) | In Development | Initial collector imports `aws_vpc` and `aws_vpc_subnet` |
@@ -164,17 +167,17 @@ tokens, or other credential values.
 
 The collector's runtime flow is:
 
-1. Parse collector configuration into an `AwsSteampipeCollectorConfig`
-   containing only a `SecretRef`.
-2. Resolve the secret with `tap_cares.secrets.resolve_secret(...)`.
-3. Validate `kind` and `data` with `tap_cares.secrets.require_secret_kind(...)`
-   and an AWS-plugin-owned JSON Schema.
-4. Build a transient Steampipe subprocess environment containing AWS credential
-   variables.
-5. Run trusted profile queries.
-6. Drop credential material after the subprocess boundary. Only redacted
-   diagnostics and non-secret `SecretRef` identity may reach run records or
-   logs.
+1. Resolve the well-known secret `SecretRef(scope="aws", key="steampipe-collector")`
+   with `tap_cares.secrets.resolve_secret(...)` — no config object (see
+   [Secret-Discovered Target](#secret-discovered-target)).
+2. Validate `kind` and `data` with `tap_cares.secrets.require_secret_kind(...)`
+   and an AWS-plugin-owned JSON Schema requiring `data.region` and
+   `metadata.account_id`.
+3. Build a transient Steampipe subprocess environment containing AWS credential
+   variables, scoped to `data.region` (and `metadata.target_regions` when set).
+4. Run the hardcoded v0 query set (VPC + subnet).
+5. Drop credential material after the subprocess boundary. Only redacted
+   diagnostics and non-secret identity may reach run records or logs.
 
 v0 supports the `tap_cares` AWS static credential shape:
 
@@ -205,53 +208,231 @@ cannot be mistaken for plugin state.
 | req-aws-steampipe-secrets-1 | tap-cares Resolver | Implemented | The collector resolves AWS credentials through `tap_cares.secrets.resolve_secret(...)`. | `resolve_aws_static_credentials(...)`. |
 | req-aws-steampipe-secrets-2 | Static Credentials v0 | Implemented | v0 supports `aws_static_access_key` with optional session token and region. | Schema and env mapping implemented in `credentials.py`. |
 | req-aws-steampipe-secrets-3 | Consumer Validation | Implemented | The AWS collector validates kind and required data fields before invoking Steampipe. | Uses `require_secret_kind(...)` with AWS-owned schema. |
-| req-aws-steampipe-secrets-4 | Redacted Failure | Implemented | Missing or invalid secrets fail the run with redacted structured diagnostics. | Missing secrets record `SECRET_INVALID`; Steampipe diagnostics scrub secret values. |
+| req-aws-steampipe-secrets-4 | Redacted Failure | Implemented | Missing or invalid secrets fail the run with redacted structured diagnostics. | An unloaded well-known secret records `SECRET_MISSING_FILE` (run path) / `AWS_SECRET_PRESENT` fail (self-test); loaded-but-invalid records `SECRET_INVALID` / `SECRET_VALID` fail; Steampipe diagnostics scrub secret values. |
 | req-aws-steampipe-secrets-5 | No Secret Persistence | Implemented | Secret values are not written to grid nodes, edges, GRIFT batches, run records, logs, or source-controlled files. | Tests cover env construction, secret repr, and diagnostic redaction. |
 
-## Collector Configuration
+## ENV-Based Collector Config
 ----
 RID: `req-aws-steampipe-config`
-Status: `Implemented`
+Status: `Deprecated`
 
-The AWS collector needs runtime configuration beyond the capability-level
-`Collector` node: account target, secret reference, regions, and collection
-profile. The tap-cares v0 `Collector` model does not yet support per-instance
-configuration, so this spec defines a v0 plugin-owned configuration shape while
-leaving the durable on-grid configuration model as future work.
+**Deprecated.** v0 originally defined a plugin-owned JSON config object
+(`AwsSteampipeCollectorConfig`: `target_key`, `account_id`, `partition`,
+`secret_ref`, `regions`, `profile`) sourced from a Django setting or an
+`AWS_CORE_STEAMPIPE_COLLECTOR` environment JSON. That approach is removed:
 
-The v0 configuration shape is JSON-safe:
+- Plugin-specific configuration in `docker-compose.yml` / core settings is an
+  anti-pattern — it couples the plugin to host infrastructure and implies a
+  config surface that was never designed (see the project anti-pattern note in
+  AGENTS.md / the plugin spec).
+- Every value the config carried already lives in, or is derivable from, the
+  AWS secret itself: credentials + `data.region`, `metadata.account_id`, and an
+  optional `metadata.target_regions`. The config object was redundant.
 
-```json
-{
-  "target_key": "demo",
-  "account_id": "123456789012",
-  "partition": "aws",
-  "secret_ref": {"scope": "aws", "key": "demo-readonly"},
-  "regions": ["us-east-1"],
-  "profile": "vpc-subnet-v0"
-}
-```
+It is replaced by [Secret-Discovered Target](#secret-discovered-target)
+(`req-aws-steampipe-secret-discovery`): the collector resolves a single
+well-known `SecretRef` and reads everything it needs from that secret. There is
+no config object, Django setting, environment variable, or UI in v0. The
+`profile` knob is gone — the v0 collection scope (VPC + subnet) is a hardcoded
+collector capability, not operator-selectable.
 
-Configuration values may come from plugin settings, a local non-secret config
-file, or an explicit test fixture. The configuration source must not contain
-secret values. The collector validates the shape before resolving secrets or
-running Steampipe.
-
-`profile` selects a trusted collection profile implemented by AWS plugin code.
-It is not arbitrary SQL. The v0 profile is `vpc-subnet-v0`.
-
-Future work should introduce on-grid collector instances or target nodes that
-reference `SecretRef`s and collection profiles without storing secret values.
+A future durable configuration object is tracked separately as
+[Collector Configuration](#collector-configuration)
+(`req-aws-steampipe-config-object`, Backlog) — this requirement is not revived.
 
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-aws-steampipe-config-1 | JSON-Safe Shape | Implemented | v0 collector configuration is a JSON-safe object containing target, account, partition, secret ref, regions, and profile. | `AwsSteampipeCollectorConfig`. |
-| req-aws-steampipe-config-2 | Secret Reference Only | Implemented | Configuration stores only shared `tap_cares.secrets.SecretRef` identity, never secret material. | |
-| req-aws-steampipe-config-3 | Explicit Regions | Implemented | v0 requires an explicit region list for collection. | |
-| req-aws-steampipe-config-4 | Trusted Profile | Implemented | `profile` selects a plugin-authored collection profile and does not accept arbitrary SQL. | `vpc-subnet-v0`. |
-| req-aws-steampipe-config-5 | Future On-Grid Config | Backlog | Durable on-grid collector target/instance configuration is deferred. | |
+| req-aws-steampipe-config-1 | JSON-Safe Shape | Deprecated | Superseded by secret-discovery; no config object exists. | |
+| req-aws-steampipe-config-2 | Secret Reference Only | Deprecated | The secret is resolved directly by a well-known ref; nothing stores a separate `SecretRef`. | |
+| req-aws-steampipe-config-3 | Explicit Regions | Deprecated | Region comes from the secret's `data.region`; optional `metadata.target_regions` downscopes. See `req-aws-steampipe-secret-discovery`. | |
+| req-aws-steampipe-config-4 | Trusted Profile | Deprecated | The profile knob is removed; VPC/subnet is a hardcoded capability. | |
+| req-aws-steampipe-config-5 | Superseded By Config Object | Deprecated | Future durable configuration is tracked as its own backlog requirement; `metadata.target_regions` is the interim stopgap that migrates there. | Cross-ref `req-aws-steampipe-config-object`. |
+
+## Secret-Discovered Target
+----
+RID: `req-aws-steampipe-secret-discovery`
+Status: `Proposed`
+
+The AWS collector is **zero-config**: it resolves a single well-known secret
+and reads everything it needs from that secret. No config object, Django
+setting, environment variable, or UI.
+
+### Well-known secret
+
+The collector resolves exactly one `SecretRef`: **`scope="aws",
+key="steampipe-collector"`** — operator file `aws/steampipe-collector.secret.json`
+under `TAP_SECRETS_ROOT` (per `tap_cares/specs/spec-tap-cares-secrets.md`).
+Resolved by point lookup (`resolve_secret`), not enumeration. Other
+`aws_static_access_key` secrets under different keys are ignored — v0 collects
+exactly the one account named by this ref.
+
+### Secret shape
+
+```json
+{
+  "scope": "aws",
+  "key": "steampipe-collector",
+  "kind": "aws_static_access_key",
+  "description": "Read-only AWS credentials for the TAP AWS Steampipe collector.",
+  "data": {
+    "access_key_id": "AKIA...",
+    "secret_access_key": "...",
+    "region": "us-east-1"
+  },
+  "metadata": {
+    "account_id": "123456789012",
+    "target_regions": ["us-east-1", "us-west-2"]
+  }
+}
+```
+
+- `data.access_key_id` / `data.secret_access_key` (+ optional
+  `data.session_token`): the credentials, resolved via
+  `resolve_aws_static_credentials(...)` (existing `aws_static_access_key` shape).
+- `data.region`: **required**. The primary region; the default collection
+  region and the region for the identity check.
+- `metadata.account_id`: **required**. The account the operator intends to
+  collect. The identity check verifies the live credentials resolve to this
+  account; a mismatch is `misconfigured`, not `error`.
+- `metadata.target_regions` (optional list): downscopes collection to those
+  regions. Absent ⇒ collect only `data.region`. This is **a stopgap** — see
+  Future.
+
+### Collection scope
+
+v0 collects **VPC and subnet only**, a hardcoded collector capability (see
+[First Collector Slice](#first-collector-slice-vpc-and-subnet)), not
+operator-selectable. "Hoover everything in the account" is the *direction*, not
+v0 scope; broader families advance through the coverage inventory and
+model/edge specs.
+
+### Future
+
+`metadata.target_regions` is collection configuration riding in a credential
+file only because no durable collector-configuration object exists yet. When
+the configuration object lands ([Collector Configuration](#collector-configuration),
+`req-aws-steampipe-config-object`, Backlog), `target_regions` and any future
+collection-scoping move there and the secret carries only credential + identity
+material again. Recorded so the stopgap does not silently calcify.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-aws-steampipe-secret-discovery-1 | Single Well-Known Ref | Proposed | The collector resolves exactly `SecretRef(scope="aws", key="steampipe-collector")` by point lookup; no config object, setting, env var, or UI. | |
+| req-aws-steampipe-secret-discovery-2 | Secret Is The Target | Proposed | Credentials, `data.region`, and `metadata.account_id` come from the resolved secret; `data.region` and `metadata.account_id` are required. | |
+| req-aws-steampipe-secret-discovery-3 | Optional Region Downscope | Proposed | `metadata.target_regions`, when present, scopes collection; absent ⇒ only `data.region`. | Interim; see Future. |
+| req-aws-steampipe-secret-discovery-4 | Others Ignored | Proposed | Additional `aws_static_access_key` secrets under other keys are not discovered or collected in v0. | |
+| req-aws-steampipe-secret-discovery-5 | No Plugin Config In Core Infra | Proposed | No plugin config in `docker-compose.yml`, core settings, or env. Supersedes `AWS_CORE_STEAMPIPE_COLLECTOR`. | Anti-pattern; cross-ref project memory / AGENTS.md. |
+| req-aws-steampipe-secret-discovery-6 | target_regions Is A Stopgap | Proposed | `metadata.target_regions` is interim until the config object exists; flagged for migration, not permanent. | Cross-ref `req-aws-steampipe-config-object`. |
+
+## Collector Configuration
+----
+RID: `req-aws-steampipe-config-object`
+Status: `Backlog`
+
+A durable collector configuration object — once its shape is defined — is the
+proper home for collection scoping and per-target settings that today have no
+home (and so ride in the secret as a stopgap; see
+[Secret-Discovered Target](#secret-discovered-target) Future).
+
+When defined it should cover at least:
+
+- collection scoping currently stopgapped in the secret's
+  `metadata.target_regions`
+- future per-target / multi-account configuration (the unit of work becomes
+  `(collector, configuration)`, mirroring the tiered/per-config self-test
+  direction in `tap_cares/specs/spec-tap-cares-collector.md`)
+- whether configuration is an on-grid object, a typed record, or another shape
+  — open, decided when this requirement is promoted
+
+This is intentionally a placeholder ticket. It is **not** the removed ENV-based
+config (`req-aws-steampipe-config`, Deprecated) and must not reintroduce plugin
+configuration into `docker-compose.yml` or core settings (anti-pattern).
+Promote from Backlog when a second configured collector or a multi-account need
+makes the shape concrete.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-aws-steampipe-config-object-1 | Shape Defined Before Build | Backlog | The configuration object's shape is specified before implementation; no implicit revival of the ENV-based approach. | |
+| req-aws-steampipe-config-object-2 | Absorbs target_regions | Backlog | `metadata.target_regions` (and any other secret-borne collection scoping) migrates here; the secret returns to credential + identity material only. | Cross-ref `req-aws-steampipe-secret-discovery-6`. |
+| req-aws-steampipe-config-object-3 | Not In Core Infra | Backlog | The config object does not live in `docker-compose.yml`, core settings, or env. | Anti-pattern guard. |
+
+## Collector Self-Test
+----
+RID: `req-aws-steampipe-self-test`
+Status: `Proposed`
+
+The AWS Steampipe collector implements the tap-cares self-test contract
+(`tap_cares/specs/spec-tap-cares-collector.md` `req-tap-cares-collector-self-test`).
+It runs as **phase 1 of a collection run** (`full` or `self_test_only`):
+synchronous, timeout-bounded, accumulated, read-only. It does not collect
+inventory, author or import GRIFT, or mutate the grid. A non-runnable result
+fails the `CollectionJob` via the standard collector failure mode — there is no
+separate readiness entity and no `blocked` status (per the tap-cares contract).
+
+### v0 Checks
+
+Four checks, accumulated in one pass (skips do not escalate; skip-only ⇒
+`ready`):
+
+| Code | Healthy | Failure readiness | Purpose |
+| --- | --- | --- | --- |
+| `AWS_SECRET_PRESENT` | `pass` | `unconfigured` | The well-known `aws/steampipe-collector` secret is loaded by tap-cares. |
+| `SECRET_VALID` | `pass` | `misconfigured` | Kind is `aws_static_access_key`; required credential fields + `data.region` + `metadata.account_id` satisfy the AWS schema. |
+| `STEAMPIPE_AVAILABLE` | `pass` | `error` | The Steampipe executable + AWS plugin are available to the container. |
+| `AWS_IDENTITY` | `pass` | `misconfigured` / `error` | A read-only Steampipe `aws_caller_identity` query succeeds and the returned account equals `metadata.account_id`. |
+
+First-run (no secret) accumulates: `AWS_SECRET_PRESENT` `fail`, `SECRET_VALID`
+`skip`, `STEAMPIPE_AVAILABLE` `pass`/`fail` (independent), `AWS_IDENTITY`
+`skip`. The operator sees the missing secret *and* any local Steampipe problem
+in one report, not one error at a time.
+
+### AWS Identity Check
+
+The identity check uses a **Steampipe** `aws_caller_identity` query (e.g.
+`select account_id, arn from aws_caller_identity`) through the resolved
+credentials — deliberately **not** an AWS SDK: TAP avoids new dependencies and
+Steampipe is already the collection backend. It is read-only, single-row,
+bounded by the self-test latency budget, and is not inventory collection.
+
+Outcomes:
+
+- Query succeeds, returned account == `metadata.account_id` → `pass`.
+- Query succeeds, account != `metadata.account_id` → `misconfigured` (reachable,
+  but the credentials are not the account the operator described).
+- Query fails (bad/expired keys, no permission, unreachable) → `error`.
+
+The result is redaction-safe: it may carry account ID, ARN/principal shape,
+partition, region — never access keys, secret keys, or session tokens.
+
+### Docs References
+
+Non-ready checks carry `CollectorDocRef`s to the AWS setup doc; doc-ref
+*resolution/rendering* is deferred (`req-tap-cares-collector-self-test-5`).
+Anchors target the (rewritten) `plugins/aws_core/docs/setup-steampipe-collector.md`:
+
+- missing secret → `#secret-file`
+- missing Steampipe binary/plugin → `#host-prerequisites`
+- failed identity/permissions → `#aws-permissions`
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-aws-steampipe-self-test-1 | Implements tap-cares Contract | Proposed | Implements `req-tap-cares-collector-self-test` as run phase 1; the result lands in `CollectionJob.self_test`. | |
+| req-aws-steampipe-self-test-2 | Four Accumulated Checks | Proposed | `AWS_SECRET_PRESENT`, `SECRET_VALID`, `STEAMPIPE_AVAILABLE`, `AWS_IDENTITY`, accumulated; dependent checks `skip` when inputs are absent. | |
+| req-aws-steampipe-self-test-3 | Missing Secret Unconfigured | Proposed | If the well-known secret is not loaded, `AWS_SECRET_PRESENT` fails and readiness is `unconfigured`. | Replaces the old config-presence checks. |
+| req-aws-steampipe-self-test-4 | Invalid Secret Misconfigured | Proposed | Wrong kind, missing credential fields, missing `data.region`, or missing `metadata.account_id` ⇒ `SECRET_VALID` fail, `misconfigured`. | |
+| req-aws-steampipe-self-test-5 | Steampipe Dependency Error | Proposed | Steampipe binary/plugin unavailable ⇒ `error`. | |
+| req-aws-steampipe-self-test-6 | Steampipe Identity Mechanism | Proposed | The identity check is a read-only Steampipe `aws_caller_identity` query — no AWS SDK dependency. | D1 decision. |
+| req-aws-steampipe-self-test-7 | Account Match | Proposed | Live account != `metadata.account_id` ⇒ `misconfigured`; query failure ⇒ `error`. | |
+| req-aws-steampipe-self-test-8 | No Inventory Or Mutation | Proposed | Self-test runs no VPC/subnet inventory, writes/imports no GRIFT, mutates no grid state. | |
+| req-aws-steampipe-self-test-9 | Redacted Context | Proposed | Context may carry non-secret account/region/identity metadata, never credential material. | |
 
 ## Steampipe Execution
 ----
@@ -267,15 +448,18 @@ Postgres database to host Steampipe foreign tables.
 The runner must:
 
 - verify the Steampipe executable or configured command is available
-- use a controlled query set for the selected profile
+- use the hardcoded v0 query set (not operator-selectable)
 - request JSON output
 - apply explicit account and region scoping
 - capture structured stdout/stderr, exit status, row counts, and warnings
 - redact credentials and credential-shaped values from diagnostics
+- emit a `DEBUG` log of the steampipe invocation, exit status, per-table row
+  counts, and **redacted** stderr/warnings, so opaque subprocess failures are
+  debuggable from logs without exposing secrets
 - fail visibly when Steampipe is unavailable, exits non-zero, or returns invalid
   JSON
 
-The v0 profile query set is limited to:
+The v0 query set (hardcoded, internally labelled `vpc-subnet-v0`) is limited to:
 
 ```sql
 select * from aws_vpc;
@@ -291,10 +475,11 @@ the target node's `configuration`.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-aws-steampipe-runner-1 | Structured JSON | Implemented | Steampipe execution returns parseable structured JSON rows to the collector. | Runner supports array and `{"rows": [...]}` output. |
-| req-aws-steampipe-runner-2 | Trusted Queries | Implemented | Queries are owned by plugin code and selected by profile, not supplied by grid data. | |
+| req-aws-steampipe-runner-2 | Trusted Queries | Implemented | Queries are a hardcoded set owned by plugin code — not operator-selected and not supplied by grid data. | Profile-selection concept removed. |
 | req-aws-steampipe-runner-3 | Availability Failure | Implemented | Missing Steampipe binary/configuration fails the run visibly. | |
-| req-aws-steampipe-runner-4 | Scoped Regions | In Development | The runner applies the configured region list rather than silently scanning every region. | Current shell sets primary region env; Steampipe multi-region config still pending. |
+| req-aws-steampipe-runner-4 | Scoped Regions | In Development | The runner scopes to the secret's `data.region`, widened to `metadata.target_regions` when set, rather than silently scanning every region. | Shell sets primary region env; multi-region scoping pending. |
 | req-aws-steampipe-runner-5 | Redacted Diagnostics | Implemented | Command diagnostics are captured without leaking credential material. | Marker and secret-value redaction implemented. |
+| req-aws-steampipe-runner-6 | Debug Logging | Proposed | The steampipe invocation, exit status, per-table row counts, and redacted stderr/warnings are emitted at `DEBUG`. The structured redacted run record remains the primary carrier. | `DEBUG` is site-ID-exempt per CLAUDE.md logging conventions. |
 
 ## Provider Identity Resolution
 ----
@@ -345,8 +530,10 @@ grid identity rules are explicitly changed by spec.
 RID: `req-aws-steampipe-vpc-subnet`
 Status: `In Development`
 
-The first AWS Steampipe collector profile is `vpc-subnet-v0`. It collects VPCs
-and subnets from one configured demo account and explicit region list.
+The v0 collector scope, internally labelled `vpc-subnet-v0`, is **hardcoded**
+(not operator-selectable). It collects VPCs and subnets from the one
+secret-named account, scoped to `data.region` (widened to
+`metadata.target_regions` when set).
 
 ### Steampipe Tables
 
@@ -398,34 +585,47 @@ default rather than bypassing the service layer.
 
 ### Edges
 
-The first profile should create these relationships when both endpoints are
-known:
+The v0 scope should create these relationships when both endpoints are
+known. Edge slugs follow the verbose, sentence-forming aws_core convention
+(slug + Title-case name + a semantic `description` sentence), not generic
+single words:
 
-| Edge | From | To | Notes |
+| Edge | From | To | Reads as / Notes |
 | --- | --- | --- | --- |
-| `CONTAINS` | `aws_region` | `aws_vpc` | Region reference nodes already ship in AWS Core GRIFT seed data |
-| `CONTAINS` | `aws_vpc` | `aws_subnet` | VPC contains subnet |
-| `RESIDES_IN` | `aws_subnet` | `aws_region` | Subnet lives in region |
-| `RESIDES_IN` | `aws_subnet` | `aws_vpc` | Subnet lives in VPC |
-| `RESIDES_IN` | `aws_subnet` | `aws_az` | Created when the AZ reference node can be resolved |
+| `HOSTS_VPC` | `aws_region` | `aws_vpc` | "An AWS region hosts a VPC." Region reference nodes already ship in AWS Core GRIFT seed data |
+| `PARTITIONED_INTO_SUBNET` | `aws_vpc` | `aws_subnet` | "A VPC is partitioned into subnets." |
+| `BELONGS_TO_VPC` | `aws_subnet` | `aws_vpc` | "A subnet belongs to a VPC." |
+| `BOUND_TO_AZ` | `aws_subnet` | `aws_az` | "A subnet is bound to one availability zone." Created when the AZ reference node can be resolved |
 | `BELONGS_TO_ACCOUNT` | `aws_vpc` | `aws_account` | Created when the account node exists or is collected in the same batch |
 | `BELONGS_TO_ACCOUNT` | `aws_subnet` | `aws_account` | Created when the account node exists or is collected in the same batch |
 
+`subnet → region` is intentionally not a direct edge — it is reachable by
+traversing `aws_subnet --BELONGS_TO_VPC--> aws_vpc --HOSTS_VPC(inv)--> aws_region`,
+so a redundant edge is omitted.
+
+`HOSTS_VPC`, `PARTITIONED_INTO_SUBNET`, `BELONGS_TO_VPC`, and `BOUND_TO_AZ` are
+**new** verbose edge types this collector introduces; their `.edge.json`
+definitions + registration land with the #6 code rework. The separate retirement
+of the legacy generic `CONTAINS` / `RESIDES_IN` slugs across the rest of
+aws_core (seed data, projection spec, etc.) is deferred, tracked outside this
+spec — the collector does not use those slugs.
+
 The first implementation may create a minimal `AwsAccount` node for the
-configured account if one does not already exist, but it should not collect broad
-account metadata beyond what the v0 profile needs for relationship anchoring.
+secret-named account if one does not already exist, but it should not collect
+broad account metadata beyond what the v0 scope needs for relationship
+anchoring.
 
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-aws-steampipe-vpc-subnet-1 | Profile Exists | Implemented | The trusted profile `vpc-subnet-v0` exists in AWS plugin code. | |
-| req-aws-steampipe-vpc-subnet-2 | VPC Query | In Development | The profile collects rows from `aws_vpc`. | Query shell exists; live Steampipe execution not yet verified. |
-| req-aws-steampipe-vpc-subnet-3 | Subnet Query | In Development | The profile collects rows from `aws_vpc_subnet`. | Query shell exists; live Steampipe execution not yet verified. |
+| req-aws-steampipe-vpc-subnet-1 | v0 Query Set Exists | Implemented | The hardcoded `vpc-subnet-v0` query set exists in AWS plugin code; it is not operator-selectable. | Profile-selection concept removed. |
+| req-aws-steampipe-vpc-subnet-2 | VPC Query | In Development | The v0 query set collects rows from `aws_vpc`. | Query shell exists; live Steampipe execution not yet verified. |
+| req-aws-steampipe-vpc-subnet-3 | Subnet Query | In Development | The v0 query set collects rows from `aws_vpc_subnet`. | Query shell exists; live Steampipe execution not yet verified. |
 | req-aws-steampipe-vpc-subnet-4 | Node Normalization | Proposed | VPC and subnet rows normalize into existing `Vpc` and `Subnet` models. | |
 | req-aws-steampipe-vpc-subnet-5 | Raw Row Preserved | Proposed | The received Steampipe row is stored in each node's `configuration`. | |
 | req-aws-steampipe-vpc-subnet-6 | Relationship Edges | Proposed | The collector creates supported account, region, VPC, subnet, and AZ edges when endpoints can be resolved. | |
-| req-aws-steampipe-vpc-subnet-7 | Demo Account Scope | Proposed | v0 targets one configured demo account and explicit regions. | |
+| req-aws-steampipe-vpc-subnet-7 | Single-Account Scope | Proposed | v0 targets the one secret-named account, scoped to `data.region` (widened by optional `metadata.target_regions`). | |
 
 ## GRIFT Batch Contract
 ----
@@ -436,22 +636,22 @@ The collector must produce an inspectable GRIFT document before mutating the
 grid. GRIFT batches are the only mutation shape for collected AWS resource
 nodes and edges.
 
-The collector should create one logical GRIFT batch per collector run/profile
-execution. The batch metadata should identify:
+The collector creates one logical GRIFT batch per collector run. Per
+`req-tap-cares-collector-grift-import-8` the collector sets a meaningful
+collector-authored `name` and `description` on the batch envelope. The batch
+metadata should identify:
 
 - collector registry key
-- collection profile
-- target key
-- account ID
-- partition
-- region list
+- account ID (from the secret's `metadata.account_id`)
+- region(s) collected
 - Steampipe plugin/source version when available
 - collection start and finish timestamps
 
 Batch nodes and edges must use canonical AWS Core entity types and edge types.
-The collector may use `CollectorBase.submit_grift(...)` or the current
-tap-cares-approved helper so the task body can accumulate imported/skipped batch
-IDs on `CollectionJob.grift_batches`.
+The collector uses `CollectorBase.submit_grift(...)`; the task body links each
+produced `Batch` to the `CollectionJob` via a `PRODUCED_BATCH` edge at terminal
+state (`tap_grid/specs/spec-grid-edge.md` `req-grid-edge-produced-batch`). There
+is no `CollectionJob.grift_batches`.
 
 No collector code may directly create, patch, replace, or delete AWS resource
 nodes or graph edges through the ORM.
@@ -462,8 +662,8 @@ nodes or graph edges through the ORM.
 | --- | --- | :---: | --- | --- |
 | req-aws-steampipe-grift-1 | Draft GRIFT | Proposed | The collector authors a GRIFT document before grid mutation. | |
 | req-aws-steampipe-grift-2 | Service Import | Proposed | Grid mutation executes through the standard GRIFT import/service-layer path. | |
-| req-aws-steampipe-grift-3 | Batch Metadata | Proposed | GRIFT batch metadata records collector, target, account, region, profile, and source context. | |
-| req-aws-steampipe-grift-4 | Batch Tracking | Proposed | Imported and skipped GRIFT batch IDs are accumulated on the collector and persisted to `CollectionJob.grift_batches`. | |
+| req-aws-steampipe-grift-3 | Batch Metadata | Proposed | The collector sets a meaningful `name`/`description` on the batch; metadata records collector key, account, region(s), and source context (no target/profile — those concepts are removed). | Cross-ref `req-tap-cares-collector-grift-import-8`. |
+| req-aws-steampipe-grift-4 | Batch Tracking | Proposed | Produced batches are linked to the `CollectionJob` via `PRODUCED_BATCH` edges (disposition `imported`/`skipped`); there is no `CollectionJob.grift_batches`. | Cross-ref `req-tap-cares-collector-grift-import-6`, `req-grid-edge-produced-batch`. |
 | req-aws-steampipe-grift-5 | No ORM Writes | Proposed | Collector code does not directly write AWS resource nodes or edges through the ORM. | |
 
 ## Run Observability
@@ -478,33 +678,32 @@ The collector should populate `CollectionJob.summary` with a concise result,
 for example:
 
 ```text
-Collected AWS demo vpc-subnet-v0: 3 VPCs, 12 subnets, 18 edges, 1 GRIFT batch.
+Collected AWS vpc-subnet-v0 (acct 123456789012): 3 VPCs, 12 subnets, 18 edges, 1 GRIFT batch.
 ```
 
 `CollectionJob.results` should be JSON-safe and redacted. Suggested shape:
 
 ```json
 {
-  "target_key": "demo",
   "account_id": "123456789012",
-  "partition": "aws",
   "regions": ["us-east-1"],
-  "profile": "vpc-subnet-v0",
+  "scope": "vpc-subnet-v0",
   "tables": {
     "aws_vpc": {"rows": 3},
     "aws_vpc_subnet": {"rows": 12}
   },
   "normalized": {
     "nodes": {"aws_vpc": 3, "aws_subnet": 12},
-    "edges": {"CONTAINS": 13, "RESIDES_IN": 24, "BELONGS_TO_ACCOUNT": 15}
+    "edges": {"HOSTS_VPC": 3, "PARTITIONED_INTO_SUBNET": 12, "BELONGS_TO_VPC": 12, "BOUND_TO_AZ": 12, "BELONGS_TO_ACCOUNT": 15}
   },
   "warnings": []
 }
 ```
 
-Errors should include enough context to debug missing Steampipe, invalid config,
-invalid credentials, denied AWS APIs, invalid JSON, and GRIFT import failures.
-Credential values and credential-shaped diagnostics must be redacted.
+Errors should include enough context to debug missing Steampipe, a missing or
+invalid well-known secret, invalid credentials, denied AWS APIs, invalid JSON,
+and GRIFT import failures. Credential values and credential-shaped diagnostics
+must be redacted.
 
 ### Acceptance Criteria
 
@@ -512,8 +711,8 @@ Credential values and credential-shaped diagnostics must be redacted.
 | --- | --- | :---: | --- | --- |
 | req-aws-steampipe-observability-1 | Summary | In Development | Successful runs produce a concise human-readable `CollectionJob.summary`. | Shell summary reports row counts; GRIFT counts pending. |
 | req-aws-steampipe-observability-2 | Structured Results | In Development | Runs populate JSON-safe table, node, edge, region, and warning counts. | Table counts implemented; node/edge counts pending normalization. |
-| req-aws-steampipe-observability-3 | Redacted Errors | Implemented | Failure diagnostics are structured and redacted. | Config, profile, secret, and Steampipe failures record safe context. |
-| req-aws-steampipe-observability-4 | Source Context | Implemented | Results include target key, account ID, partition, regions, and profile. | |
+| req-aws-steampipe-observability-3 | Redacted Errors | Implemented | Failure diagnostics are structured and redacted. | Secret, identity, and Steampipe failures record safe context. |
+| req-aws-steampipe-observability-4 | Source Context | In Development | Results include account ID, region(s), and the v0 scope label. | Pivot drops `target_key`/`partition`/`profile`; field-set change lands with the code rework. |
 | req-aws-steampipe-observability-5 | No Secret Values | Implemented | Results and summaries never include AWS access keys, secret keys, or session tokens. | Secret values are passed only through subprocess env. |
 
 ## v0 Non-Goals
@@ -524,7 +723,7 @@ Status: `Proposed`
 The v0 AWS Steampipe collector explicitly does not define:
 
 - deletes, reaping, tombstones, or absence semantics
-- broad AWS account inventory beyond the `vpc-subnet-v0` profile
+- broad AWS account inventory beyond the hardcoded v0 VPC/subnet scope
 - dynamic model generation from Steampipe metadata
 - arbitrary SQL execution supplied by users, grid state, or configuration
 - assume-role, external ID, AWS SSO, AWS Organizations account fanout, or
@@ -546,5 +745,5 @@ collector-specific side channel.
 | req-aws-steampipe-nongoals-1 | No Deletes | Proposed | v0 creates/updates and reports coverage; it does not delete or reap absent resources. | |
 | req-aws-steampipe-nongoals-2 | No Dynamic Schema | Proposed | v0 does not create TAP models from Steampipe metadata at runtime. | |
 | req-aws-steampipe-nongoals-3 | No Arbitrary SQL | Proposed | v0 does not execute user-supplied or grid-supplied SQL. | |
-| req-aws-steampipe-nongoals-4 | No Cross-Account Fanout | Proposed | v0 targets one configured account, not AWS Organizations inventory. | |
+| req-aws-steampipe-nongoals-4 | No Cross-Account Fanout | Proposed | v0 targets the one secret-named account, not AWS Organizations inventory. | |
 | req-aws-steampipe-nongoals-5 | No AWS Actions | Proposed | v0 is read-only against AWS and does not perform remediation or side-effecting cloud actions. | |
