@@ -113,6 +113,12 @@ land the recovery.
 
 ## 7. Corrective / Preventive Actions
 
+- [ ] **Open every session with an explicit stated goal.** If firing up an
+      LLM is worth doing, the reason is worth stating out loud so human and
+      agent share one definition of done before any tokens are spent. No
+      crisp goal ⇒ don't run the session. The cheapest front-end to root
+      causes #1/#2. (Mirrored: `AGENTS.md` Collaboration Norms +
+      `feedback-state-session-goal` memory.)
 - [ ] **Define-done before any autonomous run.** No agent starts a
       critical-path task without a written, checkable acceptance criterion.
       Resolves to the strategy doc once it exists.
@@ -124,7 +130,12 @@ land the recovery.
 - [ ] **R&D only on a throwaway branch.** "See what it can do" never runs
       on a delivery branch.
 - [ ] **Pre-merge anti-pattern gate** so detection is a check, not luck
-      (compose-config, undeclared deps, spec contradictions, syntax).
+      (compose-config, undeclared deps, spec contradictions, syntax). The
+      run_detail Py2-`except` evaded the test suite **and recurred during
+      this very incident's close-out** — proof the gate must include a
+      mandatory **full-tree compile** (`compileall`, every tracked `.py`,
+      not just changed files) run **pre-commit**, since "nothing imports
+      it" means targeted tests never catch it.
 - [ ] **Recovery discipline.** When untangling, triage to the critical
       path and *park the rest as backlog before building it*; enforce the
       future-seam rule.

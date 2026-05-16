@@ -81,6 +81,7 @@ The current tap-cares spec lives at:
 
 ## Collaboration Norms
 
+- Open every session with an explicit stated goal / definition-of-done (the user states it, or the agent asks for it and reflects it back). It resolves to the strategy doc's critical path when one exists. Restate it on mid-session scope changes. An agent working without a clear stated goal should stop and ask for one. (AAR root causes #1/#2 — `aar/2026-05-16-aws-collector-sprint-sprawl.md`.)
 - If the user says they are framing, spitballing, or discussing, do not start implementing.
 - Ask clarifying questions when the architectural choice is genuinely open. Prefer batches of five questions, ordered with the most important questions first.
 - Keep edits scoped to the requested app/spec/feature.
