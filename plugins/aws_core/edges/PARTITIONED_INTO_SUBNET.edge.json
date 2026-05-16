@@ -1,0 +1,14 @@
+{
+  "slug": "PARTITIONED_INTO_SUBNET",
+  "name": "Partitioned Into Subnet",
+  "description": "A VPC is partitioned into subnets.",
+  "sources": [
+    "aws_vpc"
+  ],
+  "targets": [
+    "aws_subnet"
+  ],
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

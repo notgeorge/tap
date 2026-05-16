@@ -1,0 +1,14 @@
+{
+  "slug": "HOSTS_VPC",
+  "name": "Hosts VPC",
+  "description": "An AWS region hosts a VPC.",
+  "sources": [
+    "aws_region"
+  ],
+  "targets": [
+    "aws_vpc"
+  ],
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

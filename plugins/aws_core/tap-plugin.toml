@@ -59,6 +59,10 @@ STORES_DATA_IN = "edges/STORES_DATA_IN.edge.json"
 DEPENDS_ON = "edges/DEPENDS_ON.edge.json"
 PULLS_IMAGE_FROM = "edges/PULLS_IMAGE_FROM.edge.json"
 BACKED_BY = "edges/BACKED_BY.edge.json"
+HOSTS_VPC = "edges/HOSTS_VPC.edge.json"
+PARTITIONED_INTO_SUBNET = "edges/PARTITIONED_INTO_SUBNET.edge.json"
+BELONGS_TO_VPC = "edges/BELONGS_TO_VPC.edge.json"
+BOUND_TO_AZ = "edges/BOUND_TO_AZ.edge.json"
 
 [grift]
 dimension = "grift/dimension.grift.json"

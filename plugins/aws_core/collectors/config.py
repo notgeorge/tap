@@ -1,4 +1,12 @@
-"""Configuration helpers for the AWS Steampipe collector."""
+"""Secret-discovered collection target for the AWS Steampipe collector.
+
+The collector is zero-config (spec-aws-steampipe-collector-v0.md
+`req-aws-steampipe-secret-discovery`). It resolves a single well-known
+`SecretRef` and reads everything it needs — credentials, region, account —
+from that secret. There is no config object, Django setting, environment
+variable, or UI. The deprecated env/Django-setting config object
+(`req-aws-steampipe-config`, "ENV-Based Collector Config") is removed.
+"""
 
 from __future__ import annotations
 
@@ -6,122 +14,125 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from django.conf import settings
+from plugins.aws_core.collectors.credentials import (
+    AwsStaticCredentials,
+    resolve_aws_static_credentials,
+)
+from tap_cares.secrets import SecretRef, resolve_secret
 
-from tap_cares.secrets import SecretRef
+# The single well-known secret this collector resolves (point lookup, never
+# enumeration). Operator file: ``aws/steampipe-collector.secret.json`` under
+# ``TAP_SECRETS_ROOT``.
+AWS_STEAMPIPE_SECRET_REF = SecretRef(scope="aws", key="steampipe-collector")
 
-AWS_STEAMPIPE_COLLECTOR_SETTING = "AWS_CORE_STEAMPIPE_COLLECTOR"
+# Hardcoded v0 collection scope label (not operator-selectable; the old
+# operator-facing "profile" knob is removed).
+AWS_COLLECTION_SCOPE = "vpc-subnet-v0"
 
-_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
 _ACCOUNT_ID_RE = re.compile(r"^\d{12}$")
-_PARTITIONS = {"aws", "aws-us-gov", "aws-cn"}
+_REGION_RE = re.compile(r"^[a-z]{2}(?:-gov)?-[a-z]+-\d+$")
 
 
 class AwsSteampipeConfigError(ValueError):
-    """Raised when AWS Steampipe collector configuration is invalid."""
+    """Raised when the resolved AWS secret cannot describe a usable target.
+
+    This is consumer validation layered on top of the generic
+    ``aws_static_access_key`` secret schema: the collector additionally
+    requires ``data.region`` and ``metadata.account_id`` and accepts an
+    optional ``metadata.target_regions`` downscope list.
+    """
 
 
 @dataclass(frozen=True, slots=True)
-class AwsSteampipeCollectorConfig:
-    """JSON-safe v0 target configuration for the AWS Steampipe collector."""
+class AwsCollectionTarget:
+    """The collection target, fully derived from the well-known secret."""
 
-    target_key: str
     account_id: str
-    partition: str
-    secret_ref: SecretRef
+    primary_region: str
     regions: tuple[str, ...]
-    profile: str
-
-    @classmethod
-    def from_mapping(cls, value: Any) -> AwsSteampipeCollectorConfig:
-        if not isinstance(value, dict):
-            raise AwsSteampipeConfigError("AWS Steampipe collector config must be an object.")
-
-        target_key = value.get("target_key")
-        if not _valid_token(target_key):
-            raise AwsSteampipeConfigError("target_key must be a non-empty registry token.")
-
-        account_id = value.get("account_id")
-        if not isinstance(account_id, str) or not _ACCOUNT_ID_RE.fullmatch(account_id):
-            raise AwsSteampipeConfigError("account_id must be a 12 digit AWS account ID string.")
-
-        partition = value.get("partition", "aws")
-        if partition not in _PARTITIONS:
-            allowed = ", ".join(sorted(_PARTITIONS))
-            raise AwsSteampipeConfigError(f"partition must be one of: {allowed}.")
-
-        regions = _parse_regions(value.get("regions"))
-
-        profile = value.get("profile")
-        if not _valid_token(profile):
-            raise AwsSteampipeConfigError("profile must be a non-empty registry token.")
-
-        return cls(
-            target_key=target_key,
-            account_id=account_id,
-            partition=partition,
-            secret_ref=_parse_secret_ref(value.get("secret_ref")),
-            regions=regions,
-            profile=profile,
-        )
+    credentials: AwsStaticCredentials
 
     def to_context(self) -> dict[str, Any]:
-        """Return a redaction-safe context payload for run records."""
+        """Return a redaction-safe context payload for run records.
+
+        Never includes credential material — that lives only on
+        ``credentials`` and is scrubbed from diagnostics via
+        ``credentials.redaction_values()``.
+        """
         return {
-            "target_key": self.target_key,
             "account_id": self.account_id,
-            "partition": self.partition,
-            "secret_ref": _secret_ref_context(self.secret_ref),
+            "primary_region": self.primary_region,
             "regions": list(self.regions),
-            "profile": self.profile,
+            "scope": AWS_COLLECTION_SCOPE,
+            "secret_ref": AWS_STEAMPIPE_SECRET_REF.qualified,
         }
 
 
-def load_aws_steampipe_collector_config(
-    settings_obj: Any = settings,
-) -> AwsSteampipeCollectorConfig:
-    """Load the v0 AWS Steampipe collector config from Django settings."""
+def resolve_aws_collection_target() -> AwsCollectionTarget:
+    """Resolve the well-known secret into a collection target.
 
-    if not hasattr(settings_obj, AWS_STEAMPIPE_COLLECTOR_SETTING):
+    Raises:
+        tap_cares.exceptions.SecretNotFoundError: the well-known secret file
+            was not loaded (no matching ``*.secret.json`` mounted at startup).
+        tap_cares.exceptions.SecretError: the secret exists but is the wrong
+            kind or fails the AWS credential data schema.
+        AwsSteampipeConfigError: the secret is a valid credential but does
+            not carry the collector-required ``data.region`` /
+            ``metadata.account_id`` (or ``metadata.target_regions`` is
+            malformed).
+    """
+    # resolve_secret raises SecretNotFoundError when absent; resolve_aws_static
+    # _credentials additionally validates kind + data schema (SecretError).
+    secret = resolve_secret(AWS_STEAMPIPE_SECRET_REF)
+    credentials = resolve_aws_static_credentials(AWS_STEAMPIPE_SECRET_REF)
+
+    primary_region = credentials.region
+    if not primary_region:
         raise AwsSteampipeConfigError(
-            f"Missing Django setting {AWS_STEAMPIPE_COLLECTOR_SETTING}."
+            "The AWS collector secret must set data.region (the primary "
+            "collection region); it is missing or not a valid AWS region."
         )
-    return AwsSteampipeCollectorConfig.from_mapping(
-        getattr(settings_obj, AWS_STEAMPIPE_COLLECTOR_SETTING)
+
+    account_id = str(secret.metadata.get("account_id") or "")
+    if not _ACCOUNT_ID_RE.fullmatch(account_id):
+        raise AwsSteampipeConfigError(
+            "The AWS collector secret must set metadata.account_id to the "
+            "12-digit AWS account ID the operator intends to collect."
+        )
+
+    regions = _parse_target_regions(
+        secret.metadata.get("target_regions"), primary_region
+    )
+
+    return AwsCollectionTarget(
+        account_id=account_id,
+        primary_region=primary_region,
+        regions=regions,
+        credentials=credentials,
     )
 
 
-def _parse_regions(value: Any) -> tuple[str, ...]:
+def _parse_target_regions(value: Any, primary_region: str) -> tuple[str, ...]:
+    """Parse the optional ``metadata.target_regions`` downscope list.
+
+    Absent ⇒ collect only the primary region. This is an interim stopgap
+    until a durable collector-configuration object exists
+    (`req-aws-steampipe-config-object`, Backlog).
+    """
+    if value is None:
+        return (primary_region,)
     if not isinstance(value, list) or not value:
-        raise AwsSteampipeConfigError("regions must be a non-empty list of region names.")
+        raise AwsSteampipeConfigError(
+            "metadata.target_regions, when present, must be a non-empty list "
+            "of AWS region names."
+        )
     regions: list[str] = []
     for region in value:
-        if not _valid_region(region):
-            raise AwsSteampipeConfigError("regions must contain only non-empty AWS region strings.")
+        if not isinstance(region, str) or not _REGION_RE.fullmatch(region):
+            raise AwsSteampipeConfigError(
+                "metadata.target_regions must contain only valid AWS region "
+                f"names; got {region!r}."
+            )
         if region not in regions:
             regions.append(region)
     return tuple(regions)
-
-
-def _parse_secret_ref(value: Any) -> SecretRef:
-    if not isinstance(value, dict):
-        raise AwsSteampipeConfigError("secret_ref must be an object with scope and key.")
-    scope = value.get("scope")
-    key = value.get("key")
-    if not _valid_token(scope):
-        raise AwsSteampipeConfigError("secret_ref.scope must be a non-empty registry token.")
-    if not _valid_token(key):
-        raise AwsSteampipeConfigError("secret_ref.key must be a non-empty registry token.")
-    return SecretRef(scope=scope, key=key)
-
-
-def _secret_ref_context(secret_ref: SecretRef) -> dict[str, str]:
-    return {"scope": secret_ref.scope, "key": secret_ref.key}
-
-
-def _valid_token(value: Any) -> bool:
-    return isinstance(value, str) and bool(_TOKEN_RE.fullmatch(value))
-
-
-def _valid_region(value: Any) -> bool:
-    return isinstance(value, str) and bool(re.fullmatch(r"^[a-z]{2}(?:-gov)?-[a-z]+-\d+$", value))

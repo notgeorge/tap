@@ -1,0 +1,14 @@
+{
+  "slug": "BELONGS_TO_VPC",
+  "name": "Belongs To VPC",
+  "description": "A subnet belongs to a VPC.",
+  "sources": [
+    "aws_subnet"
+  ],
+  "targets": [
+    "aws_vpc"
+  ],
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

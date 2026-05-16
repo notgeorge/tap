@@ -8,7 +8,6 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Any
 
-from plugins.aws_core.collectors.config import AwsSteampipeCollectorConfig
 from plugins.aws_core.collectors.profiles import CollectionProfile, SteampipeQuery
 
 
@@ -58,20 +57,20 @@ class SteampipeRunner:
         self.timeout_seconds = timeout_seconds
         self.extra_env = dict(extra_env or {})
 
-    def run_profile(
+    def run_query_set(
         self,
-        profile: CollectionProfile,
-        config: AwsSteampipeCollectorConfig,
+        query_set: CollectionProfile,
         *,
+        region: str,
         env: dict[str, str] | None = None,
         redaction_values: tuple[str, ...] = (),
     ) -> SteampipeProfileResult:
         rows_by_table: dict[str, list[dict[str, Any]]] = {}
         warnings: list[str] = []
-        for query in profile.queries:
+        for query in query_set.queries:
             result = self.run_query(
                 query,
-                config=config,
+                region=region,
                 env=env,
                 redaction_values=redaction_values,
             )
@@ -84,12 +83,12 @@ class SteampipeRunner:
         self,
         query: SteampipeQuery,
         *,
-        config: AwsSteampipeCollectorConfig,
+        region: str,
         env: dict[str, str] | None = None,
         redaction_values: tuple[str, ...] = (),
     ) -> SteampipeQueryResult:
         command = [self.binary, "query", query.sql, "--output", "json"]
-        run_env = self._build_env(config, env)
+        run_env = self._build_env(region, env)
 
         try:
             completed = subprocess.run(
@@ -129,16 +128,17 @@ class SteampipeRunner:
 
     def _build_env(
         self,
-        config: AwsSteampipeCollectorConfig,
+        region: str,
         env: dict[str, str] | None,
     ) -> dict[str, str]:
         run_env = os.environ.copy()
         run_env.update(self.extra_env)
         if env:
             run_env.update(env)
-        # Keep regional scope explicit even before the secret resolver lands.
-        run_env["AWS_REGION"] = config.regions[0]
-        run_env["AWS_DEFAULT_REGION"] = config.regions[0]
+        # Keep regional scope explicit regardless of what the caller's env map
+        # carried.
+        run_env["AWS_REGION"] = region
+        run_env["AWS_DEFAULT_REGION"] = region
         return run_env
 
 

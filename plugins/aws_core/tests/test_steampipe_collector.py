@@ -1,4 +1,4 @@
-"""Tests for the AWS Steampipe collector shell."""
+"""Tests for the zero-config secret-discovered AWS Steampipe collector."""
 
 from __future__ import annotations
 
@@ -9,72 +9,71 @@ from uuid import uuid4
 import pytest
 
 from plugins.aws_core.collectors.config import (
-    AwsSteampipeCollectorConfig,
+    AWS_COLLECTION_SCOPE,
+    AWS_STEAMPIPE_SECRET_REF,
     AwsSteampipeConfigError,
+    resolve_aws_collection_target,
 )
 from plugins.aws_core.collectors.credentials import resolve_aws_static_credentials
 from plugins.aws_core.collectors.profiles import (
-    AwsSteampipeProfileError,
-    get_profile,
-    list_profiles,
+    AWS_CALLER_IDENTITY_QUERY,
+    VPC_SUBNET_V0,
 )
 from plugins.aws_core.collectors.steampipe_inventory import AwsSteampipeInventoryCollector
 from plugins.aws_core.collectors.steampipe_runner import (
     SteampipeExecutionError,
     SteampipeProfileResult,
+    SteampipeQueryResult,
     SteampipeRunner,
     SteampipeUnavailableError,
     _parse_rows,
     redact_credential_values,
 )
 from tap_cares.collectors import CollectorConfig
+from tap_cares.exceptions import SecretError, SecretNotFoundError
 from tap_cares.registry import collector_registry, get_collector
-from tap_cares.secrets import Secret, SecretRef, secret_registry
+from tap_cares.secrets import Secret, secret_registry
 
-
-def _config_payload(**overrides):
-    payload = {
-        "target_key": "demo",
-        "account_id": "123456789012",
-        "partition": "aws",
-        "secret_ref": {"scope": "aws", "key": "demo-readonly"},
-        "regions": ["us-east-1"],
-        "profile": "vpc-subnet-v0",
-    }
-    payload.update(overrides)
-    return payload
+_WELL_KNOWN = AWS_STEAMPIPE_SECRET_REF  # SecretRef("aws", "steampipe-collector")
 
 
 def _collector_config() -> CollectorConfig:
     return CollectorConfig(collector_entity_id=uuid4(), collection_job_entity_id=uuid4())
 
 
-def _register_aws_secret(
+def _register_target_secret(
     *,
-    access_key_id: str = "AKIAFAKE",
-    secret_access_key: str = "secret-fake",
+    account_id: str | None = "123456789012",
+    region: str | None = "us-east-1",
+    target_regions: list[str] | None = None,
     session_token: str = "",
-    region: str = "us-east-1",
     kind: str = "aws_static_access_key",
 ) -> None:
-    data = {
-        "access_key_id": access_key_id,
-        "secret_access_key": secret_access_key,
-        "region": region,
+    """Register the well-known AWS collector secret in the test registry."""
+    data: dict[str, object] = {
+        "access_key_id": "AKIAFAKE",
+        "secret_access_key": "secret-fake",
     }
+    if region is not None:
+        data["region"] = region
     if session_token:
         data["session_token"] = session_token
+    metadata: dict[str, object] = {}
+    if account_id is not None:
+        metadata["account_id"] = account_id
+    if target_regions is not None:
+        metadata["target_regions"] = target_regions
     secret_registry.register(
-        "demo-readonly",
+        _WELL_KNOWN.key,
         Secret(
-            ref=SecretRef("aws", "demo-readonly"),
+            ref=_WELL_KNOWN,
             kind=kind,
             description="Test AWS collector secret.",
             data=data,
-            metadata={},
-            source_path=Path("/tmp/demo-readonly.secret.json"),
+            metadata=metadata,
+            source_path=Path("/tmp/steampipe-collector.secret.json"),
         ),
-        scope="aws",
+        scope=_WELL_KNOWN.scope,
     )
 
 
@@ -86,73 +85,97 @@ def isolate_aws_collector_secret_registry():
     secret_registry._reset_for_testing(saved)
 
 
-class TestAwsSteampipeCollectorConfig:
-    def test_valid_config(self):
-        cfg = AwsSteampipeCollectorConfig.from_mapping(_config_payload())
-        assert cfg.target_key == "demo"
-        assert cfg.account_id == "123456789012"
-        assert cfg.partition == "aws"
-        assert cfg.secret_ref == SecretRef(scope="aws", key="demo-readonly")
-        assert cfg.regions == ("us-east-1",)
-        assert cfg.profile == "vpc-subnet-v0"
+class TestSecretDiscoveredTarget:
+    def test_resolves_target_from_well_known_secret(self):
+        _register_target_secret(account_id="123456789012", region="us-east-1")
 
-    def test_context_is_json_safe_and_non_secret(self):
-        cfg = AwsSteampipeCollectorConfig.from_mapping(_config_payload())
-        assert cfg.to_context() == {
-            "target_key": "demo",
+        target = resolve_aws_collection_target()
+
+        assert target.account_id == "123456789012"
+        assert target.primary_region == "us-east-1"
+        assert target.regions == ("us-east-1",)
+        assert target.credentials.access_key_id == "AKIAFAKE"
+
+    def test_to_context_is_json_safe_and_non_secret(self):
+        _register_target_secret(account_id="123456789012", region="us-east-1")
+
+        context = resolve_aws_collection_target().to_context()
+
+        assert context == {
             "account_id": "123456789012",
-            "partition": "aws",
-            "secret_ref": {"scope": "aws", "key": "demo-readonly"},
+            "primary_region": "us-east-1",
             "regions": ["us-east-1"],
-            "profile": "vpc-subnet-v0",
+            "scope": AWS_COLLECTION_SCOPE,
+            "secret_ref": _WELL_KNOWN.qualified,
         }
+        assert "AKIAFAKE" not in str(context)
+        assert "secret-fake" not in str(context)
 
-    @pytest.mark.parametrize(
-        "overrides, message",
-        [
-            ({"target_key": "bad key"}, "target_key"),
-            ({"account_id": "123"}, "account_id"),
-            ({"partition": "aws-mars"}, "partition"),
-            ({"secret_ref": {"scope": "aws"}}, "secret_ref.key"),
-            ({"regions": []}, "regions"),
-            ({"regions": ["not-a-region"]}, "regions"),
-            ({"profile": "bad profile"}, "profile"),
-        ],
-    )
-    def test_invalid_config(self, overrides, message):
-        with pytest.raises(AwsSteampipeConfigError, match=message):
-            AwsSteampipeCollectorConfig.from_mapping(_config_payload(**overrides))
-
-    def test_deduplicates_regions_preserving_order(self):
-        cfg = AwsSteampipeCollectorConfig.from_mapping(
-            _config_payload(regions=["us-east-1", "us-west-2", "us-east-1"])
+    def test_target_regions_downscopes_and_dedupes(self):
+        _register_target_secret(
+            region="us-east-1",
+            target_regions=["us-east-1", "us-west-2", "us-east-1"],
         )
-        assert cfg.regions == ("us-east-1", "us-west-2")
+
+        target = resolve_aws_collection_target()
+
+        assert target.primary_region == "us-east-1"
+        assert target.regions == ("us-east-1", "us-west-2")
+
+    def test_missing_secret_raises_not_found(self):
+        with pytest.raises(SecretNotFoundError):
+            resolve_aws_collection_target()
+
+    def test_wrong_kind_raises_secret_error(self):
+        _register_target_secret(kind="some_other_kind")
+
+        with pytest.raises(SecretError):
+            resolve_aws_collection_target()
+
+    def test_missing_region_is_config_error(self):
+        _register_target_secret(region=None)
+
+        with pytest.raises(AwsSteampipeConfigError, match="data.region"):
+            resolve_aws_collection_target()
+
+    def test_missing_account_id_is_config_error(self):
+        _register_target_secret(account_id=None)
+
+        with pytest.raises(AwsSteampipeConfigError, match="metadata.account_id"):
+            resolve_aws_collection_target()
+
+    def test_bad_account_id_is_config_error(self):
+        _register_target_secret(account_id="123")
+
+        with pytest.raises(AwsSteampipeConfigError, match="metadata.account_id"):
+            resolve_aws_collection_target()
+
+    def test_bad_target_regions_is_config_error(self):
+        _register_target_secret(target_regions=["not-a-region"])
+
+        with pytest.raises(AwsSteampipeConfigError, match="target_regions"):
+            resolve_aws_collection_target()
 
 
-class TestAwsSteampipeProfiles:
-    def test_vpc_subnet_profile_is_fixed(self):
-        profile = get_profile("vpc-subnet-v0")
-        assert profile.key == "vpc-subnet-v0"
-        assert [q.table for q in profile.queries] == ["aws_vpc", "aws_vpc_subnet"]
-        assert [q.sql for q in profile.queries] == [
+class TestQuerySet:
+    def test_vpc_subnet_query_set_is_fixed(self):
+        assert VPC_SUBNET_V0.key == "vpc-subnet-v0"
+        assert [q.table for q in VPC_SUBNET_V0.queries] == ["aws_vpc", "aws_vpc_subnet"]
+        assert [q.sql for q in VPC_SUBNET_V0.queries] == [
             "select * from aws_vpc;",
             "select * from aws_vpc_subnet;",
         ]
 
-    def test_unknown_profile_rejected(self):
-        with pytest.raises(AwsSteampipeProfileError, match="Unknown"):
-            get_profile("select-*")
-
-    def test_list_profiles(self):
-        assert list_profiles() == ("vpc-subnet-v0",)
+    def test_caller_identity_query_is_read_only_single_table(self):
+        assert AWS_CALLER_IDENTITY_QUERY.table == "aws_caller_identity"
+        assert AWS_CALLER_IDENTITY_QUERY.sql.strip().lower().startswith("select")
 
 
 class TestAwsSteampipeCredentials:
     def test_resolves_static_credentials(self):
-        _register_aws_secret(session_token="session-fake")
+        _register_target_secret(session_token="session-fake")
 
-        credentials = resolve_aws_static_credentials(SecretRef("aws", "demo-readonly"))
+        credentials = resolve_aws_static_credentials(_WELL_KNOWN)
 
         assert credentials.as_steampipe_env(region="us-west-2") == {
             "AWS_ACCESS_KEY_ID": "AKIAFAKE",
@@ -179,15 +202,13 @@ class TestSteampipeRunner:
         ]
 
     def test_run_query_unavailable(self):
-        cfg = AwsSteampipeCollectorConfig.from_mapping(_config_payload())
-        query = get_profile("vpc-subnet-v0").queries[0]
+        query = VPC_SUBNET_V0.queries[0]
         runner = SteampipeRunner(binary="/definitely/not/steampipe")
         with pytest.raises(SteampipeUnavailableError, match="not found"):
-            runner.run_query(query, config=cfg)
+            runner.run_query(query, region="us-east-1")
 
     def test_run_query_nonzero_redacts_stderr(self, monkeypatch):
-        cfg = AwsSteampipeCollectorConfig.from_mapping(_config_payload())
-        query = get_profile("vpc-subnet-v0").queries[0]
+        query = VPC_SUBNET_V0.queries[0]
 
         def fake_run(*args, **kwargs):
             return subprocess.CompletedProcess(
@@ -199,13 +220,12 @@ class TestSteampipeRunner:
 
         monkeypatch.setattr(subprocess, "run", fake_run)
         with pytest.raises(SteampipeExecutionError) as exc_info:
-            SteampipeRunner().run_query(query, config=cfg)
+            SteampipeRunner().run_query(query, region="us-east-1")
         assert "AWS_SECRET_ACCESS_KEY" not in str(exc_info.value)
         assert "[redacted-key]" in str(exc_info.value)
 
     def test_run_query_nonzero_redacts_secret_values(self, monkeypatch):
-        cfg = AwsSteampipeCollectorConfig.from_mapping(_config_payload())
-        query = get_profile("vpc-subnet-v0").queries[0]
+        query = VPC_SUBNET_V0.queries[0]
 
         def fake_run(*args, **kwargs):
             return subprocess.CompletedProcess(
@@ -219,7 +239,7 @@ class TestSteampipeRunner:
         with pytest.raises(SteampipeExecutionError) as exc_info:
             SteampipeRunner().run_query(
                 query,
-                config=cfg,
+                region="us-east-1",
                 redaction_values=("secret-fake",),
             )
         assert "secret-fake" not in str(exc_info.value)
@@ -229,10 +249,12 @@ class TestSteampipeRunner:
         assert redact_credential_values("ok", extra_values=("",)) == "ok"
 
 
-class FakeRunner:
-    def run_profile(self, profile, config, *, env=None, redaction_values=()):
-        assert profile.key == "vpc-subnet-v0"
-        assert config.target_key == "demo"
+class FakeQuerySetRunner:
+    """Stand-in for SteampipeRunner.run_query_set in collector run() tests."""
+
+    def run_query_set(self, query_set, *, region, env=None, redaction_values=()):
+        assert query_set is VPC_SUBNET_V0
+        assert region == "us-east-1"
         assert env == {
             "AWS_ACCESS_KEY_ID": "AKIAFAKE",
             "AWS_SECRET_ACCESS_KEY": "secret-fake",
@@ -243,55 +265,166 @@ class FakeRunner:
         return SteampipeProfileResult(
             rows_by_table={
                 "aws_vpc": [{"vpc_id": "vpc-1"}],
-                "aws_vpc_subnet": [{"subnet_id": "subnet-1"}, {"subnet_id": "subnet-2"}],
+                "aws_vpc_subnet": [
+                    {"subnet_id": "subnet-1"},
+                    {"subnet_id": "subnet-2"},
+                ],
             },
             warnings=[],
         )
 
 
-class TestAwsSteampipeInventoryCollector:
-    def test_run_collects_profile_rows(self, settings):
-        settings.AWS_CORE_STEAMPIPE_COLLECTOR = _config_payload()
-        _register_aws_secret()
+class _IdentityRunner:
+    """Stand-in runner whose run_query answers the identity probe."""
+
+    account_id = "123456789012"
+    raises: type[Exception] | None = None
+
+    def __init__(self, *, timeout_seconds: int = 120, **_: object) -> None:
+        self.timeout_seconds = timeout_seconds
+
+    def run_query(self, query, *, region, env=None, redaction_values=()):
+        assert query is AWS_CALLER_IDENTITY_QUERY
+        if self.raises is not None:
+            raise self.raises("boom")
+        return SteampipeQueryResult(
+            table="aws_caller_identity",
+            rows=[{"account_id": self.account_id, "arn": "arn:aws:iam::x:user/y"}],
+        )
+
+
+class TestAwsSteampipeInventoryCollectorRun:
+    def test_run_collects_rows(self):
+        _register_target_secret(account_id="123456789012", region="us-east-1")
         collector = AwsSteampipeInventoryCollector(_collector_config())
-        collector.runner_cls = FakeRunner
+        collector.runner_cls = FakeQuerySetRunner
 
         collector.run()
 
         assert collector.summary == (
-            "Collected AWS demo vpc-subnet-v0: 1 VPC rows, 2 subnet rows "
-            "(normalization pending)."
+            "Collected AWS vpc-subnet-v0 (acct 123456789012): "
+            "1 VPC rows, 2 subnet rows (normalization pending)."
         )
         assert collector.profile_result is not None
         assert collector.results["error"] == []
         assert [entry["code"] for entry in collector.results["info"]] == [
             "RUN_STARTED",
-            "PROFILE_COLLECTED",
+            "COLLECTED",
             "RUN_COMPLETED",
         ]
 
-    def test_run_records_config_failure(self, settings):
-        settings.AWS_CORE_STEAMPIPE_COLLECTOR = _config_payload(regions=[])
+    def test_run_records_secret_missing(self):
+        collector = AwsSteampipeInventoryCollector(_collector_config())
+
+        with pytest.raises(SecretNotFoundError):
+            collector.run()
+
+        error = collector.results["error"][0]
+        assert error["code"] == "SECRET_MISSING_FILE"
+        assert "steampipe-collector.secret.json" in error["message"]
+        assert "restart the web container" in error["message"]
+        assert error["context"]["secret_ref"] == _WELL_KNOWN.qualified
+        assert (
+            error["context"]["expected_secret_filename"]
+            == "steampipe-collector.secret.json"
+        )
+        assert "not loaded" in collector.summary
+
+    def test_run_records_secret_invalid(self):
+        _register_target_secret(kind="some_other_kind")
+        collector = AwsSteampipeInventoryCollector(_collector_config())
+
+        with pytest.raises(SecretError):
+            collector.run()
+
+        assert collector.results["error"][0]["code"] == "SECRET_INVALID"
+
+    def test_run_records_target_invalid(self):
+        _register_target_secret(account_id=None)
         collector = AwsSteampipeInventoryCollector(_collector_config())
 
         with pytest.raises(AwsSteampipeConfigError):
             collector.run()
 
-        assert collector.results["error"][0]["code"] == "CONFIG_INVALID"
+        assert collector.results["error"][0]["code"] == "TARGET_INVALID"
 
-    def test_run_records_secret_failure(self, settings):
-        settings.AWS_CORE_STEAMPIPE_COLLECTOR = _config_payload()
-        collector = AwsSteampipeInventoryCollector(_collector_config())
 
-        with pytest.raises(Exception, match="No secret registered"):
-            collector.run()
+class TestAwsSteampipeInventoryCollectorSelfTest:
+    @staticmethod
+    def _force_steampipe(monkeypatch, present: bool):
+        monkeypatch.setattr(
+            "plugins.aws_core.collectors.steampipe_inventory.shutil.which",
+            lambda _: "/usr/local/bin/steampipe" if present else None,
+        )
 
-        assert collector.results["error"][0]["code"] == "SECRET_INVALID"
-        assert collector.results["error"][0]["context"]["secret_ref"] == {
-            "scope": "aws",
-            "key": "demo-readonly",
-        }
-        assert "invalid or missing" in collector.summary
+    def test_missing_secret_is_unconfigured(self, monkeypatch):
+        self._force_steampipe(monkeypatch, present=True)
+
+        result = AwsSteampipeInventoryCollector.self_test()
+
+        assert result.status.value == "unconfigured"
+        assert result.runnable is False
+        codes = {c.code: c.status.value for c in result.checks}
+        assert codes["AWS_SECRET_PRESENT"] == "fail"
+        assert codes["SECRET_VALID"] == "skip"
+        assert codes["AWS_IDENTITY"] == "skip"
+        assert "secret-file" in result.checks[0].docs[0].ref
+
+    def test_invalid_secret_is_misconfigured(self, monkeypatch):
+        _register_target_secret(account_id=None)
+        self._force_steampipe(monkeypatch, present=True)
+
+        result = AwsSteampipeInventoryCollector.self_test()
+
+        assert result.status.value == "misconfigured"
+        assert [c.code for c in result.failed_checks] == ["SECRET_VALID"]
+
+    def test_steampipe_missing_is_error_and_identity_skips(self, monkeypatch):
+        _register_target_secret()
+        self._force_steampipe(monkeypatch, present=False)
+
+        result = AwsSteampipeInventoryCollector.self_test()
+
+        assert result.status.value == "error"
+        codes = {c.code: c.status.value for c in result.checks}
+        assert codes["AWS_SECRET_PRESENT"] == "pass"
+        assert codes["SECRET_VALID"] == "pass"
+        assert codes["STEAMPIPE_AVAILABLE"] == "fail"
+        assert codes["AWS_IDENTITY"] == "skip"
+
+    def test_identity_match_is_ready(self, monkeypatch):
+        _register_target_secret(account_id="123456789012")
+        self._force_steampipe(monkeypatch, present=True)
+        runner = type("R", (_IdentityRunner,), {"account_id": "123456789012"})
+        monkeypatch.setattr(AwsSteampipeInventoryCollector, "runner_cls", runner)
+
+        result = AwsSteampipeInventoryCollector.self_test()
+
+        assert result.status.value == "ready"
+        assert result.runnable is True
+        assert {c.code: c.status.value for c in result.checks}["AWS_IDENTITY"] == "pass"
+
+    def test_identity_account_mismatch_is_misconfigured(self, monkeypatch):
+        _register_target_secret(account_id="123456789012")
+        self._force_steampipe(monkeypatch, present=True)
+        runner = type("R", (_IdentityRunner,), {"account_id": "999999999999"})
+        monkeypatch.setattr(AwsSteampipeInventoryCollector, "runner_cls", runner)
+
+        result = AwsSteampipeInventoryCollector.self_test()
+
+        assert result.status.value == "misconfigured"
+        assert [c.code for c in result.failed_checks] == ["AWS_IDENTITY"]
+
+    def test_identity_query_failure_is_error(self, monkeypatch):
+        _register_target_secret(account_id="123456789012")
+        self._force_steampipe(monkeypatch, present=True)
+        runner = type("R", (_IdentityRunner,), {"raises": SteampipeExecutionError})
+        monkeypatch.setattr(AwsSteampipeInventoryCollector, "runner_cls", runner)
+
+        result = AwsSteampipeInventoryCollector.self_test()
+
+        assert result.status.value == "error"
+        assert [c.code for c in result.failed_checks] == ["AWS_IDENTITY"]
 
 
 def test_aws_core_ready_registers_collector():
