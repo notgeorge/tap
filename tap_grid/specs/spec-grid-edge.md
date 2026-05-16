@@ -24,6 +24,7 @@ Edges are the connective tissue of the grid. They model directed, typed relation
 | req-grid-edge-service | [Edge Service Layer](#edge-service-layer) | Implemented | `create_edge()` as the canonical mutation path for edge creation |
 | req-grid-edge-nono | [No Edges Between Edges](#no-edges-between-edges) | Implemented | Service-layer rule prohibiting edges whose endpoints are themselves edges |
 | req-grid-edge-properties | [Edge Property Validation](#edge-property-validation) | Implemented | Optional JSON Schema validation backed by an in-memory edge property schema registry |
+| req-grid-edge-produced-batch | [PRODUCED_BATCH Standard Edge](#produced_batch-standard-edge) | Proposed | Canonical edge from any batch producer to a `Batch` entity; replaces embedded batch-ID lists |
 
 
 ## Explanation
@@ -342,6 +343,41 @@ Property validation should be implemented as a standalone validation step that c
 
 #### Future
 Define a shared helper for schema lookup and validation so create/update paths cannot drift and all property mutations enforce identical behavior.
+
+
+### PRODUCED_BATCH Standard Edge
+
+RID: `req-grid-edge-produced-batch`
+Status: `Proposed`
+
+`PRODUCED_BATCH` is the **canonical, grid-standard edge** from a batch-producing entity to the `Batch` it created. Any code that generates a `Batch` — collectors, GRIFT-import callers, future ingestion or API surfaces — relates the producing record to the resulting `Batch` through a `PRODUCED_BATCH` edge rather than embedding batch entity IDs inside the producer's own fields. `Batch` is `BaseModel`-backed and therefore on the entity spine; the producer→batch relationship is a graph relationship and MUST be expressed as an edge so it is traversable (visualization, traversal language, read surfaces) instead of opaque producer-local JSON.
+
+Endpoints and direction:
+
+- **Direction:** producer → batch. `from_entity` is the producing record (e.g. a `CollectionJob`); `to_entity` is the `Batch`.
+- **Target constraint:** `to` is always the `batch` entity type.
+- **Source constraint:** open by design — any producer entity type may originate a `PRODUCED_BATCH` edge. New producers reuse the standard edge and do not amend this requirement.
+- Registered by **tap_grid core** as an edge-type constraint via `register_edge_type_constraints` (not a per-plugin `edges/*.edge.json` or per-node `OUTBOUND_EDGES` declaration), so the edge is uniform everywhere and owned by the grid.
+
+Property schema (registered via `register_edge_property_schema`):
+
+- `disposition` (string, required): one of `imported` (the producer wrote/created this batch on this run) or `skipped` (the producer submitted this batch but the importer skipped it as already-present / idempotent). This preserves, in one traversable relationship, the information previously carried by an embedded `{"imported": [...], "skipped": [...]}` split.
+- No default `additionalProperties` is imposed (per `req-grid-edge-properties-9`); producers may extend with their own validated properties.
+
+Edges are created through the canonical `create_edge()` service path (`req-grid-edge-service`). This requirement supersedes embedded batch-ID-list patterns: a caller that previously stored `{"imported": [...], "skipped": [...]}` (e.g. `CollectionJob.grift_batches`) instead creates one `PRODUCED_BATCH` edge per batch with the appropriate `disposition`. The producer's own sole-writer / terminal-state rules govern *when* the edges are created, not whether.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-edge-produced-batch-1 | Core-Registered Standard Edge | Proposed | tap_grid core registers `PRODUCED_BATCH` edge-type constraints (`to` = `batch`, open source set) plus a `disposition` property schema. Not plugin- or node-declared. | |
+| req-grid-edge-produced-batch-2 | Canonical Producer Relationship | Proposed | Any entity that generates a `Batch` relates to it via a `PRODUCED_BATCH` edge created through `create_edge()`, never via embedded batch-ID fields. | |
+| req-grid-edge-produced-batch-3 | Disposition Property | Proposed | Each edge carries `disposition` ∈ {`imported`, `skipped`}, distinguishing batches the run wrote from batches the importer skipped as already-present. | |
+| req-grid-edge-produced-batch-4 | Traversable Replacement | Proposed | Producer→batch relationships are discoverable by graph traversal; consumers query the edge, not producer-local JSON. Supersedes `CollectionJob.grift_batches`. | |
+
+#### Future
+
+Richer per-batch properties (counts, importer diagnostics) are additive `properties` on the same edge type; they do not require a new edge type.
 
 
 ## Status Vocabulary

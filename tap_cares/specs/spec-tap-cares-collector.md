@@ -8,11 +8,11 @@ Collectors are tap-cares capabilities that gather data from a source and prepare
 - a `collector_registry` that maps the collector node's stable registry key to trusted Python code registered at startup
 - a public entry point `run_collection(collector)` that owns the entire execution path: CollectionJob creation, HAS_JOB linking, task enqueueing, and lifecycle bookkeeping
 
-`run_collection` is the only legal way to start a collection. The future scheduler subsystem is the intended steady-state caller — it decides *when* a collection runs and invokes `run_collection`. The scheduler does not reach behind `run_collection` to create CollectionJobs, manipulate Django Tasks, or coordinate Collector identity. This is the **scheduler boundary**: scheduling is trigger; collection is everything from trigger onward. The scheduler spec is out of scope for this document and tracked separately.
+`run_collection` is the only legal way to start a collection. The scheduler subsystem — now implemented, specified in `tap_cares/specs/spec-tap-cares-scheduler.md` — is the steady-state caller: it decides *when* a collection runs and invokes `run_collection`. The scheduler does not reach behind `run_collection` to create CollectionJobs, manipulate Django Tasks, or coordinate Collector identity. This is the **scheduler boundary**: scheduling is trigger; collection is everything from trigger onward. The scheduler's internals stay in its own spec.
 
-For v0, before the scheduler exists, the Administrivia HTMX handler is a permitted direct caller of `run_collection`. That direct call gets mediated by the scheduler when it lands; `run_collection`'s contract does not change.
+The Administrivia HTMX handler is a permitted direct caller of `run_collection` for human-triggered manual runs, alongside the scheduler's automated invocations. `run_collection`'s contract is identical for both callers.
 
-Status messages and richer event records remain backlog (`req-tap-cares-collector-job-logs`). This spec slice defines the collector model-to-module mapping, the dual-existence registration mechanism, the public `run_collection` entry point, the Django Task execution boundary, the approved GRIFT import path for collection results, and the on-grid `CollectionJob` execution record.
+Status messages and richer event records remain backlog (`req-tap-cares-collector-job-logs`). This spec slice defines the collector model-to-module mapping, the dual-existence registration mechanism, the public `run_collection` entry point, collector self-tests/readiness, the Django Task execution boundary, the approved GRIFT import path for collection results, and the on-grid `CollectionJob` execution record.
 
 ## Goals
 
@@ -34,11 +34,12 @@ Status messages and richer event records remain backlog (`req-tap-cares-collecto
 | req-tap-cares-collector-concurrency | [Collector Concurrency Policy](#collector-concurrency-policy) | Backlog | Future per-collector maximum simultaneous run count |
 | req-tap-cares-collector-module-class | [Collector Module Class](#collector-module-class) | Implemented | Registered collector classes instantiated by tap-cares |
 | req-tap-cares-collector-config | [CollectorConfig](#collectorconfig) | Implemented | JSON-safe collector configuration object |
+| req-tap-cares-collector-self-test | [Collector Self-Test And Readiness](#collector-self-test-and-readiness) | Approved for Development | Synchronous readiness diagnostic run as collection phase 1; result stored on `CollectionJob.self_test`; `full` vs `self_test_only` run modes; failed self-test = standard failure mode |
 | req-tap-cares-collector-run-collection | [Run Collection Entry Point](#run-collection-entry-point) | Proposed | Public callable `run_collection(collector)` owns CollectionJob creation, HAS_JOB linking, and task enqueueing |
 | req-tap-cares-collector-task-execution | [Collector Task Execution](#collector-task-execution) | Refactoring | Django Tasks worker-process execution boundary; tasks fire only via `run_collection` |
 | req-tap-cares-collector-read-boundary | [Collector Read Boundary](#collector-read-boundary) | Refactoring | Collector modules read through approved search/read surfaces and only submit result mutations through GRIFT import |
 | req-tap-cares-collector-grift-import | [Collector GRIFT Import Surface](#collector-grift-import-surface) | Refactoring | Collector result grid mutations route through the GRIFT importer; batch tracking accumulates on the collector instance |
-| req-tap-cares-collector-job-model | [CollectionJob Model](#collectionjob-model) | Refactoring | INTERNAL_ONLY execution record; accumulator pattern for results/grift_batches |
+| req-tap-cares-collector-job-model | [CollectionJob Model](#collectionjob-model) | Refactoring | INTERNAL_ONLY execution record; `results` + `self_test` accumulators; produced batches via `PRODUCED_BATCH` edges |
 | req-tap-cares-collector-job-sole-writer | [CollectionJob Sole-Writer Invariant](#collectionjob-sole-writer-invariant) | Proposed | Only `run_collection` and the task body write to CollectionJob; helpers accumulate in-memory |
 | req-tap-cares-collector-job-edge | [Collector HAS_JOB Edge](#collector-has_job-edge) | Implemented | Graph relationship from Collector root node to its CollectionJob nodes |
 | req-tap-cares-collector-job-lifecycle | [CollectionJob Lifecycle Status](#collectionjob-lifecycle-status) | Implemented | Job status reflects Django Tasks lifecycle states |
@@ -382,12 +383,255 @@ This shape keeps collector modules compatible with future stricter process isola
 | req-tap-cares-collector-config-5 | Future Isolation Ready | Implemented | The config shape can be passed across a process boundary without changing the collector class contract. | |
 | req-tap-cares-collector-config-6 | v0 Shape Is Two IDs | Implemented | The v0 `CollectorConfig` is a frozen dataclass containing exactly `collector_entity_id: UUID` and `collection_job_entity_id: UUID`. No params dict, no scheduler overrides. | |
 
+## Collector Self-Test And Readiness
+----
+RID: `req-tap-cares-collector-self-test`
+Status: `Approved for Development`
+
+Every collector runner exposes a self-test that answers an operator-facing question before execution:
+
+> "Does this collector currently appear ready to run, and if not, what should I fix?"
+
+The self-test is **synchronous** and **runtime-evaluated**: readiness is computed on demand from registered runner code, locally discovered configuration/secrets, local runtime dependencies, and read-only external checks the collector owns. It does **not** run as a Django Task — it is timeout-bounded (see [Bounded Latency](#bounded-latency)) and fits inside a synchronous request and inside the run-task precondition gate. There is no async self-test path and no task-result polling. (The task backend has no return-value fetch; an async self-test would need a polled result store and buys nothing over a bounded synchronous call.)
+
+Self-test is **phase 1 of a collection run**, not a separate subsystem. Every run is two phases: **phase 1 — self-test**, **phase 2 — execute**. A `CollectionJob` carries a **run mode**: a *full run* does phase 1 then, if runnable, phase 2; a *self-test-only run* does phase 1 and stops. A one-off readiness check (the Administrivia Self-test button, an agent probe) is simply a self-test-only `CollectionJob` — same vehicle, same async path, same failure surfacing, no separate readiness subsystem.
+
+The structured self-test result IS persisted, on the `CollectionJob` itself in a dedicated `self_test` field (see [Self-Test As Run Phase 1](#self-test-as-run-phase-1)) — not in a separate readiness entity, and never as a mutable field on the immutable `Collector` node. "It worked for me at *&lt;time&gt;*" is answered from `CollectionJob` history: the latest job's `self_test` is current best-known readiness; the first job whose phase 1 failed is when it broke. One unified run+readiness history, not two parallel stores.
+
+Persistence and logs are complementary, not redundant. The **log line** is the per-invocation narrative (ordered, cross-component, ephemeral; site-ID convention). The **`CollectionJob`** is the queryable point-in-time state (`self_test` result + `checked_at` + run outcome). The log answers *what happened*; the job record answers *what was true, when, and is it still*. Neither is reconstructed from the other; both are redaction-safe.
+
+The self-test serves both humans and future agents: Administrivia renders status and gates run buttons; the run task uses it as a default precondition (see [Run Gating](#run-gating)); checks may carry references to canonical plugin documentation (doc-ref *resolution* is deferred — `req-tap-cares-collector-self-test-5`).
+
+### Status Vocabulary
+
+Self-test status is deliberately separate from `CollectionJob.status`. A `CollectionJob` says what happened to one run. Collector readiness says whether a run should be attempted now.
+
+Allowed readiness statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `ready` | All required self-test checks passed. The collector can be run. |
+| `warning` | Required checks passed, but one or more non-blocking checks found a degraded or advisory condition. The collector can be run. |
+| `unconfigured` | Required user/operator configuration is absent. Example: a collector target/config object has not been provided. The collector must not be run from the UI. |
+| `misconfigured` | Configuration exists but is invalid, incomplete, internally inconsistent, or references missing local material such as an unloaded secret file. The collector must not be run from the UI. |
+| `error` | The self-test could not complete because runner code is unavailable, a diagnostic crashed, or a required runtime/external dependency failed in a way that is not simply missing or malformed configuration. The collector must not be run from the UI. |
+
+There are intentionally no separate `blocked` or `unavailable` readiness statuses in v0. Those cases collapse into `error` with specific check codes and messages:
+
+- Missing runner code: `error` with a `RUNNER_UNAVAILABLE` check.
+- Missing binary or local runtime dependency: `error` with a dependency-specific check.
+- External endpoint unreachable during a read-only connectivity test: `error` with an upstream-specific check.
+
+`blocked` is **not** a status — neither a readiness status nor a `CollectionJob` status. A failed phase-1 self-test is surfaced through the **standard collector failure mode** (`req-tap-cares-collector-failure-mode`): the `CollectionJob` terminates `FAILED`, the self-test summary becomes the failure reason, and the structured result lands in `CollectionJob.self_test`. A passing self-test-only run terminates `SUCCESSFUL` ("self-test passed; no collection performed"). No new lifecycle status is introduced.
+
+### Result Shape
+
+tap-cares provides small frozen value objects for self-test results. The field set below is the contract; the live implementation is `tap_cares/collectors/readiness.py`.
+
+```python
+class CollectorReadinessStatus(StrEnum):
+    READY = "ready"
+    WARNING = "warning"
+    UNCONFIGURED = "unconfigured"
+    MISCONFIGURED = "misconfigured"
+    ERROR = "error"
+
+class CollectorSelfTestCheckStatus(StrEnum):
+    PASS = "pass"
+    WARN = "warn"
+    FAIL = "fail"
+    SKIP = "skip"
+
+@dataclass(frozen=True, slots=True)
+class CollectorDocRef:
+    plugin: str
+    doc: str
+    section: str = ""
+    label: str = ""
+
+@dataclass(frozen=True, slots=True)
+class CollectorSelfTestCheck:
+    code: str
+    status: CollectorSelfTestCheckStatus
+    message: str
+    readiness_status: CollectorReadinessStatus | None = None
+    context: Mapping[str, Any] = field(default_factory=dict)
+    docs: tuple[CollectorDocRef, ...] = ()
+
+@dataclass(frozen=True, slots=True)
+class CollectorSelfTestResult:
+    status: CollectorReadinessStatus
+    summary: str
+    checked_at: datetime
+    checks: tuple[CollectorSelfTestCheck, ...] = ()
+    collector_registry: str = ""
+    docs: tuple[CollectorDocRef, ...] = ()
+    context: Mapping[str, Any] = field(default_factory=dict)
+```
+
+Contract semantics:
+
+- `status` is the headline readiness value for tables, badges, the stored `CollectionJob.self_test`, API responses, and the phase-1 gate.
+- `summary` is a short operator-facing explanation.
+- `checked_at` is the UTC instant the result was produced. It is **mandatory**: the stored `CollectionJob.self_test` and the "it worked at *&lt;time&gt;*" answer depend on it. (The earlier draft made this optional and mis-ordered it after defaulted fields — an invalid dataclass; it is now required and ordered before defaulted fields.)
+- `checks` is the accumulated list of every diagnostic the collector could evaluate in one pass.
+- `collector_registry` is stamped by the service entry point so a detached result is self-describing.
+- `docs` on the result points to broad setup/operation docs; `docs` on a check points to the most specific section. Doc-ref *resolution/rendering* is deferred (`req-tap-cares-collector-self-test-5`) — refs are emitted now, resolved when the docs surface lands.
+- `context` is JSON-safe and **redaction-safe**: secret material must never appear, in the result or any check, in memory, the log line, or the stored `CollectionJob.self_test`.
+- The `CollectorDocRef` field names (`plugin`, `doc`, `section`, `label`) are the contract, reconciled with the implementation so the spec stays canonical.
+
+### Accumulation
+
+Self-tests must accumulate diagnostics instead of bailing at the first failure whenever it is practical and safe to continue.
+
+Example AWS first-run shape (zero-config, secret-discovered model — see `plugins/aws_core/specs/spec-aws-steampipe-collector-v0.md`):
+
+| Check | Status | Notes |
+| --- | --- | --- |
+| `AWS_SECRET_PRESENT` | `fail` | No `aws_static_access_key` secret found at the well-known `SecretRef`. Readiness `unconfigured`. |
+| `SECRET_VALID` | `skip` | No secret loaded, so its credential schema cannot be validated. |
+| `STEAMPIPE_AVAILABLE` | `pass` or `fail` | Local binary check still runs independently. |
+| `AWS_IDENTITY` | `skip` | No credentials, so read-only STS identity cannot run. |
+
+The goal is the fullest useful "here is everything known right now" picture so users are not walked through one error at a time.
+
+**Skip semantics (pinned).** A `skip` records that a check could not run because an input it depends on was absent. It is *informational, not a failure, and does not by itself escalate readiness*. Top-level status derives only from checks that actually failed (`fail`) or raised a genuine advisory (`warn`):
+
+- any `fail` → the most specific non-runnable status among the failures (`unconfigured` / `misconfigured` / `error`, as each failing check assigns).
+- no `fail`, ≥1 `warn` → `warning`.
+- no `fail`, no `warn` (only `pass`/`skip`) → `ready`.
+
+A skip-only result is `ready`: the collector is ready for everything it could test, and what it could not test was gated by an input that is not itself a failure. This pins a previously unspecified case; the implementation's `check_skip` / `_derive_status` must align (a `skip` must not set `readiness_status=WARNING` or force top-level `warning`).
+
+### Live Check Boundary
+
+Self-tests may be semi-live. A collector should test as far toward real execution as it can go without mutating the grid or causing external side effects.
+
+Allowed:
+
+- read-only HTTP reachability checks
+- read-only credential validation
+- local binary/dependency checks
+- read-only cloud identity calls such as AWS STS `GetCallerIdentity`
+- lightweight source endpoint reachability checks
+
+Not allowed:
+
+- grid mutation
+- GRIFT import
+- writing to external systems
+- creating schedules, jobs, or action records
+- broad inventory collection disguised as readiness
+
+Concrete scoping examples:
+
+- The FedRAMP KSI self-test only confirms the collector can reach its pinned upstream URL (read-only HEAD, GET fallback). It must not validate the full upstream catalog, compute a diff, or test FedRAMP content health; those belong to a collection run.
+- The AWS Steampipe self-test resolves the single well-known `SecretRef` (zero-config, secret-discovered — no operator config object), validates the AWS credential schema, checks Steampipe availability, and performs a read-only STS `GetCallerIdentity` matched against the secret's `metadata.account_id`. It stops short of inventory collection and GRIFT authoring.
+
+### Bounded Latency
+
+Self-test runs on a synchronous request path and inside the run-task gate, so it MUST be bounded:
+
+- Every live check (HTTP reachability, STS identity, subprocess probe) carries an explicit timeout. v0 budget: each live check ≤ 5s.
+- The aggregate self-test target is a few seconds, with a hard ceiling of ~15s total. A check that would exceed its timeout records an explicit non-pass result — `fail`/`error`, or `skip` when "could not determine in time" is more honest than "broken" — rather than hanging the request or a worker thread.
+- A timed-out dependency check is never a silent pass: it is an explicit non-pass check with its own code, so the operator sees "could not verify in time", not a false green.
+
+### Runner Contract
+
+`CollectorBase` exposes a synchronous self-test hook with a default implementation:
+
+```python
+class CollectorBase(ABC):
+    @classmethod
+    def self_test(cls) -> CollectorSelfTestResult:
+        ...
+```
+
+The default implementation returns `ready` with a single `RUNNER_REGISTERED` pass-level check ("a runner exists; no collector-specific self-test is defined"). This is **safe by construction** under the default-on run gate (see [Run Gating](#run-gating)): a collector that declares no meaningful self-test also has nothing to gate on, so default `ready` → run proceeds → behavior is unchanged for trivial collectors. Overriding `self_test()` is exactly how a collector opts into real readiness gating. The earlier `SELF_TEST_NOT_IMPLEMENTED`-warning alternative is rejected: with the gate default-on, a base `warning` would needlessly degrade every collector that has no readiness concept.
+
+**v0 single ambient target.** `self_test()` takes no arguments and is a `classmethod`. It evaluates against a single ambient target the collector discovers itself — for AWS, the single well-known `SecretRef`; for KSI, the pinned URL constant. There is intentionally no per-`Collector`-node configuration in v0, so two `Collector` rows backed by the same runner class self-test identically. Per-target configuration (`self_test(config=...)` or a configured target model) is deferred; the contract leaves space for it without forcing the durable model before a second concrete configured collector proves the shape.
+
+`self_test()` itself is **pure**: it computes and returns a `CollectorSelfTestResult` and performs no grid mutation, GRIFT, job/schedule creation, or external writes (`req-tap-cares-collector-self-test-6`). Registry resolution, exception trapping, logging, and persistence are the *service entry point's* responsibility, not the check code's.
+
+### Service Entry Point
+
+`tap_cares.services.self_test_collector(collector: Collector) -> CollectorSelfTestResult` is the single entry point every caller uses (Administrivia button/detail, the run-task gate). It owns the cross-cutting concerns the pure hook deliberately excludes:
+
+1. **Registry resolution.** Resolve the runner via `get_collector(collector.collector_registry)`. If unregistered, synthesize `error` with a `RUNNER_UNAVAILABLE` check — this is the canonical producer of the `RUNNER_UNAVAILABLE` code named in the status vocabulary.
+2. **Exception trapping.** If the runner's `self_test()` raises, trap it into `error` with a `SELF_TEST_EXCEPTION` check (exception type only — no secret-bearing detail) and log at `exception` level. A crashing diagnostic is itself a non-runnable readiness signal, never a 500.
+3. **Stamping.** Stamp `collector_registry` and `checked_at` so the returned result is self-describing.
+4. **Log.** Emit the site-ID backend summary (see [Logging](#logging)).
+5. **Return, do not persist.** The entry point returns the result synchronously; it does not write the grid. The run-task body records the result onto `CollectionJob.self_test` and, on a non-runnable result, fails the job via the standard failure mode (see [Self-Test As Run Phase 1](#self-test-as-run-phase-1)). This preserves the sole-writer invariant: only the run-task body writes the `CollectionJob`.
+
+The result is returned to the caller synchronously regardless of which branch produced it. The Administrivia Self-test button calls this same entry point as phase 1 of a `self_test_only` `CollectionJob`.
+
+### Self-Test As Run Phase 1
+
+Self-test is the first phase of a `CollectionJob`, not a separate persisted entity.
+
+- **Run mode.** `CollectionJob` carries a run-mode discriminator: `full` (phase 1 → if runnable, phase 2 collect) or `self_test_only` (phase 1 → stop). Manual Run and scheduler create `full` jobs; the Administrivia Self-test button and agent/one-off readiness probes create `self_test_only` jobs. Both are ordinary `CollectionJob`s on the standard async path.
+- **Phase 1.** The run-task body calls `self_test_collector(collector)` (see [Service Entry Point](#service-entry-point)) before any external collection work or GRIFT.
+- **Storage.** The full structured `CollectorSelfTestResult` is written to a dedicated `CollectionJob.self_test` field by the run-task body — consistent with the `CollectionJob` sole-writer invariant (`req-tap-cares-collector-job-sole-writer`). It is kept distinct from the `results` phase-2 accumulator and the `PRODUCED_BATCH` edges so readiness stays queryable on its own: "latest readiness for collector X" = the most recent `CollectionJob.self_test`; readiness-over-time = that field across the collector's `CollectionJob` history.
+- **Non-runnable ⇒ standard failure mode.** If phase-1 readiness is not runnable (`unconfigured` / `misconfigured` / `error`), the collector bails before phase 2 via the standard collector failure mode (`req-tap-cares-collector-failure-mode`): `CollectionJob` ends `FAILED`, `summary` from the self-test summary, full detail in `self_test`, no phase-2 work, no GRIFT, no partial writes. Not hidden — an ordinary, visible way a collector fails within its thread.
+- **Runnable.** A `full` job proceeds to phase 2. A `self_test_only` job terminates `SUCCESSFUL` with summary "self-test passed; no collection performed" and `self_test` populated.
+- **Redaction-safe.** `self_test` is a place secret-ish material could leak (e.g. an AWS error string carrying an ARN); it carries the same redaction contract as logs and `context`.
+
+There is no separate readiness entity, no transition-append store, and no `blocked` status in v0. The `CollectionJob` history is the unified run+readiness record.
+
+### Logging
+
+Every self-test invocation (via the service entry point) emits one backend log summary — INFO when runnable, WARNING when not — using the repository's stable site-ID convention, including:
+
+- collector registry key
+- top-level readiness status
+- count of pass/warn/fail/skip checks
+- summary
+
+Per-check detail may be logged at DEBUG. The log is the per-invocation **narrative**; `CollectionJob.self_test` is the queryable **state**. Neither is reconstructed from the other; both are redaction-safe.
+
+### Run Gating
+
+Two gates, different authority:
+
+1. **UI courtesy gate.** Administrivia disables the manual Run button (and renders status) from the latest `CollectionJob.self_test` for that collector — a cheap field read, no live check on the table poll. It stops an operator clicking a doomed run; convenience, not enforcement.
+2. **Authoritative phase-1 gate (default-on).** Every `CollectionJob` runs phase-1 self-test in the run-task body before any external work or GRIFT (see [Self-Test As Run Phase 1](#self-test-as-run-phase-1)). Non-runnable ⇒ the job ends `FAILED` via the standard failure mode; runnable ⇒ a `full` job proceeds to phase 2, a `self_test_only` job stops `SUCCESSFUL`. This is the authoritative answer to what `req-tap-cares-collector-self-test-10` previously deferred.
+
+The phase-1 gate is **default-on for every collector** and safe by construction: a collector with no meaningful `self_test()` returns the default `ready` and proceeds unchanged. It is uniform across the manual path and the now-implemented scheduler (`tap_cares/specs/spec-tap-cares-scheduler.md`): the scheduler creates a `full` `CollectionJob` like any other caller, and the phase-1 gate protects scheduled runs where no human is watching a Status column. A misconfigured collector on a schedule therefore produces visible `FAILED` jobs with a clear phase-1 reason — deliberately surfaced, not suppressed. It is a fast-fail filter, **not** a correctness guarantee: a self-test passing then phase 2 failing (e.g. a secret rotated in the intervening seconds) is still possible, so collectors must remain robust in phase 2; a green self-test is not "the run cannot fail".
+
+Whether a high-frequency scheduled fire reuses a recent `CollectionJob.self_test` within a freshness window instead of re-running phase 1 is an explicit scheduler-policy decision, deferred to `spec-tap-cares-scheduler.md`. A per-collector opt-out of the default phase-1 gate is likewise deferred; v0 is default-on with no override.
+
+### Future
+
+- **Tiered self-tests.** A self-test currently means "this collector with this configuration". A future split into tiers — checks that run *before* configuration is resolved (binary present, plugin importable) versus *after* (this configuration's secret valid, this account reachable) — lets the UI distinguish "collector is fundamentally broken" from "this target is misconfigured". Backlog.
+- **Per-configuration self-test.** When collectors gain multiple configurations / collection targets, the unit of self-test becomes (collector, configuration) and the hook gains a configuration argument (`self_test(config=...)`) or moves onto a configured-target model. v0's single ambient configuration (AWS = the one well-known secret) is the degenerate case. Backlog.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-collector-self-test-1 | Synchronous Self-Test Hook | In Development | `CollectorBase` exposes a synchronous no-arg `self_test()` classmethod returning `CollectorSelfTestResult`; concrete collectors override it. Never a Django Task. | |
+| req-tap-cares-collector-self-test-2 | Result Stored On CollectionJob | Proposed | The full structured result is written to a dedicated `CollectionJob.self_test` field by the run-task body (sole-writer), distinct from the `results` accumulator and the `PRODUCED_BATCH` edges. No separate readiness entity; `CollectionJob` history is the unified run+readiness store. **Deliberate reversal** of the original "never persisted" position. | |
+| req-tap-cares-collector-self-test-3 | Status Vocabulary | In Development | Readiness is one of `ready` / `warning` / `unconfigured` / `misconfigured` / `error`. `blocked` / `unavailable` are not statuses at all; a failed self-test uses the standard failure mode. | |
+| req-tap-cares-collector-self-test-4 | Accumulated Checks | In Development | Self-tests accumulate pass/warn/fail/skip instead of bailing at first failure. | |
+| req-tap-cares-collector-self-test-5 | Docs References (resolution deferred) | Proposed | Results/checks may carry `CollectorDocRef`s; refs are emitted now, resolution/rendering deferred to the future docs surface. | Stub until the docs-surface spec. |
+| req-tap-cares-collector-self-test-6 | Pure Hook, No Side Effects | In Development | `self_test()` itself performs no grid mutation, GRIFT, job/schedule creation, or external writes. Persistence/logging belong to the service entry point. | Read-only external reads allowed. |
+| req-tap-cares-collector-self-test-7 | Semi-Live, Bounded | Proposed | Read-only live checks (upstream reachability, STS identity) are allowed and MUST be timeout-bounded per Bounded Latency. | |
+| req-tap-cares-collector-self-test-8 | Backend Log Summary | Proposed | Each invocation emits one redaction-safe site-ID log summary (key, status, check counts, summary). | |
+| req-tap-cares-collector-self-test-9 | UI Courtesy Gate | Proposed | Administrivia disables manual Run for `unconfigured` / `misconfigured` / `error`; `ready` / `warning` runnable. | Cross-ref `spec-tap-cares-administrivia.md`. |
+| req-tap-cares-collector-self-test-10 | Default-On Phase-1 Gate | Proposed | Every `CollectionJob` runs phase-1 self-test before external work/GRIFT; non-runnable ⇒ job ends `FAILED` via the standard failure mode (no `blocked` status), no partial work. Default-on for all collectors; resolves the previously-deferred service guard. | Per-collector opt-out and scheduler per-fire freshness policy deferred to `spec-tap-cares-scheduler.md`. |
+| req-tap-cares-collector-self-test-11 | Service Entry Point | Proposed | `tap_cares.services.self_test_collector(collector)` owns registry resolution (`RUNNER_UNAVAILABLE`), exception trapping (`SELF_TEST_EXCEPTION`), stamping, and logging, then returns the result. It does NOT write the grid; the run-task body persists to `CollectionJob.self_test`. Single caller-facing entry point. | |
+| req-tap-cares-collector-self-test-12 | Bounded Latency | Proposed | Each live check ≤ 5s; aggregate self-test hard ceiling ~15s; timeouts record explicit non-pass checks, never hang or false-green. | |
+| req-tap-cares-collector-self-test-13 | Redaction-Safe Everywhere | Proposed | No secret material in result, checks, `context`, log line, or `CollectionJob.self_test`. | Cross-ref `spec-tap-cares-secrets.md` redaction. |
+| req-tap-cares-collector-self-test-14 | Skip Does Not Escalate | Proposed | A `skip` is informational; status derives only from `fail` / `warn`. Skip-only ⇒ `ready`. Implementation `check_skip` / `_derive_status` must align. | |
+| req-tap-cares-collector-self-test-15 | v0 Single Ambient Configuration | Proposed | A self-test means "this collector with this configuration"; v0 has one ambient configuration the collector discovers itself (AWS = the one well-known secret). Per-configuration and tiered (pre-/post-config) self-tests are Backlog. | See Future. |
+| req-tap-cares-collector-self-test-16 | Run Mode | Proposed | `CollectionJob` carries a run mode: `full` (phase 1 → phase 2 if runnable) or `self_test_only` (phase 1 → stop). A one-off readiness check is a `self_test_only` job; passing ⇒ `SUCCESSFUL` ("no collection performed"). | Subsumes the Administrivia Self-test button. |
+
 ## Run Collection Entry Point
 ----
 RID: `req-tap-cares-collector-run-collection`
 Status: `Proposed`
 
-`run_collection(collector)` is the public callable that the collection system exposes for starting a collection. It is the **scheduler boundary**: callers (today: Administrivia HTMX handler; future steady-state: the scheduler) invoke `run_collection` and the collection system owns everything from that point — CollectionJob creation, HAS_JOB linking, Django Task enqueueing, CollectorConfig assembly, and lifecycle bookkeeping.
+`run_collection(collector)` is the public callable that the collection system exposes for starting a collection. It is the **scheduler boundary**: callers (the Administrivia HTMX handler for manual runs; the now-implemented scheduler for automated runs) invoke `run_collection` and the collection system owns everything from that point — CollectionJob creation, HAS_JOB linking, Django Task enqueueing, CollectorConfig assembly, and lifecycle bookkeeping.
 
 #### Signature
 
@@ -512,7 +756,7 @@ Collectors gather data and perform collector-specific interpretation. The `run_c
 
 The initial read path should favor TAP search APIs and service-layer read operations. This keeps collector reads aligned with future authorization, dimensions, and security policy work.
 
-For collection results, the approved mutation path is the GRIFT import surface defined in [Collector GRIFT Import Surface](#collector-grift-import-surface). This is an explicit carve-out: collector modules may cause grid mutation by submitting a GRIFT batch through the approved import path — that submission writes Batch + entity rows to the grid through `grift_import`, but it does **not** write to the calling `CollectionJob`. Tracking of imported batch IDs accumulates on the collector instance and is persisted to `CollectionJob.grift_batches` by the task body at terminal state, not by `self.submit_grift(...)` itself.
+For collection results, the approved mutation path is the GRIFT import surface defined in [Collector GRIFT Import Surface](#collector-grift-import-surface). This is an explicit carve-out: collector modules may cause grid mutation by submitting a GRIFT batch through the approved import path — that submission writes Batch + entity rows to the grid through `grift_import`, but it does **not** write to the calling `CollectionJob`. References to the produced batches accumulate on the collector instance; at terminal state the task body links each produced `Batch` to the `CollectionJob` with a `PRODUCED_BATCH` edge (`tap_grid/specs/spec-grid-edge.md` `req-grid-edge-produced-batch`), not by `self.submit_grift(...)` itself and not via an embedded batch-ID field.
 
 Collector modules should not import TAP models, call generic write services, call `write_batch()` directly, or otherwise bypass GRIFT import semantics. They must not mutate `CollectionJob` even through the helpers' previous signatures — the new helpers do not accept a `job` parameter and the helpers cannot reach a CollectionJob without one.
 
@@ -539,28 +783,32 @@ GRIFT import is the top-most exposed grid ingestion affordance for batch-shaped 
 
 In v0, collector instances submit collected results through `CollectorBase.submit_grift(document)` — a method on the collector base class that calls the in-process `grift_import()` and accumulates the resulting batch IDs on the collector instance. The collector contract treats GRIFT import as the approved result submission boundary. Collector modules must not call lower-level mutation primitives such as `write_batch()`, node/edge write helpers, direct ORM saves, or direct `Entity` updates.
 
-#### Signature change from v0-pre-refactor
+#### Batch identity, naming, and correlation
 
-The helper previously took a `job` parameter and wrote `CollectionJob.grift_batches` inline. The new shape removes both:
+Every batch a collector submits MUST carry a meaningful, collector-set `name` and `description` on the GRIFT batch envelope — neither left blank nor auto-derived. The name should identify the producing collector and what was collected (e.g. `aws-steampipe vpc-subnet — acct 1234…`); the description should give an operator enough context to understand the batch without opening it. `Batch.name` is required on replace (`Batch.REPLACE_REQUIRED`); TAP does not invent a good one, so the collector owns it.
+
+`submit_grift` takes `(self, document)`, calls in-process `grift_import()`, and accumulates a reference to each resulting batch — its `batch_entity_id` and its `disposition` (`imported` or `skipped`) — on the collector instance. It does not take or mutate `CollectionJob`:
 
 ```python
 # In CollectorBase
 def submit_grift(self, document) -> GriftImportResult:
     result = grift_import(document, ...)
-    self.grift_batches["imported"].extend(b.batch_entity_id for b in result.imported_batches)
-    self.grift_batches["skipped"].extend(b.batch_entity_id for b in result.skipped_batches)
+    self._produced_batches.extend(
+        (b.batch_entity_id, "imported") for b in result.imported_batches
+    )
+    self._produced_batches.extend(
+        (b.batch_entity_id, "skipped") for b in result.skipped_batches
+    )
     return result
 ```
 
-`self.grift_batches` is an instance-level accumulator. The task body persists the accumulated dict to `CollectionJob.grift_batches` in a single patch at terminal state (see `req-tap-cares-collector-job-sole-writer`).
-
-This removes the previous staleness pattern where `submit_collector_grift` and the task body's lifecycle saves both wrote to the same row through separate ORM instances.
+`self._produced_batches` is an instance-level accumulator (attribute name is an implementation detail). At terminal state the task body — the sole `CollectionJob` writer — creates one `CollectionJob --PRODUCED_BATCH--> Batch` edge per accumulated batch via the canonical `create_edge()` service path, stamping `disposition` on each edge. This mirrors how `run_collection` creates the `Collector --HAS_JOB--> CollectionJob` edge. There is **no `CollectionJob.grift_batches` field**: produced batches are a graph relationship (`tap_grid/specs/spec-grid-edge.md` `req-grid-edge-produced-batch`), traversable rather than embedded.
 
 #### Job correlation
 
-`CollectionJob.grift_batches` carries `{"imported": [...], "skipped": [...]}` after the task completes. Each list is the union of batch IDs across all `submit_grift` calls in the run. Successful empty runs produce empty lists. Failed runs produce empty lists (since the task body persists from the same accumulator regardless of terminal status; if a block flag aborted before any submission, the lists are empty).
+"Which batches did this run produce" is answered by traversing `CollectionJob --PRODUCED_BATCH--> Batch`, filtering the `disposition` edge property for imported vs skipped. A run that submitted nothing has no such edges. A failed run has edges only for batches actually produced before the failure — the task body creates edges from the same accumulator regardless of terminal status, so partial progress stays visible.
 
-Future strict isolation may replace the in-process call with a TAP API result-submission endpoint. That endpoint should preserve the same contract: collector code submits GRIFT; TAP validates, authorizes, imports, records provenance, and returns structured import results.
+Future strict isolation may replace the in-process call with a TAP API result-submission endpoint. That endpoint preserves the same contract: collector code submits GRIFT with a named, described batch; TAP validates, authorizes, imports, records provenance via `PRODUCED_BATCH`, and returns structured import results.
 
 ### Acceptance Criteria
 
@@ -570,8 +818,9 @@ Future strict isolation may replace the in-process call with a TAP API result-su
 | req-tap-cares-collector-grift-import-2 | v0 In-Process Import Allowed | Implemented | v0 collector execution uses in-process `grift_import()` through `CollectorBase.submit_grift`. | |
 | req-tap-cares-collector-grift-import-3 | No Raw write_batch | Implemented | Collector modules do not call `write_batch()` or lower-level node/edge mutation helpers directly. | Contract; not enforced at runtime in v0. |
 | req-tap-cares-collector-grift-import-4 | Method On CollectorBase | Proposed | `submit_grift` is a method on `CollectorBase` taking `(self, document)` rather than a free helper taking `(job, document)`. It does not receive or mutate `CollectionJob`. | Removes the v0-pre-refactor multi-writer pattern. |
-| req-tap-cares-collector-grift-import-5 | Instance-Level Accumulator | Proposed | Imported and skipped batch IDs accumulate in `self.grift_batches` on the collector instance. The task body persists the dict to `CollectionJob.grift_batches` once at terminal state. | |
-| req-tap-cares-collector-grift-import-6 | Job Correlation | Proposed | `CollectionJob.grift_batches` carries `{"imported": [...], "skipped": [...]}` populated by the task body from the collector instance's accumulator. | |
+| req-tap-cares-collector-grift-import-5 | Instance-Level Accumulator | Proposed | Each produced batch's `(batch_entity_id, disposition)` accumulates on the collector instance during the run. No mid-run `CollectionJob` writes. | |
+| req-tap-cares-collector-grift-import-6 | PRODUCED_BATCH Correlation | Proposed | At terminal state the task body creates one `CollectionJob --PRODUCED_BATCH--> Batch` edge per accumulated batch via `create_edge()`, with `disposition` ∈ {`imported`,`skipped`}. There is no `CollectionJob.grift_batches` field. | Cross-ref `req-grid-edge-produced-batch`. |
+| req-tap-cares-collector-grift-import-8 | Collector Names Each Batch | Proposed | Every batch a collector submits carries a meaningful collector-set `name` and `description` on the GRIFT batch envelope; neither is left blank or auto-derived. | `Batch.name` is required on replace; TAP does not invent it. |
 | req-tap-cares-collector-grift-import-7 | Future API Compatible | Implemented | The v0 contract remains compatible with replacing in-process import with an API-based GRIFT submission surface under strict isolation. | `submit_grift` takes a document and returns a `GriftImportResult`; replacing the in-process call with an API round trip changes only the helper internals. |
 
 ## CollectionJob Model
@@ -597,7 +846,7 @@ CollectionJob-specific model requirements:
 - `CollectionJob` has `enqueued_at`, `started_at`, and `finished_at` `DateTimeField(null=True, blank=True)` timestamps; each is populated as the corresponding lifecycle transition occurs.
 - `CollectionJob` has a `summary` `CharField(max_length=2048, blank=True, default="")` field for the at-a-glance one-liner describing what happened on this run — success or failure. Structured per-event detail (codes, messages, context) lives in `results` (below); `summary` is the human-facing single line that shows up wherever the job is summarized.
 - `CollectionJob` has a `results` `JSONField` carrying the structured per-event log for this run (see [CollectionJob Results Log](#collectionjob-results-log) below).
-- `CollectionJob` has a `grift_batches` `JSONField` carrying `{"imported": [<UUIDv7>...], "skipped": [<UUIDv7>...]}` — the lists of GRIFT batch entity IDs the run imported and skipped. Populated by the task body at terminal state from the collector instance's accumulator (see `req-tap-cares-collector-grift-import-5`).
+- `CollectionJob` has **no** `grift_batches` field. Batches the run produced are linked by `CollectionJob --PRODUCED_BATCH--> Batch` edges (carrying a `disposition` property), created by the task body at terminal state — see `tap_grid/specs/spec-grid-edge.md` `req-grid-edge-produced-batch` and `req-tap-cares-collector-grift-import-6`. Produced batches are a graph relationship, not an embedded list.
 - The `CollectionJob` display projection emits both the raw `status` value and a `status_display` field carrying the human-readable label (via Django's auto-generated `get_status_display()`).
 - The v0 default dimension is `{"tap_cares": "collection_job"}`.
 
@@ -651,7 +900,7 @@ class CollectorBase(ABC):
     def __init__(self, config: CollectorConfig) -> None:
         self.config = config
         self.results: dict[str, list] = {"info": [], "warn": [], "error": []}
-        self.grift_batches: dict[str, list] = {"imported": [], "skipped": []}
+        self._produced_batches: list[tuple[str, str]] = []  # (batch_entity_id, disposition)
 
     def record_info(self, site: str, code: str, message: str, *, context: dict | None = None) -> None: ...
     def record_warn(self, site: str, code: str, message: str, *, context: dict | None = None) -> None: ...
@@ -706,7 +955,7 @@ The summary intentionally hides per-message content; operators dig into `results
 | req-tap-cares-collector-job-model-17 | INTERNAL_ONLY | Proposed | `CollectionJob.INTERNAL_ONLY = True`. Generic `create_node` / `patch_node` / `replace_node` / `delete_node` and GRIFT import all reject the `collection_job` entity type. | |
 | req-tap-cares-collector-job-model-18 | run_collection Is Sole Creator | Proposed | The only legal path that creates a CollectionJob row is `run_collection(...)` (see [Run Collection Entry Point](#run-collection-entry-point)), which uses `_create_node_internal` from `tap_grid.services`. | |
 | req-tap-cares-collector-job-model-19 | Accumulator Pattern For results | Proposed | The collector instance accumulates result entries in `self.results` during `run()`. The task body persists the accumulated dict to `CollectionJob.results` in a single patch at terminal state. No mid-run writes to the row. | Resolves the v0-pre-refactor staleness pattern. |
-| req-tap-cares-collector-job-model-20 | grift_batches Field | Proposed | `CollectionJob.grift_batches` is a `JSONField` with shape `{"imported": [<UUIDv7>...], "skipped": [<UUIDv7>...]}`, populated by the task body at terminal state from `collector_instance.grift_batches`. | Field was present in v0-pre-refactor but undeclared in the spec; declaring it now. |
+| req-tap-cares-collector-job-model-20 | Produced Batches Via Edge | Proposed | `CollectionJob` has no `grift_batches` field. Produced batches are linked by `PRODUCED_BATCH` edges (`disposition` ∈ {`imported`,`skipped`}) created by the task body at terminal state via `create_edge()`. | Supersedes the v0-pre-refactor embedded list; cross-ref `req-grid-edge-produced-batch`. |
 | req-tap-cares-collector-job-model-21 | Manual Run Provenance | Implemented | `CollectionJob` carries `manual_run` (BooleanField, default `false`) and `manual_run_source` (CharField, default `""`) fields. Manual runs (Administrivia run button, future manual surfaces) set `manual_run=True` with a short source identifier. Scheduler-triggered runs leave both at defaults; the inbound `TRIGGERED_JOB` edge from `ScheduleFire` is the canonical scheduler-trigger record. See [Manual Run Provenance](#manual-run-provenance). | Replaces the earlier generic `trigger_source` / `trigger_description` framing per scheduler review feedback. |
 
 ## CollectionJob Sole-Writer Invariant
@@ -722,23 +971,24 @@ Exactly one piece of code mutates a `CollectionJob` row in a given run, and it d
 | --- | --- | --- | --- |
 | Run kickoff | `run_collection` | `_create_node_internal("collection_job", ...)` | `name`, initial `status` (`READY`), `enqueued_at`, default fields |
 | Task start | `run_collector` task body | `_patch_node_internal` (or service-layer patch routed through `_create_node_internal`'s sibling for INTERNAL_ONLY types) | `status` (`RUNNING`), `started_at`, `task_result_id` |
-| Task success | `run_collector` task body | one patch | `status` (`SUCCESSFUL`), `finished_at`, `summary`, `results`, `grift_batches` |
-| Task failure | `run_collector` task body | one patch | `status` (`FAILED`), `finished_at`, `summary`, `results`, `grift_batches` |
+| Task success | `run_collector` task body | one patch | `status` (`SUCCESSFUL`), `finished_at`, `summary`, `results`, `self_test` |
+| Task failure | `run_collector` task body | one patch | `status` (`FAILED`), `finished_at`, `summary`, `results`, `self_test` |
+| Terminal (either) | `run_collector` task body | `create_edge()` per produced batch | `CollectionJob --PRODUCED_BATCH--> Batch` edges, each stamped with `disposition` |
 
-Three writes per run, total. None of them race. The task body holds no long-lived ORM instance across `collector.run()`; each patch is a fresh service-layer call.
+Three `CollectionJob`-row patches per run, total — none race. The task body holds no long-lived ORM instance across `collector.run()`; each patch is a fresh service-layer call. Terminal `PRODUCED_BATCH` edge creation is a separate service-layer operation by the same owner (`create_edge()`), not a `CollectionJob` row write — exactly as `run_collection`'s `HAS_JOB` edge creation is not a row write.
 
 #### What's not a writer
 
-- Collector code is **not** a writer. It accumulates `self.results` and `self.grift_batches` in-memory; the task body persists those accumulators at terminal state.
+- Collector code is **not** a writer. It accumulates `self.results` and produced-batch references in-memory; the task body persists `results` / `self_test` and creates the `PRODUCED_BATCH` edges at terminal state.
 - `record_info` / `record_warn` / `record_error` are **not** writers. They mutate `self.results` on the collector instance.
-- `submit_grift` is **not** a writer of CollectionJob. It writes grid state through `grift_import` (which creates Batch + entity rows), and it appends to `self.grift_batches` on the collector instance. It does not touch the CollectionJob row.
+- `submit_grift` is **not** a writer of CollectionJob. It writes grid state through `grift_import` (which creates Batch + entity rows) and appends `(batch_entity_id, disposition)` to the collector instance's produced-batch accumulator. It does not touch the CollectionJob row; the `PRODUCED_BATCH` edges are created by the task body at terminal state.
 - `enqueue_collection` is gone; its replacement `run_collection` is the kickoff writer, but it does not write to the row again after `.enqueue()` returns. The redundant post-enqueue `task_result_id` fallback that existed in v0-pre-refactor is removed; the task body writes `task_result_id` at task start.
 
 #### Why this matters
 
 The v0-pre-refactor code had at least seven write sites touching `CollectionJob` across four files, using `update_fields=[...]` as a poor man's column-level lock against a stale ORM instance held in `tasks.py` across the duration of `collector.run()`. The pattern worked under careful interleaving but fell apart under any scrutiny.
 
-The sole-writer invariant replaces that pattern with a much simpler structural property: the task body owns the row, holds it for the minimum time required, and persists everything else (results, grift batches) from in-memory accumulators in one shot. Read-modify-write windows are vanishingly small; staleness has nowhere to live.
+The sole-writer invariant replaces that pattern with a much simpler structural property: the task body owns the row, holds it for the minimum time required, persists everything else (results, self-test) from in-memory accumulators in one shot, and creates the `PRODUCED_BATCH` edges from the produced-batch accumulator. Read-modify-write windows are vanishingly small; staleness has nowhere to live.
 
 #### One known limit
 
@@ -751,7 +1001,7 @@ If the task itself dies hard (segfault, OOM, `kill -9`), neither terminal patch 
 | req-tap-cares-collector-job-sole-writer-1 | Three Writes Per Run | Proposed | A normal run produces exactly three writes to the CollectionJob row: kickoff (READY), task start (RUNNING), task end (SUCCESSFUL or FAILED). | |
 | req-tap-cares-collector-job-sole-writer-2 | Task Body Is Sole Mid/End Writer | Proposed | After `run_collection` returns, the only writer to the CollectionJob row is the `run_collector` task body. | |
 | req-tap-cares-collector-job-sole-writer-3 | Collector Code Holds No Job Handle | Proposed | The collector instance has access to `self.config.collection_job_entity_id` (an ID) but never receives or fetches a CollectionJob instance. Helpers do not take a `job` parameter. | |
-| req-tap-cares-collector-job-sole-writer-4 | Accumulators Persist At Terminal | Proposed | `self.results` and `self.grift_batches` on the collector instance are persisted to `CollectionJob.results` and `CollectionJob.grift_batches` in the same terminal-state patch. | |
+| req-tap-cares-collector-job-sole-writer-4 | Accumulators Persist At Terminal | Proposed | At terminal state the task body persists `self.results` → `CollectionJob.results` and `self_test` → `CollectionJob.self_test` in one patch, and creates `PRODUCED_BATCH` edges from the collector instance's produced-batch accumulator. | Edges via `create_edge()`, not a row write. |
 | req-tap-cares-collector-job-sole-writer-5 | No update_fields Gymnastics | Proposed | The task body uses ordinary service-layer patches; no `update_fields=[...]` workarounds for concurrent writers, because there are no concurrent writers. | |
 | req-tap-cares-collector-job-sole-writer-6 | No Long-Lived Stale Instance | Proposed | The task body does not hold a `CollectionJob` ORM instance across `collector.run()`. Each patch operates on a fresh service-layer round trip. | |
 | req-tap-cares-collector-job-sole-writer-7 | Stuck-Job Reaping Out Of Scope | Proposed | Uncatchable task death (segfault, OOM, kill -9) is acknowledged as an unsolved case; a separate stuck-job sweep is the right fix and is out of scope. | |
@@ -844,7 +1094,7 @@ Whether *any particular* `record_error` call must be paired with a raise is a pe
 The `run_collector` task body:
 
 1. Catches any exception raised by `instance.run()`.
-2. Writes a single FAILED-state patch to `CollectionJob` per `req-tap-cares-collector-job-sole-writer`: `status=FAILED`, `finished_at`, `summary` (collector-set `self.summary` if non-empty; otherwise derived from `len(results["error"])` as `"Failed with N error(s)"`; otherwise the exception's class and message), `results` (the full accumulator including all error entries), `grift_batches` (whatever was submitted before the abort).
+2. Writes a single FAILED-state patch to `CollectionJob` per `req-tap-cares-collector-job-sole-writer`: `status=FAILED`, `finished_at`, `summary` (collector-set `self.summary` if non-empty; otherwise derived from `len(results["error"])` as `"Failed with N error(s)"`; otherwise the exception's class and message), `results` (the full accumulator including all error entries), and `self_test` if phase 1 ran. It then creates `PRODUCED_BATCH` edges for whatever batches were produced before the abort (from the produced-batch accumulator).
 3. Re-raises so Django Tasks' own failure machinery sees the failure.
 
 #### What this guarantees
