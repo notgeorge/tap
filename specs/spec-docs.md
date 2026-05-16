@@ -29,6 +29,7 @@ This spec defines the documentation system: where docs live, how they reference 
 | req-docs-change-history | [Change History via Git](#change-history-via-git) | Proposed | Doc-only commits when possible; git is the changelog |
 | req-docs-drift-conventions | [Drift Detection Conventions](#drift-detection-conventions) | Proposed | CLAUDE.md and memory rules |
 | req-docs-landing-page | [Docs Landing Page](#docs-landing-page) | Backlog | Top-level index doc for human/LLM orientation |
+| req-docs-ref-resolution | [Structured Doc-Reference Resolution](#structured-doc-reference-resolution) | Backlog | Core shape: a structured doc reference resolves to a canonical doc target; emitters produce refs now, resolution deferred; web rendering is a separate concern |
 
 ### Docs Live in `docs/`
 ----
@@ -223,6 +224,35 @@ Backlog because we have only one doc to start with — a directory of size 1 is 
 | --- | --- | :---: | --- | --- |
 | req-docs-landing-page-1 | Index lists every doc | Backlog | `docs/doc-index.md` enumerates every doc in `docs/` with summary and audience. | |
 | req-docs-landing-page-2 | Owned by a doc-spec | Backlog | The landing doc has its own `spec-docs-index-doc.md` owning spec. | |
+
+### Structured Doc-Reference Resolution
+----
+RID: `req-docs-ref-resolution`
+Status: `Backlog`
+
+Subsystems already *emit* structured references to canonical documentation before any surface can *resolve* them. The collector self-test contract is the first emitter: `CollectorDocRef` (`tap_cares/specs/spec-tap-cares-collector.md` `req-tap-cares-collector-self-test-5`) carries `plugin`, `doc`, `section`, `label`, and a derived `ref` string of the form `<plugin>/<doc>#<section>`. AWS and KSI collectors attach these to non-ready self-test checks today. Nothing turns them into a navigable target yet — they round-trip as opaque strings.
+
+This requirement defines the **core architectural shape** of doc-reference resolution, and deliberately stops at the shape:
+
+- **Reference shape (stable now).** A structured doc reference is `{plugin, doc, section?, label?}`. The `<plugin>/<doc>` pair maps to a doc file under the [Doc and Doc-Spec Naming](#doc-and-doc-spec-naming) convention (`req-docs-naming`); `section` is an in-doc anchor; `label` is display text. Emitters MAY produce references for docs that do not exist yet — a reference is a *claim about where the explanation will live*, not a guarantee it is written.
+- **Resolution contract (deferred).** A resolver takes a structured reference and returns a canonical doc target (resolved doc path + anchor) or a typed "unresolved" result — never an exception, never a fabricated link. Resolution is **application-agnostic**: the same contract serves a web UI, an API response, or an agent. It belongs here, in the docs system, not in any one consuming application.
+- **Separation of concerns (the point of specifying this now).** *Resolution* (ref → canonical doc target) is a docs-system concern owned by this requirement. *Rendering* (turning a resolved target into a clickable link, a route, an HTMX surface) is a web-UI concern owned by `tap_web/specs/spec-web-rendering.md` `req-web-rendering-docref`. *Emission* (producing refs) is each emitting subsystem's concern (collectors: `req-tap-cares-collector-self-test-5`). Three concerns, three homes, named now so the touchpoints are known before anything is built.
+
+Until this lands, the interim contract is explicit: emitters produce references, consumers display the raw `ref`/`label` strings, and no resolution or navigation is implied. That interim behavior is a *named stub*, not an oversight — every consuming spec and code seam points back at this RID.
+
+#### Status Details
+
+Backlog. There is exactly one emitter (collector self-tests) and zero rendered docs, so a resolver would resolve nothing. Promote to Approved for Development when the first real `docs/` page that a self-test should point at exists, or when a second emitter appears — whichever first creates demand for resolution rather than display.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-docs-ref-resolution-1 | Reference Shape Is Canonical | Backlog | The `{plugin, doc, section?, label?}` structure (and its `<plugin>/<doc>#<section>` `ref` form) is the one doc-reference shape; emitters conform to it. | `CollectorDocRef` is the reference implementation. |
+| req-docs-ref-resolution-2 | Resolution Is Application-Agnostic | Backlog | The resolver is a docs-system capability usable by any surface (web, API, agent); it is not implemented inside a consuming application. | |
+| req-docs-ref-resolution-3 | Unresolved Is A Typed Result | Backlog | Resolving a reference to a not-yet-written or unknown doc returns a typed "unresolved" result, never an exception or a fabricated link. | |
+| req-docs-ref-resolution-4 | Rendering Is Out Of Scope Here | Backlog | This requirement defines resolution only. Rendering a resolved target as a navigable link is owned by `req-web-rendering-docref`. | Concern separation. |
+| req-docs-ref-resolution-5 | Interim Stub Is Named | Backlog | Until resolution lands, consumers display raw `ref`/`label` and every deferral points at this RID rather than a vague "future docs surface". | |
 
 ### Drift Detection Conventions
 ----

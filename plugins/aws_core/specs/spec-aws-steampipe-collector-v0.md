@@ -46,6 +46,7 @@ the collector's hardcoded collection scope.
 | req-aws-steampipe-identity | [Provider Identity Resolution](#provider-identity-resolution) | Proposed | Stable AWS source identity resolves to existing TAP entity IDs before minting new UUIDv7s |
 | req-aws-steampipe-vpc-subnet | [First Collector Slice: VPC And Subnet](#first-collector-slice-vpc-and-subnet) | In Development | Initial collector imports `aws_vpc` and `aws_vpc_subnet` |
 | req-aws-steampipe-grift | [GRIFT Batch Contract](#grift-batch-contract) | Proposed | Collector output mutates grid only through GRIFT import |
+| req-aws-steampipe-edge-verbose-sweep | [Verbose Edge Slug Sweep](#verbose-edge-slug-sweep) | Backlog | Retire legacy generic `CONTAINS` / `RESIDES_IN` (and siblings) across aws_core in favour of the verbose sentence-forming convention |
 | req-aws-steampipe-observability | [Run Observability](#run-observability) | In Development | CollectionJob receives redacted summaries, counts, warnings, and batch refs |
 | req-aws-steampipe-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Deletes/reaping, assume-role, and broad AWS coverage are deferred |
 
@@ -412,9 +413,11 @@ partition, region — never access keys, secret keys, or session tokens.
 
 ### Docs References
 
-Non-ready checks carry `CollectorDocRef`s to the AWS setup doc; doc-ref
-*resolution/rendering* is deferred (`req-tap-cares-collector-self-test-5`).
-Anchors target the (rewritten) `plugins/aws_core/docs/setup-steampipe-collector.md`:
+Non-ready checks carry `CollectorDocRef`s to the AWS setup doc (this plugin is
+an *emitter* only, `req-tap-cares-collector-self-test-5`). Resolution is
+`specs/spec-docs.md` `req-docs-ref-resolution`; rendering is `tap_web`
+`req-web-rendering-docref`; both Backlog. Anchors target the (rewritten)
+`plugins/aws_core/docs/setup-steampipe-collector.md`:
 
 - missing secret → `#secret-file`
 - missing Steampipe binary/plugin → `#host-prerequisites`
@@ -605,10 +608,11 @@ so a redundant edge is omitted.
 
 `HOSTS_VPC`, `PARTITIONED_INTO_SUBNET`, `BELONGS_TO_VPC`, and `BOUND_TO_AZ` are
 **new** verbose edge types this collector introduces; their `.edge.json`
-definitions + registration land with the #6 code rework. The separate retirement
-of the legacy generic `CONTAINS` / `RESIDES_IN` slugs across the rest of
-aws_core (seed data, projection spec, etc.) is deferred, tracked outside this
-spec — the collector does not use those slugs.
+definitions + registration landed with the #6 code rework. The separate
+retirement of the legacy generic `CONTAINS` / `RESIDES_IN` slugs (and their
+siblings) across the rest of aws_core is deferred and tracked here as
+[`req-aws-steampipe-edge-verbose-sweep`](#verbose-edge-slug-sweep) (Backlog) —
+the collector itself does not use those slugs, so it is not blocked.
 
 The first implementation may create a minimal `AwsAccount` node for the
 secret-named account if one does not already exist, but it should not collect
@@ -626,6 +630,50 @@ anchoring.
 | req-aws-steampipe-vpc-subnet-5 | Raw Row Preserved | Proposed | The received Steampipe row is stored in each node's `configuration`. | |
 | req-aws-steampipe-vpc-subnet-6 | Relationship Edges | Proposed | The collector creates supported account, region, VPC, subnet, and AZ edges when endpoints can be resolved. | |
 | req-aws-steampipe-vpc-subnet-7 | Single-Account Scope | Proposed | v0 targets the one secret-named account, scoped to `data.region` (widened by optional `metadata.target_regions`). | |
+
+## Verbose Edge Slug Sweep
+----
+RID: `req-aws-steampipe-edge-verbose-sweep`
+Status: `Backlog`
+
+The VPC/subnet collector introduced the verbose, sentence-forming edge
+convention (slug + Title-case name + a semantic `description` sentence:
+`HOSTS_VPC`, `PARTITIONED_INTO_SUBNET`, `BELONGS_TO_VPC`, `BOUND_TO_AZ`). The
+rest of aws_core still carries the older generic single-word slugs —
+`CONTAINS` ("Parent resource contains child resources…"), `RESIDES_IN`
+("Resource lives in a region, AZ, VPC, or subnet…"), and siblings — which are
+multi-purpose and read poorly in traversals. This requirement is the deferred
+sweep that retires those generic slugs across aws_core in favour of the
+verbose convention.
+
+#### Status Details
+
+Backlog. Deliberately deferred ("agreed to wait"): the collector does not use
+the generic slugs, so it is not blocked, and a single-developer system can
+make this dramatic edge-vocabulary change in one pass when it is scheduled
+rather than dribbling it out. Tracked here so the deferral is a named seam,
+not tribal memory. Promote when a consumer (projection, a second collector, a
+query surface) actually needs the generic edges to read verbosely, or when the
+edge vocabulary is next revised wholesale.
+
+#### Scope (when promoted)
+
+- Replace generic slugs (`CONTAINS`, `RESIDES_IN`, and any other generic
+  single-word aws_core edges) with verbose, sentence-forming equivalents,
+  one verbose slug per real relationship rather than one overloaded slug.
+- Update every touchpoint together (single-dev, one dramatic pass): `.edge.json`
+  definitions, `tap-plugin.toml` registration, GRIFT seed data, and any
+  projection/spec references.
+- No backward-compatibility shim or alias layer — the old slugs are removed,
+  not deprecated-in-place.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-aws-steampipe-edge-verbose-sweep-1 | Generic Slugs Retired | Backlog | No generic single-word multi-purpose edge slugs remain in aws_core; each real relationship has its own verbose slug. | `CONTAINS`/`RESIDES_IN` are the headline cases. |
+| req-aws-steampipe-edge-verbose-sweep-2 | All Touchpoints Updated Together | Backlog | Edge JSON, `tap-plugin.toml`, GRIFT seed data, and projection/spec references are updated in one pass. | Single-dev: no incremental-compat phase. |
+| req-aws-steampipe-edge-verbose-sweep-3 | No Compatibility Layer | Backlog | Old slugs are removed outright; no alias/shim is introduced for them. | Cross-ref single-developer-system rule in `AGENTS.md`. |
 
 ## GRIFT Batch Contract
 ----

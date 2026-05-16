@@ -65,7 +65,7 @@ Chosen because:
 
 Known limitations (from upstream docs) that we accept:
 
-- **No `task.return_value` result fetching.** TAP collectors already persist their outcome on `CollectionJob.results`, `summary`, and `grift_batches`; the v0 collector contract doesn't rely on synchronous return values.
+- **No `task.return_value` result fetching.** TAP collectors already persist their outcome on `CollectionJob.results`, `summary`, and `self_test`, plus `CollectionJob --PRODUCED_BATCH--> Batch` edges (there is no `CollectionJob.grift_batches` field — `req-tap-cares-collector-grift-import-6`); the v0 collector contract doesn't rely on synchronous return values.
 - **POSIX-only (fork-based concurrency).** Acceptable — TAP runs in Linux containers.
 - **No async task enqueueing.** We don't use async enqueue.
 

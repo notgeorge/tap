@@ -30,6 +30,7 @@ We haven't fully defined the panel structure yet, likely going to do that next.
 | req-web-rendering-panelsan.sec | [Panel Rendering Sanitization](#panel-rendering-sanitization-security) | Implemented | Standard Django templates; `\|safe` risk documented |
 | req-web-rendering-path.sec | [Path Access Security](#path-access-security) | Backlog | User permission checks (deferred to user security model) |
 | req-web-rendering-route.sec | [Path Overwrite Security](#path-overwrite-security) | Backlog | Plugin isolation to prevent path hijacking |
+| req-web-rendering-docref | [Doc-Reference Link Rendering](#doc-reference-link-rendering) | Backlog | Web-UI touchpoint: render a *resolved* structured doc reference as a navigable link; resolution contract owned by the docs system |
 
 
 ### Dynamic Page Resolution
@@ -276,6 +277,31 @@ Malicious plugins could:
 
 Basically it's the second worst possible form of injection beyond direct execution of untrusted code inside the app (which is currently the standard for plugins).
 
+
+### Doc-Reference Link Rendering
+----
+RID: `req-web-rendering-docref`
+Status: `Backlog`
+Revisit When: `req-docs-ref-resolution promotes out of Backlog, or the first docs/ page a self-test points at exists`
+
+This is the **web-UI half** of structured doc-reference handling. The split is deliberate and named early so the touchpoint is known before either side is built:
+
+- **Resolution** — turning a structured reference `{plugin, doc, section?, label?}` into a canonical doc target — is a docs-system concern, owned by `specs/spec-docs.md` `req-docs-ref-resolution`. Not a web concern.
+- **Rendering** — turning a *resolved* target into a clickable link / route / HTMX surface inside a page or panel — is this requirement. It is the web-UI concern and lives here in `tap_web` because doc links are a cross-cutting rendering primitive any panel can use, not a feature of one consuming surface (e.g. the CARES collector readiness panels at `tap_cares/specs/spec-tap-cares-administrivia.md` `req-tap-cares-administrivia-collector-readiness-5`).
+
+Until both halves land, the interim behavior is the explicit, named stub described in `req-docs-ref-resolution`: panels display the raw `ref`/`label` strings and render no navigable link. This requirement does not define the resolver, the docs route, or the link markup — only that, when resolution exists, rendering a resolved doc reference is a `tap_web` rendering primitive, not bespoke per-panel code.
+
+#### Status Details
+
+Backlog, blocked on `req-docs-ref-resolution` (no resolver, no rendered docs to link to). It is recorded now purely to fix the concern boundary: resolution ≠ rendering ≠ emission, three specs, no overlap.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-rendering-docref-1 | Rendering Only | Backlog | This requirement covers rendering a resolved doc target as a navigable web link; it does not resolve references (that is `req-docs-ref-resolution`). | Concern separation. |
+| req-web-rendering-docref-2 | Shared Primitive | Backlog | Doc-link rendering is a shared `tap_web` rendering helper usable by any page/panel, not duplicated per consuming panel. | |
+| req-web-rendering-docref-3 | Interim Raw Display | Backlog | Until resolution lands, panels display raw `ref`/`label` with no link; this is the named stub from `req-docs-ref-resolution-5`. | |
 
 ## Status Vocabulary
 
