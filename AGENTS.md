@@ -32,6 +32,9 @@ For non-OpenAI frameworks and libraries, prefer official upstream documentation 
 - Plugin code owns domain schemas and behavior; core apps provide shared platform capabilities.
 - Do not introduce multi-tenancy.
 - Do not introduce autonomous agent actions without an explicit spec change.
+- Plugin-specific configuration must not live in `docker-compose.yml`, core settings, or other shared infrastructure. Plugins self-configure through plugin-owned mechanisms (v0: on-disk secrets under `TAP_SECRETS_ROOT`); a durable on-grid plugin-config model is future work. (The removed `AWS_CORE_STEAMPIPE_COLLECTOR` compose entry was exactly this anti-pattern.)
+- Do not add third-party libraries or dependencies without explicit approval. TAP deliberately minimizes third-party dependence — prefer Django/stdlib batteries-included and capabilities already present (e.g. Steampipe) before reaching for a new package. A new dependency needs deliberate justification and the user's go-ahead. (boto3 was pulled in without this and removed; the AWS identity check uses the already-present Steampipe instead.)
+- v0 is a single-developer system with no other humans and no production data. Do not fear or hedge against dramatic changes to DB structure, data, or schemas — destructive migrations, dropped/renamed fields, and reshaped data are acceptable and usually preferable to compatibility shims or "defer for migration safety." Migrations are still used; they need not be non-destructive or data-preserving. The user will explicitly say when multi-developer / production constraints begin. (Orthogonal to the no-messy-specs push rule below: parallel automated sessions still exist, so specs pushed to `main` must stay internally consistent — freedom to break data, discipline to keep specs clean.)
 
 ## Logging Conventions
 
@@ -84,8 +87,11 @@ The current tap-cares spec lives at:
 - Do not overwrite unrelated user changes in the worktree.
 - Prefer small, inspectable changes over broad refactors.
 - When adding new capabilities, update specs first or alongside implementation.
+- When asked to record a durable rule/fact ("add to memory", "add to AGENTS.md", "remember this", or just stating a standing rule), put it in **both** the agent memory and `AGENTS.md` (and the `MEMORY.md` index) by default — do not make the user ask twice or say "both". Applies to every agent (Claude has file memory; Codex reads `AGENTS.md`).
 
 ## Git Workflow
+
+Never promote in-flight, incomplete, or known-messy specs to `origin/main` if it can be avoided. Specs are canonical truth and `scripts/spawn-session.sh` branches new sessions off `main`, so a drifted spec on `main` makes every parallel session build on bad truth. Treat spec reconciliation (implementation drift, plugin specs, cross-referencing specs) as a pre-push gate, not a follow-up; if a spec must stay in-flight, keep it on the session branch and exclude it from the promote.
 
 When advancing `origin/main` from a session branch, follow `req-dev-multisession-push-workflow` in [`specs/spec-dev-multisession.md`](specs/spec-dev-multisession.md). The four-step pattern is:
 

@@ -21,6 +21,7 @@ This spec covers the plugin validation harness provided by `tap_plugins` and the
 | --- | --- | :---: | --- |
 | req-plugin-test-system | [Plugin System Tests](#plugin-system-tests) | In Development | Tests for the plugin machinery itself |
 | req-plugin-test-harness | [Plugin Validation Harness](#plugin-validation-harness) | Backlog | Standardized validation that any plugin can run |
+| req-plugin-test-sandbox | [Sandbox-Aware Test Exclusion](#sandbox-aware-test-exclusion) | Backlog | A standardized convention for gracefully excluding plugin tests that need live external resources when running in sandboxed / offline / cloud-build environments |
 | req-plugin-test-custom | [Plugin-Specific Tests](#plugin-specific-tests) | In Development | Conventions for hand-written plugin tests |
 
 ### Plugin System Tests
@@ -145,6 +146,88 @@ The base class discovers the plugin by slug, loads its manifest, and runs all ap
 
 #### Future
 The validation harness may evolve into a `manage.py validate_plugin <slug>` management command for non-test-suite usage. A `--strict` flag could treat warnings (undeclared files) as errors.
+
+### Sandbox-Aware Test Exclusion
+----
+RID: `req-plugin-test-sandbox`
+Status: `Backlog`
+
+Some plugin tests can only pass with access to live external resources: a real
+upstream URL, cloud credentials, an STS identity call, a container-only binary,
+or a network round-trip. Today TAP runs in a developer Docker stack with full
+internet, so these tests run fine. As TAP work moves toward sandboxed,
+offline, or cloud-build execution (the satellite/outpost direction), those
+tests must be **gracefully excluded** — deselected or skipped, never failed —
+so the deterministic core suite stays green with zero external access.
+
+#### Status Details
+
+Backlog. There is one concrete prototype today: the `live_fetch` pytest marker
+(registered in `pyproject.toml`, default-deselected via
+`addopts = -m 'not live_fetch'`), used by the FedRAMP KSI collector's opt-in
+real-upstream test. This requirement generalizes that one-off into a single
+TAP-wide convention plugin authors can rely on, rather than each plugin
+inventing its own marker. Deferred until sandboxed/offline execution is
+actually being built; specified now so the convention is designed once, not
+retrofitted per plugin.
+
+#### Motivating Case
+
+The default-on collector phase-1 self-test gate
+(`tap_cares/specs/spec-tap-cares-collector.md`
+`req-tap-cares-collector-self-test-10`) runs a collector's `self_test()` as
+phase 1 of *every* `CollectionJob`. A collector whose `self_test()` performs a
+live external probe (KSI's read-only upstream HEAD; the AWS collector's STS
+`GetCallerIdentity`) therefore makes every collection-run test transitively
+depend on that live resource. On a developer laptop with internet that
+succeeds; in a sandboxed/offline run it would not. The deterministic suite
+already avoids this for the *collection* path by overriding the data-fetch seam
+(KSI's `_fetch_upstream_bytes`); the missing piece is a parallel, standardized
+way to (a) stub the self-test probe so phase 2 is still exercised
+deterministically, and (b) mark genuinely live-only tests for graceful
+exclusion.
+
+#### Implementation
+
+The convention has three parts:
+
+- **One canonical marker.** A single registered pytest marker (working name
+  `requires_live_external`) supersedes ad-hoc per-plugin markers. `live_fetch`
+  is folded in as the first adopter (kept as an alias or migrated). Plugin
+  authors apply the marker; they do not edit the root `pyproject.toml` per
+  plugin.
+- **One selection signal.** Sandboxed / offline / cloud-build runners
+  deselect the marker through a single documented mechanism (a pytest `-m`
+  expression and/or an environment variable such as `TAP_SANDBOX=1` honored by
+  a shared conftest), so a build environment opts out in one place rather than
+  per suite.
+- **A self-test stub seam.** Collectors whose `self_test()` performs live
+  external I/O expose a deterministic override point (mirroring the existing
+  data-fetch seam) so collection-run tests can exercise phase 2 without the
+  live probe and without marking the whole test live-only. Tests that
+  *intentionally* assert real live behavior carry the marker and are excluded
+  in sandboxed runs.
+
+Graceful exclusion means deselect/skip with a clear reason, never a failure: a
+fully offline run of the core suite must be green.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-test-sandbox-1 | Canonical Marker | Backlog | One TAP-wide registered pytest marker designates tests that require live external resources; plugins use it instead of inventing per-plugin markers. | Generalizes today's `live_fetch`. |
+| req-plugin-test-sandbox-2 | Single Selection Signal | Backlog | Sandboxed / offline / cloud-build environments deselect the marker through one documented mechanism (pytest `-m` and/or a shared-conftest env var), not per-suite wiring. | |
+| req-plugin-test-sandbox-3 | Graceful, Never Failing | Backlog | Excluded tests are deselected or skipped with a reason; a fully offline run of the core suite is green. | |
+| req-plugin-test-sandbox-4 | Self-Test Stub Seam | Backlog | A collector whose `self_test()` does live external I/O exposes a deterministic override point so collection-run tests exercise phase 2 without the live probe. | Cross-ref `req-tap-cares-collector-self-test-10`; mirrors KSI's `_fetch_upstream_bytes` seam. |
+| req-plugin-test-sandbox-5 | live_fetch Folded In | Backlog | The existing `live_fetch` marker and its default `addopts` deselect are absorbed into the canonical convention (alias or migration), not left as a parallel one-off. | |
+| req-plugin-test-sandbox-6 | Harness Surfacing | Backlog | The plugin validation harness (`req-plugin-test-harness`), when built, documents/surfaces the convention so new plugins adopt it by default. | |
+
+#### Future
+
+The same marker taxonomy is the natural place to add other categorizations
+anticipated by `specs/spec-tap-testing.md` (`slow`, `integration`). When TAP
+gains true sandboxed satellites/outposts, the selection signal can be driven by
+the sandbox runtime itself rather than a build-time flag.
 
 ### Plugin-Specific Tests
 ----

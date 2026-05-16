@@ -277,6 +277,8 @@ The plugin architecture expects TAP-facing registration to flow through `TapPlug
 
 This does not forbid ordinary Python implementation code. It does mean that the plugin's TAP contract should remain inspectable and that startup behavior should preserve the boundaries established by the plugin infrastructure.
 
+A plugin's *configuration* is part of this boundary. A plugin must not place its configuration in `docker-compose.yml`, core settings, or other shared infrastructure — that couples the plugin to the host and breaks the self-contained-unit shape (`req-plugin-arch-layout-4`). Plugins self-configure through plugin-owned mechanisms; in v0 this is on-disk secrets discovered under `TAP_SECRETS_ROOT` (e.g. the AWS Steampipe collector resolving a well-known `SecretRef`). A durable on-grid plugin-configuration model is future work; the removed `AWS_CORE_STEAMPIPE_COLLECTOR` compose entry was this anti-pattern.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
@@ -284,6 +286,7 @@ This does not forbid ordinary Python implementation code. It does mean that the 
 | req-plugin-arch-runtime-1 | Contract-Driven Startup | Implemented | TAP-facing startup behavior flows through the plugin contract rather than arbitrary side effects. | |
 | req-plugin-arch-runtime-2 | Implementation Still Allowed | Implemented | Plugins may include ordinary implementation code behind the declared contract. | |
 | req-plugin-arch-runtime-3 | Inspectable Load Shape | Implemented | A reviewer can understand the plugin's TAP-facing load shape without reading arbitrary startup logic. | |
+| req-plugin-arch-runtime-4 | Self-Contained Configuration | Implemented | A plugin's configuration does not live in `docker-compose.yml`, core settings, or other shared infrastructure; plugins self-configure through plugin-owned mechanisms (v0: on-disk secrets under `TAP_SECRETS_ROOT`). | Durable on-grid plugin config is future work. |
 
 ### Testing Requirements
 ----

@@ -131,6 +131,13 @@ Keep it short at scaffold time, then maintain it as decisions accumulate. Do not
 
 Periodically revisit root `README.md` and any plugin-local docs during plugin work, especially after adding models, edges, collectors, GRIFT seed data, validation behavior, or operational assumptions. Treat stale plugin documentation as spec drift: update it in the same change set when the implementation or architecture moves. Use `docs/` for setup guides, operator runbooks, inventories, and longer design notes that would make the root README hard to scan.
 
+## Plugin Configuration And Dependencies (hard rules)
+
+Two anti-patterns that have bitten this codebase — do not repeat them:
+
+- **No plugin config in core infrastructure.** A plugin's configuration must not live in `docker-compose.yml`, core settings, or other shared infra (`req-plugin-arch-runtime-4`). Plugins self-configure through plugin-owned mechanisms — in v0, on-disk secrets discovered under `TAP_SECRETS_ROOT` (e.g. resolve a well-known `SecretRef`). A durable on-grid plugin-config model is future work. The removed `AWS_CORE_STEAMPIPE_COLLECTOR` compose entry was this mistake.
+- **No new third-party dependencies without explicit approval.** TAP deliberately minimizes third-party dependence: prefer Django/stdlib and capabilities already present before reaching for a package. Adding a library requires deliberate justification and the user's go-ahead — never slip one in. (boto3 was pulled in for an AWS identity check and removed; the check uses the already-present Steampipe instead.)
+
 ## Step 5: Create Models
 
 For each model the plugin needs, follow the **[`add-model`](../../../tap_grid/skills/add-model/SKILL.md) skill**. It is the canonical procedure for adding a TAP-managed BaseModel — file layout, required class variables, dual-schema contract, manifest registration, migrations, spec sync, and tests are all covered there.
