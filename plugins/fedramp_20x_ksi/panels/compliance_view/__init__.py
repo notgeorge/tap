@@ -46,7 +46,7 @@ def _resolve_default_class() -> str:
         )
     except Exception:  # noqa: BLE001
         logger.exception(
-            "Failed to query FedRAMP 20x ComplianceContext; "
+            "[fedramp_20x_ksi-9264] Failed to query FedRAMP 20x ComplianceContext; "
             "defaulting compliance-view class selector to 'all'."
         )
         return _FALLBACK_CLASS
@@ -54,7 +54,7 @@ def _resolve_default_class() -> str:
     rows = envelope.get("rows") or envelope.get("nodes") or []
     if not rows:
         logger.warning(
-            "No ComplianceContext with regime='fedramp_20x' on this Grid; "
+            "[fedramp_20x_ksi-9ed1] No ComplianceContext with regime='fedramp_20x' on this Grid; "
             "defaulting compliance-view class selector to 'all'. Seed one via "
             "the Genericom compliance-context-fedramp grift bundle."
         )
@@ -108,7 +108,7 @@ class KsiCompliancePanelType:
             result = execute_search(search, layer="extended")
         except Exception as exc:  # noqa: BLE001
             logger.exception(
-                "KSI compliance search execution failed for panel %s",
+                "[fedramp_20x_ksi-d569] KSI compliance search execution failed for panel %s",
                 panel.entity_id,
             )
             return {

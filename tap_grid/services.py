@@ -401,7 +401,7 @@ def _execute_write_pipeline(
                 try:
                     _record_provenance(op.verb, instance.entity, batch_id, user)
                 except Exception:
-                    logger.exception("Provenance recording failed for batch %s", batch_id)
+                    logger.exception("[tap_grid-4f93] Provenance recording failed for batch %s", batch_id)
             # Tombstone: set deleted_at on the entity and cascade to its edges.
             now = timezone.now()
             from django.db.models import F, Q
@@ -432,7 +432,7 @@ def _execute_write_pipeline(
                 try:
                     _record_provenance(op.verb, instance.entity, batch_id, user)
                 except Exception:
-                    logger.exception("Provenance recording failed for batch %s", batch_id)
+                    logger.exception("[tap_grid-3c88] Provenance recording failed for batch %s", batch_id)
 
         # Step 12: Response shaping.
         summary = None
@@ -470,7 +470,7 @@ def _execute_write_pipeline(
             errors=[ServiceError(code=code_map[type(exc)], message=str(exc))],  # type: ignore[arg-type]
         )
     except Exception as exc:
-        logger.exception("Unhandled error in write pipeline for verb=%s", op.verb)
+        logger.exception("[tap_grid-95fb] Unhandled error in write pipeline for verb=%s", op.verb)
         return WriteResult(
             success=False,
             batch_id=batch_id,
@@ -533,7 +533,7 @@ def write_batch(
             try:
                 _ensure_batch(effective_batch_id, user)
             except Exception:
-                logger.exception("Failed to ensure Batch entity for batch_id=%s", effective_batch_id)
+                logger.exception("[tap_grid-fc60] Failed to ensure Batch entity for batch_id=%s", effective_batch_id)
 
             for op in operations:
                 result = _execute_write_pipeline(
@@ -555,7 +555,7 @@ def write_batch(
     except _BailOut:
         pass  # First failure captured in results; atomic() rolled back.
     except Exception as exc:
-        logger.exception("Unexpected error in write_batch")
+        logger.exception("[tap_grid-0b64] Unexpected error in write_batch")
         batch_errors.append(ServiceError(code="internal_error", message=str(exc)))
     finally:
         set_caller_context(prior_ctx)
@@ -933,7 +933,7 @@ def purge_node(
             BatchEvent.objects.filter(entity_id__in=touching_edge_ids).delete()
 
     logger.info(
-        "purge_node: entity_id=%s entity_type=%s touching_edges=%d actor=%s reason=%r",
+        "[tap_grid-3240] purge_node: entity_id=%s entity_type=%s touching_edges=%d actor=%s reason=%r",
         target_uuid,
         entity_type,
         len(touching_edge_ids),

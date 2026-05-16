@@ -1,6 +1,6 @@
 {
-  "slug": "ASSUMES",
-  "name": "Assumes",
+  "slug": "ASSUMES_ROLE",
+  "name": "Assumes Role",
   "description": "IAM user or role assumes another IAM role.",
   "sources": [
     "aws_iam_user",

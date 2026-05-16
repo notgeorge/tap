@@ -66,7 +66,7 @@ def get_flip_context_for_entity(entity_id: str) -> dict[str, Any]:
         model_cls = get_model_class(entity.entity_type)
         instance = model_cls.objects.select_related("entity").get(entity_id=entity_id)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("FLIP panel: could not load subject %s: %s", entity_id, exc)
+        logger.warning("[tap_web-7f38] FLIP panel: could not load subject %s: %s", entity_id, exc)
         return {
             "flip_subject": entity,
             "flip_rows": [],

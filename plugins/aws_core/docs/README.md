@@ -91,6 +91,7 @@ No deletion, reaping, or implied absence semantics belong in the first slice.
 
 Current implementation status: the collector shell, config validator, trusted
 `vpc-subnet-v0` profile, Steampipe subprocess wrapper, and collector
-registration exist under `plugins/aws_core/collectors/`. The next implementation
-step is to connect the incoming `tap_cares` secrets implementation and then add
-VPC/subnet normalization into GRIFT.
+registration exist under `plugins/aws_core/collectors/`. The collector now
+resolves and validates AWS static credentials through `tap_cares.secrets` and
+passes them to Steampipe without persisting values. The next implementation step
+is VPC/subnet normalization into GRIFT.

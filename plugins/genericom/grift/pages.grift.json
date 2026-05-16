@@ -31,14 +31,14 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (v:aws_vpc)-[e1:BELONGS_TO]->(a:aws_account)",
+                "MATCH (v:aws_vpc)-[e1:BELONGS_TO_ACCOUNT]->(a:aws_account)",
                 "MATCH (v2:aws_vpc)-[e2:CONTAINS]->(s:aws_subnet)",
                 "MATCH (ec:aws_ec2_instance)-[e3:RESIDES_IN]->(s2:aws_subnet)",
                 "MATCH (rds:aws_rds_instance)-[e4:RESIDES_IN]->(s3:aws_subnet)",
                 "MATCH (cache:aws_elasticache_cluster)-[e8:RESIDES_IN]->(s5:aws_subnet)",
                 "MATCH (alb:aws_alb)-[e5:RESIDES_IN]->(s4:aws_subnet)",
-                "MATCH (z:aws_route53_zone)-[e6:BELONGS_TO]->(a2:aws_account)",
-                "MATCH (z2:aws_route53_zone)-[e7:ROUTES_TO]->(alb2:aws_alb)"
+                "MATCH (z:aws_route53_zone)-[e6:BELONGS_TO_ACCOUNT]->(a2:aws_account)",
+                "MATCH (z2:aws_route53_zone)-[e7:ROUTES_TRAFFIC_TO]->(alb2:aws_alb)"
               ]
             }
           }

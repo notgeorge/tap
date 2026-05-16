@@ -65,7 +65,7 @@ class GenericomInstanceHeroPanelType:
                     "query": [
                         "MATCH (asset:aws_ec2_instance)-[hf:HAS_FINDING]->(f:finding) WHERE asset.entity_id = $entity_id",
                         "MATCH (asset2:aws_ec2_instance)-[r:RESIDES_IN]->(s:aws_subnet) WHERE asset2.entity_id = $entity_id",
-                        "MATCH (asset3:aws_ec2_instance)-[r2:RESIDES_IN]->(s2:aws_subnet)<-[ec:CONTAINS]-(v:aws_vpc)-[ba:BELONGS_TO]->(a:aws_account) WHERE asset3.entity_id = $entity_id",
+                        "MATCH (asset3:aws_ec2_instance)-[r2:RESIDES_IN]->(s2:aws_subnet)<-[ec:CONTAINS]-(v:aws_vpc)-[ba:BELONGS_TO_ACCOUNT]->(a:aws_account) WHERE asset3.entity_id = $entity_id",
                         "MATCH (asset4:aws_ec2_instance)-[h:HOSTS]->(iface:network_interface)-[hi:HAS_IP]->(ip:ip_address) WHERE asset4.entity_id = $entity_id",
                     ]
                 },
@@ -76,7 +76,7 @@ class GenericomInstanceHeroPanelType:
                 search, inputs={"entity_id": entity_id}, layer="extended"
             )
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Instance hero search failed for %s", entity_id)
+            logger.exception("[genericom-06a5] Instance hero search failed for %s", entity_id)
             return {"hero_error": f"Failed to load instance: {exc}", "hero": None}
 
         envelope = result["results"] if "results" in result else result
@@ -125,7 +125,7 @@ class GenericomInstanceHeroPanelType:
                 vpc_id = to_id
             elif etype == "CONTAINS" and to_id == subnet_id and from_id:
                 vpc_id = vpc_id or from_id
-            elif etype == "BELONGS_TO" and from_id == vpc_id and to_id:
+            elif etype == "BELONGS_TO_ACCOUNT" and from_id == vpc_id and to_id:
                 account_id = to_id
             elif etype == "HOSTS" and from_id == entity_id:
                 tnode = nodes_by_id.get(to_id or "")

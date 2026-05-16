@@ -99,7 +99,7 @@ def panel_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
             },
         )
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Error rendering panel %s (view=%s)", entity_uuid, panel.view)
+        logger.exception("[tap_web-1899] Error rendering panel %s (view=%s)", entity_uuid, panel.view)
         return _panel_error(request, str(exc))
 
 
@@ -417,7 +417,7 @@ def _get_neighborhood_context(entity_id: object) -> dict[str, Any]:
         nodes_raw = envelope.get("nodes", [])
         edges_raw = envelope.get("edges", [])
     except Exception as exc:  # noqa: BLE001
-        logger.exception("hub-and-spoke search failed for entity %s", entity_id)
+        logger.exception("[tap_web-f200] hub-and-spoke search failed for entity %s", entity_id)
         return {
             "graph_nodes_json": safe_json([]),
             "graph_edges_json": safe_json([]),
@@ -615,7 +615,7 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
         node_result = execute_search(node_search, limit=node_limit, offset=node_offset)
         edge_result = execute_search(edge_search, limit=edge_limit, offset=edge_offset)
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Grid placeholder search failed")
+        logger.exception("[tap_web-5c03] Grid placeholder search failed")
         return render(
             request,
             "tap_web/setup_placeholder.html",

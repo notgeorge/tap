@@ -109,11 +109,11 @@ export async function execute(context) {
         relationships: [
             {
                 name: "account-contains-vpc",
-                gryphon: "(parent:aws_account)<-[:BELONGS_TO]-(child:aws_vpc)",
+                gryphon: "(parent:aws_account)<-[:BELONGS_TO_ACCOUNT]-(child:aws_vpc)",
             },
             {
                 name: "account-contains-zone",
-                gryphon: "(parent:aws_account)<-[:BELONGS_TO]-(child:aws_route53_zone)",
+                gryphon: "(parent:aws_account)<-[:BELONGS_TO_ACCOUNT]-(child:aws_route53_zone)",
             },
             {
                 name: "vpc-contains-subnet",

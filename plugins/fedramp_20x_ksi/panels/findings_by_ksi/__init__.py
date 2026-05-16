@@ -55,7 +55,7 @@ class FindingsByKsiPanelType:
             result = execute_search(search, layer="extended")
         except Exception as exc:  # noqa: BLE001
             logger.exception(
-                "findings_by_ksi search execution failed for panel %s",
+                "[fedramp_20x_ksi-6fad] findings_by_ksi search execution failed for panel %s",
                 panel.entity_id,
             )
             return {

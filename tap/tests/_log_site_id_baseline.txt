@@ -1,0 +1,11 @@
+# Site-ID scanner baseline — spec-tap-logging.md req-tap-logging-site-id-scanner-6.
+#
+# Each line is <relative-path>:<lineno> identifying a log call site that
+# currently lacks a [<slug>-<hex>] site ID or violates a call-site convention.
+# The scanner test requires the live set to equal this file exactly:
+#   * Adding a new uncovered call site fails the test ("baseline grew").
+#   * Fixing an entry (adding a proper site ID) also fails until that line is
+#     removed from this file ("baseline ratchets down").
+#
+# Driving this list to zero is Stage 3. Until then, new log calls should be
+# authored *with* site IDs so they don't land in this file.

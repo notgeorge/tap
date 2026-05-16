@@ -1,6 +1,6 @@
 {
-  "slug": "PULLS_FROM",
-  "name": "Pulls From",
+  "slug": "PULLS_IMAGE_FROM",
+  "name": "Pulls Image From",
   "description": "Container service pulls images from a registry.",
   "sources": [
     "aws_ecs_service",

@@ -45,19 +45,19 @@ aws_sagemaker_endpoint = "plugins.aws_core.models.sagemaker_endpoint.SagemakerEn
 
 [edges]
 RESIDES_IN = "edges/RESIDES_IN.edge.json"
-BELONGS_TO = "edges/BELONGS_TO.edge.json"
+BELONGS_TO_ACCOUNT = "edges/BELONGS_TO_ACCOUNT.edge.json"
 CONTAINS = "edges/CONTAINS.edge.json"
 ATTACHED_TO = "edges/ATTACHED_TO.edge.json"
 LAUNCHED = "edges/LAUNCHED.edge.json"
 INVOKES = "edges/INVOKES.edge.json"
-ROUTES_TO = "edges/ROUTES_TO.edge.json"
-EXPOSES = "edges/EXPOSES.edge.json"
-HAS_ACCESS_TO = "edges/HAS_ACCESS_TO.edge.json"
-ASSUMES = "edges/ASSUMES.edge.json"
+ROUTES_TRAFFIC_TO = "edges/ROUTES_TRAFFIC_TO.edge.json"
+EXPOSES_NETWORK_ACCESS = "edges/EXPOSES_NETWORK_ACCESS.edge.json"
+HAS_POLICY_ACCESS_TO = "edges/HAS_POLICY_ACCESS_TO.edge.json"
+ASSUMES_ROLE = "edges/ASSUMES_ROLE.edge.json"
 PROTECTS = "edges/PROTECTS.edge.json"
-STORES_IN = "edges/STORES_IN.edge.json"
+STORES_DATA_IN = "edges/STORES_DATA_IN.edge.json"
 DEPENDS_ON = "edges/DEPENDS_ON.edge.json"
-PULLS_FROM = "edges/PULLS_FROM.edge.json"
+PULLS_IMAGE_FROM = "edges/PULLS_IMAGE_FROM.edge.json"
 BACKED_BY = "edges/BACKED_BY.edge.json"
 
 [grift]

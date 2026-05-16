@@ -84,7 +84,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e64f1d4de436",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6376bbb66bb",
-            "edge_type": "BELONGS_TO",
+            "edge_type": "BELONGS_TO_ACCOUNT",
             "properties": {}
           }
         },
@@ -100,7 +100,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6505e0412bd",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6376bbb66bb",
-            "edge_type": "BELONGS_TO",
+            "edge_type": "BELONGS_TO_ACCOUNT",
             "properties": {}
           }
         }

@@ -64,7 +64,7 @@ class FindingStripPanelType:
                 elif rows:
                     value = rows[0].get(value_field)
             except Exception as exc:  # noqa: BLE001
-                logger.exception("Finding Strip tile '%s' query failed", label)
+                logger.exception("[fedramp_20x_ksi-cf20] Finding Strip tile '%s' query failed", label)
                 error = str(exc)
 
             rendered.append(

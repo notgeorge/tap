@@ -62,7 +62,10 @@ class TestBatchModel:
     def test_batch_str_representation(self):
         """Batch __str__ includes name and status."""
         entity = create_entity("batch", name="My Batch")
-        batch = Batch.objects.create(entity=entity)
+        # Pass name to Batch as well — per req-grid-node-display, BaseModel.get_name()
+        # is the source of truth for the spine's Entity.name projection. Leaving
+        # Batch.name empty would cause save() to overwrite entity.name with "".
+        batch = Batch.objects.create(entity=entity, name="My Batch")
 
         assert "My Batch" in str(batch)
         assert "open" in str(batch)

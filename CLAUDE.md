@@ -47,6 +47,14 @@ Code Quality Standards
     Sort imports with isort
     Use f-strings for string formatting
 
+Logging Conventions
+    Use `logger = logging.getLogger(__name__)` at module top — never hardcode a logger name.
+    INFO/WARNING/ERROR/CRITICAL/exception messages start with a stable site ID `[<slug>-<hex>]`.
+    The <slug> is the containing first-party app (tap_cares, tap_grid, ...) or plugin slug (fedramp_20x_ksi, ...); generate <hex> via `python -c 'import secrets; print(secrets.token_hex(2))'`.
+    DEBUG calls are exempt from the site-ID requirement.
+    Use `%s` placeholders, not f-strings, in log message arguments — the formatter needs structured args for future JSON output.
+    `tap/logging.py` builds settings.LOGGING and runs the site-ID scanner enforced by tap/tests/test_log_site_ids.py; see specs/spec-tap-logging.md for the full convention.
+
 Testing Framework
     pytest with Django integration
     Factory-based test data generation

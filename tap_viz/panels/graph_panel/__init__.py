@@ -117,7 +117,7 @@ class GraphPanelType:
                     )
                     edges.setdefault(key, edge)
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Graph panel search execution failed for panel %s", panel.entity_id)
+            logger.exception("[tap_viz-b9e0] Graph panel search execution failed for panel %s", panel.entity_id)
             return _error_ctx(f"Search execution failed: {exc}")
 
         presentation = layout.definition.get("presentation", {})
@@ -171,7 +171,7 @@ class GraphPanelType:
                     )
                     edges.setdefault(key, edge)
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Graph panel seed search failed for panel %s", panel.entity_id)
+            logger.exception("[tap_viz-b601] Graph panel seed search failed for panel %s", panel.entity_id)
             return _error_ctx(f"Seed search execution failed: {exc}")
 
         from tap_viz.panels.graph_panel.projection_resolver import resolve_projection_definition
@@ -211,7 +211,7 @@ def _get_panel_projection(panel: Panel) -> Any | None:
         return Projection.objects.select_related("entity").get(entity=edge.to_entity)
     except Projection.DoesNotExist:
         logger.warning(
-            "USES_PROJECTION edge %s points to missing Projection entity %s",
+            "[tap_viz-eb52] USES_PROJECTION edge %s points to missing Projection entity %s",
             edge.pk,
             edge.to_entity_id,
         )
@@ -237,7 +237,7 @@ def _get_panel_seed_searches(panel: Panel) -> list[Any]:
             results.append(Search.objects.select_related("entity").get(entity=edge.to_entity))
         except Search.DoesNotExist:
             logger.warning(
-                "USES_SEARCH edge %s points to missing Search entity %s",
+                "[tap_viz-1cbb] USES_SEARCH edge %s points to missing Search entity %s",
                 edge.pk,
                 edge.to_entity_id,
             )
@@ -265,7 +265,7 @@ def _get_panel_layout(panel: Panel) -> Any | None:
         return Layout.objects.select_related("entity").get(entity=edge.to_entity)
     except Layout.DoesNotExist:
         logger.warning(
-            "USES_LAYOUT edge %s points to missing Layout entity %s",
+            "[tap_viz-6f4e] USES_LAYOUT edge %s points to missing Layout entity %s",
             edge.pk,
             edge.to_entity_id,
         )
@@ -291,7 +291,7 @@ def _get_layout_searches(layout: Any) -> list[Any]:
             results.append(Search.objects.select_related("entity").get(entity=edge.to_entity))
         except Search.DoesNotExist:
             logger.warning(
-                "USES_SEARCH edge %s points to missing Search entity %s",
+                "[tap_viz-3255] USES_SEARCH edge %s points to missing Search entity %s",
                 edge.pk,
                 edge.to_entity_id,
             )

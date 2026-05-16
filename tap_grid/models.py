@@ -917,6 +917,13 @@ class Batch(BaseModel):
         db_table = "tap_batch"
         ordering = ["-started_at"]
 
+    def get_name(self) -> str:
+        # Spine sync: Entity.name is a subordinate projection of get_name()
+        # (req-grid-node-display). Without this override the inherited
+        # BaseModel.get_name() returns "" and Batch.save() overwrites the
+        # entity.name that create_batch() just set.
+        return self.name
+
     def __str__(self) -> str:
         display = self.entity.name or str(self.entity.id)
         return f"Batch {display} ({self.status})"

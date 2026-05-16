@@ -176,7 +176,7 @@ class TablePanelType:
 
             result = execute_search(search, limit=effective_limit, offset=offset, layer="extended")
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Table panel search execution failed for panel %s", panel.entity_id)
+            logger.exception("[tap_web-87dd] Table panel search execution failed for panel %s", panel.entity_id)
             return {
                 "table_nodes": [],
                 "table_meta": {},
@@ -276,7 +276,7 @@ class TablePanelType:
                 )
             except Entity.DoesNotExist:
                 logger.warning(
-                    "Table panel editor: search entity %s not found; USES_SEARCH edge not created.",
+                    "[tap_web-6d10] Table panel editor: search entity %s not found; USES_SEARCH edge not created.",
                     search_uuid_str,
                 )
 

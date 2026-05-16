@@ -298,7 +298,7 @@ A compact identity strip beneath the hero summarizes the instance's basic facts 
 #### Implementation
 
 - Lives in the same `genericom-ec2-instance-hero` panel as the hero header (one panel, two visual sections — hero on top, identity row beneath).
-- The seed search walks one hop in each direction: `aws_ec2_instance -[:RESIDES_IN]-> aws_subnet -[:CONTAINED_BY?]-> aws_vpc -[:BELONGS_TO]-> aws_account`, plus interfaces/IPs via `HOSTS` + `HAS_IP`.
+- The seed search walks one hop in each direction: `aws_ec2_instance -[:RESIDES_IN]-> aws_subnet -[:CONTAINED_BY?]-> aws_vpc -[:BELONGS_TO_ACCOUNT]-> aws_account`, plus interfaces/IPs via `HOSTS` + `HAS_IP`.
 - Renders a `<dl>` with kebab-cased dt/dd pairs; missing fields render `—`.
 
 #### Acceptance Criteria

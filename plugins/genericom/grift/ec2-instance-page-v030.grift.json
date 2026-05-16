@@ -162,7 +162,7 @@
                 "MATCH (src)-[c1:CONNECTS_TO]->(tcp:tcp_connection)-[c2:CONNECTS_TO]->(port3:port)-[at2:ATTACHED_TO]->(iface3:network_interface)<-[h7:HOSTS]-(ec2) WHERE ec2.entity_id = $entity_id",
                 "MATCH (ec2)-[h8:HOSTS]->(prog3:program)-[c3:CONNECTS_TO]->(tcp2:tcp_connection)-[c4:CONNECTS_TO]->(rport:port)<-[rh:HOSTS]-(remote) WHERE ec2.entity_id = $entity_id",
                 "MATCH (ec2)-[h9:HOSTS]->(prog4:program)-[c5:CONNECTS_TO]->(tcp3:tcp_connection)-[c6:CONNECTS_TO]->(rport2:port)-[av:AVAILABLE_AT]->(rip:ip_address) WHERE ec2.entity_id = $entity_id",
-                "MATCH (ec2)-[r:RESIDES_IN]->(s:aws_subnet)<-[c:CONTAINS]-(v:aws_vpc)-[ba:BELONGS_TO]->(a:aws_account) WHERE ec2.entity_id = $entity_id"
+                "MATCH (ec2)-[r:RESIDES_IN]->(s:aws_subnet)<-[c:CONTAINS]-(v:aws_vpc)-[ba:BELONGS_TO_ACCOUNT]->(a:aws_account) WHERE ec2.entity_id = $entity_id"
               ]
             },
             "default_limit": 500,

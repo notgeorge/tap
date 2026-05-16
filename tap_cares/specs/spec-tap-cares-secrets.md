@@ -22,20 +22,20 @@ The grid may eventually know about secret references, health, usage, policy, and
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-tap-cares-secrets-scope | [Secrets Scope](#secrets-scope) | Proposed | Secret material is off-grid runtime data |
-| req-tap-cares-secrets-files | [Secret Files](#secret-files) | Proposed | Recursive `*.secret.json` discovery under a configured secrets root |
-| req-tap-cares-secrets-shape | [Secret JSON Shape](#secret-json-shape) | Proposed | Minimal required JSON object fields |
-| req-tap-cares-secrets-registry | [Secret Registry And Resolution](#secret-registry-and-resolution) | Proposed | Internal `ScopedRegistry` plus `SecretRef` / `resolve_secret` helpers |
-| req-tap-cares-secrets-validation | [Consumer Validation](#consumer-validation) | Proposed | Consumers validate kind-specific secret data |
-| req-tap-cares-secrets-redaction | [Redaction And Failure Behavior](#redaction-and-failure-behavior) | Proposed | Secret material must not leak into logs or run records |
-| req-tap-cares-secrets-aws-static | [AWS Static Credentials](#aws-static-credentials) | Proposed | First concrete consumer shape for AWS collection |
+| req-tap-cares-secrets-scope | [Secrets Scope](#secrets-scope) | Implemented | Secret material is off-grid runtime data |
+| req-tap-cares-secrets-files | [Secret Files](#secret-files) | Implemented | Recursive `*.secret.json` discovery under a configured secrets root |
+| req-tap-cares-secrets-shape | [Secret JSON Shape](#secret-json-shape) | Implemented | Minimal required JSON object fields |
+| req-tap-cares-secrets-registry | [Secret Registry And Resolution](#secret-registry-and-resolution) | Implemented | Internal `ScopedRegistry` plus `SecretRef` / `resolve_secret` helpers |
+| req-tap-cares-secrets-validation | [Consumer Validation](#consumer-validation) | Implemented | Consumers validate kind-specific secret data |
+| req-tap-cares-secrets-redaction | [Redaction And Failure Behavior](#redaction-and-failure-behavior) | Implemented | Secret material must not leak into logs or run records |
+| req-tap-cares-secrets-aws-static | [AWS Static Credentials](#aws-static-credentials) | Implemented | First concrete consumer shape for AWS collection |
 | req-tap-cares-secrets-future-secret-model | [Future Secret BaseModel](#future-secret-basemodel) | Backlog | Future on-grid Secret metadata and file generation |
 | req-tap-cares-secrets-future-encryption | [Future Encryption At Rest](#future-encryption-at-rest) | Backlog | Encrypted file format explicitly deferred |
 
 ## Secrets Scope
 ----
 RID: `req-tap-cares-secrets-scope`
-Status: `Proposed`
+Status: `Implemented`
 
 tap-cares secrets are off-grid runtime material loaded from the local filesystem. The secret registry is an in-process runtime registry, not TAP-managed graph state.
 
@@ -55,14 +55,14 @@ On-grid objects may later store non-secret references such as `aws:prod-readonly
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-secrets-scope-1 | Off-Grid Material | Proposed | Secret values live outside the TAP grid in mounted files. | |
-| req-tap-cares-secrets-scope-2 | References Only | Proposed | On-grid objects may store secret references, but not secret values. | Future collector config/authenticator work. |
-| req-tap-cares-secrets-scope-3 | No Direct File Reads | Proposed | Collectors and other consumers resolve secrets through tap-cares, not by reading secret files directly. | |
+| req-tap-cares-secrets-scope-1 | Off-Grid Material | Implemented | Secret values live outside the TAP grid in mounted files. | |
+| req-tap-cares-secrets-scope-2 | References Only | Implemented | On-grid objects may store secret references, but not secret values. | Future collector config/authenticator work. |
+| req-tap-cares-secrets-scope-3 | No Direct File Reads | Implemented | Collectors and other consumers resolve secrets through tap-cares, not by reading secret files directly. | |
 
 ## Secret Files
 ----
 RID: `req-tap-cares-secrets-files`
-Status: `Proposed`
+Status: `Implemented`
 
 The runtime secret root is configured by deployment settings, with a Docker Compose secrets mount as the expected local/container mechanism.
 
@@ -110,17 +110,17 @@ that host path before `dc up` runs:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-secrets-files-1 | Recursive Discovery | Proposed | tap-cares recursively scans the configured secrets root at startup. | |
-| req-tap-cares-secrets-files-2 | Secret Suffix | Proposed | Only `*.secret.json` files are loaded. | |
-| req-tap-cares-secrets-files-3 | Git Ignore | Proposed | The repository ignores `*.secret.json`. | |
-| req-tap-cares-secrets-files-4 | Directory Non-Semantic | Proposed | Directories help organization but do not define scope, key, or kind. | |
-| req-tap-cares-secrets-files-5 | Basename Matches Key | Proposed | The filename's `<key>` portion must match the JSON object's `key` field. | |
-| req-tap-cares-secrets-files-6 | Duplicate Guard | Proposed | Duplicate `scope:key` values fail startup secret loading. | |
+| req-tap-cares-secrets-files-1 | Recursive Discovery | Implemented | tap-cares recursively scans the configured secrets root at startup. | |
+| req-tap-cares-secrets-files-2 | Secret Suffix | Implemented | Only `*.secret.json` files are loaded. | |
+| req-tap-cares-secrets-files-3 | Git Ignore | Implemented | The repository ignores `*.secret.json`. | |
+| req-tap-cares-secrets-files-4 | Directory Non-Semantic | Implemented | Directories help organization but do not define scope, key, or kind. | |
+| req-tap-cares-secrets-files-5 | Basename Matches Key | Implemented | The filename's `<key>` portion must match the JSON object's `key` field. | |
+| req-tap-cares-secrets-files-6 | Duplicate Guard | Implemented | Duplicate `scope:key` values fail startup secret loading. | |
 
 ## Secret JSON Shape
 ----
 RID: `req-tap-cares-secrets-shape`
-Status: `Proposed`
+Status: `Implemented`
 
 Each v0 secret file must contain one JSON object with these top-level fields:
 
@@ -158,17 +158,17 @@ v0 tap-cares validates only the minimal structural shape needed for registration
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-secrets-shape-1 | JSON Object | Proposed | A secret file contains exactly one JSON object. | |
-| req-tap-cares-secrets-shape-2 | Declared Identity | Proposed | The object declares `scope` and `key`. | |
-| req-tap-cares-secrets-shape-3 | Kind Declared | Proposed | The object declares a `kind` string for consumer-side validation. | |
-| req-tap-cares-secrets-shape-4 | Description Required | Proposed | The object includes free-form `description` text explaining the secret. | |
-| req-tap-cares-secrets-shape-5 | Data Object | Proposed | The object includes a `data` object containing the secret material. | |
-| req-tap-cares-secrets-shape-6 | No Kind Schema In Core | Proposed | tap-cares v0 does not ship or enforce kind-specific schemas. | Consumers validate their own shapes. |
+| req-tap-cares-secrets-shape-1 | JSON Object | Implemented | A secret file contains exactly one JSON object. | |
+| req-tap-cares-secrets-shape-2 | Declared Identity | Implemented | The object declares `scope` and `key`. | |
+| req-tap-cares-secrets-shape-3 | Kind Declared | Implemented | The object declares a `kind` string for consumer-side validation. | |
+| req-tap-cares-secrets-shape-4 | Description Required | Implemented | The object includes free-form `description` text explaining the secret. | |
+| req-tap-cares-secrets-shape-5 | Data Object | Implemented | The object includes a `data` object containing the secret material. | |
+| req-tap-cares-secrets-shape-6 | No Kind Schema In Core | Implemented | tap-cares v0 does not ship or enforce kind-specific schemas. | Consumers validate their own shapes. |
 
 ## Secret Registry And Resolution
 ----
 RID: `req-tap-cares-secrets-registry`
-Status: `Proposed`
+Status: `Implemented`
 
 tap-cares exposes an internal `secret_registry` backed by TAP's existing `ScopedRegistry` pattern. The registry value is a rich runtime object, not a raw dictionary, so label/description/kind/source-path metadata travels with the secret while the generic registry stays unchanged.
 
@@ -185,15 +185,15 @@ secret = resolve_secret(ref)
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-secrets-registry-1 | Scoped Registry | Proposed | Secrets are loaded into a dedicated `ScopedRegistry`. | |
-| req-tap-cares-secrets-registry-2 | Rich Runtime Object | Proposed | Registry values carry `SecretRef`, `kind`, `description`, `data`, optional metadata, and source path. | |
-| req-tap-cares-secrets-registry-3 | SecretRef Helper | Proposed | Runtime code can pass `SecretRef` objects instead of raw `scope:key` strings. | |
-| req-tap-cares-secrets-registry-4 | Resolver Helper | Proposed | `resolve_secret(ref)` is the public access path for secret consumers. | |
+| req-tap-cares-secrets-registry-1 | Scoped Registry | Implemented | Secrets are loaded into a dedicated `ScopedRegistry`. | |
+| req-tap-cares-secrets-registry-2 | Rich Runtime Object | Implemented | Registry values carry `SecretRef`, `kind`, `description`, `data`, optional metadata, and source path. | |
+| req-tap-cares-secrets-registry-3 | SecretRef Helper | Implemented | Runtime code can pass `SecretRef` objects instead of raw `scope:key` strings. | |
+| req-tap-cares-secrets-registry-4 | Resolver Helper | Implemented | `resolve_secret(ref)` is the public access path for secret consumers. | |
 
 ## Consumer Validation
 ----
 RID: `req-tap-cares-secrets-validation`
-Status: `Proposed`
+Status: `Implemented`
 
 Kind-specific validation belongs to the consumer that understands the external system. tap-cares v0 does not centralize secret schemas because plugins and collectors will define many different secret shapes.
 
@@ -203,14 +203,14 @@ A consumer that requires AWS static credentials must validate that a resolved se
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-secrets-validation-1 | Core Minimal Validation | Proposed | tap-cares validates only registration-level shape. | |
-| req-tap-cares-secrets-validation-2 | Consumer Owns Kind Validation | Proposed | Consumers validate `kind` and `data` requirements before use. | |
-| req-tap-cares-secrets-validation-3 | Visible Invalid Shape | Proposed | A malformed-for-consumer secret fails the capability run with a structured redacted error. | |
+| req-tap-cares-secrets-validation-1 | Core Minimal Validation | Implemented | tap-cares validates only registration-level shape. | |
+| req-tap-cares-secrets-validation-2 | Consumer Owns Kind Validation | Implemented | Consumers validate `kind` and `data` requirements before use. | `require_secret_kind(...)` accepts a consumer-owned JSON Schema. |
+| req-tap-cares-secrets-validation-3 | Visible Invalid Shape | Implemented | A malformed-for-consumer secret fails the capability run with a structured redacted error. | |
 
 ## Redaction And Failure Behavior
 ----
 RID: `req-tap-cares-secrets-redaction`
-Status: `Proposed`
+Status: `Implemented`
 
 Secrets must not leak through logs, exceptions, run records, debug payloads, or rendered UI. tap-cares should provide a recursive redaction helper for structured diagnostics. At minimum, keys containing sensitive words such as `secret`, `token`, `password`, `private_key`, or `credential` are redacted.
 
@@ -220,14 +220,14 @@ Missing secrets do not prevent TAP from starting and do not remove collector cap
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-secrets-redaction-1 | Redaction Helper | Proposed | tap-cares provides a helper to redact secret-shaped values from structured diagnostics. | |
-| req-tap-cares-secrets-redaction-2 | No Secret Logs | Proposed | Secret material is never intentionally logged or persisted in run records. | |
-| req-tap-cares-secrets-redaction-3 | Missing Secret Run Failure | Proposed | Missing required secrets fail the run visibly rather than failing registration or startup. | |
+| req-tap-cares-secrets-redaction-1 | Redaction Helper | Implemented | tap-cares provides a helper to redact secret-shaped values from structured diagnostics. | |
+| req-tap-cares-secrets-redaction-2 | No Secret Logs | Implemented | Secret material is never intentionally logged or persisted in run records. | Enforced by consumer discipline and redaction helpers. |
+| req-tap-cares-secrets-redaction-3 | Missing Secret Run Failure | Implemented | Missing required secrets fail the run visibly rather than failing registration or startup. | `resolve_secret(...)` raises at runtime; consumers record failures. |
 
 ## AWS Static Credentials
 ----
 RID: `req-tap-cares-secrets-aws-static`
-Status: `Proposed`
+Status: `Implemented`
 
 The first concrete secret consumer is expected to be an AWS collector that uses static AWS access keys.
 
@@ -245,8 +245,8 @@ Assume-role and other AWS credential modes are backlog for the AWS collector fam
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-secrets-aws-static-1 | Static Key First | Proposed | The first AWS collector secret mode is static access key credentials. | |
-| req-tap-cares-secrets-aws-static-2 | Consumer Validation | Proposed | The AWS collector validates required AWS fields before use. | |
+| req-tap-cares-secrets-aws-static-1 | Static Key First | Implemented | The first AWS collector secret mode is static access key credentials. | Implemented by `aws_core` collector helpers. |
+| req-tap-cares-secrets-aws-static-2 | Consumer Validation | Implemented | The AWS collector validates required AWS fields before use. | `aws_core` owns the JSON Schema and env mapping. |
 | req-tap-cares-secrets-aws-static-3 | Assume Role Deferred | Backlog | AWS assume-role support is deferred until the collector needs it. | |
 
 ## Future Secret BaseModel
