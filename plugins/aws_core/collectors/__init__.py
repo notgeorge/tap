@@ -1,5 +1,6 @@
-"""AWS Core collector implementations."""
+"""AWS Core collector implementations.
 
-from plugins.aws_core.collectors.steampipe_inventory import AwsSteampipeInventoryCollector
-
-__all__ = ["AwsSteampipeInventoryCollector"]
+Intentionally empty: the steampipe collector stack was excised on
+2026-05-17 (parked at git tag ``park/steampipe-tooling``) ahead of a
+from-scratch boto3 collector. New collectors register in ``apps.py``.
+"""

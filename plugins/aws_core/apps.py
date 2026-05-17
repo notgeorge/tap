@@ -5,14 +5,9 @@ from tap_plugins.base import TapPluginConfig
 
 class AwsCoreConfig(TapPluginConfig):
     def ready(self) -> None:
-        from plugins.aws_core.collectors import AwsSteampipeInventoryCollector
-        from tap_cares.registry import register_collector
-
-        register_collector(
-            key="steampipe-inventory",
-            cls=AwsSteampipeInventoryCollector,
-            name="AWS Steampipe Inventory",
-            description=(
-                "Collect AWS account inventory through trusted Steampipe query profiles."
-            ),
-        )
+        # No collector registered. The steampipe collector was excised on
+        # 2026-05-17 (parked at git tag ``park/steampipe-tooling``); the
+        # boto3 collector is built from scratch starting 2026-05-18 and
+        # will register here. The plugin's models/edges/catalog remain
+        # live and collector-agnostic.
+        return

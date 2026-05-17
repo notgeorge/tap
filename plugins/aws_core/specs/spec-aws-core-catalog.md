@@ -271,7 +271,7 @@ This is distinct from the catalog refresh, which maintains the plugin's static r
 
 #### Future
 
-This capability will likely use tools like AWS Config, CloudTrail, or direct API calls. Steampipe integration is a possibility. The plugin's 37 resource-type models and 15 edge types provide the schema foundation that live discovery will populate.
+This capability will likely use tools like AWS Config, CloudTrail, or direct API calls. The plugin's 37 resource-type models and 15 edge types provide the schema foundation that live discovery will populate.
 
 ### CI Integration
 ----
