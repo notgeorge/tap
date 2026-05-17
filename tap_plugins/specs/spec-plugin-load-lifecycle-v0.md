@@ -29,6 +29,7 @@ The guiding principle for v0 is that the plugin's load shape should be reviewabl
 | req-plugin-load-v0-grift | [Bundled GRIFT Publication](#bundled-grift-publication) | Implemented | GRIFT files are declared by the plugin as loadable bundled data |
 | req-plugin-load-v0-upsert | [GRIFT Upsert Policy](#grift-upsert-policy) | Implemented | Bundled plugin GRIFT uses strict upsert semantics in v0 |
 | req-plugin-load-v0-order | [Load Order And Execution Phases](#load-order-and-execution-phases) | Implemented | Clarifies manifest, class-definition, and startup phases |
+| req-plugin-load-v0-standup-hook | [Plugin Standup Hook](#plugin-standup-hook) | Proposed | **Provisional proving-ground seam.** Plugin-owned idempotent standup command invoked by a generic core runner, sibling to operator-invoked GRIFT import; general tool model deferred |
 | req-plugin-load-v0-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Explicitly deferred lifecycle work |
 
 ### Plugin Load Scope
@@ -410,6 +411,46 @@ The existing code already has a real split here. Writing it down now will make f
 
 #### Future
 If TAP later adds a plugin loader service, that service should expose these phases clearly rather than collapsing them into opaque startup magic.
+
+### Plugin Standup Hook
+----
+RID: `req-plugin-load-v0-standup-hook`
+Status: `Proposed`
+
+A plugin may declare a plugin-owned *standup* command: idempotent capability preparation that runs at explicit stand-up, not at `ready()`. It is the non-grid sibling of operator-invoked GRIFT import — where `import_plugin_grift` *seeds the grid*, standup *prepares the non-grid capabilities a plugin's collectors or runtime need* (e.g. acquiring an external tool a collector shells out to).
+
+#### Status Details
+Proposed as a deliberately minimal, **provisional proving-ground seam**. It exists to unblock the first plugin needing a non-Python external tool — the `aws_core` Steampipe collector (see `plugins/aws_core/specs/spec-aws-steampipe-tooling.md`) — without baking that tool into the core image or `docker-compose` (the plugin-config-in-shared-infrastructure anti-pattern). Only the thin lifecycle seam (the hook plus a generic runner) is specified here. The durable, general plugin tool/binary-provisioning model — manifest schema, a core resolver API, OS/arch and multi-arch handling, sandboxed/outpost execution — is explicitly **out of scope** and is to be generalized later *from* proving-ground evidence, not designed up front here. Expect this requirement to be refined or superseded once that evidence exists; do not build a general framework off it.
+
+This is the capability-preparation analogue of the extension the `req-plugin-load-v0-ready-readonly` Future section anticipated; it deliberately stays minimal and introduces no Django signal or `post_migrate` autorun.
+
+#### Implementation
+- A plugin MAY define a plugin-owned standup management command. Because a v0 plugin is a Django app (`req-plugin-load-v0-scope-2`), the command lives entirely within the plugin and is discovered automatically.
+- A generic core runner — `manage.py plugin_standup [--all | <app_label>]` — invokes each plugin's standup hook in `INSTALLED_APPS` order, the same deterministic ordering `import_plugin_grift --all` uses (`req-plugin-load-v0-ready-readonly-3`). Plugins with no standup hook are skipped.
+- It runs as an explicit post-migrate stand-up step, a sibling to `import_plugin_grift --all` (`scripts/spawn-session.sh`, and the documented primary-stack workflow). Standup integration of the *generic* runner is plugin-agnostic and is therefore not the plugin-specific-config-in-shared-infrastructure anti-pattern; a plugin-specific line in shared infra would be.
+- The standup hook MUST be idempotent: a fast check that the capability is present at the expected/pinned state, performing acquisition only on a miss, safe to run on every stand-up.
+- The standup hook, its scripts, and every directory or state file it manages live inside the plugin. The hook plus the generic runner are the only core surface.
+- Boundary with `ready()`: standup is the explicit, orchestrator-invoked phase — the opposite of the read-only `ready()` boundary — and does NOT relax `req-plugin-load-v0-ready-readonly`. Standup still must not silently mutate TAP-managed graph state (graph mutation stays explicit and auditable); its province is non-grid capability preparation.
+- Boundary with readiness/self-test: a collector's self-test or readiness check remains a pure check. It reports a missing or mismatched capability and points at the standup path; it does not itself provision. "Check if ready" must not become "make ready."
+- Install and uninstall remain non-goals (`req-plugin-load-v0-nongoals-1`, `-2`): standup is idempotent capability preparation at stand-up, not an install/uninstall workflow.
+
+#### Development
+The minimal seam is chosen over both extremes: doing the work in `ready()` (wrong lifecycle phase — it runs on every entrypoint, contending with `migrate`, tests, and the task worker) and designing a full plugin tool framework before any plugin has exercised one. The first real consumer (`aws_core` Steampipe) is treated as a documented proving ground; generalization is evidence-driven and tracked separately.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-load-v0-standup-hook-1 | Plugin-Owned Hook | Proposed | A plugin MAY define a standup hook as a plugin-owned management command; it lives entirely within the plugin (Django app). | |
+| req-plugin-load-v0-standup-hook-2 | Generic Runner, INSTALLED_APPS Order | Proposed | A core `manage.py plugin_standup [--all]` invokes each plugin's standup hook in `INSTALLED_APPS` order; sibling to `import_plugin_grift --all`. | Mirrors `req-plugin-load-v0-ready-readonly-3`. |
+| req-plugin-load-v0-standup-hook-3 | Idempotent And Fast-On-Hit | Proposed | The standup hook is idempotent: a cheap expected-state check, acquiring only on a miss; safe to run every stand-up. | |
+| req-plugin-load-v0-standup-hook-4 | Not ready(); Graph Rule Intact | Proposed | Standup is explicit orchestrator-invoked, not `ready()`, and does not relax `req-plugin-load-v0-ready-readonly`; it must not silently mutate TAP-managed graph state. | |
+| req-plugin-load-v0-standup-hook-5 | Self-Test Stays A Pure Check | Proposed | Readiness/self-test reports a missing capability and points at standup; it never provisions. | The dropped "provision inside self-test" design. |
+| req-plugin-load-v0-standup-hook-6 | Plugin-Local Mechanism; Thin Core Seam | Proposed | The acquisition mechanism and all its directories/state are plugin-internal; only the hook plus generic runner are core surface. | General tool model out of scope here. |
+| req-plugin-load-v0-standup-hook-7 | Provisional Proving-Ground Capability | Proposed | This requirement is an exploratory v0 seam expected to be refined or superseded once the `aws_core` Steampipe proving ground yields evidence. | Cross-ref `plugins/aws_core/specs/spec-aws-steampipe-tooling.md`. |
+
+#### Future
+The general plugin tool/binary-provisioning model — a declarative tool manifest, a core tool-resolver API, OS/arch pinning and multi-arch handling, gitignore conventions for provisioned payloads, and the sandboxed "outpost" execution case — is the named generalization. It will be specified separately, generalized from the `aws_core` Steampipe proving ground rather than designed up front, and would layer on top of this seam without relaxing the `ready()` or graph-state rules.
 
 ### v0 Non-Goals
 ----
