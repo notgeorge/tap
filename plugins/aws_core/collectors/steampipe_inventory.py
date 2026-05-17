@@ -43,14 +43,14 @@ from tap_cares.secrets.loader import SECRET_SUFFIX
 
 logger = logging.getLogger(__name__)
 
-# record_* site UUIDs — one distinct UUIDv7 per callsite.
-_SITE_RUN_STARTED = "019e27be-3a6c-71c3-a443-7b79931e0ef9"
-_SITE_TARGET_INVALID = "019e27be-3a6d-7287-b2e9-dc25104be557"
-_SITE_SECRET_MISSING = "019e27be-3a6d-7287-b2e9-dc26f8156779"
-_SITE_SECRET_INVALID = "019e2987-932f-71a8-8f5e-8a08acb54915"
-_SITE_STEAMPIPE_FAILED = "019e27be-3a6d-7287-b2e9-dc27592f1be1"
-_SITE_COLLECTED = "019e27be-3a6d-7287-b2e9-dc28a97b7a5f"
-_SITE_RUN_COMPLETED = "019e27be-3a6d-7287-b2e9-dc2913127c83"
+# record_* site tokens — one distinct 4-hex per callsite (req-tap-logging-site-ids).
+_SITE_RUN_STARTED = "4bc1"
+_SITE_TARGET_INVALID = "90af"
+_SITE_SECRET_MISSING = "e252"
+_SITE_SECRET_INVALID = "5cac"
+_SITE_STEAMPIPE_FAILED = "ce26"
+_SITE_COLLECTED = "51b5"
+_SITE_RUN_COMPLETED = "ac11"
 
 # Self-test live-check timeout budget (req-tap-cares-collector-self-test-12:
 # each live check <= 5s).
@@ -283,7 +283,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 _SITE_SECRET_MISSING,
                 "SECRET_MISSING_FILE",
                 message,
-                context={
+                message_data={
                     "secret_ref": secret_ref,
                     "expected_secret_filename": (f"{AWS_STEAMPIPE_SECRET_REF.key}{SECRET_SUFFIX}"),
                     "expected_secret_kind": "aws_static_access_key",
@@ -300,7 +300,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 _SITE_SECRET_INVALID,
                 "SECRET_INVALID",
                 str(exc),
-                context={"secret_ref": secret_ref},
+                message_data={"secret_ref": secret_ref},
             )
             self.summary = "AWS Steampipe collector secret is invalid."
             logger.exception(
@@ -313,7 +313,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 _SITE_TARGET_INVALID,
                 "TARGET_INVALID",
                 str(exc),
-                context={"secret_ref": secret_ref},
+                message_data={"secret_ref": secret_ref},
             )
             self.summary = "AWS Steampipe collector secret is missing required " "region/account."
             logger.exception(
@@ -334,7 +334,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                 _SITE_STEAMPIPE_FAILED,
                 "STEAMPIPE_FAILED",
                 str(exc),
-                context=target.to_context(),
+                message_data=target.to_context(),
             )
             self.summary = f"AWS Steampipe run failed for account {target.account_id} " f"({AWS_COLLECTION_SCOPE})."
             logger.exception(
@@ -350,7 +350,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             _SITE_COLLECTED,
             "COLLECTED",
             f"AWS Steampipe {AWS_COLLECTION_SCOPE} collected.",
-            context={
+            message_data={
                 **target.to_context(),
                 "tables": tables,
                 "warnings": result.warnings,
@@ -385,7 +385,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             _SITE_RUN_COMPLETED,
             "RUN_COMPLETED",
             "AWS Steampipe inventory collection complete.",
-            context={"summary": self.summary},
+            message_data={"summary": self.summary},
         )
         logger.info(
             "[58ca] aws_steampipe_collection_completed account=%s scope=%s",

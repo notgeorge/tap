@@ -83,23 +83,23 @@ COLLECTION_FORMAT = "tap.fedramp_20x_ksi.collection-v0"
 # Site UUIDv7 per record_* callsite. Hardcoded; the repo-wide uniqueness
 # test (tap_cares.tests.test_results_site_uniqueness) asserts no two callsites
 # in the codebase share a UUID.
-_SITE_RUN_STARTED = "019e1e15-a73d-7074-80e2-7128dc3c3004"
-_SITE_UPSTREAM_FETCHED = "019e1e15-a7f6-731e-8579-97fc5afcbd61"
-_SITE_DIFF_COMPUTED = "019e1e15-a8a1-7546-9cee-3efe48b7d071"
-_SITE_DIFF_EMPTY = "019e1e15-a941-7360-8df4-5257ee28b826"
-_SITE_GRIFT_SUBMITTED = "019e1e15-a9f7-72c4-8336-42ce158b8dd1"
-_SITE_RUN_COMPLETED = "019e1e15-ab0e-7227-a35b-9313997dbecd"
+_SITE_RUN_STARTED = "7f18"
+_SITE_UPSTREAM_FETCHED = "4d85"
+_SITE_DIFF_COMPUTED = "ed39"
+_SITE_DIFF_EMPTY = "644b"
+_SITE_GRIFT_SUBMITTED = "08f7"
+_SITE_RUN_COMPLETED = "d49e"
 
-_SITE_SCHEMA_DRIFT = "019e1e15-abc9-774e-b6b9-e12d255b86d8"
-_SITE_UNKNOWN_FIELD = "019e1e15-ac73-767b-9fe2-4ea3bc1e53d5"
-_SITE_STRUCTURAL_CAP = "019e1e15-ad2c-7135-b1a6-69993a6ae7ff"
-_SITE_CHARACTER_CLASS = "019e1e15-adff-75ec-bb03-1af94fd63be4"
-_SITE_DENYLIST_PHRASE = "019e1e15-aeb2-7540-ae30-fc7707f9e09e"
-_SITE_OUTLIER_STRING_LENGTH = "019e1e15-af6d-765b-93ea-b348e6f82683"
-_SITE_MASS_DELETION = "019e1e15-b010-76d5-9ed7-e2a1c6e56636"
-_SITE_UPSTREAM_OVERSIZED = "019e1e15-b100-7461-b3a2-7dfd78b121c8"
-_SITE_UPSTREAM_BAD_CONTENT_TYPE = "019e1e15-b223-73f1-a349-b44ddaac1f3e"
-_SITE_UPSTREAM_FETCH_FAILED = "019e1e15-b32d-73d3-be2b-92cea597e807"
+_SITE_SCHEMA_DRIFT = "5009"
+_SITE_UNKNOWN_FIELD = "b7c4"
+_SITE_STRUCTURAL_CAP = "97b3"
+_SITE_CHARACTER_CLASS = "2f0d"
+_SITE_DENYLIST_PHRASE = "f298"
+_SITE_OUTLIER_STRING_LENGTH = "573c"
+_SITE_MASS_DELETION = "239f"
+_SITE_UPSTREAM_OVERSIZED = "20d0"
+_SITE_UPSTREAM_BAD_CONTENT_TYPE = "4e94"
+_SITE_UPSTREAM_FETCH_FAILED = "f2b4"
 
 
 class KSICollectorError(Exception):
@@ -323,7 +323,7 @@ class KSICollector(CollectorBase):
                 _SITE_DIFF_EMPTY,
                 "DIFF_EMPTY",
                 "Upstream matches grid; nothing to import.",
-                context={
+                message_data={
                     "catalog_size": len(prior["indicators"]),
                 },
             )
@@ -344,7 +344,7 @@ class KSICollector(CollectorBase):
                 "GRIFT_SUBMITTED",
                 f"GRIFT batch submitted ({result.counts.batches_imported} imported, "
                 f"{result.counts.batches_skipped} skipped).",
-                context={
+                message_data={
                     "imported": [str(b.batch_entity_id) for b in result.imported_batches],
                     "skipped": [str(b.batch_entity_id) for b in result.skipped_batches],
                 },
@@ -397,7 +397,7 @@ class KSICollector(CollectorBase):
             _SITE_UPSTREAM_FETCHED,
             "UPSTREAM_FETCHED",
             f"Fetched {len(body)} bytes from upstream.",
-            context={
+            message_data={
                 "url": UPSTREAM_URL,
                 "byte_size": len(body),
                 "content_sha256": sha256,
@@ -429,7 +429,7 @@ class KSICollector(CollectorBase):
                 _SITE_SCHEMA_DRIFT,
                 "SCHEMA_DRIFT",
                 f"Upstream failed pinned-schema validation at {path}: {exc.message}",
-                context={
+                message_data={
                     "path": path,
                     "validator": exc.validator,
                 },
@@ -444,7 +444,7 @@ class KSICollector(CollectorBase):
                 _SITE_UNKNOWN_FIELD,
                 "UNKNOWN_FIELD",
                 f"Upstream contains unknown top-level keys: {sorted(extras)}",
-                context={"unknown_keys": sorted(extras)},
+                message_data={"unknown_keys": sorted(extras)},
             )
 
         # Raise once after the full sweep so the task body's terminal patch carries
@@ -704,7 +704,7 @@ class KSICollector(CollectorBase):
                 f"Diff: themes +{len(diff['themes_added'])}/~{len(diff['themes_modified'])}/-{len(diff['themes_removed'])}; "
                 f"indicators +{len(diff['indicators_added'])}/~{len(diff['indicators_modified'])}/-{len(diff['indicators_removed'])}."
             ),
-            context={
+            message_data={
                 "themes_new": len(diff["themes_added"]),
                 "themes_modified": len(diff["themes_modified"]),
                 "themes_deprecated": len(diff["themes_removed"]),
@@ -922,7 +922,7 @@ class KSICollector(CollectorBase):
         failure `summary` from the count of recorded errors when this
         collector does not set `self.summary` directly.
         """
-        self.record_error(site, code, message, context=context)
+        self.record_error(site, code, message, message_data=context)
         raise KSICollectorError(message)
 
     @staticmethod

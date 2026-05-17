@@ -307,7 +307,7 @@ class TestAwsSteampipeInventoryCollectorRun:
         )
         assert collector.profile_result is not None
         assert collector.results["error"] == []
-        assert [entry["code"] for entry in collector.results["info"]] == [
+        assert [entry["message_code"] for entry in collector.results["info"]] == [
             "RUN_STARTED",
             "COLLECTED",
             "RUN_COMPLETED",
@@ -320,12 +320,12 @@ class TestAwsSteampipeInventoryCollectorRun:
             collector.run()
 
         error = collector.results["error"][0]
-        assert error["code"] == "SECRET_MISSING_FILE"
+        assert error["message_code"] == "SECRET_MISSING_FILE"
         assert "steampipe-collector.secret.json" in error["message"]
         assert "restart the web container" in error["message"]
-        assert error["context"]["secret_ref"] == _WELL_KNOWN.qualified
+        assert error["message_data"]["secret_ref"] == _WELL_KNOWN.qualified
         assert (
-            error["context"]["expected_secret_filename"]
+            error["message_data"]["expected_secret_filename"]
             == "steampipe-collector.secret.json"
         )
         assert "not loaded" in collector.summary
@@ -337,7 +337,7 @@ class TestAwsSteampipeInventoryCollectorRun:
         with pytest.raises(SecretError):
             collector.run()
 
-        assert collector.results["error"][0]["code"] == "SECRET_INVALID"
+        assert collector.results["error"][0]["message_code"] == "SECRET_INVALID"
 
     def test_run_records_target_invalid(self):
         _register_target_secret(account_id=None)
@@ -346,7 +346,7 @@ class TestAwsSteampipeInventoryCollectorRun:
         with pytest.raises(AwsSteampipeConfigError):
             collector.run()
 
-        assert collector.results["error"][0]["code"] == "TARGET_INVALID"
+        assert collector.results["error"][0]["message_code"] == "TARGET_INVALID"
 
 
 class TestAwsSteampipeInventoryCollectorSelfTest:

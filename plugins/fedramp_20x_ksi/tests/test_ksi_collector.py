@@ -62,7 +62,7 @@ def _make_collector_with_fixture(doc: dict | None = None):
                 _SITE_UPSTREAM_FETCHED,
                 "UPSTREAM_FETCHED",
                 f"Fetched {size} bytes from fixture.",
-                context={"url": "fixture://current.json", "byte_size": size, "content_sha256": sha},
+                message_data={"url": "fixture://current.json", "byte_size": size, "content_sha256": sha},
             )
             return body, sha, size
 
@@ -145,7 +145,7 @@ class TestHappyPathFreshInstall:
         assert "Imported" in job.summary
         assert "indicators" in job.summary
         assert len(job.grift_batches["imported"]) == 1
-        codes = [e["code"] for e in job.results["info"]]
+        codes = [e["message_code"] for e in job.results["info"]]
         assert "RUN_STARTED" in codes
         assert "UPSTREAM_FETCHED" in codes
         assert "DIFF_COMPUTED" in codes
@@ -198,7 +198,7 @@ class TestEmptyDiff:
         second.refresh_from_db()
         assert second.status == CollectionJobStatus.SUCCESSFUL
         assert second.grift_batches["imported"] == []
-        codes = [e["code"] for e in second.results["info"]]
+        codes = [e["message_code"] for e in second.results["info"]]
         assert "DIFF_EMPTY" in codes
         assert "GRIFT_SUBMITTED" not in codes
 
@@ -222,7 +222,7 @@ class TestBlockFlags:
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
         assert job.grift_batches["imported"] == []
-        codes = [e["code"] for e in job.results["error"]]
+        codes = [e["message_code"] for e in job.results["error"]]
         assert expected_code in codes, f"Expected {expected_code} in {codes}"
         assert job.summary
         return job
@@ -268,7 +268,7 @@ class TestBlockFlags:
         job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
-        codes = [e["code"] for e in job.results["error"]]
+        codes = [e["message_code"] for e in job.results["error"]]
         assert any(c in codes for c in ("UNKNOWN_FIELD", "SCHEMA_DRIFT"))
 
     def test_structural_cap_themes(self, isolate_collector_registry):
@@ -320,7 +320,7 @@ class TestBlockFlags:
         second = run_collection(col)
         second.refresh_from_db()
         assert second.status == CollectionJobStatus.FAILED
-        codes = [e["code"] for e in second.results["error"]]
+        codes = [e["message_code"] for e in second.results["error"]]
         assert "MASS_DELETION" in codes
 
 
