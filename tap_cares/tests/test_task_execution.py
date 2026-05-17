@@ -307,3 +307,56 @@ class TestPhaseOneGate:
         assert job.status == CollectionJobStatus.FAILED
         assert job.self_test["runnable"] is False
         assert _RunCountingCollector.run_calls == []
+
+
+# ---------------------------------------------------------------------------
+# Transactional integrity — req-tap-cares-task-backend-transactional-integrity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True)
+class TestTransactionalIntegrity:
+    """Positively assert the `transaction.on_commit` enqueue deferral.
+
+    `req-tap-cares-task-backend-transactional-integrity-{1,3}` only claim to
+    be "verified by the existing test suite continuing to pass" — i.e. by the
+    *absence* of breakage. That is verification-by-nothing: deleting the
+    `transaction.on_commit(...)` wrap in `run_collection` would leave every
+    other test green (the happy-path tests pass because they commit, not
+    because the wrap is correct).
+
+    This test gives the requirement teeth. With the wrap intact, calling
+    `run_collection` inside an outer `transaction.atomic()` must NOT execute
+    the collector until that block commits — under `ImmediateBackend` the
+    collector runs synchronously at `.enqueue()` time, so "did it run yet" is
+    directly observable via `HappyCollector.runs` and `job.status`.
+
+    Regression behavior: if the wrap is removed, `.enqueue()` fires inside the
+    atomic block and the collector runs synchronously *before* commit, so the
+    in-block `runs == []` / status-READY assertions fail. The transactional
+    hazard this guards (a Steady Queue worker on another connection seeing a
+    task row before the CollectionJob row commits) is production-only and
+    otherwise has no automated guard at all.
+    """
+
+    def test_enqueue_is_deferred_until_outer_commit(self, isolate_collector_registry):
+        from django.db import transaction
+
+        col = _register_and_fetch("happy-txn", HappyCollector, scope="tap_cares.tests.fakes")
+
+        with transaction.atomic():
+            job = run_collection(col)
+            # Inside the still-open outer transaction the on_commit callback
+            # has NOT fired, so the enqueue is deferred and the collector has
+            # not run. (Without the wrap, ImmediateBackend would have run it
+            # synchronously here and these assertions would fail.)
+            assert HappyCollector.runs == []
+            assert job.status == CollectionJobStatus.READY
+            assert job.started_at is None
+
+        # The atomic block committed: on_commit fired -> enqueue -> the
+        # ImmediateBackend ran the collector synchronously to completion.
+        job.refresh_from_db()
+        assert HappyCollector.runs == [str(job.entity_id)]
+        assert job.status == CollectionJobStatus.SUCCESSFUL
+        assert job.started_at is not None and job.finished_at is not None

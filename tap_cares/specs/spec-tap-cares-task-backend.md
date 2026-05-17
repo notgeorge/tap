@@ -159,9 +159,9 @@ This keeps the contract simple: callers do not need to know about transaction st
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-transactional-integrity-1 | on_commit Wrapping | Implemented | `run_collection` wraps `run_collector.enqueue(...)` in `django.db.transaction.on_commit(...)`. | Defers the enqueue until any outer transaction commits; fires immediately if none. |
+| req-tap-cares-task-backend-transactional-integrity-1 | on_commit Wrapping | Implemented | `run_collection` wraps `run_collector.enqueue(...)` in `django.db.transaction.on_commit(...)`. | Defers the enqueue until any outer transaction commits; fires immediately if none. Positively guarded by `tap_cares/tests/test_task_execution.py::TestTransactionalIntegrity` (asserts the collector does not run inside an open outer `atomic()` and does run after it commits; the test fails if the wrap is removed). |
 | req-tap-cares-task-backend-transactional-integrity-2 | Caller Contract | Implemented | Callers of `run_collection` do not need to inspect transaction state; the function is safe both inside and outside an outer `transaction.atomic()` block. | |
-| req-tap-cares-task-backend-transactional-integrity-3 | No Behavior Change For Current Callers | Implemented | Wrapping in `on_commit` does not change behavior for current callers (Administrivia handlers, scheduler Stage 2) because none of them run inside an outer atomic block. | Verified by the existing test suite continuing to pass. |
+| req-tap-cares-task-backend-transactional-integrity-3 | No Behavior Change For Current Callers | Implemented | Wrapping in `on_commit` does not change behavior for current callers (Administrivia handlers, scheduler Stage 2) because none of them run inside an outer atomic block. | The deferral mechanism itself is positively guarded by `TestTransactionalIntegrity` (see -1). The narrower "no current caller runs inside an outer `atomic()`" claim remains a code-inspection inference, not a separate assertion — acceptable because the failure mode is benign (the wrap fires immediately when there is no outer transaction). |
 | req-tap-cares-task-backend-transactional-integrity-4 | Test Marker For Lifecycle Assertions | Implemented | Tests that exercise `run_collection` and assert post-task `CollectionJob` state use `@pytest.mark.django_db(transaction=True)`. The default `@pytest.mark.django_db` wrapper runs each test inside an atomic block that rolls back at end-of-test, so `on_commit` callbacks would never fire under ImmediateBackend. | Standard Django pattern when production uses `transaction.on_commit`. |
 
 ## Test Settings
@@ -265,7 +265,7 @@ If post-fork connection handling has any sharp edges, this is where they surface
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-task-backend-fork-safety-1 | Post-Fork Smoke Test | Implemented | A manual two-collector smoke test passes without Django DB connection errors. | Documented in commit message of the implementing change. |
+| req-tap-cares-task-backend-fork-safety-1 | Post-Fork Smoke Test | Implemented (manual, CI-unguarded) | A manual two-collector smoke test passes without Django DB connection errors. | Documented in commit message of the implementing change. **This is a one-time manual check, not a regression guard**: no automated test runs `SteadyQueueBackend`, so a post-fork connection-handling regression would not be caught by CI — it would surface in dev/prod. Tracked for automation under [Backlog](#backlog) (`req-tap-cares-task-backend-backlog`). |
 | req-tap-cares-task-backend-fork-safety-2 | Connection Errors Surfaced | Implemented | Any connection-handling regression surfaces as a test failure or visible Administrivia UI error, not silent data loss. | |
 
 ## Huey Removal
@@ -348,9 +348,11 @@ Deferred:
 - **Task observability surface.** Steady Queue ships a Django admin UI for inspecting / retrying / discarding tasks. Whether TAP exposes that, hides it behind administrivia, or relies on it as-is is a separate design decision.
 - **Stuck `PENDING` fire sweeper.** A scheduler fire stuck in `PENDING` indicates the scheduler tick crashed mid-stage-2 (see `req-tap-cares-scheduler-fire-model`). Detection and resolution are independent of the task-backend choice.
 - **`run_after` scheduling.** Steady Queue supports delayed tasks via `run_after`. v0 doesn't use it.
+- **Automated async-integration coverage.** No automated test runs `SteadyQueueBackend`; the entire delivery seam between `run_collection` and a real worker is CI-unguarded. Specifically untested by CI: post-fork DB-connection reset (`req-...-fork-safety`), scheduler/default queue process isolation (`req-...-queue-isolation`), wall-clock READY→RUNNING→SUCCESSFUL transitions, queue-pickup latency, and stuck-`RUNNING` after a worker crash. The `on_commit` deferral *is* now positively guarded by `TestTransactionalIntegrity` (`req-...-transactional-integrity-1`), and collector/scheduler *logic* is covered under `ImmediateBackend`; the gap is the real-worker integration layer. The honest cost tiering: (1) the deferral guard — **done**; (2) a marked, opt-in integration suite booting a real `SteadyQueueBackend` + worker and polling for terminal state — backlog (slow, fork/timing-sensitive, needs harness plumbing); (3) fork-safety as a CI smoke *job* (boot stack, two concurrent runs, assert clean lifecycle + no `OperationalError`/`InterfaceError`) rather than a unit test — backlog. Until (2)/(3) land, `req-...-fork-safety-1` is "manual, CI-unguarded" by design, not by oversight.
 
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-task-backend-backlog-1 | Deferred Work Named | Backlog | Non-v0 task-backend capabilities are tracked here rather than being partially specified. | |
+| req-tap-cares-task-backend-backlog-2 | Async-Integration Coverage Gap Named | Backlog | The CI-unguarded real-worker integration seam (fork safety, queue isolation, wall-clock lifecycle, pickup latency) is named here with a cost tiering, rather than left as implied confidence behind green unit tests. The `on_commit` deferral guard (tier 1) is implemented; tiers 2–3 are deferred. | Counters the "false confidence" failure mode (`aar/2026-05-16-aws-collector-sprint-sprawl.md` §4): a requirement whose only guard is a one-time manual smoke or "the suite still passes" is effectively unguarded and must be labeled as such. |
