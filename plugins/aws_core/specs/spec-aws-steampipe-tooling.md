@@ -1,5 +1,26 @@
 # AWS Steampipe Tooling Specification
 
+> ## ⚠️ NOTE TO SELF — READ BEFORE REVIVING ANY OF THIS
+>
+> This entire spec exists because we tried to make `aws_core` *acquire and
+> run* the Steampipe binary itself (plugin-owned download, resolver, standup
+> hook, embedded Postgres/FDW cold-start, per-collector timeout budgets…).
+> That shape is what caused the sprint-sprawl — see
+> `aar/2026-05-16-aws-collector-sprint-sprawl.md`.
+>
+> **The make-it-right default, if Steampipe is ever used again:** Steampipe
+> runs as its own **separate container**, and we **execute queries against
+> it** over its interface. Nothing in this repo downloads, installs,
+> version-pins, sandboxes, or lifecycle-manages the Steampipe binary.
+>
+> Any shape other than "separate container, execute against it" requires a
+> **damn good, written, up-front reason** in this spec before a line of code
+> is written — not a reason discovered halfway through. The expensive lesson
+> was that this decision got skipped while scattered; do not skip it again.
+> (Default direction as of 2026-05-17 is boto3, not Steampipe — see
+> `plugins/aws_core/README.md` on the clean-slate branch and the
+> `park/steampipe-tooling` rationale.)
+
 ## Philosophy
 
 The AWS Steampipe collector (`spec-aws-steampipe-collector-v0.md`) shells out
