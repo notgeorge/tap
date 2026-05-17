@@ -46,7 +46,14 @@ class CharacterEditorDescriptor(EditorDescriptor):
         }
 
     def handle_save(self, form: forms.Form, obj: Any, request: HttpRequest) -> Any:
-        """Persist validated form data to the Character and its Entity."""
+        """Persist validated form data to the Character.
+
+        BaseModel is the source of truth for `name` (via get_name()); the
+        Entity.name spine value is a subordinate projection that obj.save()
+        materializes. We therefore set the field on the node and never write
+        Entity.name directly — a direct write is silently reverted by the
+        spine sync (see spec-grid-node.md req-grid-node-display).
+        """
         import uuid
 
         from tap_grid.caller_context import CallerContext, set_caller_context
@@ -54,14 +61,10 @@ class CharacterEditorDescriptor(EditorDescriptor):
 
         cleaned = form.cleaned_data
 
-        entity = obj.entity
-        entity.name = cleaned["name"]
-        entity.save(update_fields=["name", "updated_at"])
-
         user = request.user if isinstance(request.user, User) else None
         set_caller_context(CallerContext(user=user, batch_id=str(uuid.uuid7())))
         try:
-            obj.title = cleaned.get("title", "")
+            obj.name = cleaned["name"]
             obj.bio = cleaned.get("bio", "")
             obj.save(skip_validation=True)
         finally:
