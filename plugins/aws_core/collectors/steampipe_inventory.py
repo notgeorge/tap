@@ -11,7 +11,6 @@ The self-test is run phase 1 — synchronous, bounded, four accumulated checks
 from __future__ import annotations
 
 import logging
-import shutil
 
 from plugins.aws_core.collectors.config import (
     AWS_COLLECTION_SCOPE,
@@ -219,14 +218,36 @@ class AwsSteampipeInventoryCollector(CollectorBase):
                     )
                 )
 
-        # 3. STEAMPIPE_AVAILABLE (independent of the secret)
-        steampipe_path = shutil.which("steampipe")
-        if steampipe_path:
+        # 3. STEAMPIPE_AVAILABLE — plugin-owned tool (req-aws-steampipe-tooling).
+        # Pure check: resolve from the plugin, never PATH; never provision.
+        from plugins.aws_core.tooling import resolver
+
+        plat_ok, plat_expected, plat_actual = resolver.platform_check()
+        steampipe_ready = False
+        if not plat_ok:
+            checks.append(
+                check_fail(
+                    "STEAMPIPE_AVAILABLE",
+                    (
+                        f"Platform mismatch: aws_core pins [{plat_expected}] but the running "
+                        f"platform is {plat_actual!r}. Multi-arch is a recorded seam; refusing "
+                        f"to claim a wrong-arch tool."
+                    ),
+                    readiness_status=CollectorReadinessStatus.ERROR,
+                    docs=(_DOC_STEAMPIPE,),
+                )
+            )
+        elif resolver.is_provisioned():
+            state = resolver.read_state() or {}
+            steampipe_ready = True
             checks.append(
                 check_pass(
                     "STEAMPIPE_AVAILABLE",
-                    f"Steampipe executable found at {steampipe_path}.",
-                    context={"binary": steampipe_path},
+                    (
+                        f"Plugin-owned Steampipe {state.get('steampipe_version')} present "
+                        f"(aws plugin {state.get('aws_plugin_version')})."
+                    ),
+                    context={"binary": str(resolver.BIN_PATH), **state},
                     docs=(_DOC_STEAMPIPE,),
                 )
             )
@@ -234,14 +255,18 @@ class AwsSteampipeInventoryCollector(CollectorBase):
             checks.append(
                 check_fail(
                     "STEAMPIPE_AVAILABLE",
-                    "Steampipe executable 'steampipe' was not found on PATH.",
+                    (
+                        "Steampipe is not provisioned for aws_core. Run "
+                        "`manage.py plugin_standup aws_core` (or `manage.py aws_core_standup`) "
+                        "to acquire it."
+                    ),
                     readiness_status=CollectorReadinessStatus.ERROR,
                     docs=(_DOC_STEAMPIPE,),
                 )
             )
 
         # 4. AWS_IDENTITY (needs a valid secret AND steampipe)
-        if target is None or not steampipe_path:
+        if target is None or not steampipe_ready:
             checks.append(
                 check_skip(
                     "AWS_IDENTITY",

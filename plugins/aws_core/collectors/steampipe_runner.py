@@ -49,13 +49,27 @@ class SteampipeRunner:
     def __init__(
         self,
         *,
-        binary: str = "steampipe",
+        binary: str | None = None,
         timeout_seconds: int = 120,
         extra_env: dict[str, str] | None = None,
     ) -> None:
-        self.binary = binary
+        # Self-configure from the aws_core plugin-owned tooling when no explicit
+        # binary is given: resolve the provisioned Steampipe, point it at the
+        # plugin-owned install dir, and drop root for its subprocess (Steampipe
+        # refuses to run as root). An explicit `binary=` (tests) or an
+        # unprovisioned env both bypass this and fall back to PATH behavior.
+        from plugins.aws_core.tooling import resolver
+
+        resolved = resolver.steampipe_binary()
+        self.binary = binary or (str(resolved) if resolved else "steampipe")
+        self._plugin_owned = binary is None and resolved is not None
         self.timeout_seconds = timeout_seconds
         self.extra_env = dict(extra_env or {})
+        if self._plugin_owned:
+            self.extra_env = {**resolver.runtime_env(), **self.extra_env}
+            self._priv = resolver.subprocess_priv_kwargs()
+        else:
+            self._priv = {}
 
     def run_query_set(
         self,
@@ -98,6 +112,7 @@ class SteampipeRunner:
                 env=run_env,
                 text=True,
                 timeout=self.timeout_seconds,
+                **self._priv,
             )
         except FileNotFoundError as exc:
             raise SteampipeUnavailableError(

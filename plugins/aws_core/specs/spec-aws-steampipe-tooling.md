@@ -226,6 +226,16 @@ Initial seams:
   `steampipe query` against a plugin-local dir — embedded-service startup,
   locking, port/socket contention — is a known unknown documented here, not
   solved in v0.
+- **Self-test live-check budget vs. tool cold-start (surfaced by the proving
+  ground, 2026-05-17).** A one-shot `steampipe query` cold-starts the embedded
+  Postgres/FDW service, so the `AWS_IDENTITY` live check cannot meet
+  `tap_cares` `req-tap-cares-collector-self-test-12`'s ≤5s per-live-check
+  budget (observed: timeout at 5s while `STEAMPIPE_AVAILABLE` passed). This is
+  a real spec-vs-reality tension, not a tunable to silently bump. Resolution is
+  a deliberate decision recorded for the user/strategy: keep a warm
+  `steampipe service`, make the self-test budget per-collector, or make
+  `AWS_IDENTITY` not a phase-1 ≤5s live check. The tooling acquisition itself
+  is proven independent of this.
 - **Outpost execution.** The satellite/outpost vision (the tool runs off-host
   for a sandboxed collector) is the long-horizon seam this is a step toward.
 

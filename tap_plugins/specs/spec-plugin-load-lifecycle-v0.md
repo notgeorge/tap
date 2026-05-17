@@ -29,7 +29,7 @@ The guiding principle for v0 is that the plugin's load shape should be reviewabl
 | req-plugin-load-v0-grift | [Bundled GRIFT Publication](#bundled-grift-publication) | Implemented | GRIFT files are declared by the plugin as loadable bundled data |
 | req-plugin-load-v0-upsert | [GRIFT Upsert Policy](#grift-upsert-policy) | Implemented | Bundled plugin GRIFT uses strict upsert semantics in v0 |
 | req-plugin-load-v0-order | [Load Order And Execution Phases](#load-order-and-execution-phases) | Implemented | Clarifies manifest, class-definition, and startup phases |
-| req-plugin-load-v0-standup-hook | [Plugin Standup Hook](#plugin-standup-hook) | Proposed | **Provisional proving-ground seam.** Plugin-owned idempotent standup command invoked by a generic core runner, sibling to operator-invoked GRIFT import; general tool model deferred |
+| req-plugin-load-v0-standup-hook | [Plugin Standup Hook](#plugin-standup-hook) | In Development | **Provisional proving-ground seam.** Plugin-owned idempotent standup command invoked by a generic core runner, sibling to operator-invoked GRIFT import; general tool model deferred. Runner + first consumer (aws_core) exist; not yet spawn-wired |
 | req-plugin-load-v0-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Explicitly deferred lifecycle work |
 
 ### Plugin Load Scope
@@ -415,7 +415,14 @@ If TAP later adds a plugin loader service, that service should expose these phas
 ### Plugin Standup Hook
 ----
 RID: `req-plugin-load-v0-standup-hook`
-Status: `Proposed`
+Status: `In Development`
+
+Discovery convention (as implemented): a plugin's standup hook is a
+plugin-owned management command named `<app_label>_standup`; the generic
+`manage.py plugin_standup` runner invokes those that exist in
+`INSTALLED_APPS` order. First consumer: `aws_core` (`aws_core_standup`),
+the Steampipe proving ground. Not yet wired into `scripts/spawn-session.sh`
+(generic-runner spawn integration is the next step, tracked).
 
 A plugin may declare a plugin-owned *standup* command: idempotent capability preparation that runs at explicit stand-up, not at `ready()`. It is the non-grid sibling of operator-invoked GRIFT import — where `import_plugin_grift` *seeds the grid*, standup *prepares the non-grid capabilities a plugin's collectors or runtime need* (e.g. acquiring an external tool a collector shells out to).
 

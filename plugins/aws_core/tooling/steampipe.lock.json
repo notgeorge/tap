@@ -1,0 +1,15 @@
+{
+  "_comment": "Pinned Steampipe tooling for the aws_core proving ground. See plugins/aws_core/specs/spec-aws-steampipe-tooling.md. Committed; the provisioned payload under _runtime/ is gitignored.",
+  "steampipe_version": "v2.4.2",
+  "platforms": {
+    "linux/arm64": {
+      "url": "https://github.com/turbot/steampipe/releases/download/v2.4.2/steampipe_linux_arm64.tar.gz",
+      "sha256": "038a010b3c12395c587aca9a9ac74b8f766ca5a27c670a09abdd77e758c5d0a3",
+      "size": 18281642
+    }
+  },
+  "aws_plugin": {
+    "version": "latest",
+    "_seam": "Proving ground installs aws@latest and records the resolved version in _runtime/state.json. Exact AWS-plugin version pin is a recorded generalization seam (req-aws-steampipe-tooling-seams)."
+  }
+}
