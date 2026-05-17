@@ -107,6 +107,8 @@ The canonical implementation of the four-step pattern is `scripts/promote-to-mai
 
 See the spec section for the full rationale and acceptance criteria (`req-dev-multisession-promote-script`, `req-dev-multisession-promote-all-script`).
 
+Advancing `origin/main` is gated on validation, not just a clean merge. Per `req-dev-multisession-promote-gate` (in `spec-dev-multisession.md`) and its reciprocal `req-dev-validation-promote-hook` (in [`specs/spec-dev-validation.md`](specs/spec-dev-validation.md)), the development validation gate runs *after* the pre-push merge and *before* the atomic push; a red gate aborts the promote and `origin/main` is not advanced. This is the mechanical form of the "no messy state to main" discipline above. `spec-dev-validation.md` is the **center of gravity for validation tracking**: its Validation Map is the authoritative inventory of every validation surface (spawn-env smoke, teardown, the log-site scanner, the task-backend async tiers, the cold-boot gate, the canary tier) with each surface's honest guard status. Adding any validation surface anywhere REQUIRES adding its Map row in the same change. The gate itself is `Proposed` (not yet built), so today this is the contract a session is working toward, not a script it can call.
+
 ## Developer Tooling
 
 Mint identifiers with the provided scripts rather than hand-rolling them — both are agent-runnable and collision-safe:

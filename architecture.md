@@ -112,6 +112,8 @@ Step-wise Priority Goals for v0
 
 Cross-cutting expectation: graph serialization, graph search, and graph interchange should converge on TAP-owned canonical contracts rather than app-specific ad hoc payloads. In practice this means service/search graph results should move toward Gryphon-backed reads and GRIFT-shaped node/edge responses where complete portable graph data is intended.
 
+Cross-cutting expectation: because parallel automated sessions branch off `main` and promote back to it, system integrity is maintained by a pre-push validation gate rather than by per-session memory. `specs/spec-dev-validation.md` is the canonical center of gravity for validation tracking — its Validation Map inventories every validation surface and its honest guard status — and the promote path is gated on it. Validation/quality posture is an architectural concern here, not a follow-up.
+
 Once V0 is complete we'll move on to:
 1.  Rampart plugin set
 2.  Refinements for ease-of-use such as installation streamlining, user documentation

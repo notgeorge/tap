@@ -154,6 +154,13 @@ Multi-session worktrees
     When the user says "consolidate sessions", "ship the sessions", or otherwise asks to advance
     origin/main from session branches, run the promote scripts rather than retyping the git steps.
     See spec-dev-multisession.md for port bands, spawn/despawn, and the push workflow.
+    Advancing origin/main is gated on validation (req-dev-multisession-promote-gate ↔
+    req-dev-validation-promote-hook): the dev-validation gate runs after the pre-push merge,
+    before the atomic push; red aborts the promote. spec-dev-validation.md is the center of
+    gravity for validation tracking — its Validation Map is the authoritative inventory of
+    every validation surface + honest guard status; adding a validation surface anywhere
+    requires adding its Map row in the same change. The gate is Proposed (not yet built):
+    today it is the contract being worked toward, not a callable script.
 
 Developer token tools (use these instead of hand-rolling identifiers)
     scripts/uuid7 [N]          — mint UUIDv7(s) (e.g. record_* call-site IDs, entity IDs)

@@ -31,6 +31,7 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-push-workflow | [Session → Main Push Workflow](#session-→-main-push-workflow) | Implemented | Always-on discipline; codifies how session worktrees advance origin/main and keep the local main worktree current |
 | req-dev-multisession-promote-script | [Promote-to-Main Script](#promote-to-main-script) | Implemented | Per-session wrapper around the push-workflow discipline |
 | req-dev-multisession-promote-all-script | [Promote-All-Sessions Script](#promote-all-sessions-script) | Implemented | Registry-driven orchestrator over the per-session script |
+| req-dev-multisession-promote-gate | [Promote-Path Validation Gate](#promote-path-validation-gate) | Proposed | Promote path MUST run the dev-validation gate and refuse to advance origin/main on red; reciprocal of req-dev-validation-promote-hook |
 | req-dev-multisession-list-script | [List Script](#list-script) | Proposed | Phase 3 |
 | req-dev-multisession-named-routing | [Name-Based Routing via Reverse Proxy](#name-based-routing-via-reverse-proxy) | Backlog | Phase 3 polish |
 
@@ -341,6 +342,26 @@ A human running this script from any shell can promote every active session with
 | req-dev-multisession-promote-all-script-5 | Pre-feature-branch skip | Implemented | A worktree without `scripts/promote-to-main.sh` is skipped with a warning. | Lets older session branches coexist while the convention rolls out. |
 | req-dev-multisession-promote-all-script-6 | Summary output | Implemented | Prints ok / failed / skipped session names at the end so the operator sees what landed at a glance. | |
 | req-dev-multisession-promote-all-script-7 | Dry-run mode | Implemented | `--dry-run` forwards `--dry-run` to each per-session invocation. | |
+
+### Promote-Path Validation Gate
+----
+RID: `req-dev-multisession-promote-gate`
+Status: `Proposed`
+
+Advancing `origin/main` from a session branch MUST be gated on a passing validation run. The pre-push merge (step 2 of [Session → Main Push Workflow](#session-→-main-push-workflow)) makes the session branch fast-forwardable; this requirement adds that the merged tree MUST then pass the development validation gate *before* the atomic dual-refspec push. On a failing gate the promote aborts and `origin/main` is not advanced — a session never publishes a tree it has not validated, which is what protects every session spawned from local `main`.
+
+This is the reciprocal of `req-dev-validation-promote-hook` in [spec-dev-validation.md](spec-dev-validation.md). The division is deliberate and MUST be kept consistent: this requirement owns the obligation *on the promote workflow* (when in the four-step sequence the gate runs, and that red blocks the push); the validation spec owns the *gate contract itself* (what the gate asserts, the cold-boot cycle, real-backend fidelity, the known-broken manifest). Neither spec restates the other's substance.
+
+`scripts/promote-to-main.sh` and, transitively, `scripts/promote-all-sessions.sh` are the canonical enforcement points; the documented manual fallback sequence carries the same obligation. The gate runs after the pre-push merge so it validates the exact tree that will become `origin/main`. This requirement is `Proposed` until the gate exists ([spec-dev-validation.md](spec-dev-validation.md)); the push workflow and promote scripts remain `Implemented` independently of it.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-promote-gate-1 | Gate after merge, before push | Proposed | The validation gate runs after the pre-push merge and before the atomic dual-refspec push, against the merged tree. | Validates exactly what becomes `origin/main`. |
+| req-dev-multisession-promote-gate-2 | Red blocks the push | Proposed | A failing gate aborts the promote with a non-zero exit; `origin/main` is not advanced and the session branch is not force-published past it. | |
+| req-dev-multisession-promote-gate-3 | Scripts and fallback covered | Proposed | `scripts/promote-to-main.sh`, the all-sessions orchestrator, and the documented manual sequence all carry the gate obligation. | |
+| req-dev-multisession-promote-gate-4 | Reciprocal consistency | Proposed | This requirement and `req-dev-validation-promote-hook` cross-reference and stay consistent; neither restates the other's substance. | Prevents cross-spec drift. |
 
 ### Admin User Bootstrap
 ----
