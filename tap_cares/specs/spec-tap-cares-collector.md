@@ -484,16 +484,14 @@ Contract semantics:
 
 Self-tests must accumulate diagnostics instead of bailing at the first failure whenever it is practical and safe to continue.
 
-Example AWS first-run shape (zero-config, secret-discovered model — from the
-excised Steampipe AWS collector, retained here as an illustrative shape; the
-original spec is parked at git tag `park/steampipe-tooling`. The boto3 AWS
-collector, from 2026-05-18, supersedes this worked example):
+Example AWS first-run shape (a zero-config, secret-discovered AWS collector
+— illustrative and collector-agnostic):
 
 | Check | Status | Notes |
 | --- | --- | --- |
 | `AWS_SECRET_PRESENT` | `fail` | No `aws_static_access_key` secret found at the well-known `SecretRef`. Readiness `unconfigured`. |
 | `SECRET_VALID` | `skip` | No secret loaded, so its credential schema cannot be validated. |
-| `STEAMPIPE_AVAILABLE` | `pass` or `fail` | Local binary check still runs independently. |
+| `TOOL_AVAILABLE` | `pass` or `fail` | A local dependency/tool check runs independently of the secret. |
 | `AWS_IDENTITY` | `skip` | No credentials, so read-only STS identity cannot run. |
 
 The goal is the fullest useful "here is everything known right now" picture so users are not walked through one error at a time.
@@ -529,13 +527,13 @@ Not allowed:
 Concrete scoping examples:
 
 - The FedRAMP KSI self-test only confirms the collector can reach its pinned upstream URL (read-only HEAD, GET fallback). It must not validate the full upstream catalog, compute a diff, or test FedRAMP content health; those belong to a collection run.
-- The AWS Steampipe self-test resolves the single well-known `SecretRef` (zero-config, secret-discovered — no operator config object), validates the AWS credential schema, checks Steampipe availability, and performs a read-only STS `GetCallerIdentity` matched against the secret's `metadata.account_id`. It stops short of inventory collection and GRIFT authoring.
+- A zero-config, secret-discovered AWS collector's self-test resolves the single well-known `SecretRef` (no operator config object), validates the AWS credential schema, checks its local tool/dependency availability, and performs a read-only STS `GetCallerIdentity` matched against the secret's `metadata.account_id`. It stops short of inventory collection and GRIFT authoring.
 
 ### Bounded Latency
 
 Self-test runs on a synchronous request path and inside the run-task gate, so it MUST be bounded:
 
-- Every live check (HTTP reachability, STS identity, subprocess probe) carries an explicit timeout. The v0 *default* budget is ≤ 5s per live check. A collector that depends on an external tool with unavoidable cold-start (e.g. the AWS Steampipe collector, where a one-shot `steampipe query` cold-starts an embedded service) MAY declare a larger **per-collector** budget via the `CollectorBase.SELF_TEST_LIVE_CHECK_TIMEOUT_SECONDS` / `SELF_TEST_AGGREGATE_DEADLINE_SECONDS` class attributes, but MUST document the justification at the override site. Controlled slowness is acceptable; an unbounded or hand-tuned-magic timeout is not.
+- Every live check (HTTP reachability, STS identity, subprocess probe) carries an explicit timeout. The v0 *default* budget is ≤ 5s per live check. A collector that depends on an external tool with unavoidable cold-start (e.g. one that shells out to an external CLI or service whose process or embedded service cold-starts on each invocation) MAY declare a larger **per-collector** budget via the `CollectorBase.SELF_TEST_LIVE_CHECK_TIMEOUT_SECONDS` / `SELF_TEST_AGGREGATE_DEADLINE_SECONDS` class attributes, but MUST document the justification at the override site. Controlled slowness is acceptable; an unbounded or hand-tuned-magic timeout is not.
 - The aggregate self-test target is a few seconds; the default hard ceiling is ~15s total, scaled by the same per-collector override when a larger live-check budget is declared. A check that would exceed its (default or declared) timeout records an explicit non-pass result — `fail`/`error`, or `skip` when "could not determine in time" is more honest than "broken" — rather than hanging the request or a worker thread.
 - A timed-out dependency check is never a silent pass: it is an explicit non-pass check with its own code, so the operator sees "could not verify in time", not a false green.
 
@@ -623,7 +621,7 @@ Whether a high-frequency scheduled fire reuses a recent `CollectionJob.self_test
 | req-tap-cares-collector-self-test-9 | UI Courtesy Gate | Proposed | Administrivia disables manual Run for `unconfigured` / `misconfigured` / `error`; `ready` / `warning` runnable. | Cross-ref `spec-tap-cares-administrivia.md`. |
 | req-tap-cares-collector-self-test-10 | Default-On Phase-1 Gate | Proposed | Every `CollectionJob` runs phase-1 self-test before external work/GRIFT; non-runnable ⇒ job ends `FAILED` via the standard failure mode (no `blocked` status), no partial work. Default-on for all collectors; resolves the previously-deferred service guard. | Per-collector opt-out and scheduler per-fire freshness policy deferred to `spec-tap-cares-scheduler.md`. |
 | req-tap-cares-collector-self-test-11 | Service Entry Point | Proposed | `tap_cares.services.self_test_collector(collector)` owns registry resolution (`RUNNER_UNAVAILABLE`), exception trapping (`SELF_TEST_EXCEPTION`), stamping, and logging, then returns the result. It does NOT write the grid; the run-task body persists to `CollectionJob.self_test`. Single caller-facing entry point. | |
-| req-tap-cares-collector-self-test-12 | Bounded Latency | Proposed | Per-collector declared budget: default ≤ 5s per live check / ~15s aggregate; a collector with unavoidable external-tool cold-start MAY raise it via `CollectorBase.SELF_TEST_{LIVE_CHECK_TIMEOUT,AGGREGATE_DEADLINE}_SECONDS` with documented justification. Timeouts still record explicit non-pass checks, never hang or false-green. | Per-collector budget added 2026-05-17 (Steampipe cold-start proving ground). |
+| req-tap-cares-collector-self-test-12 | Bounded Latency | Proposed | Per-collector declared budget: default ≤ 5s per live check / ~15s aggregate; a collector with unavoidable external-tool cold-start MAY raise it via `CollectorBase.SELF_TEST_{LIVE_CHECK_TIMEOUT,AGGREGATE_DEADLINE}_SECONDS` with documented justification. Timeouts still record explicit non-pass checks, never hang or false-green. | Per-collector budget added 2026-05-17 to support collectors with unavoidable external-tool cold-start. |
 | req-tap-cares-collector-self-test-13 | Redaction-Safe Everywhere | Proposed | No secret material in result, checks, `context`, log line, or `CollectionJob.self_test`. | Cross-ref `spec-tap-cares-secrets.md` redaction. |
 | req-tap-cares-collector-self-test-14 | Skip Does Not Escalate | Proposed | A `skip` is informational; status derives only from `fail` / `warn`. Skip-only ⇒ `ready`. Implementation `check_skip` / `_derive_status` must align. | |
 | req-tap-cares-collector-self-test-15 | v0 Single Ambient Configuration | Proposed | A self-test means "this collector with this configuration"; v0 has one ambient configuration the collector discovers itself (AWS = the one well-known secret). Per-configuration and tiered (pre-/post-config) self-tests are Backlog. | See Future. |
@@ -788,7 +786,7 @@ In v0, collector instances submit collected results through `CollectorBase.submi
 
 #### Batch identity, naming, and correlation
 
-Every batch a collector submits MUST carry a meaningful, collector-set `name` and `description` on the GRIFT batch envelope — neither left blank nor auto-derived. The name should identify the producing collector and what was collected (e.g. `aws-steampipe vpc-subnet — acct 1234…`); the description should give an operator enough context to understand the batch without opening it. `Batch.name` is required on replace (`Batch.REPLACE_REQUIRED`); TAP does not invent a good one, so the collector owns it.
+Every batch a collector submits MUST carry a meaningful, collector-set `name` and `description` on the GRIFT batch envelope — neither left blank nor auto-derived. The name should identify the producing collector and what was collected (e.g. `aws vpc-subnet — acct 1234…`); the description should give an operator enough context to understand the batch without opening it. `Batch.name` is required on replace (`Batch.REPLACE_REQUIRED`); TAP does not invent a good one, so the collector owns it.
 
 `submit_grift` takes `(self, document)`, calls in-process `grift_import()`, and accumulates a reference to each resulting batch — its `batch_entity_id` and its `disposition` (`imported` or `skipped`) — on the collector instance. It does not take or mutate `CollectionJob`:
 
