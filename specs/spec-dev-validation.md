@@ -85,7 +85,7 @@ The cycle, in order:
 5. One scheduler fire is evaluated.
 6. Resulting grid state is asserted (the collector's expected nodes/edges/batch landed).
 
-It is explicitly **not** broad correctness coverage — that is the canary tier and the deferred per-flow suites. It is one ordered run on a fresh database with no per-test isolation; this is intentional and matches the per-session isolated-Postgres model rather than fighting transactional-rollback semantics. Target wall-clock budget: on the order of the spawn-env smoke test (fast enough to run unattended before every promote).
+It is explicitly **not** broad correctness coverage — that is the canary tier and the deferred per-flow suites. It is one ordered run on a fresh database with no per-test isolation; this is intentional and matches the per-session isolated-Postgres model rather than fighting transactional-rollback semantics. Wall-clock budget: **correctness and real-backend fidelity over speed**. A 10+ minute promote that the developer steps away from is explicitly acceptable (the human is offline during it by design); the gate is not optimized for latency at the cost of fidelity. The cold-boot cycle is fixed; the canary tier is the tunable lever if total time must be bounded. The measured wall-clock is recorded here once Phase 1 (the backlogged gate build) lands.
 
 #### Acceptance Criteria
 
@@ -94,7 +94,7 @@ It is explicitly **not** broad correctness coverage — that is the canary tier 
 | req-dev-validation-smoke-gate-1 | Cold boot from zero | Proposed | The gate starts from a fresh database; `migrate` applies with no pre-existing schema/data. | |
 | req-dev-validation-smoke-gate-2 | Seed is strict | Proposed | `import_plugin_grift --all` runs strict; any failed bundle fails the gate. | Aligns with `req-dev-multisession-spawn-import-strict-1`. |
 | req-dev-validation-smoke-gate-3 | One real cycle | Proposed | A collector reaches a terminal `CollectionJob` state and a scheduler fire is evaluated within one ordered run. | |
-| req-dev-validation-smoke-gate-4 | Grid state asserted | Proposed | The cycle's expected grid mutation (nodes/edges/batch) is positively asserted, not inferred from absence of error. | Counters the false-confidence failure mode. |
+| req-dev-validation-smoke-gate-4 | Grid state asserted | Proposed | The cycle's expected grid mutation is positively asserted, not inferred from absence of error. | Counters the false-confidence failure mode. **Phase-0 drift finding:** the real grid-mutation signal is `CollectionJob.grift_batches.imported` — there are zero `PRODUCED_BATCH` edges system-wide, contradicting `spec-tap-cares-task-backend.md` (which asserts no `grift_batches` field + `PRODUCED_BATCH` edges). The gate asserts via `grift_batches`; the `spec-tap-cares-task-backend.md` ↔ implementation drift is tracked for reconciliation. A documented idempotent no-op (e.g. `DIFF_EMPTY`) is a valid SUCCESSFUL outcome, not a gate failure. |
 | req-dev-validation-smoke-gate-5 | Runs in the compose image | Proposed | The gate executes inside the existing compose stack image, not a reconstructed environment. | The container Python build is non-stock. |
 | req-dev-validation-smoke-gate-6 | Halt and report | Proposed | The first failing check halts the run and reports the failing step; the gate exits non-zero. | |
 
@@ -107,12 +107,14 @@ This is the load-bearing requirement. The gate MUST exercise the cycle against t
 
 This positions the gate as the real-backend, post-commit, in-process-drain tier: higher fidelity than any `ImmediateBackend` test, and complementary to — not a replacement for — the deferred out-of-process real-worker tiers owned by `spec-tap-cares-task-backend.md` `req-tap-cares-task-backend-backlog-2` (tier 2: real `SteadyQueueBackend` + worker polled for terminal state; tier 3: fork-safety CI smoke job). Those tiers remain `Named, deferred` in the Map; this requirement does not absorb them.
 
+**Mechanism (Phase-0 proven).** The in-process drain is the production Steady Queue primitives without the supervisor/fork/thread-pool/polling-loop that normally *drive* them: `ScheduledExecution.dispatch_next_batch()` → `ReadyExecution.objects.claim(queues, limit, process_id)` → `ClaimedExecution.perform()`, looped to empty or a deadline. Two concrete facts established by the Phase-0 spike (`tap_cares/management/commands/dev_validation_spike.py`, run inside the compose image under real `tap.settings`): (1) `ReadyExecution.claim` short-circuits to `[]` when `process_id is None`, so the drain MUST register a synthetic `steady_queue` `Process` (no heartbeat/supervisor/fork) and pass its id, deregistering after; (2) under `manage.py` (autocommit, not pytest), `run_collection`'s `transaction.on_commit` enqueue fires immediately and the `Job`+`ReadyExecution` rows are committed before the drain claims them — the real commit boundary `ImmediateBackend` never crosses. The spike proved the linchpin end-to-end (real enqueue → commit → drain → terminal `CollectionJob`) and proved teeth (no-drain ⇒ job stays `READY` ⇒ non-zero exit; a `FAILED` collector ⇒ non-zero exit surfacing the readiness reason). Grid-state assertion uses `CollectionJob.grift_batches.imported`, **not** a `PRODUCED_BATCH` edge — see the spec-drift note on `req-dev-validation-smoke-gate-4`.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-dev-validation-real-backend-1 | Not `ImmediateBackend` | Proposed | The gate configures the real DB-backed task backend; `ImmediateBackend` is never used in the gate path. | |
-| req-dev-validation-real-backend-2 | Terminal state via real backend | Proposed | The collector reaches a terminal `CollectionJob` state through the real backend's enqueue→commit→drain path, not an inline call. | |
+| req-dev-validation-real-backend-2 | Terminal state via real backend | Proposed | The collector reaches a terminal `CollectionJob` state through the real backend's enqueue→commit→drain path, not an inline call. | Mechanism proven in Phase 0 (see section body): synthetic `Process` + `ReadyExecution.claim` + `ClaimedExecution.perform` loop; `claim` requires a non-null `process_id`. |
 | req-dev-validation-real-backend-3 | Defers tiers 2–3 honestly | Proposed | Out-of-process real-worker concurrency/fork/lifecycle coverage is explicitly out of scope here and tracked under `req-tap-cares-task-backend-backlog-2`. | No scope absorption; no parallel vocabulary. |
 
 ### Canary Test Tier
