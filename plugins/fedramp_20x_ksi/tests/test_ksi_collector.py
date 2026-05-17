@@ -130,7 +130,7 @@ def test_self_test_checks_upstream_reachability(monkeypatch):
     ]
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 class TestHappyPathFreshInstall:
     """Fresh install: grid empty; fixture lands as all-new."""
 
@@ -184,7 +184,7 @@ class TestHappyPathFreshInstall:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 class TestEmptyDiff:
     def test_second_run_with_no_changes_is_noop(self, isolate_collector_registry):
         cls = _make_collector_with_fixture()
@@ -208,7 +208,7 @@ class TestEmptyDiff:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 class TestBlockFlags:
     """Each block-class flag aborts before submission and records an error entry."""
 
@@ -231,7 +231,7 @@ class TestBlockFlags:
         class _BadCT(KSICollector):
             def _fetch_upstream_bytes(self):
                 self._abort(
-                    "019e1e15-b223-73f1-a349-b44ddaac1f3e",
+                    ksi_module._SITE_UPSTREAM_BAD_CONTENT_TYPE,
                     "UPSTREAM_BAD_CONTENT_TYPE",
                     "fixture: bad content type",
                 )
@@ -243,7 +243,7 @@ class TestBlockFlags:
         class _Oversized(KSICollector):
             def _fetch_upstream_bytes(self):
                 self._abort(
-                    "019e1e15-b100-7461-b3a2-7dfd78b121c8",
+                    ksi_module._SITE_UPSTREAM_OVERSIZED,
                     "UPSTREAM_OVERSIZED",
                     "fixture: oversized",
                 )
@@ -330,7 +330,7 @@ class TestBlockFlags:
 
 
 @pytest.mark.live_fetch
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_live_fetch_round_trip(isolate_collector_registry):
     """Verify the real HTTPS fetch succeeds and the upstream parses cleanly.
 
