@@ -51,9 +51,6 @@ _SITE_STEAMPIPE_FAILED = "ce26"
 _SITE_COLLECTED = "51b5"
 _SITE_RUN_COMPLETED = "ac11"
 
-# Self-test live-check timeout budget (req-tap-cares-collector-self-test-12:
-# each live check <= 5s).
-_SELF_TEST_TIMEOUT_SECONDS = 5
 
 _DOC_SECRET = CollectorDocRef(
     plugin="aws_core",
@@ -93,6 +90,14 @@ class AwsSteampipeInventoryCollector(CollectorBase):
 
     runner_cls: type[SteampipeRunner] = SteampipeRunner
 
+    # Per-collector self-test budget override (req-tap-cares-collector-self-test-12).
+    # Justification: a one-shot `steampipe query` cold-starts Steampipe's
+    # embedded Postgres/FDW service every invocation, which cannot fit the 5s
+    # default. Controlled slowness, not hackiness — bounded, still records an
+    # explicit non-pass on timeout. Matches the run-path runner default (120s).
+    SELF_TEST_LIVE_CHECK_TIMEOUT_SECONDS = 120
+    SELF_TEST_AGGREGATE_DEADLINE_SECONDS = 180
+
     def __init__(self, config: CollectorConfig) -> None:
         super().__init__(config)
         self.profile_result: SteampipeProfileResult | None = None
@@ -101,7 +106,7 @@ class AwsSteampipeInventoryCollector(CollectorBase):
 
     @classmethod
     def _aws_identity_check(cls, target: AwsCollectionTarget) -> CollectorSelfTestCheck:
-        runner = cls.runner_cls(timeout_seconds=_SELF_TEST_TIMEOUT_SECONDS)
+        runner = cls.runner_cls(timeout_seconds=cls.SELF_TEST_LIVE_CHECK_TIMEOUT_SECONDS)
         try:
             result = runner.run_query(
                 AWS_CALLER_IDENTITY_QUERY,

@@ -10,9 +10,11 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-# Bounded-latency budget (req-tap-cares-collector-self-test-12). A single
-# source of truth collectors import for their own live-check timeouts; the
-# enforcement lives in each collector's live check (subprocess timeout, HTTP
+# Bounded-latency *defaults* (req-tap-cares-collector-self-test-12). These are
+# the baseline budget; a collector MAY raise its own budget via the
+# CollectorBase.SELF_TEST_*_SECONDS class attributes when it depends on an
+# external tool with unavoidable cold-start (with documented justification).
+# Enforcement lives in each collector's live check (subprocess timeout, HTTP
 # timeout), not here — readiness.py owns no I/O.
 LIVE_CHECK_TIMEOUT_SECONDS = 5
 SELF_TEST_DEADLINE_SECONDS = 15

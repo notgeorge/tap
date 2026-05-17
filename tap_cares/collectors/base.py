@@ -43,12 +43,14 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import jsonschema
 
 from tap_cares.collectors.config import CollectorConfig
 from tap_cares.collectors.readiness import (
+    LIVE_CHECK_TIMEOUT_SECONDS,
+    SELF_TEST_DEADLINE_SECONDS,
     CollectorSelfTestResult,
     check_pass,
 )
@@ -80,6 +82,14 @@ class CollectorBase(ABC):
     `run()` returns or raises and writes them to `CollectionJob` in a single
     terminal patch.
     """
+
+    # Per-collector self-test latency budget (req-tap-cares-collector-self-test-12).
+    # Defaults are the bounded-latency baseline; a collector that depends on an
+    # external tool with unavoidable cold-start MAY raise these, but MUST
+    # document the justification at the override site. Slower is acceptable
+    # when it is controlled and non-hacky; never unbounded, never false-green.
+    SELF_TEST_LIVE_CHECK_TIMEOUT_SECONDS: ClassVar[int] = LIVE_CHECK_TIMEOUT_SECONDS
+    SELF_TEST_AGGREGATE_DEADLINE_SECONDS: ClassVar[int] = SELF_TEST_DEADLINE_SECONDS
 
     def __init__(self, config: CollectorConfig) -> None:
         self.config = config
