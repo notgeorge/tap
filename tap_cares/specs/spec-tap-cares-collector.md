@@ -484,7 +484,10 @@ Contract semantics:
 
 Self-tests must accumulate diagnostics instead of bailing at the first failure whenever it is practical and safe to continue.
 
-Example AWS first-run shape (zero-config, secret-discovered model — see `plugins/aws_core/specs/spec-aws-steampipe-collector-v0.md`):
+Example AWS first-run shape (zero-config, secret-discovered model — from the
+excised Steampipe AWS collector, retained here as an illustrative shape; the
+original spec is parked at git tag `park/steampipe-tooling`. The boto3 AWS
+collector, from 2026-05-18, supersedes this worked example):
 
 | Check | Status | Notes |
 | --- | --- | --- |

@@ -17,38 +17,47 @@ when the plugin later moves back into its own repository or submodule.
 `tap_cares` owns the collector runtime, run records, secret resolution,
 and GRIFT import boundary. AWS-specific collection behavior belongs here.
 
-## Steampipe Inventory
+## Collector status — boto3 pivot (2026-05-17)
 
-The first inventory artifact is:
+There is currently **no AWS collector**. The earlier Steampipe-based
+collector (and the `session/codex-prime` tooling layer built on it) was
+excised on 2026-05-17 ahead of a from-scratch `boto3` collector that
+begins 2026-05-18.
 
-- `docs/steampipe-aws-table-inventory.yaml`
+The **complete** Steampipe effort is recoverable in one place:
 
-The collector design spec is:
+```
+git tag park/steampipe-tooling
+```
 
-- `specs/spec-aws-steampipe-collector-v0.md`
+That tag holds the deleted code, the design spec
+(`spec-aws-steampipe-collector-v0.md`), the table inventory
+(`docs/steampipe-aws-table-inventory.yaml`), the setup guide, and the
+plugin tooling layer. It is the durable record of what was learned —
+mine it to guide the boto3 build, do not resurrect it wholesale. The
+decision rationale lives in the AAR at
+`aar/2026-05-16-aws-collector-sprint-sprawl.md`.
 
-The live-run setup guide is:
+What is **preserved and collector-agnostic** (the durable WHAT that
+guides the boto3 build): the 37 resource-type models, 15 edge types,
+reference GRIFT, and the specs `spec-aws-core-v0.md`,
+`spec-aws-core-catalog.md`, `spec-aws-projection-top-level-minimal.md`.
 
-- `docs/setup-steampipe-collector.md`
+The table-inventory decision buckets below remain a useful planning
+lens (they classify AWS resources, not Steampipe specifics) — the
+boto3 collector should reach the same per-resource classifications:
 
-The inventory compares the upstream Steampipe AWS table catalog to the
-current `aws_core` model surface. It is a planning artifact for phased
-collector work, not a promise that every Steampipe table should become a
-TAP model.
-
-The inventory uses these decision buckets:
-
-- `implemented_model`: a Steampipe table maps to an existing `aws_core` model.
+- `implemented_model`: an AWS resource maps to an existing `aws_core` model.
 - `model_gap_candidate`: a likely durable AWS resource that may deserve a model.
 - `edge_or_attribute_candidate`: a relationship, attachment, association, rule,
-  or detailed configuration table that likely enriches existing nodes or creates
+  or detailed configuration that likely enriches existing nodes or creates
   edges.
 - `evidence_candidate`: a finding, evaluation, compliance result, health event,
   recommendation, or similar observation.
-- `metric_candidate`: a metric/time-series table that should not become a normal
+- `metric_candidate`: a metric/time-series source that should not become a normal
   resource node.
 - `attribute_or_observation_candidate`: a backup, snapshot, report, version,
-  scan, log, or other detail table that needs more judgment.
+  scan, log, or other detail that needs more judgment.
 
 ## Model Expansion Heuristic
 
@@ -67,10 +76,11 @@ first-class graph objects even when AWS APIs foreground provider IDs over ARNs.
 
 The planned AWS collector build-out is phased:
 
-1. Keep the Steampipe table inventory current and classify model gaps.
+1. Spec the boto3 collector from scratch (mine the parked Steampipe spec at
+   `park/steampipe-tooling` for durable design knowledge; do not copy it).
 2. Specify AWS credential and secret resolution through `tap_cares`.
-3. Specify collector configuration for account, region, and collection profile.
-4. Build the first Steampipe-backed collector for VPCs and subnets in a demo
+3. Specify collector configuration for account, region, and collection scope.
+4. Build the first boto3-backed collector for VPCs and subnets in a demo
    account.
 5. Expand by resource family, adding models and edges intentionally.
 
@@ -80,12 +90,13 @@ collector-specific side channel.
 
 ## First Collector Slice
 
-The first collector should be deliberately small:
+The first boto3 collector slice should be deliberately small (this shape
+is collector-agnostic and survived the pivot — it is the durable target):
 
 - resolve AWS credentials through `tap_cares` secrets
-- execute Steampipe queries for `aws_vpc` and `aws_vpc_subnet`
-- normalize rows into existing `Vpc` and `Subnet` models
-- store full Steampipe rows in each node's `configuration`
+- call the boto3 EC2 APIs for VPCs and subnets
+- normalize responses into existing `Vpc` and `Subnet` models
+- store the full normalized resource payload in each node's `configuration`
 - create account/region/VPC/subnet relationship edges where the current edge
   vocabulary supports them
 - submit a GRIFT batch through the existing `tap_cares` collector path
@@ -93,9 +104,10 @@ The first collector should be deliberately small:
 
 No deletion, reaping, or implied absence semantics belong in the first slice.
 
-Current implementation status: the collector shell, config validator, trusted
-`vpc-subnet-v0` profile, Steampipe subprocess wrapper, and collector
-registration exist under `plugins/aws_core/collectors/`. The collector now
-resolves and validates AWS static credentials through `tap_cares.secrets` and
-passes them to Steampipe without persisting values. The next implementation step
-is VPC/subnet normalization into GRIFT.
+Current implementation status (2026-05-17): **nothing** — the collector
+package (`plugins/aws_core/collectors/`) is intentionally empty and no
+collector is registered in `apps.py`. The boto3 collector is built from
+scratch starting 2026-05-18. The credential/config/target *patterns* from
+the prior collector are documented in the parked spec at
+`park/steampipe-tooling` and should inform (not be copied into) the boto3
+design.
