@@ -492,14 +492,21 @@ collector never reads credential files directly.
   required `data` fields, using `require_secret_kind(...)` with an `aws_core`-owned
   JSON Schema (consumer-side validation, `req-tap-cares-secrets-validation-2`).
 - Accepted `data`: `access_key_id`, `secret_access_key`, optional
-  `session_token`, optional `region` (`req-tap-cares-secrets-aws-static`).
-- Regions to sweep come from the manifest/run configuration; the secret's
-  `region` is the default/fallback. Global-scope services are collected once.
+  `session_token`, optional `region` (single), optional `regions` (list). The
+  kind shape and its `aws_core`-owned schema are specified in
+  `spec-aws-core-secrets.md` (`req-aws-core-secret-aws-static`).
+- Region scope is operator-owned and carried on the secret: a non-empty
+  `data.regions` scopes regional collection to exactly those regions; absent,
+  the singular `data.region` is the sole swept region; with neither, the run
+  fails visibly (one region is required to collect). Global-scope services are
+  collected once regardless. A manifest/run-configuration region source is a
+  deferred seam — not in the make-it-work path — and would override the secret
+  default when introduced.
 - A missing or malformed secret fails the run visibly with a structured,
   redacted error (`req-tap-cares-secrets-redaction-3`); it never logs secret
   material and never disables the collector capability.
 - v0 is single-account static keys only. Assume-role and multi-account are
-  deferred (`req-tap-cares-secrets-aws-static-3`, `req-aws-collector-nongoals`);
+  deferred (`req-aws-core-secret-aws-static-3`, `req-aws-collector-nongoals`);
   the secret model already anticipates multi-account as "more secret files".
 
 #### Acceptance Criteria
@@ -575,7 +582,9 @@ expected partial-failure conditions, without ever corrupting collected data.
 
 #### Implementation
 
-- Regional entries are collected per configured region; global entries once.
+- The swept region set is resolved from the secret: `data.regions` if
+  non-empty, else `[data.region]`, else the run fails visibly. Regional entries
+  are collected once per resolved region; global entries once.
 - A permission/region condition — `AccessDenied`, `UnauthorizedOperation`,
   authorization failures, "not supported in this region" — is recorded as a
   structured `warn` and that (region, resource) is skipped; the run continues.
@@ -596,6 +605,7 @@ resilience shape, implemented as TAP code against `record_warn`.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-aws-collector-regions-1 | Per-Region / Global Split | Approved for Development | Regional entries sweep configured regions; global entries collect once. | |
+| req-aws-collector-regions-5 | Secret-Scoped Region Set | Approved for Development | The swept region set is `data.regions` if non-empty, else `[data.region]`, else the run fails visibly. | Operator-owned scope; `req-aws-core-secret-aws-static-4`. |
 | req-aws-collector-regions-2 | Classify-And-Skip | Approved for Development | Expected permission/region errors record a `warn` and skip; the run continues. | |
 | req-aws-collector-regions-3 | Bounded Throttle Backoff | Approved for Development | Throttling retries with bounded backoff; unbroken throttle fails per protocol. | |
 | req-aws-collector-regions-4 | No Data Corruption On Skip | Approved for Development | A skipped region/resource never alters previously collected data. | v0 has no deletes; reaping must honor this. |

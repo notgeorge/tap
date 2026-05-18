@@ -28,7 +28,7 @@ The grid may eventually know about secret references, health, usage, policy, and
 | req-tap-cares-secrets-registry | [Secret Registry And Resolution](#secret-registry-and-resolution) | Implemented | Internal `ScopedRegistry` plus `SecretRef` / `resolve_secret` helpers |
 | req-tap-cares-secrets-validation | [Consumer Validation](#consumer-validation) | Implemented | Consumers validate kind-specific secret data |
 | req-tap-cares-secrets-redaction | [Redaction And Failure Behavior](#redaction-and-failure-behavior) | Implemented | Secret material must not leak into logs or run records |
-| req-tap-cares-secrets-aws-static | [AWS Static Credentials](#aws-static-credentials) | Implemented | First concrete consumer shape for AWS collection |
+| req-tap-cares-secrets-consumer-kinds | [Consumer-Defined Secret Kinds](#consumer-defined-secret-kinds) | Implemented | Kind `data` shapes are owned by consuming plugin/collector specs, not here |
 | req-tap-cares-secrets-future-secret-model | [Future Secret BaseModel](#future-secret-basemodel) | Backlog | Future on-grid Secret metadata and file generation |
 | req-tap-cares-secrets-future-encryption | [Future Encryption At Rest](#future-encryption-at-rest) | Backlog | Encrypted file format explicitly deferred |
 
@@ -224,30 +224,39 @@ Missing secrets do not prevent TAP from starting and do not remove collector cap
 | req-tap-cares-secrets-redaction-2 | No Secret Logs | Implemented | Secret material is never intentionally logged or persisted in run records. | Enforced by consumer discipline and redaction helpers. |
 | req-tap-cares-secrets-redaction-3 | Missing Secret Run Failure | Implemented | Missing required secrets fail the run visibly rather than failing registration or startup. | `resolve_secret(...)` raises at runtime; consumers record failures. |
 
-## AWS Static Credentials
+## Consumer-Defined Secret Kinds
 ----
-RID: `req-tap-cares-secrets-aws-static`
+RID: `req-tap-cares-secrets-consumer-kinds`
 Status: `Implemented`
 
-The first concrete secret consumer is expected to be an AWS collector that uses static AWS access keys.
+The secrets subsystem is kind-agnostic. `tap_cares` owns the *mechanics* —
+`*.secret.json` discovery, the in-process registry, `SecretRef` /
+`resolve_secret`, the `require_secret_kind` validation harness, redaction, and
+string-keyed `kind` dispatch — and enumerates **no** kind-specific `data`
+fields.
 
-The initial AWS collector should support a secret with:
+The *shape* of a given kind's `data` (its fields, which are required, and the
+JSON Schema it validates against) is defined and owned by the consuming plugin
+or collector spec. The consumer supplies that schema at its own boundary via
+`require_secret_kind(secret, "<kind>", data_schema=<consumer schema>)`
+(`req-tap-cares-secrets-validation`). Adding a new secret kind is therefore a
+consumer-side spec + schema change, not an edit to this spec.
 
-- `kind`: `aws_static_access_key`
-- `data.access_key_id`
-- `data.secret_access_key`
-- optional `data.session_token`
-- optional `data.region`
-
-Assume-role and other AWS credential modes are backlog for the AWS collector family, not tap-cares secrets v0.
+The reference example is the AWS static-credentials kind
+(`aws_static_access_key`), owned by
+`plugins/aws_core/specs/spec-aws-core-secrets.md`
+(`req-aws-core-secret-aws-static`). It was previously enumerated here as
+`req-tap-cares-secrets-aws-static`; that requirement and its ACIDs were
+relocated to `aws_core` when this ownership boundary was made explicit, so the
+generic subsystem carries no AWS-specific shape.
 
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-secrets-aws-static-1 | Static Key First | Implemented | The first AWS collector secret mode is static access key credentials. | Implemented by `aws_core` collector helpers. |
-| req-tap-cares-secrets-aws-static-2 | Consumer Validation | Implemented | The AWS collector validates required AWS fields before use. | `aws_core` owns the JSON Schema and env mapping. |
-| req-tap-cares-secrets-aws-static-3 | Assume Role Deferred | Backlog | AWS assume-role support is deferred until the collector needs it. | |
+| req-tap-cares-secrets-consumer-kinds-1 | Subsystem Owns Mechanics | Implemented | File discovery, registry, resolution, `require_secret_kind`, redaction, and string `kind` dispatch are `tap_cares`-owned and kind-agnostic. | |
+| req-tap-cares-secrets-consumer-kinds-2 | Consumer Owns Shape | Implemented | A kind's `data` fields and validation JSON Schema live in the consuming plugin/collector spec and are supplied to `require_secret_kind(..., data_schema=...)`; this spec enumerates none. | `data_schema` is a caller-supplied parameter, not a `tap_cares` constant. |
+| req-tap-cares-secrets-consumer-kinds-3 | Reference Example | Implemented | `aws_static_access_key` is owned by `spec-aws-core-secrets.md` `req-aws-core-secret-aws-static`; this spec links it as the example, not the definition. | Relocated from `req-tap-cares-secrets-aws-static`. |
 
 ## Future Secret BaseModel
 ----

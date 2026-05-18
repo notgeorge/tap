@@ -6,7 +6,9 @@ Public surface for capability code:
 
     ref = SecretRef("aws", "prod-readonly")
     secret = resolve_secret(ref)
-    require_secret_kind(secret, "aws_static_access_key", data_schema=AWS_STATIC_SCHEMA)
+    # The kind name and `data_schema` are owned and supplied by the consuming
+    # plugin/collector, not by tap_cares (req-tap-cares-secrets-consumer-kinds).
+    require_secret_kind(secret, "aws_static_access_key", data_schema=consumer_schema)
 
 The secrets subsystem is intentionally narrow: load `*.secret.json` files from
 a configured mounted root at Django startup into an in-process registry,
