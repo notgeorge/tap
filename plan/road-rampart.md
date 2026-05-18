@@ -95,7 +95,7 @@ Steps are ordered but may overlap; concurrency is shown by the timeline table, n
 ### step-rampart-sam-demo
 Status: `Active`
 Timeline Target: `2026-06-01`
-Objective: Sam sees Rampart assess a faithful, live reproduction of his own samaydlette.com infrastructure and his own FedRAMP-20x compliance machinery, and concludes it is real, useful, and could work at Cisco scale.
+Objective: Sam sees Rampart assess a faithful, live reproduction of his own samaydlette.com infrastructure and his own FedRAMP-20x compliance machinery, and concludes it is real, useful, and could evolve to work at Cisco scale.
 Done-Test: On a live call, Rampart opens on a legible projection of the reproduced architecture, drills into a real finding, and shows a KSI scoreboard fed from Sam's own `ksi-catalog.json` — and Sam states, unprompted, that he'd want this running inside Cisco. (An outcome — never "demo delivered.")
 Non-Goals: live credentials / live pull from Sam's real account; VPC/subnet topology; Terraform collector; config-vs-ops dimensions; DCOM drift comparison; multi-user; encrypted secrets; install/config flow; in-app AI; a security pass.
 Depends-on: `spec-aws-core-v0`; the from-scratch boto3 `aws_core` collector — clean slate, Steampipe excised on main 2026-05-17 (parked at git tag `park/steampipe-tooling`), new collector spec to be written; `spec-aws-projection-top-level-minimal` (needs an edge/serverless variant — see below); `plugins/fedramp_20x_ksi`; `spec-rampart-demo-anwar` (proven precedent for the curated fallback).
@@ -112,14 +112,27 @@ Depends-on: `spec-aws-core-v0`; the from-scratch boto3 `aws_core` collector — 
 
 **Demo flow.** Opening patter (what I've been doing, why) → landing projection ("holy shit that's my site") → click into an object (the compliance Lambda or a live finding) → KSI scoreboard from his own catalog (the funny moment: it surfaces KSIs he doesn't really cover and/or accepts his own exceptions by pulling them in) → history/FLIP as honest-to-god audit evidence → "George is in the game, and playing to win." Take him from "works on my toy site" to "this could work at scale inside Cisco."
 
-**Mind-blowers.** (1) Graphical view of his real architecture; (2) a fully fleshed web app; (3) live import via the boto3 collector loading in real time; (4) compliance/KSI applicability and scorecard from *his own* catalog; (5) sophisticated beanbag (the dev environment, live); (6) history/FLIP as audit evidence.
+**Mind-blowers.**
+1. Graphical view of his real architecture
+2. A fully fleshed web app
+3. Live import via the boto3 collector loading in real time
+4. Compliance/KSI applicability and scorecard from *his own* catalog
+5. Sophisticated beanbag (the dev environment, live)
+6. History/FLIP as audit evidence
 
 **Fallback ladder.** Sam's value is judgment + Cisco credibility; a flawless B/C beats a stalled A.
 - **A** — live assessment of our running reproduction on the call (target).
 - **B** — reproduction captured ~24h prior, replayed live (same UI motions, deterministic).
 - **C** — curated GRIFT seed of Sam's topology — the proven Anwar/Genericom pattern.
 
-**Critical path (rescoped, finite).** Register demo domain → ~80-line bootstrap TF → fork + apply overlay + push site + wire CI → boto3 collector for Sam's finite resource set → edge/serverless projection → KSI scoreboard from his catalog → history/FLIP surfaced on existing pages.
+**Critical path (rescoped, finite).**
+1. Register demo domain
+2. ~80-line bootstrap TF
+3. Fork + apply overlay + push site + wire CI
+4. boto3 collector for Sam's finite resource set
+5. Edge/serverless projection
+6. KSI scoreboard from his catalog
+7. History/FLIP surfaced on existing pages
 
 ### step-rampart-first-paid-assessment
 Status: `Proposed`
