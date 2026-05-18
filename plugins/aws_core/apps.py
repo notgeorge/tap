@@ -10,8 +10,23 @@ class AwsCoreConfig(TapPluginConfig):
         # is never loaded and `import_plugin_grift` skips this plugin.
         super().ready()
 
-        # No collector registered. The steampipe collector was excised on
-        # 2026-05-17 (parked at git tag ``park/steampipe-tooling``); the
-        # boto3 collector is built from scratch starting 2026-05-18 and
-        # will register here. The plugin's models/edges/catalog remain
-        # live and collector-agnostic.
+        # Dual-existence registration: registers the runner and upserts the
+        # on-grid Collector node (req-aws-collector-runtime-4). Imported here,
+        # not at module top, so the pure engine subpackage stays import-light
+        # and apps loading does not eagerly pull boto3 / the GRIFT importer.
+        from plugins.aws_core.collectors.boto3_collector.collector import (
+            Boto3Collector,
+        )
+        from tap_cares.registry import register_collector
+
+        register_collector(
+            key="boto3",
+            cls=Boto3Collector,
+            name="AWS Core Collector (boto3)",
+            description=(
+                "Collects a single AWS account into the grid via boto3, "
+                "driven entirely by the aws_core resource manifest: typed "
+                "nodes, a lossless configuration blob, and declarative edges, "
+                "submitted as one GRIFT batch per run."
+            ),
+        )
