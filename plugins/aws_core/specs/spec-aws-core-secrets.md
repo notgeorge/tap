@@ -37,19 +37,22 @@ The first AWS collector credential mode is static AWS access keys. The
 - `data.secret_access_key` — required
 - optional `data.session_token`
 - optional `data.region` — single default/fallback region
-- optional `data.regions` — list of regions to scope the sweep to
+- optional `data.regions_allowed` — list of regions to scope the sweep to
 
-`data.region` / `data.regions` are the operator's region-scoping knob. Region
-scope is operationally bound to the credential set (a key is intended for the
-regions it should touch), so it travels in `data` next to the credentials
-rather than in descriptive `metadata`. This supersedes the parked steampipe
-`metadata.target_regions` interim shape.
+`data.region` / `data.regions_allowed` are the operator's region-scoping knob.
+Region scope is operationally bound to the credential set (a key is intended
+for the regions it should touch), so it travels in `data` next to the
+credentials rather than in descriptive `metadata`. The plural list is named
+`regions_allowed` (not bare `regions`) so it is never confused with the
+singular `data.region` or the superseded steampipe `metadata.target_regions`
+interim shape.
 
 Region-scope *semantics* are specified by the consuming collector in
 `spec-aws-core-collector-v0.md` (`req-aws-collector-credentials` /
-`req-aws-collector-regions`): a non-empty `data.regions` scopes regional
-collection to exactly those regions; absent, the singular `data.region` is the
-sole swept region; with neither, the collector fails the run visibly. Global
+`req-aws-collector-regions`): a non-empty `data.regions_allowed` scopes
+regional collection to exactly those regions; absent, the singular
+`data.region` is the sole swept region; with neither, the collector fails the
+run visibly. Global
 services are collected once regardless.
 
 `aws_core` owns the JSON Schema for this `data` shape and applies it
@@ -78,4 +81,4 @@ example.
 | req-aws-core-secret-aws-static-1 | Static Key First | Approved for Development | The first AWS collector credential mode is static access keys (`access_key_id` + `secret_access_key`, optional `session_token`). | Was `req-tap-cares-secrets-aws-static-1`. |
 | req-aws-core-secret-aws-static-2 | aws_core Owns The Schema | Approved for Development | `aws_core` defines the `data` JSON Schema and validates consumer-side via `require_secret_kind(..., data_schema=...)`. | Was `req-tap-cares-secrets-aws-static-2`; built in the source-driver increment. |
 | req-aws-core-secret-aws-static-3 | Assume Role Deferred | Backlog | AWS assume-role support is deferred until a collector needs it. | Was `req-tap-cares-secrets-aws-static-3`. |
-| req-aws-core-secret-aws-static-4 | Region Scope Carried | Approved for Development | The kind carries optional `data.region` (single) and `data.regions` (list); region-scope semantics are owned by the collector spec. | Was `req-tap-cares-secrets-aws-static-4`. |
+| req-aws-core-secret-aws-static-4 | Region Scope Carried | Approved for Development | The kind carries optional `data.region` (single) and `data.regions_allowed` (list); region-scope semantics are owned by the collector spec. | Was `req-tap-cares-secrets-aws-static-4`. |

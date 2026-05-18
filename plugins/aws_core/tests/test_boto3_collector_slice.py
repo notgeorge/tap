@@ -29,6 +29,7 @@ from tap_cares.secrets.models import Secret, SecretRef
 _ACCOUNT = "111122223333"
 _FN_ARN = f"arn:aws:lambda:us-east-1:{_ACCOUNT}:function:sam-handler"
 _ROLE_ARN = f"arn:aws:iam::{_ACCOUNT}:role/sam-exec"
+_DIST_ARN = f"arn:aws:cloudfront::{_ACCOUNT}:distribution/E1ABCDEF"
 
 _CANNED = {
     "list_functions": {
@@ -56,6 +57,22 @@ _CANNED = {
             }
         ]
     },
+    # Triggers CloudFront's RETRIEVES_CONTENT_FROM edge rule, whose
+    # s3_bucket_name_from_origin_domain transform is unregistered until #19.
+    "list_distributions": {
+        "DistributionList": {
+            "Items": [
+                {
+                    "ARN": _DIST_ARN,
+                    "DomainName": "d111abcdef.cloudfront.net",
+                    "Status": "Deployed",
+                    "Enabled": True,
+                    "Origins": {"Items": [{"DomainName": "sam-site.s3.amazonaws.com"}]},
+                    "ViewerCertificate": {},
+                }
+            ]
+        }
+    },
 }
 
 
@@ -72,13 +89,13 @@ class _CannedClient:
 @pytest.fixture
 def _stub_aws(monkeypatch):
     secret = Secret(
-        ref=SecretRef(scope="aws", key="collector"),
+        ref=SecretRef(scope="aws", key="boto_collector"),
         kind="aws_static_access_key",
         description="test",
         data={
             "access_key_id": "AKIA",
             "secret_access_key": "shh",
-            "regions": ["us-east-1"],
+            "regions_allowed": ["us-east-1"],
         },
         metadata={},
         source_path=__import__("pathlib").Path("/dev/null"),
@@ -144,3 +161,32 @@ def test_unregistered_custom_fn_is_classified_not_fatal(_stub_aws):
     assert collector.results["error"] == []
     skips = [w for w in collector.results["warn"] if w["message_code"] == "ENTRY_SKIPPED"]
     assert any("route53" in s["message"] or "hosted_zone" in s["message"] for s in skips)
+
+
+@pytest.mark.django_db
+def test_unregistered_edge_transform_is_classified_not_fatal(_stub_aws):
+    """Regression (found on a live run): CloudFront's edge transform is
+
+    unregistered until #19. An EdgeError from the edge pass must be
+    classified-and-skipped exactly like an unregistered custom_fn — it must
+    not escape and abort the whole run before submit_grift.
+    """
+    from tap_grid.services import get_node
+
+    collector = Boto3Collector(
+        CollectorConfig(
+            collector_entity_id=uuid.uuid7(),
+            collection_job_entity_id=uuid.uuid7(),
+        )
+    )
+    collector.run()
+
+    assert collector.results["error"] == []
+    assert collector.grift_batches["imported"]  # run reached submit_grift
+    skips = [w for w in collector.results["warn"] if w["message_code"] == "ENTRY_SKIPPED"]
+    assert any("s3_bucket_name_from_origin_domain" in s["message"] for s in skips)
+
+    # The distribution node still landed — it is appended before the edge
+    # pass runs, so the skipped edge does not lose the node.
+    dist = get_node(node_entity_id("aws_cloudfront_distribution", _DIST_ARN))
+    assert dist.distribution_arn == _DIST_ARN

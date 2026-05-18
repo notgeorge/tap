@@ -8,8 +8,8 @@ plugins/aws_core/specs/spec-aws-core-collector-v0.md
 ``aws_core`` owns the ``aws_static_access_key`` ``data`` shape and validates
 it consumer-side; ``tap_cares`` owns only the secrets *mechanics*
 (``req-tap-cares-secrets-consumer-kinds``). Region scope is operator-owned and
-carried on the secret: a non-empty ``data.regions`` scopes regional collection
-to exactly those regions; absent, the singular ``data.region`` is the sole
+carried on the secret: a non-empty ``data.regions_allowed`` scopes regional
+collection to exactly those regions; absent, the singular ``data.region`` is the sole
 region; with neither, the run fails visibly.
 
 The collector never reads credential files directly — credentials resolve
@@ -29,9 +29,9 @@ from tap_cares.secrets.models import Secret
 
 # The well-known SecretRef for the AWS collector. v0 has no per-instance
 # config (CollectorConfig carries only entity ids), so the key is a constant;
-# the operator drops ``aws/collector.secret.json`` under TAP_SECRETS_ROOT
+# the operator drops ``aws/boto_collector.secret.json`` under TAP_SECRETS_ROOT
 # (no plugin config in core infra — operator-owned, off-grid).
-AWS_SECRET_REF = SecretRef(scope="aws", key="collector")
+AWS_SECRET_REF = SecretRef(scope="aws", key="boto_collector")
 AWS_SECRET_KIND = "aws_static_access_key"
 
 # aws_core owns this schema for the kind's `data` (req-aws-core-secret-aws-static-2).
@@ -47,7 +47,7 @@ AWS_STATIC_SCHEMA: dict[str, Any] = {
         "secret_access_key": {"type": "string", "minLength": 1},
         "session_token": {"type": "string", "minLength": 1},
         "region": {"type": "string", "minLength": 1},
-        "regions": {
+        "regions_allowed": {
             "type": "array",
             "minItems": 1,
             "items": {"type": "string", "minLength": 1},
@@ -72,18 +72,19 @@ def resolve_aws_secret(ref: SecretRef = AWS_SECRET_REF) -> Secret:
 
 
 def resolve_regions(data: Mapping[str, Any]) -> list[str]:
-    """The regions to sweep: ``data.regions`` if non-empty, else ``[region]``.
+    """Regions to sweep: ``data.regions_allowed`` if non-empty, else ``[region]``.
 
     Raises ``CredentialError`` if the secret defines neither.
     """
-    regions = data.get("regions")
+    regions = data.get("regions_allowed")
     if regions:
         return list(regions)
     region = data.get("region")
     if region:
         return [region]
     raise CredentialError(
-        "AWS secret defines no region: set data.regions (list) or data.region"
+        "AWS secret defines no region: set data.regions_allowed (list) "
+        "or data.region"
     )
 
 

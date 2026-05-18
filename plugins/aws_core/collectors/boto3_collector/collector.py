@@ -55,7 +55,7 @@ from .credentials import (
     resolve_aws_secret,
     resolve_regions,
 )
-from .edges import TransformRegistry, emit_edges
+from .edges import EdgeError, TransformRegistry, emit_edges
 from .manifest import load_manifest, manifest_entries
 from .projection import ProjectionError, project_item
 from .source import CustomFnRegistry, SourceError, iter_source
@@ -192,6 +192,7 @@ class Boto3Collector(CollectorBase):
                             )
                 except (
                     SourceError,
+                    EdgeError,
                     ProjectionError,
                     BotoCoreError,
                     ClientError,

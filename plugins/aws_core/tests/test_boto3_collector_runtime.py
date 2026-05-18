@@ -26,7 +26,7 @@ from tap_cares.exceptions import SecretNotFoundError
 from tap_cares.registry import collector_registry
 from tap_cares.secrets.models import Secret, SecretRef
 
-_REF = SecretRef(scope="aws", key="collector")
+_REF = SecretRef(scope="aws", key="boto_collector")
 
 
 def _secret(kind: str, data: dict) -> Secret:
@@ -43,7 +43,7 @@ def _secret(kind: str, data: dict) -> Secret:
 _GOOD_DATA = {
     "access_key_id": "AKIA",
     "secret_access_key": "shh",
-    "regions": ["us-east-1", "us-west-2"],
+    "regions_allowed": ["us-east-1", "us-west-2"],
 }
 
 
@@ -56,7 +56,7 @@ class TestAwsStaticSchema:
                 "secret_access_key": "b",
                 "session_token": "t",
                 "region": "us-east-1",
-                "regions": ["us-east-1"],
+                "regions_allowed": ["us-east-1"],
             },
             AWS_STATIC_SCHEMA,
         )
@@ -73,14 +73,14 @@ class TestAwsStaticSchema:
             )
         with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate(
-                {"access_key_id": "a", "secret_access_key": "b", "regions": []},
+                {"access_key_id": "a", "secret_access_key": "b", "regions_allowed": []},
                 AWS_STATIC_SCHEMA,
             )
 
 
 class TestResolveRegions:
     def test_regions_list_wins(self):
-        assert resolve_regions({"regions": ["a", "b"], "region": "c"}) == ["a", "b"]
+        assert resolve_regions({"regions_allowed": ["a", "b"], "region": "c"}) == ["a", "b"]
 
     def test_falls_back_to_singular_region(self):
         assert resolve_regions({"region": "us-east-1"}) == ["us-east-1"]
