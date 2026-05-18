@@ -89,6 +89,7 @@ The current tap-cares spec lives at:
 - Do not overwrite unrelated user changes in the worktree.
 - Prefer small, inspectable changes over broad refactors.
 - When adding new capabilities, update specs first or alongside implementation.
+- When designing or discussing any new feature or capability, search popular open-source projects for how they solved the same problem and bring that prior art into the design **early** — first design pass, before a shape is chosen, not as a late sanity check. Present it specifically: project → concrete module/pattern → how they shaped it → evaluation of what to steal vs. what doesn't fit TAP and why. Borrowed shapes are inputs, still judged against the active roadmap step's fence. "Good artists borrow, great artists steal." If a real search found nothing comparable, say so explicitly rather than skipping silently.
 - When asked to record a durable rule/fact ("add to memory", "add to AGENTS.md", "remember this", or just stating a standing rule), put it in **both** the agent memory and `AGENTS.md` (and the `MEMORY.md` index) by default — do not make the user ask twice or say "both". Applies to every agent (Claude has file memory; Codex reads `AGENTS.md`).
 
 ## Git Workflow
