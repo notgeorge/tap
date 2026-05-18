@@ -55,10 +55,11 @@ from .credentials import (
     resolve_aws_secret,
     resolve_regions,
 )
-from .edges import EdgeError, TransformRegistry, emit_edges
+from .edges import EdgeError, emit_edges
 from .manifest import load_manifest, manifest_entries
 from .projection import ProjectionError, project_item
-from .source import CustomFnRegistry, SourceError, iter_source
+from .source import SourceError, iter_source
+from .transforms import build_custom_fn_registry, build_transform_registry
 
 _SOURCE = "plugins.aws_core.collectors.boto3_collector.collector"
 
@@ -146,8 +147,8 @@ class Boto3Collector(CollectorBase):
         manifest = load_manifest()
         entries = manifest_entries()
         modeled_types = {e["entity_type"] for e in entries}
-        custom_fns = CustomFnRegistry()  # Route 53 etc. registered in #19
-        transforms = TransformRegistry()  # s3/cloudfront transforms in #19
+        custom_fns = build_custom_fn_registry()
+        transforms = build_transform_registry()
 
         node_envelopes: list[dict[str, Any]] = []
         edge_envelopes: list[dict[str, Any]] = []

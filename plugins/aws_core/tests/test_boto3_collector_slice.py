@@ -57,8 +57,10 @@ _CANNED = {
             }
         ]
     },
-    # Triggers CloudFront's RETRIEVES_CONTENT_FROM edge rule, whose
-    # s3_bucket_name_from_origin_domain transform is unregistered until #19.
+    # Exercises CloudFront's RETRIEVES_CONTENT_FROM edge rule and its
+    # s3_bucket_name_from_origin_domain transform (now registered); the
+    # classify-skip regression test forces an empty registry to re-trigger
+    # the EdgeError path deterministically.
     "list_distributions": {
         "DistributionList": {
             "Items": [
@@ -164,14 +166,19 @@ def test_unregistered_custom_fn_is_classified_not_fatal(_stub_aws):
 
 
 @pytest.mark.django_db
-def test_unregistered_edge_transform_is_classified_not_fatal(_stub_aws):
-    """Regression (found on a live run): CloudFront's edge transform is
+def test_unregistered_edge_transform_is_classified_not_fatal(_stub_aws, monkeypatch):
+    """Regression (found on a live run): an EdgeError from the edge pass
 
-    unregistered until #19. An EdgeError from the edge pass must be
+    (a manifest transform with no registered callable) must be
     classified-and-skipped exactly like an unregistered custom_fn — it must
-    not escape and abort the whole run before submit_grift.
+    not escape and abort the whole run before submit_grift. Forced
+    deterministically with an empty transform registry, independent of which
+    transforms ship registered.
     """
+    from plugins.aws_core.collectors.boto3_collector.edges import TransformRegistry
     from tap_grid.services import get_node
+
+    monkeypatch.setattr(collector_mod, "build_transform_registry", TransformRegistry)
 
     collector = Boto3Collector(
         CollectorConfig(
