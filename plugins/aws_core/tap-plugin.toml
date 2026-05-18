@@ -42,6 +42,9 @@ aws_secrets_manager_secret = "plugins.aws_core.models.secrets_manager_secret.Sec
 aws_ssm_parameter = "plugins.aws_core.models.ssm_parameter.SsmParameter"
 aws_bedrock_model = "plugins.aws_core.models.bedrock_model.BedrockModel"
 aws_sagemaker_endpoint = "plugins.aws_core.models.sagemaker_endpoint.SagemakerEndpoint"
+aws_cloudfront_distribution = "plugins.aws_core.models.cloudfront_distribution.CloudfrontDistribution"
+aws_cloudwatch_log_group = "plugins.aws_core.models.cloudwatch_log_group.CloudwatchLogGroup"
+aws_eventbridge_rule = "plugins.aws_core.models.eventbridge_rule.EventbridgeRule"
 
 [edges]
 RESIDES_IN = "edges/RESIDES_IN.edge.json"
@@ -50,7 +53,7 @@ CONTAINS = "edges/CONTAINS.edge.json"
 ATTACHED_TO = "edges/ATTACHED_TO.edge.json"
 LAUNCHED = "edges/LAUNCHED.edge.json"
 INVOKES = "edges/INVOKES.edge.json"
-ROUTES_TRAFFIC_TO = "edges/ROUTES_TRAFFIC_TO.edge.json"
+ROUTES_TRAFFIC = "edges/ROUTES_TRAFFIC.edge.json"
 EXPOSES_NETWORK_ACCESS = "edges/EXPOSES_NETWORK_ACCESS.edge.json"
 HAS_POLICY_ACCESS_TO = "edges/HAS_POLICY_ACCESS_TO.edge.json"
 ASSUMES_ROLE = "edges/ASSUMES_ROLE.edge.json"
@@ -63,6 +66,9 @@ HOSTS_VPC = "edges/HOSTS_VPC.edge.json"
 PARTITIONED_INTO_SUBNET = "edges/PARTITIONED_INTO_SUBNET.edge.json"
 BELONGS_TO_VPC = "edges/BELONGS_TO_VPC.edge.json"
 BOUND_TO_AZ = "edges/BOUND_TO_AZ.edge.json"
+RETRIEVES_CONTENT_FROM = "edges/RETRIEVES_CONTENT_FROM.edge.json"
+RETRIEVES_CERT_FROM = "edges/RETRIEVES_CERT_FROM.edge.json"
+WRITES_LOGS = "edges/WRITES_LOGS.edge.json"
 
 [grift]
 dimension = "grift/dimension.grift.json"

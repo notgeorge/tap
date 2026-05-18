@@ -6,6 +6,8 @@ from plugins.aws_core.models.availability_zone import AvailabilityZone
 from plugins.aws_core.models.aws_account import AwsAccount
 from plugins.aws_core.models.aws_region import AwsRegion
 from plugins.aws_core.models.bedrock_model import BedrockModel
+from plugins.aws_core.models.cloudfront_distribution import CloudfrontDistribution
+from plugins.aws_core.models.cloudwatch_log_group import CloudwatchLogGroup
 from plugins.aws_core.models.dynamodb_table import DynamoDbTable
 from plugins.aws_core.models.ebs_volume import EbsVolume
 from plugins.aws_core.models.ec2_instance import Ec2Instance
@@ -18,6 +20,7 @@ from plugins.aws_core.models.elastic_ip import ElasticIp
 from plugins.aws_core.models.elasticache_cluster import ElasticacheCluster
 from plugins.aws_core.models.elasticsearch_domain import ElasticsearchDomain
 from plugins.aws_core.models.elb import Elb
+from plugins.aws_core.models.eventbridge_rule import EventbridgeRule
 from plugins.aws_core.models.iam_policy import IamPolicy
 from plugins.aws_core.models.iam_role import IamRole
 from plugins.aws_core.models.iam_user import IamUser
@@ -45,6 +48,8 @@ __all__ = [
     "AwsAccount",
     "AwsRegion",
     "BedrockModel",
+    "CloudfrontDistribution",
+    "CloudwatchLogGroup",
     "DynamoDbTable",
     "EbsVolume",
     "Ec2Instance",
@@ -57,6 +62,7 @@ __all__ = [
     "ElasticacheCluster",
     "ElasticsearchDomain",
     "Elb",
+    "EventbridgeRule",
     "IamPolicy",
     "IamRole",
     "IamUser",

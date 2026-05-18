@@ -1,6 +1,6 @@
 {
-  "slug": "ROUTES_TRAFFIC_TO",
-  "name": "Routes Traffic To",
+  "slug": "ROUTES_TRAFFIC",
+  "name": "Routes Traffic",
   "description": "Route table, load balancer, or DNS zone routes traffic to a target.",
   "sources": [
     "aws_route_table",

@@ -4,6 +4,7 @@ Uses the centralized plugin validation system at all three levels.
 Plugin-specific domain tests (defaults, config round-trips) are separate.
 """
 
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,17 @@ import pytest
 from tap_plugins.validate.service import validate_plugin
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _declared_model_count() -> int:
+    """Number of models declared in the plugin manifest.
+
+    Derived from tap-plugin.toml so adding a model never breaks this test on
+    a hardcoded count — the invariant is "every declared model loads/creates",
+    not a magic number.
+    """
+    manifest = tomllib.loads((PLUGIN_ROOT / "tap-plugin.toml").read_text())
+    return len(manifest.get("models", {}))
 
 
 class TestAwsCoreStructure:
@@ -28,11 +40,11 @@ class TestAwsCoreLoads:
         result = validate_plugin(PLUGIN_ROOT, level="loads")
         assert result.ok, result.to_human()
 
-    def test_all_37_models_load(self):
+    def test_all_declared_models_load(self):
         result = validate_plugin(PLUGIN_ROOT, level="loads")
         model_check = next(c for c in result.checks if c.id == "model-classes")
         info_msgs = [m for m in model_check.messages if m.severity == "info"]
-        assert len(info_msgs) == 37
+        assert len(info_msgs) == _declared_model_count()
 
 
 @pytest.mark.django_db
@@ -41,11 +53,11 @@ class TestAwsCoreRuns:
         result = validate_plugin(PLUGIN_ROOT, level="runs")
         assert result.ok, result.to_human()
 
-    def test_all_37_models_create(self):
+    def test_all_declared_models_create(self):
         result = validate_plugin(PLUGIN_ROOT, level="runs")
         node_check = next(c for c in result.checks if c.id == "create-nodes")
         ok_msgs = [m for m in node_check.messages if "OK" in m.text]
-        assert len(ok_msgs) == 37
+        assert len(ok_msgs) == _declared_model_count()
 
     def test_edges_create(self):
         result = validate_plugin(PLUGIN_ROOT, level="runs")

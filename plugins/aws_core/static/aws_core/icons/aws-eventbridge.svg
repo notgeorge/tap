@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="80px" height="80px" viewBox="0 0 80 80" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <title>Arch_Amazon-EventBridge</title>
+    <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <rect fill="#C925D1" x="0" y="0" width="80" height="80" rx="4"></rect>
+        <circle cx="28" cy="28" r="6" fill="#FFFFFF"></circle>
+        <circle cx="28" cy="52" r="6" fill="#FFFFFF"></circle>
+        <circle cx="56" cy="40" r="6" fill="#FFFFFF"></circle>
+        <line x1="32" y1="30" x2="52" y2="38" stroke="#FFFFFF" stroke-width="3"></line>
+        <line x1="32" y1="50" x2="52" y2="42" stroke="#FFFFFF" stroke-width="3"></line>
+    </g>
+</svg>

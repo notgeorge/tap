@@ -165,6 +165,8 @@ Drop the SVG at `<plugin>/static/<plugin>/icons/<icon-key>.svg`. Read [`spec-gri
 
 If an existing icon fits, the new model can share an icon key — that's acceptable and idiomatic.
 
+**AWS service models (`aws_core`):** do not hand-author the SVG. Run the `get-aws-icons` skill (`plugins/aws_core/skills/get-aws-icons/`) for the model's `ENTITY_ICON` key — it sources the official AWS Architecture icon (downloaded on demand to tmp, never committed) and installs it normalized to the existing 80×80 branded `aws_core` convention. The "vendor brand colors require explicit justification" clause above is satisfied for AWS service icons by recognizability plus consistency with their 30+ peers; the icon-spec's 24×24/`currentColor` line is a known, separate drift.
+
 ## Step 8: Tests
 
 Add tests that exercise behavior, not implementation. Minimum coverage:

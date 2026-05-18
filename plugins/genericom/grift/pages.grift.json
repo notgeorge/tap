@@ -38,7 +38,7 @@
                 "MATCH (cache:aws_elasticache_cluster)-[e8:RESIDES_IN]->(s5:aws_subnet)",
                 "MATCH (alb:aws_alb)-[e5:RESIDES_IN]->(s4:aws_subnet)",
                 "MATCH (z:aws_route53_zone)-[e6:BELONGS_TO_ACCOUNT]->(a2:aws_account)",
-                "MATCH (z2:aws_route53_zone)-[e7:ROUTES_TRAFFIC_TO]->(alb2:aws_alb)"
+                "MATCH (z2:aws_route53_zone)-[e7:ROUTES_TRAFFIC]->(alb2:aws_alb)"
               ]
             }
           }

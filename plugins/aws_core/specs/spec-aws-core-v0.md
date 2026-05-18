@@ -23,7 +23,7 @@ v0 is intentionally scoped to the "meat and potatoes" AWS resources common to mo
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-aws-core-scope | [Plugin Scope](#plugin-scope) | Implemented | Defines what the plugin covers and excludes |
-| req-aws-core-models | [Resource-Type Models](#resource-type-models) | Implemented | 37 models across 7 categories |
+| req-aws-core-models | [Resource-Type Models](#resource-type-models) | Implemented | 40 models across 10 categories |
 | req-aws-core-fields | [Field Design](#field-design) | Implemented | Hybrid typed fields + configuration JSONField |
 | req-aws-core-edges | [Edge Types](#edge-types) | Implemented | 15 semantically meaningful edge types |
 | req-aws-core-reference | [Reference Data](#reference-data) | Implemented | Regions and AZs as GRIFT seed data |
@@ -72,7 +72,7 @@ Expand to include additional services as they prove necessary for security, comp
 RID: `req-aws-core-models`
 Status: `Implemented`
 
-The plugin declares 37 TAP-managed models organized by category.
+The plugin declares 40 TAP-managed models organized by category.
 
 #### Implementation
 
@@ -83,9 +83,11 @@ The plugin declares 37 TAP-managed models organized by category.
 | Containers | EcrRepository | 1 |
 | Storage | S3Bucket, EbsVolume | 2 |
 | Database | RdsInstance, DynamoDbTable, ElasticsearchDomain, ElasticacheCluster | 4 |
-| Networking | Vpc, Subnet, SecurityGroup, NetworkAcl, InternetGateway, NatGateway, ElasticIp, RouteTable, Alb, Elb, TargetGroup, Route53HostedZone, NetworkFirewall | 13 |
+| Networking | Vpc, Subnet, SecurityGroup, NetworkAcl, InternetGateway, NatGateway, ElasticIp, RouteTable, Alb, Elb, TargetGroup, Route53HostedZone, NetworkFirewall, CloudfrontDistribution | 14 |
 | Identity/Security | IamUser, IamRole, IamPolicy, AcmCertificate, SecretsManagerSecret, SsmParameter | 6 |
 | AI | BedrockModel, SagemakerEndpoint | 2 |
+| Observability | CloudwatchLogGroup | 1 |
+| Integration | EventbridgeRule | 1 |
 
 All models follow the TAP BaseModel contract with `ENTITY_TYPE`, `ENTITY_NAME`, `ENTITY_DESCRIPTION`, `ENTITY_ICON`, `FIELD_CRUD_SCHEMA`, `FIELD_VALIDATION_SCHEMA`, and `CREATE_REQUIRED`.
 
@@ -103,9 +105,10 @@ This is a django-simple-history limitation, not a TAP design choice. The collisi
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-aws-core-models-1 | 37 Models Declared | Implemented | The manifest declares 37 models across 7 categories. | |
+| req-aws-core-models-1 | 40 Models Declared | Implemented | The manifest declares 40 models across 10 categories. | |
 | req-aws-core-models-2 | BaseModel Contract | Implemented | All models follow TAP's BaseModel contract. | |
 | req-aws-core-models-3 | History Tracking | Implemented | All models inherit automatic history tracking via django-simple-history. | |
+| req-aws-core-models-4 | Collector Demo Models | Implemented | CloudfrontDistribution, CloudwatchLogGroup, EventbridgeRule added for the boto3 collector demo (see `spec-aws-core-collector-v0.md` req-aws-collector-model-deps). | Migration 0002; validate_plugin `runs` PASS; aws_core suite 15/15. |
 
 #### Future
 
@@ -154,13 +157,13 @@ The plugin declares 15 semantically meaningful edge types organized by relations
 | Category | Edge Types | Description |
 | --- | --- | --- |
 | Structural | RESIDES_IN, BELONGS_TO_ACCOUNT, CONTAINS, ATTACHED_TO | Physical and organizational containment |
-| Operational | LAUNCHED, INVOKES, ROUTES_TRAFFIC_TO, EXPOSES_NETWORK_ACCESS | Runtime actions and traffic flow |
+| Operational | LAUNCHED, INVOKES, ROUTES_TRAFFIC, EXPOSES_NETWORK_ACCESS | Runtime actions and traffic flow |
 | Access/Security | HAS_POLICY_ACCESS_TO, ASSUMES_ROLE, PROTECTS, STORES_DATA_IN | IAM permissions, security boundaries, data storage |
 | Dependency | DEPENDS_ON, PULLS_IMAGE_FROM, BACKED_BY | Runtime and infrastructure dependencies |
 
 Edge types use explicit `sources` and `targets` constraints where the relationship is well-defined (e.g. `ASSUMES_ROLE` only goes from IAM users/roles to IAM roles). Edges that are broadly applicable (e.g. `DEPENDS_ON`, `ATTACHED_TO`) use wildcard sources/targets.
 
-Several edge types declare `property_schema` for structured edge metadata (e.g. `LAUNCHED` has `launched_at`, `HAS_POLICY_ACCESS_TO` has `actions` and `effect`, `ROUTES_TRAFFIC_TO` has `destination_cidr` and `port`).
+Several edge types declare `property_schema` for structured edge metadata (e.g. `LAUNCHED` has `launched_at`, `HAS_POLICY_ACCESS_TO` has `actions` and `effect`, `ROUTES_TRAFFIC` has `destination_cidr` and `port`).
 
 #### Acceptance Criteria
 

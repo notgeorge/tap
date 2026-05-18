@@ -128,7 +128,7 @@ class TestGenericomImport:
         # 1 ATTACHED_TO (IGW -> VPC)
         # 12 RESIDES_IN (6 subnet->AZ + 2 ALB->subnet + 2 EC2->subnet + 2 RDS->subnet)
         # 3 BACKED_BY (ALB->cert, TG->EC2a, TG->EC2c)
-        # 2 ROUTES_TRAFFIC_TO (Route53->ALB, ALB->TG)
+        # 2 ROUTES_TRAFFIC (Route53->ALB, ALB->TG)
         # 2 STORES_DATA_IN (each EC2 -> RDS)
         assert edge_types == {
             "BELONGS_TO_ACCOUNT": 4,
@@ -136,7 +136,7 @@ class TestGenericomImport:
             "ATTACHED_TO": 1,
             "RESIDES_IN": 12,
             "BACKED_BY": 3,
-            "ROUTES_TRAFFIC_TO": 2,
+            "ROUTES_TRAFFIC": 2,
             "STORES_DATA_IN": 2,
         }
 
@@ -182,13 +182,13 @@ class TestGenericomRequestPath:
     def test_route53_routes_to_alb(self):
         _import_all_bundles()
         zone = Entity.objects.get(entity_type="aws_route53_zone", name="genericom.com")
-        edge = Edge.objects.get(from_entity=zone, edge_type="ROUTES_TRAFFIC_TO")
+        edge = Edge.objects.get(from_entity=zone, edge_type="ROUTES_TRAFFIC")
         assert edge.to_entity.entity_type == "aws_alb"
 
     def test_alb_routes_to_target_group(self):
         _import_all_bundles()
         alb = Entity.objects.get(entity_type="aws_alb")
-        edge = Edge.objects.get(from_entity=alb, edge_type="ROUTES_TRAFFIC_TO")
+        edge = Edge.objects.get(from_entity=alb, edge_type="ROUTES_TRAFFIC")
         assert edge.to_entity.entity_type == "aws_target_group"
 
     def test_target_group_backed_by_two_ec2s(self):

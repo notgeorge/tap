@@ -1,0 +1,14 @@
+{
+  "slug": "WRITES_LOGS",
+  "name": "Writes Logs",
+  "description": "A Lambda function writes its execution logs to a CloudWatch log group. Action and data both flow from the function to the log group (forward; no `_FROM`).",
+  "sources": [
+    "aws_lambda"
+  ],
+  "targets": [
+    "aws_cloudwatch_log_group"
+  ],
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

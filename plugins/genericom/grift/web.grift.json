@@ -202,7 +202,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e6530f566b55",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e654d3e9c6f0",
-            "edge_type": "ROUTES_TRAFFIC_TO",
+            "edge_type": "ROUTES_TRAFFIC",
             "properties": {
               "port": 80
             }
@@ -220,7 +220,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e64f1d4de436",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e6530f566b55",
-            "edge_type": "ROUTES_TRAFFIC_TO",
+            "edge_type": "ROUTES_TRAFFIC",
             "properties": {}
           }
         },

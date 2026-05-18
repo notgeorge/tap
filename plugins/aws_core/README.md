@@ -17,12 +17,36 @@ when the plugin later moves back into its own repository or submodule.
 `tap_cares` owns the collector runtime, run records, secret resolution,
 and GRIFT import boundary. AWS-specific collection behavior belongs here.
 
-## Collector status — boto3 pivot (2026-05-17)
+## Service icons
 
-There is currently **no AWS collector**. The earlier Steampipe-based
-collector (and the `session/codex-prime` tooling layer built on it) was
-excised on 2026-05-17 ahead of a from-scratch `boto3` collector that
-begins 2026-05-18.
+New AWS-service BaseModels must not get hand-drawn icons. The `get-aws-icons`
+skill (`skills/get-aws-icons/`) sources the official AWS Architecture icon for a
+model's `ENTITY_ICON` key: it downloads the pack on demand to a tmp dir (never
+committed, never persisted — re-downloaded per run by design) and installs the
+SVG normalized to the existing 80×80 AWS-branded convention. `add-model` Step 7
+points here, so creating a service model picks this up automatically. The first
+real run should also replace the hand-drawn placeholders `aws-cloudfront`,
+`aws-cloudwatch`, `aws-eventbridge` (created during the boto3 collector
+model-gap work).
+
+## Collector status — boto3 pivot
+
+The Steampipe-based collector (and the `session/codex-prime` tooling
+layer built on it) was excised on 2026-05-17. The replacement is a
+from-scratch **manifest-driven boto3 collector**, now **specified but
+not yet built**:
+
+> **Canonical spec:** [`specs/spec-aws-core-collector-v0.md`](specs/spec-aws-core-collector-v0.md)
+> — a generic engine driven by a JSON resource manifest; per-resource
+> code only as two bounded, write-once seams (fan-out hydrate; deferred
+> policy-document resolver). That spec is authoritative for collector
+> behavior; this file is orientation only.
+
+No collector is registered yet: `plugins/aws_core/collectors/` is empty
+and `apps.py` registers none. Build is fenced to the
+`step-rampart-sam-demo` resource set (S3, CloudFront, ACM, Route 53,
+Lambda, IAM role, CloudWatch log group, EventBridge rule), one account,
+no deletes.
 
 The **complete** Steampipe effort is recoverable in one place:
 
@@ -74,40 +98,44 @@ first-class graph objects even when AWS APIs foreground provider IDs over ARNs.
 
 ## Collector Roadmap
 
-The planned AWS collector build-out is phased:
+Steps 1–3 are **done**: the collector, its credential/secret resolution,
+and its run/config shape are specified in
+[`specs/spec-aws-core-collector-v0.md`](specs/spec-aws-core-collector-v0.md)
+(credentials reuse the existing `tap_cares` `aws_static_access_key`
+secret path; there is no per-`Collector` config in v0). Remaining:
 
-1. Spec the boto3 collector from scratch (mine the parked Steampipe spec at
-   `park/steampipe-tooling` for durable design knowledge; do not copy it).
-2. Specify AWS credential and secret resolution through `tap_cares`.
-3. Specify collector configuration for account, region, and collection scope.
-4. Build the first boto3-backed collector for VPCs and subnets in a demo
-   account.
-5. Expand by resource family, adding models and edges intentionally.
+4. Add the three unmodeled demo resource types — CloudFront distribution,
+   CloudWatch log group, EventBridge rule — via the `add-model` skill
+   under `spec-aws-core-v0` (S3 / ACM / Route 53 / Lambda / IAM role
+   already exist).
+5. Build the manifest engine and a first vertical slice (a single-call
+   resource — Lambda — end to end), then fan out across the demo set.
+6. Expand by resource family by adding manifest entries, not modules.
 
-Deletes and reaping are explicitly deferred. When they arrive, they should be
-expressed through GRIFT and the TAP service-layer import path rather than a
-collector-specific side channel.
+Deletes and reaping remain explicitly deferred; when they arrive they
+route through GRIFT and the service layer, never a collector side
+channel (see the spec's v0 Non-Goals).
 
 ## First Collector Slice
 
-The first boto3 collector slice should be deliberately small (this shape
-is collector-agnostic and survived the pivot — it is the durable target):
+The first slice is the manifest engine proven end to end on **one
+single-call resource (Lambda)** before fanning out across the demo set:
 
-- resolve AWS credentials through `tap_cares` secrets
-- call the boto3 EC2 APIs for VPCs and subnets
-- normalize responses into existing `Vpc` and `Subnet` models
-- store the full normalized resource payload in each node's `configuration`
-- create account/region/VPC/subnet relationship edges where the current edge
-  vocabulary supports them
-- submit a GRIFT batch through the existing `tap_cares` collector path
-- produce a useful `CollectionJob.summary`
+- resolve AWS credentials through the `tap_cares` `aws_static_access_key`
+  secret
+- load + schema-validate the resource manifest
+- drive one manifest entry's `aws_op`, project declared fields via
+  jsonpath, retain the full payload in `configuration`
+- emit nodes, then edges in a second pass (deterministic `uuid5`
+  identity; an edge to an unmodeled target is dropped with a `warn`)
+- submit one GRIFT batch via the `tap_cares` collector path; set a useful
+  `CollectionJob.summary`
 
-No deletion, reaping, or implied absence semantics belong in the first slice.
+No deletion, reaping, or implied-absence semantics in the slice. The
+authoritative contract is the spec; this is the orientation summary.
 
-Current implementation status (2026-05-17): **nothing** — the collector
-package (`plugins/aws_core/collectors/`) is intentionally empty and no
-collector is registered in `apps.py`. The boto3 collector is built from
-scratch starting 2026-05-18. The credential/config/target *patterns* from
-the prior collector are documented in the parked spec at
-`park/steampipe-tooling` and should inform (not be copied into) the boto3
-design.
+Implementation status: **not built** — `plugins/aws_core/collectors/` is
+empty and `apps.py` registers no collector. The credential/config/target
+*patterns* from the parked Steampipe spec (`park/steampipe-tooling`)
+informed the design and were re-expressed clean-room; no code was copied
+(`AGENTS.md` OSS rule).

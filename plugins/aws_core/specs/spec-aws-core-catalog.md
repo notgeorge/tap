@@ -78,7 +78,7 @@ The catalog refresh is a Claude Code skill that directly modifies plugin source 
 
 #### Implementation
 
-The skill lives at `.claude/skills/refresh-aws-catalog/SKILL.md` in the plugin directory. It is invoked manually via `/refresh-aws-catalog` or can be triggered by a CI schedule.
+The skill lives at `skills/refresh-aws-catalog/SKILL.md` (relative to the plugin root). It is invoked manually via `/refresh-aws-catalog` or can be triggered by a CI schedule.
 
 The skill's workflow:
 
@@ -97,7 +97,7 @@ The skill references TAP's GRIFT JSON Schema (`tap_grid/schemas/grift-document.s
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-aws-catalog-skill-1 | Skill Exists | Implemented | The refresh skill is defined in the plugin's `.claude/skills/` directory. | |
+| req-aws-catalog-skill-1 | Skill Exists | Implemented | The refresh skill is defined in the plugin's `skills/` directory. | |
 | req-aws-catalog-skill-2 | Manual Invocation Only | Implemented | The skill is `disable-model-invocation: true`. | |
 | req-aws-catalog-skill-3 | Format By Reference | Implemented | The skill references GRIFT and icon specs by path, not embedded knowledge. | |
 | req-aws-catalog-skill-4 | Dry Run Support | Implemented | The skill accepts `--dry-run` to report changes without writing files. | |

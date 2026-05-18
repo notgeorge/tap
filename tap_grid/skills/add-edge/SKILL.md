@@ -35,15 +35,16 @@ Write down the agreed shape before generating the file; it becomes the spec sect
 
 ### Edge naming checklist
 
-Default to compact, semantically rich predicate names. Avoid bare generic verbs like `USES`, `RUNS`, `HAS`, `ROUTES`, `STORES`, or `PULLS` when the relationship has an obvious missing object. Add the missing noun inside the predicate instead:
+Edge slugs follow one form: **`<ACTION>_<OBJECT>`** — a mechanical verb plus the noun it acts on. The edge **points in the direction of action initiation** (the initiator is the `source`), independent of which way data flows.
 
-- Prefer `STORES_DATA_IN` over `STORES_IN`.
-- Prefer `ROUTES_TRAFFIC_TO` over `ROUTES_TO`.
-- Prefer `PULLS_IMAGE_FROM` over `PULLS_FROM`.
-- Prefer `HAS_POLICY_ACCESS_TO` over `HAS_ACCESS_TO`.
-- Prefer `ASSUMES_ROLE` over `ASSUMES`.
+- **Mechanical, not philosophical.** Name what physically happens, not a role or interpretation. Prefer `RETRIEVES_CERT_FROM` over `PROTECTS`, `RETRIEVES_CONTENT_FROM` over `BACKED_BY`. "Protects", "backed by", "depends on" describe a philosophical relationship, not a mechanism.
+- **Keep the object noun.** A bare verb with an obvious missing object is wrong: `ROUTES_TRAFFIC` not `ROUTES`, `WRITES_LOGS` not `WRITES`, `PULLS_IMAGE` not `PULLS`, `ASSUMES_ROLE` not `ASSUMES`.
+- **`_TO` is never used.** Forward — action direction matches data direction, or there is no data — is the unmarked default. `ROUTES_TRAFFIC`, never `ROUTES_TRAFFIC_TO`.
+- **`_FROM` is reserved.** Append `_FROM` **iff** the edge carries data *and* that data flows opposite the action/edge direction (a "data-backwards" edge). Example: `aws_cloudfront_distribution RETRIEVES_CONTENT_FROM aws_s3_bucket` — CloudFront initiates the pull (edge points CloudFront→S3) but content flows S3→CloudFront. Non-data edges (auth, containment, association) **never** take `_FROM`: `ASSUMES_ROLE`, `CONTAINS` stay bare. This keeps data-reversal visible everywhere the slug appears (queries, GRIFT, logs, rendered graph) with no hidden edge field.
+- **Don't repeat endpoint type names.** `VPC_CONTAINS_SUBNET` only to disambiguate from other containment; `CONTAINS` is fine when the endpoints already supply the nouns. Don't turn a slug into a paragraph.
+- **Locative/relational prepositions are not flow markers** and are out of scope of the `_TO` rule. `BELONGS_TO_ACCOUNT`, `RESIDES_IN`, `HAS_POLICY_ACCESS_TO`, `BOUND_TO_AZ` keep their inherent preposition — that `_TO`/`_IN` is part of a membership/locative predicate, not a redundant direction marker.
 
-Do not overfit by repeating both endpoint type names unless the relation would otherwise be ambiguous. For example, `VPC_CONTAINS_SUBNET` may be warranted when distinguishing it from other containment semantics, but `CONTAINS` can still be acceptable for strict hierarchy when the endpoints already supply the needed nouns. The goal is for `source node + edge + target node` to be close to a useful sentence without turning every edge slug into a paragraph. Future semantic templates and predicate metadata may carry fuller natural-language phrasing; the slug should remain concise and meaningful.
+`_FROM` collision footnote: `_FROM` is reserved for data-reversal on mechanical resource edges. If a future edge legitimately wants a *relational* `_FROM` (e.g. `INHERITS_FROM`) that is not data-backwards, the incumbent data-reversal meaning wins by weight of existing edges — the new edge picks a synonym. Flag it and reassess the convention if it recurs; do not silently overload `_FROM`.
 
 ### Property schema design checklist
 
@@ -204,7 +205,7 @@ Once green:
 
 - **Slug case mismatch.** The edge slug, filename, and manifest key must match exactly. `Has_Evidence` ≠ `HAS_EVIDENCE`.
 - **`additionalProperties: true` (or omitted) on `property_schema`.** Default to `false`. Silent property growth makes the edge type's contract unstable.
-- **Bare generic edge slugs.** Names like `USES`, `RUNS`, `HAS`, `ROUTES`, `STORES`, or `PULLS` usually need a semantic noun in the predicate (`USES_SEARCH`, `ROUTES_TRAFFIC_TO`, `STORES_DATA_IN`, `PULLS_IMAGE_FROM`) so graph triples read coherently.
+- **Bare generic or philosophical edge slugs.** Bare verbs (`USES`, `RUNS`, `HAS`, `ROUTES`, `STORES`, `PULLS`) need the object noun (`ROUTES_TRAFFIC`, `WRITES_LOGS`, `PULLS_IMAGE`). Philosophical names (`PROTECTS`, `BACKED_BY`, `DEPENDS_ON`) describe a role, not a mechanism — name the action. Never use `_TO` (forward is unmarked); use `_FROM` only for a genuine data-backwards edge, never as a plain direction marker.
 - **Wildcard sources/targets without justification.** Typed plugins should constrain edge endpoints. Wildcards are appropriate for cross-plugin edges (e.g. `HAS_FINDING` from any asset to a finding), but they should be a deliberate choice, not the default.
 - **Forgetting `default_dimensions`.** Edges should carry the same dimension convention as their endpoints; missing dimensions cause silent scoping bugs later.
 - **Authoring GRIFT edges without a UUIDv7.** Use `scripts/uuid7`; never hand-shape edge entity_ids.
