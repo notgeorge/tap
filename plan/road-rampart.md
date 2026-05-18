@@ -110,29 +110,44 @@ Depends-on: `spec-aws-core-v0`; the from-scratch boto3 `aws_core` collector — 
 
 **Beanbag, clarified.** The "modify the system via AI as we chat and reload" mind-blower is *George live in the Claude Code dev environment*, not in-app AI. In-app AI is a Non-Goal for this step. The dev environment is the beanbag, and it is already real.
 
-**Demo flow.** Opening patter (what I've been doing, why) → landing projection ("holy shit that's my site") → click into an object (the compliance Lambda or a live finding) → KSI scoreboard from his own catalog (the funny moment: it surfaces KSIs he doesn't really cover and/or accepts his own exceptions by pulling them in) → history/FLIP as honest-to-god audit evidence → "George is in the game, and playing to win." Take him from "works on my toy site" to "this could work at scale inside Cisco."
+**Demo flow.** 
+- bit of opening patter, what i've been doing, why
+- load the first page, holy shit moment when he realizes that's his site
+- click into one of the objects like the lambda function
+- now make it real by asking for creds, show loading them up into the app (or have it done at the cli), then run the live pull to gather his running config & run compliance checks
+- pull back to KSI status / scoreboard (funny moment when it points out all the KSI's he doesn't really touch on and / or accept his exceptions by pulling them in)
+
 
 **Mind-blowers.**
-1. Graphical view of his real architecture
-2. A fully fleshed web app
-3. Live import via the boto3 collector loading in real time
-4. Compliance/KSI applicability and scorecard from *his own* catalog
-5. Sophisticated beanbag (the dev environment, live)
-6. History/FLIP as audit evidence
+1. Graphical view of the site (holy shit that's my site)
+2. Web-system, fully fleshed out with all internal bells and whistles (holy shit this is an app)
+3. Live import via aws collector(s) and holy shit that just loaded in real-time.
+4. Compliance check system, KSI applicability and scorecard (holy shit that's compliance)
+5. Sophisticated Beanbag:  Modify the system via ai calls as we chat and reload (holy shit beanbag)
+6. History system, FLIP (holy shit that's honest-to-god audit evidence)
 
-**Fallback ladder.** Sam's value is judgment + Cisco credibility; a flawless B/C beats a stalled A.
-- **A** — live assessment of our running reproduction on the call (target).
-- **B** — reproduction captured ~24h prior, replayed live (same UI motions, deterministic).
-- **C** — curated GRIFT seed of Sam's topology — the proven Anwar/Genericom pattern.
 
 **Critical path (rescoped, finite).**
-1. Register demo domain
-2. ~80-line bootstrap TF
-3. Fork + apply overlay + push site + wire CI
-4. boto3 collector for Sam's finite resource set
-5. Edge/serverless projection
-6. KSI scoreboard from his catalog
-7. History/FLIP surfaced on existing pages
+1. SamSite Clone:  Need to clone and deploy my own copy of sam's site under my own domain
+2. AWS Collector:  Build an operational view of the site using aws credentials to identify the actual aws plumbing in realtime on a call, re-use the projection to see what it looks like in the ops view
+3. Sam Projection:  Use a custom projection to lay out what we see in the development view, bonus points for a zoom-into something experience and / or click-into to see the internals (like the lambda function - minimal parser for package.json maybe)
+4. Compliance System:  Run a sampling of compliance tests, whatever's super simple to build, to drive evidence collection off the grid (bonus to pull in his exclusions as exceptions to findings, build a compliance check as we chat ala "hey could it...")
+5. KSI Scoreboard:  Scoreboard rendered with findings / status, could likely re-use the system that we have now (leaves something for sam and i to brainstorm on together and sets up a hey could you build it this way moment)
+6. History UI:  Have pretty history and FLIP fields that we can show off, just bake what we've got into the existing pages to surface / make them pretty.  
+7. Batch UI:  Need to actually build this out.
+
+**Bonus Features that would be nice but we don't have time for:**
+- DCOM: perform a comparisson between his configured grid and the operational grid to assess drift (first pass at DCOM, but we can always just speak to it)
+- Terraform Collector:  Parse his github repository to use the terraform to gather a view of his site - https://github.com/sam-aydlette/samaydlette.com on a configuration dimension including his compliance checking machinery (who watches the watcher). 
+- Dimensionality:  Use the config and ops graphs to formalize how this is collected and presented in the system.  First real-world test of dimensions, demand-driven as it should be
+
+**Unneeded at this time**
+- multi-user
+- security pass
+- encrypted secrets
+- installation / configuration flow
+- audit / logging super detailed internals and affordances in the web ui
+- ai integration in the app
 
 ### step-rampart-first-paid-assessment
 Status: `Proposed`
