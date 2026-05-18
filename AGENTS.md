@@ -7,9 +7,10 @@ This repository is TAP, The Analogy Platform: a Python/Django, PostgreSQL-backed
 Before designing or implementing anything substantial:
 
 1. Read `architecture.md`.
-2. Read the relevant specs under `specs/`, `<app>/specs/`, and plugin `specs/`.
-3. Inspect the existing code patterns for the app or plugin being changed.
-4. Only then propose or edit code.
+2. Read the active step in `plan/road-rampart.md` (the Rampart roadmap; governed by `specs/spec-roadmap.md`). Judge the work against that step's Objective / Done-Test / Non-Goals; the roadmap Doctrine is the standing strategic filter.
+3. Read the relevant specs under `specs/`, `<app>/specs/`, and plugin `specs/`.
+4. Inspect the existing code patterns for the app or plugin being changed.
+5. Only then propose or edit code.
 
 Specifications are the canonical source of truth. If this guide conflicts with a spec, follow the spec and update this guide later.
 

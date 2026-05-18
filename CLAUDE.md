@@ -1,5 +1,10 @@
 # TAP Development Guide 
 
+Roadmap (on-path authority)
+    Before planning or implementing substantial work, read the active step in plan/road-rampart.md
+    (the Rampart roadmap, governed by specs/spec-roadmap.md). Judge the work against that step's
+    Objective / Done-Test / Non-Goals. The roadmap Doctrine section is the standing strategic filter.
+
 Technology Stack
     Backend: Django 6+ with Django Ninja for API
     Database: PostgreSQL
