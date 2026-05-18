@@ -24,6 +24,7 @@ The guiding principle for v0 is that the plugin's load shape should be reviewabl
 | req-plugin-load-v0-scope | [Plugin Load Scope](#plugin-load-scope) | Implemented | Defines what this v0 spec covers and excludes |
 | req-plugin-load-v0-contract | [Plugin Load Contract](#plugin-load-contract) | Implemented | Defines what TAP considers plugin load in v0 |
 | req-plugin-load-v0-ready-readonly | [Ready Is Read-Only For Graph State](#ready-is-read-only-for-graph-state) | Implemented | `ready()` must not query or mutate TAP-managed graph state |
+| req-plugin-load-v0-ready-chain | [Ready Overrides Must Chain To Super](#ready-overrides-must-chain-to-super) | Implemented | A `ready()` override must call `super().ready()` or the manifest never loads |
 | req-plugin-load-v0-manifest | [Plugin Manifest Declaration](#plugin-manifest-declaration) | Implemented | High-level declaration surface for models, edges, and GRIFT files |
 | req-plugin-load-v0-models | [TAP-Managed Model Publication](#tap-managed-model-publication) | Implemented | Models introduced by a plugin are part of the load contract |
 | req-plugin-load-v0-grift | [Bundled GRIFT Publication](#bundled-grift-publication) | Implemented | GRIFT files are declared by the plugin as loadable bundled data |
@@ -151,6 +152,36 @@ A future refinement may introduce a richer "plugin data manager" or `post_migrat
 
 #### Future
 A separate spec may evaluate whether a `post_migrate` signal or a "plugin data manager" should auto-trigger seeding for fresh DBs in dev environments. That work would need to satisfy CLAUDE.md's signals rule (require approval, document well) and would not relax this requirement; it would layer on top of it.
+
+### Ready Overrides Must Chain To Super
+----
+RID: `req-plugin-load-v0-ready-chain`
+Status: `Implemented`
+
+A `TapPluginConfig` subclass that overrides `ready()` MUST call `super().ready()`. The base `ready()` is the sole carrier of the load contract's startup phase (req-plugin-load-v0-order, req-plugin-load-v0-contract): it loads and validates `tap-plugin.toml` and performs edge/type/editor/search registration. An override that omits `super().ready()` silently severs the plugin from its manifest — `config.manifest` stays `None`, no registration runs, and `manage.py import_plugin_grift` skips the plugin with "No manifest loaded".
+
+#### Status Details
+Implemented 2026-05-18. The regression was introduced 2026-05-17 in the aws_core steampipe-collector shell: `AwsCoreConfig.ready()` registered a collector but never chained to `super()`, and the steampipe excision preserved the broken override as a bare `return`. The failure is silent at startup (Django logs nothing; the plugin's model classes still import), so it only surfaced downstream when `scripts/spawn-session.sh` aborted mid-spawn on the non-zero `import_plugin_grift` exit. Fixed by chaining, and guarded by `tap_plugins/tests/test_plugin_ready_contract.py`.
+
+#### Implementation
+- Every `TapPluginConfig` subclass that defines its own `ready()` makes `super().ready()` its first statement, before any plugin-specific registration (collectors, panels). `administrivia`, `fedramp_20x_ksi`, and `genericom` already followed this; `aws_core` now does too. `computing_core` and `lotr` do not override `ready()` and inherit the base contract unchanged.
+- The invariant is enforced two ways in `tap_plugins/tests/` (plugin-system machinery, not per-plugin behavior — see `specs/spec-tap-testing.md`):
+  - a behavioral check that every loaded `TapPluginConfig` exposes a non-`None` `manifest` after startup (catches a missing manifest from any cause);
+  - a structural check that any subclass-defined `ready()` source contains a `super().ready()` call (a sharper diagnostic that names the offending class).
+
+#### Development
+The behavioral check is the true invariant; the structural check exists because the symptom is otherwise silent and easy to reintroduce when adding a collector/panel registration to a plugin that previously used a bare `pass`. Keeping both is cheap and the structural failure message points directly at the fix ("make `super().ready()` the first statement").
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-load-v0-ready-chain-1 | Override Chains To Super | Implemented | Any `TapPluginConfig` subclass that overrides `ready()` calls `super().ready()`. | Structural source check |
+| req-plugin-load-v0-ready-chain-2 | Manifest Always Loaded | Implemented | Every loaded `TapPluginConfig` exposes a non-`None` `manifest` after startup. | Behavioral invariant |
+| req-plugin-load-v0-ready-chain-3 | Machinery-Level Guard | Implemented | The invariant is enforced by a `tap_plugins` machinery test, not per-plugin tests. | |
+
+#### Future
+A later plugin loader service could enforce the chain structurally — e.g. a sealed template method where the base owns the load steps and plugins supply a separate `register()` hook that cannot bypass them — retiring the convention-plus-test guard.
 
 ### Plugin Manifest Declaration
 ----
