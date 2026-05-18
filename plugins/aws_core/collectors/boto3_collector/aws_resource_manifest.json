@@ -1,0 +1,182 @@
+{
+  "manifest_version": "0",
+  "entries": [
+    {
+      "entity_type": "aws_lambda",
+      "service": "lambda",
+      "scope": "regional",
+      "source": { "aws_op": "ListFunctions" },
+      "why": "Enumerate Lambda functions — serverless compute and a common runtime/compliance surface.",
+      "items_path": "Functions[]",
+      "natural_key": "FunctionArn",
+      "fields": {
+        "name": "FunctionName",
+        "function_arn": "FunctionArn",
+        "runtime": "Runtime",
+        "handler": "Handler",
+        "memory_size": "MemorySize",
+        "timeout": "Timeout"
+      },
+      "edges": [
+        {
+          "value_path": "Role",
+          "target_type": "aws_iam_role",
+          "key_kind": "arn",
+          "edge_type": "ASSUMES_ROLE",
+          "direction": "outbound"
+        },
+        {
+          "value_path": "LoggingConfig.LogGroup",
+          "target_type": "aws_cloudwatch_log_group",
+          "key_kind": "name",
+          "edge_type": "WRITES_LOGS",
+          "direction": "outbound"
+        }
+      ]
+    },
+    {
+      "entity_type": "aws_iam_role",
+      "service": "iam",
+      "scope": "global",
+      "source": { "aws_op": "ListRoles" },
+      "why": "Enumerate IAM roles — assumption targets and the identity backbone for service permissions.",
+      "items_path": "Roles[]",
+      "natural_key": "Arn",
+      "fields": {
+        "name": "RoleName",
+        "role_arn": "Arn",
+        "path": "Path",
+        "max_session_duration": "MaxSessionDuration"
+      },
+      "edges": []
+    },
+    {
+      "entity_type": "aws_eventbridge_rule",
+      "service": "events",
+      "scope": "regional",
+      "source": { "aws_op": "ListRules" },
+      "why": "Enumerate EventBridge rules — event/schedule triggers and their invocation roles.",
+      "items_path": "Rules[]",
+      "natural_key": "Arn",
+      "fields": {
+        "name": "Name",
+        "rule_arn": "Arn",
+        "state": "State",
+        "schedule_expression": "ScheduleExpression",
+        "event_bus_name": "EventBusName"
+      },
+      "edges": [
+        {
+          "value_path": "RoleArn",
+          "target_type": "aws_iam_role",
+          "key_kind": "arn",
+          "edge_type": "ASSUMES_ROLE",
+          "direction": "outbound"
+        }
+      ]
+    },
+    {
+      "entity_type": "aws_cloudwatch_log_group",
+      "service": "logs",
+      "scope": "regional",
+      "source": { "aws_op": "DescribeLogGroups" },
+      "why": "Enumerate CloudWatch log groups — log destinations and audit-trail surfaces.",
+      "items_path": "logGroups[]",
+      "natural_key": "arn",
+      "fields": {
+        "name": "logGroupName",
+        "log_group_arn": "arn",
+        "retention_in_days": "retentionInDays"
+      },
+      "edges": []
+    },
+    {
+      "entity_type": "aws_acm_certificate",
+      "service": "acm",
+      "scope": "regional",
+      "source": { "aws_op": "ListCertificates" },
+      "why": "Enumerate ACM certificates — TLS certificates and their issuance/expiry state.",
+      "items_path": "CertificateSummaryList[]",
+      "natural_key": "CertificateArn",
+      "fields": {
+        "name": "DomainName",
+        "certificate_arn": "CertificateArn",
+        "domain_name": "DomainName",
+        "status": "Status"
+      },
+      "edges": []
+    },
+    {
+      "entity_type": "aws_cloudfront_distribution",
+      "service": "cloudfront",
+      "scope": "global",
+      "source": { "aws_op": "ListDistributions" },
+      "why": "Enumerate CloudFront distributions — CDN/edge entry points and their origins.",
+      "items_path": "DistributionList.Items[]",
+      "natural_key": "ARN",
+      "fields": {
+        "name": "DomainName",
+        "distribution_arn": "ARN",
+        "domain_name": "DomainName",
+        "status": "Status",
+        "enabled": "Enabled"
+      },
+      "edges": [
+        {
+          "value_path": "Origins.Items[].DomainName",
+          "target_type": "aws_s3_bucket",
+          "key_kind": "name",
+          "edge_type": "RETRIEVES_CONTENT_FROM",
+          "direction": "outbound",
+          "transform": "s3_bucket_name_from_origin_domain"
+        },
+        {
+          "value_path": "ViewerCertificate.ACMCertificateArn",
+          "target_type": "aws_acm_certificate",
+          "key_kind": "arn",
+          "edge_type": "RETRIEVES_CERT_FROM",
+          "direction": "outbound"
+        }
+      ]
+    },
+    {
+      "entity_type": "aws_s3_bucket",
+      "service": "s3",
+      "scope": "global",
+      "source": { "aws_op": "ListBuckets" },
+      "why": "Enumerate S3 buckets — object storage; content origins, state, and data stores.",
+      "items_path": "Buckets[]",
+      "natural_key": "BucketArn",
+      "fields": {
+        "name": "Name",
+        "bucket_arn": "BucketArn"
+      },
+      "edges": []
+    },
+    {
+      "entity_type": "aws_route53_hosted_zone",
+      "service": "route53",
+      "scope": "global",
+      "source": { "custom_fn": "route53_zones_with_alias_targets" },
+      "why": "Enumerate Route 53 hosted zones with resolved alias targets — DNS topology and routing.",
+      "items_path": "[]",
+      "natural_key": "Id",
+      "fields": {
+        "name": "Name",
+        "hosted_zone_id": "Id",
+        "record_count": "ResourceRecordSetCount",
+        "private_zone": "Config.PrivateZone"
+      },
+      "edges": [
+        {
+          "value_path": "alias_cloudfront_domains[]",
+          "target_type": "aws_cloudfront_distribution",
+          "key_kind": "name",
+          "edge_type": "ROUTES_TRAFFIC",
+          "direction": "outbound",
+          "transform": "cloudfront_by_domain"
+        }
+      ]
+    }
+  ]
+}

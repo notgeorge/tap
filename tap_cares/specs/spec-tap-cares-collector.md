@@ -33,6 +33,7 @@ Status messages and richer event records remain backlog (`req-tap-cares-collecto
 | req-tap-cares-collector-registration | [Collector Registration](#collector-registration) | Proposed | `register_collector(key, cls, *, name, description)` creates both the runner registry entry and the on-grid Collector node |
 | req-tap-cares-collector-concurrency | [Collector Concurrency Policy](#collector-concurrency-policy) | Backlog | Future per-collector maximum simultaneous run count |
 | req-tap-cares-collector-module-class | [Collector Module Class](#collector-module-class) | Implemented | Registered collector classes instantiated by tap-cares |
+| req-tap-cares-collector-packaging | [Collector Packaging](#collector-packaging) | Refactoring | Each collector is a self-contained `collectors/<name>_collector/` package |
 | req-tap-cares-collector-config | [CollectorConfig](#collectorconfig) | Implemented | JSON-safe collector configuration object |
 | req-tap-cares-collector-self-test | [Collector Self-Test And Readiness](#collector-self-test-and-readiness) | Approved for Development | Synchronous readiness diagnostic run as collection phase 1; result stored on `CollectionJob.self_test`; `full` vs `self_test_only` run modes; failed self-test = standard failure mode |
 | req-tap-cares-collector-run-collection | [Run Collection Entry Point](#run-collection-entry-point) | Proposed | Public callable `run_collection(collector)` owns CollectionJob creation, HAS_JOB linking, and task enqueueing |
@@ -337,6 +338,32 @@ Collector classes should be written as thread/process-compatible units of work:
 | req-tap-cares-collector-module-class-5 | Process-Compatible Shape | Implemented | Collector classes are specified so they can later execute outside the web process without changing the public class contract. | |
 | req-tap-cares-collector-module-class-6 | CollectorBase Subclass | Implemented | Registered collector classes must inherit from `tap_cares`'s `CollectorBase` abstract base. `register_collector` rejects non-subclasses at registration time. | |
 | req-tap-cares-collector-module-class-7 | Abstract Run | Implemented | `CollectorBase.run` is declared `@abstractmethod`, so concrete subclasses must override it before instantiation succeeds. | |
+
+## Collector Packaging
+----
+RID: `req-tap-cares-collector-packaging`
+Status: `Refactoring`
+
+A collector is a self-contained subpackage so a plugin with more than one collector stays unambiguous.
+
+Layout:
+
+- Each collector lives in `<plugin>/collectors/<name>_collector/` — a Python package (`__init__.py`) that owns the collector's `CollectorBase` subclass and **all** of its assets (manifest + schema, pinned reference data, safety denylists, fixtures, …). Assets are namespaced inside the collector package, never as siblings directly under `<plugin>/collectors/`.
+- `<plugin>/collectors/__init__.py` is a namespace marker only; it holds no collector implementation or shared collector assets.
+- Collectors register with tap-cares in `<plugin>/apps.py` via `register_collector` ([req-tap-cares-collector-registration](#collector-registration)).
+
+Rationale: the moment a plugin has two collectors, flat modules plus shared sibling asset directories under `collectors/` become ambiguous ("whose `pinned/`?"). A self-contained per-collector package keeps ownership of code and assets unambiguous, mirrors how plugins themselves are self-contained, and gives a future build-collector skill one fixed shape to scaffold.
+
+Current conformance (honest record per the no-messy-specs discipline): the boto3 `aws_core` collector (`plugins/aws_core/collectors/boto3_collector/`) conforms. The `fedramp_20x_ksi` KSI collector predates this clarification — it is a flat `collectors/ksi_catalog.py` module with sibling `collectors/pinned/` and `collectors/safety/` asset directories. KSI is the working reference collector; bringing it into conformance (move into a `collectors/ksi_*_collector/` package; update the `apps.py` import path, the in-module `pinned/`/`safety/` path resolution, and tests) is a tracked, gated follow-up, deliberately deferred until the boto3 make-it-work pass is complete so the reference collector is not destabilized mid-build.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-collector-packaging-1 | Self-Contained Package | Refactoring | Each collector is a `<plugin>/collectors/<name>_collector/` package owning its `CollectorBase` subclass and all its assets. | boto3 conforms. |
+| req-tap-cares-collector-packaging-2 | Namespace-Only Collectors Init | Refactoring | `<plugin>/collectors/__init__.py` is a namespace marker; no collector implementation or shared collector assets live directly under `collectors/`. | |
+| req-tap-cares-collector-packaging-3 | Registration In apps.py | Implemented | Collectors register via `register_collector` in `<plugin>/apps.py`. | Already true for KSI and the boto3 collector. |
+| req-tap-cares-collector-packaging-4 | KSI Conformance Pending | Refactoring | The KSI reference collector predates this convention; conformance is a tracked, gated follow-up (post-boto3-make-it-work). | Honest record of current non-conformance. |
 
 ## CollectorConfig
 ----

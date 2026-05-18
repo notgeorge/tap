@@ -29,6 +29,7 @@ For non-OpenAI frameworks and libraries, prefer official upstream documentation 
 - TAP-managed node and edge mutations go through the service layer.
 - Direct ORM writes are reserved for migrations, low-level tests, and explicitly specified subsystem internals.
 - GRIFT is TAP's canonical graph interchange format. Batch-oriented imports and portable graph updates should use GRIFT-shaped documents/batches.
+- Any new on-disk structured-data format (manifest, config shape, interchange payload) ships a JSON Schema authored in the same change, and its loader validates against that schema at load — fail loud on invalid, no ad hoc unvalidated formats. GRIFT, plugin manifests, and the boto3 collector resource manifest all follow this.
 - Rich graph reads should use Search/Gryphon rather than ad hoc traversal helpers.
 - Plugin code owns domain schemas and behavior; core apps provide shared platform capabilities.
 - Do not introduce multi-tenancy.

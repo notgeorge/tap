@@ -23,9 +23,9 @@ v0 is intentionally scoped to the "meat and potatoes" AWS resources common to mo
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-aws-core-scope | [Plugin Scope](#plugin-scope) | Implemented | Defines what the plugin covers and excludes |
-| req-aws-core-models | [Resource-Type Models](#resource-type-models) | Implemented | 40 models across 10 categories |
+| req-aws-core-models | [Resource-Type Models](#resource-type-models) | Implemented | Typed resource-type models; manifest is the canonical inventory |
 | req-aws-core-fields | [Field Design](#field-design) | Implemented | Hybrid typed fields + configuration JSONField |
-| req-aws-core-edges | [Edge Types](#edge-types) | Implemented | 15 semantically meaningful edge types |
+| req-aws-core-edges | [Edge Types](#edge-types) | Implemented | Semantic edge vocabulary; manifest is the canonical inventory |
 | req-aws-core-reference | [Reference Data](#reference-data) | Implemented | Regions and AZs as GRIFT seed data |
 | req-aws-core-icons | [Icon Assets](#icon-assets) | Implemented | SVG icons per the TAP grid icon spec |
 | req-aws-core-computing-core | [Computing Core Alignment](#computing-core-alignment) | Proposed | Future AWS-to-generic mapping belongs here rather than in `computing_core` |
@@ -72,22 +72,26 @@ Expand to include additional services as they prove necessary for security, comp
 RID: `req-aws-core-models`
 Status: `Implemented`
 
-The plugin declares 40 TAP-managed models organized by category.
+The plugin declares TAP-managed resource-type models organized by category. The
+plugin manifest (`tap-plugin.toml`) is the authoritative inventory and
+`validate_plugin` enforces that every declared model loads and creates — the
+spec documents the categories, not a frozen count (a count is derived state that
+drifts on every model added; the manifest + validator own "which models exist").
 
 #### Implementation
 
-| Category | Models | Count |
-| --- | --- | --- |
-| Infrastructure | AwsRegion, AvailabilityZone, AwsAccount | 3 |
-| Compute | Ec2Instance, LambdaFunction, EcsCluster, EcsService, EcsTask, EksCluster | 6 |
-| Containers | EcrRepository | 1 |
-| Storage | S3Bucket, EbsVolume | 2 |
-| Database | RdsInstance, DynamoDbTable, ElasticsearchDomain, ElasticacheCluster | 4 |
-| Networking | Vpc, Subnet, SecurityGroup, NetworkAcl, InternetGateway, NatGateway, ElasticIp, RouteTable, Alb, Elb, TargetGroup, Route53HostedZone, NetworkFirewall, CloudfrontDistribution | 14 |
-| Identity/Security | IamUser, IamRole, IamPolicy, AcmCertificate, SecretsManagerSecret, SsmParameter | 6 |
-| AI | BedrockModel, SagemakerEndpoint | 2 |
-| Observability | CloudwatchLogGroup | 1 |
-| Integration | EventbridgeRule | 1 |
+| Category | Models |
+| --- | --- |
+| Infrastructure | AwsRegion, AvailabilityZone, AwsAccount |
+| Compute | Ec2Instance, LambdaFunction, EcsCluster, EcsService, EcsTask, EksCluster |
+| Containers | EcrRepository |
+| Storage | S3Bucket, EbsVolume |
+| Database | RdsInstance, DynamoDbTable, ElasticsearchDomain, ElasticacheCluster |
+| Networking | Vpc, Subnet, SecurityGroup, NetworkAcl, InternetGateway, NatGateway, ElasticIp, RouteTable, Alb, Elb, TargetGroup, Route53HostedZone, NetworkFirewall, CloudfrontDistribution |
+| Identity/Security | IamUser, IamRole, IamPolicy, AcmCertificate, SecretsManagerSecret, SsmParameter |
+| AI | BedrockModel, SagemakerEndpoint |
+| Observability | CloudwatchLogGroup |
+| Integration | EventbridgeRule |
 
 All models follow the TAP BaseModel contract with `ENTITY_TYPE`, `ENTITY_NAME`, `ENTITY_DESCRIPTION`, `ENTITY_ICON`, `FIELD_CRUD_SCHEMA`, `FIELD_VALIDATION_SCHEMA`, and `CREATE_REQUIRED`.
 
@@ -105,7 +109,7 @@ This is a django-simple-history limitation, not a TAP design choice. The collisi
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-aws-core-models-1 | 40 Models Declared | Implemented | The manifest declares 40 models across 10 categories. | |
+| req-aws-core-models-1 | Manifest-Canonical Inventory | Implemented | Models are declared in `tap-plugin.toml` and enforced by `validate_plugin` (every declared model loads and `create_node` succeeds). The spec documents categories, not a frozen count. | Replaces the prior "N models declared" census — derived state that drifted on every add. |
 | req-aws-core-models-2 | BaseModel Contract | Implemented | All models follow TAP's BaseModel contract. | |
 | req-aws-core-models-3 | History Tracking | Implemented | All models inherit automatic history tracking via django-simple-history. | |
 | req-aws-core-models-4 | Collector Demo Models | Implemented | CloudfrontDistribution, CloudwatchLogGroup, EventbridgeRule added for the boto3 collector demo (see `spec-aws-core-collector-v0.md` req-aws-collector-model-deps). | Migration 0002; validate_plugin `runs` PASS; aws_core suite 15/15. |
@@ -150,28 +154,47 @@ Consider adding `"default"` values to `FIELD_CRUD_SCHEMA` entries to support a "
 RID: `req-aws-core-edges`
 Status: `Implemented`
 
-The plugin declares 15 semantically meaningful edge types organized by relationship category.
+The plugin declares a semantic edge vocabulary organized by relationship
+category. The plugin manifest (`tap-plugin.toml`) is the authoritative inventory
+and `validate_plugin` enforces that every declared edge loads and `create_edge`
+succeeds for constrained types — the spec documents the categories and the
+naming convention, not a frozen count (a count is derived state that drifted on
+every edge added; the manifest + validator own "which edges exist").
 
 #### Implementation
 
+Edge slugs follow the consolidated naming convention canonical in
+`tap_grid/skills/add-edge/SKILL.md`: mechanical-not-philosophical;
+`<ACTION>_<OBJECT>`; the edge points in the direction of action initiation;
+`_TO` is never used (forward is unmarked); `_FROM` is reserved for a
+data-backwards edge (data flows opposite the action/edge direction); and
+locative/relational prepositions (`BELONGS_TO_ACCOUNT`, `RESIDES_IN`,
+`HAS_POLICY_ACCESS_TO`, `BOUND_TO_AZ`) keep their inherent preposition. Lineage:
+`e5229d4` renamed terse predicates to explicit `<ACTION>_<OBJECT>` forms; the
+subsequent refinement dropped redundant `_TO` and reserved `_FROM` for
+data-reversal.
+
+The categories (representative; the manifest is the canonical, enforced list):
+
 | Category | Edge Types | Description |
 | --- | --- | --- |
-| Structural | RESIDES_IN, BELONGS_TO_ACCOUNT, CONTAINS, ATTACHED_TO | Physical and organizational containment |
-| Operational | LAUNCHED, INVOKES, ROUTES_TRAFFIC, EXPOSES_NETWORK_ACCESS | Runtime actions and traffic flow |
+| Structural | RESIDES_IN, BELONGS_TO_ACCOUNT, CONTAINS, ATTACHED_TO, HOSTS_VPC, PARTITIONED_INTO_SUBNET, BELONGS_TO_VPC, BOUND_TO_AZ | Physical and organizational containment / locative |
+| Operational | LAUNCHED, INVOKES, ROUTES_TRAFFIC, EXPOSES_NETWORK_ACCESS, WRITES_LOGS, RETRIEVES_CONTENT_FROM, RETRIEVES_CERT_FROM | Runtime actions, traffic, and data retrieval (`_FROM` = data-backwards) |
 | Access/Security | HAS_POLICY_ACCESS_TO, ASSUMES_ROLE, PROTECTS, STORES_DATA_IN | IAM permissions, security boundaries, data storage |
 | Dependency | DEPENDS_ON, PULLS_IMAGE_FROM, BACKED_BY | Runtime and infrastructure dependencies |
 
-Edge types use explicit `sources` and `targets` constraints where the relationship is well-defined (e.g. `ASSUMES_ROLE` only goes from IAM users/roles to IAM roles). Edges that are broadly applicable (e.g. `DEPENDS_ON`, `ATTACHED_TO`) use wildcard sources/targets.
+Edge types use explicit `sources` and `targets` constraints where the relationship is well-defined (e.g. `ASSUMES_ROLE` from IAM users/roles, Lambda functions, and EventBridge rules to IAM roles; `RETRIEVES_CONTENT_FROM` from CloudFront distributions to S3 buckets). Broadly applicable edges (e.g. `DEPENDS_ON`, `ATTACHED_TO`) use wildcard sources/targets.
 
-Several edge types declare `property_schema` for structured edge metadata (e.g. `LAUNCHED` has `launched_at`, `HAS_POLICY_ACCESS_TO` has `actions` and `effect`, `ROUTES_TRAFFIC` has `destination_cidr` and `port`).
+Several edge types declare `property_schema` for structured edge metadata (e.g. `LAUNCHED` has `launched_at`, `HAS_POLICY_ACCESS_TO` has `actions` and `effect`, `ROUTES_TRAFFIC` has optional `destination_cidr` and `port`).
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-aws-core-edges-1 | 15 Edge Types | Implemented | 15 edge types across 4 categories. | |
+| req-aws-core-edges-1 | Manifest-Canonical Inventory | Implemented | Edge types are declared in `tap-plugin.toml` and enforced by `validate_plugin` (every declared edge loads; `create_edge` succeeds for constrained types). The spec documents categories + convention, not a frozen count. | Replaces the prior "N edge types" census — derived state that drifted on every add. |
 | req-aws-core-edges-2 | Constrained Where Appropriate | Implemented | Edge types with well-defined relationships use explicit source/target constraints. | |
 | req-aws-core-edges-3 | Property Schemas | Implemented | Edge types that carry structured metadata declare property_schema. | |
+| req-aws-core-edges-4 | Naming Convention | Implemented | Edge slugs follow the convention canonical in `tap_grid/skills/add-edge/SKILL.md` (mechanical; `<ACTION>_<OBJECT>`; action-direction; `_TO` never; `_FROM` = data-backwards; locative carve-out). | |
 
 #### Open Questions
 
@@ -179,7 +202,7 @@ Several edge types declare `property_schema` for structured edge metadata (e.g. 
 
 #### Future
 
-Additional edge types will likely emerge for CloudWatch monitoring relationships, cross-account trust, VPC peering, and Transit Gateway connectivity.
+CloudWatch logging (`WRITES_LOGS`) and the CloudFront retrieval edges landed with the boto3 collector demo set. Additional edge types will emerge for cross-account trust, VPC peering, and Transit Gateway connectivity. The deferred policy-document edge resolver (`spec-aws-core-collector-v0.md` req-aws-collector-nongoals) will add IAM/resource-policy-derived access edges as a post-ingestion pass.
 
 ### Reference Data
 ----

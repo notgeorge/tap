@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tap:aws_core:collector:resource-manifest:v0",
+  "title": "AWS Core Collector Resource Manifest v0",
+  "description": "Schema for the manifest that drives the boto3 collector engine. See plugins/aws_core/specs/spec-aws-core-collector-v0.md (req-aws-collector-manifest). The engine validates a manifest against this schema at load; an invalid manifest fails the run visibly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "entries"],
+  "properties": {
+    "manifest_version": { "type": "string", "minLength": 1 },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entity_type",
+        "service",
+        "scope",
+        "source",
+        "why",
+        "items_path",
+        "natural_key",
+        "fields"
+      ],
+      "properties": {
+        "entity_type": { "type": "string", "minLength": 1 },
+        "service": { "type": "string", "minLength": 1 },
+        "scope": { "type": "string", "enum": ["regional", "global"] },
+        "source": { "$ref": "#/$defs/source" },
+        "why": { "type": "string", "minLength": 1 },
+        "items_path": { "type": "string", "minLength": 1 },
+        "natural_key": { "type": "string", "minLength": 1 },
+        "fields": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "hydrate": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hydrate_op" }
+        },
+        "edges": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/edge_rule" }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["aws_op"],
+          "properties": { "aws_op": { "type": "string", "minLength": 1 } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["custom_fn"],
+          "properties": { "custom_fn": { "type": "string", "minLength": 1 } }
+        }
+      ]
+    },
+    "hydrate_op": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "op", "why"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "op": { "type": "string", "minLength": 1 },
+        "why": { "type": "string", "minLength": 1 }
+      }
+    },
+    "edge_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value_path", "target_type", "key_kind", "edge_type", "direction"],
+      "properties": {
+        "value_path": { "type": "string", "minLength": 1 },
+        "target_type": { "type": "string", "minLength": 1 },
+        "key_kind": { "type": "string", "enum": ["arn", "id", "name"] },
+        "edge_type": { "type": "string", "minLength": 1 },
+        "direction": { "type": "string", "enum": ["outbound", "inbound"] },
+        "transform": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
