@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import jsonschema
 import pytest
@@ -115,14 +115,14 @@ class TestEnvelope:
         assert without_response_metadata([1, 2]) == [1, 2]
 
     def test_jsonable_datetime_to_iso_z(self):
-        dt = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+        dt = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
         assert jsonable(dt) == "2026-01-02T03:04:05Z"
         assert jsonable(datetime(2026, 1, 2, 3, 4, 5)) == "2026-01-02T03:04:05Z"  # naive -> UTC
         assert jsonable(date(2026, 1, 2)) == "2026-01-02"
         assert jsonable({"t": [dt]}) == {"t": ["2026-01-02T03:04:05Z"]}
 
     def test_build_configuration_deterministic_with_source(self):
-        item = {"FunctionArn": "arn:x", "LastModified": datetime(2026, 1, 1, tzinfo=timezone.utc)}
+        item = {"FunctionArn": "arn:x", "LastModified": datetime(2026, 1, 1, tzinfo=UTC)}
         c1 = build_configuration(item, source_op="ListFunctions", why="why-x")
         c2 = build_configuration(item, source_op="ListFunctions", why="why-x")
         assert c1 == c2

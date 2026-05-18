@@ -33,7 +33,7 @@ def load_manifest() -> dict[str, Any]:
     schema is missing/unparseable or the manifest fails schema validation.
     """
     try:
-        manifest = json.loads(MANIFEST_PATH.read_text())
+        manifest: dict[str, Any] = json.loads(MANIFEST_PATH.read_text())
         schema = json.loads(SCHEMA_PATH.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         raise ManifestError(f"Cannot read/parse manifest or schema: {exc}") from exc
@@ -52,4 +52,5 @@ def load_manifest() -> dict[str, Any]:
 
 def manifest_entries() -> list[dict[str, Any]]:
     """The validated manifest entries (one per resource type)."""
-    return load_manifest()["entries"]
+    entries: list[dict[str, Any]] = load_manifest()["entries"]
+    return entries
