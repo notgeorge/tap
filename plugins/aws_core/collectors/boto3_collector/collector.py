@@ -55,11 +55,12 @@ from .credentials import (
     resolve_aws_secret,
     resolve_regions,
 )
+from .customfns import build_custom_fn_registry
 from .edges import EdgeError, emit_edges
 from .manifest import load_manifest, manifest_entries
 from .projection import ProjectionError, project_item
 from .source import SourceError, iter_source
-from .transforms import build_custom_fn_registry, build_transform_registry
+from .transforms import build_transform_registry
 
 _SOURCE = "plugins.aws_core.collectors.boto3_collector.collector"
 
@@ -74,6 +75,7 @@ _SITE_RUN_COMPLETED = "2de7"
 _SITE_ABORT_SECRET = "2d64"
 _SITE_ABORT_REGIONS = "b528"
 _SITE_ABORT_IDENTITY = "0623"
+_SITE_HYDRATE_GAP = "bfd4"
 
 _DOCS = (
     CollectorDocRef(
@@ -179,6 +181,22 @@ class Boto3Collector(CollectorBase):
                     for item in items:
                         node = project_item(entry, item)
                         node_envelopes.append(node_envelope(node, dimensions))
+                        for slot, rec in node.configuration.get(
+                            "_hydrate", {}
+                        ).items():
+                            if rec.get("status") in ("denied", "error"):
+                                self.record_warn(
+                                    _SITE_HYDRATE_GAP,
+                                    "HYDRATE_GAP",
+                                    f"{node.entity_type} {node.natural_key}: "
+                                    f"hydrate slot {slot!r} {rec['status']} "
+                                    f"({rec.get('error_code')})",
+                                    message_data={
+                                        "entity_type": node.entity_type,
+                                        "slot": slot,
+                                        "status": rec["status"],
+                                    },
+                                )
                         emission = emit_edges(
                             node,
                             entry,

@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import pytest
 
-from plugins.aws_core.collectors.boto3_collector.transforms import (
+from plugins.aws_core.collectors.boto3_collector.customfns import (
     build_custom_fn_registry,
+)
+from plugins.aws_core.collectors.boto3_collector.transforms import (
     build_transform_registry,
     s3_bucket_name_from_origin_domain,
 )
@@ -47,6 +49,6 @@ class TestRegistryBuilders:
         fn = reg.get("s3_bucket_name_from_origin_domain")
         assert fn("sam-site.s3.amazonaws.com") == "arn:aws:s3:::sam-site"
 
-    def test_custom_fn_registry_empty_until_route53_increment(self):
-        # Empty is intentional; an unregistered custom_fn classifies-and-skips.
-        assert build_custom_fn_registry()._fns == {}
+    def test_custom_fn_registry_has_s3_hydrated(self):
+        # S3 fan-out is registered; Route 53 lands with the edge-identity work.
+        assert callable(build_custom_fn_registry().get("s3_buckets_hydrated"))

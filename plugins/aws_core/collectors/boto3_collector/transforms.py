@@ -18,7 +18,6 @@ from __future__ import annotations
 import re
 
 from .edges import TransformRegistry
-from .source import CustomFnRegistry
 
 # CloudFront S3 origin DomainName forms, all ending amazonaws.com:
 #   bucket.s3.amazonaws.com
@@ -62,13 +61,3 @@ def build_transform_registry() -> TransformRegistry:
     for name, fn in _TRANSFORMS.items():
         registry.register(name, fn)
     return registry
-
-
-def build_custom_fn_registry() -> CustomFnRegistry:
-    """The populated ``custom_fn`` registry.
-
-    Empty in this increment; the Route 53 ``route53_zones_with_alias_targets``
-    custom_fn is registered in the fan-out increment. An unregistered
-    ``custom_fn`` classifies-and-skips at run time, so this is safe.
-    """
-    return CustomFnRegistry()

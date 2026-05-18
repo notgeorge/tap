@@ -85,7 +85,14 @@ class _CannedClient:
         return False
 
     def __getattr__(self, name: str):
-        return lambda: _CANNED.get(name, {})
+        return lambda **_kw: _CANNED.get(name, {})
+
+
+class _FakeSession:
+    """Stands in for a boto3 Session for custom_fn (S3) paths."""
+
+    def client(self, _service: str, region_name: str | None = None) -> _CannedClient:
+        return _CannedClient()
 
 
 @pytest.fixture
@@ -103,7 +110,7 @@ def _stub_aws(monkeypatch):
         source_path=__import__("pathlib").Path("/dev/null"),
     )
     monkeypatch.setattr(cred, "resolve_secret", lambda _ref: secret)
-    monkeypatch.setattr(collector_mod, "build_session", lambda _data: object())
+    monkeypatch.setattr(collector_mod, "build_session", lambda _data: _FakeSession())
     monkeypatch.setattr(
         collector_mod, "client_factory", lambda _s, _r: (lambda _svc: _CannedClient())
     )

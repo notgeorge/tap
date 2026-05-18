@@ -143,14 +143,41 @@
       "entity_type": "aws_s3_bucket",
       "service": "s3",
       "scope": "global",
-      "source": { "aws_op": "ListBuckets" },
+      "source": { "custom_fn": "s3_buckets_hydrated" },
       "why": "Enumerate S3 buckets — object storage; content origins, state, and data stores.",
-      "items_path": "Buckets[]",
+      "items_path": "[]",
       "natural_key": "BucketArn",
       "fields": {
         "name": "Name",
         "bucket_arn": "BucketArn"
       },
+      "hydrate": [
+        {
+          "key": "bucket_location",
+          "op": "GetBucketLocation",
+          "why": "Bucket region — data-residency and region-scoped control posture."
+        },
+        {
+          "key": "public_access_block",
+          "op": "GetPublicAccessBlock",
+          "why": "Account/bucket public-access block — a core KSI exposure control."
+        },
+        {
+          "key": "encryption",
+          "op": "GetBucketEncryption",
+          "why": "Default server-side encryption — KSI data-at-rest control."
+        },
+        {
+          "key": "versioning",
+          "op": "GetBucketVersioning",
+          "why": "Object versioning state — KSI data-integrity / recovery control."
+        },
+        {
+          "key": "policy_status",
+          "op": "GetBucketPolicyStatus",
+          "why": "Whether the bucket policy makes it public — KSI exposure control."
+        }
+      ],
       "edges": []
     },
     {
