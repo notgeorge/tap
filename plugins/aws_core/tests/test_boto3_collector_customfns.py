@@ -113,3 +113,25 @@ class TestRoute53ZonesWithAliasTargets:
         z = next(iter(route53_zones_with_alias_targets(_FakeSession(rrs))))
         assert z["alias_cloudfront_domains"] == ["dxxxxxxxxxxxxx.cloudfront.net"]
         assert z["alias_cloudfront_arns"] == []
+
+    def test_ipv4_ipv6_alias_pair_dedupes(self):
+        # Regression (found live): the standard CloudFront setup has BOTH
+        # an A and an AAAA alias to the same distribution. Without dedup
+        # the domain/ARN appears twice -> two edges with the same
+        # deterministic edge_entity_id -> GRIFT rejects the whole batch
+        # (duplicate_entity_id). One distribution -> one resolved ARN.
+        rrs = [
+            {
+                "Name": "samsite.unified-systems.com.",
+                "Type": "A",
+                "AliasTarget": {"DNSName": f"{_CF_DOMAIN}."},
+            },
+            {
+                "Name": "samsite.unified-systems.com.",
+                "Type": "AAAA",
+                "AliasTarget": {"DNSName": f"{_CF_DOMAIN}."},
+            },
+        ]
+        z = next(iter(route53_zones_with_alias_targets(_FakeSession(rrs))))
+        assert z["alias_cloudfront_domains"] == [_CF_DOMAIN]
+        assert z["alias_cloudfront_arns"] == [_CF_ARN]

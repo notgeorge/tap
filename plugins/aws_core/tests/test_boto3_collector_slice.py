@@ -108,9 +108,15 @@ _CANNED = {
     },
     "list_resource_record_sets": {
         "ResourceRecordSets": [
-            {
+            {  # IPv4 alias -> CloudFront
                 "Name": "samsite.unified-systems.com.",
                 "Type": "A",
+                "AliasTarget": {"DNSName": f"{_CF_DOMAIN}."},
+            },
+            {  # IPv6 alias -> same CloudFront (the standard pair; must
+                # dedupe to ONE edge or GRIFT rejects on duplicate_entity_id)
+                "Name": "samsite.unified-systems.com.",
+                "Type": "AAAA",
                 "AliasTarget": {"DNSName": f"{_CF_DOMAIN}."},
             },
             {  # non-alias record — ignored by the custom_fn
@@ -323,3 +329,46 @@ def test_unregistered_edge_transform_is_classified_not_fatal(_stub_aws, monkeypa
     # pass runs, so the skipped edge does not lose the node.
     dist = get_node(node_entity_id("aws_cloudfront_distribution", _DIST_ARN))
     assert dist.distribution_arn == _DIST_ARN
+
+
+@pytest.mark.django_db
+def test_rejected_grift_batch_fails_loudly_not_silently(_stub_aws, monkeypatch):
+    """Regression (found live): GRIFT rejects a batch atomically on a hard
+    error (e.g. duplicate_entity_id) -> imported=[] skipped=[]. submit_grift
+    only forwards imported/skipped, so a rejected batch was otherwise
+    invisible (0 imported, 0 errors, false green). The collector must
+    surface result.errors and abort the run, never silently lose the whole
+    collection. Forced with a stubbed grift_import returning errors.
+    """
+    from plugins.aws_core.collectors.boto3_collector.collector import (
+        Boto3CollectorError,
+    )
+
+    class _Issue:
+        code = "duplicate_entity_id"
+        message = "Duplicate entity_id 'deadbeef'"
+
+    class _Counts:
+        batches_imported = 0
+
+    class _Result:
+        imported_batches: list = []
+        skipped_batches: list = []
+        errors = [_Issue()]
+        counts = _Counts()
+
+    monkeypatch.setattr("tap_grid.grift.grift_import", lambda *a, **k: _Result())
+
+    collector = Boto3Collector(
+        CollectorConfig(
+            collector_entity_id=uuid.uuid7(),
+            collection_job_entity_id=uuid.uuid7(),
+        )
+    )
+    with pytest.raises(Boto3CollectorError):
+        collector.run()
+
+    errs = [e for e in collector.results["error"] if e["message_code"] == "GRIFT_BATCH_REJECTED"]
+    assert len(errs) == 1
+    assert "duplicate_entity_id" in errs[0]["message"]
+    assert "nothing landed" in errs[0]["message"]

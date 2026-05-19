@@ -85,6 +85,7 @@ _SITE_HYDRATE_GAP = "bfd4"
 _SITE_CALL_LEDGER = "bdf3"
 _SITE_RGTA_SKIPPED = "f74e"
 _SITE_REGION_INVARIANT = "b349"
+_SITE_GRIFT_REJECTED = "9fd2"
 
 _DOCS = (
     CollectorDocRef(
@@ -321,6 +322,23 @@ class Boto3Collector(CollectorBase):
             edge_envelopes=edge_envelopes,
         )
         result = self.submit_grift(document, dangling_edge_mode="permissive")
+        # GRIFT rejects a batch atomically on a hard error (e.g. a
+        # duplicate entity_id): imported=[] and skipped=[], so nothing
+        # landed. submit_grift only forwards imported/skipped — a rejected
+        # batch is otherwise invisible (0 imported, 0 errors, false green).
+        # Surface it loudly and fail the run rather than silently lose the
+        # entire collection.
+        if result.errors:
+            issues = "; ".join(f"{getattr(i, 'code', '?')}: {getattr(i, 'message', '')}" for i in result.errors[:5])
+            self._abort(
+                _SITE_GRIFT_REJECTED,
+                "GRIFT_BATCH_REJECTED",
+                f"GRIFT import rejected the batch with " f"{len(result.errors)} error(s); nothing landed: {issues}",
+                context={
+                    "error_count": len(result.errors),
+                    "batches_imported": result.counts.batches_imported,
+                },
+            )
         self.record_info(
             _SITE_GRIFT_SUBMITTED,
             "GRIFT_SUBMITTED",

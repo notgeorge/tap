@@ -122,10 +122,16 @@ def route53_zones_with_alias_targets(session: Any) -> Iterator[dict[str, Any]]:
                     arn = arn_by_domain.get(domain)
                     if arn is not None:
                         arns.append(arn)
+            # Dedupe order-preserving: a zone routing to one distribution
+            # via BOTH an A and an AAAA alias (the standard IPv4+IPv6
+            # setup) yields the domain/ARN twice. Without dedup, edge
+            # fan-out emits two edges with the same deterministic
+            # edge_entity_id -> a duplicate_entity_id that GRIFT rejects
+            # the whole batch over. One CF distribution -> one edge.
             yield {
                 **zone,
-                "alias_cloudfront_domains": domains,
-                "alias_cloudfront_arns": arns,
+                "alias_cloudfront_domains": list(dict.fromkeys(domains)),
+                "alias_cloudfront_arns": list(dict.fromkeys(arns)),
             }
 
 
