@@ -226,7 +226,7 @@
       "edges": []
     },
     {
-      "entity_type": "aws_route53_hosted_zone",
+      "entity_type": "aws_route53_zone",
       "service": "route53",
       "scope": "global",
       "source": { "custom_fn": "route53_zones_with_alias_targets" },
@@ -241,12 +241,11 @@
       },
       "edges": [
         {
-          "value_path": "alias_cloudfront_domains[]",
+          "value_path": "alias_cloudfront_arns[]",
           "target_type": "aws_cloudfront_distribution",
-          "key_kind": "name",
+          "key_kind": "arn",
           "edge_type": "ROUTES_TRAFFIC",
-          "direction": "outbound",
-          "transform": "cloudfront_by_domain"
+          "direction": "outbound"
         }
       ]
     }

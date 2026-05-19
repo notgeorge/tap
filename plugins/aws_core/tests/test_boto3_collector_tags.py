@@ -81,7 +81,8 @@ class TestManifestTagsBlock:
             assert blk["shape"] in ("list_kv", "map")
             assert {"op", "param", "param_from", "path"} <= blk.keys()
         # Route 53 tags are deferred into its custom_fn — no tags block.
-        assert tags_block(by_type["aws_route53_hosted_zone"]) is None
+        # (entity_type reconciled to the model/plugin-registered slug.)
+        assert tags_block(by_type["aws_route53_zone"]) is None
 
     def test_schema_rejects_bad_tags_block(self):
         schema = json.loads(manifest_mod.SCHEMA_PATH.read_text())

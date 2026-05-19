@@ -58,26 +58,90 @@ def s3_buckets_hydrated(session: Any) -> Iterator[dict[str, Any]]:
         try:
             location = base.get_bucket_location(Bucket=name)
             region = location.get("LocationConstraint") or "us-east-1"
-        except (ClientError, BotoCoreError):
+        except ClientError, BotoCoreError:
             region = "us-east-1"
         regional = session.client("s3", region_name=region)
-        yield hydrate_item(
-            regional, bucket, hydrate_ops, call_kwargs={"Bucket": name}
-        )
+        yield hydrate_item(regional, bucket, hydrate_ops, call_kwargs={"Bucket": name})
+
+
+def _pages(client: Any, method: str, **kwargs: Any) -> Iterator[dict[str, Any]]:
+    """Yield response pages for ``method``, paginated when botocore can.
+
+    Mirrors :func:`.source.iter_aws_op`'s paginate-or-single robustness,
+    with ``ResponseMetadata`` stripped per page.
+    """
+    if client.can_paginate(method):
+        for page in client.get_paginator(method).paginate(**kwargs):
+            yield without_response_metadata(page)
+        return
+    yield without_response_metadata(getattr(client, method)(**kwargs))
+
+
+def route53_zones_with_alias_targets(session: Any) -> Iterator[dict[str, Any]]:
+    """Enumerate Route 53 hosted zones, resolving CloudFront alias targets.
+
+    Route 53's ``ListHostedZones`` is shallow; the routing relationship
+    lives in each zone's record sets, where an A/AAAA *alias* whose
+    ``AliasTarget.DNSName`` is a CloudFront distribution domain expresses
+    "this zone routes traffic to that distribution". The edge target
+    (``aws_cloudfront_distribution``) is ARN-keyed, but a record set only
+    carries the CloudFront *domain* — bridging domain -> ARN is a
+    cross-resource join no pure scalar transform can do. That join is
+    exactly what this ``custom_fn`` seam exists for: it lists CloudFront
+    once, builds a ``domain -> ARN`` map, and yields each zone enriched
+    with the resolved ``alias_cloudfront_arns`` so ``ROUTES_TRAFFIC``
+    resolves by deterministic identity with no transform (the make-it-work
+    natural-key discipline; req-aws-collector-edges-7). The raw
+    ``alias_cloudfront_domains`` stay lossless in ``configuration``.
+
+    CloudFront and Route 53 are global; clients are bound to ``us-east-1``
+    per the global-resource region invariant.
+    """
+    cf = session.client("cloudfront", region_name="us-east-1")
+    arn_by_domain: dict[str, str] = {}
+    for page in _pages(cf, "list_distributions"):
+        for dist in (page.get("DistributionList", {}) or {}).get("Items", []) or []:
+            domain = (dist.get("DomainName") or "").rstrip(".").lower()
+            arn = dist.get("ARN")
+            if domain and arn:
+                arn_by_domain[domain] = arn
+
+    r53 = session.client("route53", region_name="us-east-1")
+    for zpage in _pages(r53, "list_hosted_zones"):
+        for zone in zpage.get("HostedZones", []):
+            zone_id = zone.get("Id")
+            domains: list[str] = []
+            arns: list[str] = []
+            for rpage in _pages(r53, "list_resource_record_sets", HostedZoneId=zone_id):
+                for rr in rpage.get("ResourceRecordSets", []):
+                    dns = (rr.get("AliasTarget") or {}).get("DNSName") or ""
+                    domain = dns.rstrip(".").lower()
+                    if not domain.endswith(".cloudfront.net"):
+                        continue
+                    domains.append(domain)
+                    arn = arn_by_domain.get(domain)
+                    if arn is not None:
+                        arns.append(arn)
+            yield {
+                **zone,
+                "alias_cloudfront_domains": domains,
+                "alias_cloudfront_arns": arns,
+            }
 
 
 # Manifest custom_fn name -> callable.
 _CUSTOM_FNS = {
     "s3_buckets_hydrated": s3_buckets_hydrated,
+    "route53_zones_with_alias_targets": route53_zones_with_alias_targets,
 }
 
 
 def build_custom_fn_registry() -> CustomFnRegistry:
     """The populated ``custom_fn`` registry for the collector.
 
-    Route 53's ``route53_zones_with_alias_targets`` is registered with the
-    coupled edge-identity work; an unregistered ``custom_fn`` still
-    classifies-and-skips, so its absence here is safe.
+    Both v0 ``custom_fn`` seams are registered: S3's hydrate fan-out and
+    Route 53's CloudFront-alias cross-join. An unregistered ``custom_fn``
+    still classifies-and-skips, so the registry stays the single source.
     """
     registry = CustomFnRegistry()
     for name, fn in _CUSTOM_FNS.items():

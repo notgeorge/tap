@@ -31,6 +31,8 @@ _FN_ARN = f"arn:aws:lambda:us-east-1:{_ACCOUNT}:function:sam-handler"
 _ROLE_ARN = f"arn:aws:iam::{_ACCOUNT}:role/sam-exec"
 _DIST_ARN = f"arn:aws:cloudfront::{_ACCOUNT}:distribution/E1ABCDEF"
 _LOG_GROUP = "/aws/lambda/sam-handler"  # == the Lambda's LoggingConfig.LogGroup
+_ZONE_ID = "/hostedzone/ZSLICE000001"
+_CF_DOMAIN = "d111abcdef.cloudfront.net"  # == _CANNED list_distributions DomainName
 
 _CANNED = {
     "list_functions": {
@@ -88,6 +90,34 @@ _CANNED = {
                 "logGroupArn": f"arn:aws:logs:us-east-1:{_ACCOUNT}:log-group:{_LOG_GROUP}",
                 "retentionInDays": 14,
             }
+        ]
+    },
+    # Route 53: a hosted zone whose A-alias targets the canned CloudFront
+    # distribution — proves ROUTES_TRAFFIC resolves non-dangling via the
+    # route53 custom_fn's domain->ARN cross-join (req-aws-collector-edges-7;
+    # no transform — the custom_fn does the join, edge keyed by CF ARN).
+    "list_hosted_zones": {
+        "HostedZones": [
+            {
+                "Id": _ZONE_ID,
+                "Name": "samsite.unified-systems.com.",
+                "Config": {"PrivateZone": False},
+                "ResourceRecordSetCount": 2,
+            }
+        ]
+    },
+    "list_resource_record_sets": {
+        "ResourceRecordSets": [
+            {
+                "Name": "samsite.unified-systems.com.",
+                "Type": "A",
+                "AliasTarget": {"DNSName": f"{_CF_DOMAIN}."},
+            },
+            {  # non-alias record — ignored by the custom_fn
+                "Name": "txt.samsite.unified-systems.com.",
+                "Type": "TXT",
+                "ResourceRecords": [{"Value": '"v=spf1 -all"'}],
+            },
         ]
     },
     # IAM role tags — service side-quest (RGTA excludes IAM roles).
@@ -220,10 +250,34 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
     assert str(log_edge.from_entity_id) == str(node_entity_id("aws_lambda", _FN_ARN))
     assert str(log_edge.to_entity_id) == str(node_entity_id("aws_cloudwatch_log_group", _LOG_GROUP))
 
+    # ROUTES_TRAFFIC resolves non-dangling through the route53 custom_fn's
+    # CloudFront cross-join: the zone's A-alias domain -> the already-
+    # collected CloudFront node by ARN identity. No transform — the
+    # custom_fn did the domain->ARN join (req-aws-collector-edges-7). Note
+    # the manifest-registered type is aws_route53_zone (model + plugin),
+    # which the collector manifest was reconciled to.
+    zone = get_node(node_entity_id("aws_route53_zone", _ZONE_ID))
+    assert zone.name == "samsite.unified-systems.com."
+    route_edge = get_edge(edge_entity_id("ROUTES_TRAFFIC", _ZONE_ID, _DIST_ARN))
+    assert route_edge.edge_type == "ROUTES_TRAFFIC"
+    assert str(route_edge.from_entity_id) == str(node_entity_id("aws_route53_zone", _ZONE_ID))
+    assert str(route_edge.to_entity_id) == str(node_entity_id("aws_cloudfront_distribution", _DIST_ARN))
+
 
 @pytest.mark.django_db
-def test_unregistered_custom_fn_is_classified_not_fatal(_stub_aws):
-    """Route 53 (custom_fn, unregistered until #19) skips, run still succeeds."""
+def test_unregistered_custom_fn_is_classified_not_fatal(_stub_aws, monkeypatch):
+    """An unregistered custom_fn classifies-and-skips; the run still succeeds.
+
+    route53_zones_with_alias_targets and s3_buckets_hydrated now ship
+    registered (#19), so — exactly like the transform regression below —
+    this forces an empty custom_fn registry to re-trigger the
+    classify-and-skip path deterministically, independent of which
+    custom_fns ship registered.
+    """
+    from plugins.aws_core.collectors.boto3_collector.source import CustomFnRegistry
+
+    monkeypatch.setattr(collector_mod, "build_custom_fn_registry", CustomFnRegistry)
+
     collector = Boto3Collector(
         CollectorConfig(
             collector_entity_id=uuid.uuid7(),
@@ -232,8 +286,9 @@ def test_unregistered_custom_fn_is_classified_not_fatal(_stub_aws):
     )
     collector.run()
     assert collector.results["error"] == []
+    assert collector.grift_batches["imported"]  # run reached submit_grift
     skips = [w for w in collector.results["warn"] if w["message_code"] == "ENTRY_SKIPPED"]
-    assert any("route53" in s["message"] or "hosted_zone" in s["message"] for s in skips)
+    assert any("route53_zones_with_alias_targets" in s["message"] for s in skips)
 
 
 @pytest.mark.django_db
