@@ -39,6 +39,33 @@ from tap_grid.services import _create_node_internal, _patch_node_internal, creat
 
 logger = logging.getLogger(__name__)
 
+# Loud, self-diagnosing detail for the RUNNER_UNAVAILABLE readiness failure.
+# This failure is most often NOT a real misconfiguration: the Steady Queue
+# supervisor is long-lived and forks workers from its boot-time memory image,
+# and Steady Queue does not hot-reload (req-tap-cares-task-backend-deployment-3).
+# A collector registered AFTER the supervisor booted is therefore absent from
+# every worker it forks, surfacing here as a confusing mid-job failure on a
+# collector that demonstrably works from a fresh `manage.py` process. Name the
+# likely cause and the one-line fix at the point of failure rather than leaving
+# the next operator to rediscover it. (Resolution stays trusted-startup only —
+# this never imports from Collector node data; see
+# req-tap-cares-collector-registry-6.)
+_RUNNER_UNAVAILABLE_DETAIL = (
+    "No collector runner is registered for {key!r} in this worker process. "
+    "If this collector exists in the codebase, the most likely cause is a "
+    "stale Steady Queue supervisor: it forks workers from its boot-time image "
+    "and does not hot-reload (req-tap-cares-task-backend-deployment-3), so a "
+    "collector registered after the supervisor started is absent from every "
+    "worker it forks. Fix: restart the supervisor to pick up newly-registered "
+    "collectors — `scripts/dc restart web`. If the collector genuinely does "
+    "not exist in the codebase, this is a real Collector-node misconfiguration."
+)
+_RUNNER_UNAVAILABLE_SUMMARY = (
+    "Collector runner is not registered in this worker process — most likely a "
+    "stale Steady Queue supervisor; restart it: `scripts/dc restart web` "
+    "(req-tap-cares-task-backend-deployment-3)."
+)
+
 
 def self_test_collector(collector: Collector) -> CollectorSelfTestResult:
     """Run a collector's readiness self-test and return a normalized result.
@@ -62,12 +89,12 @@ def self_test_collector(collector: Collector) -> CollectorSelfTestResult:
             [
                 check_fail(
                     "RUNNER_UNAVAILABLE",
-                    (f"No collector runner is registered for " f"{collector.collector_registry!r}."),
+                    _RUNNER_UNAVAILABLE_DETAIL.format(key=collector.collector_registry),
                     readiness_status=CollectorReadinessStatus.ERROR,
                     context={"collector_registry": collector.collector_registry},
                 )
             ],
-            summary="Collector runner is not registered.",
+            summary=_RUNNER_UNAVAILABLE_SUMMARY,
             collector_registry=collector.collector_registry,
         )
     else:

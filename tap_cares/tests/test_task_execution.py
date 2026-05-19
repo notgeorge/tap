@@ -135,8 +135,13 @@ class TestFailurePath:
         job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
-        # Phase-1 standard failure mode: summary is the self-test summary.
-        assert job.summary == "Collector runner is not registered."
+        # Phase-1 standard failure mode: summary is the self-test summary —
+        # now loud + self-diagnosing (names the likely stale-supervisor cause
+        # and the one-line fix) rather than a bare "not registered". Assert
+        # the actionable behavior, not the exact prose.
+        assert "not registered" in job.summary
+        assert "scripts/dc restart web" in job.summary
+        assert "req-tap-cares-task-backend-deployment-3" in job.summary
         # The structured readiness result is persisted on the job.
         assert job.self_test["status"] == "error"
         assert job.self_test["runnable"] is False
