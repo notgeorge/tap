@@ -54,6 +54,11 @@ from tap_cares.collectors.readiness import (
     CollectorSelfTestResult,
     check_pass,
 )
+from tap_cares.exceptions import GriftRejectedError
+
+# record_* call-site token (minted via scripts/log-site-id; unique within
+# this file, enforced by the repo-wide site-uniqueness test).
+_SITE_GRIFT_REJECTED = "4613"
 
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "collection_job_results.schema.json"
 _SCHEMA: dict[str, Any] = json.loads(_SCHEMA_PATH.read_text())
@@ -224,6 +229,7 @@ class CollectorBase(ABC):
         *,
         actor: Any = None,
         dangling_edge_mode: str = "strict",
+        on_rejection: str = "abort",
     ) -> Any:
         """Import a GRIFT document as a collector result and accumulate batch IDs.
 
@@ -232,14 +238,40 @@ class CollectorBase(ABC):
         skipped batch entity IDs to `self.grift_batches` so the task body can
         persist the full set to `CollectionJob.grift_batches` at terminal state.
 
+        Rejection contract (`req-tap-cares-collector-grift-import-9..12`):
+        GRIFT validates/applies each batch atomically — one hard error
+        (e.g. a duplicate `entity_id`) rejects the *whole* batch, which then
+        lands in **neither** ``imported_batches`` **nor** ``skipped_batches``,
+        only ``result.errors``. Because the accumulators above mirror only
+        imported/skipped, a rejected batch is otherwise invisible (0 produced,
+        0 errors, false-green run — silent total data loss). GRIFT upload is
+        the defining collector operation, so the safe behavior is the
+        **default**, owned here once for every collector rather than copied
+        per collector:
+
+        - ``on_rejection="abort"`` (default): a non-empty ``result.errors``
+          records a structured ``GRIFT_BATCH_REJECTED`` error and raises
+          :class:`GriftRejectedError`. The run-task body turns the raise into
+          the standard ``FAILED`` terminal patch
+          (``req-tap-cares-collector-failure-mode``); no per-collector code.
+        - ``on_rejection="return"``: returns the ``GriftImportResult``
+          unraised; the caller owns ``result.errors``. For multi-batch
+          collectors wanting partial-success (GRIFT rejects per *batch*).
+          The unsafe path is opt-in, never the default.
+
         Args:
             document: GRIFT document (parsed dict, JSON string, or bytes).
             actor: Optional User passed through to `grift_import`.
             dangling_edge_mode: Passed through to `grift_import`.
+            on_rejection: ``"abort"`` (default) | ``"return"`` — see above.
 
         Returns:
             The raw GriftImportResult; callers may inspect counts / errors /
             warnings directly without going through `self.grift_batches`.
+
+        Raises:
+            GriftRejectedError: when ``result.errors`` is non-empty and
+                ``on_rejection == "abort"`` (the default).
         """
         # Local import keeps tap_grid out of the import-time graph for tap_cares
         # tests that don't need it.
@@ -253,5 +285,21 @@ class CollectorBase(ABC):
 
         self.grift_batches["imported"].extend(str(b.batch_entity_id) for b in result.imported_batches)
         self.grift_batches["skipped"].extend(str(b.batch_entity_id) for b in result.skipped_batches)
+
+        if result.errors and on_rejection == "abort":
+            issues = "; ".join(f"{getattr(i, 'code', '?')}: {getattr(i, 'message', '')}" for i in result.errors[:5])
+            message = (
+                f"GRIFT import rejected the batch with {len(result.errors)} " f"error(s); nothing landed: {issues}"
+            )
+            self.record_error(
+                _SITE_GRIFT_REJECTED,
+                "GRIFT_BATCH_REJECTED",
+                message,
+                message_data={
+                    "error_count": len(result.errors),
+                    "batches_imported": result.counts.batches_imported,
+                },
+            )
+            raise GriftRejectedError(message)
 
         return result

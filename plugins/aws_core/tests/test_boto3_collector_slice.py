@@ -334,15 +334,15 @@ def test_unregistered_edge_transform_is_classified_not_fatal(_stub_aws, monkeypa
 @pytest.mark.django_db
 def test_rejected_grift_batch_fails_loudly_not_silently(_stub_aws, monkeypatch):
     """Regression (found live): GRIFT rejects a batch atomically on a hard
-    error (e.g. duplicate_entity_id) -> imported=[] skipped=[]. submit_grift
-    only forwards imported/skipped, so a rejected batch was otherwise
-    invisible (0 imported, 0 errors, false green). The collector must
-    surface result.errors and abort the run, never silently lose the whole
-    collection. Forced with a stubbed grift_import returning errors.
+    error (e.g. duplicate_entity_id) -> imported=[] skipped=[]. A rejected
+    batch is otherwise invisible (0 imported, 0 errors, false green). The
+    abort-on-rejection guard now lives in CollectorBase.submit_grift
+    (on_rejection="abort" default, req-tap-cares-collector-grift-import-9):
+    it records GRIFT_BATCH_REJECTED on the collector's results and raises
+    GriftRejectedError, which the task body turns into FAILED. End-to-end
+    proof that the base guard fires through the real aws_core run path.
     """
-    from plugins.aws_core.collectors.boto3_collector.collector import (
-        Boto3CollectorError,
-    )
+    from tap_cares.exceptions import GriftRejectedError
 
     class _Issue:
         code = "duplicate_entity_id"
@@ -365,7 +365,7 @@ def test_rejected_grift_batch_fails_loudly_not_silently(_stub_aws, monkeypatch):
             collection_job_entity_id=uuid.uuid7(),
         )
     )
-    with pytest.raises(Boto3CollectorError):
+    with pytest.raises(GriftRejectedError):
         collector.run()
 
     errs = [e for e in collector.results["error"] if e["message_code"] == "GRIFT_BATCH_REJECTED"]

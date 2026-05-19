@@ -33,6 +33,21 @@ class CollectorNotReadyError(TapCaresError):
     pass
 
 
+class GriftRejectedError(TapCaresError):
+    """Raised by `CollectorBase.submit_grift` when GRIFT rejected a batch.
+
+    GRIFT validates/applies each batch atomically; a hard error (e.g. a
+    duplicate `entity_id`) rejects the whole batch — it lands in neither
+    `result.imported_batches` nor `skipped_batches`, only `result.errors`.
+    Under the default `on_rejection="abort"`, `submit_grift` records a
+    structured `GRIFT_BATCH_REJECTED` error and raises this so the run
+    fails loudly via the standard collector failure mode rather than
+    silently losing the collection (req-tap-cares-collector-grift-import-9).
+    """
+
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Secrets (spec-tap-cares-secrets.md)
 # ---------------------------------------------------------------------------
