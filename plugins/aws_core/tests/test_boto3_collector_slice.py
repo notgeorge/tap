@@ -30,6 +30,7 @@ _ACCOUNT = "111122223333"
 _FN_ARN = f"arn:aws:lambda:us-east-1:{_ACCOUNT}:function:sam-handler"
 _ROLE_ARN = f"arn:aws:iam::{_ACCOUNT}:role/sam-exec"
 _DIST_ARN = f"arn:aws:cloudfront::{_ACCOUNT}:distribution/E1ABCDEF"
+_LOG_GROUP = "/aws/lambda/sam-handler"  # == the Lambda's LoggingConfig.LogGroup
 
 _CANNED = {
     "list_functions": {
@@ -74,6 +75,20 @@ _CANNED = {
                 }
             ]
         }
+    },
+    # CloudWatch log group — proves the WRITES_LOGS edge resolves under the
+    # v0 make-it-work (req-aws-collector-edges-7): the log group is keyed by
+    # logGroupName, which equals the Lambda's LoggingConfig.LogGroup, so both
+    # ends derive the identical natural_key and the edge is non-dangling.
+    "describe_log_groups": {
+        "logGroups": [
+            {
+                "logGroupName": _LOG_GROUP,
+                "arn": f"arn:aws:logs:us-east-1:{_ACCOUNT}:log-group:{_LOG_GROUP}:*",
+                "logGroupArn": f"arn:aws:logs:us-east-1:{_ACCOUNT}:log-group:{_LOG_GROUP}",
+                "retentionInDays": 14,
+            }
+        ]
     },
     # IAM role tags — service side-quest (RGTA excludes IAM roles).
     "list_role_tags": {"Tags": [{"Key": "Owner", "Value": "sam-aydlette"}, {"Key": "Env", "Value": "prod"}]},
@@ -191,6 +206,19 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
     assert edge.edge_type == "ASSUMES_ROLE"
     assert str(edge.from_entity_id) == str(node_entity_id("aws_lambda", _FN_ARN))
     assert str(edge.to_entity_id) == str(node_entity_id("aws_iam_role", _ROLE_ARN))
+
+    # WRITES_LOGS resolves non-dangling under the v0 make-it-work
+    # (req-aws-collector-edges-7): aws_cloudwatch_log_group is keyed by
+    # logGroupName, so the Lambda's LoggingConfig.LogGroup and the log-group
+    # node's natural_key are the byte-identical string — both ends derive the
+    # same uuid5 with no resolver. (Pre-tweak this was a silent dangling edge:
+    # name on the Lambda side vs an ARN-keyed log-group node.)
+    lg = get_node(node_entity_id("aws_cloudwatch_log_group", _LOG_GROUP))
+    assert lg.name == _LOG_GROUP
+    log_edge = get_edge(edge_entity_id("WRITES_LOGS", _FN_ARN, _LOG_GROUP))
+    assert log_edge.edge_type == "WRITES_LOGS"
+    assert str(log_edge.from_entity_id) == str(node_entity_id("aws_lambda", _FN_ARN))
+    assert str(log_edge.to_entity_id) == str(node_entity_id("aws_cloudwatch_log_group", _LOG_GROUP))
 
 
 @pytest.mark.django_db

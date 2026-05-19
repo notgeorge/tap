@@ -101,7 +101,7 @@
       "source": { "aws_op": "DescribeLogGroups" },
       "why": "Enumerate CloudWatch log groups — log destinations and audit-trail surfaces.",
       "items_path": "logGroups[]",
-      "natural_key": "arn",
+      "natural_key": "logGroupName",
       "fields": {
         "name": "logGroupName",
         "log_group_arn": "arn",
@@ -164,7 +164,7 @@
         {
           "value_path": "Origins.Items[].DomainName",
           "target_type": "aws_s3_bucket",
-          "key_kind": "name",
+          "key_kind": "arn",
           "edge_type": "RETRIEVES_CONTENT_FROM",
           "direction": "outbound",
           "transform": "s3_bucket_name_from_origin_domain"
