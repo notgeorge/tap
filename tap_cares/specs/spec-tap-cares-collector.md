@@ -835,6 +835,75 @@ def submit_grift(self, document) -> GriftImportResult:
 
 `self._produced_batches` is an instance-level accumulator (attribute name is an implementation detail). At terminal state the task body — the sole `CollectionJob` writer — creates one `CollectionJob --PRODUCED_BATCH--> Batch` edge per accumulated batch via the canonical `create_edge()` service path, stamping `disposition` on each edge. This mirrors how `run_collection` creates the `Collector --HAS_JOB--> CollectionJob` edge. There is **no `CollectionJob.grift_batches` field**: produced batches are a graph relationship (`tap_grid/specs/spec-grid-edge.md` `req-grid-edge-produced-batch`), traversable rather than embedded.
 
+#### Rejection contract (abort-by-default)
+
+GRIFT validates and applies each batch **atomically**: one hard error
+anywhere in a batch (a duplicate `entity_id`, a schema violation) rejects
+the *entire* batch — nothing in it lands. A rejected batch appears in
+**neither** `result.imported_batches` **nor** `result.skipped_batches`;
+it exists only as entries in `result.errors`
+(`result.counts.batches_imported == 0`). Because the accumulator above
+only mirrors imported/skipped, a rejected batch is otherwise *invisible*
+to the collector: zero produced batches, zero collector errors, a run
+that reports success — silent total data loss. This was a real defect
+(observed 2026-05-19: a duplicate edge rejected an entire AWS collection;
+caught only by luck of a baseline). GRIFT upload is the defining
+collector operation, so the safe behavior must be the **default**, not
+opt-in per collector.
+
+Therefore `submit_grift` takes `on_rejection: Literal["abort","return"]
+= "abort"`:
+
+- **`"abort"` (default).** If `result.errors` is non-empty, `submit_grift`
+  records one structured error — code `GRIFT_BATCH_REJECTED`, a
+  base-class log-site token, `message_data` carrying `error_count` and
+  `batches_imported`, message naming the first few `code: message`
+  issues — onto `self.results` via `record_error`, then raises
+  `GriftRejectedError` (a `CollectorBase`-level exception). The
+  `run_collector` task body already turns a raised collector exception
+  into the standard `FAILED` terminal patch (`req-tap-cares-collector-
+  failure-mode`); no per-collector code is required. The error contract
+  is **uniform across every collector** — one code, one shape, one token
+  — because it lives in the base, not in N hand-copied guards that drift.
+- **`"return"` (explicit opt-out).** `submit_grift` returns the
+  `GriftImportResult` unraised; the caller takes ownership of
+  `result.errors`. This is for a multi-batch collector that wants
+  partial-success semantics (GRIFT rejects per *batch*, so a 10-batch
+  document can have 9 good + 1 rejected; aborting the run would discard
+  the 9). It must be typed on purpose — the footgun is the opt-in, never
+  the default.
+
+```python
+# In CollectorBase
+def submit_grift(
+    self, document, *, on_rejection="abort", ...
+) -> GriftImportResult:
+    result = grift_import(document, ...)
+    self._produced_batches.extend(...)        # imported + skipped, as above
+    if result.errors and on_rejection == "abort":
+        self.record_error(_SITE_GRIFT_REJECTED, "GRIFT_BATCH_REJECTED",
+                          "...nothing landed: <issues>", message_data={...})
+        raise GriftRejectedError(...)
+    return result
+```
+
+**Eyes-open rollout (non-negotiable).** Flipping the default to `abort`
+will turn any *currently green-but-silently-rejecting* collector run
+**red** — correctly: it surfaces pre-existing silent data loss, it does
+not create it. When this lands, every existing collector (notably the
+KSI collector, which predates the packaging convention —
+`req-tap-cares-collector-packaging`) is run once; anything that goes red
+was already broken and is reconciled deliberately, not treated as a
+regression. Same discipline as the gate reconciliation: surfacing latent
+silent failure is the goal, a surprise is not.
+
+This **supersedes** the interim AGENTS Core Rule ("any `submit_grift`
+caller must check `result.errors` and fail loud") and the per-collector
+`GRIFT_BATCH_REJECTED` guard shipped in the `aws_core` boto3 collector —
+once the base owns this, that guard is deleted (it collapses upward; one
+source of truth). The aws_core guard was the proof-of-concept that
+retires itself.
+
 #### Job correlation
 
 "Which batches did this run produce" is answered by traversing `CollectionJob --PRODUCED_BATCH--> Batch`, filtering the `disposition` edge property for imported vs skipped. A run that submitted nothing has no such edges. A failed run has edges only for batches actually produced before the failure — the task body creates edges from the same accumulator regardless of terminal status, so partial progress stays visible.
@@ -853,6 +922,10 @@ Future strict isolation may replace the in-process call with a TAP API result-su
 | req-tap-cares-collector-grift-import-6 | PRODUCED_BATCH Correlation | Proposed | At terminal state the task body creates one `CollectionJob --PRODUCED_BATCH--> Batch` edge per accumulated batch via `create_edge()`, with `disposition` ∈ {`imported`,`skipped`}. There is no `CollectionJob.grift_batches` field. | Cross-ref `req-grid-edge-produced-batch`. |
 | req-tap-cares-collector-grift-import-8 | Collector Names Each Batch | Proposed | Every batch a collector submits carries a meaningful collector-set `name` and `description` on the GRIFT batch envelope; neither is left blank or auto-derived. | `Batch.name` is required on replace; TAP does not invent it. |
 | req-tap-cares-collector-grift-import-7 | Future API Compatible | Implemented | The v0 contract remains compatible with replacing in-process import with an API-based GRIFT submission surface under strict isolation. | `submit_grift` takes a document and returns a `GriftImportResult`; replacing the in-process call with an API round trip changes only the helper internals. |
+| req-tap-cares-collector-grift-import-9 | Abort On Rejection By Default | In Development | `submit_grift(..., on_rejection="abort")` is the default: a non-empty `result.errors` ⇒ `record_error("GRIFT_BATCH_REJECTED", …)` + `raise GriftRejectedError`. The defining collector operation is safe by default; no per-collector guard required. | Supersedes the interim AGENTS rule + the aws_core per-collector guard. |
+| req-tap-cares-collector-grift-import-10 | Explicit Partial-Success Opt-Out | In Development | `on_rejection="return"` returns the `GriftImportResult` unraised for multi-batch collectors that own `result.errors` and want partial-success. The unsafe path is opt-in, never the default. | GRIFT rejects per batch, so multi-batch docs can partially succeed. |
+| req-tap-cares-collector-grift-import-11 | Uniform Base-Owned Error Contract | In Development | The structured error (code `GRIFT_BATCH_REJECTED`, `message_data` shape, base-class log-site token) and `GriftRejectedError` live on `CollectorBase`, identical for every collector. The task body's existing failure-mode handling turns the raise into the standard `FAILED` patch. | One source of truth vs. N drifting copies. |
+| req-tap-cares-collector-grift-import-12 | Eyes-Open Existing-Collector Rollout | In Development | When the `abort` default lands, every existing collector (notably KSI, `req-tap-cares-collector-packaging`) is run once; any newly-red run was already silently rejecting and is reconciled deliberately, not treated as a regression. | Surfacing latent silent data loss is the goal. |
 
 ## CollectionJob Model
 ----
