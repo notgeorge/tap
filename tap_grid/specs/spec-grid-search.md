@@ -557,6 +557,28 @@ two surfaces have very different shapes and one is a genuine mechanism fork:
   helper everything-else-is-banned-relative-to) is a deliberate decision to
   settle before implementation rather than guess and sprawl.
 
+#### Recommended Next Step (on pickup — parked 2026-05-19, decision-ready)
+
+Parked deliberately, not abandoned: the principle is in force now via
+AGENTS.md/memory; only the mechanical catcher is unbuilt. When picked up, the
+recommended 2-track (no re-litigation needed unless the recommendation is
+rejected):
+
+1. **Module surface — bounded, do first.** Add a deliberate, greppable,
+   logged break-glass opt-in to `register_search_runner`
+   (`tap_grid/registry.py`; see also `tap_plugins/base.py` callers). Small,
+   single chokepoint, no mechanism fork.
+2. **ORM surface — CI baseline-ratchet gate.** Mirror the proven
+   `tap/tests/test_log_site_ids.py` scanner pattern: flag direct graph-model
+   `.objects`/queryset access in application/plugin/collector code outside the
+   already-enumerated carve-outs, baseline-ratcheted so existing violations
+   don't block but no new ones land, burn down over time. Reuses an existing
+   TAP enforcement idiom; least uninvited sprawl.
+
+The single sanctioned `break_glass`-marked helper (strongest greppability,
+most invasive now) stays available as a later upgrade if the ratchet proves
+insufficient. No work proceeds here without an explicit pickup decision.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
