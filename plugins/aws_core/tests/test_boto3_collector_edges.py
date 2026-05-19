@@ -69,9 +69,7 @@ class TestEmitEdges:
         assert assumes["edge"]["from_entity_id"] == str(node_entity_id("aws_lambda", "arn:fn"))
         assert assumes["edge"]["to_entity_id"] == str(node_entity_id("aws_iam_role", "arn:role"))
         assert assumes["entity"]["entity_type"] == "edge"
-        assert assumes["entity"]["entity_id"] == str(
-            edge_entity_id("ASSUMES_ROLE", "arn:fn", "arn:role")
-        )
+        assert assumes["entity"]["entity_id"] == str(edge_entity_id("ASSUMES_ROLE", "arn:fn", "arn:role"))
         assert assumes["entity"]["dimensions"] == DIMS
         assert assumes["edge"]["properties"] == {}
 
@@ -88,9 +86,7 @@ class TestEmitEdges:
             ]
         }
         node = _node({"Buckets": ["b1", "b2", "b3"]})
-        result = emit_edges(
-            node, entry, modeled_types=MODELED, transforms=TransformRegistry(), dimensions=DIMS
-        )
+        result = emit_edges(node, entry, modeled_types=MODELED, transforms=TransformRegistry(), dimensions=DIMS)
         assert len(result.envelopes) == 3
         assert {e["edge"]["to_entity_id"] for e in result.envelopes} == {
             str(node_entity_id("aws_s3_bucket", b)) for b in ("b1", "b2", "b3")
@@ -109,14 +105,12 @@ class TestEmitEdges:
             ]
         }
         node = _node({"Owner": "arn:role"})
-        env = emit_edges(
-            node, entry, modeled_types=MODELED, transforms=TransformRegistry(), dimensions=DIMS
-        ).envelopes[0]
+        env = emit_edges(node, entry, modeled_types=MODELED, transforms=TransformRegistry(), dimensions=DIMS).envelopes[
+            0
+        ]
         assert env["edge"]["from_entity_id"] == str(node_entity_id("aws_iam_role", "arn:role"))
         assert env["edge"]["to_entity_id"] == str(node_entity_id("aws_lambda", "arn:fn"))
-        assert env["entity"]["entity_id"] == str(
-            edge_entity_id("ASSUMES_ROLE", "arn:role", "arn:fn")
-        )
+        assert env["entity"]["entity_id"] == str(edge_entity_id("ASSUMES_ROLE", "arn:role", "arn:fn"))
 
     def test_unmodeled_target_dropped_with_warning(self):
         entry = {
@@ -166,6 +160,49 @@ class TestEmitEdges:
         ).envelopes[0]
         assert env["edge"]["to_entity_id"] == str(node_entity_id("aws_s3_bucket", "mybucket"))
 
+    def test_list_value_path_with_transform_applies_per_element(self):
+        # Regression (found live, RETRIEVES_CONTENT_FROM = 0 on the real
+        # account): a list value_path (Origins.Items[]) WITH a transform must
+        # apply the transform PER ELEMENT after fan-out — not to the whole
+        # list. The old code transformed `raw` (a list) before expansion, so
+        # the transform saw a list, returned None, and silently emitted zero
+        # edges. Also pins the None-drop contract: a non-S3 origin -> None ->
+        # that element is dropped, no bogus "None" edge, no warning.
+        from plugins.aws_core.collectors.boto3_collector.transforms import (
+            s3_bucket_name_from_origin_domain,
+        )
+
+        reg = TransformRegistry()
+        reg.register("s3_origin", s3_bucket_name_from_origin_domain)
+        entry = {
+            "edges": [
+                {
+                    "value_path": "Origins.Items[].DomainName",
+                    "target_type": "aws_s3_bucket",
+                    "key_kind": "arn",
+                    "edge_type": "RETRIEVES_CONTENT_FROM",
+                    "direction": "outbound",
+                    "transform": "s3_origin",
+                }
+            ]
+        }
+        node = _node(
+            {
+                "Origins": {
+                    "Items": [
+                        {"DomainName": "samsite-prod-1.s3.us-east-2.amazonaws.com"},
+                        {"DomainName": "api.example.com"},  # non-S3 -> None -> dropped
+                    ]
+                }
+            }
+        )
+        result = emit_edges(node, entry, modeled_types=MODELED, transforms=reg, dimensions=DIMS)
+        assert result.warnings == []
+        assert len(result.envelopes) == 1  # only the S3 origin; None dropped
+        assert result.envelopes[0]["edge"]["to_entity_id"] == str(
+            node_entity_id("aws_s3_bucket", "arn:aws:s3:::samsite-prod-1")
+        )
+
     def test_unregistered_transform_raises(self):
         entry = {
             "edges": [
@@ -197,8 +234,6 @@ class TestEmitEdges:
         assert result.warnings == []  # absent value is normal, not a drop
 
     def test_no_edges_key_is_noop(self):
-        result = emit_edges(
-            _node({}), {}, modeled_types=MODELED, transforms=TransformRegistry(), dimensions=DIMS
-        )
+        result = emit_edges(_node({}), {}, modeled_types=MODELED, transforms=TransformRegistry(), dimensions=DIMS)
         assert result.envelopes == []
         assert result.warnings == []

@@ -62,9 +62,7 @@ class TransformRegistry:
             return self._fns[name]
         except KeyError:
             known = ", ".join(sorted(self._fns)) or "<none>"
-            raise EdgeError(
-                f"edge transform {name!r} is not registered (known: {known})"
-            ) from None
+            raise EdgeError(f"edge transform {name!r} is not registered (known: {known})") from None
 
 
 @dataclass(frozen=True)
@@ -119,10 +117,19 @@ def emit_edges(
 
         raw = eval_path(node.raw_item, rule["value_path"])
         transform_name = rule.get("transform")
-        if transform_name:
-            raw = transforms.get(transform_name)(raw)
+        transform = transforms.get(transform_name) if transform_name else None
 
-        for value in _as_value_list(raw):
+        for raw_value in _as_value_list(raw):
+            # The transform maps each extracted value to the target's
+            # natural key. It is applied per-element AFTER fan-out
+            # expansion: a list value_path (e.g. Origins.Items[]) must feed
+            # the transform one element at a time, never the whole list.
+            # A transform may return None to mean "this value is not a
+            # valid target of this edge" — drop it so no bogus edge is
+            # fabricated (the transforms.py contract).
+            value = transform(raw_value) if transform else raw_value
+            if value is None:
+                continue
             target_key = str(value)
             target_id = node_entity_id(target_type, target_key)
             if rule["direction"] == "inbound":
