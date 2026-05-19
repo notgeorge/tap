@@ -134,7 +134,11 @@ DJANGO_SETTINGS_MODULE = "tap.test_settings"
 testpaths = ["tap", "tap_grid", "tap_plugins", "tap_api", "tap_web", "tap_viz", "plugins"]
 python_files = ["test_*.py", "*_test.py"]
 # Skip live-fetch tests by default; opt in with `-m live_fetch`.
-addopts = "-v --tb=short -m 'not live_fetch'"
+# genericom DEPRECATED 2026-05-19 (out of INSTALLED_APPS — see
+# tap/settings.py); its test dir is not collected so the suite/gate stays
+# green without the app loaded. Code retained; remove this --ignore if it
+# is revived. (lotr stays registered — load-bearing core-test fixtures.)
+addopts = "-v --tb=short -m 'not live_fetch' --ignore=plugins/genericom"
 markers = [
     "no_registry_isolation: opt out of search runner registry isolation between tests",
     "spec: link a test to one or more spec acceptance criteria by ACID",

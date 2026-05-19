@@ -105,14 +105,23 @@ INSTALLED_APPS = [
     "tap_cares.apps.TapCaresConfig",
     # Administrivia plugin — TAP administrative pages and infrastructure
     "plugins.administrivia.apps.AdministriviaConfig",
-    # LOTR plugin — Middle-earth entities for constraint testing
+    # LOTR plugin — Middle-earth entities for constraint testing.
+    # NOTE 2026-05-19: kept in INSTALLED_APPS deliberately — it is the
+    # load-bearing test-fixture vocabulary for core tap_grid/tap_api
+    # constraint/edge/validation suites (7 modules import plugins.lotr
+    # .models). De-registering it reds the promote-gate. Its Middle-earth
+    # *seed data* is the instance clutter; decouple that from spawn rather
+    # than de-registering the app. See the lotr-vs-genericom note.
     "plugins.lotr.apps.LotrConfig",
     # Computing Core plugin — vendor-neutral computing primitives
     "plugins.computing_core.apps.ComputingCoreConfig",
     # AWS Core plugin — resource-type models for AWS cloud infrastructure
     "plugins.aws_core.apps.AwsCoreConfig",
-    # Genericom plugin — demonstration AWS environment built on aws_core
-    "plugins.genericom.apps.GenericomConfig",
+    # Genericom plugin — DEPRECATED 2026-05-19: 100% hand-built mock AWS
+    # dataset (lotr-lineage scaffolding) built on aws_core. Code retained in
+    # plugins/genericom/ but NOT loaded — real-account work (samsite)
+    # supersedes it. Re-add this line to revive.
+    # "plugins.genericom.apps.GenericomConfig",
     # FedRAMP 20x KSI plugin — Key Security Indicator catalog
     "plugins.fedramp_20x_ksi.apps.Fedramp20xKsiConfig",
     # API layer — last so ready() discovers all plugin routers
