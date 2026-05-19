@@ -46,7 +46,7 @@ We're meant to act
 
 Be mindful of the direction of information and its rate of flow
 
-The grid can remember 
+The grid remembers
 ...follow every change,
 ...contain the complexity,
 ...stand watch
