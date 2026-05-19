@@ -28,6 +28,7 @@ class Route53HostedZone(BaseModel):
         "record_count": {"type": ["integer", "null"]},
         "private_zone": {"type": "boolean"},
         "configuration": {"type": "object"},
+        "tags": {"type": "object"},
     }
 
     FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, Any]] = {
@@ -36,6 +37,7 @@ class Route53HostedZone(BaseModel):
         "record_count": {"validation": "jsonschema", "schema": {"type": ["integer", "null"]}},
         "private_zone": {"validation": "jsonschema", "schema": {"type": "boolean"}},
         "configuration": {"validation": "jsonschema", "schema": {"type": "object"}},
+        "tags": {"validation": "jsonschema", "schema": {"type": "object"}},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
@@ -44,6 +46,7 @@ class Route53HostedZone(BaseModel):
     record_count = models.IntegerField(blank=True, null=True)
     private_zone = models.BooleanField(default=False)
     configuration = models.JSONField(default=dict, blank=True)
+    tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "aws_route53_hosted_zone"

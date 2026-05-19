@@ -23,6 +23,7 @@ class AcmCertificate(BaseModel):
         "status": {"type": "string"},
         "type": {"type": "string"},
         "configuration": {"type": "object"},
+        "tags": {"type": "object"},
     }
 
     FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, Any]] = {
@@ -32,6 +33,7 @@ class AcmCertificate(BaseModel):
         "status": {"validation": "jsonschema", "schema": {"type": "string"}},
         "type": {"validation": "jsonschema", "schema": {"type": "string"}},
         "configuration": {"validation": "jsonschema", "schema": {"type": "object"}},
+        "tags": {"validation": "jsonschema", "schema": {"type": "object"}},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
@@ -41,6 +43,7 @@ class AcmCertificate(BaseModel):
     status = models.CharField(max_length=64, blank=True, default="")
     type = models.CharField(max_length=64, blank=True, default="")
     configuration = models.JSONField(default=dict, blank=True)
+    tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "aws_acm_certificate"

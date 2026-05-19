@@ -23,6 +23,7 @@ class S3Bucket(BaseModel):
         "encryption": {"type": "string"},
         "public_access_blocked": {"type": "boolean"},
         "configuration": {"type": "object"},
+        "tags": {"type": "object"},
     }
 
     FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, Any]] = {
@@ -32,6 +33,7 @@ class S3Bucket(BaseModel):
         "encryption": {"validation": "jsonschema", "schema": {"type": "string"}},
         "public_access_blocked": {"validation": "jsonschema", "schema": {"type": "boolean"}},
         "configuration": {"validation": "jsonschema", "schema": {"type": "object"}},
+        "tags": {"validation": "jsonschema", "schema": {"type": "object"}},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
@@ -41,6 +43,7 @@ class S3Bucket(BaseModel):
     encryption = models.CharField(max_length=64, blank=True, default="")
     public_access_blocked = models.BooleanField(default=True)
     configuration = models.JSONField(default=dict, blank=True)
+    tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "aws_s3_bucket"

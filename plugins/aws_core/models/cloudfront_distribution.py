@@ -37,6 +37,7 @@ class CloudfrontDistribution(BaseModel):
         "status": {"type": "string"},
         "enabled": {"type": "boolean"},
         "configuration": {"type": "object"},
+        "tags": {"type": "object"},
     }
 
     FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, Any]] = {
@@ -46,6 +47,7 @@ class CloudfrontDistribution(BaseModel):
         "status": {"validation": "jsonschema", "schema": {"type": "string"}},
         "enabled": {"validation": "jsonschema", "schema": {"type": "boolean"}},
         "configuration": {"validation": "jsonschema", "schema": {"type": "object"}},
+        "tags": {"validation": "jsonschema", "schema": {"type": "object"}},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
@@ -55,6 +57,7 @@ class CloudfrontDistribution(BaseModel):
     status = models.CharField(max_length=64, blank=True, default="")
     enabled = models.BooleanField(default=False)
     configuration = models.JSONField(default=dict, blank=True)
+    tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "aws_cloudfront_distribution"

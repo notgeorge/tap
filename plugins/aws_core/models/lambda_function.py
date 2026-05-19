@@ -24,6 +24,7 @@ class LambdaFunction(BaseModel):
         "memory_size": {"type": ["integer", "null"]},
         "timeout": {"type": ["integer", "null"]},
         "configuration": {"type": "object"},
+        "tags": {"type": "object"},
     }
 
     FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, Any]] = {
@@ -34,6 +35,7 @@ class LambdaFunction(BaseModel):
         "memory_size": {"validation": "jsonschema", "schema": {"type": ["integer", "null"]}},
         "timeout": {"validation": "jsonschema", "schema": {"type": ["integer", "null"]}},
         "configuration": {"validation": "jsonschema", "schema": {"type": "object"}},
+        "tags": {"validation": "jsonschema", "schema": {"type": "object"}},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
@@ -44,6 +46,7 @@ class LambdaFunction(BaseModel):
     memory_size = models.IntegerField(blank=True, null=True)
     timeout = models.IntegerField(blank=True, null=True)
     configuration = models.JSONField(default=dict, blank=True)
+    tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "aws_lambda_function"

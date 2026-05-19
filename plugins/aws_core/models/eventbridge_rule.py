@@ -38,6 +38,7 @@ class EventbridgeRule(BaseModel):
         "schedule_expression": {"type": "string"},
         "event_bus_name": {"type": "string"},
         "configuration": {"type": "object"},
+        "tags": {"type": "object"},
     }
 
     FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, Any]] = {
@@ -47,6 +48,7 @@ class EventbridgeRule(BaseModel):
         "schedule_expression": {"validation": "jsonschema", "schema": {"type": "string"}},
         "event_bus_name": {"validation": "jsonschema", "schema": {"type": "string"}},
         "configuration": {"validation": "jsonschema", "schema": {"type": "object"}},
+        "tags": {"validation": "jsonschema", "schema": {"type": "object"}},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
@@ -56,6 +58,7 @@ class EventbridgeRule(BaseModel):
     schedule_expression = models.CharField(max_length=255, blank=True, default="")
     event_bus_name = models.CharField(max_length=255, blank=True, default="")
     configuration = models.JSONField(default=dict, blank=True)
+    tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "aws_eventbridge_rule"

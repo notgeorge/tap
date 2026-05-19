@@ -38,6 +38,7 @@ class CloudwatchLogGroup(BaseModel):
         "log_group_arn": {"type": "string"},
         "retention_in_days": {"type": ["integer", "null"]},
         "configuration": {"type": "object"},
+        "tags": {"type": "object"},
     }
 
     FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, Any]] = {
@@ -45,6 +46,7 @@ class CloudwatchLogGroup(BaseModel):
         "log_group_arn": {"validation": "jsonschema", "schema": {"type": "string"}},
         "retention_in_days": {"validation": "jsonschema", "schema": {"type": ["integer", "null"]}},
         "configuration": {"validation": "jsonschema", "schema": {"type": "object"}},
+        "tags": {"validation": "jsonschema", "schema": {"type": "object"}},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
@@ -52,6 +54,7 @@ class CloudwatchLogGroup(BaseModel):
     log_group_arn = models.CharField(max_length=512, blank=True, default="")
     retention_in_days = models.IntegerField(blank=True, null=True)
     configuration = models.JSONField(default=dict, blank=True)
+    tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "aws_cloudwatch_log_group"
