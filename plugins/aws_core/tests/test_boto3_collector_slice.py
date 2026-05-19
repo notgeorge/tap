@@ -88,8 +88,17 @@ class _CannedClient:
         return lambda **_kw: _CANNED.get(name, {})
 
 
+class _FakeEvents:
+    """No-op botocore event emitter (fake clients fire no real events)."""
+
+    def register(self, _name: str, _handler: object) -> None:
+        return None
+
+
 class _FakeSession:
     """Stands in for a boto3 Session for custom_fn (S3) paths."""
+
+    events = _FakeEvents()
 
     def client(self, _service: str, region_name: str | None = None) -> _CannedClient:
         return _CannedClient()
@@ -135,6 +144,16 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
     assert collector.results["error"] == []
     assert collector.grift_batches["imported"]
     assert "Collected" in collector.summary
+
+    # The audit ledger drained as exactly one structured run-log entry
+    # (req-aws-collector-audit-ledger). Fake clients don't fire botocore
+    # events, so `calls` is empty here — the live run is the real proof;
+    # this guards the drain wiring + shape.
+    ledger_entries = [
+        e for e in collector.results["info"] if e["message_code"] == "AWS_CALL_LEDGER"
+    ]
+    assert len(ledger_entries) == 1
+    assert isinstance(ledger_entries[0]["message_data"]["calls"], list)
 
     # The Lambda node landed, typed + lossless, by deterministic identity.
     fn = get_node(node_entity_id("aws_lambda", _FN_ARN))

@@ -93,6 +93,7 @@ no encrypted secrets) are inherited as v0 fences.
 | req-aws-collector-runtime | [Collector Runtime Integration](#collector-runtime-integration) | Approved for Development | `CollectorBase` pipeline; mirrors the KSI reference collector |
 | req-aws-collector-regions | [Region Iteration And Resilience](#region-iteration-and-resilience) | Approved for Development | Classify-and-skip; bounded throttle backoff |
 | req-aws-collector-grift-batch | [GRIFT Batch Assembly](#grift-batch-assembly) | Approved for Development | One batch/run; provenance; no deletion semantics |
+| req-aws-collector-audit-ledger | [Audit Verifiability](#audit-verifiability) | Approved for Development | Per-run AWS call ledger → `CollectionJob.results`; step one of the verifiability theme |
 | req-aws-collector-model-deps | [Model Dependencies](#model-dependencies) | Proposed | CloudFront / CloudWatch log group / EventBridge rule models must exist |
 | req-aws-collector-sam-example | [Sam Worked Example](#sam-worked-example) | Proposed | Concrete manifest + edge set for the demo target |
 | req-aws-collector-build-skill | [Build-Collector Skill Direction](#build-collector-skill-direction) | Proposed | Skill is a manifest generator; trust-tier axis |
@@ -642,6 +643,74 @@ edges, submitted through the approved import surface.
 | req-aws-collector-grift-batch-2 | Provenance Recorded | Approved for Development | The batch records account, regions, manifest version, and counts. | |
 | req-aws-collector-grift-batch-3 | Approved Surface Only | Approved for Development | Submission is via `self.submit_grift`. | |
 | req-aws-collector-grift-batch-4 | No Deletion Content | Approved for Development | The batch contains no deletion/tombstone semantics. | |
+
+### Audit Verifiability
+----
+RID: `req-aws-collector-audit-ledger`
+Status: `Approved for Development`
+
+**Theme (future).** A later theme makes a collection run *verifiable* — able
+to show evidence the grid reflects data actually gathered from AWS at a
+knowable time, not merely asserted. The only non-deterministic datum AWS
+returns that anchors this is the per-call **request id**
+(`ResponseMetadata.RequestId`; S3 also `HostId` / `x-amz-id-2`) plus the
+response `Date`. Correlating our recorded request ids and times to the
+account's own CloudTrail (`requestID` ↔, `eventTime` ↔ response `Date`) is
+contemporaneous proof a call occurred — *not* attestation of the response
+body, but the evidentiary spine the verification theme will build on. The
+verification machinery itself (matching, attestation, reporting) is out of
+v0 scope and is named here only as the future seam this requirement feeds.
+
+**Step one (this requirement).** The collector records a per-run AWS call
+ledger as run provenance on the persisted, history-tracked `CollectionJob`
+(its `results` log) — never on a resource node, never in the GRIFT batch.
+
+#### Implementation
+
+- Request ids are the canonical reason `ResponseMetadata` is stripped from
+  every node / `configuration` / `_hydrate`
+  (`req-aws-collector-field-projection-6`): per-call ids change every run
+  and would poison node byte-identity. The ledger captures them on the run
+  record instead, where per-run variance is expected and carries zero
+  idempotent-upsert / History cost.
+- Capture is at the boto3 boundary via botocore `after-call` /
+  `after-call-error` session handlers (a run-scoped collaborator), so every
+  enumerate call, paginator page, fan-out sub-call, and the STS identity
+  probe is recorded with no per-resource code and no engine-signature
+  change. The `after-call-error` path is the only place a `denied` /
+  `throttled` call is observable.
+- The ledger is drained once at end of `run()` as a single structured
+  `record_info` entry (`message_code` `AWS_CALL_LEDGER`) whose
+  `message_data` carries the call array: per call `{service, operation,
+  request_id, host_id?, http_status, outcome, response_date}`. One run-log
+  event, not one per call — the operator stream stays legible while the
+  full machine ledger is captured.
+- `outcome` ∈ `ok | absent | denied | throttled | error` — aligned with
+  the hydrate classifier, **including `absent`**: AWS's expected "not
+  configured" 404 (e.g. `NoSuchBucketPolicy`) is a first-class call
+  outcome, never folded into `error`. (Live validation falsified the
+  earlier "a call cannot be absent" framing — S3 fan-out is dominated by
+  these expected 404s; conflating them into `error` is exactly the
+  anti-pattern `req-aws-collector-hydrate-6` forbids.) The `absent`/
+  `denied` code rule is shared with hydrate by convention (one dialect);
+  factoring a single classifier is a named future cleanup, not v0.
+- It lands in `CollectionJob.results` via the existing `record_*` →
+  task-body persistence path; this needs **no** new schema — the
+  `collection_job_results.schema.json` entry shape already defines
+  `message_data` as free-form keyed by `message_code`.
+- The ledger is the *complete* call record; `record_warn`
+  (`ENTRY_SKIPPED` / `HYDRATE_GAP`) remains the operator-attention subset —
+  complementary, never a second source of truth.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-aws-collector-audit-ledger-1 | Run-Record Placement | Approved for Development | The call ledger is on `CollectionJob.results`, never a resource node or the GRIFT batch. | Determinism — why `ResponseMetadata` is stripped elsewhere. |
+| req-aws-collector-audit-ledger-2 | Boundary Capture | Approved for Development | Capture via botocore `after-call` / `after-call-error`; every call incl. paginator / fan-out / STS; no engine-signature change. | `after-call-error` is the only `denied` / `throttled` site. |
+| req-aws-collector-audit-ledger-3 | Single Drained Entry | Approved for Development | Drained once per run as one `AWS_CALL_LEDGER` `record_info` entry; `message_data.calls` is the array. | Operator stream stays legible. |
+| req-aws-collector-audit-ledger-4 | Outcome Vocabulary | Approved for Development | Per-call `outcome` ∈ `ok\|absent\|denied\|throttled\|error`, aligned with the hydrate classifier; AWS "not configured" 404s are `absent`, never `error`. | Live-validated; conflating absent into error is the `req-aws-collector-hydrate-6` anti-pattern. |
+| req-aws-collector-audit-ledger-5 | No New Format | Approved for Development | Reuses `collection_job_results.schema.json` (`message_data` free-form by `message_code`); no new schema. | Verification machinery is a future theme, not v0. |
 
 ### Model Dependencies
 ----

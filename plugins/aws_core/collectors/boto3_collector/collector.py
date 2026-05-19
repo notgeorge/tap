@@ -57,6 +57,7 @@ from .credentials import (
 )
 from .customfns import build_custom_fn_registry
 from .edges import EdgeError, emit_edges
+from .ledger import CallLedger
 from .manifest import load_manifest, manifest_entries
 from .projection import ProjectionError, project_item
 from .source import SourceError, iter_source
@@ -76,6 +77,7 @@ _SITE_ABORT_SECRET = "2d64"
 _SITE_ABORT_REGIONS = "b528"
 _SITE_ABORT_IDENTITY = "0623"
 _SITE_HYDRATE_GAP = "bfd4"
+_SITE_CALL_LEDGER = "bdf3"
 
 _DOCS = (
     CollectorDocRef(
@@ -126,6 +128,10 @@ class Boto3Collector(CollectorBase):
         except CredentialError as exc:
             self._abort(_SITE_ABORT_REGIONS, "NO_REGION_SCOPE", str(exc))
         session = build_session(data)
+        # Attach the audit ledger before any client/STS call so every AWS
+        # call this run makes is recorded (req-aws-collector-audit-ledger).
+        ledger = CallLedger()
+        ledger.attach(session)
         try:
             account_id = caller_account_id(
                 session,
@@ -250,6 +256,16 @@ class Boto3Collector(CollectorBase):
             f"Collected {len(node_envelopes)} nodes, {len(edge_envelopes)} "
             f"edges for account {account_id} across {len(regions)} region(s) "
             f"({skipped} skipped, {imported} batch imported)."
+        )
+        # Drain the per-run AWS call audit ledger as one structured run-log
+        # entry (req-aws-collector-audit-ledger): the evidentiary spine for
+        # the future audit-verifiability theme. One event, full machine
+        # ledger in message_data — not one row per call.
+        self.record_info(
+            _SITE_CALL_LEDGER,
+            "AWS_CALL_LEDGER",
+            ledger.summary(),
+            message_data={"calls": ledger.entries},
         )
         self.record_info(
             _SITE_RUN_COMPLETED, "RUN_COMPLETED", "AWS Core collection complete."
