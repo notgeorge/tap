@@ -75,7 +75,22 @@ _CANNED = {
             ]
         }
     },
+    # IAM role tags — service side-quest (RGTA excludes IAM roles).
+    "list_role_tags": {"Tags": [{"Key": "Owner", "Value": "sam-aydlette"}, {"Key": "Env", "Value": "prod"}]},
+    # RGTA sweep result: the Lambda (rgta-source) tagged by its FunctionArn.
+    "_rgta_pages": [
+        {
+            "ResourceTagMappingList": [
+                {"ResourceARN": _FN_ARN, "Tags": [{"Key": "Owner", "Value": "sam"}]},
+            ]
+        }
+    ],
 }
+
+
+class _RgtaPaginator:
+    def paginate(self, **_kw):
+        yield from _CANNED["_rgta_pages"]
 
 
 class _CannedClient:
@@ -83,6 +98,9 @@ class _CannedClient:
 
     def can_paginate(self, _method: str) -> bool:
         return False
+
+    def get_paginator(self, _name: str) -> _RgtaPaginator:
+        return _RgtaPaginator()
 
     def __getattr__(self, name: str):
         return lambda **_kw: _CANNED.get(name, {})
@@ -100,7 +118,7 @@ class _FakeSession:
 
     events = _FakeEvents()
 
-    def client(self, _service: str, region_name: str | None = None) -> _CannedClient:
+    def client(self, _service: str, **_kwargs: object) -> _CannedClient:
         return _CannedClient()
 
 
@@ -120,12 +138,8 @@ def _stub_aws(monkeypatch):
     )
     monkeypatch.setattr(cred, "resolve_secret", lambda _ref: secret)
     monkeypatch.setattr(collector_mod, "build_session", lambda _data: _FakeSession())
-    monkeypatch.setattr(
-        collector_mod, "client_factory", lambda _s, _r: (lambda _svc: _CannedClient())
-    )
-    monkeypatch.setattr(
-        collector_mod, "caller_account_id", lambda *a, **k: _ACCOUNT
-    )
+    monkeypatch.setattr(collector_mod, "client_factory", lambda _s, _r: (lambda _svc: _CannedClient()))
+    monkeypatch.setattr(collector_mod, "caller_account_id", lambda *a, **k: _ACCOUNT)
 
 
 @pytest.mark.django_db
@@ -149,9 +163,7 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
     # (req-aws-collector-audit-ledger). Fake clients don't fire botocore
     # events, so `calls` is empty here — the live run is the real proof;
     # this guards the drain wiring + shape.
-    ledger_entries = [
-        e for e in collector.results["info"] if e["message_code"] == "AWS_CALL_LEDGER"
-    ]
+    ledger_entries = [e for e in collector.results["info"] if e["message_code"] == "AWS_CALL_LEDGER"]
     assert len(ledger_entries) == 1
     assert isinstance(ledger_entries[0]["message_data"]["calls"], list)
 
@@ -163,10 +175,15 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
     assert fn.configuration["FunctionArn"] == _FN_ARN  # lossless blob
     assert fn.configuration["_source"]["op"] == "ListFunctions"
 
+    # Lambda tags came via the RGTA path (joined by FunctionArn).
+    assert fn.tags == {"Owner": "sam"}
+
     # The IAM role node landed (global-scope entry).
     role = get_node(node_entity_id("aws_iam_role", _ROLE_ARN))
     assert role.name == "sam-exec"
     assert role.role_arn == _ROLE_ARN
+    # IAM role tags came via the service side-quest (ListRoleTags, list_kv).
+    assert role.tags == {"Owner": "sam-aydlette", "Env": "prod"}
 
     # The ASSUMES_ROLE edge resolved by identity — non-dangling because both
     # endpoints were collected this run (two-phase, identity-resolved).

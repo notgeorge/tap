@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from tap_cares.collectors import (
@@ -57,10 +58,14 @@ from .credentials import (
 )
 from .customfns import build_custom_fn_registry
 from .edges import EdgeError, emit_edges
+from .hydrate import hydrate_item
 from .ledger import CallLedger
 from .manifest import load_manifest, manifest_entries
+from .paths import eval_path
 from .projection import ProjectionError, project_item
+from .rgta import rgta_resource_type_filters, sweep_tags
 from .source import SourceError, iter_source
+from .tags import normalize_tags, rgta_join_arn
 from .transforms import build_transform_registry
 
 _SOURCE = "plugins.aws_core.collectors.boto3_collector.collector"
@@ -78,6 +83,8 @@ _SITE_ABORT_REGIONS = "b528"
 _SITE_ABORT_IDENTITY = "0623"
 _SITE_HYDRATE_GAP = "bfd4"
 _SITE_CALL_LEDGER = "bdf3"
+_SITE_RGTA_SKIPPED = "f74e"
+_SITE_REGION_INVARIANT = "b349"
 
 _DOCS = (
     CollectorDocRef(
@@ -87,6 +94,46 @@ _DOCS = (
         label="AWS Core collector self-test",
     ),
 )
+
+
+def resolve_node_tags(
+    entry: dict[str, Any],
+    item: Any,
+    *,
+    rgta_map: dict[str, dict[str, str]],
+    client_for: Any,
+) -> tuple[dict[str, str], dict[str, Any] | None, dict[str, Any] | None]:
+    """Resolve one node's canonical tags (``req-aws-collector-tags``).
+
+    Returns ``(tags, hydrate_slot, hydrate_mapping)``:
+
+    - ``rgta`` source — join by ARN against the per-run RGTA map;
+      ``{}`` if untagged (correct, not a gap). No raw slot (RGTA's
+      ``list_kv``↔``map`` is information-preserving).
+    - ``service`` side-quest — the tag op run through the hydrate template
+      (so ``ok|absent|denied|error`` status + raw land in ``_hydrate``,
+      and a ``denied``/``error`` is surfaced as ``HYDRATE_GAP`` by the
+      existing run scan); the slot's data is normalized to ``{str:str}``.
+    - no ``tags`` block — ``({}, None, None)``.
+    """
+    block = entry.get("tags")
+    if not block:
+        return {}, None, None
+    if block["source"] == "rgta":
+        return rgta_map.get(rgta_join_arn(entry, item) or "", {}), None, None
+
+    env = hydrate_item(
+        client_for(entry["service"]),
+        {},
+        [{"key": "tags", "op": block["op"], "why": block.get("why", "resource tags")}],
+        call_kwargs={block["param"]: eval_path(item, block["param_from"])},
+    )
+    slot = env["_hydrate"]["tags"]
+    mapping = env["_hydrate_mapping"]["tags"]
+    tags: dict[str, str] = {}
+    if slot.get("status") == "ok":
+        tags = normalize_tags(eval_path(slot.get("data"), block["path"]), block["shape"])
+    return tags, slot, mapping
 
 
 class Boto3CollectorError(Exception):
@@ -109,9 +156,7 @@ class Boto3Collector(CollectorBase):
         raise Boto3CollectorError(message)
 
     def run(self) -> None:
-        self.record_info(
-            _SITE_RUN_STARTED, "RUN_STARTED", "AWS Core collection started."
-        )
+        self.record_info(_SITE_RUN_STARTED, "RUN_STARTED", "AWS Core collection started.")
 
         # --- credentials / region scope / account identity (unrecoverable) ---
         try:
@@ -158,18 +203,45 @@ class Boto3Collector(CollectorBase):
         custom_fns = build_custom_fn_registry()
         transforms = build_transform_registry()
 
+        # --- per-run RGTA tag sweep (req-aws-collector-tags -2/-6/-7) ---
+        if "us-east-1" not in regions:
+            self.record_warn(
+                _SITE_REGION_INVARIANT,
+                "REGION_INVARIANT",
+                "Region scope omits us-east-1: CloudFront-bound ACM certs and "
+                "global-resource tags are silently missed.",
+                message_data={"regions": regions},
+            )
+        rgta_filters = rgta_resource_type_filters(entries)
+        rgta_map: dict[str, dict[str, str]] = {}
+        for region in regions:
+            try:
+                rgta_map.update(
+                    sweep_tags(
+                        session.client(
+                            "resourcegroupstaggingapi",
+                            region_name=region,
+                            config=Config(retries={"mode": "standard"}),
+                        ),
+                        rgta_filters,
+                    )
+                )
+            except (BotoCoreError, ClientError) as exc:
+                self.record_warn(
+                    _SITE_RGTA_SKIPPED,
+                    "RGTA_SWEEP_SKIPPED",
+                    f"RGTA tag sweep failed in {region}: {exc}",
+                    message_data={"region": region},
+                )
+
         node_envelopes: list[dict[str, Any]] = []
         edge_envelopes: list[dict[str, Any]] = []
         skipped = 0
 
         for entry in entries:
-            entry_regions = (
-                regions if entry["scope"] == "regional" else [regions[0]]
-            )
+            entry_regions = regions if entry["scope"] == "regional" else [regions[0]]
             for region in entry_regions:
-                region_label = (
-                    region if entry["scope"] == "regional" else "global"
-                )
+                region_label = region if entry["scope"] == "regional" else "global"
                 dimensions = {
                     "cloud": "aws",
                     "aws_account": account_id,
@@ -186,10 +258,17 @@ class Boto3Collector(CollectorBase):
                     )
                     for item in items:
                         node = project_item(entry, item)
-                        node_envelopes.append(node_envelope(node, dimensions))
-                        for slot, rec in node.configuration.get(
-                            "_hydrate", {}
-                        ).items():
+                        tags, tag_slot, tag_mapping = resolve_node_tags(
+                            entry,
+                            item,
+                            rgta_map=rgta_map,
+                            client_for=client_factory(session, region),
+                        )
+                        if tag_slot is not None:
+                            node.configuration.setdefault("_hydrate", {})["tags"] = tag_slot
+                            node.configuration.setdefault("_hydrate_mapping", {})["tags"] = tag_mapping
+                        node_envelopes.append(node_envelope(node, dimensions, tags))
+                        for slot, rec in node.configuration.get("_hydrate", {}).items():
                             if rec.get("status") in ("denied", "error"):
                                 self.record_warn(
                                     _SITE_HYDRATE_GAP,
@@ -212,9 +291,7 @@ class Boto3Collector(CollectorBase):
                         )
                         edge_envelopes.extend(emission.envelopes)
                         for warning in emission.warnings:
-                            self.record_warn(
-                                _SITE_EDGE_DROPPED, "EDGE_DROPPED", warning
-                            )
+                            self.record_warn(_SITE_EDGE_DROPPED, "EDGE_DROPPED", warning)
                 except (
                     SourceError,
                     EdgeError,
@@ -267,9 +344,7 @@ class Boto3Collector(CollectorBase):
             ledger.summary(),
             message_data={"calls": ledger.entries},
         )
-        self.record_info(
-            _SITE_RUN_COMPLETED, "RUN_COMPLETED", "AWS Core collection complete."
-        )
+        self.record_info(_SITE_RUN_COMPLETED, "RUN_COMPLETED", "AWS Core collection complete.")
 
     @classmethod
     def self_test(cls) -> CollectorSelfTestResult:

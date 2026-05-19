@@ -768,10 +768,14 @@ not).
   shape (`list_kv` `[{Key,Value}]` → `{Key:Value}`; `map` → as-is) into the
   `{str: str}` field. Never a per-service loop — that is the drift-prone
   Steampipe-style boilerplate the prior-art analysis flagged; the
-  CloudQuery single-helper pattern is the model. The raw tag payload is
-  retained losslessly alongside the normalized field (the `_hydrate`
-  envelope for side-quests; the raw RGTA `[{Key,Value}]` for the RGTA path)
-  — the `tags`/`tags_raw` discipline mature tools converged on.
+  CloudQuery single-helper pattern is the model. Raw-retention follows the
+  `tags`/`tags_raw` discipline but is path-aware: the variable-shaped
+  **side-quest** path retains the raw response losslessly via the
+  `_hydrate` envelope (with the `ok|absent|denied|error` slot status);
+  the **RGTA** path needs no separate raw store because RGTA's
+  `list_kv`↔`map` is information-preserving (AWS tag keys are unique per
+  resource, values are strings) — the canonical `{str:str}` map is itself
+  the lossless form.
 - **Per-model field, no spine.** `tags` is a `JSONField(default=dict)` on
   each `aws_core` model — same field name and canonical shape across the
   model family, so "everything `Owner=X` across `aws_*`" is a normal field

@@ -35,12 +35,16 @@ _GRIFT_VERSION = "0"
 
 
 def node_envelope(
-    node: ProjectedNode, dimensions: dict[str, str]
+    node: ProjectedNode,
+    dimensions: dict[str, str],
+    tags: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Build a GRIFT node envelope from a projected node.
 
-    The ``node`` payload is the projected typed fields plus the lossless
-    ``configuration`` blob; the service layer validates it on import.
+    The ``node`` payload is the projected typed fields, the canonical
+    ``tags`` map (``req-aws-collector-tags``; ``{}`` when untagged — the
+    correct answer, never omitted), and the lossless ``configuration``
+    blob; the service layer validates it on import.
     """
     return {
         "entity": {
@@ -49,7 +53,11 @@ def node_envelope(
             "name": node.name,
             "dimensions": dimensions,
         },
-        "node": {**node.fields, "configuration": node.configuration},
+        "node": {
+            **node.fields,
+            "tags": tags or {},
+            "configuration": node.configuration,
+        },
     }
 
 
@@ -81,9 +89,7 @@ def assemble_batch(
     now_iso = moment.isoformat().replace("+00:00", "Z")
     label = f"AWS collection {now_iso}"
 
-    by_entity_type = Counter(
-        env["entity"]["entity_type"] for env in node_envelopes
-    )
+    by_entity_type = Counter(env["entity"]["entity_type"] for env in node_envelopes)
     description_data = {
         "schema_version": "v0",
         "manifest_version": manifest_version,
