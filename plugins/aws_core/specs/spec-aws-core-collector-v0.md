@@ -89,6 +89,7 @@ no encrypted secrets) are inherited as v0 fences.
 | req-aws-collector-identity | [Deterministic Identity](#deterministic-identity) | Approved for Development | `uuid5(ns, "<type>:<natural_key>")`; re-runs upsert |
 | req-aws-collector-edges | [Declarative Edge Rules](#declarative-edge-rules) | Approved for Development | Recompute-uuid5 edge resolution; v0 make-it-work = mutually-available natural keys |
 | req-aws-collector-edge-resolver | [Edge Identifier Resolution (Future Seam)](#edge-identifier-resolution-future-seam) | Backlog | The durable fix: pre-batch resolution pass; `key_kind`-driven; misses become observable warnings |
+| req-aws-collector-reconcile | [Grid-State Reconciliation (Future Seam)](#v0-non-goals) | Backlog | Implied-absence/tombstone via the same grid-read primitive as the resolver; one generic reconcile vs Cartography per-type cleanup |
 | req-aws-collector-hydrate | [Fan-Out Hydrate Seam](#fan-out-hydrate-seam) | Approved for Development | First named seam; per-op error-swallow; S3-style many-call |
 | req-aws-collector-credentials | [Credential Resolution](#credential-resolution) | Approved for Development | `tap_cares` secret, `aws_static_access_key`, single account |
 | req-aws-collector-runtime | [Collector Runtime Integration](#collector-runtime-integration) | Approved for Development | `CollectorBase` pipeline; mirrors the KSI reference collector |
@@ -497,6 +498,30 @@ alignment in-spec first if/when built. Demand-signal-gated, not built;
 the loud-by-construction warnings are the payoff that justifies it over the
 manifest workaround when the signal arrives.
 
+**Grid as the resolution backstop (refinement).** The resolver's index need
+not be limited to *this run's* in-memory node set. The grid is fully
+functional and already holds every previously-collected node with its ARN and
+associated identifiers as standard `BaseModel` fields; the collector is an
+ordinary Python process that can read it. So the authoritative index is the
+**grid itself**, consulted through a *service-layer read* (a gryphon query, or
+a generated search/ORM-backed runner if gryphon lacks the shape — never ad hoc
+per-model ORM iteration; that brute-force fallback is the thing the canonical
+path exists to avoid, not the design). This is exactly the resolution one
+would do anyway absent `uuid5`; `uuid5` is the optimistic accelerator (skip
+the lookup when both ends provably coincide), the grid read is the
+authoritative relief valve for every case where they might not. It
+**dissolves the "honest cost" above**: an edge to a node collected in a prior
+run but not this one now *resolves* against the grid instead of `warn`-
+dropping. The conscious tradeoff to record (it ties to
+[Audit Verifiability](#audit-verifiability)): a resolver that reads grid state
+makes the batch no longer a pure function of the AWS responses + manifest
+alone. Resolution stays a *lookup* (it does not alter what AWS reported, so
+the batch remains a faithful projection); the grid-state dependence becomes
+load-bearing only for **reconciliation/tombstone**, which is inherently a diff
+and shares this same grid-read primitive — see
+the grid-state reconciliation seam (`req-aws-collector-reconcile`) under
+[v0 Non-Goals](#v0-non-goals).
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
@@ -504,6 +529,7 @@ manifest workaround when the signal arrives.
 | req-aws-collector-edge-resolver-1 | Seam Named, Not Built | Backlog | The pre-batch edge-resolution pass (collected-node index keyed by standard identifiers; `key_kind`-driven target lookup; resolve / warn-drop / unsupported-drop) is specified here as the durable replacement for `req-aws-collector-edges-7`'s manifest workaround. Not implemented in v0. | The three-case model. |
 | req-aws-collector-edge-resolver-2 | uuid5 Retained As Allocator | Backlog | The resolver does not replace `uuid5` identity; it adds a lookup layer above it. `uuid5` stays the idempotent id allocator (`req-aws-collector-identity`); GRIFT edges remain `entity_id`-keyed. | Two jobs, decoupled. |
 | req-aws-collector-edge-resolver-3 | Misses Are Observable | Backlog | A supported-type target not found in the run resolves to a recorded `warn` + dropped edge, never a silent dangling edge. | The correctness payoff. |
+| req-aws-collector-edge-resolver-4 | Grid Is The Backstop | Backlog | The resolution index is the grid (via a service-layer read), not only this run's in-memory set; this dissolves the prior-run cost. Reads never use ad hoc per-model ORM iteration. Shares the grid-state-read primitive with `req-aws-collector-reconcile`. | uuid5 = accelerator; grid read = authoritative relief valve. |
 
 ### Fan-Out Hydrate Seam
 ----
@@ -1064,11 +1090,28 @@ future-seam discipline`).
 
 Deferred from v0:
 
-- **Deletion / reaping / staleness sweep.** No tombstones, no implied absence.
-  When introduced it must route through GRIFT and the service layer (not a
-  collector side channel) and must honor `req-aws-collector-regions-4` (an
-  ambiguous read must never cause a false delete — the transient-vs-skippable
-  hazard).
+- **Grid-state reconciliation — deletion / reaping / staleness sweep.**
+  RID: `req-aws-collector-reconcile` (Backlog). No tombstones, no implied
+  absence in v0. The named future seam: implied-absence is *the same
+  primitive* as the edge resolver's grid-as-backstop
+  (`req-aws-collector-edge-resolver-4`) — read the authoritative current grid
+  shape through a service-layer read, diff this run's batch against the slice
+  of the grid the run claims authority over, tombstone the difference. One
+  capability serves both (resolve references; reap absences). The strategic
+  bet (Cartography contrast): Cartography and peers carry per-node-type
+  `lastupdated` timestamps + bespoke per-relationship cleanup jobs — fiddly,
+  scattered, and the classic mass-false-delete footgun. TAP's uniform
+  Entity/Edge spine + dimensions + per-run GRIFT batch provenance make a
+  *single generic* reconcile (scope authority by source/dimensions, tombstone
+  grid-minus-batch) plausibly far less code and more systematic — that is the
+  reason to keep this seam, designed in-spec first when the signal arrives.
+  Hard constraints, non-negotiable: it must route through GRIFT + the service
+  layer (never a collector side channel); it must honor
+  `req-aws-collector-regions-4` (an ambiguous/skipped read must never cause a
+  false delete — the transient-vs-skippable hazard); and a **partial or
+  failed run must never trigger a sweep** (authority is only as wide as what
+  the run actually, completely covered — the single sharpest Cartography
+  footgun). Demand-signal-gated; not built.
 - **Multi-account.** v0 is one account. The secrets model already frames
   multi-account as "more secret files"; orchestration across accounts is later.
 - **Uniform-enumeration APIs** (Resource Groups Tagging API, Cloud Control API,
