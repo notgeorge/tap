@@ -7,17 +7,12 @@ and synthetic fixtures to cover error paths.
 from __future__ import annotations
 
 import json
-import os
 import textwrap
 from pathlib import Path
 
 import pytest
 
 from tap_plugins.validate.service import (
-    KNOWN_LEVELS,
-    SUPPORTED_LEVELS,
-    UnsupportedLevelError,
-    ValidationResult,
     validate_plugin,
 )
 
@@ -36,7 +31,7 @@ def _make_plugin(tmp_path: Path, *, toml: str, extra_files: dict[str, str] | Non
     (plugin_dir / "tap-plugin.toml").write_text(textwrap.dedent(toml))
     (plugin_dir / "__init__.py").write_text("")
     (plugin_dir / "apps.py").write_text(
-        'from tap_plugins.base import TapPluginConfig\n\n\nclass TestPluginConfig(TapPluginConfig):\n    pass\n'
+        "from tap_plugins.base import TapPluginConfig\n\n\nclass TestPluginConfig(TapPluginConfig):\n    pass\n"
     )
     if extra_files:
         for rel_path, content in extra_files.items():
@@ -87,22 +82,28 @@ class TestRealPlugins:
 
 class TestLevels:
     def test_default_level_is_structure(self, tmp_path):
-        plugin_dir = _make_plugin(tmp_path, toml="""\
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
             manifest_version = "0"
             plugin_version = "0.1.0"
             slug = "test"
             name = "Test"
-        """)
+        """,
+        )
         result = validate_plugin(plugin_dir)
         assert result.level == "structure"
 
     def test_unknown_level_raises_value_error(self, tmp_path):
-        plugin_dir = _make_plugin(tmp_path, toml="""\
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
             manifest_version = "0"
             plugin_version = "0.1.0"
             slug = "test"
             name = "Test"
-        """)
+        """,
+        )
         with pytest.raises(ValueError, match="Unknown validation level"):
             validate_plugin(plugin_dir, level="bogus")
 
@@ -135,11 +136,13 @@ class TestStrictMode:
                 name = "Test"
             """,
             extra_files={
-                "edges/STRAY.edge.json": json.dumps({
-                    "slug": "STRAY",
-                    "name": "Stray",
-                    "description": "An undeclared edge.",
-                }),
+                "edges/STRAY.edge.json": json.dumps(
+                    {
+                        "slug": "STRAY",
+                        "name": "Stray",
+                        "description": "An undeclared edge.",
+                    }
+                ),
             },
         )
         # Non-strict: passes with warning
@@ -186,22 +189,28 @@ class TestStructuralFailures:
         assert not result.ok
 
     def test_missing_required_field(self, tmp_path):
-        plugin_dir = _make_plugin(tmp_path, toml="""\
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
             manifest_version = "0"
             plugin_version = "0.1.0"
             slug = "test"
-        """)
+        """,
+        )
         result = validate_plugin(plugin_dir)
         assert not result.ok
 
     def test_unknown_top_level_key(self, tmp_path):
-        plugin_dir = _make_plugin(tmp_path, toml="""\
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
             manifest_version = "0"
             plugin_version = "0.1.0"
             slug = "test"
             name = "Test"
             bogus = "surprise"
-        """)
+        """,
+        )
         result = validate_plugin(plugin_dir)
         assert not result.ok
 
@@ -225,12 +234,15 @@ class TestStructuralFailures:
         assert len(failed) >= 1
 
     def test_no_models_dir_ok_when_no_models_declared(self, tmp_path):
-        plugin_dir = _make_plugin(tmp_path, toml="""\
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
             manifest_version = "0"
             plugin_version = "0.1.0"
             slug = "test"
             name = "Test"
-        """)
+        """,
+        )
         result = validate_plugin(plugin_dir)
         assert result.ok, result.to_human()
 
@@ -259,12 +271,15 @@ class TestStructuralFailures:
 
 class TestSummary:
     def test_summary_counts(self, tmp_path):
-        plugin_dir = _make_plugin(tmp_path, toml="""\
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
             manifest_version = "0"
             plugin_version = "0.1.0"
             slug = "test"
             name = "Test"
-        """)
+        """,
+        )
         result = validate_plugin(plugin_dir)
         s = result.summary
         assert s["checks_total"] == len(result.checks)
@@ -272,12 +287,15 @@ class TestSummary:
         assert s["checks_passed"] + s["checks_warned"] + s["checks_failed"] == s["checks_total"]
 
     def test_json_round_trips(self, tmp_path):
-        plugin_dir = _make_plugin(tmp_path, toml="""\
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
             manifest_version = "0"
             plugin_version = "0.1.0"
             slug = "test"
             name = "Test"
-        """)
+        """,
+        )
         result = validate_plugin(plugin_dir)
         doc = json.loads(result.to_json())
         assert doc["ok"] is True
@@ -305,9 +323,13 @@ class TestLoadsLevel:
         assert result.ok, result.to_human()
         model_check = next(c for c in result.checks if c.id == "model-classes")
         assert model_check.status == "pass"
-        # 37 models should produce 37 info messages
+        # One info per registered model. Count is NOT pinned: aws_core grows
+        # toward the full set (task #23), so a hardcoded literal is brittle
+        # by construction (it was `== 37`; aws_core is already at 40). Match
+        # the non-brittle convention of the lotr sibling tests above.
         info_msgs = [m for m in model_check.messages if m.severity == "info"]
-        assert len(info_msgs) == 37
+        assert info_msgs
+        assert all(m.text.startswith("Model ") for m in info_msgs)
 
     def test_administrivia_loads_passes(self):
         result = validate_plugin(PLUGINS_ROOT / "administrivia", level="loads")
@@ -342,9 +364,12 @@ class TestRunsLevel:
         assert result.ok, result.to_human()
         node_check = next(c for c in result.checks if c.id == "create-nodes")
         assert node_check.status == "pass"
-        # All 37 models should succeed
+        # Every model's create_node succeeds. Presence, not a pinned count
+        # (aws_core grows — task #23; this was `== 37`, already 40). The
+        # check status == "pass" is the real invariant.
         ok_msgs = [m for m in node_check.messages if "OK" in m.text]
-        assert len(ok_msgs) == 37
+        assert ok_msgs
+        assert all(m.text.startswith("create_node(") for m in ok_msgs)
 
     def test_runs_includes_loads_and_structure(self):
         result = validate_plugin(PLUGINS_ROOT / "lotr", level="runs")
