@@ -45,6 +45,7 @@
           "type": "array",
           "items": { "$ref": "#/$defs/hydrate_op" }
         },
+        "tags": { "$ref": "#/$defs/tags_block" },
         "edges": {
           "type": "array",
           "items": { "$ref": "#/$defs/edge_rule" }
@@ -77,6 +78,36 @@
         "op": { "type": "string", "minLength": 1 },
         "why": { "type": "string", "minLength": 1 }
       }
+    },
+    "tags_block": {
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "resource_type_filter"],
+          "properties": {
+            "source": { "const": "rgta" },
+            "resource_type_filter": { "type": "string", "minLength": 1 },
+            "arn_from": { "type": "string", "minLength": 1 },
+            "why": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "op", "param", "param_from", "path", "shape"],
+          "properties": {
+            "source": { "const": "service" },
+            "op": { "type": "string", "minLength": 1 },
+            "param": { "type": "string", "minLength": 1 },
+            "param_from": { "type": "string", "minLength": 1 },
+            "path": { "type": "string", "minLength": 1 },
+            "shape": { "type": "string", "enum": ["list_kv", "map"] },
+            "why": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
     },
     "edge_rule": {
       "type": "object",

@@ -94,6 +94,7 @@ no encrypted secrets) are inherited as v0 fences.
 | req-aws-collector-regions | [Region Iteration And Resilience](#region-iteration-and-resilience) | Approved for Development | Classify-and-skip; bounded throttle backoff |
 | req-aws-collector-grift-batch | [GRIFT Batch Assembly](#grift-batch-assembly) | Approved for Development | One batch/run; provenance; no deletion semantics |
 | req-aws-collector-audit-ledger | [Audit Verifiability](#audit-verifiability) | Approved for Development | Per-run AWS call ledger → `CollectionJob.results`; step one of the verifiability theme |
+| req-aws-collector-tags | [Resource Tags](#resource-tags) | Approved for Development | Per-node `tags.source` (RGTA default / per-service side-quest); one canonical `{str:str}` field |
 | req-aws-collector-model-deps | [Model Dependencies](#model-dependencies) | Proposed | CloudFront / CloudWatch log group / EventBridge rule models must exist |
 | req-aws-collector-sam-example | [Sam Worked Example](#sam-worked-example) | Proposed | Concrete manifest + edge set for the demo target |
 | req-aws-collector-build-skill | [Build-Collector Skill Direction](#build-collector-skill-direction) | Proposed | Skill is a manifest generator; trust-tier axis |
@@ -711,6 +712,102 @@ ledger as run provenance on the persisted, history-tracked `CollectionJob`
 | req-aws-collector-audit-ledger-3 | Single Drained Entry | Approved for Development | Drained once per run as one `AWS_CALL_LEDGER` `record_info` entry; `message_data.calls` is the array. | Operator stream stays legible. |
 | req-aws-collector-audit-ledger-4 | Outcome Vocabulary | Approved for Development | Per-call `outcome` ∈ `ok\|absent\|denied\|throttled\|error`, aligned with the hydrate classifier; AWS "not configured" 404s are `absent`, never `error`. | Live-validated; conflating absent into error is the `req-aws-collector-hydrate-6` anti-pattern. |
 | req-aws-collector-audit-ledger-5 | No New Format | Approved for Development | Reuses `collection_job_results.schema.json` (`message_data` free-form by `message_code`); no new schema. | Verification machinery is a future theme, not v0. |
+
+### Resource Tags
+----
+RID: `req-aws-collector-tags`
+Status: `Approved for Development`
+
+Every collected node carries a single canonical `tags` field — a flat
+`{str: str}` map — regardless of the wildly varying ways AWS returns tags.
+A broad botocore survey (42 services) found ~5 distinct wire shapes; AWS's
+unified Resource Groups Tagging API (`resourcegroupstaggingapi:GetResources`,
+"RGTA") returns one uniform shape for most resources in a single per-region
+sweep.
+
+The strategy is **RGTA-primary with per-service side-quests**, chosen
+clean-room from prior-art analysis (Cartography/CloudQuery/Steampipe/Prowler/
+ScoutSuite — patterns only, no code). Mature tools distrust RGTA *as a
+discovery source* (it returns only ever-tagged resources). That failure mode
+**does not bind this collector**: discovery is the per-service enumerate
+path (`req-aws-collector-source`); RGTA only *decorates* already-discovered,
+deterministically-identified nodes. An untagged resource simply gets
+`tags: {}` — the correct answer, not a gap. And because nodes are keyed
+`uuid5(type, natural_key)` where `natural_key` is the ARN for almost all
+types, the RGTA `ResourceARN`→node join is identity-equal — it does *not*
+reintroduce the `req-aws-collector-edges` ARN↔identity reconciliation
+problem (the decisive reason mature ARN-short-id tools suffered it; we do
+not).
+
+#### Implementation
+
+- A per-entry optional manifest `tags` block declares the source:
+  - `{"source": "rgta"}` — the default. Tags come from the per-region RGTA
+    sweep, joined by ARN.
+  - `{"source": "service", "op": …, "param": …, "param_from": …,
+    "path": …, "shape": "list_kv"|"map"}` — a side-quest: a per-resource
+    tag op resolved through the [Fan-Out Hydrate Seam](#fan-out-hydrate-seam)
+    (no new mechanism). Quarantined complexity, per
+    `req-aws-collector-source-4`.
+  - Absent `tags` block → the type carries no tags (declarative; never
+    hidden code).
+- **RGTA path.** One paginated `GetResources` per swept region, scoped by
+  `ResourceTypeFilters`, building an `ResourceARN → [{Key,Value}]` map; each
+  node's tags are `map.get(arn_for(node), {})` where `arn_for` is the node's
+  `natural_key` directly, or a small declared ARN→key transform where they
+  differ (CloudWatch log-group trailing `:*`; Route 53 hosted-zone
+  `arn:aws:route53:::hostedzone/<id>` → bare id). Reuses the existing
+  transform registry.
+- **Side-quest path (v0).** `aws_iam_role` (RGTA *explicitly excludes* IAM
+  roles) via `iam:ListRoleTags`; `aws_cloudfront_distribution` (CloudFront
+  documents Tag Editor / Resource Groups as unsupported, contradicting the
+  RGTA service list — do not trust RGTA) via
+  `cloudfront:ListTagsForResource`. Route 53 hosted-zone tags fold into its
+  `custom_fn` when that lands (deferred).
+- **One canonical normalizer.** A single engine seam folds any declared
+  shape (`list_kv` `[{Key,Value}]` → `{Key:Value}`; `map` → as-is) into the
+  `{str: str}` field. Never a per-service loop — that is the drift-prone
+  Steampipe-style boilerplate the prior-art analysis flagged; the
+  CloudQuery single-helper pattern is the model. The raw tag payload is
+  retained losslessly alongside the normalized field (the `_hydrate`
+  envelope for side-quests; the raw RGTA `[{Key,Value}]` for the RGTA path)
+  — the `tags`/`tags_raw` discipline mature tools converged on.
+- **Per-model field, no spine.** `tags` is a `JSONField(default=dict)` on
+  each `aws_core` model — same field name and canonical shape across the
+  model family, so "everything `Owner=X` across `aws_*`" is a normal field
+  query *by convention*. It is **not** an Entity-spine facet: `dimensions`
+  is already the spine's key/value system, and AWS tags are mutable
+  source-owned descriptive metadata that must never silently re-partition
+  the grid (`req-grid-*` scoping is dimension-owned).
+- **`us-east-1` invariant.** Global resources (IAM, CloudFront, Route 53)
+  and CloudFront-bound ACM certificates appear in RGTA only in the
+  `us-east-1` per-region results. The region scope **must** include
+  `us-east-1` or those tags are silently missed; `self_test` warns when it
+  is absent.
+- **RGTA operational contract.** `PaginationToken` is valid ≤ 15 minutes
+  (`PaginationTokenExpiredException` → restart the sweep, never resume
+  mid-iteration); `ThrottledException` → bounded backoff; per-region,
+  per-account; `ResourceTypeFilters` only (never `ResourceARNList`) for
+  sweeps. RGTA is a tag-presence index, eventually consistent — the
+  per-service enumerate remains authoritative for existence; RGTA only
+  decorates.
+- The v0 shape enum is fenced to `list_kv | map` (covers all of Sam's 8).
+  The known outliers — ECS lowercase `key`/`value`, CloudTrail per-resource
+  nesting, WAFv2 wrapped — are real but out of scope, named as a future
+  enum extension, not built.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-aws-collector-tags-1 | Declarative Source | Approved for Development | A manifest `tags.source` ∈ `rgta\|service` declares per-type tag retrieval; absent ⇒ no tags. No hidden per-service code. | |
+| req-aws-collector-tags-2 | RGTA Default Path | Approved for Development | One paginated per-region `GetResources` sweep, `ResourceTypeFilters`-scoped, joined to nodes by ARN (`natural_key` or a declared transform). Untagged ⇒ `{}`, correct (discovery is independent). | RGTA never drives discovery. |
+| req-aws-collector-tags-3 | Side-Quest Path | Approved for Development | `service` sources resolve via the hydrate seam; v0 = `aws_iam_role` (`ListRoleTags`), `aws_cloudfront_distribution` (`ListTagsForResource`); Route 53 folds into its `custom_fn`. | RGTA excludes IAM roles; CloudFront unsupported. |
+| req-aws-collector-tags-4 | One Canonical Normalizer | Approved for Development | A single engine seam folds any declared shape → `{str:str}`; no per-service loops; raw retained losslessly. | CloudQuery pattern; not Steampipe boilerplate. |
+| req-aws-collector-tags-5 | Per-Model Field, No Spine | Approved for Development | `tags` `JSONField` on each `aws_core` model, uniform name+shape; never an Entity-spine facet. | Cross-resource query by convention. |
+| req-aws-collector-tags-6 | us-east-1 Invariant | Approved for Development | Region scope must include `us-east-1`; `self_test` warns if absent, or global / CloudFront-cert tags are silently missed. | |
+| req-aws-collector-tags-7 | RGTA Op-Contract | Approved for Development | 15-min pagination-token TTL (restart, not resume), throttle backoff, `ResourceTypeFilters` only; RGTA decorates, never authoritative for existence. | Eventually consistent. |
+| req-aws-collector-tags-8 | Shape Enum Fenced | Approved for Development | v0 `shape` ∈ `list_kv\|map` (all of Sam's 8); ECS / CloudTrail / WAFv2 outliers named as a future extension, not built. | |
 
 ### Model Dependencies
 ----

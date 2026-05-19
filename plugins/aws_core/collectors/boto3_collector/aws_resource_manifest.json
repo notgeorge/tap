@@ -17,6 +17,11 @@
         "memory_size": "MemorySize",
         "timeout": "Timeout"
       },
+      "tags": {
+        "source": "rgta",
+        "resource_type_filter": "lambda:function",
+        "why": "Resource tags — ownership / environment / cost / compliance scoping."
+      },
       "edges": [
         {
           "value_path": "Role",
@@ -48,6 +53,15 @@
         "path": "Path",
         "max_session_duration": "MaxSessionDuration"
       },
+      "tags": {
+        "source": "service",
+        "op": "ListRoleTags",
+        "param": "RoleName",
+        "param_from": "RoleName",
+        "path": "Tags",
+        "shape": "list_kv",
+        "why": "Resource tags — RGTA excludes IAM roles; per-service side-quest."
+      },
       "edges": []
     },
     {
@@ -64,6 +78,11 @@
         "state": "State",
         "schedule_expression": "ScheduleExpression",
         "event_bus_name": "EventBusName"
+      },
+      "tags": {
+        "source": "rgta",
+        "resource_type_filter": "events:rule",
+        "why": "Resource tags — ownership / environment / cost / compliance scoping."
       },
       "edges": [
         {
@@ -88,6 +107,12 @@
         "log_group_arn": "arn",
         "retention_in_days": "retentionInDays"
       },
+      "tags": {
+        "source": "rgta",
+        "resource_type_filter": "logs:log-group",
+        "arn_from": "logGroupArn",
+        "why": "Resource tags; arn_from logGroupArn (RGTA ARN omits the describe ':*' suffix)."
+      },
       "edges": []
     },
     {
@@ -103,6 +128,11 @@
         "certificate_arn": "CertificateArn",
         "domain_name": "DomainName",
         "status": "Status"
+      },
+      "tags": {
+        "source": "rgta",
+        "resource_type_filter": "acm:certificate",
+        "why": "Resource tags; CloudFront-bound certs only in us-east-1 (region invariant)."
       },
       "edges": []
     },
@@ -120,6 +150,15 @@
         "domain_name": "DomainName",
         "status": "Status",
         "enabled": "Enabled"
+      },
+      "tags": {
+        "source": "service",
+        "op": "ListTagsForResource",
+        "param": "Resource",
+        "param_from": "ARN",
+        "path": "Tags.Items",
+        "shape": "list_kv",
+        "why": "Resource tags — CloudFront Tag Editor/Resource Groups unsupported; side-quest."
       },
       "edges": [
         {
@@ -150,6 +189,12 @@
       "fields": {
         "name": "Name",
         "bucket_arn": "BucketArn"
+      },
+      "tags": {
+        "source": "rgta",
+        "resource_type_filter": "s3",
+        "arn_from": "BucketArn",
+        "why": "Resource tags — RGTA s3 (buckets-only, which is our target)."
       },
       "hydrate": [
         {
