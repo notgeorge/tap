@@ -575,13 +575,10 @@ def _panel_error(request: HttpRequest, message: str) -> HttpResponse:
 
 def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
     """Render a live all-nodes + all-edges view when no LandingPage is configured."""
-    from tap_grid.models import Entity as _Entity
     from tap_grid.models import Search
     from tap_grid.search import execute_search
     from tap_web.panels.table_panel import _safe_int
     from tap_web.utils import safe_json
-
-    _SEARCH_DB = "search_readonly"
 
     node_limit = _safe_int(request.GET.get("limit"), 100)
     node_offset = _safe_int(request.GET.get("offset"), 0)
@@ -612,8 +609,8 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
     }
 
     try:
-        node_result = execute_search(node_search, limit=node_limit, offset=node_offset)
-        edge_result = execute_search(edge_search, limit=edge_limit, offset=edge_offset)
+        node_result = execute_search(node_search, limit=node_limit, offset=node_offset, layer="extended")
+        edge_result = execute_search(edge_search, limit=edge_limit, offset=edge_offset, layer="extended")
     except Exception as exc:  # noqa: BLE001
         logger.exception("[5c03] Grid placeholder search failed")
         return render(
@@ -661,17 +658,6 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
     else:
         edges = edge_result.get("edges", [])
         edges_meta = {}
-
-    from tap_web.panels.table_panel import _enrich_nodes_with_icons
-
-    _enrich_nodes_with_icons(nodes)
-
-    if edges:
-        all_ids = {e["from_entity_id"] for e in edges} | {e["to_entity_id"] for e in edges}
-        names: dict[str, str] = dict(_Entity.objects.using(_SEARCH_DB).filter(id__in=all_ids).values_list("id", "name"))
-        for edge in edges:
-            edge["from_name"] = names.get(edge["from_entity_id"]) or edge["from_entity_id"][-8:]
-            edge["to_name"] = names.get(edge["to_entity_id"]) or edge["to_entity_id"][-8:]
 
     return render(
         request,
