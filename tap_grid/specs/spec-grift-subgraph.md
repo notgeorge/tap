@@ -6,6 +6,18 @@ GRIFT v0 defines a batch-oriented interchange document for moving graph data bet
 
 GRIFT Subgraph defines that common contract.
 
+> **Note:** [`spec-grift-envelope.md`](spec-grift-envelope.md) (Proposed)
+> evolves the per-member shape into a four-lane envelope
+> (top-level spine, `data`, `display`, reserved `provenance`). The outer
+> `{nodes: [], edges: []}` container, the `lite` / `full` / `extended`
+> return layer concept, the wrapper-envelope contract, the
+> ordering rule, and the canonical implementation home in
+> `tap_grid.grift` are all unchanged. When the envelope spec moves to
+> Implemented, the "Canonical Member Shape," "Lite Member Guidance,"
+> and the relevant portion of "Presentation Separation" sections of
+> this spec will be updated in the same change to cross-reference the
+> envelope spec.
+
 A GRIFT subgraph is the canonical batchless graph shape for TAP: a simple `nodes` and `edges` envelope whose members use the same full canonical node and edge shapes defined by GRIFT v0. This gives TAP one portable object contract for graph data while still allowing higher-level systems to add their own outer result metadata or presentation adapters.
 
 ## Goals

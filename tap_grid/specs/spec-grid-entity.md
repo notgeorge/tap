@@ -83,6 +83,59 @@ The initial implementation didn't automatically tie Entity and BaseModel creatio
 
 ---
 
+### Canonical Spine Surface
+----
+RID: `req-grid-entity-spine-surface`
+Status: `Proposed`
+
+The set of fields stored on the `Entity` row, and their canonical order
+when serialized, is fixed and reusable across TAP. Higher-level specs
+that emit `Entity` content (envelopes, GRIFT documents, API responses)
+reference this requirement rather than redefining the order.
+
+#### Implementation
+
+The canonical Entity-row fields, in their canonical serialization order:
+
+| Field | Source | Notes |
+| --- | --- | --- |
+| `entity_id` | `Entity.id` (renamed for serialization) | UUID. Typically UUIDv7 for collector- and service-emitted entities; UUIDv5 for deterministic-identity scenarios (e.g. the boto3 collector's `uuid5(NS, "<type>:<natural_key>")`). The stable identifier. |
+| `entity_type` | `Entity.entity_type` | Polymorphism discriminator. Immutable post-create. |
+| `name` | `Entity.name` | Human-readable. Descriptive metadata, not a stable identifier (the `entity_id` is). |
+| `dimensions` | `Entity.dimensions` | Scoping/partitioning JSON object. |
+| `created_at` | audit timestamp | ISO 8601 UTC. |
+| `updated_at` | audit timestamp | ISO 8601 UTC. |
+| `deleted_at` | `Entity.deleted_at` | Tombstone timestamp or `null`. |
+| `version` | `Entity.version` | Monotonic counter; increments on canonical mutation including tombstone. |
+| `originating_grid_id` | `Entity.originating_grid_id` | Source grid identifier. Premature in v0; flagged for removal. See Future. |
+
+The `id` field renames to `entity_id` at the serialization boundary so
+"id" is reserved for the inner identity within a polymorphic context
+(e.g. when an envelope nests multiple identifier shapes).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-entity-spine-surface-1 | Fields Enumerated | Proposed | The set of Entity-row fields is enumerated above; adding a new field requires updating this requirement. | |
+| req-grid-entity-spine-surface-2 | Serialization Order Stable | Proposed | Serializers emit Entity fields in the order specified. Aids reading, diffing, and locating fields by position. | |
+| req-grift-entity-spine-surface-3 | entity_id Is UUID, Not UUIDv7-Specific | Proposed | The `entity_id` is a UUID. Callers must not assume UUIDv7 layout; deterministic-identity scenarios use UUIDv5. | |
+| req-grid-entity-spine-surface-4 | Higher-Level Specs Reference, Not Redefine | Proposed | Specs that emit Entity content (envelope, GRIFT, API) reference this requirement rather than restating the field list and order. | |
+
+#### Future
+
+- **Remove `originating_grid_id`.** The field was added in anticipation
+  of cross-grid identity reconciliation; in practice we have not needed
+  it and it carries no current meaning in single-grid workflows. Marked
+  for removal — exact migration path TBD when removal is scheduled.
+- **`description` / `description_json` on the spine.** The canonical
+  entity metadata contract (`req-grid-entity-metadata`) names these as
+  universal but they're currently stored on `BaseModel`, not on the
+  Entity row. If they ever migrate to the spine, they join this surface
+  in the canonical order between `name` and `dimensions`.
+
+---
+
 ### Entity Type Declaration
 ----
 RID: `req-grid-entity-type`
