@@ -238,6 +238,41 @@ class Entity(models.Model):
             GinIndex(fields=["dimensions"], name="idx_entity_dimensions_gin"),
         ]
 
+    # ------------------------------------------------------------------
+    # Canonical Spine Surface (req-grid-entity-spine-surface)
+    # ------------------------------------------------------------------
+    #
+    # The canonical list of Entity-row field names in their canonical
+    # serialization order. Single source of truth for:
+    #   - tap_grid.grift.subgraph.build_spine_surface() — what to emit at
+    #     the top of every envelope
+    #   - tap_grid.gryphon — what spine prefixes resolve against in
+    #     WHERE/RETURN paths (req-grid-traversal-lang-envelope-paths)
+    #
+    # The tuple uses *serialized* names (e.g. `entity_id`), which differ
+    # from the Django field name in one case: the primary key `id`
+    # surfaces as `entity_id` at the envelope boundary. SPINE_DJANGO_NAME
+    # maps the envelope name to the Django ORM attribute name when they
+    # differ; absent from the dict means they match.
+    #
+    # Drift guard: tap_grid/tests/test_entity_spine.py asserts this tuple
+    # matches Entity._meta.fields modulo the documented renames. Adding a
+    # field to Entity without updating this tuple reds the test.
+    SPINE_FIELD_NAMES: ClassVar[tuple[str, ...]] = (
+        "entity_id",
+        "entity_type",
+        "name",
+        "dimensions",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "version",
+        "originating_grid_id",
+    )
+    SPINE_DJANGO_NAME: ClassVar[dict[str, str]] = {
+        "entity_id": "id",  # primary key surfaces as entity_id in the envelope
+    }
+
     def __str__(self) -> str:
         if self.name:
             return f"{self.name} ({self.entity_type})"

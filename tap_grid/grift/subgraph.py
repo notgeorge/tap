@@ -63,22 +63,28 @@ _BASEMODEL_UNIVERSAL_FIELDS: tuple[str, ...] = ("description", "batch_id", "flip
 def build_spine_surface(entity: Entity) -> dict[str, Any]:
     """Build the top-level spine surface for an envelope.
 
-    Returns the Entity-row fields, flat, in the canonical order defined by
-    spec-grid-entity § Canonical Spine Surface (req-grid-entity-spine-surface).
-    These keys are merged directly into the envelope's top level, not nested
-    under any lane key.
+    Reads the canonical field set and order from
+    ``Entity.SPINE_FIELD_NAMES`` (single source of truth — see
+    spec-grid-entity § Canonical Spine Surface and
+    req-grid-entity-spine-surface). Names are translated to their
+    Django ORM attribute via ``Entity.SPINE_DJANGO_NAME`` when they
+    differ (today only ``entity_id`` ↔ ``id``).
+
+    Returned values are JSON-safe: UUIDs become strings, datetimes
+    become ISO 8601, missing values stay ``None``.
     """
-    return {
-        "entity_id": str(entity.pk),
-        "entity_type": entity.entity_type,
-        "name": entity.name,
-        "dimensions": entity.dimensions,
-        "created_at": entity.created_at.isoformat() if entity.created_at else None,
-        "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,
-        "deleted_at": entity.deleted_at.isoformat() if entity.deleted_at else None,
-        "version": entity.version,
-        "originating_grid_id": str(entity.originating_grid_id) if entity.originating_grid_id else None,
-    }
+    from tap_grid.models import Entity as _Entity
+
+    result: dict[str, Any] = {}
+    for serialized_name in _Entity.SPINE_FIELD_NAMES:
+        django_name = _Entity.SPINE_DJANGO_NAME.get(serialized_name, serialized_name)
+        value = getattr(entity, django_name, None)
+        if isinstance(value, uuid.UUID):
+            value = str(value)
+        elif hasattr(value, "isoformat"):
+            value = value.isoformat()
+        result[serialized_name] = value
+    return result
 
 
 def build_data_lane(typed_model: BaseModel | None) -> dict[str, Any]:
