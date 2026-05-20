@@ -122,6 +122,10 @@ INSTALLED_APPS = [
     # plugins/genericom/ but NOT loaded — real-account work (samsite)
     # supersedes it. Re-add this line to revive.
     # "plugins.genericom.apps.GenericomConfig",
+    # Samsite plugin — projection of the live AWS cross-deployment of
+    # samaydlette.com (target of the Sam demo, 2026-06-01). Owns the
+    # landing page + first cytoscape graph panel against real boto3 data.
+    "plugins.samsite.apps.SamsiteConfig",
     # FedRAMP 20x KSI plugin — Key Security Indicator catalog
     "plugins.fedramp_20x_ksi.apps.Fedramp20xKsiConfig",
     # API layer — last so ready() discovers all plugin routers

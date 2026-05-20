@@ -1,0 +1,8 @@
+manifest_version = "0"
+plugin_version = "0.1.0"
+slug = "samsite"
+name = "Samsite"
+description = "Projection plugin for George's live reproduction of Sam Aydlette's static site + FedRAMP 20x compliance machinery (target of the Sam demo)."
+
+[grift]
+landing = "grift/landing.grift.json"

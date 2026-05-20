@@ -1,0 +1,214 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "f9cac1cb-7642-56d4-8876-29bed02dd856",
+        "entity_type": "batch",
+        "name": "Samsite landing v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite",
+        "name": "Samsite landing v0.1.0",
+        "description": "Pass-1 landing page: aws_account container + cytoscape graph panel projecting every aws_* entity the boto3 collector currently knows about for account 180731181784. Deliberately unfiltered and unstyled — we're scouting the cruft in the beater account before curating."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "6d305295-e1cf-5029-8b56-521376625d34",
+            "entity_type": "aws_account",
+            "name": "George Beater Account (180731181784)",
+            "dimensions": {
+              "cloud": "aws",
+              "aws_account": "180731181784"
+            }
+          },
+          "node": {
+            "name": "George Beater Account (180731181784)",
+            "account_id": "180731181784",
+            "status": "ACTIVE",
+            "configuration": {
+              "purpose": "Cross-deployment of samaydlette.com — target of the Sam demo (2026-06-01). Long-running beater account, expect legacy cruft.",
+              "minted_by": "plugins.samsite",
+              "minted_with_collector_namespace": true,
+              "note": "Entity ID is uuid5(NAMESPACE_AWS_COLLECTOR, 'aws_account:180731181784') so when aws_core's boto3 collector eventually emits this node itself, the upsert collides cleanly."
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "eb9fb415-ba8d-57e5-ab3f-1e2411ce0822",
+            "entity_type": "search",
+            "name": "Samsite — all aws_* nodes",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Samsite — all aws_* nodes",
+            "description": "Every node whose entity_type starts with aws_, including the synthetic aws_account container. Pass-1 dump — see plan/strat-sam-demo.md.",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {
+              "filters": {"entity_type__startswith": "aws_"},
+              "order_by": ["entity_type", "name"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "c0a6a6cf-89b3-5b78-8c5e-fb55ad33b85e",
+            "entity_type": "search",
+            "name": "Samsite — all edges (graph_panel filters by node-set)",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Samsite — all edges (graph_panel filters by node-set)",
+            "description": "All edges; graph_panel keeps only those whose endpoints are in the matched node-set (tap_viz/static/tap_viz/js/panel-graph.js).",
+            "search_type": "orm",
+            "root": "edge",
+            "definition": {
+              "filters": {},
+              "order_by": ["edge_type"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "entity_type": "layout",
+            "name": "samsite-aws-flat",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "samsite-aws-flat",
+            "description": "Flat cose layout — no nesting, no curated arrangement. Pass-1 view: see everything in the account at once, including legacy cruft.",
+            "definition": {
+              "inputs": [],
+              "steps": [{"type": "search", "search-id": "main"}],
+              "presentation": {"placement": "cytoscape:cose"},
+              "interactions": {}
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "8630ba38-df57-5da1-92fa-0412368583cd",
+            "entity_type": "panel",
+            "name": "Samsite Landing Graph",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-landing-graph",
+            "name": "Samsite Landing Graph",
+            "view": "tap_viz/panels/graph_panel.html",
+            "config": {"height": "100%", "hide_header": true}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "9ccaf518-bf6d-5d09-bd77-a0e7c3d839a4",
+            "entity_type": "page",
+            "name": "Samsite",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Samsite",
+            "slug": "/samsite",
+            "layout": {
+              "columns": {
+                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "main", "height": "1fr"}}}
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "e33cba76-4bb6-53d8-aa2b-1c75c48c263c",
+            "entity_type": "landing_page",
+            "name": "Samsite Landing",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Samsite Landing",
+            "description": "Default site landing page — Samsite AWS overview (account 180731181784)."
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "314de02d-0e22-5411-a1a3-b34d3e63a243",
+            "entity_type": "edge",
+            "name": "Layout USES_SEARCH (nodes)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "eb9fb415-ba8d-57e5-ab3f-1e2411ce0822",
+            "edge_type": "USES_SEARCH",
+            "properties": {"search-id": "main"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "f5b1c9dc-9e3f-5b0b-9bba-3c93fcd2d9a3",
+            "entity_type": "edge",
+            "name": "Layout USES_SEARCH (edges)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "c0a6a6cf-89b3-5b78-8c5e-fb55ad33b85e",
+            "edge_type": "USES_SEARCH",
+            "properties": {"search-id": "edges"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "b81edb9c-fe48-523c-a48a-0cad70223163",
+            "entity_type": "edge",
+            "name": "Panel USES_LAYOUT samsite-aws-flat",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "8630ba38-df57-5da1-92fa-0412368583cd",
+            "to_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "edge_type": "USES_LAYOUT",
+            "properties": {"layout-id": "default"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "6532c421-abc0-5bed-831a-8a38c9412449",
+            "entity_type": "edge",
+            "name": "Page USES_PANEL Samsite Landing Graph",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "9ccaf518-bf6d-5d09-bd77-a0e7c3d839a4",
+            "to_entity_id": "8630ba38-df57-5da1-92fa-0412368583cd",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "main"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "54636bc8-7f06-5ada-a0be-69419835eab3",
+            "entity_type": "edge",
+            "name": "USES_LANDING_PAGE",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e33cba76-4bb6-53d8-aa2b-1c75c48c263c",
+            "to_entity_id": "9ccaf518-bf6d-5d09-bd77-a0e7c3d839a4",
+            "edge_type": "USES_LANDING_PAGE",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}
