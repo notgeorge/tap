@@ -25,6 +25,7 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-patterns | [Pattern And Binding Syntax](#pattern-and-binding-syntax) | Implemented | Node/edge/path patterns, direction, bounded traversal |
 | req-grid-traversal-lang-filters | [Field And Predicate Semantics](#field-and-predicate-semantics) | Implemented | Inline filters and WHERE predicates over model fields; multi-step JSON paths deferred to `req-grid-traversal-lang-filters-jsonpath` |
 | req-grid-traversal-lang-filters-jsonpath | [JSONPath For JSON Field Predicates](#jsonpath-for-json-field-predicates) | Proposed | Adopt RFC 9535 JSONPath for `WHERE` predicates over JSON-backed fields; replace in-house dot/bracket grammar |
+| req-grid-traversal-lang-envelope-paths | [Envelope-Aware Field Paths](#envelope-aware-field-paths) | Proposed | Recognize `data` and `display` lane prefixes in `WHERE`/`RETURN`; explicit-only, no routing sugar |
 | req-grid-traversal-lang-combinators | [Predicate Combinators](#predicate-combinators) | Implemented | AND/OR/NOT in WHERE predicates |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
 | req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
@@ -295,6 +296,128 @@ The dotted gryphon syntax that authors already write (`r.properties.relationship
 - Support for non-Postgres backends via a Python-side JSONPath evaluator. Out of scope until a second backend exists.
 - Expanding `[*]` semantics to support `ALL` (all members satisfy) in addition to the default `ANY` (at least one satisfies). Worth a separate ACID once a real query demands it.
 
+
+### Envelope-Aware Field Paths
+----
+RID: `req-grid-traversal-lang-envelope-paths`
+Status: `Proposed`
+
+`WHERE` and `RETURN` field paths interact with the canonical envelope
+shape ([`spec-grift-envelope`](spec-grift-envelope.md)) by recognizing
+two literal lane prefixes — `data` and `display` — and routing them to
+the right underlying storage.
+
+#### Background
+
+The envelope shape has a top-level spine surface (Entity-row fields:
+`entity_id`, `entity_type`, `name`, `dimensions`, timestamps, `version`,
+`originating_grid_id`), a `data` lane (per-model BaseModel-row fields:
+`description`, model-specific scalars, `tags`, JSON-typed blobs,
+`batch_id`, `flip_map`), and a `display` lane (consumer-namespaced
+computed-for-render values: `display.tap_viz.*`, future
+`display.tap_web_table.*`, etc.). Without envelope awareness, Gryphon
+can address spine fields directly (today's behavior) but has no way
+to filter or project on per-model fields like `n.data.tags.Project` —
+which is exactly the query shape the samsite landing-page filter
+requires.
+
+#### Implementation
+
+- **Explicit-only prefixes.** A path's first step determines the lane:
+  - `n.<spinefield>` — resolves against the Entity row. The compiler
+    validates that `<spinefield>` is in the canonical spine set
+    (`req-grid-entity-spine-surface` / `Entity._meta`). An unknown
+    spine field is a parse-time error, not a silent fallback to data.
+  - `n.data.<...>` — resolves against the per-model BaseModel row.
+    The compiler joins to the typed model and walks `<...>` against
+    its columns (scalars or JSON-typed via JSONPath translation per
+    `req-grid-traversal-lang-filters-jsonpath`).
+  - `n.display.<consumer>.<...>` — resolves against the per-type
+    `DEFAULT_DISPLAY[<consumer>]` lookup. Rare in `WHERE` (the values
+    are computed, not stored, so filtering on them is unusual);
+    common in `RETURN`.
+
+- **No routing sugar.** The compiler does NOT auto-route an unprefixed
+  per-model field to the data lane. `n.tags.Project` is an error
+  ("`tags` is not a spine field; if you meant the data-lane field,
+  write `n.data.tags.Project`"). The error message names the explicit
+  form. Rationale: see [Status Details](#envelope-aware-field-paths-status-details).
+
+- **The `data` and `display` keywords are reserved.** No spine field
+  may be named `data` or `display`; the spine field list is small and
+  the names don't collide with Entity columns today, so this is a
+  natural constraint, not a renaming hazard.
+
+- **Compilation target:** scalar columns on the per-model row compile
+  to direct Django ORM lookups (`Character.objects.filter(tags__Project=...)`-
+  style). JSON-typed paths inside `data` (e.g.
+  `data.configuration.<deep>.<path>`) compile via the JSONPath route
+  established in `req-grid-traversal-lang-filters-jsonpath`. JSONPath
+  filter predicates (`[?(@.key == "value")]`) come along for the ride
+  once that requirement is implemented; this requirement does not
+  re-litigate them.
+
+#### Status Details {#envelope-aware-field-paths-status-details}
+
+The earlier design draft considered a sugared form — `n.tags.Project`
+auto-routing to `n.data.tags.Project` based on a spine-first /
+data-fallback resolution rule. That sugar was rejected for two
+overlapping reasons:
+
+1. **No prior-art precedent.** Django ORM (through OneToOne joins),
+   SQLAlchemy, Mongo, GraphQL, JSON:API, JSONPath all use explicit
+   qualified paths. Cypher elides labels but has no spine/data split
+   so the question doesn't arise. SQL's implicit-when-unambiguous is
+   the closest precedent, but only because column ambiguity is
+   statically detectable. **No mainstream system does the
+   implicit-routing pattern we were considering.** Inventing patterns
+   with no precedent is usually a warning sign rather than novelty.
+
+2. **LLM-author cost-benefit.** The argument for sugar was keystroke
+   savings for interactive query writers. In an LLM-authored
+   codebase, the writer (LLM) doesn't care about character count;
+   the reader (human in code review, debugging, spec writing) is the
+   one who pays the cognitive cost of "what does this path actually
+   mean?" Explicit paths self-document; implicit routing creates
+   opaque-behavior tax with no offsetting benefit.
+
+The conjunction made the explicit-only design the obvious call. This
+status-details section is recorded so future designers can find the
+rejected alternative and the reasons it was rejected, not re-litigate
+them.
+
+#### Examples
+
+```
+# Spine field lookup — works today.
+MATCH (n:aws_lambda) WHERE n.entity_id = $id RETURN n
+
+# Per-model scalar — new (data prefix).
+MATCH (n:aws_lambda) WHERE n.data.runtime = "nodejs22.x" RETURN n
+
+# JSON-typed per-model field — new (data prefix + JSONPath, via
+# req-grid-traversal-lang-filters-jsonpath).
+MATCH (n) WHERE n.data.tags.Project = "samsite" RETURN n
+
+# Display lane projection — new (display prefix, mostly RETURN-only).
+MATCH (n:aws_lambda) RETURN n.entity_id, n.display.tap_viz.icon_url
+
+# Bad — would have worked under the rejected sugar; now an error.
+MATCH (n) WHERE n.tags.Project = "samsite" RETURN n
+# Error: `tags` is not a spine field; if you meant the data-lane
+# field, write `n.data.tags.Project`.
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-envelope-paths-1 | Spine Prefix Implicit | Proposed | `n.<spinefield>` resolves against the Entity row when `<spinefield>` is in the canonical spine set; unknown spine fields are a parse-time error. | The spine set is sourced from `Entity._meta` per `req-grid-entity-spine-surface`. |
+| req-grid-traversal-lang-envelope-paths-2 | Data Prefix Required For Per-Model Fields | Proposed | `n.data.<...>` resolves against the per-model BaseModel row. `n.<per-model-field>` without the `data` prefix is a parse-time error with a message naming the explicit form. | No routing sugar. |
+| req-grid-traversal-lang-envelope-paths-3 | Display Prefix For Computed-For-Render | Proposed | `n.display.<consumer>.<...>` resolves against per-type `DEFAULT_DISPLAY[<consumer>]` lookups. | Common in `RETURN`, rare in `WHERE`. |
+| req-grid-traversal-lang-envelope-paths-4 | Reserved Keywords | Proposed | `data` and `display` are reserved as lane prefixes; no spine field may shadow them. | Constraint, not enforcement — spine fields don't collide today. |
+| req-grid-traversal-lang-envelope-paths-5 | JSON Paths Inside Data Compose | Proposed | A path like `n.data.tags.Project` decomposes into "drop into data lane" + "JSON path inside that JSON-typed column" per `req-grid-traversal-lang-filters-jsonpath`. The two requirements compose; no separate JSON-inside-data syntax. | |
+| req-grid-traversal-lang-envelope-paths-6 | No Routing Sugar | Proposed | The compiler does NOT auto-route unprefixed per-model field references to the data lane. Implicit routing was considered and rejected; see Status Details. | See [[feedback-explicit-over-brevity-llm-era]] and [[feedback-borrow-from-oss-prior-art]] for the broader principle. |
 
 ### Predicate Combinators
 ----
