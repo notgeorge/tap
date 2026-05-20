@@ -22,6 +22,13 @@ from tap_grid.grift.importer import (
     grift_import,
 )
 
+# Envelope parse-and-split (write path; spec-grift-envelope § Envelope Validation).
+from tap_grid.grift.envelope import (
+    EnvelopeValidationError,
+    SplitPayload,
+    parse_envelope_for_write,
+)
+
 # Subgraph public API — envelope shape per spec-grift-envelope.
 from tap_grid.grift.subgraph import (
     SubgraphLayer,
@@ -52,6 +59,10 @@ __all__ = [
     "GriftIssue",
     "GriftSkippedBatch",
     "grift_import",
+    # Envelope parse / write-path
+    "EnvelopeValidationError",
+    "SplitPayload",
+    "parse_envelope_for_write",
     # Subgraph / envelope
     "SubgraphLayer",
     "batch_resolve_display",

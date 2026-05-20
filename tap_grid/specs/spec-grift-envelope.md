@@ -93,7 +93,7 @@ The envelope is *also* honest about not being a fashion statement:
 | req-grift-envelope-display-lane | [Display Lane Rule](#display-lane-rule) | In Development | `display` holds computed-for-render values, consumer-namespaced |
 | req-grift-envelope-denormalization | [Denormalized Field Mirroring](#denormalized-field-mirroring) | In Development | `entity_id` and `name` appear at top-level (canonical) AND in `data` (required mirror) |
 | req-grift-envelope-edge-uniformity | [Edge Uniformity](#edge-uniformity) | In Development | Edges use the same envelope; polymorphism lives in `data` |
-| req-grift-envelope-validation | [Envelope Validation](#envelope-validation) | Proposed | API entrypoints validate spine/mirror consistency; reject mismatch — `tap_grid.grift.envelope` module is the next commit |
+| req-grift-envelope-validation | [Envelope Validation](#envelope-validation) | In Development | API entrypoints validate spine/mirror consistency; reject mismatch — `tap_grid.grift.envelope.parse_envelope_for_write` is the canonical parse-and-split function |
 | req-grift-envelope-layer-mapping | [Layer Mapping](#layer-mapping) | In Development | `lite`/`full`/`extended` map to which lanes are populated |
 | req-grift-envelope-supersedes | [Supersedes Prior Member Shape](#supersedes-prior-member-shape) | In Development | Reconciled in same change as serializer rewrite — `spec-grift-subgraph` Canonical Member Shape / Lite Member Guidance / Presentation Separation now cross-reference this spec |
 
@@ -356,13 +356,15 @@ Edges use the same envelope as nodes. The polymorphism is entirely in
 ## Envelope Validation
 ----
 RID: `req-grift-envelope-validation`
-Status: `Proposed`
+Status: `In Development`
 
 API entrypoints accepting envelopes as write payloads validate
 structural invariants before dispatching to the service layer. The
-`tap_grid.grift.envelope` module providing `parse_envelope_for_write`
-is the next-commit work; this requirement stays `Proposed` until that
-lands.
+canonical implementation is `tap_grid.grift.envelope.parse_envelope_for_write`;
+no API caller routes through it yet (no envelope-shaped write endpoint
+exists in v0), but the function is the foundation any future
+envelope-shaped write API uses rather than reinventing the
+validate-and-split logic.
 
 ### Implementation
 
