@@ -122,11 +122,17 @@ def resolve_node_tags(
     if block["source"] == "rgta":
         return rgta_map.get(rgta_join_arn(entry, item) or "", {}), None, None
 
+    call_kwargs: dict[str, Any] = {}
+    for param_name, spec in block["params"].items():
+        if "literal" in spec:
+            call_kwargs[param_name] = spec["literal"]
+        else:
+            call_kwargs[param_name] = eval_path(item, spec["from"])
     env = hydrate_item(
         client_for(entry["service"]),
         {},
         [{"key": "tags", "op": block["op"], "why": block.get("why", "resource tags")}],
-        call_kwargs={block["param"]: eval_path(item, block["param_from"])},
+        call_kwargs=call_kwargs,
     )
     slot = env["_hydrate"]["tags"]
     mapping = env["_hydrate_mapping"]["tags"]

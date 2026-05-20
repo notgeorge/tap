@@ -93,7 +93,7 @@ class TestSourceDispatch:
 
     def test_custom_fn_dispatch_same_item_contract(self):
         reg = CustomFnRegistry()
-        reg.register("zones", lambda ctx: iter([{"Id": "z1"}, {"Id": "z2"}]))
+        reg.register("zones", lambda ctx, *, client_for: iter([{"Id": "z1"}, {"Id": "z2"}]))
         entry = {"service": "route53", "source": {"custom_fn": "zones"}, "items_path": "[]"}
         items = list(iter_source(entry, client_for=self._client_for, custom_fns=reg))
         # Same plain-item iterable an aws_op would yield — engine never branches.
@@ -106,9 +106,34 @@ class TestSourceDispatch:
 
     def test_custom_fn_receives_context(self):
         reg = CustomFnRegistry()
-        reg.register("probe", lambda ctx: iter([{"Id": ctx}]))
+        reg.register("probe", lambda ctx, *, client_for: iter([{"Id": ctx}]))
         entry = {"service": "route53", "source": {"custom_fn": "probe"}, "items_path": "[]"}
         items = list(
             iter_source(entry, client_for=self._client_for, custom_fns=reg, fn_context="REGION-CTX")
         )
         assert items == [{"Id": "REGION-CTX"}]
+
+    def test_custom_fn_receives_client_for(self):
+        """Regional custom_fns must receive a region-bound client_for kwarg.
+
+        req-aws-collector-source-5: discovered when the DynamoDB regional
+        custom_fn failed with 'You must specify a region.' because the engine
+        passed only an unbound session.
+        """
+        seen: dict[str, object] = {}
+        sentinel_client = object()
+
+        def fake_client_for(service):
+            seen["asked_for"] = service
+            return sentinel_client
+
+        def probe(ctx, *, client_for):
+            seen["client"] = client_for("dynamodb")
+            yield {"Id": "x"}
+
+        reg = CustomFnRegistry()
+        reg.register("probe", probe)
+        entry = {"service": "dynamodb", "source": {"custom_fn": "probe"}, "items_path": "[]"}
+        list(iter_source(entry, client_for=fake_client_for, custom_fns=reg))
+        assert seen["asked_for"] == "dynamodb"
+        assert seen["client"] is sentinel_client

@@ -96,12 +96,31 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["source", "op", "param", "param_from", "path", "shape"],
+          "required": ["source", "op", "params", "path", "shape"],
           "properties": {
             "source": { "const": "service" },
             "op": { "type": "string", "minLength": 1 },
-            "param": { "type": "string", "minLength": 1 },
-            "param_from": { "type": "string", "minLength": 1 },
+            "params": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "object",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["literal"],
+                    "properties": { "literal": { "type": "string" } }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["from"],
+                    "properties": { "from": { "type": "string", "minLength": 1 } }
+                  }
+                ]
+              }
+            },
             "path": { "type": "string", "minLength": 1 },
             "shape": { "type": "string", "enum": ["list_kv", "map"] },
             "why": { "type": "string", "minLength": 1 }

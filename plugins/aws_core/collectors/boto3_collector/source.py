@@ -115,4 +115,7 @@ def iter_source(
         yield from iter_aws_op(client, source["aws_op"], entry["items_path"])
         return
     fn = custom_fns.get(source["custom_fn"])
-    yield from fn(fn_context)
+    # Pass client_for through so regional custom_fns can build region-bound
+    # clients without inventing their own region resolution. Global custom_fns
+    # (route53, the s3 list-buckets head) accept it as a kwarg and ignore it.
+    yield from fn(fn_context, client_for=client_for)

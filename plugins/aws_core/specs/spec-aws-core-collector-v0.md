@@ -203,11 +203,17 @@ branches on which was used.
   Lambda, IAM roles, EventBridge rules, CloudWatch log groups, and CloudFront).
 - **`custom_fn`** — a named, registered Python callable shipped in the plugin,
   used only where AWS requires multiple calls to assemble one logical resource
-  (confirmed for S3, ACM full detail, Route 53 record sets). The callable
-  receives a bound boto3 session/region context and yields items in the same
-  shape an `aws_op` would. The manifest names the callable; the engine looks it
-  up in a plugin-local registry. Code is **never** loaded from manifest data
-  (mirrors `req-tap-cares-collector-registry-6`).
+  (confirmed for S3, ACM full detail, Route 53 record sets, DynamoDB
+  table-describe fan-out, IAM OIDC-provider detail fan-out). The callable
+  signature is `fn(session, *, client_for) -> Iterator[dict]`: it receives
+  the unbound boto3 session (for global resources or service-bound clients
+  it constructs itself) AND a `client_for(service) -> Client` callable
+  already bound to the current per-region iteration so regional custom_fns
+  can build region-bound clients without inventing their own region
+  resolution. Global custom_fns (Route 53, the S3 list-buckets head)
+  accept-and-ignore the kwarg. The manifest names the callable; the engine
+  looks it up in a plugin-local registry. Code is **never** loaded from
+  manifest data (mirrors `req-tap-cares-collector-registry-6`).
 
 `custom_fn` callables are expected to compose the [Fan-Out Hydrate
 Seam](#fan-out-hydrate-seam) rather than hand-rolling pagination/error handling.
@@ -220,6 +226,7 @@ Seam](#fan-out-hydrate-seam) rather than hand-rolling pagination/error handling.
 | req-aws-collector-source-2 | Generic Pagination | Approved for Development | `aws_op` uses the botocore paginator when the model defines one, else a single call; no per-resource pagination code. | |
 | req-aws-collector-source-3 | Registered Callables Only | Approved for Development | `custom_fn` resolves through a plugin-local registry; manifest data never drives code import or path loading. | |
 | req-aws-collector-source-4 | Quarantined Complexity | Approved for Development | Multi-call assembly exists only inside `custom_fn` callables, never in the engine. | |
+| req-aws-collector-source-5 | Custom-Fn Signature | Approved for Development | `custom_fn` callables accept `(session, *, client_for)`. `client_for(service) → Client` is bound to the current per-region iteration so regional custom_fns can build region-bound clients without inventing their own region resolution; global custom_fns accept-and-ignore. | Discovered in autonomous pass 2026-05-20 when DynamoDB regional collection failed with "You must specify a region." |
 
 ### Field Projection
 ----
@@ -867,11 +874,18 @@ not).
 - A per-entry optional manifest `tags` block declares the source:
   - `{"source": "rgta"}` — the default. Tags come from the per-region RGTA
     sweep, joined by ARN.
-  - `{"source": "service", "op": …, "param": …, "param_from": …,
+  - `{"source": "service", "op": …, "params": {<param-name>: {…spec…}, …},
     "path": …, "shape": "list_kv"|"map"}` — a side-quest: a per-resource
     tag op resolved through the [Fan-Out Hydrate Seam](#fan-out-hydrate-seam)
-    (no new mechanism). Quarantined complexity, per
-    `req-aws-collector-source-4`.
+    (no new mechanism). `params` is a dict mapping the boto3 keyword-arg
+    name to a per-arg spec, where each spec is either `{"literal": "…"}`
+    (a constant value) or `{"from": "<path>"}` (a path into the item).
+    Most ops take a single identifier param (e.g. `ListRoleTags →
+    {"RoleName": {"from": "RoleName"}}`); the multi-param form supports
+    APIs that mix constants with per-item identifiers
+    (e.g. `route53:ListTagsForResource → {"ResourceType": {"literal":
+    "hostedzone"}, "ResourceId": {"from": "_zone_resource_id"}}`).
+    Quarantined complexity, per `req-aws-collector-source-4`.
   - Absent `tags` block → the type carries no tags (declarative; never
     hidden code).
 - **RGTA path.** One paginated `GetResources` per swept region, scoped by
@@ -885,8 +899,13 @@ not).
   roles) via `iam:ListRoleTags`; `aws_cloudfront_distribution` (CloudFront
   documents Tag Editor / Resource Groups as unsupported, contradicting the
   RGTA service list — do not trust RGTA) via
-  `cloudfront:ListTagsForResource`. Route 53 hosted-zone tags fold into its
-  `custom_fn` when that lands (deferred).
+  `cloudfront:ListTagsForResource`; `aws_route53_zone` via
+  `route53:ListTagsForResource` (RGTA excludes; multi-param call —
+  `ResourceType="hostedzone"` literal + `ResourceId` from a bare-zone-id
+  field the `custom_fn` adds to each item as `_zone_resource_id`);
+  `aws_iam_oidc_provider` via `iam:ListOpenIDConnectProviderTags` (single
+  ARN param). Other resource types follow the same shape as those need
+  arises.
 - **One canonical normalizer.** A single engine seam folds any declared
   shape (`list_kv` `[{Key,Value}]` → `{Key:Value}`; `map` → as-is) into the
   `{str: str}` field. Never a per-service loop — that is the drift-prone
@@ -929,7 +948,7 @@ not).
 | --- | --- | :---: | --- | --- |
 | req-aws-collector-tags-1 | Declarative Source | Approved for Development | A manifest `tags.source` ∈ `rgta\|service` declares per-type tag retrieval; absent ⇒ no tags. No hidden per-service code. | |
 | req-aws-collector-tags-2 | RGTA Default Path | Approved for Development | One paginated per-region `GetResources` sweep, `ResourceTypeFilters`-scoped, joined to nodes by ARN (`natural_key` or a declared transform). Untagged ⇒ `{}`, correct (discovery is independent). | RGTA never drives discovery. |
-| req-aws-collector-tags-3 | Side-Quest Path | Approved for Development | `service` sources resolve via the hydrate seam; v0 = `aws_iam_role` (`ListRoleTags`), `aws_cloudfront_distribution` (`ListTagsForResource`); Route 53 folds into its `custom_fn`. | RGTA excludes IAM roles; CloudFront unsupported. |
+| req-aws-collector-tags-3 | Side-Quest Path | Approved for Development | `service` sources resolve via the hydrate seam with a `params` dict (each entry `{literal:…}` or `{from:<path>}`) so multi-param tag APIs are first-class; v0 = `aws_iam_role` (`ListRoleTags`), `aws_cloudfront_distribution` (`ListTagsForResource`), `aws_route53_zone` (`ListTagsForResource`, multi-param), `aws_iam_oidc_provider` (`ListOpenIDConnectProviderTags`). | RGTA excludes IAM roles, Route 53 zones, and IAM OIDC providers; CloudFront unsupported. |
 | req-aws-collector-tags-4 | One Canonical Normalizer | Approved for Development | A single engine seam folds any declared shape → `{str:str}`; no per-service loops; raw retained losslessly. | CloudQuery pattern; not Steampipe boilerplate. |
 | req-aws-collector-tags-5 | Per-Model Field, No Spine | Approved for Development | `tags` `JSONField` on each `aws_core` model, uniform name+shape; never an Entity-spine facet. | Cross-resource query by convention. |
 | req-aws-collector-tags-6 | us-east-1 Invariant | Approved for Development | Region scope must include `us-east-1`; `self_test` warns if absent, or global / CloudFront-cert tags are silently missed. | |
@@ -1157,3 +1176,21 @@ Deferred from v0:
   demo relationship uses (and whether CloudFront/CloudWatch/EventBridge model
   additions require any new edge types) is resolved in the `add-model` work
   under `spec-aws-core-v0`, not here.
+- **Tag-derived dimensions** *(deferred, demand-driven)*. The collector
+  already captures AWS resource tags into the per-model `tags` JSON column
+  (via RGTA sweep + per-service side-quests). A natural extension is a
+  configurable mapping from collected tags → entity `dimensions`
+  (e.g. `tag.Project` → `dimension.tap.project`), stamped at collection
+  time without a downstream hook. Held off in v0 because **dimensions are
+  the security-boundary pillar** and arbitrary user-controlled tags must
+  not silently become security boundaries. When the feature is built it
+  needs: a per-collector or per-account allowlist of which tags may become
+  dimensions; a denylist for reserved TAP dimension prefixes (`tap.*`,
+  `aws.*`, etc.); collision/conflict handling when multiple sources map the
+  same tag key; FLIP provenance recording which collector run wrote which
+  dimension on which node; and an explicit policy for what happens when a
+  previously-mapped tag value changes (re-stamp, history, or both). Demand
+  signal that promotes this from Open to Proposed: >1 system collected
+  into one account, or >1 customer collected at all. Until then samsite
+  (the originating use case) uses tag-based ORM filters directly. Cross-ref:
+  `plan/strat-sam-demo.md` "System-identification" decision (2026-05-20).

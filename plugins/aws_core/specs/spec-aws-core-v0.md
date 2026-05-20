@@ -48,7 +48,7 @@ The plugin covers:
 - storage (S3, EBS)
 - databases (RDS, DynamoDB, ElastiCache, Elasticsearch/OpenSearch)
 - networking (VPC, Subnet, Security Group, Network ACL, Internet Gateway, NAT Gateway, Elastic IP, Route Table, ALB, ELB, Target Group, Route 53, Network Firewall)
-- identity and access (IAM User, IAM Role, IAM Policy)
+- identity and access (IAM User, IAM Role, IAM Policy, IAM OIDC Provider)
 - security and configuration (ACM Certificate, Secrets Manager, SSM Parameter Store)
 - AI services (Bedrock, SageMaker)
 - infrastructure reference (Region, Availability Zone, Account)
@@ -182,7 +182,7 @@ The categories (representative; the manifest is the canonical, enforced list):
 | --- | --- | --- |
 | Structural | RESIDES_IN, BELONGS_TO_ACCOUNT, CONTAINS, ATTACHED_TO, HOSTS_VPC, PARTITIONED_INTO_SUBNET, BELONGS_TO_VPC, BOUND_TO_AZ | Physical and organizational containment / locative |
 | Operational | LAUNCHED, INVOKES, ROUTES_TRAFFIC, EXPOSES_NETWORK_ACCESS, WRITES_LOGS, RETRIEVES_CONTENT_FROM, RETRIEVES_CERT_FROM | Runtime actions, traffic, and data retrieval (`_FROM` = data-backwards) |
-| Access/Security | HAS_POLICY_ACCESS_TO, ASSUMES_ROLE, PROTECTS, STORES_DATA_IN | IAM permissions, security boundaries, data storage |
+| Access/Security | HAS_POLICY_ACCESS_TO, ASSUMES_ROLE, FEDERATES_INTO, PROTECTS, STORES_DATA_IN | IAM permissions, federated identity, security boundaries, data storage |
 | Dependency | DEPENDS_ON, PULLS_IMAGE_FROM, BACKED_BY | Runtime and infrastructure dependencies |
 
 Edge types use explicit `sources` and `targets` constraints where the relationship is well-defined (e.g. `ASSUMES_ROLE` from IAM users/roles, Lambda functions, and EventBridge rules to IAM roles; `RETRIEVES_CONTENT_FROM` from CloudFront distributions to S3 buckets). Broadly applicable edges (e.g. `DEPENDS_ON`, `ATTACHED_TO`) use wildcard sources/targets.

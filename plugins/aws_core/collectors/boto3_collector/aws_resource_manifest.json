@@ -56,13 +56,22 @@
       "tags": {
         "source": "service",
         "op": "ListRoleTags",
-        "param": "RoleName",
-        "param_from": "RoleName",
+        "params": {
+          "RoleName": { "from": "RoleName" }
+        },
         "path": "Tags",
         "shape": "list_kv",
         "why": "Resource tags — RGTA excludes IAM roles; per-service side-quest."
       },
-      "edges": []
+      "edges": [
+        {
+          "value_path": "AssumeRolePolicyDocument.Statement[].Principal.Federated",
+          "target_type": "aws_iam_oidc_provider",
+          "key_kind": "arn",
+          "edge_type": "FEDERATES_INTO",
+          "direction": "inbound"
+        }
+      ]
     },
     {
       "entity_type": "aws_eventbridge_rule",
@@ -154,8 +163,9 @@
       "tags": {
         "source": "service",
         "op": "ListTagsForResource",
-        "param": "Resource",
-        "param_from": "ARN",
+        "params": {
+          "Resource": { "from": "ARN" }
+        },
         "path": "Tags.Items",
         "shape": "list_kv",
         "why": "Resource tags — CloudFront Tag Editor/Resource Groups unsupported; side-quest."
@@ -239,6 +249,17 @@
         "record_count": "ResourceRecordSetCount",
         "private_zone": "Config.PrivateZone"
       },
+      "tags": {
+        "source": "service",
+        "op": "ListTagsForResource",
+        "params": {
+          "ResourceType": { "literal": "hostedzone" },
+          "ResourceId": { "from": "_zone_resource_id" }
+        },
+        "path": "ResourceTagSet.Tags",
+        "shape": "list_kv",
+        "why": "Resource tags — RGTA excludes Route 53 zones; per-service side-quest. ResourceId is the bare zone-id segment; the custom_fn adds it as _zone_resource_id."
+      },
       "edges": [
         {
           "value_path": "alias_cloudfront_arns[]",
@@ -248,6 +269,54 @@
           "direction": "outbound"
         }
       ]
+    },
+    {
+      "entity_type": "aws_dynamodb_table",
+      "service": "dynamodb",
+      "scope": "regional",
+      "source": { "custom_fn": "dynamodb_tables_described" },
+      "why": "Enumerate DynamoDB tables — table-shaped NoSQL state stores; e.g. Terraform's tfstate-lock table.",
+      "items_path": "[]",
+      "natural_key": "TableArn",
+      "fields": {
+        "name": "TableName",
+        "table_arn": "TableArn",
+        "status": "TableStatus",
+        "billing_mode": "BillingModeSummary.BillingMode"
+      },
+      "tags": {
+        "source": "rgta",
+        "resource_type_filter": "dynamodb:table",
+        "why": "Resource tags — RGTA covers DynamoDB tables."
+      },
+      "edges": []
+    },
+    {
+      "entity_type": "aws_iam_oidc_provider",
+      "service": "iam",
+      "scope": "global",
+      "source": { "custom_fn": "iam_oidc_providers_described" },
+      "why": "Enumerate IAM OIDC identity providers — federated machine identities (e.g. GitHub Actions) that trust this account.",
+      "items_path": "[]",
+      "natural_key": "ProviderArn",
+      "fields": {
+        "name": "Url",
+        "provider_arn": "ProviderArn",
+        "url": "Url",
+        "client_ids": "ClientIDList",
+        "thumbprints": "ThumbprintList"
+      },
+      "tags": {
+        "source": "service",
+        "op": "ListOpenIDConnectProviderTags",
+        "params": {
+          "OpenIDConnectProviderArn": { "from": "ProviderArn" }
+        },
+        "path": "Tags",
+        "shape": "list_kv",
+        "why": "Resource tags — RGTA excludes IAM resources; per-service side-quest."
+      },
+      "edges": []
     }
   ]
 }

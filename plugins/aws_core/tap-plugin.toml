@@ -37,6 +37,7 @@ aws_network_firewall = "plugins.aws_core.models.network_firewall.NetworkFirewall
 aws_iam_user = "plugins.aws_core.models.iam_user.IamUser"
 aws_iam_role = "plugins.aws_core.models.iam_role.IamRole"
 aws_iam_policy = "plugins.aws_core.models.iam_policy.IamPolicy"
+aws_iam_oidc_provider = "plugins.aws_core.models.iam_oidc_provider.IamOidcProvider"
 aws_acm_certificate = "plugins.aws_core.models.acm_certificate.AcmCertificate"
 aws_secrets_manager_secret = "plugins.aws_core.models.secrets_manager_secret.SecretsManagerSecret"
 aws_ssm_parameter = "plugins.aws_core.models.ssm_parameter.SsmParameter"
@@ -69,6 +70,7 @@ BOUND_TO_AZ = "edges/BOUND_TO_AZ.edge.json"
 RETRIEVES_CONTENT_FROM = "edges/RETRIEVES_CONTENT_FROM.edge.json"
 RETRIEVES_CERT_FROM = "edges/RETRIEVES_CERT_FROM.edge.json"
 WRITES_LOGS = "edges/WRITES_LOGS.edge.json"
+FEDERATES_INTO = "edges/FEDERATES_INTO.edge.json"
 
 [grift]
 dimension = "grift/dimension.grift.json"

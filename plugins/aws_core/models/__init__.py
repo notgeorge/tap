@@ -21,6 +21,7 @@ from plugins.aws_core.models.elasticache_cluster import ElasticacheCluster
 from plugins.aws_core.models.elasticsearch_domain import ElasticsearchDomain
 from plugins.aws_core.models.elb import Elb
 from plugins.aws_core.models.eventbridge_rule import EventbridgeRule
+from plugins.aws_core.models.iam_oidc_provider import IamOidcProvider
 from plugins.aws_core.models.iam_policy import IamPolicy
 from plugins.aws_core.models.iam_role import IamRole
 from plugins.aws_core.models.iam_user import IamUser
@@ -63,6 +64,7 @@ __all__ = [
     "ElasticsearchDomain",
     "Elb",
     "EventbridgeRule",
+    "IamOidcProvider",
     "IamPolicy",
     "IamRole",
     "IamUser",

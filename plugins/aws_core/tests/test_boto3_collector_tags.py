@@ -71,18 +71,26 @@ class TestManifestTagsBlock:
             "aws_cloudwatch_log_group",
             "aws_acm_certificate",
             "aws_s3_bucket",
+            "aws_dynamodb_table",
         }
-        service = {"aws_iam_role", "aws_cloudfront_distribution"}
+        service = {
+            "aws_iam_role",
+            "aws_cloudfront_distribution",
+            "aws_route53_zone",
+            "aws_iam_oidc_provider",
+        }
         for t in rgta:
             assert tags_block(by_type[t])["source"] == "rgta"
         for t in service:
             blk = tags_block(by_type[t])
             assert blk["source"] == "service"
             assert blk["shape"] in ("list_kv", "map")
-            assert {"op", "param", "param_from", "path"} <= blk.keys()
-        # Route 53 tags are deferred into its custom_fn — no tags block.
-        # (entity_type reconciled to the model/plugin-registered slug.)
-        assert tags_block(by_type["aws_route53_zone"]) is None
+            assert {"op", "params", "path"} <= blk.keys()
+            # Each params entry is {literal:…} or {from:<path>}; at least one
+            # entry must exist (multi-param tag APIs land first-class here).
+            assert isinstance(blk["params"], dict) and blk["params"]
+            for spec in blk["params"].values():
+                assert ("literal" in spec) ^ ("from" in spec)
 
     def test_schema_rejects_bad_tags_block(self):
         schema = json.loads(manifest_mod.SCHEMA_PATH.read_text())

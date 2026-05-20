@@ -89,7 +89,7 @@ class TestManifest:
         m = load_manifest()
         assert m["manifest_version"] == "0"
         entries = manifest_entries()
-        assert len(entries) == 8
+        assert len(entries) == 10
         for e in entries:
             assert {"entity_type", "service", "scope", "source", "why", "items_path", "natural_key", "fields"} <= e.keys()
             assert e["scope"] in ("regional", "global")

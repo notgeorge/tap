@@ -39,7 +39,7 @@ def _s3_hydrate_ops() -> list[dict[str, str]]:
     return []
 
 
-def s3_buckets_hydrated(session: Any) -> Iterator[dict[str, Any]]:
+def s3_buckets_hydrated(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
     """Enumerate S3 buckets and fan out each bucket's compliance sub-config.
 
     Yields one envelope per bucket: the ``ListBuckets`` item at the root
@@ -77,7 +77,7 @@ def _pages(client: Any, method: str, **kwargs: Any) -> Iterator[dict[str, Any]]:
     yield without_response_metadata(getattr(client, method)(**kwargs))
 
 
-def route53_zones_with_alias_targets(session: Any) -> Iterator[dict[str, Any]]:
+def route53_zones_with_alias_targets(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
     """Enumerate Route 53 hosted zones, resolving CloudFront alias targets.
 
     Route 53's ``ListHostedZones`` is shallow; the routing relationship
@@ -132,13 +132,74 @@ def route53_zones_with_alias_targets(session: Any) -> Iterator[dict[str, Any]]:
                 **zone,
                 "alias_cloudfront_domains": list(dict.fromkeys(domains)),
                 "alias_cloudfront_arns": list(dict.fromkeys(arns)),
+                # Bare zone ID (last path segment of Id like "/hostedzone/Z…").
+                # list_tags_for_resource wants ResourceId in this form; Id
+                # itself stays as boto3 returned it so existing identity and
+                # downstream consumers don't shift.
+                "_zone_resource_id": (zone_id or "").rsplit("/", 1)[-1],
             }
+
+
+def dynamodb_tables_described(session: Any, *, client_for: Any) -> Iterator[dict[str, Any]]:
+    """Enumerate DynamoDB tables (regional) and describe each.
+
+    ``ListTables`` returns table-name strings only — no ARN, no status,
+    no billing mode. ``DescribeTable`` per name is the standard fan-out
+    to get the full payload. Yields the ``Table`` sub-object from each
+    DescribeTable response so the manifest's ``items_path`` and
+    ``natural_key`` see a flat dict with ``TableArn`` at the root.
+
+    Regional: the engine binds ``client_for`` to the current region; this
+    function runs once per region in the run's scope.
+    """
+    client = client_for("dynamodb")
+    for page in _pages(client, "list_tables"):
+        for name in page.get("TableNames", []):
+            try:
+                desc = without_response_metadata(client.describe_table(TableName=name))
+            except (BotoCoreError, ClientError):
+                # Per-table failures are skipped silently here; the engine's
+                # per-entry error path (ENTRY_SKIPPED) is too coarse for a
+                # per-item miss. The run's RGTA sweep would still cover tags
+                # for any table we missed, and other passes can fill the gap.
+                continue
+            table = desc.get("Table") or {}
+            if table:
+                yield table
+
+
+def iam_oidc_providers_described(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
+    """Enumerate IAM OIDC identity providers (global) and describe each.
+
+    ``ListOpenIDConnectProviders`` returns ARNs only; ``GetOpenIDConnectProvider``
+    is the per-ARN fan-out for URL, client IDs, thumbprints, and inline tags.
+    Each yielded item embeds the source ARN as ``ProviderArn`` so the manifest
+    entry can use it as ``natural_key`` (the GetOpenIDConnectProvider response
+    doesn't echo the ARN back).
+
+    IAM is global; the engine binds a us-east-1 client for global entries.
+    """
+    client = session.client("iam", region_name="us-east-1")
+    listing = without_response_metadata(client.list_open_id_connect_providers())
+    for entry in listing.get("OpenIDConnectProviderList", []):
+        arn = entry.get("Arn")
+        if not arn:
+            continue
+        try:
+            details = without_response_metadata(
+                client.get_open_id_connect_provider(OpenIDConnectProviderArn=arn)
+            )
+        except (BotoCoreError, ClientError):
+            continue
+        yield {**details, "ProviderArn": arn}
 
 
 # Manifest custom_fn name -> callable.
 _CUSTOM_FNS = {
     "s3_buckets_hydrated": s3_buckets_hydrated,
     "route53_zones_with_alias_targets": route53_zones_with_alias_targets,
+    "dynamodb_tables_described": dynamodb_tables_described,
+    "iam_oidc_providers_described": iam_oidc_providers_described,
 }
 
 
