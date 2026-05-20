@@ -317,7 +317,7 @@ def _find_entity_id_in_predicate(pred: Any, inputs: dict[str, Any]) -> tuple[str
 # ---------------------------------------------------------------------------
 
 # Fields that live on Entity rather than the domain model.
-_ENTITY_FIELDS: frozenset[str] = frozenset({"entity_type", "name", "dimensions", "version", "created_at", "updated_at"})
+_ENTITY_FIELDS: frozenset[str] = frozenset()  # populated lazily via _spine_field_names()
 
 
 def _execute_type_scan(
@@ -370,49 +370,94 @@ def _execute_type_scan(
 def _project_node(domain_obj: Any, items: tuple, var: str) -> dict[str, Any]:
     """Build a projected dict for a domain model instance using RETURN items.
 
-    Only items whose field_path.variable matches ``var`` and that have a single
-    DotStep are resolved; others are silently skipped.
+    Per spec-grid-traversal-language § Envelope-Aware Field Paths
+    (req-grid-traversal-lang-envelope-paths):
 
-    Args:
-        domain_obj: A domain model instance with a ``entity`` FK (via select_related).
-        items: Tuple of ReturnItem from the RETURN clause.
-        var: The variable name bound to this node in the MATCH pattern.
+    - ``var.<spinefield>`` resolves against the Entity row.
+    - ``var.data.<...>`` resolves against the per-model row, walking
+      remaining dot-steps as attribute access (single step) or nested
+      dict keys (multi-step inside JSON-typed fields like ``tags``).
+    - ``var.display.<...>`` is rejected for now — display values are
+      computed for rendering and not available in the projection
+      pipeline. Use the ``extended`` return layer for display data.
 
-    Returns:
-        Dict of {output_key: value} for matched projection items.
+    Items whose field_path.variable doesn't match ``var`` are silently
+    skipped (they apply to a different variable's projection).
     """
     result: dict[str, Any] = {}
     for item in items:
         fp = item.path
         if fp.variable != var:
             continue
-        if len(fp.steps) != 1 or not isinstance(fp.steps[0], DotStep):
+        if not fp.steps or not isinstance(fp.steps[0], DotStep):
             continue
-        field_name = fp.steps[0].name
-        key = item.alias if item.alias is not None else field_name
-        result[key] = _resolve_field(domain_obj, field_name)
+        first = fp.steps[0].name
+        key, value = _resolve_envelope_path(domain_obj, fp, item.alias)
+        result[key] = value
     return result
 
 
-def _resolve_field(domain_obj: Any, field_name: str) -> Any:
-    """Resolve a single field name from a domain model instance.
+def _resolve_envelope_path(
+    domain_obj: Any, field_path: FieldPath, explicit_alias: str | None
+) -> tuple[str, Any]:
+    """Resolve a single envelope-aware path against a domain model instance.
 
-    ``entity_id`` is the FK UUID on the domain model itself.
-    Fields in ``_ENTITY_FIELDS`` are read from the related Entity.
-    All other names are read directly from the domain model.
-
-    Args:
-        domain_obj: Domain model instance (with entity FK pre-fetched).
-        field_name: The bare field name from the RETURN projection.
-
-    Returns:
-        The field value; entity_id is coerced to str.
+    Returns ``(user_alias, value)``. The user alias is the explicit AS
+    alias if supplied, otherwise the last dot-step in the path.
     """
-    if field_name == "entity_id":
-        return str(domain_obj.entity_id)
-    if field_name in _ENTITY_FIELDS:
-        return getattr(domain_obj.entity, field_name)
-    return getattr(domain_obj, field_name)
+    steps = field_path.steps
+    first = steps[0].name
+    spine_fields = _spine_field_names()
+
+    if first == _DISPLAY_LANE_PREFIX:
+        raise SearchExecutionError(
+            "Cannot use the `display` lane in RETURN paths today — display "
+            "values are computed for rendering, not stored. For display data "
+            "use the `extended` return layer."
+        )
+
+    if first == _DATA_LANE_PREFIX:
+        rest = steps[1:]
+        if not rest:
+            raise SearchExecutionError(
+                "Path `<var>.data` requires at least one further step "
+                "(e.g. `<var>.data.<field>`)."
+            )
+        for step in rest:
+            if not isinstance(step, DotStep):
+                raise SearchExecutionError(
+                    "Inside the `data` lane only dot-steps are supported in v1."
+                )
+        value: Any = domain_obj
+        for step in rest:
+            if value is None:
+                break
+            value = (
+                value.get(step.name)
+                if isinstance(value, dict)
+                else getattr(value, step.name, None)
+            )
+        last = rest[-1].name
+        user_alias = explicit_alias if explicit_alias is not None else last
+        return user_alias, value
+
+    # Single-step spine field.
+    if len(steps) > 1:
+        raise SearchExecutionError(
+            f"Spine field {first!r} cannot be walked into. For nested access "
+            f"use `<var>.data.<field>...` per spec-grift-envelope."
+        )
+    if first == "entity_id":
+        value = str(domain_obj.entity_id)
+    elif first in spine_fields:
+        value = getattr(domain_obj.entity, first)
+    else:
+        raise SearchExecutionError(
+            f"Field {first!r} is not a spine field. If it lives on the per-model "
+            f"row, address it as `<var>.data.{first}` per spec-grift-envelope."
+        )
+    user_alias = explicit_alias if explicit_alias is not None else first
+    return user_alias, value
 
 
 # ---------------------------------------------------------------------------
@@ -682,8 +727,25 @@ def _node_label_to_related(label: str | None) -> str | None:
     return model_cls.__name__.lower()
 
 
-# Entity-level fields that live on the Entity table rather than the domain model.
-_ENTITY_LEVEL_FIELDS: frozenset[str] = frozenset({"entity_type", "name", "dimensions", "version", "created_at", "updated_at"})
+# Entity-level (spine) field names — sourced from Entity.SPINE_FIELD_NAMES,
+# the canonical surface defined by spec-grid-entity (req-grid-entity-spine-surface).
+# Computed lazily because importing Entity at module top would create a circular
+# import.
+def _spine_field_names() -> frozenset[str]:
+    from tap_grid.models import Entity
+
+    # Exclude `entity_id` from the spine-traversal set: it's a spine field for
+    # the envelope but the path resolver handles it specially via the FK column
+    # (`_orm_path_for_field`'s entity_id branch) rather than through a generic
+    # `__entity__<field>` JOIN.
+    return frozenset(Entity.SPINE_FIELD_NAMES) - {"entity_id"}
+
+
+# Envelope-aware path prefixes — see spec-grid-traversal-language
+# (req-grid-traversal-lang-envelope-paths). Reserved names that must not
+# collide with spine field names.
+_DATA_LANE_PREFIX = "data"
+_DISPLAY_LANE_PREFIX = "display"
 
 
 def _compute_hop_paths(pattern: PathPattern) -> list[dict[str, str]]:
@@ -802,7 +864,13 @@ def _build_var_bindings(pattern: PathPattern) -> dict[str, dict[str, Any]]:
 
 
 def _orm_path_for_field(binding: dict[str, Any], field: str) -> str:
-    """Build the Django ORM lookup string for ``var.field`` against the chained Edge queryset."""
+    """Build a Django ORM lookup string for a single-step ``var.field`` access.
+
+    Handles spine-only single-step paths. Multi-step paths (the
+    `data.<...>` / `display.<...>` envelope lanes) go through
+    :func:`_orm_path_for_envelope_path` instead.
+    """
+    spine_fields = _spine_field_names()
     role = binding["role"]
 
     if role == "edge":
@@ -810,10 +878,21 @@ def _orm_path_for_field(binding: dict[str, Any], field: str) -> str:
         prefix = f"{ep}__" if ep else ""
         if field == "entity_id":
             return f"{prefix}entity_id" if prefix else "entity_id"
-        if field in _ENTITY_LEVEL_FIELDS:
+        if field in spine_fields:
             return f"{prefix}entity__{field}"
-        # Custom edge fields like edge_type, properties.
-        return f"{prefix}{field}" if prefix else field
+        # Reserved lane-prefix names: never resolve as a spine field.
+        if field in {_DATA_LANE_PREFIX, _DISPLAY_LANE_PREFIX}:
+            raise SearchExecutionError(
+                f"Bare `{field}` is not a complete path. Use `{field}.<...>` to "
+                f"address the {field} lane."
+            )
+        # Edge model fields (edge_type, properties, batch_id, flip_map, description)
+        # live in the `data` lane and require the explicit prefix.
+        raise SearchExecutionError(
+            f"Field {field!r} is not a spine field. If it lives on the per-edge "
+            f"row (e.g. `edge_type`, `properties`), address it as "
+            f"`<var>.data.{field}` per spec-grift-envelope."
+        )
 
     # role == "node"
     # Node-only patterns bind with side="lone" and don't participate in Edge chains.
@@ -831,18 +910,119 @@ def _orm_path_for_field(binding: dict[str, Any], field: str) -> str:
     if field == "entity_id":
         return f"{ep}_id"
 
-    if field in _ENTITY_LEVEL_FIELDS:
+    if field in spine_fields:
         return f"{ep}__{field}"
 
-    # Domain-model field: traverse {ep}__<reverse_name>__<field>.
+    if field in {_DATA_LANE_PREFIX, _DISPLAY_LANE_PREFIX}:
+        raise SearchExecutionError(
+            f"Bare `{field}` is not a complete path. Use `{field}.<...>` to "
+            f"address the {field} lane."
+        )
+
+    raise SearchExecutionError(
+        f"Field {field!r} is not a spine field. If it lives on the per-model "
+        f"row, address it as `<var>.data.{field}` per spec-grift-envelope."
+    )
+
+
+def _orm_path_for_envelope_path(
+    binding: dict[str, Any], steps: list[Any]
+) -> str:
+    """Build a Django ORM lookup string for an envelope-aware multi-step path.
+
+    Per spec-grid-traversal-language § Envelope-Aware Field Paths
+    (req-grid-traversal-lang-envelope-paths):
+
+    - ``n.data.<x>...`` → join through to the per-model row and walk
+      remaining steps as Django ``__``-joined lookups. Multi-step access
+      into JSONField columns (e.g. ``n.data.tags.Project``) maps to
+      Django's native nested JSONField lookup syntax
+      (``tags__Project``).
+    - ``n.display.<x>...`` → rejected; display values are computed for
+      rendering, not stored. Filter via the underlying per-model fields
+      instead, or use the ``extended`` return layer for display data.
+    - Any other multi-step path → rejected with a message naming the
+      expected envelope-lane prefix.
+
+    The compiler only generates dot-step components when assembling the
+    Django path (key-step bracket notation and wildcards stay reserved
+    for the JSONPath compiler in
+    ``req-grid-traversal-lang-filters-jsonpath``).
+    """
+    if not steps or not isinstance(steps[0], DotStep):
+        raise SearchExecutionError("Multi-step field paths must start with a dot-step.")
+    head = steps[0].name
+
+    if head == _DISPLAY_LANE_PREFIX:
+        raise SearchExecutionError(
+            "Cannot use the `display` lane in WHERE/RETURN paths today — "
+            "display values are computed for rendering, not stored. Filter on "
+            "the per-model fields under `<var>.data.<x>` instead, or use the "
+            "`extended` return layer when serializing for display."
+        )
+
+    if head != _DATA_LANE_PREFIX:
+        raise SearchExecutionError(
+            f"Unknown envelope-lane prefix {head!r}. Use a spine field "
+            f"({sorted(_spine_field_names() | {'entity_id'})}), the `data` "
+            f"prefix for per-model fields, or `display` for computed "
+            f"render values (read-only)."
+        )
+
+    rest = steps[1:]
+    if not rest:
+        raise SearchExecutionError(
+            "Path `<var>.data` requires at least one further step "
+            "(e.g. `<var>.data.<field>`)."
+        )
+    for step in rest:
+        if not isinstance(step, DotStep):
+            raise SearchExecutionError(
+                "Inside the `data` lane only dot-steps are supported in v1; "
+                "bracket-key, indexed, and wildcard access via JSONPath is "
+                "tracked separately (req-grid-traversal-lang-filters-jsonpath)."
+            )
+    inner_path = "__".join(s.name for s in rest)
+
+    role = binding["role"]
+    if role == "edge":
+        # Edges' "data" lane is the Edge model row itself — fields are
+        # already on the chained Edge queryset.
+        ep = binding["edge_path"]
+        prefix = f"{ep}__" if ep else ""
+        return f"{prefix}{inner_path}"
+
+    # role == "node"
+    if binding.get("side") == "lone":
+        raise SearchExecutionError(
+            "Node-only patterns cannot be used in predicates or RETURN paths in the advanced executor."
+        )
+
+    ep = binding["entity_path"]
     label = binding.get("label")
     reverse = _node_label_to_related(label)
     if reverse is None:
         raise SearchExecutionError(
-            f"Cannot resolve '{field}' on variable without a node label; add a label like "
-            f"`(var:entity_type)` so the executor knows which model to traverse."
+            f"Cannot resolve `data.{rest[0].name}` on a variable without a "
+            f"node label; add a label like `(var:entity_type)` so the "
+            f"executor knows which model to traverse."
         )
-    return f"{ep}__{reverse}__{field}"
+    return f"{ep}__{reverse}__{inner_path}"
+
+
+def _resolve_orm_path(binding: dict[str, Any], field_path: FieldPath) -> str:
+    """Single entry point: translate a Gryphon FieldPath to an ORM path.
+
+    Dispatches to :func:`_orm_path_for_field` for single-step spine paths
+    or :func:`_orm_path_for_envelope_path` for multi-step envelope-lane
+    paths. Per spec-grid-traversal-language § Envelope-Aware Field Paths.
+    """
+    steps = field_path.steps
+    if not steps:
+        raise SearchExecutionError("FieldPath must have at least one step.")
+    if len(steps) == 1 and isinstance(steps[0], DotStep):
+        return _orm_path_for_field(binding, steps[0].name)
+    return _orm_path_for_envelope_path(binding, list(steps))
 
 
 def _resolve_value(value: Any, inputs: dict[str, Any]) -> Any:
@@ -960,11 +1140,8 @@ def _apply_comparison(
     var = fp.variable
     if var not in bindings:
         raise SearchExecutionError(f"Unknown variable '{var}' in WHERE predicate.")
-    if len(fp.steps) != 1 or not isinstance(fp.steps[0], DotStep):
-        raise SearchExecutionError("WHERE predicates support single dot-step field paths only.")
-    field_name = fp.steps[0].name
 
-    orm_path = _orm_path_for_field(bindings[var], field_name)
+    orm_path = _resolve_orm_path(bindings[var], fp)
     value = _resolve_value(comp.value, inputs)
 
     lookup_suffix = {"=": "", "!=": "", "<": "__lt", ">": "__gt", "<=": "__lte", ">=": "__gte"}[comp.op]
@@ -1353,11 +1530,13 @@ def _compute_rows(
         fp: FieldPath = fi.path
         if fp.variable not in bindings:
             raise SearchExecutionError(f"Unknown variable '{fp.variable}' in RETURN.")
-        if len(fp.steps) != 1 or not isinstance(fp.steps[0], DotStep):
-            raise SearchExecutionError("RETURN field paths support single dot-step only in v1.")
-        field_name = fp.steps[0].name
-        orm_path = _orm_path_for_field(bindings[fp.variable], field_name)
-        user_alias = fi.alias or field_name
+        if not fp.steps or not isinstance(fp.steps[0], DotStep):
+            raise SearchExecutionError("RETURN field paths must start with a dot-step.")
+        orm_path = _resolve_orm_path(bindings[fp.variable], fp)
+        # Last dot-step name becomes the default user-facing alias when the
+        # author didn't supply an explicit AS alias.
+        last_dot_step_name = fp.steps[-1].name if isinstance(fp.steps[-1], DotStep) else fp.steps[0].name
+        user_alias = fi.alias or last_dot_step_name
         internal = f"_g_col_{idx}"
         annotations[internal] = F(orm_path)
         group_by_pairs.append((internal, user_alias))

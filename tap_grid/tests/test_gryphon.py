@@ -350,7 +350,7 @@ class TestGryphonExecutor:
             search_type="gryphon",
             root="node",
             name="test",
-            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.name, c.bio"},
+            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.name, c.data.bio"},
         )
         result = execute_search(search, inputs={})
 
@@ -414,6 +414,113 @@ class TestGryphonExecutor:
         )
         with pytest.raises(SearchExecutionError, match="[Uu]nknown"):
             execute_search(search, inputs={})
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonEnvelopePaths — req-grid-traversal-lang-envelope-paths
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonEnvelopePaths:
+    """Explicit-only envelope-aware paths: `data` and `display` prefixes."""
+
+    def _make_characters(self):
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        out = []
+        for name, bio in (("Frodo", "A hobbit."), ("Sam", "Gardener.")):
+            entity = Entity.objects.create(entity_type="character", name=name)
+            out.append(Character.objects.create(entity=entity, name=name, bio=bio))
+        return out
+
+    def test_return_data_prefix_resolves_per_model_field(self):
+        """req-grid-traversal-lang-envelope-paths-2: data prefix → per-model row."""
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.data.bio"},
+        )
+        result = execute_search(search, inputs={})
+        bios = {n["bio"] for n in result["nodes"]}
+        assert bios == {"A hobbit.", "Gardener."}
+
+    def test_return_unprefixed_per_model_field_rejected(self):
+        """req-grid-traversal-lang-envelope-paths-6: no routing sugar.
+
+        Bare `c.bio` is rejected; error message names the explicit form.
+        """
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.bio"},
+        )
+        # Error message names the explicit form (e.g. `<var>.data.bio`) so
+        # the caller knows exactly what to write instead.
+        with pytest.raises(SearchExecutionError, match=r"data\.bio"):
+            execute_search(search, inputs={})
+
+    def test_return_display_prefix_rejected_with_extended_layer_hint(self):
+        """req-grid-traversal-lang-envelope-paths-3: display rejected in v1; error names the workaround."""
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={
+                "query": "MATCH (c:character) RETURN c.entity_id, c.display.tap_viz.shape"
+            },
+        )
+        with pytest.raises(SearchExecutionError, match=r"extended"):
+            execute_search(search, inputs={})
+
+    def test_return_spine_field_works_unprefixed(self):
+        """req-grid-traversal-lang-envelope-paths-1: spine fields resolve without prefix."""
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.name, c.entity_type"},
+        )
+        result = execute_search(search, inputs={})
+        assert all("entity_id" in n and "name" in n and "entity_type" in n for n in result["nodes"])
+
+    def test_return_walking_into_spine_field_rejected(self):
+        """Spine fields are scalars — `n.name.something` errors clearly."""
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={"query": "MATCH (c:character) RETURN c.name.bogus"},
+        )
+        with pytest.raises(SearchExecutionError, match=r"data"):
+            execute_search(search, inputs={})
+
+    def test_return_dotted_path_default_alias_is_last_step(self):
+        """When no AS alias is given, the default column name is the last dot-step."""
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.data.bio"},
+        )
+        result = execute_search(search, inputs={})
+        n = result["nodes"][0]
+        # `c.data.bio` → default key is `bio` (last dot-step), not `data` or `data.bio`.
+        assert "bio" in n
 
 
 # ---------------------------------------------------------------------------

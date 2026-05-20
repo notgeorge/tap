@@ -9,7 +9,7 @@ from tap_grid.gryphon.executor import execute_gryphon
 if TYPE_CHECKING:
     from tap_grid.models import Search
 
-_LIST_CHARACTERS_QUERY = "MATCH (c:character) RETURN c.entity_id, c.entity_type, c.name, c.bio"
+_LIST_CHARACTERS_QUERY = "MATCH (c:character) RETURN c.entity_id, c.entity_type, c.name, c.data.bio"
 
 
 def list_characters_with_bio(
