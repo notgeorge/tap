@@ -253,20 +253,21 @@ def _dispatch_pattern(
 
 
 def _node_key(node: dict[str, Any], layer: SubgraphLayer) -> str:
-    """Extract a dedup key from a serialized node dict."""
-    if layer == "lite":
-        return str(node["entity_id"])
-    # Projected type-scan results are flat dicts with entity_id at top level.
-    if "entity" in node:
-        return str(node["entity"]["entity_id"])
-    return str(node.get("entity_id", id(node)))
+    """Extract a dedup key from a serialized node envelope.
+
+    Under spec-grift-envelope, entity_id is always at the top level of
+    the envelope across all layers.
+    """
+    return str(node["entity_id"])
 
 
 def _edge_key(edge: dict[str, Any], layer: SubgraphLayer) -> str:
-    """Extract a dedup key from a serialized edge dict."""
-    if layer == "lite":
-        return str(edge["entity_id"])
-    return str(edge["entity"]["entity_id"])
+    """Extract a dedup key from a serialized edge envelope.
+
+    Under spec-grift-envelope, entity_id is always at the top level of
+    the envelope across all layers.
+    """
+    return str(edge["entity_id"])
 
 
 def _extract_entity_id_anchor(
@@ -612,7 +613,7 @@ def _serialize_entity_nodes(
             e,
             typed_models.get(str(e.pk)),
             icon_url=icon_map.get(e.entity_type, ""),
-            display=display_map.get(e.entity_type, {}),
+            tap_viz_hints=display_map.get(e.entity_type, {}),
         )
         for e in entities
     ]
@@ -640,7 +641,7 @@ def _serialize_typed_nodes(
             obj.entity,
             obj,
             icon_url=icon_map.get(obj.entity.entity_type, ""),
-            display=display_map.get(obj.entity.entity_type, {}),
+            tap_viz_hints=display_map.get(obj.entity.entity_type, {}),
         )
         for obj in domain_objects
     ]
@@ -1434,8 +1435,8 @@ def _serialize_edge_list(
     return [
         serialize_edge_extended(
             e,
-            from_name=name_map.get(str(e.from_entity_id), ""),
-            to_name=name_map.get(str(e.to_entity_id), ""),
+            from_label=name_map.get(str(e.from_entity_id), ""),
+            to_label=name_map.get(str(e.to_entity_id), ""),
         )
         for e in edges
     ]

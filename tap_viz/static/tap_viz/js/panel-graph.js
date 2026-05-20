@@ -41,20 +41,19 @@ TapVizNestingResolver.prototype.resolve = function () {
     // 1. Build type-by-entity-id map.
     var typeByEntityId = {};
     this.nodes.forEach(function (n) {
-        var ent = n.entity || {};
-        typeByEntityId[ent.entity_id] = ent.entity_type;
+        typeByEntityId[n.entity_id] = n.entity_type;
     });
 
     // 2. Collect all nesting rules from all node types' display.nesting metadata.
     var rules = [];
     var seenTypes = {};
     this.nodes.forEach(function (n) {
-        var ent = n.entity || {};
-        var entityType = ent.entity_type;
+        var entityType = n.entity_type;
         if (seenTypes[entityType]) return;
         seenTypes[entityType] = true;
 
-        var nesting = (n.display || {}).nesting;
+        var tapViz = (n.display || {}).tap_viz || {};
+        var nesting = tapViz.nesting;
         if (!nesting) return;
 
         // Parent-side rules: self-side is parent, so parentLabel must match entityType.
@@ -371,13 +370,13 @@ function initGraph(panelId) {
     var parentLabelData = {};
     if (parentIds.size > 0) {
         nodes.forEach(function (n) {
-            var ent = n.entity || {};
-            if (!parentIds.has(ent.entity_id)) return;
-            var nestingMeta = ((n.display || {}).nesting) || {};
+            if (!parentIds.has(n.entity_id)) return;
+            var tapViz = (n.display || {}).tap_viz || {};
+            var nestingMeta = tapViz.nesting || {};
             var plConfig = nestingMeta.parent_label || {};
-            parentLabelData[ent.entity_id] = {
-                label: ent.name || ent.entity_type || ent.entity_id,
-                icon_url: n.icon_url || "",
+            parentLabelData[n.entity_id] = {
+                label: n.name || n.entity_type || n.entity_id,
+                icon_url: tapViz.icon_url || "",
                 config: {
                     horizontal_alignment: plConfig.horizontal_alignment || "center",
                     vertical_alignment: plConfig.vertical_alignment || "top",
@@ -387,18 +386,19 @@ function initGraph(panelId) {
         });
     }
 
-    // Build Cytoscape elements from GRIFT extended node/edge envelopes.
+    // Build Cytoscape elements from GRIFT envelopes (spec-grift-envelope).
+    // Each envelope has spine fields flat at top, per-model data in `data`,
+    // and computed-for-render values in `display.tap_viz`.
     const cyNodes = nodes.map(function (n) {
-        var ent = n.entity || {};
-        var disp = n.display || {};
-        var colors = disp.colors || {};
+        var tapViz = (n.display || {}).tap_viz || {};
+        var colors = tapViz.colors || {};
         var data = {
-            id: ent.entity_id,
-            label: ent.name || ent.entity_type || ent.entity_id,
-            entity_type: ent.entity_type || "",
-            icon_url: n.icon_url || "",
-            shape: n.shape || "ellipse",
-            url_id: n.url_id || "",
+            id: n.entity_id,
+            label: n.name || n.entity_type || n.entity_id,
+            entity_type: n.entity_type || "",
+            icon_url: tapViz.icon_url || "",
+            shape: tapViz.shape || "ellipse",
+            url_id: tapViz.url_id || "",
         };
         if (colors.fill) data.fill_color = colors.fill;
         if (colors.border) data.border_color = colors.border;
@@ -407,7 +407,7 @@ function initGraph(panelId) {
         // Label-position hint: valign/halign + inside/outside -> Cytoscape
         // text-valign, text-halign, text-margin-y (inside uses positive margin,
         // outside uses negative — pushing the label off the container edge).
-        var label = disp.label || {};
+        var label = tapViz.label || {};
         if (label.valign && label.halign) {
             data.label_valign = label.valign;
             data.label_halign = label.halign;
@@ -418,22 +418,21 @@ function initGraph(panelId) {
             else data.label_margin_y = 0;
         }
 
-        if (nesting.parentByChildId[ent.entity_id]) {
-            data.parent = nesting.parentByChildId[ent.entity_id];
+        if (nesting.parentByChildId[n.entity_id]) {
+            data.parent = nesting.parentByChildId[n.entity_id];
         }
         return { data: data };
     });
 
-    const nodeIds = new Set(nodes.map(function (n) { return n.entity.entity_id; }));
+    const nodeIds = new Set(nodes.map(function (n) { return n.entity_id; }));
     const cyEdges = edges
         .filter(function (e) {
-            var ed = e.edge || {};
+            var ed = e.data || {};
             return nodeIds.has(ed.from_entity_id) && nodeIds.has(ed.to_entity_id);
         })
         .map(function (e) {
-            var ent = e.entity || {};
-            var ed = e.edge || {};
-            var edgeId = ent.entity_id || (ed.from_entity_id + "-" + ed.to_entity_id + "-" + ed.edge_type);
+            var ed = e.data || {};
+            var edgeId = e.entity_id || (ed.from_entity_id + "-" + ed.to_entity_id + "-" + ed.edge_type);
             var classes = nesting.hiddenEdgeIds.has(edgeId) ? "tap-nesting-hidden" : "";
             return {
                 data: {

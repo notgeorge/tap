@@ -229,7 +229,7 @@ def _serialize_nodes(
             e,
             typed_models.get(str(e.pk)),
             icon_url=icon_map.get(e.entity_type, ""),
-            display=display_map.get(e.entity_type, {}),
+            tap_viz_hints=display_map.get(e.entity_type, {}),
         )
         for e in entities
     ]
@@ -257,8 +257,8 @@ def _serialize_edges(
     return [
         serialize_edge_extended(
             e,
-            from_name=name_map.get(str(e.from_entity_id), ""),
-            to_name=name_map.get(str(e.to_entity_id), ""),
+            from_label=name_map.get(str(e.from_entity_id), ""),
+            to_label=name_map.get(str(e.to_entity_id), ""),
         )
         for e in edges
     ]

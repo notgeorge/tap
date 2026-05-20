@@ -1,14 +1,29 @@
 """GRIFT Subgraph serializers — canonical graph envelope shapes for TAP.
 
-Implements the three subgraph return layers defined by spec-grift-subgraph:
+Implements the three subgraph return layers defined by spec-grift-subgraph
+and the canonical envelope shape defined by spec-grift-envelope:
 
-  lite      Entity-envelope data only; lightweight graph identity and structure.
-  full      Complete canonical GRIFT member shape (entity + typed payload).
-  extended  Full shape plus derived presentation metadata (icon, shape, url_id).
+  lite      Spine-only envelope. Top-level Entity-row fields, no data lane.
+  full      Spine + data lane. Per-model fields, polymorphic by entity_type.
+  extended  Spine + data + display lane (consumer-namespaced under tap_viz).
+
+The envelope is the canonical per-member shape. The same shape applies to
+nodes and edges; polymorphism lives entirely inside the data lane.
+
+Lane builders mirror the spec's vocabulary 1:1:
+
+  build_spine_surface(entity) -> {<all Entity-row fields, flat at top>}
+  build_data_lane(typed_model) -> {<all BaseModel-row fields, including
+                                    universal description / batch_id /
+                                    flip_map and the entity_id / name
+                                    mirrors>}
+  build_display_lane(...)     -> {"tap_viz": {<computed-for-render>}}
+
+Layer serializers compose those lanes per req-grift-envelope-layer-mapping.
 
 Entry points:
   serialize_subgraph(entities, edges, *, layer, db_alias) -> {nodes, edges}
-  Individual serializers for fine-grained control.
+  Individual lane builders and layer serializers for fine-grained control.
 """
 
 from __future__ import annotations
@@ -28,12 +43,31 @@ SubgraphLayer = Literal["lite", "full", "extended"]
 
 
 # ---------------------------------------------------------------------------
-# Entity envelope — shared by all layers
+# Lane builders — one per envelope lane (spec-grift-envelope).
 # ---------------------------------------------------------------------------
+#
+# Each builder returns a dict of *just its lane's contents*. Layer serializers
+# below merge the lane dicts into the envelope per the layer's lane set.
+#
+# Naming intentionally mirrors the spec vocabulary so future readers can map
+# code ↔ spec without translation. See spec-grift-envelope.md for the lane
+# contract.
 
 
-def serialize_entity_envelope(entity: Entity) -> dict[str, Any]:
-    """Serialize the Entity spine row to a canonical envelope dict."""
+# Universal BaseModel-row fields that ride alongside per-model
+# FIELD_CRUD_SCHEMA fields in the data lane. These are inherited by every
+# concrete BaseModel and don't need to be redeclared per-model.
+_BASEMODEL_UNIVERSAL_FIELDS: tuple[str, ...] = ("description", "batch_id", "flip_map")
+
+
+def build_spine_surface(entity: Entity) -> dict[str, Any]:
+    """Build the top-level spine surface for an envelope.
+
+    Returns the Entity-row fields, flat, in the canonical order defined by
+    spec-grid-entity § Canonical Spine Surface (req-grid-entity-spine-surface).
+    These keys are merged directly into the envelope's top level, not nested
+    under any lane key.
+    """
     return {
         "entity_id": str(entity.pk),
         "entity_type": entity.entity_type,
@@ -42,45 +76,128 @@ def serialize_entity_envelope(entity: Entity) -> dict[str, Any]:
         "created_at": entity.created_at.isoformat() if entity.created_at else None,
         "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,
         "deleted_at": entity.deleted_at.isoformat() if entity.deleted_at else None,
+        "version": entity.version,
+        "originating_grid_id": str(entity.originating_grid_id) if entity.originating_grid_id else None,
     }
 
 
-# ---------------------------------------------------------------------------
-# Node payload — typed model fields from FIELD_CRUD_SCHEMA
-# ---------------------------------------------------------------------------
+def build_data_lane(typed_model: BaseModel | None) -> dict[str, Any]:
+    """Build the `data` lane for an envelope.
 
+    Per spec-grift-envelope § Data Lane Rule:
+    - Reads per-model FIELD_CRUD_SCHEMA fields (the typed surface the model
+      declares as service-writeable).
+    - Plus the universal BaseModel fields (`description`, `batch_id`,
+      `flip_map`).
+    - Includes the required `entity_id` and `name` mirrors of top-level
+      values (req-grift-envelope-denorm-3 enforces mirror equality).
+    - Excludes `entity_type` (it's a spine field, surfaces only at top).
 
-def serialize_node_payload(typed_model: BaseModel) -> dict[str, Any]:
-    """Extract typed model fields declared in FIELD_CRUD_SCHEMA."""
+    Returns {} when typed_model is None (rare; an envelope without a
+    backing per-model row is a degenerate case the layer serializer
+    should usually avoid by checking presence first).
+    """
+    if typed_model is None:
+        return {}
+
     result: dict[str, Any] = {}
+
+    # entity_id mirror (req-grift-envelope-denorm).
+    result["entity_id"] = str(typed_model.entity_id)
+
+    # Per-model FIELD_CRUD_SCHEMA fields. Note that `name` is typically
+    # declared here by the model — it surfaces as the second mirror.
     for field_name in typed_model.FIELD_CRUD_SCHEMA:
+        if field_name == "entity_type":
+            continue  # Spine field; never in data.
         value = getattr(typed_model, field_name, None)
         if isinstance(value, uuid.UUID):
             value = str(value)
         elif hasattr(value, "isoformat"):
             value = value.isoformat()
         result[field_name] = value
+
+    # Universal BaseModel fields not already declared in FIELD_CRUD_SCHEMA.
+    for field_name in _BASEMODEL_UNIVERSAL_FIELDS:
+        if field_name in result:
+            continue
+        value = getattr(typed_model, field_name, None)
+        if isinstance(value, uuid.UUID):
+            value = str(value)
+        elif hasattr(value, "isoformat"):
+            value = value.isoformat()
+        result[field_name] = value
+
     return result
 
 
+def build_display_lane(
+    *,
+    tap_viz_hints: dict[str, Any] | None = None,
+    icon_url: str = "",
+    url_id: str = "",
+    from_label: str | None = None,
+    to_label: str | None = None,
+) -> dict[str, Any]:
+    """Build the `display` lane for an envelope.
+
+    Per spec-grift-envelope § Display Lane Rule the lane is consumer-
+    namespaced; v0 populates only the `tap_viz` sub-namespace. Future
+    consumers (table panels, info windows, list panels) will add their
+    own sibling keys.
+
+    `tap_viz_hints` is the per-type DEFAULT_DISPLAY["tap_viz"] dict
+    (shape, colors, label, nesting hints, ...). `icon_url` and `url_id`
+    are computed-for-render values that fold into the same lane.
+    `from_label` and `to_label` are the edge endpoint labels (replace
+    the retired flat `from_name`/`to_name`).
+    """
+    hints = dict(tap_viz_hints or {})
+    if icon_url:
+        hints["icon_url"] = icon_url
+    if url_id:
+        hints["url_id"] = url_id
+    if from_label is not None:
+        hints["from_label"] = from_label
+    if to_label is not None:
+        hints["to_label"] = to_label
+    return {"tap_viz": hints} if hints else {}
+
+
 # ---------------------------------------------------------------------------
-# Node serializers — lite / full / extended
+# Backwards-compat shim — keeps a few callers that still want just the
+# Entity-row dict working without a code change in the same commit.
+# ---------------------------------------------------------------------------
+
+
+def serialize_entity_envelope(entity: Entity) -> dict[str, Any]:
+    """Return the Entity-row spine surface as a flat dict.
+
+    Alias for build_spine_surface, kept for backwards compatibility with
+    callers that previously consumed serialize_entity_envelope before
+    envelope-spec rework.
+    """
+    return build_spine_surface(entity)
+
+
+# ---------------------------------------------------------------------------
+# Node serializers — one per return layer.
 # ---------------------------------------------------------------------------
 
 
 def serialize_node_lite(entity: Entity) -> dict[str, Any]:
-    """Lite layer: flat entity-envelope fields only."""
-    return serialize_entity_envelope(entity)
+    """Lite layer: spine surface only — no data, no display."""
+    return build_spine_surface(entity)
 
 
 def serialize_node_full(
     entity: Entity,
     typed_model: BaseModel | None = None,
 ) -> dict[str, Any]:
-    """Full layer: canonical nested GRIFT node object."""
+    """Full layer: spine surface + data lane."""
     return {
-        "entity": serialize_entity_envelope(entity),
-        "node": serialize_node_payload(typed_model) if typed_model else {},
+        **build_spine_surface(entity),
+        "data": build_data_lane(typed_model),
     }
 
 
@@ -89,76 +206,106 @@ def serialize_node_extended(
     typed_model: BaseModel | None = None,
     *,
     icon_url: str = "",
-    display: dict[str, Any] | None = None,
+    tap_viz_hints: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Extended layer: full shape plus presentation metadata."""
-    entity_id = str(entity.pk)
+    """Extended layer: spine surface + data lane + display lane."""
+    spine = build_spine_surface(entity)
     slug = slugify(entity.name) or "entity"
-    disp = display or {}
-    return {
-        "entity": serialize_entity_envelope(entity),
-        "node": serialize_node_payload(typed_model) if typed_model else {},
-        "icon_url": icon_url,
-        "shape": disp.get("shape", "ellipse"),
-        "display": disp,
-        "url_id": f"{slug}--{entity_id}",
+    url_id = f"{slug}--{spine['entity_id']}"
+    display = build_display_lane(
+        tap_viz_hints=tap_viz_hints,
+        icon_url=icon_url,
+        url_id=url_id,
+    )
+    envelope: dict[str, Any] = {
+        **spine,
+        "data": build_data_lane(typed_model),
     }
+    if display:
+        envelope["display"] = display
+    return envelope
 
 
 # ---------------------------------------------------------------------------
-# Edge serializers — lite / full / extended
+# Edge serializers — same envelope shape; polymorphism lives in `data`.
 # ---------------------------------------------------------------------------
 
 
-def serialize_edge_lite(edge: Edge) -> dict[str, Any]:
-    """Lite layer: flat edge relationship fields."""
-    return {
+def _build_edge_data_lane(edge: Edge) -> dict[str, Any]:
+    """Build the `data` lane for an edge envelope.
+
+    Edges have a small fixed shape: the two endpoint FKs, the immutable
+    edge_type, and the properties JSONField. Universal BaseModel fields
+    (description, batch_id, flip_map) are included; mirrors of entity_id
+    and name follow the same rule as node envelopes.
+    """
+    result: dict[str, Any] = {
         "entity_id": str(edge.entity_id),
+        "name": edge.entity.name if edge.entity else "",
         "from_entity_id": str(edge.from_entity_id),
         "to_entity_id": str(edge.to_entity_id),
         "edge_type": edge.edge_type,
         "properties": edge.properties,
     }
+    for field_name in _BASEMODEL_UNIVERSAL_FIELDS:
+        if field_name in result:
+            continue
+        value = getattr(edge, field_name, None)
+        if isinstance(value, uuid.UUID):
+            value = str(value)
+        elif hasattr(value, "isoformat"):
+            value = value.isoformat()
+        result[field_name] = value
+    return result
+
+
+def serialize_edge_lite(edge: Edge) -> dict[str, Any]:
+    """Lite layer: spine surface only — no data, no display.
+
+    Requires edge.entity to be available (use select_related("entity")).
+    """
+    return build_spine_surface(edge.entity)
 
 
 def serialize_edge_full(edge: Edge) -> dict[str, Any]:
-    """Full layer: canonical nested GRIFT edge object.
+    """Full layer: spine surface + data lane.
 
     Requires edge.entity to be available (use select_related("entity")).
     """
     return {
-        "entity": serialize_entity_envelope(edge.entity),
-        "edge": {
-            "from_entity_id": str(edge.from_entity_id),
-            "to_entity_id": str(edge.to_entity_id),
-            "edge_type": edge.edge_type,
-            "properties": edge.properties,
-        },
+        **build_spine_surface(edge.entity),
+        "data": _build_edge_data_lane(edge),
     }
 
 
 def serialize_edge_extended(
     edge: Edge,
     *,
-    from_name: str = "",
-    to_name: str = "",
+    from_label: str = "",
+    to_label: str = "",
+    tap_viz_hints: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Extended layer: full shape plus endpoint display names."""
-    return {
-        "entity": serialize_entity_envelope(edge.entity),
-        "edge": {
-            "from_entity_id": str(edge.from_entity_id),
-            "to_entity_id": str(edge.to_entity_id),
-            "edge_type": edge.edge_type,
-            "properties": edge.properties,
-        },
-        "from_name": from_name,
-        "to_name": to_name,
+    """Extended layer: spine surface + data lane + display lane.
+
+    `from_label` and `to_label` replace the retired flat `from_name`/
+    `to_name` on edge envelopes. They live inside `display.tap_viz`.
+    """
+    display = build_display_lane(
+        tap_viz_hints=tap_viz_hints,
+        from_label=from_label,
+        to_label=to_label,
+    )
+    envelope: dict[str, Any] = {
+        **build_spine_surface(edge.entity),
+        "data": _build_edge_data_lane(edge),
     }
+    if display:
+        envelope["display"] = display
+    return envelope
 
 
 # ---------------------------------------------------------------------------
-# Batch resolution helpers
+# Batch resolution helpers — unchanged by the envelope rework.
 # ---------------------------------------------------------------------------
 
 
@@ -260,7 +407,8 @@ def serialize_subgraph(
     Handles all batch resolution internally based on the requested layer.
 
     Returns:
-        {"nodes": [...], "edges": [...]}
+        {"nodes": [...], "edges": [...]} where each member is an envelope
+        per spec-grift-envelope.
     """
     if layer == "lite":
         return {
@@ -282,7 +430,7 @@ def serialize_subgraph(
     icon_map = batch_resolve_icon_urls(slugs)
     display_map = batch_resolve_display(slugs)
 
-    # Edge endpoint names.
+    # Edge endpoint labels.
     endpoint_ids: set[str] = set()
     for edge in edges:
         endpoint_ids.add(str(edge.from_entity_id))
@@ -295,15 +443,15 @@ def serialize_subgraph(
                 e,
                 typed_models.get(str(e.pk)),
                 icon_url=icon_map.get(e.entity_type, ""),
-                display=display_map.get(e.entity_type, {}),
+                tap_viz_hints=display_map.get(e.entity_type, {}),
             )
             for e in entities
         ],
         "edges": [
             serialize_edge_extended(
                 e,
-                from_name=name_map.get(str(e.from_entity_id), ""),
-                to_name=name_map.get(str(e.to_entity_id), ""),
+                from_label=name_map.get(str(e.from_entity_id), ""),
+                to_label=name_map.get(str(e.to_entity_id), ""),
             )
             for e in edges
         ],

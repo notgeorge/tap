@@ -25,23 +25,23 @@ def _orm_search(**kwargs):
 
 
 def _node_entity_id(node):
-    """Extract entity_id from a GRIFT full/extended node dict."""
-    return node["entity"]["entity_id"]
+    """Extract entity_id from a GRIFT envelope (spec-grift-envelope)."""
+    return node["entity_id"]
 
 
 def _node_entity_type(node):
-    """Extract entity_type from a GRIFT full/extended node dict."""
-    return node["entity"]["entity_type"]
+    """Extract entity_type from a GRIFT envelope (spec-grift-envelope)."""
+    return node["entity_type"]
 
 
 def _edge_entity_id(edge):
-    """Extract entity_id from a GRIFT full/extended edge dict."""
-    return edge["entity"]["entity_id"]
+    """Extract entity_id from a GRIFT envelope (spec-grift-envelope)."""
+    return edge["entity_id"]
 
 
 def _edge_type(edge):
-    """Extract edge_type from a GRIFT full/extended edge dict."""
-    return edge["edge"]["edge_type"]
+    """Extract edge_type from a GRIFT envelope — lives inside `data` lane."""
+    return edge["data"]["edge_type"]
 
 
 def _make_character(bio="Test"):
@@ -310,9 +310,9 @@ class TestNonTapModelsExcluded:
         )
         result = execute_search(s)
         for node in result["nodes"]:
-            assert "entity" in node
-            assert "entity_type" in node["entity"]
-            assert "entity_id" in node["entity"]
+            # spec-grift-envelope: spine fields flat at top.
+            assert "entity_type" in node
+            assert "entity_id" in node
 
 
 # ---------------------------------------------------------------------------

@@ -248,7 +248,7 @@ class TestGryphonExecutor:
         )
         result = execute_search(search, inputs={"entity_id": str(hub.pk)})
 
-        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity_id"] for n in result["nodes"]}
         assert str(hub.pk) in node_ids
         assert str(neighbor.pk) in node_ids
         assert len(result["edges"]) == 1
@@ -290,7 +290,7 @@ class TestGryphonExecutor:
             },
         )
         result = execute_search(search, inputs={"entity_id": str(hub.pk)})
-        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity_id"] for n in result["nodes"]}
         assert str(outbound_neighbor.pk) in node_ids
         assert str(inbound_neighbor.pk) not in node_ids
 
@@ -387,12 +387,11 @@ class TestGryphonExecutor:
 
         assert "nodes" in result
         node = result["nodes"][0]
-        # Graph envelope nodes use GRIFT full shape: {entity: {...}, node: {...}}.
-        assert "entity" in node
-        assert "node" in node
-        assert "entity_id" in node["entity"]
-        assert "entity_type" in node["entity"]
-        assert "name" in node["entity"]
+        # Graph envelope per spec-grift-envelope: spine at top, data lane below.
+        assert "entity_id" in node
+        assert "entity_type" in node
+        assert "name" in node
+        assert "data" in node
 
     def test_type_scan_no_label_raises(self):
         """Type scan requires a node label to know which entity type to scan."""
@@ -564,7 +563,7 @@ class TestGryphonEdgeTypeScan:
         )
         result = execute_search(search, inputs={})
 
-        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity_id"] for n in result["nodes"]}
         assert str(realm.pk) in node_ids
         assert str(mordor.pk) in node_ids
         assert str(gondor.pk) in node_ids
@@ -582,7 +581,7 @@ class TestGryphonEdgeTypeScan:
         )
         result = execute_search(search, inputs={})
 
-        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity_id"] for n in result["nodes"]}
         # Frodo is not a realm or location endpoint of CONTAINS.
         assert str(frodo.pk) not in node_ids
 
@@ -599,7 +598,7 @@ class TestGryphonEdgeTypeScan:
         )
         result = execute_search(search, inputs={})
 
-        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity_id"] for n in result["nodes"]}
         assert str(realm.pk) in node_ids
         assert str(mordor.pk) in node_ids
         assert str(gondor.pk) in node_ids
@@ -675,7 +674,7 @@ class TestGryphonUnion:
         )
         result = execute_search(search, inputs={})
 
-        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity_id"] for n in result["nodes"]}
         assert str(realm.pk) in node_ids
         assert str(mordor.pk) in node_ids
         assert str(frodo.pk) in node_ids
@@ -699,7 +698,7 @@ class TestGryphonUnion:
         )
         result = execute_search(search, inputs={})
 
-        node_ids = [n["entity"]["entity_id"] for n in result["nodes"]]
+        node_ids = [n["entity_id"] for n in result["nodes"]]
         # Mordor should appear exactly once despite being in both results.
         assert node_ids.count(str(mordor.pk)) == 1
 
@@ -721,7 +720,7 @@ class TestGryphonUnion:
         )
         result = execute_search(search, inputs={})
 
-        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity_id"] for n in result["nodes"]}
         # All four entity types should be represented.
         assert str(realm.pk) in node_ids
         assert str(mordor.pk) in node_ids
@@ -1143,7 +1142,7 @@ class TestGryphonV2Executor:
         )
         result = execute_search(search, inputs={})
 
-        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity_id"] for n in result["nodes"]}
         # All 9 entities in the chain should be present.
         for name in ("frodo", "aragorn", "shire", "gondor", "arnor",
                       "hobbiton", "buckland", "minas_tirith", "annuminas"):
@@ -1151,7 +1150,7 @@ class TestGryphonV2Executor:
 
         # Edges: 3 OWNS + 4 CONTAINS = 7
         assert len(result["edges"]) == 7
-        edge_types = {edg["edge"]["edge_type"] for edg in result["edges"]}
+        edge_types = {edg["data"]["edge_type"] for edg in result["edges"]}
         assert edge_types == {"OWNS", "CONTAINS"}
 
         # rows should be empty for graph envelope
@@ -1175,7 +1174,7 @@ class TestGryphonV2Executor:
         )
         result = execute_search(search, inputs={})
 
-        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity_id"] for n in result["nodes"]}
         # Characters and locations should be present.
         assert str(e["frodo"].pk) in node_ids
         assert str(e["aragorn"].pk) in node_ids
@@ -1203,7 +1202,7 @@ class TestGryphonV2Executor:
         )
         result = execute_search(search, inputs={})
 
-        node_ids = {n["entity"]["entity_id"] for n in result["nodes"]}
+        node_ids = {n["entity_id"] for n in result["nodes"]}
         # Only Frodo's chain: Frodo, Shire, Hobbiton, Buckland
         assert str(e["frodo"].pk) in node_ids
         assert str(e["shire"].pk) in node_ids
@@ -1229,7 +1228,7 @@ class TestGryphonV2Executor:
         )
         result = execute_search(search, inputs={})
 
-        entity_ids = [n["entity"]["entity_id"] for n in result["nodes"]]
+        entity_ids = [n["entity_id"] for n in result["nodes"]]
         # No duplicates.
         assert len(entity_ids) == len(set(entity_ids))
 

@@ -217,14 +217,15 @@ def _render_graph_panel_context(
         for search in searches:
             result = execute_search(search, inputs=raw_inputs or None, layer="extended")
             envelope = result.get("results", result)
+            # Envelopes follow spec-grift-envelope: spine fields flat at top.
             for node in envelope.get("nodes", []):
-                nodes.setdefault(node["entity"]["entity_id"], node)
+                nodes.setdefault(node["entity_id"], node)
             for edge_data in envelope.get("edges", []):
-                key = (
-                    edge_data["entity"]["entity_id"]
-                    if edge_data.get("entity")
-                    else f"{edge_data['edge']['from_entity_id']}-{edge_data['edge']['to_entity_id']}-{edge_data['edge']['edge_type']}"
-                )
+                if "entity_id" in edge_data:
+                    key = edge_data["entity_id"]
+                else:
+                    ed = edge_data.get("data") or edge_data
+                    key = f"{ed['from_entity_id']}-{ed['to_entity_id']}-{ed['edge_type']}"
                 edges.setdefault(key, edge_data)
     except Exception as exc:  # noqa: BLE001
         logger.exception("[240a] Synthetic graph panel search failed for panel %s", panel.entity_id)

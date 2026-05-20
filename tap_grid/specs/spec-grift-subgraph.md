@@ -6,17 +6,13 @@ GRIFT v0 defines a batch-oriented interchange document for moving graph data bet
 
 GRIFT Subgraph defines that common contract.
 
-> **Note:** [`spec-grift-envelope.md`](spec-grift-envelope.md) (Proposed)
-> evolves the per-member shape into a four-lane envelope
-> (top-level spine, `data`, `display`, reserved `provenance`). The outer
-> `{nodes: [], edges: []}` container, the `lite` / `full` / `extended`
-> return layer concept, the wrapper-envelope contract, the
-> ordering rule, and the canonical implementation home in
-> `tap_grid.grift` are all unchanged. When the envelope spec moves to
-> Implemented, the "Canonical Member Shape," "Lite Member Guidance,"
-> and the relevant portion of "Presentation Separation" sections of
-> this spec will be updated in the same change to cross-reference the
-> envelope spec.
+> **Note:** [`spec-grift-envelope.md`](spec-grift-envelope.md) defines
+> the canonical per-member envelope shape (spine surface, `data` lane,
+> `display` lane). Section "Canonical Member Shape" and "Presentation
+> Separation" below cross-reference it. This spec retains ownership of
+> the outer `{nodes: [], edges: []}` container, the `lite` / `full` /
+> `extended` return layer concept, wrapper envelopes, ordering, and the
+> canonical implementation home in `tap_grid.grift`.
 
 A GRIFT subgraph is the canonical batchless graph shape for TAP: a simple `nodes` and `edges` envelope whose members use the same full canonical node and edge shapes defined by GRIFT v0. This gives TAP one portable object contract for graph data while still allowing higher-level systems to add their own outer result metadata or presentation adapters.
 
@@ -177,65 +173,19 @@ No layer may redefine the meaning of the fields provided by a lower layer.
 RID: `req-grift-subgraph-members`
 Status: `Implemented`
 
-Subgraph members reuse the full canonical GRIFT member shapes.
+Subgraph members are **envelopes** defined by
+[`spec-grift-envelope`](spec-grift-envelope.md). Each entry in `nodes`
+and each entry in `edges` is a canonical envelope: spine fields flat at
+top, per-model fields in `data`, consumer-namespaced computed-for-render
+in `display`. The same envelope shape applies to nodes and edges;
+polymorphism lives entirely inside `data`.
 
 ### Node Members
 
-Each item in `nodes` is a GRIFT node object:
-
-```json
-{
-  "entity": {
-    "entity_id": "01962ebd-f9d4-7f8a-9b4e-0e4f4d2dc101",
-    "entity_type": "character",
-    "name": "Frodo Baggins",
-    "dimensions": {},
-    "created_at": "2026-04-06T15:00:00Z",
-    "updated_at": "2026-04-06T15:00:00Z",
-    "deleted_at": null
-  },
-  "node": {
-    "name": "Frodo Baggins",
-    "bio": "A hobbit of the Shire who inherits the One Ring."
-  }
-}
-```
-
-### Edge Members
-
-Each item in `edges` is a GRIFT edge object:
-
-```json
-{
-  "entity": {
-    "entity_id": "01962ebd-f9d4-7f8a-9b4e-0e4f4d2dc201",
-    "entity_type": "edge",
-    "name": "WIELDS",
-    "dimensions": {},
-    "created_at": "2026-04-06T15:00:00Z",
-    "updated_at": "2026-04-06T15:00:00Z",
-    "deleted_at": null
-  },
-  "edge": {
-    "from_entity_id": "01962ebd-f9d4-7f8a-9b4e-0e4f4d2dc101",
-    "to_entity_id": "01962ebd-f9d4-7f8a-9b4e-0e4f4d2dc102",
-    "edge_type": "WIELDS",
-    "properties": {}
-  }
-}
-```
-
-### Canonical Rule
-
-The full nested GRIFT member shape is the default and canonical subgraph contract for TAP graph responses.
-
-TAP also defines `lite` and `extended` return layers, but `full` remains the canonical default. Alternate layers must be requested or selected explicitly and must not silently replace the canonical `full` member contract.
-
-### Lite Member Guidance
-
-In `lite` mode, node members should expose the entity-envelope fields directly and edge members should expose the edge relationship fields directly.
-
-Example `lite` node:
+Each item in `nodes` is a canonical envelope per
+[req-grift-envelope-shape](spec-grift-envelope.md#envelope-shape). The
+spec details the lane structure, ordering, and acceptance criteria.
+Example (`full` layer):
 
 ```json
 {
@@ -245,21 +195,35 @@ Example `lite` node:
   "dimensions": {},
   "created_at": "2026-04-06T15:00:00Z",
   "updated_at": "2026-04-06T15:00:00Z",
-  "deleted_at": null
+  "deleted_at": null,
+  "version": 1,
+  "originating_grid_id": null,
+  "data": {
+    "entity_id": "01962ebd-f9d4-7f8a-9b4e-0e4f4d2dc101",
+    "name": "Frodo Baggins",
+    "description": "",
+    "bio": "A hobbit of the Shire who inherits the One Ring.",
+    "batch_id": "...",
+    "flip_map": {}
+  }
 }
 ```
 
-Example `lite` edge:
+### Edge Members
 
-```json
-{
-  "entity_id": "01962ebd-f9d4-7f8a-9b4e-0e4f4d2dc201",
-  "from_entity_id": "01962ebd-f9d4-7f8a-9b4e-0e4f4d2dc101",
-  "to_entity_id": "01962ebd-f9d4-7f8a-9b4e-0e4f4d2dc102",
-  "edge_type": "WIELDS",
-  "properties": {}
-}
-```
+Each item in `edges` is a canonical envelope with the same lane
+structure; `entity_type` is `"edge"` and the per-edge fields
+(`from_entity_id`, `to_entity_id`, `edge_type`, `properties`) live in
+`data`. See
+[req-grift-envelope-edge-uniformity](spec-grift-envelope.md#edge-uniformity)
+for the complete contract.
+
+### Lite Member Guidance
+
+In the `lite` layer, envelopes contain only the top-level spine surface
+— no `data` or `display` lanes. The shape is the canonical envelope
+with absent lanes. See [Layer Mapping in
+spec-grift-envelope](spec-grift-envelope.md#layer-mapping).
 
 ## Ordering
 ----
@@ -324,16 +288,16 @@ Status: `Implemented`
 
 Canonical graph data and presentation metadata are separate concerns.
 
-The canonical subgraph contract does not include UI-oriented fields such as:
+The canonical envelope places presentation values in the **`display`
+lane**, namespaced under consumer keys (`display.tap_viz.{...}` today;
+future `display.tap_web_table`, `display.info_window`, etc.). The
+`display` lane is opt-in via the `extended` return layer; the
+canonical `full` layer carries only spine + `data`.
 
-- `icon_url`
-- `shape`
-- `url_id`
-- `from_name`
-- `to_name`
-- Cytoscape placement or rendering hints
-
-These values may be derived by presentation adapters in `tap_web`, `tap_viz`, or other consumers, but they are not part of the canonical GRIFT subgraph member contract.
+Computed-for-render values (icons, shapes, computed labels, URL slugs,
+endpoint labels) are NOT promoted to the top level of the envelope.
+They live inside `display.tap_viz.*`. See
+[req-grift-envelope-display-lane](spec-grift-envelope.md#display-lane-rule).
 
 The `extended` return layer may include such fields for runtime responses, but that does not make them part of the canonical `full` interchange contract.
 
@@ -368,3 +332,18 @@ Responsibilities that do not belong in `tap_grid.grift`:
 ### Development
 
 This keeps TAP's canonical graph interchange logic in one place. Search, gryphon, web, and viz should call into `tap_grid.grift` for canonical graph data rather than maintaining parallel serializers.
+
+## Future
+
+- **Layer naming: `lite` / `full` / `extended`.** The names date from
+  before the envelope shape work and don't strongly communicate what
+  changes between them (e.g. `lite` could be "lightweight" or
+  "low-detail"; `extended` is "extended beyond what?"). Worth a
+  revisit. They define the boundaries in `tap_grid.grift.subgraph`'s
+  `SubgraphLayer` type and the `layer` parameter on `execute_search`
+  and `serialize_subgraph`. If renamed, the affected surface is small
+  and localized: that type, those parameters, and the layer mapping
+  table in [`spec-grift-envelope`
+  § Layer Mapping](spec-grift-envelope.md#layer-mapping). The current
+  names are kept for now (no demand signal to rename mid-stream); this
+  note marks them as candidates for a future pass.

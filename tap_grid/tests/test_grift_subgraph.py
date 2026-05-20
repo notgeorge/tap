@@ -1,4 +1,9 @@
-"""Tests for GRIFT subgraph serializers — spec-grift-subgraph."""
+"""Tests for GRIFT subgraph serializers — spec-grift-subgraph + spec-grift-envelope.
+
+Verifies envelope-shape contract: spine fields flat at top, per-model in
+`data`, consumer-namespaced computed-for-render in `display.tap_viz`.
+Same shape for nodes and edges; polymorphism lives entirely in `data`.
+"""
 
 from __future__ import annotations
 
@@ -9,14 +14,15 @@ import pytest
 from tap_grid.grift.subgraph import (
     batch_resolve_display,
     batch_resolve_typed_models,
+    build_data_lane,
+    build_display_lane,
+    build_spine_surface,
     serialize_edge_extended,
     serialize_edge_full,
     serialize_edge_lite,
-    serialize_entity_envelope,
     serialize_node_extended,
     serialize_node_full,
     serialize_node_lite,
-    serialize_node_payload,
     serialize_subgraph,
 )
 
@@ -57,187 +63,245 @@ def _make_edge(from_entity, to_entity, edge_type="KNOWS"):
 
 
 # ---------------------------------------------------------------------------
-# Entity envelope
+# Lane builders (spec-grift-envelope)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
-class TestSerializeEntityEnvelope:
-    def test_all_fields_present(self):
+class TestBuildSpineSurface:
+    def test_all_entity_row_fields_present(self):
         character = _make_character()
-        envelope = serialize_entity_envelope(character.entity)
-        assert "entity_id" in envelope
-        assert "entity_type" in envelope
-        assert "name" in envelope
-        assert "dimensions" in envelope
-        assert "created_at" in envelope
-        assert "updated_at" in envelope
-        assert "deleted_at" in envelope
+        spine = build_spine_surface(character.entity)
+        # Canonical order per req-grid-entity-spine-surface.
+        for key in (
+            "entity_id",
+            "entity_type",
+            "name",
+            "dimensions",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "version",
+            "originating_grid_id",
+        ):
+            assert key in spine, f"missing spine field: {key}"
 
     def test_entity_id_is_string(self):
         character = _make_character()
-        envelope = serialize_entity_envelope(character.entity)
-        assert isinstance(envelope["entity_id"], str)
+        spine = build_spine_surface(character.entity)
+        assert isinstance(spine["entity_id"], str)
 
     def test_entity_type_matches(self):
         character = _make_character()
-        envelope = serialize_entity_envelope(character.entity)
-        assert envelope["entity_type"] == "character"
+        spine = build_spine_surface(character.entity)
+        assert spine["entity_type"] == "character"
 
-
-# ---------------------------------------------------------------------------
-# Node payload
-# ---------------------------------------------------------------------------
+    def test_no_nested_entity_key(self):
+        """Spine is flat at top — no `entity` wrapper key."""
+        character = _make_character()
+        spine = build_spine_surface(character.entity)
+        assert "entity" not in spine
 
 
 @pytest.mark.django_db
-class TestSerializeNodePayload:
-    def test_extracts_field_schema_keys(self):
+class TestBuildDataLane:
+    def test_includes_field_crud_schema_fields(self):
         character = _make_character(name="Frodo", bio="A hobbit")
-        payload = serialize_node_payload(character)
-        assert "name" in payload
-        assert "bio" in payload
-        assert payload["name"] == "Frodo"
-        assert payload["bio"] == "A hobbit"
+        data = build_data_lane(character)
+        assert data["name"] == "Frodo"
+        assert data["bio"] == "A hobbit"
 
-    def test_excludes_non_field_schema_keys(self):
+    def test_includes_universal_basemodel_fields(self):
         character = _make_character()
-        payload = serialize_node_payload(character)
-        assert "entity_id" not in payload
-        assert "batch_id" not in payload
-        assert "flip_map" not in payload
+        data = build_data_lane(character)
+        # description, batch_id, flip_map are universal — always present.
+        assert "description" in data
+        assert "batch_id" in data
+        assert "flip_map" in data
+
+    def test_includes_entity_id_mirror(self):
+        character = _make_character()
+        data = build_data_lane(character)
+        assert "entity_id" in data
+        assert data["entity_id"] == str(character.entity_id)
+
+    def test_excludes_entity_type(self):
+        """entity_type is a spine field; never in data."""
+        character = _make_character()
+        data = build_data_lane(character)
+        assert "entity_type" not in data
+
+    def test_none_typed_model_returns_empty(self):
+        assert build_data_lane(None) == {}
+
+
+class TestBuildDisplayLane:
+    def test_namespaced_under_tap_viz(self):
+        display = build_display_lane(
+            tap_viz_hints={"shape": "ellipse", "colors": {"fill": "#fff"}},
+            icon_url="/x.svg",
+            url_id="x--id",
+        )
+        assert "tap_viz" in display
+        assert display["tap_viz"]["shape"] == "ellipse"
+        assert display["tap_viz"]["icon_url"] == "/x.svg"
+        assert display["tap_viz"]["url_id"] == "x--id"
+
+    def test_empty_when_no_hints_or_helpers(self):
+        assert build_display_lane() == {}
+
+    def test_edge_labels_when_provided(self):
+        display = build_display_lane(from_label="Frodo", to_label="Sam")
+        assert display["tap_viz"]["from_label"] == "Frodo"
+        assert display["tap_viz"]["to_label"] == "Sam"
 
 
 # ---------------------------------------------------------------------------
-# Node lite
+# Node layer serializers
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
 class TestSerializeNodeLite:
-    def test_flat_shape(self):
+    def test_spine_only(self):
         character = _make_character()
         node = serialize_node_lite(character.entity)
-        assert "entity_id" in node
-        assert "entity_type" in node
+        # Spine fields at top.
+        assert node["entity_type"] == "character"
         assert "name" in node
-        assert "entity" not in node
-        assert "node" not in node
-
-
-# ---------------------------------------------------------------------------
-# Node full
-# ---------------------------------------------------------------------------
+        # No data lane, no display lane.
+        assert "data" not in node
+        assert "display" not in node
 
 
 @pytest.mark.django_db
 class TestSerializeNodeFull:
-    def test_nested_shape(self):
+    def test_spine_plus_data(self):
         character = _make_character(name="Frodo", bio="A hobbit")
         node = serialize_node_full(character.entity, character)
-        assert "entity" in node
-        assert "node" in node
-        assert node["entity"]["entity_id"] == str(character.entity_id)
-        assert node["entity"]["entity_type"] == "character"
-        assert node["node"]["name"] == "Frodo"
-        assert node["node"]["bio"] == "A hobbit"
+        assert node["entity_id"] == str(character.entity_id)
+        assert node["entity_type"] == "character"
+        assert "data" in node
+        assert node["data"]["name"] == "Frodo"
+        assert node["data"]["bio"] == "A hobbit"
+        # No display lane in full.
+        assert "display" not in node
 
-    def test_none_typed_model(self):
+    def test_data_mirror_equals_top_level(self):
+        """req-grift-envelope-denorm-3: mirror equality."""
+        character = _make_character(name="Frodo")
+        node = serialize_node_full(character.entity, character)
+        assert node["data"]["entity_id"] == node["entity_id"]
+        assert node["data"]["name"] == node["name"]
+
+    def test_none_typed_model_yields_empty_data(self):
         character = _make_character()
         node = serialize_node_full(character.entity, None)
-        assert node["node"] == {}
-
-
-# ---------------------------------------------------------------------------
-# Node extended
-# ---------------------------------------------------------------------------
+        assert node["data"] == {}
 
 
 @pytest.mark.django_db
 class TestSerializeNodeExtended:
-    def test_includes_presentation_fields(self):
+    def test_all_three_lanes(self):
         character = _make_character(name="Frodo")
-        node = serialize_node_extended(character.entity, character, icon_url="/static/icon.svg", display={"shape": "ellipse"})
-        assert node["icon_url"] == "/static/icon.svg"
-        assert node["shape"] == "ellipse"
-        assert "url_id" in node
-        assert "--" in node["url_id"]
+        node = serialize_node_extended(
+            character.entity,
+            character,
+            icon_url="/static/icon.svg",
+            tap_viz_hints={"shape": "ellipse"},
+        )
+        # Spine top-level.
+        assert node["entity_id"] == str(character.entity_id)
+        # Data lane.
+        assert node["data"]["name"] == "Frodo"
+        # Display lane, namespaced.
+        assert node["display"]["tap_viz"]["icon_url"] == "/static/icon.svg"
+        assert node["display"]["tap_viz"]["shape"] == "ellipse"
+        assert "url_id" in node["display"]["tap_viz"]
 
     def test_url_id_derived_from_name(self):
         character = _make_character(name="Frodo Baggins")
         node = serialize_node_extended(character.entity, character)
-        assert node["url_id"].startswith("frodo-baggins--")
+        assert node["display"]["tap_viz"]["url_id"].startswith("frodo-baggins--")
 
-    def test_still_has_entity_and_node(self):
+    def test_no_flat_promotion_of_icon_url_or_shape(self):
+        """req-grift-envelope-display-4: flat-field promotion retired."""
         character = _make_character()
-        node = serialize_node_extended(character.entity, character)
-        assert "entity" in node
-        assert "node" in node
+        node = serialize_node_extended(
+            character.entity, character, icon_url="/i.svg", tap_viz_hints={"shape": "x"}
+        )
+        # Top-level should NOT carry icon_url/shape/url_id — those live in display.tap_viz.
+        assert "icon_url" not in node
+        assert "shape" not in node
+        assert "url_id" not in node
 
 
 # ---------------------------------------------------------------------------
-# Edge lite
+# Edge layer serializers — same envelope shape as nodes
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
 class TestSerializeEdgeLite:
-    def test_flat_shape(self):
+    def test_spine_only(self):
         c1 = _make_character("Frodo")
         c2 = _make_character("Sam")
         edge = _make_edge(c1.entity, c2.entity, "KNOWS")
+        from tap_grid.models import Edge
+
+        edge = Edge.objects.select_related("entity").get(pk=edge.pk)
         lite = serialize_edge_lite(edge)
-        assert "entity_id" in lite
-        assert "from_entity_id" in lite
-        assert "to_entity_id" in lite
-        assert "edge_type" in lite
-        assert "properties" in lite
-        assert "entity" not in lite
-
-
-# ---------------------------------------------------------------------------
-# Edge full
-# ---------------------------------------------------------------------------
+        # Spine fields at top.
+        assert lite["entity_id"] == str(edge.entity_id)
+        assert lite["entity_type"] == "edge"
+        # No data, no display.
+        assert "data" not in lite
+        assert "display" not in lite
 
 
 @pytest.mark.django_db
 class TestSerializeEdgeFull:
-    def test_nested_shape(self):
+    def test_spine_plus_data(self):
         c1 = _make_character("Frodo")
         c2 = _make_character("Sam")
         edge = _make_edge(c1.entity, c2.entity, "KNOWS")
-        # select_related needed for full serialization
         from tap_grid.models import Edge
 
         edge = Edge.objects.select_related("entity").get(pk=edge.pk)
         full = serialize_edge_full(edge)
-        assert "entity" in full
-        assert "edge" in full
-        assert full["entity"]["entity_type"] == "edge"
-        assert full["edge"]["from_entity_id"] == str(c1.entity_id)
-        assert full["edge"]["to_entity_id"] == str(c2.entity_id)
-        assert full["edge"]["edge_type"] == "KNOWS"
+        assert full["entity_type"] == "edge"
+        assert full["data"]["from_entity_id"] == str(c1.entity_id)
+        assert full["data"]["to_entity_id"] == str(c2.entity_id)
+        assert full["data"]["edge_type"] == "KNOWS"
+        assert "display" not in full
 
-
-# ---------------------------------------------------------------------------
-# Edge extended
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestSerializeEdgeExtended:
-    def test_includes_endpoint_names(self):
+    def test_edge_data_mirror(self):
         c1 = _make_character("Frodo")
         c2 = _make_character("Sam")
         edge = _make_edge(c1.entity, c2.entity, "KNOWS")
         from tap_grid.models import Edge
 
         edge = Edge.objects.select_related("entity").get(pk=edge.pk)
-        ext = serialize_edge_extended(edge, from_name="Frodo", to_name="Sam")
-        assert ext["from_name"] == "Frodo"
-        assert ext["to_name"] == "Sam"
-        assert "entity" in ext
-        assert "edge" in ext
+        full = serialize_edge_full(edge)
+        assert full["data"]["entity_id"] == full["entity_id"]
+        assert full["data"]["name"] == full["name"]
+
+
+@pytest.mark.django_db
+class TestSerializeEdgeExtended:
+    def test_endpoint_labels_in_display(self):
+        c1 = _make_character("Frodo")
+        c2 = _make_character("Sam")
+        edge = _make_edge(c1.entity, c2.entity, "KNOWS")
+        from tap_grid.models import Edge
+
+        edge = Edge.objects.select_related("entity").get(pk=edge.pk)
+        ext = serialize_edge_extended(edge, from_label="Frodo", to_label="Sam")
+        assert ext["display"]["tap_viz"]["from_label"] == "Frodo"
+        assert ext["display"]["tap_viz"]["to_label"] == "Sam"
+        # No flat from_name / to_name (req-grift-envelope-edge-5).
+        assert "from_name" not in ext
+        assert "to_name" not in ext
 
 
 # ---------------------------------------------------------------------------
@@ -283,24 +347,28 @@ class TestBatchResolveDisplay:
 
 @pytest.mark.django_db
 class TestSerializeSubgraph:
-    def test_lite_returns_flat_nodes(self):
+    def test_lite_spine_only(self):
         c = _make_character()
         result = serialize_subgraph([c.entity], [], layer="lite", db_alias="default")
         assert "nodes" in result
         assert "edges" in result
-        assert "entity_id" in result["nodes"][0]
-        assert "entity" not in result["nodes"][0]
+        n = result["nodes"][0]
+        assert n["entity_id"] == str(c.entity_id)
+        assert "data" not in n
+        assert "display" not in n
 
-    def test_full_returns_nested_nodes(self):
+    def test_full_includes_data(self):
         c = _make_character()
         result = serialize_subgraph([c.entity], [], layer="full", db_alias="default")
-        assert "entity" in result["nodes"][0]
-        assert "node" in result["nodes"][0]
+        n = result["nodes"][0]
+        assert "data" in n
+        assert "display" not in n
 
-    def test_extended_returns_presentation_fields(self):
+    def test_extended_includes_data_and_display(self):
         c = _make_character(name="Frodo")
         result = serialize_subgraph([c.entity], [], layer="extended", db_alias="default")
-        node = result["nodes"][0]
-        assert "icon_url" in node
-        assert "shape" in node
-        assert "url_id" in node
+        n = result["nodes"][0]
+        assert "data" in n
+        assert "display" in n
+        assert "tap_viz" in n["display"]
+        assert "url_id" in n["display"]["tap_viz"]

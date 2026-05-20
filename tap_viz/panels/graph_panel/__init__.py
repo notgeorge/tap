@@ -105,16 +105,16 @@ class GraphPanelType:
             for search in searches:
                 result = execute_search(search, inputs=raw_inputs or None, layer="extended")
                 envelope = result.get("results", result)
+                # Envelopes follow spec-grift-envelope: spine fields flat at top;
+                # edge endpoint refs live in `data` for the lite-fallback key.
                 for node in envelope.get("nodes", []):
-                    nodes.setdefault(node["entity"]["entity_id"], node)
+                    nodes.setdefault(node["entity_id"], node)
                 for edge in envelope.get("edges", []):
-                    key = (
-                        edge["entity"]["entity_id"]
-                        if edge.get("entity")
-                        else (
-                            f"{edge['edge']['from_entity_id']}-{edge['edge']['to_entity_id']}-{edge['edge']['edge_type']}"
-                        )
-                    )
+                    if "entity_id" in edge:
+                        key = edge["entity_id"]
+                    else:
+                        ed = edge.get("data") or edge
+                        key = f"{ed['from_entity_id']}-{ed['to_entity_id']}-{ed['edge_type']}"
                     edges.setdefault(key, edge)
         except Exception as exc:  # noqa: BLE001
             logger.exception("[b9e0] Graph panel search execution failed for panel %s", panel.entity_id)
@@ -159,16 +159,15 @@ class GraphPanelType:
             for search in seed_searches:
                 result = execute_search(search, inputs=raw_inputs or None, layer="extended")
                 envelope = result.get("results", result)
+                # Envelopes follow spec-grift-envelope: spine fields flat at top.
                 for node in envelope.get("nodes", []):
-                    nodes.setdefault(node["entity"]["entity_id"], node)
+                    nodes.setdefault(node["entity_id"], node)
                 for edge in envelope.get("edges", []):
-                    key = (
-                        edge["entity"]["entity_id"]
-                        if edge.get("entity")
-                        else (
-                            f"{edge['edge']['from_entity_id']}-{edge['edge']['to_entity_id']}-{edge['edge']['edge_type']}"
-                        )
-                    )
+                    if "entity_id" in edge:
+                        key = edge["entity_id"]
+                    else:
+                        ed = edge.get("data") or edge
+                        key = f"{ed['from_entity_id']}-{ed['to_entity_id']}-{ed['edge_type']}"
                     edges.setdefault(key, edge)
         except Exception as exc:  # noqa: BLE001
             logger.exception("[b601] Graph panel seed search failed for panel %s", panel.entity_id)

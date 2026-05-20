@@ -22,21 +22,23 @@ from tap_grid.grift.importer import (
     grift_import,
 )
 
-# Subgraph public API.
+# Subgraph public API — envelope shape per spec-grift-envelope.
 from tap_grid.grift.subgraph import (
     SubgraphLayer,
+    batch_resolve_display,
     batch_resolve_entity_names,
     batch_resolve_icon_urls,
-    batch_resolve_display,
     batch_resolve_typed_models,
+    build_data_lane,
+    build_display_lane,
+    build_spine_surface,
     serialize_edge_extended,
     serialize_edge_full,
     serialize_edge_lite,
-    serialize_entity_envelope,
+    serialize_entity_envelope,  # alias for build_spine_surface (back-compat)
     serialize_node_extended,
     serialize_node_full,
     serialize_node_lite,
-    serialize_node_payload,
     serialize_subgraph,
 )
 
@@ -50,12 +52,15 @@ __all__ = [
     "GriftIssue",
     "GriftSkippedBatch",
     "grift_import",
-    # Subgraph
+    # Subgraph / envelope
     "SubgraphLayer",
+    "batch_resolve_display",
     "batch_resolve_entity_names",
     "batch_resolve_icon_urls",
-    "batch_resolve_display",
     "batch_resolve_typed_models",
+    "build_data_lane",
+    "build_display_lane",
+    "build_spine_surface",
     "serialize_edge_extended",
     "serialize_edge_full",
     "serialize_edge_lite",
@@ -63,6 +68,5 @@ __all__ = [
     "serialize_node_extended",
     "serialize_node_full",
     "serialize_node_lite",
-    "serialize_node_payload",
     "serialize_subgraph",
 ]

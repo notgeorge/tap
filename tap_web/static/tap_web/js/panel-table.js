@@ -18,12 +18,13 @@
   "use strict";
 
   // Columns for common_metadata mode (req-web-stdpanel-table-columns).
-  // Node data uses GRIFT extended format: {entity: {...}, node: {...}, icon_url, shape, url_id}
+  // Node data uses the GRIFT envelope shape (spec-grift-envelope):
+  // spine fields flat at top; per-model fields in `data`; render hints in `display.tap_viz`.
   var COMMON_METADATA_COLUMNS = [
     {
       // Icon column — decorative, no header text, empty when no icon available.
       title: "",
-      field: "icon_url",
+      field: "display.tap_viz.icon_url",
       width: 36,
       hozAlign: "center",
       headerSort: false,
@@ -43,7 +44,7 @@
     },
     {
       title: "ID",
-      field: "entity.entity_id",
+      field: "entity_id",
       width: 120,
       formatter: function (cell) {
         // Show only the last 8 chars of the UUID for readability.
@@ -56,17 +57,17 @@
     },
     {
       title: "Name",
-      field: "entity.name",
+      field: "name",
       widthGrow: 2,
     },
     {
       title: "Type",
-      field: "entity.entity_type",
+      field: "entity_type",
       width: 120,
     },
     {
       title: "Last Edited",
-      field: "entity.updated_at",
+      field: "updated_at",
       width: 160,
       formatter: function (cell) {
         var val = cell.getValue();
@@ -80,7 +81,7 @@
     },
     {
       title: "Dimensions",
-      field: "entity.dimensions",
+      field: "dimensions",
       widthGrow: 1,
       formatter: function (cell) {
         var val = cell.getValue();
@@ -90,27 +91,28 @@
     },
   ];
 
-  // Columns for edge mode — shows enriched from/to display names.
-  // Edge data uses GRIFT extended format: {entity: {...}, edge: {...}, from_name, to_name}
+  // Columns for edge mode — endpoint labels resolved into display.tap_viz.
+  // Edge envelopes follow the same shape as node envelopes; edge_type and
+  // properties live in `data`, from/to labels in `display.tap_viz.{from,to}_label`.
   var EDGE_COLUMNS = [
     {
       title: "From",
-      field: "from_name",
+      field: "display.tap_viz.from_label",
       widthGrow: 2,
     },
     {
       title: "Type",
-      field: "edge.edge_type",
+      field: "data.edge_type",
       width: 160,
     },
     {
       title: "To",
-      field: "to_name",
+      field: "display.tap_viz.to_label",
       widthGrow: 2,
     },
     {
       title: "Properties",
-      field: "edge.properties",
+      field: "data.properties",
       widthGrow: 1,
       formatter: function (cell) {
         var val = cell.getValue();
@@ -166,8 +168,8 @@
         el.style.cursor = "pointer";
         el.addEventListener("click", function () {
           var data = row.getData();
-          var entityType = data.entity ? data.entity.entity_type : "";
-          var urlId = data.url_id || "";
+          var entityType = data.entity_type || "";
+          var urlId = ((data.display || {}).tap_viz || {}).url_id || "";
           if (urlId && entityType) {
             window.location.href = "/object/" + entityType + "/" + urlId + "/";
           }

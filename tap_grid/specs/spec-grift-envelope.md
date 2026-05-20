@@ -87,20 +87,20 @@ The envelope is *also* honest about not being a fashion statement:
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-grift-envelope-shape | [Envelope Shape](#envelope-shape) | Proposed | Three-lane envelope: spine-flat-at-top, `data`, `display`; extensible |
-| req-grift-envelope-spine-surface | [Spine Surface Rule](#spine-surface-rule) | Proposed | Top-level fields are Entity-row fields only; canonical order defined in `spec-grid-entity` |
-| req-grift-envelope-data-lane | [Data Lane Rule](#data-lane-rule) | Proposed | `data` holds per-model BaseModel-row fields; shape varies by `entity_type` |
-| req-grift-envelope-display-lane | [Display Lane Rule](#display-lane-rule) | Proposed | `display` holds computed-for-render values, consumer-namespaced |
-| req-grift-envelope-denormalization | [Denormalized Field Mirroring](#denormalized-field-mirroring) | Proposed | `entity_id` and `name` appear at top-level (canonical) AND in `data` (required mirror) |
-| req-grift-envelope-edge-uniformity | [Edge Uniformity](#edge-uniformity) | Proposed | Edges use the same envelope; polymorphism lives in `data` |
-| req-grift-envelope-validation | [Envelope Validation](#envelope-validation) | Proposed | API entrypoints validate spine/mirror consistency; reject mismatch |
-| req-grift-envelope-layer-mapping | [Layer Mapping](#layer-mapping) | Proposed | `lite`/`full`/`extended` map to which lanes are populated |
-| req-grift-envelope-supersedes | [Supersedes Prior Member Shape](#supersedes-prior-member-shape) | Proposed | When implemented, replaces `spec-grift-subgraph` "Canonical Member Shape" section |
+| req-grift-envelope-shape | [Envelope Shape](#envelope-shape) | In Development | Three-lane envelope: spine-flat-at-top, `data`, `display`; extensible |
+| req-grift-envelope-spine-surface | [Spine Surface Rule](#spine-surface-rule) | In Development | Top-level fields are Entity-row fields only; canonical order defined in `spec-grid-entity` |
+| req-grift-envelope-data-lane | [Data Lane Rule](#data-lane-rule) | In Development | `data` holds per-model BaseModel-row fields; shape varies by `entity_type` |
+| req-grift-envelope-display-lane | [Display Lane Rule](#display-lane-rule) | In Development | `display` holds computed-for-render values, consumer-namespaced |
+| req-grift-envelope-denormalization | [Denormalized Field Mirroring](#denormalized-field-mirroring) | In Development | `entity_id` and `name` appear at top-level (canonical) AND in `data` (required mirror) |
+| req-grift-envelope-edge-uniformity | [Edge Uniformity](#edge-uniformity) | In Development | Edges use the same envelope; polymorphism lives in `data` |
+| req-grift-envelope-validation | [Envelope Validation](#envelope-validation) | Proposed | API entrypoints validate spine/mirror consistency; reject mismatch — `tap_grid.grift.envelope` module is the next commit |
+| req-grift-envelope-layer-mapping | [Layer Mapping](#layer-mapping) | In Development | `lite`/`full`/`extended` map to which lanes are populated |
+| req-grift-envelope-supersedes | [Supersedes Prior Member Shape](#supersedes-prior-member-shape) | In Development | Reconciled in same change as serializer rewrite — `spec-grift-subgraph` Canonical Member Shape / Lite Member Guidance / Presentation Separation now cross-reference this spec |
 
 ## Envelope Shape
 ----
 RID: `req-grift-envelope-shape`
-Status: `Proposed`
+Status: `In Development`
 
 Every envelope in a subgraph has three lanes in v0, with room to grow
 additional top-level lanes for future use cases (history, provenance,
@@ -157,7 +157,7 @@ The top-level spine field order follows the canonical order defined by
 ## Spine Surface Rule
 ----
 RID: `req-grift-envelope-spine-surface`
-Status: `Proposed`
+Status: `In Development`
 
 **Only fields stored on the `Entity` row are surfaced at the top level
 of the envelope.** Universal cross-cutting fields stored elsewhere (e.g.
@@ -189,7 +189,7 @@ semantic (debate which fields are "important enough" to surface).
 ## Data Lane Rule
 ----
 RID: `req-grift-envelope-data-lane`
-Status: `Proposed`
+Status: `In Development`
 
 The `data` lane holds **fields stored on the per-model BaseModel row**.
 Its shape varies by `entity_type`; callers branch on `entity_type` to
@@ -222,7 +222,7 @@ know what to expect inside.
 ## Display Lane Rule
 ----
 RID: `req-grift-envelope-display-lane`
-Status: `Proposed`
+Status: `In Development`
 
 The `display` lane holds **values computed for rendering**, not
 persisted. Its sub-keys are **consumer-namespaced** so multiple rendering
@@ -268,7 +268,7 @@ serializer + a small set of template/JS files.
 ## Denormalized Field Mirroring
 ----
 RID: `req-grift-envelope-denormalization`
-Status: `Proposed`
+Status: `In Development`
 
 `entity_id` and `name` are stored in two places by design:
 
@@ -308,7 +308,7 @@ Other fields have a single home and never duplicate.
 ## Edge Uniformity
 ----
 RID: `req-grift-envelope-edge-uniformity`
-Status: `Proposed`
+Status: `In Development`
 
 Edges use the same envelope as nodes. The polymorphism is entirely in
 `data.*`.
@@ -359,7 +359,10 @@ RID: `req-grift-envelope-validation`
 Status: `Proposed`
 
 API entrypoints accepting envelopes as write payloads validate
-structural invariants before dispatching to the service layer.
+structural invariants before dispatching to the service layer. The
+`tap_grid.grift.envelope` module providing `parse_envelope_for_write`
+is the next-commit work; this requirement stays `Proposed` until that
+lands.
 
 ### Implementation
 
@@ -396,7 +399,7 @@ def parse_envelope_for_write(env: dict) -> SplitPayload:
 ## Layer Mapping
 ----
 RID: `req-grift-envelope-layer-mapping`
-Status: `Proposed`
+Status: `In Development`
 
 The envelope composes with the `lite` / `full` / `extended` return
 layers defined in `spec-grift-subgraph`. Each layer is defined by which
@@ -431,7 +434,7 @@ lanes are present.
 ## Supersedes Prior Member Shape
 ----
 RID: `req-grift-envelope-supersedes`
-Status: `Proposed`
+Status: `In Development`
 
 When implemented, this spec supersedes specific sections of
 `spec-grift-subgraph.md` that define the per-member shape.
@@ -517,6 +520,35 @@ this spec, per the project's no-messy-specs discipline.
 - **External HTTP API surface.** If/when TAP exposes a public HTTP API,
   the JSON:API-or-similar transformation happens at the HTTP boundary,
   layered over the internal envelope. No change to this spec required.
+- **JS-side envelope-consumer library.** As of the v0 envelope rollout
+  every panel/JS file that reads a TAP graph response repeats a small
+  set of accessor patterns. Capture them as a future TAP JS library once
+  there's enough demand to factor them out — `make-it-work` means we
+  carry the small repetition for now and identify the surface
+  organically. Capabilities surfaced so far during real-world JS
+  changes:
+
+  1. **Field accessors** — `env.entity_id`, `env.name`,
+     `env.data?.<field>`, `env.display?.tap_viz?.<field>`. Today each
+     consumer hand-writes `(env.display || {}).tap_viz || {}` chains.
+  2. **Envelope → Cytoscape mapping** — `envelopeToCytoscapeNode(env)`
+     and `envelopeToCytoscapeEdge(env)`. Panel-graph.js currently builds
+     this inline; same pattern exists across any cytoscape-host panel.
+  3. **Display-hint applicator** — taking `display.tap_viz.colors`,
+     `display.tap_viz.label`, `display.tap_viz.shape` and producing
+     either Cytoscape style overrides or table cell styling.
+  4. **Endpoint-label resolver** — `from_label` / `to_label` reads with
+     fallback to truncated `entity_id` when labels are absent.
+  5. **Lane presence checks** — "does this envelope carry `data`?"
+     i.e. layer-aware reads to determine if a code path can safely
+     access `env.data.<field>` or needs to refetch at a higher layer.
+  6. **Mirror-equality assertion** — client-side sanity check that
+     `env.entity_id === env.data?.entity_id` and `env.name ===
+     env.data?.name`. Useful as a dev-only guard.
+
+  When the library lands, those become its starting API. Until then,
+  add to this list whenever a new accessor pattern repeats across two
+  or more consumers — that's the demand signal.
 
 ## Status Vocabulary
 
