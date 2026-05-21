@@ -74,6 +74,42 @@ RETURN hub, edge, neighbor
 | req-grid-traversal-lang-shape-4 | Read-Only Surface Only | Implemented | V1 gryphon text excludes graph mutation clauses; they are rejected at parse time. | |
 | req-grid-traversal-lang-shape-5 | Multiple Match Compositional | Implemented | Multiple `MATCH` clauses extend the binding scope; earlier bindings are in scope for later clauses. | |
 
+#### Known Limitation — Multiple WHERE Clauses Silently Dropped
+
+The parser (`tap_grid/gryphon/parser.py::_ASTTransformer.start`) keeps
+only the **first** `WHERE` clause it sees — `where = where_clauses[0]`.
+Any further `WHERE` clauses in the input are **silently discarded**, with
+no error and no warning.
+
+This bites the natural-looking multi-MATCH-with-per-clause-WHERE shape:
+
+```text
+MATCH (n:aws_lambda)   WHERE n.data.tags.Project = "samsite"
+MATCH (n:aws_s3_bucket) WHERE n.data.tags.Project = "samsite"
+```
+
+The second `WHERE` vanishes; the second `MATCH` runs unfiltered. The
+working form today is a **single global WHERE**, applied to each MATCH
+clause scoped to the variables that clause binds (per
+`_filter_predicate_for_bindings`). The samsite landing-page search
+(`plugins/samsite/grift/landing.grift.json`, 2026-05-21) uses that
+form — and gives the unfiltered MATCH a distinct variable name so the
+global WHERE does not apply to it.
+
+Two acceptable resolutions, neither built yet:
+
+1. **Reject multiple WHERE clauses at parse time** with a clear error
+   ("only one WHERE clause per query; combine predicates with AND, or
+   use distinct variable names so a single global WHERE scopes
+   correctly"). Smallest fix; removes the silent-drop footgun.
+2. **Per-MATCH WHERE attachment** — Cypher's actual semantics, where a
+   `WHERE` attaches to its preceding `MATCH` and filters that clause.
+   Requires a `where_clause` field on `MatchClause` and parser +
+   executor changes.
+
+Until one lands, treat "one WHERE per query" as the contract. Surfaced
+here rather than left buried in commit `b80aecf` so it is discoverable.
+
 #### Future
 Consider whether `OPTIONAL MATCH`, `WITH`, and aggregation are needed after the first round of
 graph and naming use cases is implemented.
