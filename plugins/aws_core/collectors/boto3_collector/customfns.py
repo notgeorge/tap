@@ -140,6 +140,94 @@ def route53_zones_with_alias_targets(session: Any, *, client_for: Any = None) ->
             }
 
 
+def aws_account_singleton(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
+    """Synthesize the one ``aws_account`` node for the account this run scopes to.
+
+    No AWS API enumerates "the account" as a resource — ``STS
+    GetCallerIdentity`` is the canonical way to learn which account the
+    run's credentials belong to. The optional IAM account alias
+    (``ListAccountAliases``) supplies a friendlier name; absent an alias the
+    name falls back to ``AWS Account <id>``.
+
+    Yields exactly one item. The account id sits at ``Account`` — the
+    manifest entry's ``natural_key`` — so ``node_entity_id("aws_account",
+    "<id>")`` is deterministic. Any node minted elsewhere with the same id
+    (e.g. a hand-written GRIFT batch) upserts cleanly onto the collector's.
+
+    STS and IAM are global; clients are bound to ``us-east-1`` per the
+    global-resource region invariant.
+    """
+    sts = session.client("sts", region_name="us-east-1")
+    identity = without_response_metadata(sts.get_caller_identity())
+    account_id = identity.get("Account") or ""
+
+    aliases: list[str] = []
+    try:
+        iam = session.client("iam", region_name="us-east-1")
+        alias_resp = without_response_metadata(iam.list_account_aliases())
+        aliases = list(alias_resp.get("AccountAliases", []) or [])
+    except (BotoCoreError, ClientError):
+        # The account alias is a nicety, not load-bearing — a denied or
+        # failed ListAccountAliases just falls the name back to the id form.
+        aliases = []
+
+    yield {
+        "Account": account_id,
+        "Arn": identity.get("Arn"),
+        "UserId": identity.get("UserId"),
+        "_account_name": aliases[0] if aliases else f"AWS Account {account_id}",
+        "_account_aliases": aliases,
+    }
+
+
+def cloudfront_distributions_with_oac(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
+    """Enumerate CloudFront distributions, embedding each origin's OAC config.
+
+    ``ListDistributions`` returns distribution summaries that carry an
+    ``Origins.Items[].OriginAccessControlId`` — but the OAC itself (its
+    signing protocol/behavior and origin type) lives behind a separate
+    ``GetOriginAccessControl`` call. An OAC has no ARN; it is referenced by
+    an opaque ``Id``. This ``custom_fn`` resolves every distinct OAC id a
+    distribution's origins reference and embeds the results under
+    ``_origin_access_controls`` (an ``{oac_id: details}`` map) so they land
+    losslessly in the distribution's ``configuration``. The OAC is a
+    configuration detail of the distribution, not a separate node — the
+    "have it handy" call from the strat-sam-demo discussion (2026-05-21).
+
+    The yielded item is the unchanged ``DistributionSummary`` plus that one
+    extra key, so the manifest's ``natural_key`` (``ARN``), ``fields``,
+    ``tags``, and ``edges`` (``Origins.Items[].DomainName``,
+    ``ViewerCertificate.ACMCertificateArn``) all still resolve.
+
+    CloudFront is global; the client is bound to ``us-east-1`` per the
+    global-resource region invariant.
+    """
+    cf = session.client("cloudfront", region_name="us-east-1")
+    # Cache across distributions: two distributions sharing an OAC -> one call.
+    oac_cache: dict[str, Any] = {}
+    for page in _pages(cf, "list_distributions"):
+        for dist in (page.get("DistributionList", {}) or {}).get("Items", []) or []:
+            oac_ids: list[str] = []
+            for origin in (dist.get("Origins") or {}).get("Items", []) or []:
+                oac_id = origin.get("OriginAccessControlId")
+                if oac_id and oac_id not in oac_ids:
+                    oac_ids.append(oac_id)
+            oacs: dict[str, Any] = {}
+            for oac_id in oac_ids:
+                if oac_id not in oac_cache:
+                    try:
+                        resp = without_response_metadata(
+                            cf.get_origin_access_control(Id=oac_id)
+                        )
+                        oac_cache[oac_id] = resp.get("OriginAccessControl") or resp
+                    except (BotoCoreError, ClientError):
+                        # A per-OAC miss is non-fatal: the distribution still
+                        # collects; the slot records None so the gap is visible.
+                        oac_cache[oac_id] = None
+                oacs[oac_id] = oac_cache[oac_id]
+            yield {**dist, "_origin_access_controls": oacs}
+
+
 def dynamodb_tables_described(session: Any, *, client_for: Any) -> Iterator[dict[str, Any]]:
     """Enumerate DynamoDB tables (regional) and describe each.
 
@@ -196,8 +284,10 @@ def iam_oidc_providers_described(session: Any, *, client_for: Any = None) -> Ite
 
 # Manifest custom_fn name -> callable.
 _CUSTOM_FNS = {
+    "aws_account_singleton": aws_account_singleton,
     "s3_buckets_hydrated": s3_buckets_hydrated,
     "route53_zones_with_alias_targets": route53_zones_with_alias_targets,
+    "cloudfront_distributions_with_oac": cloudfront_distributions_with_oac,
     "dynamodb_tables_described": dynamodb_tables_described,
     "iam_oidc_providers_described": iam_oidc_providers_described,
 }
@@ -206,9 +296,9 @@ _CUSTOM_FNS = {
 def build_custom_fn_registry() -> CustomFnRegistry:
     """The populated ``custom_fn`` registry for the collector.
 
-    Both v0 ``custom_fn`` seams are registered: S3's hydrate fan-out and
-    Route 53's CloudFront-alias cross-join. An unregistered ``custom_fn``
-    still classifies-and-skips, so the registry stays the single source.
+    Every ``custom_fn`` named by the manifest is registered here — the
+    registry is the single source. An unregistered ``custom_fn`` still
+    classifies-and-skips rather than crashing the run.
     """
     registry = CustomFnRegistry()
     for name, fn in _CUSTOM_FNS.items():

@@ -14,31 +14,9 @@
       "batch_node": {
         "source": "plugins.samsite",
         "name": "Samsite landing v0.1.0",
-        "description": "Pass-1 landing page: aws_account container + cytoscape graph panel projecting every aws_* entity the boto3 collector currently knows about for account 180731181784. Deliberately unfiltered and unstyled — we're scouting the cruft in the beater account before curating."
+        "description": "Landing page: cytoscape graph panel projecting the samsite-tagged AWS resources for account 180731181784. The aws_account container node is no longer minted here — the aws_core boto3 collector now synthesizes it (aws_account_singleton custom_fn, deterministic uuid5); the samsite multi-MATCH search's MATCH (account:aws_account) resolves against the collector-owned node."
       },
       "nodes": [
-        {
-          "entity": {
-            "entity_id": "6d305295-e1cf-5029-8b56-521376625d34",
-            "entity_type": "aws_account",
-            "name": "George Beater Account (180731181784)",
-            "dimensions": {
-              "cloud": "aws",
-              "aws_account": "180731181784"
-            }
-          },
-          "node": {
-            "name": "George Beater Account (180731181784)",
-            "account_id": "180731181784",
-            "status": "ACTIVE",
-            "configuration": {
-              "purpose": "Cross-deployment of samaydlette.com — target of the Sam demo (2026-06-01). Long-running beater account, expect legacy cruft.",
-              "minted_by": "plugins.samsite",
-              "minted_with_collector_namespace": true,
-              "note": "Entity ID is uuid5(NAMESPACE_AWS_COLLECTOR, 'aws_account:180731181784') so when aws_core's boto3 collector eventually emits this node itself, the upsert collides cleanly."
-            }
-          }
-        },
         {
           "entity": {
             "entity_id": "eb9fb415-ba8d-57e5-ab3f-1e2411ce0822",
