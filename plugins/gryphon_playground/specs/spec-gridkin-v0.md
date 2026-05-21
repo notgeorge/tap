@@ -38,20 +38,20 @@ is their shared operational companion.
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-gridkin-scenario-format | [Gridkin Scenario Format](#gridkin-scenario-format) | Proposed | The JSON shape of a `.gridkin.json` file |
-| req-gridkin-runner-contract | [Gridkin Runner Contract](#gridkin-runner-contract) | Proposed | Discovery, loading, execution, and assertion behavior |
-| req-gridkin-oracle-assertion | [Oracle Assertion Discipline](#oracle-assertion-discipline) | Proposed | Expected envelopes are independent of the executor under test |
-| req-gridkin-snapshot-discipline | [Snapshot Regeneration Discipline](#snapshot-regeneration-discipline) | Proposed | Explicit opt-in and human review when regenerating |
-| req-gridkin-explain-snapshot | [Explain SQL Snapshot](#explain-sql-snapshot) | Proposed | Each scenario commits the ORM-compiled SQL Gryphon emits |
-| req-gridkin-req-traceability | [Requirement Traceability](#requirement-traceability) | Proposed | Every scenario cites the spec RIDs it covers |
-| req-gridkin-tck-inspiration | [TCK as Scenario Inspiration](#tck-as-scenario-inspiration) | Proposed | Mine the openCypher TCK for corner-case intent; never port queries |
-| req-gridkin-json-schema | [JSON Schema for Scenario Files](#json-schema-for-scenario-files) | Proposed | Author and validate-at-load a JSON Schema for the scenario format |
-| req-gridkin-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Explicitly deferred concerns |
+| req-gridkin-scenario-format | [Gridkin Scenario Format](#gridkin-scenario-format) | Implemented | The JSON shape of a `.gridkin.json` file |
+| req-gridkin-runner-contract | [Gridkin Runner Contract](#gridkin-runner-contract) | Implemented | Discovery, loading, execution, and assertion behavior |
+| req-gridkin-oracle-assertion | [Oracle Assertion Discipline](#oracle-assertion-discipline) | Implemented | Expected envelopes are independent of the executor under test |
+| req-gridkin-snapshot-discipline | [Snapshot Regeneration Discipline](#snapshot-regeneration-discipline) | Implemented | Explicit opt-in and human review when regenerating |
+| req-gridkin-explain-snapshot | [Explain SQL Snapshot](#explain-sql-snapshot) | Implemented | Each scenario commits the ORM-compiled SQL Gryphon emits |
+| req-gridkin-req-traceability | [Requirement Traceability](#requirement-traceability) | Implemented | Every scenario cites the spec RIDs it covers |
+| req-gridkin-tck-inspiration | [TCK as Scenario Inspiration](#tck-as-scenario-inspiration) | Implemented | Mine the openCypher TCK for corner-case intent; never port queries |
+| req-gridkin-json-schema | [JSON Schema for Scenario Files](#json-schema-for-scenario-files) | Implemented | Author and validate-at-load a JSON Schema for the scenario format |
+| req-gridkin-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Explicitly deferred concerns |
 
 ### Gridkin Scenario Format
 ----
 RID: `req-gridkin-scenario-format`
-Status: `Proposed`
+Status: `Implemented`
 
 A Gridkin scenario file is a JSON document that defines one feature's worth of
 test scenarios against a named fixture.
@@ -118,14 +118,14 @@ coordinated change under the snapshot discipline.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gridkin-scenario-format-1 | All Required Fields Validated | Proposed | The runner rejects scenario files missing any required field, with a clear error pointing at the offending field. | |
-| req-gridkin-scenario-format-2 | Expected Side Files Resolve | Proposed | The runner resolves `expected_envelope` and `expected_sql_snapshot` paths relative to the plugin root and fails loudly if either is missing. | |
-| req-gridkin-scenario-format-3 | Covers Field Is Required Non-Empty | Proposed | Scenarios without at least one `covers` entry are rejected — traceability is binding, not optional. | |
+| req-gridkin-scenario-format-1 | All Required Fields Validated | Implemented | The runner rejects scenario files missing any required field, with a clear error pointing at the offending field. | |
+| req-gridkin-scenario-format-2 | Expected Side Files Resolve | Implemented | The runner resolves `expected_envelope` and `expected_sql_snapshot` paths relative to the plugin root and fails loudly if either is missing. | |
+| req-gridkin-scenario-format-3 | Covers Field Is Required Non-Empty | Implemented | Scenarios without at least one `covers` entry are rejected — traceability is binding, not optional. | |
 
 ### Gridkin Runner Contract
 ----
 RID: `req-gridkin-runner-contract`
-Status: `Proposed`
+Status: `Implemented`
 
 The runner is pytest-discoverable and follows a fixed lifecycle per scenario.
 
@@ -154,19 +154,26 @@ Loading isolation: each scenario starts from an empty test database, loads its
 fixture, runs, and tears down. No state bleeds between scenarios. This is
 intentionally slow — the priority is correctness signal, not test-suite speed.
 
+Envelope equality is structural, not literal: `nodes` and `edges` are compared
+as sets (a graph envelope's members are unordered, and the executor emits them
+in DB-discretion order), and volatile provenance fields (`created_at`,
+`updated_at`, `originating_grid_id`) are redacted before comparison — a scenario
+asserts what a query returns, not when its fixture was imported or on which
+grid. `rows` are compared in order.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gridkin-runner-contract-1 | Pytest Discoverable | Proposed | Gridkin scenarios appear as pytest tests and can be run via `pytest plugins/gryphon_playground/`. | |
-| req-gridkin-runner-contract-2 | Per-Scenario Isolation | Proposed | Each scenario runs against a freshly-seeded test database; no inter-scenario state. | |
-| req-gridkin-runner-contract-3 | Envelope and SQL Asserted Separately | Proposed | A scenario can fail on envelope mismatch, SQL mismatch, or both — each is reported distinctly. | |
-| req-gridkin-runner-contract-4 | Uses Standard GRIFT Importer | Proposed | Fixtures load through the same path as real plugin GRIFT data — no Gridkin-specific seed shortcut. | |
+| req-gridkin-runner-contract-1 | Pytest Discoverable | Implemented | Gridkin scenarios appear as pytest tests and can be run via `pytest plugins/gryphon_playground/`. | |
+| req-gridkin-runner-contract-2 | Per-Scenario Isolation | Implemented | Each scenario runs against a freshly-seeded test database; no inter-scenario state. | |
+| req-gridkin-runner-contract-3 | Envelope and SQL Asserted Separately | Implemented | A scenario can fail on envelope mismatch, SQL mismatch, or both — each is reported distinctly. | |
+| req-gridkin-runner-contract-4 | Uses Standard GRIFT Importer | Implemented | Fixtures load through the same path as real plugin GRIFT data — no Gridkin-specific seed shortcut. | |
 
 ### Oracle Assertion Discipline
 ----
 RID: `req-gridkin-oracle-assertion`
-Status: `Proposed`
+Status: `Implemented`
 
 The expected envelope and expected SQL files are oracles, not derivations.
 
@@ -207,13 +214,13 @@ committed contracts authored with intent, not as captured snapshots.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gridkin-oracle-assertion-1 | Expected Files Are Contracts | Proposed | The convention that expected files represent intent (not capture) is documented in the plugin README and surfaced in `--update-snapshots` output. | |
-| req-gridkin-oracle-assertion-2 | New Scenarios Author Expected First | Proposed | When introducing a scenario, author the expected envelope before observing the implementation's output. | Workflow norm, not runtime check |
+| req-gridkin-oracle-assertion-1 | Expected Files Are Contracts | Implemented | The convention that expected files represent intent (not capture) is documented in the plugin README and surfaced in `--update-snapshots` output. | |
+| req-gridkin-oracle-assertion-2 | New Scenarios Author Expected First | Implemented | When introducing a scenario, author the expected envelope before observing the implementation's output. | Workflow norm, not runtime check |
 
 ### Snapshot Regeneration Discipline
 ----
 RID: `req-gridkin-snapshot-discipline`
-Status: `Proposed`
+Status: `Implemented`
 
 Regenerating expected files requires explicit opt-in and human review.
 
@@ -243,14 +250,14 @@ without review defeats the entire validation strategy.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gridkin-snapshot-discipline-1 | Update Flag Explicit | Proposed | Snapshot regeneration requires an explicit flag; no implicit regeneration path exists. | |
-| req-gridkin-snapshot-discipline-2 | Update Banner Reminds Discipline | Proposed | The runner prints an oracle-discipline reminder when snapshots are regenerated. | |
-| req-gridkin-snapshot-discipline-3 | No CI Regeneration | Proposed | No CI job or hook sets `GRIDKIN_UPDATE_SNAPSHOTS`; it is developer-only. | |
+| req-gridkin-snapshot-discipline-1 | Update Flag Explicit | Implemented | Snapshot regeneration requires an explicit flag; no implicit regeneration path exists. | |
+| req-gridkin-snapshot-discipline-2 | Update Banner Reminds Discipline | Implemented | The runner prints an oracle-discipline reminder when snapshots are regenerated. | |
+| req-gridkin-snapshot-discipline-3 | No CI Regeneration | Implemented | No CI job or hook sets `GRIDKIN_UPDATE_SNAPSHOTS`; it is developer-only. | |
 
 ### Explain SQL Snapshot
 ----
 RID: `req-gridkin-explain-snapshot`
-Status: `Proposed`
+Status: `Implemented`
 
 Each scenario commits the exact ORM-compiled SQL the Gryphon executor produces for
 its query.
@@ -310,15 +317,15 @@ the block count and order — is asserted byte-exact after normalization.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gridkin-explain-snapshot-1 | SQL Captured Per Scenario | Proposed | Every Gridkin scenario commits an `expected_sql_snapshot` file. | |
-| req-gridkin-explain-snapshot-2 | Whitespace Normalized | Proposed | The runner whitespace-normalizes both expected and actual SQL before comparing. | |
-| req-gridkin-explain-snapshot-3 | Failure Distinct From Envelope Failure | Proposed | SQL mismatch is reported as a distinct failure mode from envelope mismatch. | |
-| req-gridkin-explain-snapshot-4 | Multi-Statement Capture | Proposed | The `.sql.txt` side file holds one labelled block per `SELECT` the executor executes, in execution order; queries that run multiple statements capture all of them. | |
+| req-gridkin-explain-snapshot-1 | SQL Captured Per Scenario | Implemented | Every Gridkin scenario commits an `expected_sql_snapshot` file. | |
+| req-gridkin-explain-snapshot-2 | Whitespace Normalized | Implemented | The runner whitespace-normalizes both expected and actual SQL before comparing. | |
+| req-gridkin-explain-snapshot-3 | Failure Distinct From Envelope Failure | Implemented | SQL mismatch is reported as a distinct failure mode from envelope mismatch. | |
+| req-gridkin-explain-snapshot-4 | Multi-Statement Capture | Implemented | The `.sql.txt` side file holds one labelled block per `SELECT` the executor executes, in execution order; queries that run multiple statements capture all of them. | |
 
 ### Requirement Traceability
 ----
 RID: `req-gridkin-req-traceability`
-Status: `Proposed`
+Status: `Implemented`
 
 Every Gridkin scenario cites the spec RIDs it exercises.
 
@@ -341,14 +348,14 @@ validation audit identified as missing from current Gryphon tests.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gridkin-req-traceability-1 | Covers Required | Proposed | Scenario files without a `covers` field on every scenario fail to load. | |
-| req-gridkin-req-traceability-2 | Coverage Matrix Generable | Proposed | A CLI command emits a coverage matrix mapping RID → covering scenarios. | |
-| req-gridkin-req-traceability-3 | Gap Surfaced | Proposed | The coverage matrix flags any RID cited in a Gryphon spec that has zero covering Gridkin scenarios. | Drives prioritization |
+| req-gridkin-req-traceability-1 | Covers Required | Implemented | Scenario files without a `covers` field on every scenario fail to load. | |
+| req-gridkin-req-traceability-2 | Coverage Matrix Generable | Implemented | A CLI command emits a coverage matrix mapping RID → covering scenarios. | |
+| req-gridkin-req-traceability-3 | Gap Surfaced | Implemented | The coverage matrix flags any RID cited in a Gryphon spec that has zero covering Gridkin scenarios. | Drives prioritization |
 
 ### TCK as Scenario Inspiration
 ----
 RID: `req-gridkin-tck-inspiration`
-Status: `Proposed`
+Status: `Implemented`
 
 The openCypher Technology Compatibility Kit is mined for corner-case intent. No
 TCK content is copied into Gridkin.
@@ -395,9 +402,9 @@ intellectual honesty, not legal cover.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gridkin-tck-inspiration-1 | Inspired-By Breadcrumb Convention | Proposed | When a Gridkin scenario's intent was mined from a TCK feature, the scenario's `inspired_by` field cites the source folder. | |
-| req-gridkin-tck-inspiration-2 | No TCK Content Copied | Proposed | No TCK query text, graph data, or expected results appear in any Gridkin file. | |
-| req-gridkin-tck-inspiration-3 | Cypher-Specific Quirks Excluded | Proposed | Scenario authors filter TCK intent for applicability to Gryphon semantics; Cypher-specific behaviors are not inherited. | |
+| req-gridkin-tck-inspiration-1 | Inspired-By Breadcrumb Convention | Implemented | When a Gridkin scenario's intent was mined from a TCK feature, the scenario's `inspired_by` field cites the source folder. | |
+| req-gridkin-tck-inspiration-2 | No TCK Content Copied | Implemented | No TCK query text, graph data, or expected results appear in any Gridkin file. | |
+| req-gridkin-tck-inspiration-3 | Cypher-Specific Quirks Excluded | Implemented | Scenario authors filter TCK intent for applicability to Gryphon semantics; Cypher-specific behaviors are not inherited. | |
 
 #### Future
 
@@ -411,7 +418,7 @@ internal-only.
 ### JSON Schema for Scenario Files
 ----
 RID: `req-gridkin-json-schema`
-Status: `Proposed`
+Status: `Implemented`
 
 The Gridkin scenario format is a new structured-data format and ships with a JSON
 Schema validated at load.
@@ -436,13 +443,13 @@ designed and shipped together.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gridkin-json-schema-1 | Schema Authored Same-Change | Proposed | The schema is written in the same change that introduces the runner — not a follow-up. | |
-| req-gridkin-json-schema-2 | Validation On Load | Proposed | Every scenario file is validated against the schema before its contents are used; invalid files fail loudly. | |
+| req-gridkin-json-schema-1 | Schema Authored Same-Change | Implemented | The schema is written in the same change that introduces the runner — not a follow-up. | |
+| req-gridkin-json-schema-2 | Validation On Load | Implemented | Every scenario file is validated against the schema before its contents are used; invalid files fail loudly. | |
 
 ### v0 Non-Goals
 ----
 RID: `req-gridkin-nongoals`
-Status: `Proposed`
+Status: `Implemented`
 
 Concerns explicitly excluded from Gridkin v0:
 
@@ -474,7 +481,7 @@ Concerns explicitly excluded from Gridkin v0:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gridkin-nongoals-1 | Non-Goals Documented | Proposed | The plugin README links to this section so contributors find the non-goals before proposing scope expansion. | |
+| req-gridkin-nongoals-1 | Non-Goals Documented | Implemented | The plugin README links to this section so contributors find the non-goals before proposing scope expansion. | |
 
 ## Status Vocabulary
 

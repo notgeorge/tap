@@ -60,9 +60,11 @@ build any topology — cycles, self-loops, multi-edges, cross-type links.
 
 ## Status
 
-v0 scaffold. The playground vocabulary (4 node types, 4 edge types) is in
-place; the Gridkin runner, JSON Schema, fixtures, and scenario corpus land in
-the following phases of this work.
+v0. The playground vocabulary (4 node types, 4 edge types), the Gridkin runner
+and JSON Schema, and a first scenario corpus — type-scan, hub-and-spoke, and
+COUNT-aggregation scenarios over the `sparse_dense` fixture — are all in place
+and green. Growing the Tier-1 fixture set and the scenario corpus, and adding a
+Tier-2 canonical playground fixture, is ongoing demand-driven work.
 
 The plugin **is** registered in `INSTALLED_APPS` — unlike a standalone-repo
 plugin awaiting integration, its models must migrate and its runner must be

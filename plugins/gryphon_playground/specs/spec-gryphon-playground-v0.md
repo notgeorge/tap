@@ -53,15 +53,15 @@ extending Gryphon or adding scenarios.
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-gryphon-playground-scope | [Plugin Scope](#plugin-scope) | Proposed | What the plugin contains and what it does not |
-| req-gryphon-playground-vocabulary | [Playground Node and Edge Types](#playground-node-and-edge-types) | Proposed | Bespoke `pg_*` / `PG_*` vocabulary for query-pattern testing |
-| req-gryphon-playground-fixtures | [Two-Tier Fixture Structure](#two-tier-fixture-structure) | Proposed | Shape-targeted fixtures + one canonical playground graph |
-| req-gryphon-playground-gridkin | [Gridkin Format Specified Separately](#gridkin-format-specified-separately) | Proposed | The scenario format, runner contract, and disciplines are governed by `spec-gridkin-v0.md` |
+| req-gryphon-playground-scope | [Plugin Scope](#plugin-scope) | Implemented | What the plugin contains and what it does not |
+| req-gryphon-playground-vocabulary | [Playground Node and Edge Types](#playground-node-and-edge-types) | Implemented | Bespoke `pg_*` / `PG_*` vocabulary for query-pattern testing |
+| req-gryphon-playground-fixtures | [Two-Tier Fixture Structure](#two-tier-fixture-structure) | In Development | Tier-1 fixtures grow with features; the Tier-2 canonical playground fixture is pending |
+| req-gryphon-playground-gridkin | [Gridkin Format Specified Separately](#gridkin-format-specified-separately) | Implemented | The scenario format, runner contract, and disciplines are governed by `spec-gridkin-v0.md` |
 
 ### Plugin Scope
 ----
 RID: `req-gryphon-playground-scope`
-Status: `Proposed`
+Status: `Implemented`
 
 The `gryphon_playground` plugin exists to host Gryphon test scenarios, their
 backing graph fixtures, the playground vocabulary they use, and the runner that
@@ -104,16 +104,16 @@ plugin: de-registering it would red the test suite.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gryphon-playground-scope-1 | Hosts Scenario Corpus | Proposed | The plugin is the canonical home for Gridkin scenario files and their expected side files. | |
-| req-gryphon-playground-scope-2 | Hosts Playground Vocabulary | Proposed | The plugin registers playground node and edge types used only by Gridkin fixtures. | |
-| req-gryphon-playground-scope-3 | Excludes Executor Source | Proposed | The plugin does not contain Gryphon executor, parser, or grammar source. | Lives in `tap_grid/gryphon/` |
-| req-gryphon-playground-scope-4 | Excludes User-Facing Surface | Proposed | The plugin registers no pages, panels, searches, or layouts. | |
-| req-gryphon-playground-scope-5 | Registered For Test Execution | Proposed | The plugin is in `INSTALLED_APPS` so its models migrate and its runner is collected by pytest. | |
+| req-gryphon-playground-scope-1 | Hosts Scenario Corpus | Implemented | The plugin is the canonical home for Gridkin scenario files and their expected side files. | |
+| req-gryphon-playground-scope-2 | Hosts Playground Vocabulary | Implemented | The plugin registers playground node and edge types used only by Gridkin fixtures. | |
+| req-gryphon-playground-scope-3 | Excludes Executor Source | Implemented | The plugin does not contain Gryphon executor, parser, or grammar source. | Lives in `tap_grid/gryphon/` |
+| req-gryphon-playground-scope-4 | Excludes User-Facing Surface | Implemented | The plugin registers no pages, panels, searches, or layouts. | |
+| req-gryphon-playground-scope-5 | Registered For Test Execution | Implemented | The plugin is in `INSTALLED_APPS` so its models migrate and its runner is collected by pytest. | |
 
 ### Playground Node and Edge Types
 ----
 RID: `req-gryphon-playground-vocabulary`
-Status: `Proposed`
+Status: `Implemented`
 
 Gridkin fixtures use a small, abstract vocabulary of node and edge types that
 exist only to exercise query patterns.
@@ -174,15 +174,15 @@ fixed here.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gryphon-playground-vocabulary-1 | Decoupled From Domain Vocabulary | Proposed | No playground node or edge type collides with any production plugin's vocabulary. | `pg_*` / `PG_*` prefix |
-| req-gryphon-playground-vocabulary-2 | Typed Fields Cover Predicate Surface | Proposed | Playground BaseModels carry typed fields covering each scalar predicate type the executor supports (string, int, bool, datetime, JSON). | |
-| req-gryphon-playground-vocabulary-3 | Edge Types Are Wildcard | Proposed | Playground edge types declare no source / target constraints, so fixtures can build any topology. | |
-| req-gryphon-playground-vocabulary-4 | Vocabulary Documented Inline | Proposed | The plugin README lists the playground node and edge types and their intended use, so scenario authors don't reinvent. | |
+| req-gryphon-playground-vocabulary-1 | Decoupled From Domain Vocabulary | Implemented | No playground node or edge type collides with any production plugin's vocabulary. | `pg_*` / `PG_*` prefix |
+| req-gryphon-playground-vocabulary-2 | Typed Fields Cover Predicate Surface | Implemented | Playground BaseModels carry typed fields covering each scalar predicate type the executor supports (string, int, bool, datetime, JSON). | |
+| req-gryphon-playground-vocabulary-3 | Edge Types Are Wildcard | Implemented | Playground edge types declare no source / target constraints, so fixtures can build any topology. | |
+| req-gryphon-playground-vocabulary-4 | Vocabulary Documented Inline | Implemented | The plugin README lists the playground node and edge types and their intended use, so scenario authors don't reinvent. | |
 
 ### Two-Tier Fixture Structure
 ----
 RID: `req-gryphon-playground-fixtures`
-Status: `Proposed`
+Status: `In Development`
 
 Fixtures come in two tiers, each serving a distinct role.
 
@@ -225,14 +225,14 @@ the playground for tutorial clarity doesn't ripple into test failures.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gryphon-playground-fixtures-1 | Tier 1 Fixtures Isolated | Proposed | Each Tier 1 fixture seeds exactly one shape and is small enough to read in full. | |
-| req-gryphon-playground-fixtures-2 | Tier 2 Playground Distinct | Proposed | The canonical playground fixture is not used by any Gridkin scenario's `background.grift_fixture` field. | Demo vs. test separation |
-| req-gryphon-playground-fixtures-3 | Fixtures Validate As GRIFT | Proposed | Both tiers use the standard GRIFT format and pass standard GRIFT validation on load. | |
+| req-gryphon-playground-fixtures-1 | Tier 1 Fixtures Isolated | Implemented | Each Tier 1 fixture seeds exactly one shape and is small enough to read in full. | |
+| req-gryphon-playground-fixtures-2 | Tier 2 Playground Distinct | Proposed | The canonical playground fixture is not used by any Gridkin scenario's `background.grift_fixture` field. | Demo vs. test separation; the Tier-2 fixture is not built in v0 |
+| req-gryphon-playground-fixtures-3 | Fixtures Validate As GRIFT | Implemented | Both tiers use the standard GRIFT format and pass standard GRIFT validation on load. | |
 
 ### Gridkin Format Specified Separately
 ----
 RID: `req-gryphon-playground-gridkin`
-Status: `Proposed`
+Status: `Implemented`
 
 The Gridkin scenario file format is governed by a companion spec, not by this one.
 
@@ -259,8 +259,8 @@ for the files in it. The split exists for two reasons:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gryphon-playground-gridkin-1 | Format Spec Is Authoritative | Proposed | The Gridkin file format and runner contract are defined by `spec-gridkin-v0.md`; this spec does not restate them. | |
-| req-gryphon-playground-gridkin-2 | Corpus Lives In Plugin | Proposed | All Gridkin scenario files, fixtures, expected side files, and the runner live under `plugins/gryphon_playground/`. | |
+| req-gryphon-playground-gridkin-1 | Format Spec Is Authoritative | Implemented | The Gridkin file format and runner contract are defined by `spec-gridkin-v0.md`; this spec does not restate them. | |
+| req-gryphon-playground-gridkin-2 | Corpus Lives In Plugin | Implemented | All Gridkin scenario files, fixtures, expected side files, and the runner live under `plugins/gryphon_playground/`. | |
 
 ## Status Vocabulary
 
