@@ -1,11 +1,12 @@
 ---
-spec: ../plugins/gridkin_playground/specs/spec-gridkin-v0.md
+spec: ../plugins/gryphon_playground/specs/spec-gridkin-v0.md
 audience: [llm, developer]
 covers:
   - ../tap_grid/specs/spec-grid-traversal-language.md
   - ../tap_grid/specs/spec-grid-traversal-execution.md
   - ../tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md
-  - ../plugins/gridkin_playground/specs/spec-gridkin-v0.md
+  - ../plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md
+  - ../plugins/gryphon_playground/specs/spec-gridkin-v0.md
 update-triggers:
   - A Gryphon feature in this wishlist moves from extract-ahead / wait-for-signal into the executor
   - The validation contract here diverges from what is actually being done in Gryphon work
@@ -28,7 +29,7 @@ provides: |
 
 # Gryphon Wishlist & Validation Strategy
 
-Spec: [spec-gridkin-v0.md](../plugins/gridkin_playground/specs/spec-gridkin-v0.md) (validation contract)
+Spec: [spec-gryphon-playground-v0.md](../plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md) (plugin) and [spec-gridkin-v0.md](../plugins/gryphon_playground/specs/spec-gridkin-v0.md) (validation contract / format)
 Underlying language spec: [spec-grid-traversal-language.md](../tap_grid/specs/spec-grid-traversal-language.md)
 Underlying execution spec: [spec-grid-traversal-execution.md](../tap_grid/specs/spec-grid-traversal-execution.md)
 Multi-hop / aggregation extensions: [spec-grid-gryphon-multihop-aggregation.md](../tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md)
@@ -41,7 +42,7 @@ This doc serves two related purposes:
 
 1. **A prioritized wishlist of Gryphon features**, organized by the *demand-shape* that pulls each one in (e.g. "dashboard panels need ORDER BY + LIMIT to be writable as a single query"), not by the structure of any one external language's feature list. The framing matters: Gryphon does not aim for Cypher compatibility. It aims for *coverage of TAP's demand surface*, with Cypher available as a reference for shapes that are likely useful and conventions that improve readability.
 
-2. **A validation strategy for Gryphon work** — the discipline that every feature on the wishlist should ship under, captured here so that future-me (or another agent, or another contributor) has a single place to read the contract before extending the executor. The discipline crystallizes around a new test format called Gridkin (specced in [spec-gridkin-v0.md](../plugins/gridkin_playground/specs/spec-gridkin-v0.md)) and a new dedicated plugin called `gridkin_playground` that hosts the scenarios and their backing fixtures.
+2. **A validation strategy for Gryphon work** — the discipline that every feature on the wishlist should ship under, captured here so that future-me (or another agent, or another contributor) has a single place to read the contract before extending the executor. The discipline crystallizes around a new test format called Gridkin (specced in [spec-gridkin-v0.md](../plugins/gryphon_playground/specs/spec-gridkin-v0.md)) and a new dedicated plugin called `gryphon_playground` (specced in [spec-gryphon-playground-v0.md](../plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md)) that hosts the scenarios and their backing fixtures.
 
 The doc is expansive on purpose. The primary reader is an LLM loading context before doing Gryphon work, and verbosity costs nothing while front-loaded rationale buys real downstream leverage (per `feedback_explicit_over_brevity_llm_era`). A human reader would do well to skim section headers; an LLM is expected to read end-to-end and use the rationale to make judgment calls on edge cases the doc doesn't enumerate.
 
@@ -67,7 +68,7 @@ Gryphon takes Cypher seriously as a reference but rejects compatibility as a goa
 
 **What we don't pre-commit to**: any specific subset of Cypher we claim to implement. Compatibility claims invite a maintenance burden (conformance kits, version tracking, edge-case parity) that is below the bar until external demand signals it (e.g. the eventual satellite system might want plugin authors to write portable queries).
 
-The TCK — openCypher's Technology Compatibility Kit — *is* useful to us, but as a **scenario mine**, not a test suite to port. The hard-won knowledge in the TCK is "these corner cases historically broke real graph engines"; the queries themselves are downstream of that knowledge. The TCK-as-inspiration workflow is captured in detail under [Validation Contract for Gryphon Work](#validation-contract-for-gryphon-work) below and formally in `req-gridkin-tck-inspiration` of [spec-gridkin-v0.md](../plugins/gridkin_playground/specs/spec-gridkin-v0.md).
+The TCK — openCypher's Technology Compatibility Kit — *is* useful to us, but as a **scenario mine**, not a test suite to port. The hard-won knowledge in the TCK is "these corner cases historically broke real graph engines"; the queries themselves are downstream of that knowledge. The TCK-as-inspiration workflow is captured in detail under [Validation Contract for Gryphon Work](#validation-contract-for-gryphon-work) below and formally in `req-gridkin-tck-inspiration` of [spec-gridkin-v0.md](../plugins/gryphon_playground/specs/spec-gridkin-v0.md).
 
 ## Validation Posture: Why We're Investing Here Specifically
 
@@ -529,7 +530,7 @@ Every Gryphon feature that lands ships under the following contract. The contrac
 
 ### 1. Gridkin scenarios are authored alongside the feature
 
-Every new Gryphon feature ships with Gridkin scenarios in `plugins/gridkin_playground/scenarios/`. The scenarios are not a follow-up commit; they are part of the same change that lands the executor work. The format and runner are specified in [spec-gridkin-v0.md](../plugins/gridkin_playground/specs/spec-gridkin-v0.md).
+Every new Gryphon feature ships with Gridkin scenarios in `plugins/gryphon_playground/scenarios/`. The scenarios are not a follow-up commit; they are part of the same change that lands the executor work. The format and runner are specified in [spec-gridkin-v0.md](../plugins/gryphon_playground/specs/spec-gridkin-v0.md).
 
 The scenarios use TAP's playground vocabulary (`pg_*` node types, `PG_*` edge types) — never real domain models. This keeps the test surface decoupled from real-world graph evolution.
 
@@ -663,7 +664,8 @@ Every spec, doc, and plan this wishlist references, with a one-line description 
 - [`tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md`](../tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md) — Multi-hop chains, NOT EXISTS anti-joins, COUNT with implicit GROUP BY. Implemented. The "fix for multi-hop COUNT inflation" comment in executor code is the audit-flagged concern.
 - [`tap_grid/specs/spec-grift-envelope.md`](../tap_grid/specs/spec-grift-envelope.md) — The three-lane envelope shape (spine surface + data lane + display lane). Proposed; being implemented on a parallel session. Gridkin scenario expecteds will regenerate when this lands.
 - [`tap_grid/specs/spec-grift-subgraph.md`](../tap_grid/specs/spec-grift-subgraph.md) — Canonical subgraph response shape (`{nodes, edges}` with lite / full / extended layers). Implemented; partially superseded by spec-grift-envelope when that moves to Implemented.
-- [`plugins/gridkin_playground/specs/spec-gridkin-v0.md`](../plugins/gridkin_playground/specs/spec-gridkin-v0.md) — The Gridkin scenario format, runner contract, fixture conventions, oracle discipline, snapshot regeneration discipline, TCK-as-inspiration workflow, and JSON Schema requirement. Proposed; this doc is its operational companion.
+- [`plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md`](../plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md) — The Gryphon Playground plugin: scope, the `pg_*` / `PG_*` playground vocabulary, and the two-tier fixture structure. Top-level plugin spec; delegates the file format to the Gridkin spec below. Proposed.
+- [`plugins/gryphon_playground/specs/spec-gridkin-v0.md`](../plugins/gryphon_playground/specs/spec-gridkin-v0.md) — The Gridkin scenario format, runner contract, oracle discipline, snapshot regeneration discipline, explain-SQL snapshot, requirement traceability, TCK-as-inspiration workflow, and JSON Schema requirement. Proposed; this doc is its operational companion.
 
 ### Plans / Roadmap
 
