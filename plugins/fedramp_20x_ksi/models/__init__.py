@@ -1,5 +1,6 @@
 """FedRAMP 20x KSI plugin models."""
 
+from .boundary import Boundary
 from .compliance_context import ComplianceContext
 from .evidence import Evidence
 from .exception import ComplianceException
@@ -8,6 +9,7 @@ from .ksi_indicator import KsiIndicator
 from .ksi_theme import KsiTheme
 
 __all__ = [
+    "Boundary",
     "ComplianceContext",
     "ComplianceException",
     "Evidence",

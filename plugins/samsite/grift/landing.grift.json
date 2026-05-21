@@ -26,12 +26,13 @@
           },
           "node": {
             "name": "Samsite — Project=samsite nodes (multi-MATCH)",
-            "description": "Gryphon multi-MATCH: aws_account (unfiltered — the samsite-GRIFT-minted account container has no tags by design) plus every aws_* type tagged `Project=samsite` by the Terraform pass. Per spec-grid-traversal-language § Envelope-Aware Field Paths, `data.tags.Project` walks the per-model tags JSONField via Django nested lookup. One MATCH per entity_type because bare `MATCH (n)` type-scan without a label isn't supported today (Future: req-grid-traversal-lang-patterns).",
+            "description": "Gryphon multi-MATCH: aws_account + boundary (both unfiltered — they bind variables other than `n`, so the tag WHERE doesn't apply) plus every aws_* type tagged `Project=samsite` by the Terraform pass. Per spec-grid-traversal-language § Envelope-Aware Field Paths, `data.tags.Project` walks the per-model tags JSONField via Django nested lookup. One MATCH per entity_type because bare `MATCH (n)` type-scan without a label isn't supported today (Future: req-grid-traversal-lang-patterns).",
             "search_type": "gryphon",
             "root": "node",
             "definition": {
               "query": [
                 "MATCH (account:aws_account)",
+                "MATCH (b:boundary)",
                 "MATCH (n:aws_lambda)",
                 "MATCH (n:aws_cloudfront_distribution)",
                 "MATCH (n:aws_route53_zone)",
@@ -125,9 +126,35 @@
             "name": "Samsite Landing",
             "description": "Default site landing page — Samsite AWS overview (account 180731181784)."
           }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4afc-3e9f-76c9-8771-73ea77b8ff13",
+            "entity_type": "boundary",
+            "name": "Samsite Authorization Boundary",
+            "dimensions": {"compliance": "boundary"}
+          },
+          "node": {
+            "name": "Samsite Authorization Boundary",
+            "description": "The FedRAMP authorization boundary for the samsite deployment — the perimeter of components in scope for samaydlette.com's ATO. Initial pass: pinned to the aws_account via SCOPED_TO_BOUNDARY; per-resource membership edges follow."
+          }
         }
       ],
       "edges": [
+        {
+          "entity": {
+            "entity_id": "019e4afc-3e9f-76c9-8771-73eb05e0cc4b",
+            "entity_type": "edge",
+            "name": "AWS account SCOPED_TO_BOUNDARY Samsite Authorization Boundary",
+            "dimensions": {"compliance": "boundary"}
+          },
+          "edge": {
+            "from_entity_id": "6d305295-e1cf-5029-8b56-521376625d34",
+            "to_entity_id": "019e4afc-3e9f-76c9-8771-73ea77b8ff13",
+            "edge_type": "SCOPED_TO_BOUNDARY",
+            "properties": {}
+          }
+        },
         {
           "entity": {
             "entity_id": "314de02d-0e22-5411-a1a3-b34d3e63a243",

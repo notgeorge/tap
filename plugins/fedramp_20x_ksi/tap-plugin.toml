@@ -11,6 +11,7 @@ finding = "plugins.fedramp_20x_ksi.models.finding.Finding"
 exception = "plugins.fedramp_20x_ksi.models.exception.ComplianceException"
 evidence = "plugins.fedramp_20x_ksi.models.evidence.Evidence"
 compliance_context = "plugins.fedramp_20x_ksi.models.compliance_context.ComplianceContext"
+boundary = "plugins.fedramp_20x_ksi.models.boundary.Boundary"
 
 [edges]
 CONTAINS_INDICATOR = "edges/CONTAINS_INDICATOR.edge.json"
@@ -18,6 +19,7 @@ HAS_FINDING = "edges/HAS_FINDING.edge.json"
 RELATED_INDICATOR = "edges/RELATED_INDICATOR.edge.json"
 COVERS_FINDING = "edges/COVERS_FINDING.edge.json"
 HAS_EVIDENCE = "edges/HAS_EVIDENCE.edge.json"
+SCOPED_TO_BOUNDARY = "edges/SCOPED_TO_BOUNDARY.edge.json"
 
 [grift]
 dimension = "grift/dimension.grift.json"
