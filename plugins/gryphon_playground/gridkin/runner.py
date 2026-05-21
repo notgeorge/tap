@@ -1,0 +1,136 @@
+"""Gridkin scenario execution: seed the fixture, run the query, compare oracles.
+
+For one scenario the runner:
+
+1. Loads the named GRIFT fixture through the standard `grift_import` path.
+2. Executes the Gryphon query via `explain_gryphon_raw`, capturing the response
+   envelope and the SQL the executor issued.
+3. Compares both against committed oracle files — reporting envelope mismatch
+   and SQL mismatch as separate failure modes.
+
+Snapshot regeneration (`GRIDKIN_UPDATE_SNAPSHOTS`) overwrites the oracle files
+with the current output instead of asserting; it is opt-in and the regenerated
+diff must be human-reviewed (req-gridkin-oracle-assertion / -snapshot-discipline).
+
+Per spec-gridkin-v0.md: req-gridkin-runner-contract, req-gridkin-explain-snapshot.
+"""
+
+from __future__ import annotations
+
+import difflib
+import json
+from typing import TYPE_CHECKING, Any
+
+from tap_grid.grift import grift_import
+from tap_grid.gryphon import explain_gryphon_raw
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from plugins.gryphon_playground.gridkin.loader import Scenario
+
+
+def normalize_sql(text: str) -> str:
+    """Whitespace-normalize SQL for comparison: collapse runs, trim, drop blanks.
+
+    Trivial formatting differences do not churn snapshots; everything else —
+    table/column names, JOIN structure, predicates, params, stage labels — is
+    compared exactly.
+    """
+    lines = (" ".join(line.split()) for line in text.splitlines())
+    return "\n".join(line for line in lines if line)
+
+
+def run_scenario(scenario: Scenario, *, update_snapshots: bool = False) -> list[str]:
+    """Run one Gridkin scenario.
+
+    Returns a list of failure messages — empty means the scenario passed.
+    Envelope and SQL mismatches are separate entries so the caller can tell
+    whether behavior changed or the query plan changed.
+
+    With `update_snapshots`, the oracle files are regenerated and an empty list
+    is returned (regeneration never "fails").
+    """
+    _seed_fixture(scenario)
+    result = explain_gryphon_raw(scenario.query, scenario.params, db_alias="default", layer=scenario.layer)
+    actual_envelope: dict[str, Any] = result["envelope"]
+    actual_sql: str = result["sql"].render()
+
+    if update_snapshots:
+        _write_snapshots(scenario, actual_envelope, actual_sql)
+        return []
+
+    failures: list[str] = []
+    failures.extend(_check_envelope(scenario, actual_envelope))
+    failures.extend(_check_sql(scenario, actual_sql))
+    return failures
+
+
+def _seed_fixture(scenario: Scenario) -> None:
+    """Load the scenario's GRIFT fixture into the test database."""
+    if not scenario.fixture_path.is_file():
+        raise AssertionError(f"{scenario.scenario_id}: GRIFT fixture not found: {scenario.fixture_path}")
+    document = json.loads(scenario.fixture_path.read_text(encoding="utf-8"))
+    result = grift_import(document, dangling_edge_mode="strict")
+    if not result.success:
+        messages = [issue.message for issue in result.errors]
+        raise AssertionError(
+            f"{scenario.scenario_id}: GRIFT fixture failed to import " f"({scenario.fixture_path.name}): {messages}"
+        )
+
+
+def _write_snapshots(scenario: Scenario, envelope: dict[str, Any], sql_text: str) -> None:
+    scenario.expected_envelope_path.parent.mkdir(parents=True, exist_ok=True)
+    scenario.expected_envelope_path.write_text(
+        json.dumps(envelope, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    scenario.expected_sql_path.parent.mkdir(parents=True, exist_ok=True)
+    scenario.expected_sql_path.write_text(sql_text, encoding="utf-8")
+
+
+def _check_envelope(scenario: Scenario, actual: dict[str, Any]) -> list[str]:
+    path = scenario.expected_envelope_path
+    if not path.is_file():
+        return [_missing(scenario, "envelope", path)]
+    expected = json.loads(path.read_text(encoding="utf-8"))
+    if expected == actual:
+        return []
+    return ["ENVELOPE MISMATCH — the response envelope changed (behavior).\n" + _json_diff(expected, actual)]
+
+
+def _check_sql(scenario: Scenario, actual_sql: str) -> list[str]:
+    path = scenario.expected_sql_path
+    if not path.is_file():
+        return [_missing(scenario, "SQL", path)]
+    expected = normalize_sql(path.read_text(encoding="utf-8"))
+    actual = normalize_sql(actual_sql)
+    if expected == actual:
+        return []
+    return ["SQL MISMATCH — the executor's compiled SQL changed (query plan).\n" + _line_diff(expected, actual)]
+
+
+def _missing(scenario: Scenario, kind: str, path: Path) -> str:
+    return (
+        f"{kind.upper()}: expected file missing: {path}\n"
+        f"  Author it by hand per the oracle discipline, or run with "
+        f"GRIDKIN_UPDATE_SNAPSHOTS=1 to generate it — then review every line "
+        f"of the diff before committing (spec-gridkin-v0.md "
+        f"req-gridkin-oracle-assertion)."
+    )
+
+
+def _json_diff(expected: Any, actual: Any) -> str:
+    exp = json.dumps(expected, indent=2, ensure_ascii=False, sort_keys=True).splitlines()
+    act = json.dumps(actual, indent=2, ensure_ascii=False, sort_keys=True).splitlines()
+    return _line_diff("\n".join(exp), "\n".join(act))
+
+
+def _line_diff(expected: str, actual: str) -> str:
+    diff = difflib.unified_diff(
+        expected.splitlines(),
+        actual.splitlines(),
+        fromfile="expected (oracle)",
+        tofile="actual (executor)",
+        lineterm="",
+    )
+    return "\n".join(diff)

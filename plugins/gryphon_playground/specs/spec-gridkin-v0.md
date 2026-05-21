@@ -97,6 +97,8 @@ Field semantics:
 - `scenarios[].inspired_by` (string, optional) — breadcrumb to an openCypher TCK
   feature file when the scenario's intent was mined from the TCK; purely
   informational, never a license claim
+- `scenarios[].layer` (string, optional) — the GRIFT subgraph return layer to
+  execute the query at, one of `lite` / `full` / `extended`; defaults to `full`
 - `scenarios[].query` (string, required) — the Gryphon query to execute
 - `scenarios[].params` (object, optional) — runtime `$param` values for the query
 - `scenarios[].expected_envelope` (string, required) — path to the JSON file
@@ -217,13 +219,14 @@ Regenerating expected files requires explicit opt-in and human review.
 
 #### Implementation
 
-The runner supports a `--update-snapshots` flag (or equivalent environment
-variable) that, when set, overwrites the expected envelope and expected SQL files
-with the current implementation's output. Without the flag, mismatches are test
-failures.
+The runner regenerates the expected envelope and expected SQL files from the
+current implementation's output when the `GRIDKIN_UPDATE_SNAPSHOTS` environment
+variable is set. Without it, mismatches are test failures. An environment
+variable — rather than a pytest `--flag` — keeps the Gridkin tooling entirely
+self-contained in the plugin (no `pytest_addoption` in the repo-root conftest).
 
-The flag is **never** invoked automatically (no CI step regenerates snapshots; no
-pre-commit hook regenerates snapshots). It is invoked by a developer who is
+The switch is **never** set automatically (no CI step regenerates snapshots; no
+pre-commit hook regenerates snapshots). It is set by a developer who is
 intentionally changing behavior, after which:
 
 1. `git diff` shows the expected-file changes
@@ -242,7 +245,7 @@ without review defeats the entire validation strategy.
 | --- | --- | :---: | --- | --- |
 | req-gridkin-snapshot-discipline-1 | Update Flag Explicit | Proposed | Snapshot regeneration requires an explicit flag; no implicit regeneration path exists. | |
 | req-gridkin-snapshot-discipline-2 | Update Banner Reminds Discipline | Proposed | The runner prints an oracle-discipline reminder when snapshots are regenerated. | |
-| req-gridkin-snapshot-discipline-3 | No CI Regeneration | Proposed | No CI job or hook invokes `--update-snapshots`; it is developer-only. | |
+| req-gridkin-snapshot-discipline-3 | No CI Regeneration | Proposed | No CI job or hook sets `GRIDKIN_UPDATE_SNAPSHOTS`; it is developer-only. | |
 
 ### Explain SQL Snapshot
 ----
@@ -322,10 +325,10 @@ Every Gridkin scenario cites the spec RIDs it exercises.
 #### Implementation
 
 The `scenarios[].covers` field is required and must contain at least one RID or
-ACID. The runner emits a derived coverage matrix on demand (CLI: `pytest
-plugins/gryphon_playground/ --gridkin-coverage`) listing, for each cited RID, the
-scenarios that cover it — and, by implication, the RIDs in Gryphon-related specs
-that are *not* covered by any scenario.
+ACID. The runner emits a derived coverage matrix on demand — set the
+`GRIDKIN_COVERAGE` environment variable and the matrix prints in the pytest
+terminal summary, listing for each cited RID the scenarios that cover it, and the
+requirement-level RIDs in the Gryphon specs that no scenario covers.
 
 This produces, for free, the requirement-traceability matrix that the Gryphon
 validation audit identified as missing from current Gryphon tests.

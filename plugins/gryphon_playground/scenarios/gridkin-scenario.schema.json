@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gridkin-scenario.schema.json",
+  "title": "Gridkin Scenario File",
+  "description": "One feature's worth of Gryphon test scenarios against a named GRIFT fixture. Governed by plugins/gryphon_playground/specs/spec-gridkin-v0.md (req-gridkin-scenario-format, req-gridkin-json-schema).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["feature", "background", "scenarios"],
+  "properties": {
+    "feature": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable description of the feature this file covers."
+    },
+    "background": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grift_fixture"],
+      "properties": {
+        "grift_fixture": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path, relative to the plugin root, to the GRIFT fixture that seeds the test database."
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/scenario" }
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "covers", "query", "expected_envelope", "expected_sql_snapshot"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable scenario name."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Optional tags for selective runs (pytest -k)."
+        },
+        "covers": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Spec RIDs / ACIDs this scenario exercises. Required and non-empty — traceability is binding."
+        },
+        "inspired_by": {
+          "type": "string",
+          "description": "Optional breadcrumb to an openCypher TCK feature folder when the scenario's intent was mined from the TCK. Informational only, never a license claim."
+        },
+        "layer": {
+          "enum": ["lite", "full", "extended"],
+          "description": "GRIFT subgraph return layer to execute at. Defaults to full when omitted."
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The Gryphon query to execute."
+        },
+        "params": {
+          "type": "object",
+          "description": "Runtime $param values for the query."
+        },
+        "expected_envelope": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path, relative to the plugin root, to the expected response-envelope JSON file."
+        },
+        "expected_sql_snapshot": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path, relative to the plugin root, to the expected ORM-compiled SQL snapshot file."
+        }
+      }
+    }
+  }
+}
