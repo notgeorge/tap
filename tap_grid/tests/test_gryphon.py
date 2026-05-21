@@ -523,6 +523,198 @@ class TestGryphonEnvelopePaths:
         assert "bio" in n
 
 
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonTypeScanWhere:
+    """Type-scan WHERE filtering — bug fix from samsite landing investigation.
+
+    The type-scan path (`_execute_type_scan`) previously ignored the global
+    WHERE clause entirely. Now it applies variable-scoped predicates per
+    `_filter_predicate_for_bindings`.
+    """
+
+    def _make_characters(self):
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        out = []
+        for name, bio in (("Frodo", "A hobbit."), ("Sam", "Gardener."), ("Aragorn", "King.")):
+            entity = Entity.objects.create(entity_type="character", name=name)
+            out.append(Character.objects.create(entity=entity, name=name, bio=bio))
+        return out
+
+    def test_where_filter_on_spine_field(self):
+        """WHERE on a spine field (n.name) filters the type-scan correctly."""
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={
+                "query": 'MATCH (c:character) WHERE c.name = "Frodo" RETURN c.entity_id, c.name'
+            },
+        )
+        result = execute_search(search, inputs={})
+        names = {n["name"] for n in result["nodes"]}
+        assert names == {"Frodo"}
+
+    def test_where_filter_on_data_lane_per_model_field(self):
+        """WHERE on n.data.bio filters the type-scan via per-model row access."""
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={
+                "query": 'MATCH (c:character) WHERE c.data.bio = "Gardener." RETURN c.entity_id, c.name'
+            },
+        )
+        result = execute_search(search, inputs={})
+        names = {n["name"] for n in result["nodes"]}
+        assert names == {"Sam"}
+
+    def test_where_with_param_binding(self):
+        """WHERE with $param resolves against runtime inputs."""
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={
+                "query": "MATCH (c:character) WHERE c.name = $target RETURN c.entity_id, c.name"
+            },
+        )
+        result = execute_search(search, inputs={"target": "Aragorn"})
+        names = {n["name"] for n in result["nodes"]}
+        assert names == {"Aragorn"}
+
+    def test_where_only_applies_to_matching_variable(self):
+        """In multi-MATCH, WHERE comparisons only apply to the MATCH that binds the variable.
+
+        Reproduces the samsite-landing-page pattern: an `aws_account`-style
+        MATCH using variable `account` is unaffected by a WHERE clause on
+        `n.data.tags.Project`, because the WHERE references `n` (which the
+        account MATCH does not bind).
+
+        Two type-scan MATCH clauses on different entity types. The
+        `realm`-targeted MATCH is unfiltered (the WHERE references `c`,
+        not `r`); the `character`-targeted MATCH is filtered. Graph
+        envelope return so the dedup key is reliably present.
+        """
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+        import uuid
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        self._make_characters()
+        # A different entity type that won't be touched by the WHERE.
+        realm = Entity.objects.create(entity_type="realm", name="Middle-earth")
+        from plugins.lotr.models import Realm  # noqa: PLC0415
+        Realm.objects.create(entity=realm, name="Middle-earth")
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={
+                "query": (
+                    'MATCH (r:realm) '
+                    'MATCH (c:character) '
+                    'WHERE c.name = "Frodo"'
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        names = {n["name"] for n in result["nodes"]}
+        # WHERE on `c.name = "Frodo"` filters character scan to just Frodo.
+        # WHERE doesn't reference `r`, so the realm scan returns
+        # Middle-earth unfiltered. Sam and Aragorn are excluded.
+        assert "Frodo" in names
+        assert "Middle-earth" in names
+        assert "Sam" not in names
+        assert "Aragorn" not in names
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonDimensionsMultiStep:
+    """JSON-typed spine field multi-step access — req-grid-traversal-lang-envelope-paths.
+
+    `dimensions` is the only JSON-typed spine field today. Multi-step access
+    (`n.dimensions.<key>`) walks into the JSON via Django nested-key lookup.
+    """
+
+    def _make_characters_with_dimensions(self):
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        results = []
+        for name, realm in (("Frodo", "shire"), ("Sam", "shire"), ("Aragorn", "gondor")):
+            entity = Entity.objects.create(
+                entity_type="character", name=name, dimensions={"realm": realm}
+            )
+            results.append(Character.objects.create(entity=entity, name=name, bio=""))
+        return results
+
+    def test_dimensions_dot_access_filters(self):
+        """WHERE on n.dimensions.<key> filters by spine JSON value."""
+        self._make_characters_with_dimensions()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={
+                "query": 'MATCH (c:character) WHERE c.dimensions.realm = "shire" RETURN c.entity_id, c.name'
+            },
+        )
+        result = execute_search(search, inputs={})
+        names = {n["name"] for n in result["nodes"]}
+        assert names == {"Frodo", "Sam"}
+
+    def test_dimensions_bracket_key_access_filters(self):
+        """Bracket-key syntax also works for dimension keys with special chars."""
+        # Add a dimension with a dotted key — common in TAP conventions
+        # ("tap.graph", "tap.system", etc.).
+        self._make_characters_with_dimensions()
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+        import uuid
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        entity = Entity.objects.create(
+            entity_type="character",
+            name="Gollum",
+            dimensions={"tap.graph": "web"},
+        )
+        Character.objects.create(entity=entity, name="Gollum", bio="")
+
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={
+                "query": (
+                    'MATCH (c:character) WHERE c.dimensions["tap.graph"] = "web" '
+                    'RETURN c.entity_id, c.name'
+                )
+            },
+        )
+        result = execute_search(search, inputs={})
+        names = {n["name"] for n in result["nodes"]}
+        assert names == {"Gollum"}
+
+
 # ---------------------------------------------------------------------------
 # TestSearchModelGryphon — Search.validate() gryphon branch
 # ---------------------------------------------------------------------------

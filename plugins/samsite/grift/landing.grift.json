@@ -43,17 +43,29 @@
           "entity": {
             "entity_id": "eb9fb415-ba8d-57e5-ab3f-1e2411ce0822",
             "entity_type": "search",
-            "name": "Samsite — all aws_* nodes",
+            "name": "Samsite — Project=samsite nodes (multi-MATCH)",
             "dimensions": {}
           },
           "node": {
-            "name": "Samsite — all aws_* nodes",
-            "description": "Every node whose entity_type starts with aws_, including the synthetic aws_account container. Pass-1 dump — see plan/strat-sam-demo.md.",
-            "search_type": "orm",
+            "name": "Samsite — Project=samsite nodes (multi-MATCH)",
+            "description": "Gryphon multi-MATCH: aws_account (unfiltered — the samsite-GRIFT-minted account container has no tags by design) plus every aws_* type tagged `Project=samsite` by the Terraform pass. Per spec-grid-traversal-language § Envelope-Aware Field Paths, `data.tags.Project` walks the per-model tags JSONField via Django nested lookup. One MATCH per entity_type because bare `MATCH (n)` type-scan without a label isn't supported today (Future: req-grid-traversal-lang-patterns).",
+            "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "filters": {"entity_type__startswith": "aws_"},
-              "order_by": ["entity_type", "name"]
+              "query": [
+                "MATCH (account:aws_account)",
+                "MATCH (n:aws_lambda)",
+                "MATCH (n:aws_cloudfront_distribution)",
+                "MATCH (n:aws_route53_zone)",
+                "MATCH (n:aws_acm_certificate)",
+                "MATCH (n:aws_eventbridge_rule)",
+                "MATCH (n:aws_s3_bucket)",
+                "MATCH (n:aws_cloudwatch_log_group)",
+                "MATCH (n:aws_iam_role)",
+                "MATCH (n:aws_dynamodb_table)",
+                "MATCH (n:aws_iam_oidc_provider)",
+                "WHERE n.data.tags.Project = \"samsite\""
+              ]
             }
           }
         },

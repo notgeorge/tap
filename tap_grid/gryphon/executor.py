@@ -56,6 +56,7 @@ from tap_grid.gryphon.ast_nodes import (
     EdgePattern,
     FieldPath,
     GryphonAST,
+    KeyStep,
     MatchClause,
     NodePattern,
     NotExistsClause,
@@ -174,7 +175,9 @@ def _execute_ast(
     """Dispatch to the appropriate execution strategy based on AST shape.
 
     Supports multiple MATCH clauses (UNION semantics): each clause is executed
-    independently and results are merged with entity_id deduplication.
+    independently and results are merged with entity_id deduplication. A single
+    global WHERE is applied to each MATCH, scoped to the variables that clause
+    binds (per ``_filter_predicate_for_bindings``).
     """
     anchor_var, entity_id_value = _extract_entity_id_anchor(ast.where_clause, inputs)
 
@@ -191,6 +194,8 @@ def _execute_ast(
             anchor_var=anchor_var,
             entity_id_value=entity_id_value,
             return_clause=ast.return_clause,
+            where_clause=ast.where_clause,
+            inputs=inputs,
             db_alias=db_alias,
             layer=layer,
         )
@@ -211,13 +216,22 @@ def _dispatch_pattern(
     anchor_var: str | None,
     entity_id_value: Any,
     return_clause: ReturnClause,
+    where_clause: Any = None,
+    inputs: dict[str, Any] | None = None,
     db_alias: str,
     layer: SubgraphLayer,
 ) -> dict[str, Any]:
     """Route a single MATCH pattern to the appropriate execution mode."""
     # Type scan: node-only pattern (no edges).
     if len(pattern.edges) == 0:
-        return _execute_type_scan(pattern.nodes[0], return_clause, db_alias=db_alias, layer=layer)
+        return _execute_type_scan(
+            pattern.nodes[0],
+            return_clause,
+            where_clause=where_clause,
+            inputs=inputs or {},
+            db_alias=db_alias,
+            layer=layer,
+        )
 
     if len(pattern.edges) != 1:
         raise SearchExecutionError("Unsupported gryphon pattern: only single-hop patterns are supported.")
@@ -324,22 +338,29 @@ def _execute_type_scan(
     node: NodePattern,
     return_clause: ReturnClause,
     *,
+    where_clause: Any = None,
+    inputs: dict[str, Any] | None = None,
     db_alias: str,
     layer: SubgraphLayer,
 ) -> dict[str, Any]:
     """Execute a node-only MATCH pattern — scan all entities of the given type.
 
+    Applies a global WHERE clause filtered to predicates that reference the
+    type-scan's bound variable (per ``_filter_predicate_for_bindings``).
+    Predicates referencing other variables (from other MATCH clauses in a
+    UNION query) are skipped.
+
     Args:
         node: The single node pattern; must carry a label (entity type slug).
         return_clause: Controls output shape (projected fields vs. graph envelope).
+        where_clause: Optional global WHERE clause; only variable-matching
+            predicates are applied.
+        inputs: Runtime parameter values for ``$param`` references in WHERE.
         db_alias: Database alias to query against.
         layer: GRIFT subgraph return layer.
 
     Returns:
         Canonical envelope with ``nodes`` list and empty ``edges`` list.
-
-    Raises:
-        SearchExecutionError: If the node pattern carries no label.
     """
     if not node.label:
         raise SearchExecutionError("Unsupported gryphon pattern: type scan requires a node label, e.g. (c:character).")
@@ -354,6 +375,16 @@ def _execute_type_scan(
     qs = model_cls.objects.using(db_alias).select_related("entity").order_by("entity__name")
 
     var = node.variable or node.label
+    inputs = inputs or {}
+
+    # Apply WHERE comparisons scoped to this variable.
+    if where_clause is not None:
+        scoped_pred = _filter_predicate_for_bindings(
+            where_clause.predicate, {var: {"role": "typescan", "label": node.label}}
+        )
+        if scoped_pred is not None:
+            qs = _apply_typescan_predicate(qs, scoped_pred, var, inputs)
+
     items = return_clause.items  # None → graph envelope
 
     if items is not None:
@@ -365,6 +396,113 @@ def _execute_type_scan(
     domain_objects = list(qs)
     nodes = _serialize_typed_nodes(domain_objects, layer, db_alias)
     return {"nodes": nodes, "edges": []}
+
+
+def _apply_typescan_predicate(
+    qs,
+    predicate: Any,
+    var: str,
+    inputs: dict[str, Any],
+):
+    """Apply a WHERE predicate tree to a type-scan queryset.
+
+    Supports AND-of-comparisons today (mirrors the aggregation executor's
+    current scope per ``_flatten_conjunction``). OR/NOT inside type-scan
+    WHEREs is rejected with a clear error; demand-tracked for later.
+    """
+    for comp in _flatten_conjunction(predicate):
+        if comp.field_path.variable != var:
+            continue
+        orm_path = _typescan_orm_path(comp.field_path)
+        value = _resolve_value(comp.value, inputs)
+        if comp.op == "!=":
+            qs = qs.exclude(**{orm_path: value})
+        else:
+            suffix = {"=": "", "<": "__lt", ">": "__gt", "<=": "__lte", ">=": "__gte"}[comp.op]
+            qs = qs.filter(**{f"{orm_path}{suffix}": value})
+    return qs
+
+
+def _typescan_orm_path(field_path: FieldPath) -> str:
+    """Translate a Gryphon FieldPath to a Django ORM lookup for a type-scan queryset.
+
+    The queryset is on the per-model class (e.g. LambdaFunction), so:
+
+    - ``n.entity_id`` → ``entity_id`` (FK column on the per-model row)
+    - ``n.<spinefield>`` → ``entity__<field>`` (cross-table join via the FK)
+    - ``n.dimensions.<key>...`` → ``entity__dimensions__<key>...`` (JSON nested
+      via FK; only JSON-typed spine fields can be multi-step-walked)
+    - ``n.data.<x>...`` → ``<x>...`` (direct attribute on the per-model row;
+      multi-step `__`-joined for JSONField nested keys)
+    - ``n.display.<...>`` → rejected; computed-not-stored.
+    """
+    steps = field_path.steps
+    if not steps or not isinstance(steps[0], DotStep):
+        raise SearchExecutionError("FieldPath must start with a dot-step.")
+
+    first = steps[0].name
+    spine_fields = _spine_field_names()
+
+    # Single-step.
+    if len(steps) == 1:
+        if first == "entity_id":
+            return "entity_id"
+        if first in spine_fields:
+            return f"entity__{first}"
+        if first in {_DATA_LANE_PREFIX, _DISPLAY_LANE_PREFIX}:
+            raise SearchExecutionError(
+                f"Bare `{first}` is not a complete path. Use `{first}.<...>` to "
+                f"address the {first} lane."
+            )
+        raise SearchExecutionError(
+            f"Field {first!r} is not a spine field. If it lives on the per-model "
+            f"row, address it as `<var>.data.{first}` per spec-grift-envelope."
+        )
+
+    # Multi-step.
+    if first == _DISPLAY_LANE_PREFIX:
+        raise SearchExecutionError(
+            "Cannot use the `display` lane in WHERE/RETURN paths today — display "
+            "values are computed for rendering, not stored."
+        )
+
+    rest_steps = steps[1:]
+    for step in rest_steps:
+        if not isinstance(step, DotStep) and not isinstance(step, KeyStep):
+            raise SearchExecutionError(
+                "Multi-step paths support dot-steps and bracket-key steps only."
+            )
+
+    def _name(step):
+        return step.name if isinstance(step, DotStep) else step.key
+
+    rest = "__".join(_name(s) for s in rest_steps)
+
+    if first == _DATA_LANE_PREFIX:
+        return rest
+
+    # Multi-step into a JSON-typed spine field (today: `dimensions`).
+    if first in _JSON_TYPED_SPINE_FIELDS:
+        return f"entity__{first}__{rest}"
+
+    if first in spine_fields:
+        raise SearchExecutionError(
+            f"Spine field {first!r} is a scalar; cannot walk into it. For nested "
+            f"access into JSON-typed columns, use `<var>.data.<field>...` or "
+            f"`<var>.dimensions.<key>` for the dimensions spine field."
+        )
+
+    raise SearchExecutionError(
+        f"Unknown field path prefix {first!r}. Use a spine field, the `data` "
+        f"prefix for per-model fields, or `dimensions.<key>` for dimension "
+        f"scoping."
+    )
+
+
+# Spine fields that are JSON-typed and therefore support multi-step walking
+# into nested keys. Today only `dimensions`; future JSON-typed spine fields
+# slot in here.
+_JSON_TYPED_SPINE_FIELDS: frozenset[str] = frozenset({"dimensions"})
 
 
 def _project_node(domain_obj: Any, items: tuple, var: str) -> dict[str, Any]:
@@ -961,12 +1099,32 @@ def _orm_path_for_envelope_path(
             "`extended` return layer when serializing for display."
         )
 
+    # Multi-step walking into a JSON-typed spine field — today only
+    # `dimensions`. Compiles to a JSONField nested-key lookup rooted on the
+    # spine.
+    if head in _JSON_TYPED_SPINE_FIELDS:
+        rest = steps[1:]
+        for step in rest:
+            if not isinstance(step, DotStep) and not isinstance(step, KeyStep):
+                raise SearchExecutionError(
+                    "Spine JSON access supports dot-steps and bracket-key "
+                    "steps only."
+                )
+        inner_path = "__".join(s.name if isinstance(s, DotStep) else s.key for s in rest)
+        role = binding["role"]
+        if role == "edge":
+            ep = binding["edge_path"]
+            prefix = f"{ep}__" if ep else ""
+            return f"{prefix}entity__{head}__{inner_path}"
+        ep = binding["entity_path"]
+        return f"{ep}__{head}__{inner_path}"
+
     if head != _DATA_LANE_PREFIX:
         raise SearchExecutionError(
             f"Unknown envelope-lane prefix {head!r}. Use a spine field "
             f"({sorted(_spine_field_names() | {'entity_id'})}), the `data` "
-            f"prefix for per-model fields, or `display` for computed "
-            f"render values (read-only)."
+            f"prefix for per-model fields, `dimensions.<key>` for dimension "
+            f"scoping, or `display` for computed render values (read-only)."
         )
 
     rest = steps[1:]
@@ -976,13 +1134,13 @@ def _orm_path_for_envelope_path(
             "(e.g. `<var>.data.<field>`)."
         )
     for step in rest:
-        if not isinstance(step, DotStep):
+        if not isinstance(step, DotStep) and not isinstance(step, KeyStep):
             raise SearchExecutionError(
-                "Inside the `data` lane only dot-steps are supported in v1; "
-                "bracket-key, indexed, and wildcard access via JSONPath is "
-                "tracked separately (req-grid-traversal-lang-filters-jsonpath)."
+                "Inside the `data` lane only dot-steps and bracket-key steps "
+                "are supported in v1; indexed and wildcard access via JSONPath "
+                "is tracked separately (req-grid-traversal-lang-filters-jsonpath)."
             )
-    inner_path = "__".join(s.name for s in rest)
+    inner_path = "__".join(s.name if isinstance(s, DotStep) else s.key for s in rest)
 
     role = binding["role"]
     if role == "edge":

@@ -174,6 +174,21 @@ MATCH (server:host)<-[edge:ON_HOST]-(iface:interface)
 | req-grid-traversal-lang-patterns-7 | Supports Wildcards By Omission | Implemented | Unspecified node labels or edge types behave as wildcards within TAP scope. | |
 
 #### Future
+
+**Bare `MATCH (n)` type-scan (no label).** Today the executor requires a
+label on `(n)` for type-scan patterns (`req-grid-traversal-lang-patterns-1`
+applies the label as the entity-type filter). Adding "scan every entity
+type" semantics to bare `(n)` would let a single query filter across all
+types — useful for queries like
+`MATCH (n) WHERE n.data.tags.Project = "samsite" RETURN n` without the
+multi-MATCH-per-type verbosity required today. Real work: the executor
+has to enumerate registered model classes, union the results, and
+handle paths that only resolve for some types (e.g. an Edge-only field
+on a node pattern). Top-of-mind for the next round of Gryphon surgery;
+the samsite landing-page filter (2026-05-21) uses multi-MATCH instead
+of waiting for this. (Cross-ref:
+`req-grid-traversal-lang-envelope-paths`.)
+
 Consider subgraph-scoped gryphon composition, where one gryphon result becomes the graph
 scope for a later gryphon expression. Defer until a concrete use case appears — this expands planner
 and result-scope semantics significantly.
@@ -418,6 +433,8 @@ MATCH (n) WHERE n.tags.Project = "samsite" RETURN n
 | req-grid-traversal-lang-envelope-paths-4 | Reserved Keywords | Proposed | `data` and `display` are reserved as lane prefixes; no spine field may shadow them. | Constraint, not enforcement — spine fields don't collide today. |
 | req-grid-traversal-lang-envelope-paths-5 | JSON Paths Inside Data Compose | Proposed | A path like `n.data.tags.Project` decomposes into "drop into data lane" + "JSON path inside that JSON-typed column" per `req-grid-traversal-lang-filters-jsonpath`. The two requirements compose; no separate JSON-inside-data syntax. | |
 | req-grid-traversal-lang-envelope-paths-6 | No Routing Sugar | Proposed | The compiler does NOT auto-route unprefixed per-model field references to the data lane. Implicit routing was considered and rejected; see Status Details. | See [[feedback-explicit-over-brevity-llm-era]] and [[feedback-borrow-from-oss-prior-art]] for the broader principle. |
+| req-grid-traversal-lang-envelope-paths-7 | JSON-Typed Spine Multi-Step | In Development | Spine fields that are JSON-typed (today only `dimensions`) support multi-step access (`n.dimensions.<key>`, `n.dimensions["tap.graph"]`) walking into the JSON via Django nested-key lookup. Scalar spine fields cannot be walked into and raise a clear error pointing at `<var>.data.<field>...` for nested access. | Adds first-class dimension filtering — central to TAP's scoping/partitioning story. |
+| req-grid-traversal-lang-envelope-paths-8 | Type-Scan Applies WHERE | In Development | A node-only MATCH (type scan) applies the global WHERE clause filtered to predicates whose variables this MATCH binds, per `_filter_predicate_for_bindings`. Previously type-scan silently ignored WHERE — a real bug surfaced by the samsite landing-page filter work (2026-05-21). | OR/NOT inside type-scan WHEREs remains deferred (consistent with the aggregation executor's current AND-only scope per `_flatten_conjunction`). |
 
 ### Predicate Combinators
 ----
