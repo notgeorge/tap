@@ -1,0 +1,17 @@
+manifest_version = "0"
+plugin_version = "0.1.0"
+slug = "gryphon_playground"
+name = "Gryphon Playground"
+description = "Playground vocabulary and the Gridkin scenario corpus for testing the Gryphon query language."
+
+[models]
+pg_node = "plugins.gryphon_playground.models.pg_node.PgNode"
+pg_hub = "plugins.gryphon_playground.models.pg_hub.PgHub"
+pg_leaf = "plugins.gryphon_playground.models.pg_leaf.PgLeaf"
+pg_cycle_node = "plugins.gryphon_playground.models.pg_cycle_node.PgCycleNode"
+
+[edges]
+PG_LINKS = "edges/PG_LINKS.edge.json"
+PG_NESTS = "edges/PG_NESTS.edge.json"
+PG_LOOPS = "edges/PG_LOOPS.edge.json"
+PG_OPTIONAL = "edges/PG_OPTIONAL.edge.json"

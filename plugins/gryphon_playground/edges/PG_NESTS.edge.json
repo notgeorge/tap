@@ -1,0 +1,6 @@
+{
+  "slug": "PG_NESTS",
+  "name": "PG Nests",
+  "description": "Playground edge for constructing compound / nested graph shapes. Wildcard endpoints (no source/target constraints).",
+  "default_dimensions": {"tap.playground": "gridkin"}
+}

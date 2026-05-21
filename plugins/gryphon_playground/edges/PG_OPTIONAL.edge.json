@@ -1,0 +1,6 @@
+{
+  "slug": "PG_OPTIONAL",
+  "name": "PG Optional",
+  "description": "Playground edge for sparse fan-outs where some nodes have the edge and some don't — for OPTIONAL MATCH testing once that feature is implemented. Wildcard endpoints (no source/target constraints).",
+  "default_dimensions": {"tap.playground": "gridkin"}
+}

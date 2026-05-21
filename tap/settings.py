@@ -128,6 +128,10 @@ INSTALLED_APPS = [
     "plugins.samsite.apps.SamsiteConfig",
     # FedRAMP 20x KSI plugin — Key Security Indicator catalog
     "plugins.fedramp_20x_ksi.apps.Fedramp20xKsiConfig",
+    # Gryphon Playground plugin — pg_* playground vocabulary + the Gridkin
+    # scenario corpus for testing the Gryphon query language. Load-bearing
+    # test-fixture plugin (like lotr): de-registering it reds the Gridkin suite.
+    "plugins.gryphon_playground.apps.GryphonPlaygroundConfig",
     # API layer — last so ready() discovers all plugin routers
     "tap_api",
     # Web interface

@@ -1,0 +1,6 @@
+{
+  "slug": "PG_LINKS",
+  "name": "PG Links",
+  "description": "Generic directional playground edge. Wildcard endpoints (no source/target constraints) so Gridkin fixtures can build any topology.",
+  "default_dimensions": {"tap.playground": "gridkin"}
+}
