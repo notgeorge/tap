@@ -69,6 +69,7 @@ from tap_grid.gryphon.ast_nodes import (
     ReturnItem,
     WhereClause,
 )
+from tap_grid.gryphon.capture import capture_sql, gryphon_stage
 from tap_grid.gryphon.parser import parse_gryphon
 
 if TYPE_CHECKING:
@@ -140,9 +141,47 @@ def execute_gryphon_raw(
         raise SearchExecutionError(f"Gryphon query requires inputs {sorted(missing)} but they were not provided.")
 
     if _has_advanced_features(ast):
-        return _execute_advanced(ast, inputs, db_alias=db_alias, layer=layer)
+        with gryphon_stage("advanced"):
+            return _execute_advanced(ast, inputs, db_alias=db_alias, layer=layer)
 
     return _execute_ast(ast, inputs, db_alias=db_alias, layer=layer)
+
+
+def explain_gryphon_raw(
+    query: str,
+    inputs: dict[str, Any],
+    *,
+    db_alias: str = "default",
+    layer: SubgraphLayer = "full",
+) -> dict[str, Any]:
+    """Execute a raw gryphon query and return both the envelope and the SQL it ran.
+
+    Returns ``{"envelope": <canonical envelope>, "sql": <SqlCapture>}``. The
+    ``sql`` value is the ordered, stage-labelled sequence of SELECT statements
+    the executor issued — the basis of the Gridkin expected-SQL snapshot
+    (``spec-gridkin-v0.md``, ``req-gridkin-explain-snapshot``) and the future
+    ``gryphon explain`` developer surface (Gryphon wishlist H3).
+
+    The executor runs unchanged; the SQL is observed via a
+    ``connection.execute_wrapper`` for the duration of the call. Because a
+    multi-stage query feeds each stage from the prior stage's results, the
+    capture happens during execution, not as a pure compile step.
+
+    Args:
+        query: A gryphon query string.
+        inputs: Runtime $var values; must supply all required params.
+        db_alias: Database alias for all queries.
+        layer: GRIFT subgraph return layer (lite, full, extended).
+
+    Returns:
+        ``{"envelope": {...}, "sql": SqlCapture}``.
+
+    Raises:
+        SearchExecutionError: If the query is malformed, unsupported, or fails.
+    """
+    with capture_sql() as capture:
+        envelope = execute_gryphon_raw(query, inputs, db_alias=db_alias, layer=layer)
+    return {"envelope": envelope, "sql": capture}
 
 
 def _has_advanced_features(ast: GryphonAST) -> bool:
@@ -224,14 +263,15 @@ def _dispatch_pattern(
     """Route a single MATCH pattern to the appropriate execution mode."""
     # Type scan: node-only pattern (no edges).
     if len(pattern.edges) == 0:
-        return _execute_type_scan(
-            pattern.nodes[0],
-            return_clause,
-            where_clause=where_clause,
-            inputs=inputs or {},
-            db_alias=db_alias,
-            layer=layer,
-        )
+        with gryphon_stage("type-scan"):
+            return _execute_type_scan(
+                pattern.nodes[0],
+                return_clause,
+                where_clause=where_clause,
+                inputs=inputs or {},
+                db_alias=db_alias,
+                layer=layer,
+            )
 
     if len(pattern.edges) != 1:
         raise SearchExecutionError("Unsupported gryphon pattern: only single-hop patterns are supported.")
@@ -247,23 +287,25 @@ def _dispatch_pattern(
             # Anchor variable doesn't match this pattern — fall through to edge-type scan.
             pass
         else:
-            return _execute_hub_and_spoke(
-                entity_id=str(entity_id_value),
-                edge_pattern=edge_pat,
-                db_alias=db_alias,
-                layer=layer,
-            )
+            with gryphon_stage("hub-and-spoke"):
+                return _execute_hub_and_spoke(
+                    entity_id=str(entity_id_value),
+                    edge_pattern=edge_pat,
+                    db_alias=db_alias,
+                    layer=layer,
+                )
 
     # Edge-type scan: edge pattern with no WHERE anchor (or anchor not in this pattern).
     if not edge_pat.edge_type:
         raise SearchExecutionError("Unsupported gryphon pattern: edge-type scan requires a typed edge.")
-    return _execute_edge_type_scan(
-        left_node=pattern.nodes[0],
-        right_node=pattern.nodes[1],
-        edge_pattern=edge_pat,
-        db_alias=db_alias,
-        layer=layer,
-    )
+    with gryphon_stage("edge-type-scan"):
+        return _execute_edge_type_scan(
+            left_node=pattern.nodes[0],
+            right_node=pattern.nodes[1],
+            edge_pattern=edge_pat,
+            db_alias=db_alias,
+            layer=layer,
+        )
 
 
 def _node_key(node: dict[str, Any], layer: SubgraphLayer) -> str:
@@ -451,8 +493,7 @@ def _typescan_orm_path(field_path: FieldPath) -> str:
             return f"entity__{first}"
         if first in {_DATA_LANE_PREFIX, _DISPLAY_LANE_PREFIX}:
             raise SearchExecutionError(
-                f"Bare `{first}` is not a complete path. Use `{first}.<...>` to "
-                f"address the {first} lane."
+                f"Bare `{first}` is not a complete path. Use `{first}.<...>` to " f"address the {first} lane."
             )
         raise SearchExecutionError(
             f"Field {first!r} is not a spine field. If it lives on the per-model "
@@ -469,9 +510,7 @@ def _typescan_orm_path(field_path: FieldPath) -> str:
     rest_steps = steps[1:]
     for step in rest_steps:
         if not isinstance(step, DotStep) and not isinstance(step, KeyStep):
-            raise SearchExecutionError(
-                "Multi-step paths support dot-steps and bracket-key steps only."
-            )
+            raise SearchExecutionError("Multi-step paths support dot-steps and bracket-key steps only.")
 
     def _name(step):
         return step.name if isinstance(step, DotStep) else step.key
@@ -535,9 +574,7 @@ def _project_node(domain_obj: Any, items: tuple, var: str) -> dict[str, Any]:
     return result
 
 
-def _resolve_envelope_path(
-    domain_obj: Any, field_path: FieldPath, explicit_alias: str | None
-) -> tuple[str, Any]:
+def _resolve_envelope_path(domain_obj: Any, field_path: FieldPath, explicit_alias: str | None) -> tuple[str, Any]:
     """Resolve a single envelope-aware path against a domain model instance.
 
     Returns ``(user_alias, value)``. The user alias is the explicit AS
@@ -558,23 +595,16 @@ def _resolve_envelope_path(
         rest = steps[1:]
         if not rest:
             raise SearchExecutionError(
-                "Path `<var>.data` requires at least one further step "
-                "(e.g. `<var>.data.<field>`)."
+                "Path `<var>.data` requires at least one further step " "(e.g. `<var>.data.<field>`)."
             )
         for step in rest:
             if not isinstance(step, DotStep):
-                raise SearchExecutionError(
-                    "Inside the `data` lane only dot-steps are supported in v1."
-                )
+                raise SearchExecutionError("Inside the `data` lane only dot-steps are supported in v1.")
         value: Any = domain_obj
         for step in rest:
             if value is None:
                 break
-            value = (
-                value.get(step.name)
-                if isinstance(value, dict)
-                else getattr(value, step.name, None)
-            )
+            value = value.get(step.name) if isinstance(value, dict) else getattr(value, step.name, None)
         last = rest[-1].name
         user_alias = explicit_alias if explicit_alias is not None else last
         return user_alias, value
@@ -669,8 +699,12 @@ def _execute_hub_and_spoke(
     for edge in inbound:
         neighbor_ids.add(str(edge.from_entity_id))
 
+    # sorted() so the IN-list is deterministic — keeps the captured SQL stable
+    # for Gridkin snapshots (set iteration order is hash-randomized per process).
     neighbors = (
-        {str(e.pk): e for e in Entity.objects.using(db_alias).filter(pk__in=neighbor_ids)} if neighbor_ids else {}
+        {str(e.pk): e for e in Entity.objects.using(db_alias).filter(pk__in=sorted(neighbor_ids))}
+        if neighbor_ids
+        else {}
     )
 
     # Collect all entities for serialization.
@@ -906,11 +940,13 @@ def _compute_hop_paths(pattern: PathPattern) -> list[dict[str, str]]:
     if not pattern.edges:
         return []
 
-    paths: list[dict[str, str]] = [{
-        "edge_path": "",
-        "from_path": "from_entity",
-        "to_path": "to_entity",
-    }]
+    paths: list[dict[str, str]] = [
+        {
+            "edge_path": "",
+            "from_path": "from_entity",
+            "to_path": "to_entity",
+        }
+    ]
 
     for k in range(1, len(pattern.edges)):
         prev = paths[k - 1]
@@ -932,11 +968,13 @@ def _compute_hop_paths(pattern: PathPattern) -> list[dict[str, str]]:
             to_path = shared
             from_path = f"{edge_path}__from_entity"
 
-        paths.append({
-            "edge_path": edge_path,
-            "from_path": from_path,
-            "to_path": to_path,
-        })
+        paths.append(
+            {
+                "edge_path": edge_path,
+                "from_path": from_path,
+                "to_path": to_path,
+            }
+        )
 
     return paths
 
@@ -1021,8 +1059,7 @@ def _orm_path_for_field(binding: dict[str, Any], field: str) -> str:
         # Reserved lane-prefix names: never resolve as a spine field.
         if field in {_DATA_LANE_PREFIX, _DISPLAY_LANE_PREFIX}:
             raise SearchExecutionError(
-                f"Bare `{field}` is not a complete path. Use `{field}.<...>` to "
-                f"address the {field} lane."
+                f"Bare `{field}` is not a complete path. Use `{field}.<...>` to " f"address the {field} lane."
             )
         # Edge model fields (edge_type, properties, batch_id, flip_map, description)
         # live in the `data` lane and require the explicit prefix.
@@ -1053,8 +1090,7 @@ def _orm_path_for_field(binding: dict[str, Any], field: str) -> str:
 
     if field in {_DATA_LANE_PREFIX, _DISPLAY_LANE_PREFIX}:
         raise SearchExecutionError(
-            f"Bare `{field}` is not a complete path. Use `{field}.<...>` to "
-            f"address the {field} lane."
+            f"Bare `{field}` is not a complete path. Use `{field}.<...>` to " f"address the {field} lane."
         )
 
     raise SearchExecutionError(
@@ -1063,9 +1099,7 @@ def _orm_path_for_field(binding: dict[str, Any], field: str) -> str:
     )
 
 
-def _orm_path_for_envelope_path(
-    binding: dict[str, Any], steps: list[Any]
-) -> str:
+def _orm_path_for_envelope_path(binding: dict[str, Any], steps: list[Any]) -> str:
     """Build a Django ORM lookup string for an envelope-aware multi-step path.
 
     Per spec-grid-traversal-language § Envelope-Aware Field Paths
@@ -1106,10 +1140,7 @@ def _orm_path_for_envelope_path(
         rest = steps[1:]
         for step in rest:
             if not isinstance(step, DotStep) and not isinstance(step, KeyStep):
-                raise SearchExecutionError(
-                    "Spine JSON access supports dot-steps and bracket-key "
-                    "steps only."
-                )
+                raise SearchExecutionError("Spine JSON access supports dot-steps and bracket-key " "steps only.")
         inner_path = "__".join(s.name if isinstance(s, DotStep) else s.key for s in rest)
         role = binding["role"]
         if role == "edge":
@@ -1130,8 +1161,7 @@ def _orm_path_for_envelope_path(
     rest = steps[1:]
     if not rest:
         raise SearchExecutionError(
-            "Path `<var>.data` requires at least one further step "
-            "(e.g. `<var>.data.<field>`)."
+            "Path `<var>.data` requires at least one further step " "(e.g. `<var>.data.<field>`)."
         )
     for step in rest:
         if not isinstance(step, DotStep) and not isinstance(step, KeyStep):
@@ -1324,9 +1354,7 @@ def _apply_not_exists(
         raise SearchExecutionError("NOT EXISTS subqueries require exactly one pattern.")
     inner_pattern = nec.match_clause.patterns[0]
     if len(inner_pattern.edges) == 0:
-        raise SearchExecutionError(
-            "NOT EXISTS subqueries require at least one edge in the inner pattern."
-        )
+        raise SearchExecutionError("NOT EXISTS subqueries require at least one edge in the inner pattern.")
 
     inner_bindings = _build_var_bindings(inner_pattern)
     inner_qs = _build_chain_queryset(inner_pattern, db_alias, inputs)
@@ -1335,9 +1363,7 @@ def _apply_not_exists(
     # constrain the inner's ORM path to equal OuterRef of the outer's path.
     shared = set(outer_bindings.keys()) & set(inner_bindings.keys())
     if not shared:
-        raise SearchExecutionError(
-            "NOT EXISTS subqueries must share at least one variable with the outer pattern."
-        )
+        raise SearchExecutionError("NOT EXISTS subqueries must share at least one variable with the outer pattern.")
 
     # Pre-annotate outer qs with F-aliases for each shared variable's entity_id.
     # Without this, OuterRef on a multi-hop reverse-FK path (e.g. "to_entity__
@@ -1459,13 +1485,10 @@ def _collect_graph_envelope(
     from tap_grid.models import Edge, Entity
 
     # Bulk-fetch entities and edges.
-    entities = list(Entity.objects.using(db_alias).filter(pk__in=node_pks)) if node_pks else []
+    # sorted() on the PK sets so the IN-list SQL is deterministic (Gridkin snapshots).
+    entities = list(Entity.objects.using(db_alias).filter(pk__in=sorted(node_pks))) if node_pks else []
     edges = (
-        list(
-            Edge.objects.using(db_alias)
-            .filter(entity_id__in=edge_entity_ids)
-            .select_related("entity")
-        )
+        list(Edge.objects.using(db_alias).filter(entity_id__in=sorted(edge_entity_ids)).select_related("entity"))
         if edge_entity_ids
         else []
     )
@@ -1529,14 +1552,10 @@ def _build_clause_queryset(
     Returns (queryset, pattern, bindings).
     """
     if len(mc.patterns) != 1:
-        raise SearchExecutionError(
-            "Advanced executor requires exactly one pattern per MATCH clause."
-        )
+        raise SearchExecutionError("Advanced executor requires exactly one pattern per MATCH clause.")
     pattern = mc.patterns[0]
     if len(pattern.edges) == 0:
-        raise SearchExecutionError(
-            "Advanced executor requires at least one edge in the MATCH pattern."
-        )
+        raise SearchExecutionError("Advanced executor requires at least one edge in the MATCH pattern.")
 
     bindings = _build_var_bindings(pattern)
     qs = _build_chain_queryset(pattern, db_alias, inputs)
@@ -1587,7 +1606,12 @@ def _execute_advanced(
         for mc in ast.match_clauses:
             qs, pattern, bindings = _build_clause_queryset(mc, ast, inputs, db_alias)
             envelope = _collect_graph_envelope(
-                qs, pattern, ast.return_clause, bindings, layer="lite", db_alias=db_alias,
+                qs,
+                pattern,
+                ast.return_clause,
+                bindings,
+                layer="lite",
+                db_alias=db_alias,
             )
             # Collect PKs from the lite-layer results for dedup before final serialize.
             for n in envelope["nodes"]:
@@ -1596,12 +1620,11 @@ def _execute_advanced(
                 all_edge_entity_ids.add(str(e["entity_id"]))
 
         # Bulk-fetch and serialize at the requested layer.
-        entities = list(Entity.objects.using(db_alias).filter(pk__in=all_node_pks)) if all_node_pks else []
+        # sorted() on the PK sets so the IN-list SQL is deterministic (Gridkin snapshots).
+        entities = list(Entity.objects.using(db_alias).filter(pk__in=sorted(all_node_pks))) if all_node_pks else []
         edges = (
             list(
-                Edge.objects.using(db_alias)
-                .filter(entity_id__in=all_edge_entity_ids)
-                .select_related("entity")
+                Edge.objects.using(db_alias).filter(entity_id__in=sorted(all_edge_entity_ids)).select_related("entity")
             )
             if all_edge_entity_ids
             else []
@@ -1612,11 +1635,10 @@ def _execute_advanced(
 
         result: dict[str, Any] = {"nodes": nodes_out, "edges": edges_out, "rows": []}
 
-        has_unanchored_multihop = any(
-            len(mc.patterns[0].edges) > 1
-            for mc in ast.match_clauses
-            if len(mc.patterns) == 1
-        ) and ast.where_clause is None
+        has_unanchored_multihop = (
+            any(len(mc.patterns[0].edges) > 1 for mc in ast.match_clauses if len(mc.patterns) == 1)
+            and ast.where_clause is None
+        )
         if has_unanchored_multihop:
             result["warnings"] = {
                 "multi_hop_no_anchor": (
@@ -1662,9 +1684,7 @@ def _compute_rows(
 
     items = return_clause.items
     if items is None:
-        raise SearchExecutionError(
-            "Aggregation executor requires an explicit RETURN clause."
-        )
+        raise SearchExecutionError("Aggregation executor requires an explicit RETURN clause.")
 
     # Partition into field projections and aggregates.
     field_items: list[ReturnItem] = []

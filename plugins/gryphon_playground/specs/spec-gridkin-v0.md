@@ -257,22 +257,28 @@ its query.
 The Gryphon executor compiles each Gryphon query into **one or more** Django ORM
 `QuerySet`s. A simple type scan produces a single QuerySet; multi-stage patterns
 produce several — hub-and-spoke, for example, loads the anchor entity, then runs a
-per-direction edge scan, then a bulk neighbor fetch, each its own QuerySet. There
-is no single `QuerySet.query` that represents "the query."
+per-direction edge scan, then a bulk neighbor fetch — and a later stage is built
+from an earlier stage's results. There is no single `QuerySet.query` that
+represents "the query", so capture happens during execution, not as a pure
+compile step.
 
-Capture is therefore done by a **SQL-capture seam in `tap_grid/gryphon/`**
-(specified in `spec-grid-traversal-execution.md`): when capture is active, the
-executor records `str(qs.query)` for every QuerySet it builds during a run, in
-execution order, each tagged with the executor stage that produced it
-(`type-scan`, `hub-load`, `edge-out`, `edge-in`, `neighbor-fetch`, `advanced`,
-...). `str(qs.query)` is used deliberately over the parameterized `(sql, params)`
-form: it inlines literal values, which is what makes the snapshot eyeballable.
+Capture is done by the **SQL-capture seam in `tap_grid/gryphon/`** —
+`capture_sql()` and `explain_gryphon_raw()`, specified in
+`spec-grid-traversal-execution.md` (`req-grid-traversal-exec-sql-capture`). A
+`connection.execute_wrapper` records every `SELECT` the executor issues during a
+run, in execution order, each tagged with the dispatch stage that produced it
+(`type-scan`, `hub-and-spoke`, `edge-type-scan`, `advanced`). Each captured
+statement is the parameterized SQL plus its bound parameters, kept separate rather
+than inlined — that is deterministic, sidesteps value-quoting edge cases, and
+still reads cleanly (query shape and literal values shown distinctly). For the
+capture to be byte-stable the executor sorts the id collections it filters with
+`pk__in` before querying.
 
 Gridkin captures that ordered, stage-labelled sequence and asserts it —
 whitespace-normalized — against a committed `<scenario>.sql.txt` side file. The
-side file is a **multi-statement document**: one labelled SQL block per QuerySet,
-in execution order. A query that compiles to three QuerySets has three blocks in
-its `.sql.txt`.
+side file is a **multi-statement document**: one labelled block per captured
+`SELECT`, in execution order. A query that runs three statements has three blocks
+in its `.sql.txt`.
 
 The value of this assertion:
 
@@ -304,7 +310,7 @@ the block count and order — is asserted byte-exact after normalization.
 | req-gridkin-explain-snapshot-1 | SQL Captured Per Scenario | Proposed | Every Gridkin scenario commits an `expected_sql_snapshot` file. | |
 | req-gridkin-explain-snapshot-2 | Whitespace Normalized | Proposed | The runner whitespace-normalizes both expected and actual SQL before comparing. | |
 | req-gridkin-explain-snapshot-3 | Failure Distinct From Envelope Failure | Proposed | SQL mismatch is reported as a distinct failure mode from envelope mismatch. | |
-| req-gridkin-explain-snapshot-4 | Multi-Statement Capture | Proposed | The `.sql.txt` side file holds one labelled SQL block per QuerySet the executor builds, in execution order; queries that compile to multiple QuerySets capture all of them. | |
+| req-gridkin-explain-snapshot-4 | Multi-Statement Capture | Proposed | The `.sql.txt` side file holds one labelled block per `SELECT` the executor executes, in execution order; queries that run multiple statements capture all of them. | |
 
 ### Requirement Traceability
 ----

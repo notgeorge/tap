@@ -14,7 +14,19 @@ Usage::
     result = execute_gryphon_raw("MATCH (a:program) RETURN a", inputs={})
 """
 
-from tap_grid.gryphon.executor import execute_gryphon, execute_gryphon_raw
+from tap_grid.gryphon.capture import SqlCapture, capture_sql
+from tap_grid.gryphon.executor import (
+    execute_gryphon,
+    execute_gryphon_raw,
+    explain_gryphon_raw,
+)
 from tap_grid.gryphon.parser import parse_gryphon
 
-__all__ = ["execute_gryphon", "execute_gryphon_raw", "parse_gryphon"]
+__all__ = [
+    "SqlCapture",
+    "capture_sql",
+    "execute_gryphon",
+    "execute_gryphon_raw",
+    "explain_gryphon_raw",
+    "parse_gryphon",
+]

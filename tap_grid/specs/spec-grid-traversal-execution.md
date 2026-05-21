@@ -22,6 +22,7 @@ direct backend query execution.
 | req-grid-traversal-exec-pipeline | [Execution Pipeline](#execution-pipeline) | Implemented | Normalize → parse → validate → compile → execute → package |
 | req-grid-traversal-exec-compiler | [Compiler Strategy](#compiler-strategy) | Implemented | lark as v1 parser; grammar.lark is the spec artifact |
 | req-grid-traversal-exec-scope.sec | [gryphon Safety Scope](#gryphon-safety-scope) | Implemented | Read-only, TAP-scoped, unsupported syntax rejected, inputs validated |
+| req-grid-traversal-exec-sql-capture | [SQL Capture Seam](#sql-capture-seam) | Implemented | `execute_wrapper`-based SQL capture for Gridkin snapshots and `gryphon explain` |
 
 
 ### Execution Pipeline
@@ -144,6 +145,64 @@ database-native graph syntax supplied by the caller.
 #### Future
 Document backend-specific guardrails once TAP chooses its first concrete traversal compiler
 target beyond ORM.
+
+
+### SQL Capture Seam
+----
+RID: `req-grid-traversal-exec-sql-capture`
+Status: `Implemented`
+
+The executor exposes a read-only seam that records the SQL a gryphon run issues,
+for snapshot testing and the `gryphon explain` developer surface.
+
+#### Implementation
+
+A gryphon query compiles to one or more Django ORM `QuerySet`s — a type scan
+produces one; multi-stage patterns (hub-and-spoke, edge-type scan, the advanced
+aggregation path) produce several, because a later stage is built from an earlier
+stage's results. There is no single `QuerySet.query` that represents "the query",
+so capture happens during execution rather than as a pure compile step.
+
+The seam lives in `tap_grid/gryphon/capture.py`:
+
+- `capture_sql(*db_aliases)` — a context manager that installs a
+  `connection.execute_wrapper` for the block and yields a `SqlCapture`. Every
+  `SELECT` / `WITH` statement executed inside the block is recorded, in execution
+  order, with its bound parameters. Transaction-management statements (SAVEPOINT,
+  RELEASE, ...) are filtered out.
+- `gryphon_stage(label)` — a context manager the executor wraps each dispatch
+  branch with, tagging that branch's statements (`type-scan`, `hub-and-spoke`,
+  `edge-type-scan`, `advanced`). A no-op beyond a context-var set when no capture
+  is active.
+- `explain_gryphon_raw(query, inputs, ...)` — runs a query and returns
+  `{"envelope": <canonical envelope>, "sql": <SqlCapture>}`.
+
+The seam is read-only and changes no execution behavior; with no capture active
+it costs only a context-var set per dispatch branch.
+
+For the captured SQL to be stable across processes, the executor sorts the
+entity-id collections it filters with `pk__in` / `entity_id__in` before building
+those querysets — Python set iteration order is hash-randomized per process and
+would otherwise vary the emitted `IN (...)` list without changing results.
+
+This seam is the basis of the Gridkin expected-SQL snapshot (`spec-gridkin-v0.md`,
+`req-gridkin-explain-snapshot`) and the future `gryphon explain` developer surface
+(Gryphon wishlist H3).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-exec-sql-capture-1 | Captures Executed Reads | Implemented | `capture_sql()` records every `SELECT` a gryphon run executes inside the block, in execution order. | |
+| req-grid-traversal-exec-sql-capture-2 | Stage Labelled | Implemented | Each captured statement carries the executor dispatch stage that produced it. | |
+| req-grid-traversal-exec-sql-capture-3 | Deterministic SQL | Implemented | The executor sorts `pk__in` / `entity_id__in` id collections so the captured SQL is byte-stable across processes. | |
+| req-grid-traversal-exec-sql-capture-4 | Read-Only And Inert | Implemented | The seam changes no execution behavior and is inert when no capture is active. | |
+| req-grid-traversal-exec-sql-capture-5 | Explain Entry Point | Implemented | `explain_gryphon_raw()` returns both the canonical envelope and the captured SQL. | |
+
+#### Future
+Extend the seam with PostgreSQL `EXPLAIN ANALYZE` for query-plan and timing
+inspection (Gryphon wishlist P2), and surface it as a `gryphon explain` CLI /
+management command (wishlist H3). Both reuse this capture, not a parallel one.
 
 
 ## Status Vocabulary
