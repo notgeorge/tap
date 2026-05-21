@@ -79,10 +79,52 @@ def _seed_fixture(scenario: Scenario) -> None:
         )
 
 
+# Spine fields that carry provenance, not query semantics: the import-time
+# timestamps and the originating grid id. They vary per run and per
+# environment, so the runner redacts them to a sentinel before comparing or
+# writing a snapshot — a Gridkin scenario asserts what a query returns, not
+# when the fixture was imported or on which grid.
+_VOLATILE_SPINE_FIELDS = ("created_at", "updated_at", "originating_grid_id")
+_REDACTED = "<volatile>"
+
+
+def _redact_member(member: dict[str, Any]) -> dict[str, Any]:
+    """Copy a node/edge envelope with volatile provenance fields redacted."""
+    redacted = dict(member)
+    for field in _VOLATILE_SPINE_FIELDS:
+        if field in redacted:
+            redacted[field] = _REDACTED
+    return redacted
+
+
+def _canonical_envelope(envelope: dict[str, Any]) -> dict[str, Any]:
+    """Return a stable, comparable form of a response envelope.
+
+    - `nodes` and `edges` are sorted by entity_id: a graph envelope's member
+      lists are sets, and the executor emits them in DB-discretion order (the
+      hub-and-spoke neighbor fetch, for one, has no ORDER BY).
+    - Volatile provenance fields (import timestamps, originating grid id) are
+      redacted to a sentinel on every member — see `_VOLATILE_SPINE_FIELDS`.
+    - `rows` (RETURN projection / aggregation output) is left untouched: its
+      order can carry meaning and it has no volatile spine fields.
+
+    Applied to both sides of every comparison and to the written snapshot, so
+    the committed expected file is stable across runs and environments.
+    """
+    canonical = dict(envelope)
+    for key in ("nodes", "edges"):
+        members = canonical.get(key)
+        if isinstance(members, list):
+            redacted = [_redact_member(m) for m in members]
+            canonical[key] = sorted(redacted, key=lambda m: str(m.get("entity_id", "")))
+    return canonical
+
+
 def _write_snapshots(scenario: Scenario, envelope: dict[str, Any], sql_text: str) -> None:
     scenario.expected_envelope_path.parent.mkdir(parents=True, exist_ok=True)
     scenario.expected_envelope_path.write_text(
-        json.dumps(envelope, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        json.dumps(_canonical_envelope(envelope), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
     )
     scenario.expected_sql_path.parent.mkdir(parents=True, exist_ok=True)
     scenario.expected_sql_path.write_text(sql_text, encoding="utf-8")
@@ -92,10 +134,11 @@ def _check_envelope(scenario: Scenario, actual: dict[str, Any]) -> list[str]:
     path = scenario.expected_envelope_path
     if not path.is_file():
         return [_missing(scenario, "envelope", path)]
-    expected = json.loads(path.read_text(encoding="utf-8"))
-    if expected == actual:
+    expected = _canonical_envelope(json.loads(path.read_text(encoding="utf-8")))
+    actual_canonical = _canonical_envelope(actual)
+    if expected == actual_canonical:
         return []
-    return ["ENVELOPE MISMATCH — the response envelope changed (behavior).\n" + _json_diff(expected, actual)]
+    return ["ENVELOPE MISMATCH — the response envelope changed (behavior).\n" + _json_diff(expected, actual_canonical)]
 
 
 def _check_sql(scenario: Scenario, actual_sql: str) -> list[str]:

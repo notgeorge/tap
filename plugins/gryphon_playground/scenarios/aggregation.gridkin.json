@@ -1,0 +1,21 @@
+{
+  "feature": "COUNT aggregation with implicit GROUP BY over a one-hop pattern",
+  "background": {
+    "grift_fixture": "fixtures/sparse_dense.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "count of pg_node neighbors per hub",
+      "tags": ["aggregation", "count", "dispatch", "current-behavior"],
+      "covers": [
+        "req-grid-gryphon-count",
+        "req-grid-gryphon-count-3",
+        "req-grid-gryphon-rows"
+      ],
+      "layer": "lite",
+      "query": "MATCH (h:pg_hub)-[:PG_LINKS]->(n:pg_node) RETURN h.entity_id AS hub_id, COUNT(n) AS neighbor_count",
+      "expected_envelope": "expected/aggregation__count_neighbors.expected.json",
+      "expected_sql_snapshot": "expected/aggregation__count_neighbors.sql.txt"
+    }
+  ]
+}

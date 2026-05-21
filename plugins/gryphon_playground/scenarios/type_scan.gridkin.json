@@ -1,0 +1,34 @@
+{
+  "feature": "Type-scan dispatch returns and filters every node of a playground type",
+  "background": {
+    "grift_fixture": "fixtures/sparse_dense.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "scan returns every pg_node in the fixture",
+      "tags": ["type-scan", "dispatch", "current-behavior"],
+      "covers": [
+        "req-grid-traversal-lang-shape",
+        "req-grid-traversal-lang-patterns",
+        "req-grid-traversal-lang-returns-1"
+      ],
+      "layer": "full",
+      "query": "MATCH (n:pg_node)",
+      "expected_envelope": "expected/type_scan__all_pg_nodes.expected.json",
+      "expected_sql_snapshot": "expected/type_scan__all_pg_nodes.sql.txt"
+    },
+    {
+      "name": "scan filters pg_node by a data-lane field",
+      "tags": ["type-scan", "where", "envelope-paths", "current-behavior"],
+      "covers": [
+        "req-grid-traversal-lang-filters",
+        "req-grid-traversal-lang-envelope-paths-2",
+        "req-grid-traversal-lang-envelope-paths-8"
+      ],
+      "layer": "full",
+      "query": "MATCH (n:pg_node) WHERE n.data.kind = \"island\"",
+      "expected_envelope": "expected/type_scan__kind_island.expected.json",
+      "expected_sql_snapshot": "expected/type_scan__kind_island.sql.txt"
+    }
+  ]
+}

@@ -1,0 +1,220 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e4b02-f37b-72df-a3e5-baf80bb43b28",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — sparse_dense",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — sparse_dense",
+        "description": "One densely connected hub with three neighbors, plus a lonely isolated node and a disconnected two-node island. Tier 1 Gridkin fixture exercising type-scan, hub-and-spoke, and aggregation dispatch.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
+            "entity_type": "pg_hub",
+            "name": "Dense Hub",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:00:00Z",
+            "updated_at": "2026-05-20T12:00:00Z"
+          },
+          "node": {
+            "name": "Dense Hub",
+            "description": "The densely connected hub.",
+            "kind": "hub",
+            "severity_score": 0,
+            "is_open": true,
+            "observed_at": null,
+            "tags": { "zone": "core" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-bafa7b3865a9",
+            "entity_type": "pg_node",
+            "name": "Neighbor One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:00:01Z",
+            "updated_at": "2026-05-20T12:00:01Z"
+          },
+          "node": {
+            "name": "Neighbor One",
+            "description": "First hub neighbor.",
+            "kind": "neighbor",
+            "severity_score": 10,
+            "is_open": true,
+            "observed_at": null,
+            "tags": { "zone": "core" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-bafb10535646",
+            "entity_type": "pg_node",
+            "name": "Neighbor Two",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:00:02Z",
+            "updated_at": "2026-05-20T12:00:02Z"
+          },
+          "node": {
+            "name": "Neighbor Two",
+            "description": "Second hub neighbor.",
+            "kind": "neighbor",
+            "severity_score": 20,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-bafc00e2b0af",
+            "entity_type": "pg_node",
+            "name": "Neighbor Three",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:00:03Z",
+            "updated_at": "2026-05-20T12:00:03Z"
+          },
+          "node": {
+            "name": "Neighbor Three",
+            "description": "Third hub neighbor.",
+            "kind": "neighbor",
+            "severity_score": 30,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-bafd3e1fc13d",
+            "entity_type": "pg_node",
+            "name": "Lonely Island",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:00:04Z",
+            "updated_at": "2026-05-20T12:00:04Z"
+          },
+          "node": {
+            "name": "Lonely Island",
+            "description": "An isolated node with no edges.",
+            "kind": "island",
+            "severity_score": 5,
+            "is_open": false,
+            "observed_at": null,
+            "tags": { "zone": "edge" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-bafef82d1e41",
+            "entity_type": "pg_node",
+            "name": "Island Alpha",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:00:05Z",
+            "updated_at": "2026-05-20T12:00:05Z"
+          },
+          "node": {
+            "name": "Island Alpha",
+            "description": "First node of the disconnected island.",
+            "kind": "island",
+            "severity_score": 15,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-baff05e4468a",
+            "entity_type": "pg_node",
+            "name": "Island Beta",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:00:06Z",
+            "updated_at": "2026-05-20T12:00:06Z"
+          },
+          "node": {
+            "name": "Island Beta",
+            "description": "Second node of the disconnected island.",
+            "kind": "island",
+            "severity_score": 25,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-bb00cf03bb0e",
+            "entity_type": "edge",
+            "name": "Dense Hub PG_LINKS Neighbor One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:01:00Z",
+            "updated_at": "2026-05-20T12:01:00Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
+            "to_entity_id": "019e4b02-f37b-72df-a3e5-bafa7b3865a9",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-bb0135c1d515",
+            "entity_type": "edge",
+            "name": "Dense Hub PG_LINKS Neighbor Two",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:01:01Z",
+            "updated_at": "2026-05-20T12:01:01Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
+            "to_entity_id": "019e4b02-f37b-72df-a3e5-bafb10535646",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-bb02a19297a0",
+            "entity_type": "edge",
+            "name": "Dense Hub PG_LINKS Neighbor Three",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:01:02Z",
+            "updated_at": "2026-05-20T12:01:02Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
+            "to_entity_id": "019e4b02-f37b-72df-a3e5-bafc00e2b0af",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4b02-f37b-72df-a3e5-bb03299640b0",
+            "entity_type": "edge",
+            "name": "Island Alpha PG_LINKS Island Beta",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-20T12:01:03Z",
+            "updated_at": "2026-05-20T12:01:03Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4b02-f37b-72df-a3e5-bafef82d1e41",
+            "to_entity_id": "019e4b02-f37b-72df-a3e5-baff05e4468a",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}

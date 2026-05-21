@@ -1,0 +1,25 @@
+{
+  "feature": "Hub-and-spoke dispatch returns a hub and its one-hop neighborhood",
+  "background": {
+    "grift_fixture": "fixtures/sparse_dense.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "one-hop undirected neighborhood of the dense hub",
+      "tags": ["hub-and-spoke", "dispatch", "current-behavior"],
+      "covers": [
+        "req-grid-traversal-lang-shape",
+        "req-grid-traversal-lang-patterns",
+        "req-grid-traversal-lang-params",
+        "req-grid-traversal-exec-pipeline"
+      ],
+      "layer": "lite",
+      "query": "MATCH (h)-[e]-(n) WHERE h.entity_id = $hub_id",
+      "params": {
+        "hub_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c"
+      },
+      "expected_envelope": "expected/hub_and_spoke__dense_hub.expected.json",
+      "expected_sql_snapshot": "expected/hub_and_spoke__dense_hub.sql.txt"
+    }
+  ]
+}
