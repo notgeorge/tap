@@ -197,7 +197,7 @@ def explain_gryphon_raw(
     .. tap:capability:: Gryphon explain / SQL capture
        :id: cap-grid-gryphon-explain
        :status: implemented
-       :audience: developer; agent
+       :audience: agent; developer
        :affordance: debugging
        :implements: req-grid-traversal-exec-sql-capture
        :covered-by: pytest:tap_grid/tests/test_gryphon_sql_capture.py
@@ -866,7 +866,7 @@ def _execute_bare_type_scan(
        :affordance: querying
        :implements: req-grid-traversal-lang-bare-match
        :covered-by: gridkin:bare_match-labelless-scan-filtered-by-an-entity-type-prefix
-       :limitations: v0 -- graph-envelope result only; a data-lane WHERE must be AND-joined; ORDER BY / LIMIT unsupported.
+       :limitations: Graph-envelope result only; a data-lane WHERE must be AND-joined; ORDER BY / LIMIT unsupported (v0).
 
        ``MATCH (n)`` with no label scans every registered node type and unions
        the results. A type lacking a WHERE-referenced data field matches
@@ -2377,7 +2377,7 @@ def _comparison_to_q(comp: Comparison | InComparison, orm_path: str, inputs: dic
        :affordance: querying
        :implements: req-grid-traversal-lang-string-match
        :covered-by: gridkin:string_match-starts-with-matches-a-name-prefix
-       :limitations: Case-sensitive; no wildcard / regex operator -- the three fixed operators only.
+       :limitations: Case-sensitive; no wildcard / regex operator; the three fixed operators only.
 
        ``STARTS_WITH`` / ``ENDS_WITH`` / ``CONTAINS`` test a string field against
        a prefix / suffix / substring. The needle is escaped, so ``LIKE``
