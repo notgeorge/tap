@@ -321,10 +321,12 @@ class _ASTTransformer(Transformer):
     def param_ref(self, name: Token) -> ParamRef:
         return ParamRef(name=str(name))
 
-    def true_val(self) -> bool:
+    def true_val(self, _token: Token) -> bool:
+        # @v_args(inline=True) passes the matched `/true/i` token as a child —
+        # the method must accept it (string_val / number_val likewise).
         return True
 
-    def false_val(self) -> bool:
+    def false_val(self, _token: Token) -> bool:
         return False
 
     def null_val(self) -> None:

@@ -1,0 +1,17 @@
+{
+  "feature": "Inline edge-property filter narrows an edge-type scan by edge properties",
+  "background": {
+    "grift_fixture": "fixtures/edge_properties.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "inline edge-property map filters PG_LINKS edges by tier",
+      "tags": ["edge-type-scan", "inline-property", "current-behavior"],
+      "covers": ["req-grid-traversal-lang-filters-1"],
+      "layer": "lite",
+      "query": "MATCH (a:pg_node)-[e:PG_LINKS {tier: \"gold\"}]->(b:pg_node)",
+      "expected_envelope": "expected/edge_properties__tier_gold.expected.json",
+      "expected_sql_snapshot": "expected/edge_properties__tier_gold.sql.txt"
+    }
+  ]
+}

@@ -44,6 +44,18 @@
       "query": "MATCH (a:pg_node)-[:PG_LINKS]->(b:pg_node)-[:PG_LINKS]->(c:pg_node) RETURN a.entity_id AS root_id, COUNT(c) AS tail_count",
       "expected_envelope": "expected/multi_hop__count.expected.json",
       "expected_sql_snapshot": "expected/multi_hop__count.sql.txt"
+    },
+    {
+      "name": "anonymous-edge two-hop chain returns nodes and the edges between them",
+      "tags": ["multi-hop", "advanced", "anonymous-edge", "current-behavior"],
+      "covers": [
+        "req-grid-gryphon-multihop",
+        "req-grid-gryphon-multihop-envelope-1"
+      ],
+      "layer": "lite",
+      "query": "MATCH (a:pg_node)-[:PG_LINKS]->(b:pg_node)-[:PG_LINKS]->(c:pg_node)",
+      "expected_envelope": "expected/multi_hop__anonymous_edges.expected.json",
+      "expected_sql_snapshot": "expected/multi_hop__anonymous_edges.sql.txt"
     }
   ]
 }

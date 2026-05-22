@@ -1,0 +1,9 @@
+-- statement 1 · stage: edge-type-scan
+SELECT "tap_edge"."id", "tap_edge"."entity_id", "tap_edge"."batch_id", "tap_edge"."flip_map", "tap_edge"."from_entity_id", "tap_edge"."to_entity_id", "tap_edge"."edge_type", "tap_edge"."properties", "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at", T3."id", T3."entity_type", T3."name", T3."dimensions", T3."originating_grid_id", T3."version", T3."deleted_at", T3."created_at", T3."updated_at", T4."id", T4."entity_type", T4."name", T4."dimensions", T4."originating_grid_id", T4."version", T4."deleted_at", T4."created_at", T4."updated_at"
+FROM "tap_edge"
+INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
+INNER JOIN "tap_entity" T3 ON ("tap_edge"."from_entity_id" = T3."id")
+INNER JOIN "tap_entity" T4 ON ("tap_edge"."to_entity_id" = T4."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T3."entity_type" = %s AND ("tap_edge"."properties" -> %s) = %s AND T4."entity_type" = %s)
+ORDER BY "tap_entity"."created_at" ASC
+-- params: ['PG_LINKS', 'pg_node', 'tier', Jsonb('gold'), 'pg_node']

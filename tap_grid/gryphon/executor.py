@@ -1483,11 +1483,21 @@ def _collect_graph_envelope(
             orm_path = _orm_path_for_field(binding, "entity_id")
             edge_columns.append((var, orm_path))
 
-    # Also collect edges that aren't explicitly requested but connect requested
-    # nodes — when RETURN is omitted, this is already covered since all variables
-    # are requested. When bare-variable RETURN names only nodes, we still want
-    # the connecting edges for a useful graph envelope.
-    if return_clause.items is not None and not edge_columns:
+    # Omitted RETURN means "the whole matched subgraph" — collect every hop's
+    # edge, including anonymous ones. An anonymous edge carries no variable, so
+    # it never reaches `bindings` and the loop above misses it; without this,
+    # MATCH (a)-[:E]->(b)-[:E]->(c) returned nodes with no edges between them.
+    if return_clause.items is None:
+        seen_edge_paths = {path for _, path in edge_columns}
+        for hop_idx, hop in enumerate(_compute_hop_paths(pattern)):
+            edge_path = hop["edge_path"]
+            orm_path = f"{edge_path}__entity_id" if edge_path else "entity_id"
+            if orm_path not in seen_edge_paths:
+                edge_columns.append((f"_hop{hop_idx}_edge", orm_path))
+                seen_edge_paths.add(orm_path)
+    # When bare-variable RETURN names only nodes, still collect the connecting
+    # bound edges so the graph envelope is useful.
+    elif not edge_columns:
         for var, binding in bindings.items():
             if binding["role"] == "edge":
                 orm_path = _orm_path_for_field(binding, "entity_id")

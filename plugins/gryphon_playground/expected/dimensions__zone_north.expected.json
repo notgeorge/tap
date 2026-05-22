@@ -1,0 +1,73 @@
+{
+  "nodes": [
+    {
+      "entity_id": "019e4dbd-db9c-7713-b0fd-22b48f16a484",
+      "entity_type": "pg_node",
+      "name": "North Alpha",
+      "dimensions": {
+        "zone": "north",
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>",
+      "data": {
+        "entity_id": "019e4dbd-db9c-7713-b0fd-22b48f16a484",
+        "name": "North Alpha",
+        "description": "A node scoped to the north zone.",
+        "kind": "zoned",
+        "severity_score": 10,
+        "is_open": true,
+        "observed_at": null,
+        "tags": {},
+        "batch_id": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+        "flip_map": {
+          "kind": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "name": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "tags": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "is_open": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "description": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "observed_at": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "severity_score": "019e4dbd-db9c-7713-b0fd-22b3000ac192"
+        }
+      }
+    },
+    {
+      "entity_id": "019e4dbd-db9c-7713-b0fd-22b5c98137cb",
+      "entity_type": "pg_node",
+      "name": "North Beta",
+      "dimensions": {
+        "zone": "north",
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>",
+      "data": {
+        "entity_id": "019e4dbd-db9c-7713-b0fd-22b5c98137cb",
+        "name": "North Beta",
+        "description": "A node scoped to the north zone.",
+        "kind": "zoned",
+        "severity_score": 20,
+        "is_open": false,
+        "observed_at": null,
+        "tags": {},
+        "batch_id": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+        "flip_map": {
+          "kind": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "name": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "tags": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "is_open": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "description": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "observed_at": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+          "severity_score": "019e4dbd-db9c-7713-b0fd-22b3000ac192"
+        }
+      }
+    }
+  ],
+  "edges": []
+}

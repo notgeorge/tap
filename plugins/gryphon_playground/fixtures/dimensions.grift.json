@@ -1,0 +1,98 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e4dbd-db9c-7713-b0fd-22b3000ac192",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — dimensions",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — dimensions",
+        "description": "Four pg_node entities partitioned across a `zone` dimension (two north, two south). Tier 1 Gridkin fixture for dimension-scoped WHERE predicates.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e4dbd-db9c-7713-b0fd-22b48f16a484",
+            "entity_type": "pg_node",
+            "name": "North Alpha",
+            "dimensions": { "tap.playground": "gridkin", "zone": "north" },
+            "created_at": "2026-05-21T15:00:00Z",
+            "updated_at": "2026-05-21T15:00:00Z"
+          },
+          "node": {
+            "name": "North Alpha",
+            "description": "A node scoped to the north zone.",
+            "kind": "zoned",
+            "severity_score": 10,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4dbd-db9c-7713-b0fd-22b5c98137cb",
+            "entity_type": "pg_node",
+            "name": "North Beta",
+            "dimensions": { "tap.playground": "gridkin", "zone": "north" },
+            "created_at": "2026-05-21T15:00:01Z",
+            "updated_at": "2026-05-21T15:00:01Z"
+          },
+          "node": {
+            "name": "North Beta",
+            "description": "A node scoped to the north zone.",
+            "kind": "zoned",
+            "severity_score": 20,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4dbd-db9c-7713-b0fd-22b639223342",
+            "entity_type": "pg_node",
+            "name": "South Gamma",
+            "dimensions": { "tap.playground": "gridkin", "zone": "south" },
+            "created_at": "2026-05-21T15:00:02Z",
+            "updated_at": "2026-05-21T15:00:02Z"
+          },
+          "node": {
+            "name": "South Gamma",
+            "description": "A node scoped to the south zone.",
+            "kind": "zoned",
+            "severity_score": 30,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4dbd-db9c-7713-b0fd-22b734e3f944",
+            "entity_type": "pg_node",
+            "name": "South Delta",
+            "dimensions": { "tap.playground": "gridkin", "zone": "south" },
+            "created_at": "2026-05-21T15:00:03Z",
+            "updated_at": "2026-05-21T15:00:03Z"
+          },
+          "node": {
+            "name": "South Delta",
+            "description": "A node scoped to the south zone.",
+            "kind": "zoned",
+            "severity_score": 40,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

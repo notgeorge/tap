@@ -77,6 +77,18 @@
       "query": "MATCH (n:pg_node) WHERE n.data.kind = \"neighbor\" AND n.data.severity_score > 15",
       "expected_envelope": "expected/type_scan__kind_and_severity.expected.json",
       "expected_sql_snapshot": "expected/type_scan__kind_and_severity.sql.txt"
+    },
+    {
+      "name": "scan filters pg_node by a boolean data-lane predicate",
+      "tags": ["type-scan", "where", "boolean", "current-behavior"],
+      "covers": [
+        "req-grid-traversal-lang-filters",
+        "req-grid-traversal-lang-envelope-paths-2"
+      ],
+      "layer": "full",
+      "query": "MATCH (n:pg_node) WHERE n.data.is_open = true",
+      "expected_envelope": "expected/type_scan__is_open.expected.json",
+      "expected_sql_snapshot": "expected/type_scan__is_open.sql.txt"
     }
   ]
 }

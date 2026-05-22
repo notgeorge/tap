@@ -1,0 +1,112 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e4dbd-db9c-7713-b0fd-22b8df0a0790",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — edge_properties",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — edge_properties",
+        "description": "A hub with two PG_LINKS edges of the same type carrying different `tier` properties (gold, silver). Tier 1 Gridkin fixture for inline edge-property filters.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e4dbd-db9c-7713-b0fd-22b965d69b53",
+            "entity_type": "pg_node",
+            "name": "Property Hub",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T15:10:00Z",
+            "updated_at": "2026-05-21T15:10:00Z"
+          },
+          "node": {
+            "name": "Property Hub",
+            "description": "Source of two PG_LINKS edges with different tier properties.",
+            "kind": "hub",
+            "severity_score": 0,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4dbd-db9c-7713-b0fd-22ba8f88eb06",
+            "entity_type": "pg_node",
+            "name": "Gold Target",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T15:10:01Z",
+            "updated_at": "2026-05-21T15:10:01Z"
+          },
+          "node": {
+            "name": "Gold Target",
+            "description": "Reached by the gold-tier edge.",
+            "kind": "target",
+            "severity_score": 10,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4dbd-db9c-7713-b0fd-22bb5b0c61fc",
+            "entity_type": "pg_node",
+            "name": "Silver Target",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T15:10:02Z",
+            "updated_at": "2026-05-21T15:10:02Z"
+          },
+          "node": {
+            "name": "Silver Target",
+            "description": "Reached by the silver-tier edge.",
+            "kind": "target",
+            "severity_score": 20,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e4dbd-db9c-7713-b0fd-22bc7f074335",
+            "entity_type": "edge",
+            "name": "Property Hub PG_LINKS Gold Target",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T15:11:00Z",
+            "updated_at": "2026-05-21T15:11:00Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4dbd-db9c-7713-b0fd-22b965d69b53",
+            "to_entity_id": "019e4dbd-db9c-7713-b0fd-22ba8f88eb06",
+            "edge_type": "PG_LINKS",
+            "properties": { "tier": "gold" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4dbd-db9c-7713-b0fd-22bdae253d82",
+            "entity_type": "edge",
+            "name": "Property Hub PG_LINKS Silver Target",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T15:11:01Z",
+            "updated_at": "2026-05-21T15:11:01Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4dbd-db9c-7713-b0fd-22b965d69b53",
+            "to_entity_id": "019e4dbd-db9c-7713-b0fd-22bb5b0c61fc",
+            "edge_type": "PG_LINKS",
+            "properties": { "tier": "silver" }
+          }
+        }
+      ]
+    }
+  ]
+}
