@@ -504,6 +504,8 @@ Once OPTIONAL MATCH and the additional aggregates are in, the lack of WITH is th
 
 **Validation contract size.** ~8-10 Gridkin scenarios. Corners explicitly mined from `tck/features/clauses/with/`. Variable scope across stages, scoping by alias rename, multi-WITH chains, WITH followed by OPTIONAL MATCH, aggregation followed by WITH followed by aggregation.
 
+**Bundle in: per-`MATCH` `WHERE` attachment (revisit when building F1).** Gryphon today has a single global `WHERE`, scoped per variable by the executor (`_filter_predicate_for_bindings`); a duplicate top-level `WHERE` is rejected loudly (`req-grid-traversal-lang-shape-6`, 2026-05-22 — see [Known Issues](#known-issues)). The end-state is **per-clause `WHERE` attachment** — `WHERE` as a sub-clause of `MATCH` (and of `WITH`), Cypher's actual model — which removes the "use distinct variable names" workaround and handles variable reuse across clauses cleanly. That is the **same mechanism** `WITH` needs: *a clause node carries its own optional `where_clause`, applied to that clause's output*. Build it **as part of F1**, not separately — one coherent "every stage (`MATCH` / `WITH`) carries a `WHERE`" design, decided once with all of it in the same context. Touchpoints: grammar moves `where_clause` under `match_clause`; `MatchClause` gains a `where_clause` field; the executor applies each clause's `WHERE` directly. (Decided 2026-05-22 with George — when F1 lands, per-`MATCH` `WHERE` lands in the same change.)
+
 #### F2. Explicit `UNION` / `UNION ALL`
 
 **What.** `MATCH (a) WHERE ... RETURN a UNION MATCH (b) WHERE ... RETURN b`. Combine results of two queries.
