@@ -140,6 +140,16 @@ def execute_gryphon_raw(
     if missing:
         raise SearchExecutionError(f"Gryphon query requires inputs {sorted(missing)} but they were not provided.")
 
+    # ORDER BY / LIMIT operate on row-projection results only. A graph-envelope
+    # result has no defined row order (its node/edge lists are sets), so
+    # ordering or limiting it is rejected here rather than silently ignored.
+    if (ast.order_by is not None or ast.limit is not None) and _is_graph_envelope_return(ast.return_clause):
+        raise SearchExecutionError(
+            "ORDER BY / LIMIT require a row-projection RETURN that names field paths or "
+            "aggregates; they do not apply to graph-envelope results (RETURN omitted or "
+            "naming only bare variables). Graph-envelope ordering is future work."
+        )
+
     if _has_advanced_features(ast):
         with gryphon_stage("advanced"):
             return _execute_advanced(ast, inputs, db_alias=db_alias, layer=layer)
@@ -236,6 +246,8 @@ def _execute_ast(
             entity_id_value=entity_id_value,
             return_clause=ast.return_clause,
             where_clause=ast.where_clause,
+            order_by=ast.order_by,
+            limit=ast.limit,
             inputs=inputs,
             db_alias=db_alias,
             layer=layer,
@@ -269,6 +281,8 @@ def _dispatch_pattern(
     entity_id_value: Any,
     return_clause: ReturnClause,
     where_clause: Any = None,
+    order_by: Any = None,
+    limit: Any = None,
     inputs: dict[str, Any] | None = None,
     db_alias: str,
     layer: SubgraphLayer,
@@ -281,6 +295,8 @@ def _dispatch_pattern(
                 pattern.nodes[0],
                 return_clause,
                 where_clause=where_clause,
+                order_by=order_by,
+                limit=limit,
                 inputs=inputs or {},
                 db_alias=db_alias,
                 layer=layer,
@@ -288,6 +304,14 @@ def _dispatch_pattern(
 
     if len(pattern.edges) != 1:
         raise SearchExecutionError("Unsupported gryphon pattern: only single-hop patterns are supported.")
+
+    # Hub-and-spoke and edge-type scans produce graph envelopes, not rows —
+    # ORDER BY / LIMIT have nothing to act on. Reject rather than silently drop.
+    if order_by is not None or limit is not None:
+        raise SearchExecutionError(
+            "ORDER BY / LIMIT are supported on type-scan projections and aggregation "
+            "queries, not on single-hop graph-traversal patterns."
+        )
 
     edge_pat = pattern.edges[0]
     if edge_pat.min_hops != 1 or edge_pat.max_hops != 1:
@@ -394,6 +418,8 @@ def _execute_type_scan(
     return_clause: ReturnClause,
     *,
     where_clause: Any = None,
+    order_by: Any = None,
+    limit: Any = None,
     inputs: dict[str, Any] | None = None,
     db_alias: str,
     layer: SubgraphLayer,
@@ -425,9 +451,7 @@ def _execute_type_scan(
     try:
         model_cls = get_model_class(node.label)
     except KeyError:
-        raise SearchExecutionError(
-            f"Unsupported gryphon pattern: unknown entity type '{node.label}'."
-        ) from None
+        raise SearchExecutionError(f"Unsupported gryphon pattern: unknown entity type '{node.label}'.") from None
 
     qs = model_cls.objects.using(db_alias).select_related("entity").order_by("entity__name")
 
@@ -459,8 +483,64 @@ def _execute_type_scan(
     # dedup on any projection without a bare `entity_id` key.
     items = return_clause.items
     assert items is not None  # _is_graph_envelope_return is True when items is None
+    qs = _apply_order_limit_typescan(qs, order_by, limit, items, var)
     rows: list[dict[str, Any]] = [_project_node(domain_obj, items, var) for domain_obj in qs]
     return {"nodes": [], "edges": [], "rows": rows}
+
+
+def _return_item_key(item: Any) -> str:
+    """The output key a RETURN item contributes — its alias, or default name.
+
+    For an aggregate item the alias is mandatory. For a field projection the
+    key is the explicit `AS` alias if present, else the last dot-step name
+    (matching ``_compute_rows`` and ``_resolve_envelope_path``).
+    """
+    if isinstance(item, AggregateReturnItem):
+        return item.alias
+    if item.alias is not None:
+        return item.alias
+    last = item.path.steps[-1] if item.path.steps else None
+    return last.name if isinstance(last, DotStep) else item.path.variable
+
+
+def _apply_order_limit_typescan(
+    qs,
+    order_by: Any,
+    limit: Any,
+    items: tuple,
+    var: str,
+):
+    """Apply ORDER BY / LIMIT to a type-scan projection queryset.
+
+    ORDER BY terms name RETURN outputs by key; each is translated to the ORM
+    lookup path of the projecting RETURN item. `entity_id` (the per-model PK
+    column) is appended as a unique tiebreaker so the surviving rows under a
+    LIMIT — and the captured SQL — are deterministic across runs.
+    """
+    if order_by is not None:
+        key_to_path: dict[str, str] = {}
+        for item in items:
+            if not isinstance(item, ReturnItem) or item.path.variable != var:
+                continue
+            key_to_path[_return_item_key(item)] = _typescan_orm_path(item.path)
+        order_cols: list[str] = []
+        for ob in order_by.items:
+            if ob.key not in key_to_path:
+                raise SearchExecutionError(
+                    f"ORDER BY references '{ob.key}', which is not a RETURN output of this query."
+                )
+            col = key_to_path[ob.key]
+            order_cols.append(f"-{col}" if ob.descending else col)
+        order_cols.append("entity_id")
+        qs = qs.order_by(*order_cols)
+    elif limit is not None:
+        # LIMIT with no ORDER BY: keep the default name order, with a unique
+        # tiebreaker so which rows survive the cap stays deterministic.
+        qs = qs.order_by("entity__name", "entity_id")
+
+    if limit is not None:
+        qs = qs[: limit.count]
+    return qs
 
 
 def _apply_typescan_predicate(
@@ -1694,7 +1774,7 @@ def _execute_advanced(
     mc = ast.match_clauses[0]
     qs, pattern, bindings = _build_clause_queryset(mc, ast, inputs, db_alias)
 
-    rows = _compute_rows(qs, ast.return_clause, bindings)
+    rows = _compute_rows(qs, ast.return_clause, bindings, order_by=ast.order_by, limit=ast.limit)
 
     envelope: dict[str, Any] = {"nodes": [], "edges": [], "rows": rows}
 
@@ -1709,10 +1789,43 @@ def _execute_advanced(
     return envelope
 
 
+def _resolve_order_cols(
+    order_by: Any,
+    key_to_internal: dict[str, str],
+    default_internals: list[str],
+) -> list[str]:
+    """Translate an ORDER BY clause into Django `.order_by()` column args.
+
+    Each ORDER BY term names a RETURN output by key; it is mapped to that
+    output's internal annotation alias, with a `-` prefix for `DESC`. Any
+    group-by columns the user did not name are appended as ascending
+    tiebreakers, so output order (and the captured SQL) is fully deterministic
+    even when the named keys have ties. With no ORDER BY, the group-by columns
+    alone are the order — identical to the executor's prior behavior.
+    """
+    if order_by is None:
+        return list(default_internals)
+    cols: list[str] = []
+    used: set[str] = set()
+    for ob in order_by.items:
+        if ob.key not in key_to_internal:
+            raise SearchExecutionError(f"ORDER BY references '{ob.key}', which is not a RETURN output of this query.")
+        internal = key_to_internal[ob.key]
+        used.add(internal)
+        cols.append(f"-{internal}" if ob.descending else internal)
+    for g in default_internals:
+        if g not in used:
+            cols.append(g)
+    return cols
+
+
 def _compute_rows(
     qs,
     return_clause: ReturnClause,
     bindings: dict[str, dict[str, Any]],
+    *,
+    order_by: Any = None,
+    limit: Any = None,
 ) -> list[dict[str, Any]]:
     """Execute the queryset and produce row dicts honoring RETURN aliases and aggregates.
 
@@ -1786,8 +1899,19 @@ def _compute_rows(
 
     group_by_internals = [i for i, _ in group_by_pairs]
 
+    # Map each RETURN output key to its internal annotation alias so ORDER BY
+    # terms (which name RETURN outputs) can resolve to sortable columns.
+    key_to_internal: dict[str, str] = {}
+    for internal, user in group_by_pairs:
+        key_to_internal[user] = internal
+    for internal, user in aggregate_pairs:
+        key_to_internal[user] = internal
+
     if aggregate_annotations:
-        qs = qs.values(*group_by_internals).annotate(**aggregate_annotations).order_by(*group_by_internals)
+        order_cols = _resolve_order_cols(order_by, key_to_internal, group_by_internals)
+        qs = qs.values(*group_by_internals).annotate(**aggregate_annotations).order_by(*order_cols)
+        if limit is not None:
+            qs = qs[: limit.count]
         raw_rows = list(qs)
         rows: list[dict[str, Any]] = []
         for raw in raw_rows:
@@ -1801,7 +1925,12 @@ def _compute_rows(
         return rows
 
     # No aggregation — project group-by aliases as rows.
-    raw_rows = list(qs.values(*group_by_internals))
+    qs = qs.values(*group_by_internals)
+    if order_by is not None or limit is not None:
+        qs = qs.order_by(*_resolve_order_cols(order_by, key_to_internal, group_by_internals))
+    if limit is not None:
+        qs = qs[: limit.count]
+    raw_rows = list(qs)
     rows = []
     for raw in raw_rows:
         row = {}

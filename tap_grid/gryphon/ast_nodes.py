@@ -213,6 +213,32 @@ class ReturnClause:
 
 
 @dataclass(frozen=True)
+class OrderByItem:
+    """A single ORDER BY term.
+
+    `key` names a RETURN output: an explicit `AS` alias, or — for an unaliased
+    field projection — its last dot-step name. `descending` is True for `DESC`.
+    """
+
+    key: str
+    descending: bool = False
+
+
+@dataclass(frozen=True)
+class OrderByClause:
+    """An ORDER BY clause: one or more ordering terms, applied left-to-right."""
+
+    items: tuple[OrderByItem, ...]
+
+
+@dataclass(frozen=True)
+class LimitClause:
+    """A LIMIT clause: cap the number of projected rows. `count` is >= 0."""
+
+    count: int
+
+
+@dataclass(frozen=True)
 class NotExistsClause:
     """A NOT EXISTS correlated subquery block.
 
@@ -221,8 +247,8 @@ class NotExistsClause:
     to the block.
     """
 
-    match_clause: "MatchClause"
-    where_clause: "WhereClause | None"
+    match_clause: MatchClause
+    where_clause: WhereClause | None
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +264,8 @@ class GryphonAST:
     where_clause: WhereClause | None
     return_clause: ReturnClause
     not_exists_clauses: tuple[NotExistsClause, ...] = ()
+    order_by: OrderByClause | None = None
+    limit: LimitClause | None = None
 
     def required_params(self) -> frozenset[str]:
         """Return the set of $var names referenced anywhere in this AST."""

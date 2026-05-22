@@ -15,7 +15,9 @@ from tap_grid.gryphon.ast_nodes import (
     DotStep,
     GryphonAST,
     KeyStep,
+    LimitClause,
     NotPred,
+    OrderByClause,
     OrPred,
     ParamRef,
     WildcardStep,
@@ -481,9 +483,7 @@ class TestGryphonEnvelopePaths:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={
-                "query": "MATCH (c:character) RETURN c.entity_id, c.display.tap_viz.shape"
-            },
+            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.display.tap_viz.shape"},
         )
         with pytest.raises(SearchExecutionError, match=r"extended"):
             execute_search(search, inputs={})
@@ -559,9 +559,7 @@ class TestGryphonTypeScanWhere:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={
-                "query": 'MATCH (c:character) WHERE c.name = "Frodo" RETURN c.entity_id, c.name'
-            },
+            definition={"query": 'MATCH (c:character) WHERE c.name = "Frodo" RETURN c.entity_id, c.name'},
         )
         result = execute_search(search, inputs={})
         names = {r["name"] for r in result["rows"]}
@@ -574,9 +572,7 @@ class TestGryphonTypeScanWhere:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={
-                "query": 'MATCH (c:character) WHERE c.data.bio = "Gardener." RETURN c.entity_id, c.name'
-            },
+            definition={"query": 'MATCH (c:character) WHERE c.data.bio = "Gardener." RETURN c.entity_id, c.name'},
         )
         result = execute_search(search, inputs={})
         names = {r["name"] for r in result["rows"]}
@@ -589,9 +585,7 @@ class TestGryphonTypeScanWhere:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={
-                "query": "MATCH (c:character) WHERE c.name = $target RETURN c.entity_id, c.name"
-            },
+            definition={"query": "MATCH (c:character) WHERE c.name = $target RETURN c.entity_id, c.name"},
         )
         result = execute_search(search, inputs={"target": "Aragorn"})
         names = {r["name"] for r in result["rows"]}
@@ -610,9 +604,10 @@ class TestGryphonTypeScanWhere:
         not `r`); the `character`-targeted MATCH is filtered. Graph
         envelope return so the dedup key is reliably present.
         """
+        import uuid
+
         from tap_grid.caller_context import CallerContext, set_caller_context
         from tap_grid.models import Entity
-        import uuid
 
         ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
@@ -620,19 +615,14 @@ class TestGryphonTypeScanWhere:
         # A different entity type that won't be touched by the WHERE.
         realm = Entity.objects.create(entity_type="realm", name="Middle-earth")
         from plugins.lotr.models import Realm  # noqa: PLC0415
+
         Realm.objects.create(entity=realm, name="Middle-earth")
 
         search = Search(
             search_type="gryphon",
             root="node",
             name="t",
-            definition={
-                "query": (
-                    'MATCH (r:realm) '
-                    'MATCH (c:character) '
-                    'WHERE c.name = "Frodo"'
-                )
-            },
+            definition={"query": ("MATCH (r:realm) " "MATCH (c:character) " 'WHERE c.name = "Frodo"')},
         )
         result = execute_search(search, inputs={})
         names = {n["name"] for n in result["nodes"]}
@@ -664,9 +654,7 @@ class TestGryphonDimensionsMultiStep:
         set_caller_context(ctx)
         results = []
         for name, realm in (("Frodo", "shire"), ("Sam", "shire"), ("Aragorn", "gondor")):
-            entity = Entity.objects.create(
-                entity_type="character", name=name, dimensions={"realm": realm}
-            )
+            entity = Entity.objects.create(entity_type="character", name=name, dimensions={"realm": realm})
             results.append(Character.objects.create(entity=entity, name=name, bio=""))
         return results
 
@@ -677,9 +665,7 @@ class TestGryphonDimensionsMultiStep:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={
-                "query": 'MATCH (c:character) WHERE c.dimensions.realm = "shire" RETURN c.entity_id, c.name'
-            },
+            definition={"query": 'MATCH (c:character) WHERE c.dimensions.realm = "shire" RETURN c.entity_id, c.name'},
         )
         result = execute_search(search, inputs={})
         names = {r["name"] for r in result["rows"]}
@@ -690,10 +676,11 @@ class TestGryphonDimensionsMultiStep:
         # Add a dimension with a dotted key — common in TAP conventions
         # ("tap.graph", "tap.system", etc.).
         self._make_characters_with_dimensions()
+        import uuid
+
         from plugins.lotr.models import Character
         from tap_grid.caller_context import CallerContext, set_caller_context
         from tap_grid.models import Entity
-        import uuid
 
         ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
@@ -709,10 +696,7 @@ class TestGryphonDimensionsMultiStep:
             root="node",
             name="t",
             definition={
-                "query": (
-                    'MATCH (c:character) WHERE c.dimensions["tap.graph"] = "web" '
-                    'RETURN c.entity_id, c.name'
-                )
+                "query": ('MATCH (c:character) WHERE c.dimensions["tap.graph"] = "web" ' "RETURN c.entity_id, c.name")
             },
         )
         result = execute_search(search, inputs={})
@@ -1056,9 +1040,7 @@ class TestGryphonV2ParserExtensions:
         """COUNT(var) AS alias produces an AggregateReturnItem."""
         from tap_grid.gryphon.ast_nodes import AggregateReturnItem
 
-        ast = parse_gryphon(
-            "MATCH (a)-[:R]->(b) RETURN a.entity_id AS id, COUNT(b) AS n"
-        )
+        ast = parse_gryphon("MATCH (a)-[:R]->(b) RETURN a.entity_id AS id, COUNT(b) AS n")
         items = ast.return_clause.items
         assert items is not None and len(items) == 2
         assert any(isinstance(i, AggregateReturnItem) for i in items)
@@ -1071,7 +1053,7 @@ class TestGryphonV2ParserExtensions:
         """NOT EXISTS { MATCH ... WHERE ... } is a recognized top-level clause."""
         q = (
             "MATCH (a)-[:R1]->(b) "
-            "NOT EXISTS { MATCH (c)-[:R2]->(b) WHERE c.entity_type = \"character\" } "
+            'NOT EXISTS { MATCH (c)-[:R2]->(b) WHERE c.entity_type = "character" } '
             "RETURN a.entity_id, COUNT(b) AS n"
         )
         ast = parse_gryphon(q)
@@ -1122,8 +1104,7 @@ class TestGryphonV2Executor:
             name="wielder-counts",
             definition={
                 "query": (
-                    "MATCH (c:character)-[:WIELDS]->(a:artifact) "
-                    "RETURN c.entity_id AS wielder, COUNT(a) AS count"
+                    "MATCH (c:character)-[:WIELDS]->(a:artifact) " "RETURN c.entity_id AS wielder, COUNT(a) AS count"
                 )
             },
         )
@@ -1155,7 +1136,7 @@ class TestGryphonV2Executor:
                     "MATCH (c:character)-[:WIELDS]->(a:artifact) "
                     "NOT EXISTS { "
                     "  MATCH (sam:character)-[:WIELDS]->(a) "
-                    "  WHERE sam.name = \"Sam\" "
+                    '  WHERE sam.name = "Sam" '
                     "} "
                     "RETURN c.entity_id AS wielder, COUNT(a) AS count"
                 )
@@ -1178,8 +1159,7 @@ class TestGryphonV2Executor:
             name="aggregate",
             definition={
                 "query": (
-                    "MATCH (c:character)-[:WIELDS]->(a:artifact) "
-                    "RETURN c.entity_id AS wielder, COUNT(a) AS count"
+                    "MATCH (c:character)-[:WIELDS]->(a:artifact) " "RETURN c.entity_id AS wielder, COUNT(a) AS count"
                 )
             },
         )
@@ -1218,23 +1198,33 @@ class TestGryphonV2Executor:
         for src, tgt in [(frodo, shire), (aragorn, gondor), (aragorn, arnor)]:
             Edge.objects.create(
                 entity=Entity.objects.create(entity_type="edge"),
-                from_entity=src, to_entity=tgt, edge_type="OWNS",
+                from_entity=src,
+                to_entity=tgt,
+                edge_type="OWNS",
             )
         # Realm CONTAINS location.
         for src, tgt in [
-            (shire, hobbiton), (shire, buckland),
+            (shire, hobbiton),
+            (shire, buckland),
             (gondor, minas_tirith),
             (arnor, annuminas),
         ]:
             Edge.objects.create(
                 entity=Entity.objects.create(entity_type="edge"),
-                from_entity=src, to_entity=tgt, edge_type="CONTAINS",
+                from_entity=src,
+                to_entity=tgt,
+                edge_type="CONTAINS",
             )
         return {
-            "frodo": frodo, "aragorn": aragorn,
-            "shire": shire, "gondor": gondor, "arnor": arnor,
-            "hobbiton": hobbiton, "buckland": buckland,
-            "minas_tirith": minas_tirith, "annuminas": annuminas,
+            "frodo": frodo,
+            "aragorn": aragorn,
+            "shire": shire,
+            "gondor": gondor,
+            "arnor": arnor,
+            "hobbiton": hobbiton,
+            "buckland": buckland,
+            "minas_tirith": minas_tirith,
+            "annuminas": annuminas,
         }
 
     def test_two_hop_chain_counts_leaf_per_root(self):
@@ -1292,7 +1282,7 @@ class TestGryphonV2Executor:
             definition={
                 "query": (
                     "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
-                    "WHERE c.name = \"Frodo\" "
+                    'WHERE c.name = "Frodo" '
                     "RETURN c.entity_id AS character, COUNT(l) AS locations"
                 )
             },
@@ -1341,7 +1331,9 @@ class TestGryphonV2Executor:
         guard = Entity.objects.create(entity_type="character", name="Guard")
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
-            from_entity=guard, to_entity=e["minas_tirith"], edge_type="RESTRICTS",
+            from_entity=guard,
+            to_entity=e["minas_tirith"],
+            edge_type="RESTRICTS",
         )
 
         # Count per character the locations they reach via a realm — excluding any
@@ -1381,11 +1373,15 @@ class TestGryphonV2Executor:
         restriction = Entity.objects.create(entity_type="realm", name="Restriction Seal")
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
-            from_entity=high_guard, to_entity=restriction, edge_type="ISSUES",
+            from_entity=high_guard,
+            to_entity=restriction,
+            edge_type="ISSUES",
         )
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
-            from_entity=restriction, to_entity=e["minas_tirith"], edge_type="SEALS",
+            from_entity=restriction,
+            to_entity=e["minas_tirith"],
+            edge_type="SEALS",
         )
 
         # Outer single-hop: character owns realm. Inner NOT EXISTS is a 2-hop chain.
@@ -1421,10 +1417,7 @@ class TestGryphonV2Executor:
             root="node",
             name="var-length",
             definition={
-                "query": (
-                    "MATCH (c:character)-[:OWNS*1..3]->(r:realm) "
-                    "RETURN c.entity_id AS id, COUNT(r) AS n"
-                )
+                "query": ("MATCH (c:character)-[:OWNS*1..3]->(r:realm) " "RETURN c.entity_id AS id, COUNT(r) AS n")
             },
         )
         with pytest.raises(SearchExecutionError, match="[Vv]ariable-length"):
@@ -1438,18 +1431,23 @@ class TestGryphonV2Executor:
             search_type="gryphon",
             root="node",
             name="envelope-all",
-            definition={
-                "query": (
-                    "MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location)"
-                )
-            },
+            definition={"query": ("MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location)")},
         )
         result = execute_search(search, inputs={})
 
         node_ids = {n["entity_id"] for n in result["nodes"]}
         # All 9 entities in the chain should be present.
-        for name in ("frodo", "aragorn", "shire", "gondor", "arnor",
-                      "hobbiton", "buckland", "minas_tirith", "annuminas"):
+        for name in (
+            "frodo",
+            "aragorn",
+            "shire",
+            "gondor",
+            "arnor",
+            "hobbiton",
+            "buckland",
+            "minas_tirith",
+            "annuminas",
+        ):
             assert str(e[name].pk) in node_ids, f"{name} missing from nodes"
 
         # Edges: 3 OWNS + 4 CONTAINS = 7
@@ -1470,10 +1468,7 @@ class TestGryphonV2Executor:
             root="node",
             name="envelope-selected",
             definition={
-                "query": (
-                    "MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location) "
-                    "RETURN c, l"
-                )
+                "query": ("MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location) " "RETURN c, l")
             },
         )
         result = execute_search(search, inputs={})
@@ -1499,8 +1494,7 @@ class TestGryphonV2Executor:
             name="envelope-anchored",
             definition={
                 "query": (
-                    "MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location) "
-                    "WHERE c.name = \"Frodo\""
+                    "MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location) " 'WHERE c.name = "Frodo"'
                 )
             },
         )
@@ -1518,17 +1512,13 @@ class TestGryphonV2Executor:
 
     def test_two_hop_graph_envelope_deduplication(self):
         """Nodes appearing at multiple positions in the chain are deduplicated."""
-        e = self._setup_three_layer_chain()
+        self._setup_three_layer_chain()
 
         search = Search(
             search_type="gryphon",
             root="node",
             name="envelope-dedup",
-            definition={
-                "query": (
-                    "MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location)"
-                )
-            },
+            definition={"query": ("MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location)")},
         )
         result = execute_search(search, inputs={})
 
@@ -1603,7 +1593,7 @@ class TestGryphonInlineEdgePropertyFilter:
             name="count-violations",
             definition={
                 "query": (
-                    'MATCH (h)-[:HAS_FINDING]->(f:finding)'
+                    "MATCH (h)-[:HAS_FINDING]->(f:finding)"
                     '-[:RELATED {relationship_type: "violation"}]->(i:indicator) '
                     "RETURN h.entity_id AS host, COUNT(f) AS count"
                 )
@@ -1615,7 +1605,7 @@ class TestGryphonInlineEdgePropertyFilter:
             name="count-passing",
             definition={
                 "query": (
-                    'MATCH (h)-[:HAS_FINDING]->(f:finding)'
+                    "MATCH (h)-[:HAS_FINDING]->(f:finding)"
                     '-[:RELATED {relationship_type: "passing"}]->(i:indicator) '
                     "RETURN h.entity_id AS host, COUNT(f) AS count"
                 )
@@ -1641,7 +1631,7 @@ class TestGryphonInlineEdgePropertyFilter:
             name="no-match",
             definition={
                 "query": (
-                    'MATCH (h)-[:HAS_FINDING]->(f:finding)'
+                    "MATCH (h)-[:HAS_FINDING]->(f:finding)"
                     '-[:RELATED {relationship_type: "informational"}]->(i:indicator) '
                     "RETURN h.entity_id AS host, COUNT(f) AS count"
                 )
@@ -1649,3 +1639,152 @@ class TestGryphonInlineEdgePropertyFilter:
         )
         result = execute_search(search, inputs={})
         assert result.get("rows", []) == []
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonOrderByLimitParser — req-grid-gryphon-order-by / req-grid-gryphon-limit
+# ---------------------------------------------------------------------------
+
+
+class TestGryphonOrderByLimitParser:
+    """Parser coverage for the ORDER BY and LIMIT clauses."""
+
+    def test_order_by_parses_ascending_default(self):
+        """req-grid-gryphon-order-by-1/-3: a bare ORDER BY term is ascending."""
+        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label ORDER BY label")
+        assert isinstance(ast.order_by, OrderByClause)
+        assert len(ast.order_by.items) == 1
+        assert ast.order_by.items[0].key == "label"
+        assert ast.order_by.items[0].descending is False
+
+    def test_order_by_desc(self):
+        """req-grid-gryphon-order-by-3: DESC marks a term descending."""
+        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label ORDER BY label DESC")
+        assert ast.order_by.items[0].descending is True
+
+    def test_order_by_multi_key(self):
+        """req-grid-gryphon-order-by-4: multiple terms are kept in written order."""
+        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.kind AS k, n.name AS label ORDER BY k, label DESC")
+        keys = [(i.key, i.descending) for i in ast.order_by.items]
+        assert keys == [("k", False), ("label", True)]
+
+    def test_limit_parses(self):
+        """req-grid-gryphon-limit-1: LIMIT captures a non-negative integer count."""
+        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label LIMIT 7")
+        assert isinstance(ast.limit, LimitClause)
+        assert ast.limit.count == 7
+
+    def test_limit_zero_parses(self):
+        """req-grid-gryphon-limit-3: LIMIT 0 is a legal literal."""
+        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label LIMIT 0")
+        assert ast.limit.count == 0
+
+    def test_order_by_and_limit_absent_by_default(self):
+        """A query with neither clause leaves both AST fields None."""
+        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label")
+        assert ast.order_by is None
+        assert ast.limit is None
+
+    def test_duplicate_order_by_rejected(self):
+        """Two ORDER BY clauses are a parse error, not a silent drop."""
+        with pytest.raises(GryphonParseError, match="one ORDER BY"):
+            parse_gryphon("MATCH (n:pg_node) RETURN n.name AS l ORDER BY l ORDER BY l")
+
+    def test_duplicate_limit_rejected(self):
+        """Two LIMIT clauses are a parse error, not a silent drop."""
+        with pytest.raises(GryphonParseError, match="one LIMIT"):
+            parse_gryphon("MATCH (n:pg_node) RETURN n.name AS l LIMIT 1 LIMIT 2")
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonOrderByLimitExecutor — req-grid-gryphon-order-by / req-grid-gryphon-limit
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonOrderByLimitExecutor:
+    """Executor coverage for ORDER BY / LIMIT — positive path plus rejection cases."""
+
+    def _setup_characters(self):
+        """Five characters with distinct bios, for ordering tests."""
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+
+        for name in ("Eowyn", "Aragorn", "Denethor", "Boromir", "Celeborn"):
+            entity = Entity.objects.create(entity_type="character", name=name)
+            Character.objects.create(entity=entity, name=name, bio=f"{name} bio")
+
+    def test_order_by_limit_top_n(self):
+        """req-grid-gryphon-order-by-3 / limit-2: ORDER BY DESC + LIMIT yields the top rows."""
+        self._setup_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="top-n",
+            definition={"query": "MATCH (c:character) RETURN c.name AS name ORDER BY name DESC LIMIT 2"},
+        )
+        rows = execute_search(search, inputs={})["rows"]
+        assert [r["name"] for r in rows] == ["Eowyn", "Denethor"]
+
+    def test_limit_caps_row_count(self):
+        """req-grid-gryphon-limit-2: LIMIT caps the number of rows returned."""
+        self._setup_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="cap",
+            definition={"query": "MATCH (c:character) RETURN c.name AS name ORDER BY name LIMIT 3"},
+        )
+        rows = execute_search(search, inputs={})["rows"]
+        assert [r["name"] for r in rows] == ["Aragorn", "Boromir", "Celeborn"]
+
+    def test_order_by_on_graph_envelope_rejected(self):
+        """req-grid-gryphon-order-by-7: ORDER BY with a graph-envelope RETURN is rejected."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad",
+            definition={"query": "MATCH (c:character) ORDER BY name"},
+        )
+        with pytest.raises(SearchExecutionError, match="row-projection"):
+            execute_search(search, inputs={})
+
+    def test_limit_on_graph_envelope_rejected(self):
+        """req-grid-gryphon-limit-6: LIMIT with a graph-envelope RETURN is rejected."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad",
+            definition={"query": "MATCH (c:character) LIMIT 5"},
+        )
+        with pytest.raises(SearchExecutionError, match="row-projection"):
+            execute_search(search, inputs={})
+
+    def test_order_by_unknown_key_rejected(self):
+        """req-grid-gryphon-order-by-2: an ORDER BY term naming no RETURN output is rejected."""
+        self._setup_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad-key",
+            definition={"query": "MATCH (c:character) RETURN c.name AS name ORDER BY nonsuch"},
+        )
+        with pytest.raises(SearchExecutionError, match="not a RETURN output"):
+            execute_search(search, inputs={})
+
+    def test_order_by_on_single_hop_traversal_rejected(self):
+        """ORDER BY on a single-hop graph traversal (hub-and-spoke) is rejected."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad-hop",
+            definition={"query": "MATCH (h)-[e]-(n) RETURN h.entity_id AS id ORDER BY id"},
+        )
+        with pytest.raises(SearchExecutionError, match="ORDER BY / LIMIT"):
+            execute_search(search, inputs={})

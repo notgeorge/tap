@@ -29,6 +29,8 @@ The extension is scoped tight on purpose. `COUNT` is the only aggregate; `SUM`/`
 | req-grid-gryphon-count | [COUNT Aggregation and Implicit GROUP BY](#count-aggregation-and-implicit-group-by) | Implemented | `COUNT(var)` in RETURN, implicit GROUP BY on non-aggregated columns |
 | req-grid-gryphon-rows | [Rows Result Envelope](#rows-result-envelope) | Implemented | Canonical envelope gains a `rows` key populated by aggregating queries |
 | req-grid-gryphon-multihop-envelope | [Multi-Hop Graph Envelope](#multi-hop-graph-envelope) | Implemented | Multi-hop queries return graph envelope (nodes + edges) when RETURN is omitted or uses bare variables |
+| req-grid-gryphon-order-by | [ORDER BY Row Ordering](#order-by-row-ordering) | Implemented | `ORDER BY` over row-projection outputs; ascending default, `DESC` explicit, multi-key, deterministic tiebreak |
+| req-grid-gryphon-limit | [LIMIT Row Capping](#limit-row-capping) | Implemented | `LIMIT n` caps row-projection output; compiles to SQL `LIMIT` |
 | req-grid-gryphon-compat | [Backward Compatibility](#backward-compatibility) | Implemented | Existing queries parse, execute, and return identical results |
 
 ---
@@ -272,6 +274,95 @@ Multi-hop queries support graph envelope returns in addition to row projection, 
 
 ---
 
+### ORDER BY Row Ordering
+----
+RID: `req-grid-gryphon-order-by`
+Status: `Implemented`
+
+Gryphon gains an `ORDER BY` clause that imposes a defined order on row-projection results, including ordering by an aggregated column.
+
+#### Implementation
+
+- Grammar addition: a top-level `order_by_clause`, sibling to `MATCH`, `WHERE`, `RETURN`:
+
+  ```
+  order_by_clause: _ORDER_KW _BY_KW order_item ("," order_item)*
+  order_item: NAME order_dir?
+  order_dir: _ASC_KW -> asc | _DESC_KW -> desc
+  ```
+
+- An `order_item` names a **RETURN output by key** — its explicit `AS` alias, or, for an unaliased field projection, its last dot-step name. `ORDER BY` does not introduce new column expressions; it can only reorder what `RETURN` already projects. An `ORDER BY` term that names no RETURN output is a clear execution error. This mirrors Cypher's post-`RETURN` ordering scope and keeps the compiler from having to resolve a second, parallel field-path surface.
+- Direction is `ASC` (ascending) by default; `DESC` is explicit per term. Keywords are case-insensitive.
+- Multiple `order_item`s order left-to-right: the first is primary, each subsequent one breaks ties of the prior.
+- **Deterministic tiebreak.** After the user's terms, the executor appends the query's group-by / identity columns (the GROUP BY keys for aggregating queries; the per-model `entity_id` for type-scan projections) as ascending tiebreakers. Output row order — and therefore the captured SQL and any `LIMIT` result — is fully determined even when the named keys have ties. "Stable ordering with ties" is a guarantee, not an accident.
+- ORDER BY compiles to SQL `ORDER BY` via Django `.order_by(...)`: for the aggregation path, by annotation alias; for the type-scan projection path, by the ORM lookup of the projecting RETURN item. NULL ordering is therefore PostgreSQL's (`NULLS LAST` for ascending).
+- `ORDER BY` applies to **row-projection** queries only — an explicit `RETURN` naming field paths and/or aggregates. A query that pairs `ORDER BY` with a graph-envelope `RETURN` (omitted, or naming only bare variables) is rejected: a graph envelope's node/edge lists are sets with no defined row order. Graph-envelope ordering is future work.
+
+#### Development
+
+`ORDER BY` is deliberately scoped to reorder existing RETURN outputs rather than accept arbitrary field paths. The narrower surface means the compiler reuses the alias→column map it already builds for projection, the determinism tiebreak falls out of columns the query already groups on, and there is no second path-resolution code path to keep correct. Ordering by a richer expression than a RETURN output waits for a real query that needs it.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-gryphon-order-by-1 | ORDER BY Clause Accepted | Implemented | The parser accepts `ORDER BY` as a top-level clause with one or more terms. | |
+| req-grid-gryphon-order-by-2 | Terms Name RETURN Outputs | Implemented | An `ORDER BY` term names a RETURN output by alias or default key; an unknown name is a clear execution error. | |
+| req-grid-gryphon-order-by-3 | Ascending Default Descending Explicit | Implemented | Terms sort ascending unless `DESC` is given; `ASC`/`DESC` are case-insensitive. | |
+| req-grid-gryphon-order-by-4 | Multi-Key Ordering | Implemented | Multiple terms order left-to-right, each breaking ties of the prior. | |
+| req-grid-gryphon-order-by-5 | Deterministic Tiebreak | Implemented | The executor appends group-by / identity columns as tiebreakers so row order is fully deterministic across runs. | |
+| req-grid-gryphon-order-by-6 | Orders Aggregated Columns | Implemented | An `ORDER BY` term may name an aggregate RETURN alias (e.g. a `COUNT` result). | The "top-N" dashboard verb |
+| req-grid-gryphon-order-by-7 | Row-Projection Only | Implemented | `ORDER BY` paired with a graph-envelope RETURN is rejected with a clear error. | |
+
+#### Future
+
+- `ORDER BY` over an expression that is not a RETURN output.
+- Graph-envelope ordering (a defined node order in `{nodes, edges}` results).
+- `NULLS FIRST` / `NULLS LAST` control per term.
+
+---
+
+### LIMIT Row Capping
+----
+RID: `req-grid-gryphon-limit`
+Status: `Implemented`
+
+Gryphon gains a `LIMIT n` clause that caps the number of rows a row-projection query returns.
+
+#### Implementation
+
+- Grammar addition: a top-level `limit_clause`:
+
+  ```
+  limit_clause: _LIMIT_KW INT
+  ```
+
+  `INT` is `/[0-9]+/`, so `n` is a non-negative integer literal; `LIMIT 0` is legal and `LIMIT` cannot be negative.
+- `LIMIT` compiles to SQL `LIMIT` via Django queryset slicing (`qs[:n]`) — the database short-circuits rather than the executor materializing every row and slicing in Python.
+- `LIMIT` composes with `ORDER BY`: ordering is applied first, then the cap. The combination is the "top-N" query shape.
+- `LIMIT` **without** `ORDER BY` is legal. Because the executor always appends deterministic tiebreak columns (per `req-grid-gryphon-order-by-5`), the rows that survive the cap are still deterministic — they are the first `n` in the executor's default order (group-by / entity-name order), not an arbitrary subset.
+- `LIMIT n` with `n` larger than the result set returns the whole result set, unchanged.
+- Like `ORDER BY`, `LIMIT` applies to row-projection queries only; pairing it with a graph-envelope `RETURN` is rejected.
+- At most one `ORDER BY` and one `LIMIT` clause per query; a duplicate is a parse error (not a silent drop).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-gryphon-limit-1 | LIMIT Clause Accepted | Implemented | The parser accepts `LIMIT n` as a top-level clause with a non-negative integer. | |
+| req-grid-gryphon-limit-2 | Caps Row Count | Implemented | A query returns at most `n` rows; `LIMIT` compiles to SQL `LIMIT`. | |
+| req-grid-gryphon-limit-3 | LIMIT Zero Is Empty | Implemented | `LIMIT 0` returns no rows. | |
+| req-grid-gryphon-limit-4 | Oversize LIMIT Returns All | Implemented | `LIMIT n` with `n` past the result-set size returns every row. | |
+| req-grid-gryphon-limit-5 | LIMIT Without ORDER BY Deterministic | Implemented | `LIMIT` with no `ORDER BY` caps in the executor's deterministic default order, not an arbitrary subset. | |
+| req-grid-gryphon-limit-6 | Row-Projection Only | Implemented | `LIMIT` paired with a graph-envelope RETURN is rejected with a clear error. | |
+
+#### Future
+
+- `SKIP` / `OFFSET` for query-level pagination (Gryphon wishlist A3).
+- Graph-envelope `LIMIT` (capping `{nodes, edges}` results).
+
+---
+
 ### Backward Compatibility
 ----
 RID: `req-grid-gryphon-compat`
@@ -304,7 +395,7 @@ Every query that parses and executes before this extension lands continues to pa
 - **Numeric aggregates** (`SUM`, `AVG`, `MIN`, `MAX`).
 - **`COUNT(DISTINCT ...)`** and **`COUNT(*)`**.
 - **`HAVING`** clause for post-aggregation filtering.
-- **`ORDER BY`** over returned columns, including aggregates.
+- **`SKIP` / `OFFSET`** for query-level pagination, composing with `ORDER BY` / `LIMIT`.
 - **`OPTIONAL MATCH`** for left-outer-join semantics.
 - **`UNION`** and **`UNION ALL`** across sibling queries.
 - **Variable-length edge traversal** with cycle handling (`-[:E*1..3]->`).

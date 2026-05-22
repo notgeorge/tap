@@ -1,0 +1,123 @@
+{
+  "feature": "ORDER BY row ordering and LIMIT row capping over row-projection results",
+  "background": {
+    "grift_fixture": "fixtures/sparse_dense.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "type-scan projection ordered ascending by a data-lane field",
+      "tags": ["order-by", "type-scan", "projection"],
+      "covers": [
+        "req-grid-gryphon-order-by",
+        "req-grid-gryphon-order-by-1",
+        "req-grid-gryphon-order-by-2",
+        "req-grid-gryphon-order-by-3"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.severity_score AS sev ORDER BY sev",
+      "expected_envelope": "expected/order_by_limit__typescan_asc.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit__typescan_asc.sql.txt"
+    },
+    {
+      "name": "type-scan projection ordered descending with LIMIT — top-3 by severity",
+      "tags": ["order-by", "limit", "type-scan", "top-n"],
+      "covers": [
+        "req-grid-gryphon-order-by-3",
+        "req-grid-gryphon-limit",
+        "req-grid-gryphon-limit-1",
+        "req-grid-gryphon-limit-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.severity_score AS sev ORDER BY sev DESC LIMIT 3",
+      "expected_envelope": "expected/order_by_limit__typescan_desc_limit.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit__typescan_desc_limit.sql.txt"
+    },
+    {
+      "name": "multi-key ORDER BY orders left-to-right by key then key",
+      "tags": ["order-by", "multi-key", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-order-by-3",
+        "req-grid-gryphon-order-by-4"
+      ],
+      "inspired_by": "tck/features/clauses/orderBy/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.kind AS kind, n.data.severity_score AS sev ORDER BY kind, sev DESC",
+      "expected_envelope": "expected/order_by_limit__multi_key.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit__multi_key.sql.txt"
+    },
+    {
+      "name": "ORDER BY a tied key resolves stably via the deterministic tiebreak",
+      "tags": ["order-by", "ties", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-order-by-4",
+        "req-grid-gryphon-order-by-5"
+      ],
+      "inspired_by": "tck/features/clauses/orderBy/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.kind AS kind ORDER BY kind",
+      "expected_envelope": "expected/order_by_limit__tied_key.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit__tied_key.sql.txt"
+    },
+    {
+      "name": "LIMIT zero returns no rows",
+      "tags": ["limit", "empty-result", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-limit-3"
+      ],
+      "inspired_by": "tck/features/clauses/limit/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY id LIMIT 0",
+      "expected_envelope": "expected/order_by_limit__limit_zero.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit__limit_zero.sql.txt"
+    },
+    {
+      "name": "LIMIT larger than the result set returns every row",
+      "tags": ["limit", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-limit-4"
+      ],
+      "inspired_by": "tck/features/clauses/limit/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY id LIMIT 999",
+      "expected_envelope": "expected/order_by_limit__limit_oversize.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit__limit_oversize.sql.txt"
+    },
+    {
+      "name": "COUNT scoreboard ordered by the aggregated column descending",
+      "tags": ["order-by", "aggregation", "count", "scoreboard"],
+      "covers": [
+        "req-grid-gryphon-order-by-6",
+        "req-grid-gryphon-count",
+        "req-grid-gryphon-rows"
+      ],
+      "layer": "lite",
+      "query": "MATCH (h)-[:PG_LINKS]->(n) RETURN h.entity_id AS source_id, COUNT(n) AS out_degree ORDER BY out_degree DESC",
+      "expected_envelope": "expected/order_by_limit__scoreboard.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit__scoreboard.sql.txt"
+    },
+    {
+      "name": "COUNT scoreboard capped with LIMIT — highest-degree hub only",
+      "tags": ["order-by", "limit", "aggregation", "count", "scoreboard", "top-n"],
+      "covers": [
+        "req-grid-gryphon-order-by-6",
+        "req-grid-gryphon-limit-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (h)-[:PG_LINKS]->(n) RETURN h.entity_id AS source_id, COUNT(n) AS out_degree ORDER BY out_degree DESC LIMIT 1",
+      "expected_envelope": "expected/order_by_limit__scoreboard_top1.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit__scoreboard_top1.sql.txt"
+    },
+    {
+      "name": "LIMIT without ORDER BY caps in the executor's deterministic default order",
+      "tags": ["limit", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-limit-5"
+      ],
+      "inspired_by": "tck/features/clauses/limit/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.name AS label LIMIT 2",
+      "expected_envelope": "expected/order_by_limit__limit_no_order.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit__limit_no_order.sql.txt"
+    }
+  ]
+}

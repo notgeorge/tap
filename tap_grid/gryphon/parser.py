@@ -21,10 +21,13 @@ from tap_grid.gryphon.ast_nodes import (
     GryphonAST,
     IndexStep,
     KeyStep,
+    LimitClause,
     MatchClause,
     NodePattern,
     NotExistsClause,
     NotPred,
+    OrderByClause,
+    OrderByItem,
     OrPred,
     ParamRef,
     PathPattern,
@@ -101,9 +104,18 @@ class _ASTTransformer(Transformer):
         where_clauses = [c for c in clauses if isinstance(c, WhereClause)]
         return_clauses = [c for c in clauses if isinstance(c, ReturnClause)]
         not_exists_clauses = [c for c in clauses if isinstance(c, NotExistsClause)]
+        order_by_clauses = [c for c in clauses if isinstance(c, OrderByClause)]
+        limit_clauses = [c for c in clauses if isinstance(c, LimitClause)]
 
         if not match_clauses:
             raise GryphonParseError("At least one MATCH clause is required.")
+        # ORDER BY / LIMIT are single-clause: a duplicate is an authoring
+        # mistake, and silently dropping it (as multiple-WHERE does) is the
+        # exact footgun this feature should not reintroduce.
+        if len(order_by_clauses) > 1:
+            raise GryphonParseError("Only one ORDER BY clause is allowed per query.")
+        if len(limit_clauses) > 1:
+            raise GryphonParseError("Only one LIMIT clause is allowed per query.")
 
         where = where_clauses[0] if where_clauses else None
         ret = return_clauses[0] if return_clauses else ReturnClause(items=None)
@@ -113,6 +125,8 @@ class _ASTTransformer(Transformer):
             where_clause=where,
             return_clause=ret,
             not_exists_clauses=tuple(not_exists_clauses),
+            order_by=order_by_clauses[0] if order_by_clauses else None,
+            limit=limit_clauses[0] if limit_clauses else None,
         )
 
     def clause(self, inner: Any) -> Any:
@@ -286,6 +300,28 @@ class _ASTTransformer(Transformer):
         if mc is None:
             raise GryphonParseError("NOT EXISTS block requires a MATCH clause.")
         return NotExistsClause(match_clause=mc, where_clause=wc)
+
+    # -- ORDER BY / LIMIT --
+
+    def order_by_clause(self, *items: Any) -> OrderByClause:
+        return OrderByClause(items=tuple(items))
+
+    def order_item(self, name: Token, *direction: Any) -> OrderByItem:
+        # `direction` is the optional order_dir child: () for the default
+        # ascending case, or ("asc",) / ("desc",) when written explicitly.
+        descending = bool(direction) and direction[0] == "desc"
+        return OrderByItem(key=str(name), descending=descending)
+
+    def asc(self) -> str:
+        # The _ASC_KW / _DESC_KW terminals are underscore-prefixed and so are
+        # discarded by lark — these alias methods take no token child.
+        return "asc"
+
+    def desc(self) -> str:
+        return "desc"
+
+    def limit_clause(self, count: Token) -> LimitClause:
+        return LimitClause(count=int(count))
 
     # -- RETURN --
 
