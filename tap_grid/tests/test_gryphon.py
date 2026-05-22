@@ -2101,3 +2101,85 @@ class TestGryphonCombinatorsExecutor:
         )
         rows = execute_search(search, inputs={})["rows"]
         assert [r["name"] for r in rows] == ["Frodo"]
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonStringMatchParser — req-grid-traversal-lang-string-match
+# ---------------------------------------------------------------------------
+
+
+class TestGryphonStringMatchParser:
+    """Parser coverage for the STARTS_WITH / ENDS_WITH / CONTAINS operators."""
+
+    def test_starts_with_parses(self):
+        """req-grid-traversal-lang-string-match-1: STARTS_WITH parses to a Comparison."""
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name STARTS_WITH "Neigh" RETURN n.entity_id AS id')
+        pred = ast.where_clause.predicate
+        assert isinstance(pred, Comparison)
+        assert pred.op == "starts_with"
+        assert pred.value == "Neigh"
+
+    def test_ends_with_and_contains_parse(self):
+        """req-grid-traversal-lang-string-match-1: ENDS_WITH / CONTAINS parse to their ops."""
+        for keyword, op in (("ENDS_WITH", "ends_with"), ("CONTAINS", "contains")):
+            ast = parse_gryphon(f'MATCH (n:pg_node) WHERE n.name {keyword} "x" RETURN n.entity_id AS id')
+            assert ast.where_clause.predicate.op == op
+
+    def test_string_op_keyword_is_case_insensitive(self):
+        """The operator keyword is case-insensitive; the AST `op` normalizes to lower case."""
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name starts_with "x" RETURN n.entity_id AS id')
+        assert ast.where_clause.predicate.op == "starts_with"
+
+    def test_string_match_needle_may_be_param(self):
+        """req-grid-traversal-lang-string-match-4: the needle may be a $param."""
+        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.name ENDS_WITH $suffix RETURN n.entity_id AS id")
+        assert "suffix" in ast.required_params()
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonStringMatchExecutor — req-grid-traversal-lang-string-match
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonStringMatchExecutor:
+    """Executor coverage for the substring operators — positive path plus needle escaping."""
+
+    def _make(self, *specs):
+        """Create characters from (name, bio) tuples."""
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        for name, bio in specs:
+            entity = Entity.objects.create(entity_type="character", name=name)
+            Character.objects.create(entity=entity, name=name, bio=bio)
+
+    def _search(self, query):
+        return Search(search_type="gryphon", root="node", name="sm", definition={"query": query})
+
+    def test_starts_with_executes(self):
+        """req-grid-traversal-lang-string-match-2: STARTS_WITH filters by prefix."""
+        self._make(("Aragorn", "x"), ("Arwen", "x"), ("Boromir", "x"))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.name STARTS_WITH "Ar" RETURN c.name AS name ORDER BY name'),
+            inputs={},
+        )["rows"]
+        assert [r["name"] for r in rows] == ["Aragorn", "Arwen"]
+
+    def test_like_metacharacters_in_needle_are_literal(self):
+        """req-grid-traversal-lang-string-match-5: a `%` in the needle matches literally.
+
+        If `%` were treated as a LIKE wildcard, `CONTAINS "100%"` would also match
+        "battery 100 then percent"; escaped, it matches only the literal "100%".
+        """
+        self._make(("Literal", "battery 100% charged"), ("Wildcard", "battery 100 then percent"))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.data.bio CONTAINS "100%" RETURN c.name AS name'),
+            inputs={},
+        )["rows"]
+        assert [r["name"] for r in rows] == ["Literal"]

@@ -28,6 +28,7 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-envelope-paths | [Envelope-Aware Field Paths](#envelope-aware-field-paths) | In Development | Recognize `data` and `display` lane prefixes in `WHERE`/`RETURN`; explicit-only, no routing sugar |
 | req-grid-traversal-lang-combinators | [Predicate Combinators](#predicate-combinators) | Implemented | AND/OR/NOT in WHERE predicates |
 | req-grid-traversal-lang-in | [IN-List Membership](#in-list-membership) | Implemented | `WHERE` membership test against a list of values |
+| req-grid-traversal-lang-string-match | [String Match Predicates](#string-match-predicates) | Implemented | `WHERE` substring predicates: `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
 | req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
 
@@ -581,6 +582,54 @@ MATCH (n:host) WHERE n.entity_id IN [$a, $b, $c] RETURN n
 - Whole-list parameterization (`WHERE n.kind IN $kinds`, where `$kinds` resolves to a list) — the fully-dynamic "pick any subset" filter.
 - `NOT IN` as a distinct surface (today expressible as `NOT (... IN ...)` where the executor path supports `NOT`).
 - Label-union node patterns `(n:type1|type2)` — the pattern-level cousin of `IN` over `entity_type` (Gryphon wishlist B4).
+
+
+### String Match Predicates
+----
+RID: `req-grid-traversal-lang-string-match`
+Status: `Implemented`
+
+A `WHERE` predicate may test a string field against a substring with `STARTS_WITH`, `ENDS_WITH`, or `CONTAINS`.
+
+#### Background
+
+Prefix / suffix / substring filtering is the predicate behind type-prefix filters (`entity_type STARTS_WITH "aws_"`), name search in finders, and log-grep-style dashboard search boxes. Samsite's pass-1 landing page reached for raw ORM `entity_type__startswith` — that ORM reach is the Gryphon-over-ORM rule firing, the demand signal for this predicate (Gryphon wishlist B2).
+
+#### Implementation
+
+- Three word operators join the `comparison` grammar production alongside `COMPARE_OP` and `IN`: `field_path STARTS_WITH value`, `field_path ENDS_WITH value`, `field_path CONTAINS value`. The operators are case-insensitive keywords; the needle `value` is a string literal or a `$param` reference.
+- They are ordinary `Comparison` AST nodes — the operator set on `Comparison` is extended, not a new predicate leaf — so they compose with `AND` / `OR` / `NOT`, scope per bound variable, and flow through the predicate-tree-to-`Q` compiler exactly as `=` does.
+- They compile to the Django `__startswith` / `__endswith` / `__contains` lookups (SQL `LIKE`).
+- **Case-sensitive.** Matching is case-sensitive, mirroring Cypher's `STARTS WITH`. Case-insensitive variants are future work.
+- **`LIKE` metacharacters are literal.** `%` and `_` in the needle match themselves — the lookups parameterize and escape the needle, so `CONTAINS "50%"` matches the literal substring `50%`, never `50` followed by anything.
+- An empty needle matches every string value (`STARTS_WITH ""` is `LIKE '%'`).
+- The needle is expected to be a string; applying these operators to a non-string field is not guarded — behavior is whatever the backend lookup does, the same laxity as `<` / `>`.
+
+#### Examples
+
+```text
+MATCH (n) WHERE n.entity_type STARTS_WITH "aws_" RETURN n
+
+MATCH (n:finding) WHERE n.data.title CONTAINS "timeout" RETURN n
+
+MATCH (n:host) WHERE n.name ENDS_WITH $suffix RETURN n
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-string-match-1 | Operators Accepted | Implemented | The parser accepts `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` as `WHERE` comparison operators. | |
+| req-grid-traversal-lang-string-match-2 | Substring Semantics | Implemented | The operators match a prefix / suffix / any substring; an empty needle matches every string value. | |
+| req-grid-traversal-lang-string-match-3 | Case-Sensitive | Implemented | Matching is case-sensitive. | Case-insensitive variant is future work |
+| req-grid-traversal-lang-string-match-4 | Needle May Be A Param | Implemented | The needle may be a `$param` reference resolved at execution time. | |
+| req-grid-traversal-lang-string-match-5 | LIKE Metacharacters Literal | Implemented | `%` / `_` in the needle match literally; needles are escaped, not interpreted as wildcards. | Security-relevant |
+| req-grid-traversal-lang-string-match-6 | Composes With Combinators | Implemented | A string-match comparison combines with `AND` / `OR` / `NOT` like any comparison. | |
+
+#### Future
+
+- Case-insensitive variants of the three operators.
+- Wildcard / regex-like pattern matching — a single `LIKE`- or `MATCHES`-style operator generalizing these three. Deliberately deferred: the three explicit operators cover the detected demand and avoid the needle-escaping and case-sensitivity surface a pattern language drags in. Promote when a real query needs a shape the three fixed operators cannot express.
 
 
 ### Runtime Inputs And Variables

@@ -277,7 +277,10 @@ class _ASTTransformer(Transformer):
         return inner
 
     def comparison(self, fp: FieldPath, op: Token, value: Any) -> Comparison:
-        return Comparison(field_path=fp, op=str(op), value=value)
+        # Lower-casing normalizes the substring keywords (STARTS_WITH -> starts_with,
+        # case-insensitive in the grammar) to their AST `op` form; the symbolic
+        # COMPARE_OP tokens (=, !=, <, ...) are unaffected by .lower().
+        return Comparison(field_path=fp, op=str(op).lower(), value=value)
 
     def in_comparison(self, fp: FieldPath, values: tuple[Any, ...]) -> InComparison:
         return InComparison(field_path=fp, values=values)

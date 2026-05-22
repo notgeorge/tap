@@ -1,0 +1,81 @@
+{
+  "feature": "STARTS_WITH / ENDS_WITH / CONTAINS substring predicates in WHERE",
+  "background": {
+    "grift_fixture": "fixtures/sparse_dense.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "STARTS_WITH matches a name prefix",
+      "tags": ["string-match", "starts-with", "where"],
+      "covers": [
+        "req-grid-traversal-lang-string-match",
+        "req-grid-traversal-lang-string-match-1",
+        "req-grid-traversal-lang-string-match-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"Neighbor\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__starts_with.expected.json",
+      "expected_sql_snapshot": "expected/string_match__starts_with.sql.txt"
+    },
+    {
+      "name": "ENDS_WITH matches a name suffix",
+      "tags": ["string-match", "ends-with", "where"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name ENDS_WITH \"a\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__ends_with.expected.json",
+      "expected_sql_snapshot": "expected/string_match__ends_with.sql.txt"
+    },
+    {
+      "name": "CONTAINS matches an interior substring",
+      "tags": ["string-match", "contains", "where"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name CONTAINS \"Island\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__contains.expected.json",
+      "expected_sql_snapshot": "expected/string_match__contains.sql.txt"
+    },
+    {
+      "name": "string match is case-sensitive",
+      "tags": ["string-match", "case-sensitivity", "empty-result", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-3"
+      ],
+      "inspired_by": "tck/features/expressions/string/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"neighbor\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__case_sensitive.expected.json",
+      "expected_sql_snapshot": "expected/string_match__case_sensitive.sql.txt"
+    },
+    {
+      "name": "an empty needle matches every string",
+      "tags": ["string-match", "empty-needle", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2"
+      ],
+      "inspired_by": "tck/features/expressions/string/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__empty_needle.expected.json",
+      "expected_sql_snapshot": "expected/string_match__empty_needle.sql.txt"
+    },
+    {
+      "name": "needle supplied by a param",
+      "tags": ["string-match", "params"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-4"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name ENDS_WITH $suffix RETURN n.entity_id AS id ORDER BY id",
+      "params": {
+        "suffix": "Beta"
+      },
+      "expected_envelope": "expected/string_match__param_needle.expected.json",
+      "expected_sql_snapshot": "expected/string_match__param_needle.sql.txt"
+    }
+  ]
+}

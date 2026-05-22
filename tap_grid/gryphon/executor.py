@@ -2163,9 +2163,29 @@ def _serialize_edge_list(
 def _comparison_to_q(comp: Comparison | InComparison, orm_path: str, inputs: dict[str, Any]):
     """Translate a single comparison leaf into a Django ``Q`` over ``orm_path``.
 
-    Used to fold WHERE predicates on the OPTIONAL MATCH variables into the
-    Count(filter=...) clause — so they constrain the optional join rather than
-    drop mandatory rows.
+    The shared leaf compiler for every WHERE path: :func:`_predicate_to_q` calls
+    it for each `Comparison` / `InComparison`, and ``_execute_optional_match``
+    folds WHERE predicates on the optional variables into the
+    ``Count(filter=...)`` clause through it.
+
+    .. tap:capability:: Gryphon string-match predicates
+       :id: cap-grid-gryphon-string-match
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-string-match
+       :covered-by: gridkin:string_match-starts-with-matches-a-name-prefix
+       :limitations: Case-sensitive; no wildcard / regex operator -- the three fixed operators only.
+
+       ``STARTS_WITH`` / ``ENDS_WITH`` / ``CONTAINS`` test a string field against
+       a prefix / suffix / substring. The needle is escaped, so ``LIKE``
+       metacharacters (``%`` ``_``) match literally; an empty needle matches
+       every string.
+
+       Example::
+
+          MATCH (n:pg_node) WHERE n.name STARTS_WITH "Neighbor"
+          RETURN n.entity_id AS id ORDER BY id
     """
     from django.db.models import Q
 
@@ -2176,7 +2196,19 @@ def _comparison_to_q(comp: Comparison | InComparison, orm_path: str, inputs: dic
     value = _resolve_value(comp.value, inputs)
     if comp.op == "!=":
         return ~Q(**{orm_path: value})
-    suffix = {"=": "", "<": "__lt", ">": "__gt", "<=": "__lte", ">=": "__gte"}[comp.op]
+    # The scalar comparison operators plus the substring operators
+    # (req-grid-traversal-lang-string-match) -- all positive, single-value
+    # lookups on `orm_path`.
+    suffix = {
+        "=": "",
+        "<": "__lt",
+        ">": "__gt",
+        "<=": "__lte",
+        ">=": "__gte",
+        "starts_with": "__startswith",
+        "ends_with": "__endswith",
+        "contains": "__contains",
+    }[comp.op]
     return Q(**{f"{orm_path}{suffix}": value})
 
 
