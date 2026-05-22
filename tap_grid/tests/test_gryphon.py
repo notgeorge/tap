@@ -331,8 +331,12 @@ class TestGryphonExecutor:
         with pytest.raises(SearchExecutionError, match="[Uu]nsupported"):
             execute_search(search, inputs={"entity_id": "00000000-0000-0000-0000-000000000000"})
 
-    def test_type_scan_returns_projected_nodes(self):
-        """req-grid-traversal-lang-returns-4: type scan with field projection."""
+    def test_type_scan_returns_projected_rows(self):
+        """req-grid-traversal-lang-returns-4: type scan with field projection.
+
+        Projection results are rows, not graph-envelope nodes — they land in
+        ``result["rows"]`` (consistent with the advanced executor).
+        """
         import uuid
 
         from plugins.lotr.models import Character
@@ -354,14 +358,14 @@ class TestGryphonExecutor:
         )
         result = execute_search(search, inputs={})
 
-        assert "nodes" in result
-        assert "edges" in result
+        assert "rows" in result
+        assert result["nodes"] == []
         assert result["edges"] == []
-        assert len(result["nodes"]) >= 2
-        node = result["nodes"][0]
-        assert "entity_id" in node
-        assert "name" in node
-        assert "bio" in node
+        assert len(result["rows"]) >= 2
+        row = result["rows"][0]
+        assert "entity_id" in row
+        assert "name" in row
+        assert "bio" in row
 
     def test_type_scan_envelope_when_return_omitted(self):
         """req-grid-traversal-lang-returns-1: type scan without RETURN gives graph envelope."""
@@ -450,7 +454,7 @@ class TestGryphonEnvelopePaths:
             definition={"query": "MATCH (c:character) RETURN c.entity_id, c.data.bio"},
         )
         result = execute_search(search, inputs={})
-        bios = {n["bio"] for n in result["nodes"]}
+        bios = {r["bio"] for r in result["rows"]}
         assert bios == {"A hobbit.", "Gardener."}
 
     def test_return_unprefixed_per_model_field_rejected(self):
@@ -494,7 +498,8 @@ class TestGryphonEnvelopePaths:
             definition={"query": "MATCH (c:character) RETURN c.entity_id, c.name, c.entity_type"},
         )
         result = execute_search(search, inputs={})
-        assert all("entity_id" in n and "name" in n and "entity_type" in n for n in result["nodes"])
+        assert result["rows"]
+        assert all("entity_id" in r and "name" in r and "entity_type" in r for r in result["rows"])
 
     def test_return_walking_into_spine_field_rejected(self):
         """Spine fields are scalars — `n.name.something` errors clearly."""
@@ -518,9 +523,9 @@ class TestGryphonEnvelopePaths:
             definition={"query": "MATCH (c:character) RETURN c.entity_id, c.data.bio"},
         )
         result = execute_search(search, inputs={})
-        n = result["nodes"][0]
+        row = result["rows"][0]
         # `c.data.bio` → default key is `bio` (last dot-step), not `data` or `data.bio`.
-        assert "bio" in n
+        assert "bio" in row
 
 
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
@@ -559,7 +564,7 @@ class TestGryphonTypeScanWhere:
             },
         )
         result = execute_search(search, inputs={})
-        names = {n["name"] for n in result["nodes"]}
+        names = {r["name"] for r in result["rows"]}
         assert names == {"Frodo"}
 
     def test_where_filter_on_data_lane_per_model_field(self):
@@ -574,7 +579,7 @@ class TestGryphonTypeScanWhere:
             },
         )
         result = execute_search(search, inputs={})
-        names = {n["name"] for n in result["nodes"]}
+        names = {r["name"] for r in result["rows"]}
         assert names == {"Sam"}
 
     def test_where_with_param_binding(self):
@@ -589,7 +594,7 @@ class TestGryphonTypeScanWhere:
             },
         )
         result = execute_search(search, inputs={"target": "Aragorn"})
-        names = {n["name"] for n in result["nodes"]}
+        names = {r["name"] for r in result["rows"]}
         assert names == {"Aragorn"}
 
     def test_where_only_applies_to_matching_variable(self):
@@ -677,7 +682,7 @@ class TestGryphonDimensionsMultiStep:
             },
         )
         result = execute_search(search, inputs={})
-        names = {n["name"] for n in result["nodes"]}
+        names = {r["name"] for r in result["rows"]}
         assert names == {"Frodo", "Sam"}
 
     def test_dimensions_bracket_key_access_filters(self):
@@ -711,7 +716,7 @@ class TestGryphonDimensionsMultiStep:
             },
         )
         result = execute_search(search, inputs={})
-        names = {n["name"] for n in result["nodes"]}
+        names = {r["name"] for r in result["rows"]}
         assert names == {"Gollum"}
 
 

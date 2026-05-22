@@ -1,0 +1,29 @@
+{
+  "feature": "Edge-type-scan dispatch returns all edges of a type between typed endpoints",
+  "background": {
+    "grift_fixture": "fixtures/sparse_dense.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "PG_LINKS edges from pg_hub to pg_node",
+      "tags": ["edge-type-scan", "dispatch", "current-behavior"],
+      "covers": [
+        "req-grid-traversal-lang-patterns",
+        "req-grid-traversal-exec-pipeline"
+      ],
+      "layer": "lite",
+      "query": "MATCH (a:pg_hub)-[e:PG_LINKS]->(b:pg_node)",
+      "expected_envelope": "expected/edge_type_scan__hub_to_node.expected.json",
+      "expected_sql_snapshot": "expected/edge_type_scan__hub_to_node.sql.txt"
+    },
+    {
+      "name": "PG_LINKS edges between pg_node endpoints",
+      "tags": ["edge-type-scan", "dispatch", "current-behavior"],
+      "covers": ["req-grid-traversal-lang-patterns"],
+      "layer": "lite",
+      "query": "MATCH (a:pg_node)-[e:PG_LINKS]->(b:pg_node)",
+      "expected_envelope": "expected/edge_type_scan__node_to_node.expected.json",
+      "expected_sql_snapshot": "expected/edge_type_scan__node_to_node.sql.txt"
+    }
+  ]
+}

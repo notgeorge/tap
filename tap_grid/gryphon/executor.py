@@ -222,6 +222,8 @@ def _execute_ast(
 
     all_nodes: dict[str, dict[str, Any]] = {}
     all_edges: dict[str, dict[str, Any]] = {}
+    all_rows: list[dict[str, Any]] = []
+    all_warnings: dict[str, Any] = {}
 
     for mc in ast.match_clauses:
         if len(mc.patterns) != 1:
@@ -245,8 +247,19 @@ def _execute_ast(
         for edge in result.get("edges", []):
             key = _edge_key(edge, layer)
             all_edges.setdefault(key, edge)
+        # Projection rows (a type-scan in projection mode) are not graph-envelope
+        # members — they carry RETURN aliases as keys and are not entity_id-
+        # dedupable. Concatenate them straight through.
+        all_rows.extend(result.get("rows", []))
+        # Warnings (e.g. a hub-and-spoke anchor not found) must reach the caller.
+        all_warnings.update(result.get("warnings", {}))
 
-    return {"nodes": list(all_nodes.values()), "edges": list(all_edges.values())}
+    envelope: dict[str, Any] = {"nodes": list(all_nodes.values()), "edges": list(all_edges.values())}
+    if all_rows:
+        envelope["rows"] = all_rows
+    if all_warnings:
+        envelope["warnings"] = all_warnings
+    return envelope
 
 
 def _dispatch_pattern(
@@ -437,11 +450,15 @@ def _execute_type_scan(
         nodes = _serialize_typed_nodes(domain_objects, layer, db_alias)
         return {"nodes": nodes, "edges": []}
 
-    # Projection mode — RETURN names field paths; returns projected field dicts.
+    # Projection mode — RETURN names field paths. Projected rows go in `rows`,
+    # not `nodes`: they carry the RETURN aliases as keys and are row projections,
+    # not graph-envelope members. This matches the advanced executor's
+    # _compute_rows; putting them in `nodes` crashed _execute_ast's entity_id
+    # dedup on any projection without a bare `entity_id` key.
     items = return_clause.items
     assert items is not None  # _is_graph_envelope_return is True when items is None
-    projected: list[dict[str, Any]] = [_project_node(domain_obj, items, var) for domain_obj in qs]
-    return {"nodes": projected, "edges": []}
+    rows: list[dict[str, Any]] = [_project_node(domain_obj, items, var) for domain_obj in qs]
+    return {"nodes": [], "edges": [], "rows": rows}
 
 
 def _apply_typescan_predicate(

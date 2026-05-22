@@ -1,0 +1,6 @@
+-- statement 1 · stage: hub-and-spoke
+SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"
+FROM "tap_entity"
+WHERE "tap_entity"."id" = %s
+LIMIT 21
+-- params: [UUID('019e4b02-f37b-72df-a3e5-bb0431cea2a5')]

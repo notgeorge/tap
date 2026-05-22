@@ -41,6 +41,42 @@
       "query": "MATCH (n:pg_node) RETURN n",
       "expected_envelope": "expected/type_scan__return_bare_var.expected.json",
       "expected_sql_snapshot": "expected/type_scan__return_bare_var.sql.txt"
+    },
+    {
+      "name": "projection RETURN of aliased field paths",
+      "tags": ["type-scan", "return", "projection", "current-behavior"],
+      "covers": [
+        "req-grid-traversal-lang-returns-4",
+        "req-grid-traversal-lang-returns-5"
+      ],
+      "layer": "full",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.name AS label",
+      "expected_envelope": "expected/type_scan__projection.expected.json",
+      "expected_sql_snapshot": "expected/type_scan__projection.sql.txt"
+    },
+    {
+      "name": "scan filters pg_node by a numeric data-lane comparison",
+      "tags": ["type-scan", "where", "current-behavior"],
+      "covers": [
+        "req-grid-traversal-lang-filters",
+        "req-grid-traversal-lang-envelope-paths-2"
+      ],
+      "layer": "full",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 15",
+      "expected_envelope": "expected/type_scan__severity_gt.expected.json",
+      "expected_sql_snapshot": "expected/type_scan__severity_gt.sql.txt"
+    },
+    {
+      "name": "scan filters pg_node by an AND of two data-lane predicates",
+      "tags": ["type-scan", "where", "combinators", "current-behavior"],
+      "covers": [
+        "req-grid-traversal-lang-combinators-1",
+        "req-grid-traversal-lang-envelope-paths-8"
+      ],
+      "layer": "full",
+      "query": "MATCH (n:pg_node) WHERE n.data.kind = \"neighbor\" AND n.data.severity_score > 15",
+      "expected_envelope": "expected/type_scan__kind_and_severity.expected.json",
+      "expected_sql_snapshot": "expected/type_scan__kind_and_severity.sql.txt"
     }
   ]
 }
