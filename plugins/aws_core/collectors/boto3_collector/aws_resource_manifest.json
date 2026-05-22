@@ -2,6 +2,19 @@
   "manifest_version": "0",
   "entries": [
     {
+      "entity_type": "aws_account",
+      "service": "sts",
+      "scope": "global",
+      "source": { "custom_fn": "aws_account_singleton" },
+      "why": "The AWS account this run is scoped to — the container every collected resource belongs to. Synthesized from STS GetCallerIdentity; no AWS API enumerates 'the account' as a resource.",
+      "items_path": "[]",
+      "natural_key": "Account",
+      "fields": {
+        "name": "_account_name",
+        "account_id": "Account"
+      }
+    },
+    {
       "entity_type": "aws_lambda",
       "service": "lambda",
       "scope": "regional",
@@ -77,9 +90,9 @@
       "entity_type": "aws_eventbridge_rule",
       "service": "events",
       "scope": "regional",
-      "source": { "aws_op": "ListRules" },
-      "why": "Enumerate EventBridge rules — event/schedule triggers and their invocation roles.",
-      "items_path": "Rules[]",
+      "source": { "custom_fn": "eventbridge_rules_with_targets" },
+      "why": "Enumerate EventBridge rules — event/schedule triggers — with their target ARNs resolved (ListRules gives the rule; ListTargetsByRule gives what it invokes).",
+      "items_path": "[]",
       "natural_key": "Arn",
       "fields": {
         "name": "Name",
@@ -99,6 +112,13 @@
           "target_type": "aws_iam_role",
           "key_kind": "arn",
           "edge_type": "ASSUMES_ROLE",
+          "direction": "outbound"
+        },
+        {
+          "value_path": "_lambda_target_arns",
+          "target_type": "aws_lambda",
+          "key_kind": "arn",
+          "edge_type": "INVOKES",
           "direction": "outbound"
         }
       ]
@@ -149,9 +169,9 @@
       "entity_type": "aws_cloudfront_distribution",
       "service": "cloudfront",
       "scope": "global",
-      "source": { "aws_op": "ListDistributions" },
-      "why": "Enumerate CloudFront distributions — CDN/edge entry points and their origins.",
-      "items_path": "DistributionList.Items[]",
+      "source": { "custom_fn": "cloudfront_distributions_with_oac" },
+      "why": "Enumerate CloudFront distributions — CDN/edge entry points and their origins. Each origin's Origin Access Control (OAC) is resolved and embedded in configuration.",
+      "items_path": "[]",
       "natural_key": "ARN",
       "fields": {
         "name": "DomainName",
@@ -198,7 +218,10 @@
       "natural_key": "BucketArn",
       "fields": {
         "name": "Name",
-        "bucket_arn": "BucketArn"
+        "bucket_arn": "BucketArn",
+        "size_bytes": "size_bytes",
+        "object_count": "object_count",
+        "size_observed_at": "size_observed_at"
       },
       "tags": {
         "source": "rgta",
@@ -231,6 +254,11 @@
           "key": "policy_status",
           "op": "GetBucketPolicyStatus",
           "why": "Whether the bucket policy makes it public — KSI exposure control."
+        },
+        {
+          "key": "policy",
+          "op": "GetBucketPolicy",
+          "why": "Bucket resource policy document — the grant side of access (e.g. the CloudFront service principal authorized for OAC origin reads). NoSuchBucketPolicy classifies as absent."
         }
       ],
       "edges": []

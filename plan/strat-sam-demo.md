@@ -145,6 +145,11 @@ TAP Core
 ### Bonus
 - History UI:   pretty history and FLIP fields that we can show off
 - Batch UI:  Need to actually build this out, drive home batch provenance
+- Infowindow:  back-pocket idea. On-click on a node pops a mini view with
+  tips about what that system is; double-click opens the instance-specific
+  page. The point is to drive home that this isn't a static image — it's
+  live and real, something you can poke at. We already have the scaffolding
+  from the alerts system built a while back, so it's not a cold build.
 
 ### Ideas for the Future
 - DCOM: perform a comparisson between his configured grid and the operational grid to assess drift (first pass at DCOM, but we can always just speak to it)
@@ -178,6 +183,244 @@ Once the core plugin, models, collector, and pages are created we'll turn attent
 5. Pages:  decide which pages to create, place them in this list as sub-bullets
 
 Anything else.
+
+---
+
+## Next-Phase Implementation Plan (2026-05-21)
+
+George's five items for the next phase, recorded verbatim, then the
+agent's implementation structuring. Build/propose split: items 1, 2, 5
+are built autonomously; items 3 and 4 are proposal-only (item 3
+explicitly discussion-gated by George; item 4 introduces a new node
+*category* with a real identity/scope design question — propose, then
+build on greenlight).
+
+### George's five items (verbatim)
+
+1. **boto collector account creation** — great catch on the gap on this
+   one, it should absolutely be moved into the boto collector to
+   generate the account if it's not there. Add whatever we need to the
+   manifest to gather account information and wire it into the default
+   collector and remove any hand-waving one-offs you created in the
+   samsite grift to generate it. Cool thing about that uuid5 is that it
+   should be as simple as removing it from the grift, then the collector
+   should re-generate the uuid on run and then treat it as an upsert.
+2. **ksi collector plugin boundary model** — we're going to need to add
+   a model to the plugin for identifying boundaries ala FedRAMP ATO
+   boundaries. This is going to be represented in our diagrams as a
+   bright red line that will incorporate all systems inside the
+   boundary. In our initial pass we'll create an associated edge named
+   INSIDE_BOUNDARY (presuming that matches our current edge naming
+   convention of action + object). In the samsite grift we'll add a
+   boundary node and point it at the aws account. This will be the
+   beginning of directed relationships for objects to do things like
+   "identify all the things inside the boundary" which we'll address
+   using some sort of clever embedded path information inside edges,
+   exact shape tbd.
+3. **external entity models** — the samsite system relies on several
+   outside services like github and rekor nodes. We want to get those
+   things on the board as models. Take a look at how samsite works and
+   suggest the shape of those models, there will be associated models
+   inside them for things like the signed packages / entries and for
+   GitHub we'll need repo, runners, and any other things that might be
+   helpful. This will be worth a discussion to talk through what exactly
+   we should build now. We'll want to get nice icons for all of them too
+   of course :)
+4. **AWS Service models** — in the current design we see a route53 entry
+   and an acm cert independent of the actual services where those
+   reside. I'd like to add those services as nodes and appropriate edges
+   to their subordinate data. Same with IAM (which is a beast) and
+   cloudwatch. We want them on the board so that we can do things like
+   "visualize all certs stored in ACM" and so forth.
+5. **S3 and OAC data gathering** — the thing we talked about.
+
+### Agent implementation structuring
+
+| Item | Disposition | Scope fence | Definition of done |
+| --- | --- | --- | --- |
+| 5 | **Build** | config-only — no new nodes/edges | S3 `GetBucketPolicy` hydrate op + OAC custom_fn; re-collection lands both in `configuration._hydrate` |
+| 1 | **Build** | account *node* only — NOT per-resource `BELONGS_TO_ACCOUNT` edges (separate backlog item) | collector synthesizes the `aws_account` node via uuid5; samsite GRIFT no longer mints it; `/samsite` still renders |
+| 2 | **Build** | model + edge + one GRIFT boundary node only — NOT embedded-path-info (TBD), NOT red-line rendering (display follow-up) | boundary model in `fedramp_20x_ksi`, containment edge, samsite boundary node → aws account |
+| 3 | **Propose** | no build | written model-shape proposal (GitHub repo/runner/OIDC; Rekor entries/bundles; icons) in this doc |
+| 4 | **Propose** | no build | written design proposal (service-node identity, global-vs-regional scope, edges, IAM scoping) in this doc |
+
+**Order:** 5 → 1 → 2 (build, commit + promote each), then the 3 & 4
+proposals. Full test sweep + `/samsite` visual check after each build.
+
+**Resolved judgment call (item 2 edge naming):** `INSIDE_BOUNDARY` does
+not match the `<ACTION>_<OBJECT>` convention — even the locative
+carve-out edges carry a verb (`RESIDES_IN`, `BELONGS_TO`, `BOUND_TO`).
+Built as **`SCOPED_TO_BOUNDARY`** (verb `SCOPED`, locative `TO`, object
+`BOUNDARY`) — "scoped to" is the accurate FedRAMP predicate (a boundary
+is an authorization *scope*, not a physical place, so `RESIDES_IN` was
+rejected). Direction: component → boundary, matching every locative
+edge in the codebase. **George can flip** to a boundary-as-source
+`CONTAINS_*` form — flagged in `spec-fedramp-20x-ksi-boundary.md`.
+
+### Build outcome (autonomous run, 2026-05-21)
+
+Items 1, 2, 5 built, tested, committed on `session/samsite`:
+- `21b0fe5` — items 1 + 5 (collector: aws_account node + S3 policy + OAC)
+- `01f243a` — item 2 (Boundary model + SCOPED_TO_BOUNDARY edge)
+
+Items 3 and 4 are proposals below — no code written, awaiting George's
+read.
+
+---
+
+## Item 3 Proposal — External Entity Models (GitHub, Rekor)
+
+*Agent proposal, 2026-05-21 — react freely; nothing built.*
+
+### How samsite actually works
+
+Studied from `~/Documents/code/samsite/.github/workflows/deploy-with-opa.yml`.
+The compliance machinery is a GitHub Actions **provenance chain**:
+
+1. The GitHub repo `sam-aydlette/samaydlette.com` holds the site, the
+   Terraform, and the `deploy-with-opa.yml` workflow.
+2. A workflow run: runs OPA compliance checks → builds
+   `ksi-signal.json` (joins Terraform state, the Lambda's
+   package-lock, website HTML hashes, CI provenance, and the OPA
+   validations into one document) → `cosign sign-blob` (Sigstore
+   keyless, via GitHub OIDC) → publishes the signal + `.bundle` +
+   schema to S3 `/.well-known/`.
+3. Keyless signing mints a short-lived Fulcio cert and **records the
+   signature in Rekor** (the Sigstore transparency log). The
+   `ksi-signal.bundle` carries cert + signature + **Rekor inclusion
+   proof**.
+4. GitHub OIDC (`token.actions.githubusercontent.com`) federates into
+   the `samsite-deploy` IAM role — the `FEDERATES_INTO` edge already
+   on the board.
+
+The external chain: **repo → workflow → run → (signs) → Sigstore
+bundle → Rekor entry**. This is the literal "who watches the watcher"
+provenance Sam's research paper is about.
+
+### Proposed model landscape
+
+GitHub side:
+- `github_repo` — the repository (name, owner, url, visibility).
+- `github_workflow` — a workflow definition (`deploy-with-opa.yml`).
+- `github_actions_run` — one execution of a workflow (run id, status,
+  conclusion, commit sha, actor, timestamps). **The provenance-bearing
+  node.**
+- `github_runner` — the runner that executed a run (hosted vs
+  self-hosted, labels). George explicitly asked for runners.
+- (maybe) `github_account` / `github_org` — the owning account.
+
+Sigstore / Rekor side:
+- `rekor_log` — the transparency-log instance (url, tree id).
+- `rekor_entry` — one transparency-log entry (log index, integrated
+  time, inclusion proof, signed digest). **The "entries" George
+  named.**
+- `signed_artifact` (or `sigstore_bundle`) — the signed package
+  (`ksi-signal.bundle`): cert identity, OIDC issuer, signature, the
+  digest it signs. **The "signed packages" George named.**
+
+Proposed edges (slugs sketched — finalize via the add-edge convention):
+`repo CONTAINS_WORKFLOW workflow`, `run EXECUTES_WORKFLOW workflow`,
+`run RUNS_ON runner`, `run PRODUCES_ARTIFACT signed_artifact`,
+`signed_artifact RECORDED_IN rekor_entry`,
+`rekor_entry LOGGED_IN rekor_log`, and a `run`→OIDC-provider edge that
+wires the external chain into the AWS graph already on the board.
+
+### What to build now vs defer
+
+For June 1 the demo story is "your compliance signal is signed and
+provable." Minimal set that tells it: `github_repo`,
+`github_actions_run`, `signed_artifact`, `rekor_entry` + the edges
+among them + the edge to the OIDC provider. Defer `github_runner`,
+`github_workflow`-as-its-own-node, and `rekor_log` — completeness, not
+load-bearing for the reveal.
+
+### Open questions for George
+
+1. **Where do these models live?** Not `aws_core` (not AWS), not
+   `fedramp_20x_ksi` (not catalog). Options: a new `github_core` +
+   `sigstore_core` pair; a single `external_provenance` plugin; or
+   fold into `samsite`. This is the first real test of the satellite
+   vision — external systems. Agent lean: a dedicated plugin is the
+   honest home, but for the demo timeline samsite-plugin-local models
+   may be the make-it-work path.
+2. **Collection.** No boto3 for these. A GitHub API collector and a
+   Rekor collector are future satellite collectors. For June 1,
+   GRIFT-seed from known values (the real run id, the real Rekor index
+   pulled from the published `.bundle`). Real collectors after.
+3. **Config vs ops dimension.** A `github_actions_run` is an
+   *operational event* — it happened at a time — unlike the
+   *configuration* nodes the boto3 collector gathers. This is the
+   first node that genuinely belongs on the ops dimension; ties
+   directly into the Dimensionality item in Ideas for the Future.
+4. **Icons.** GitHub mark + Sigstore/Rekor logo — recognizable brand
+   marks, same vendor-brand-color carve-out as the AWS icons.
+
+## Item 4 Proposal — AWS Service Models
+
+*Agent proposal, 2026-05-21 — react freely; nothing built.*
+
+### The ask
+
+Route53, ACM, IAM, CloudWatch as service nodes, with edges to their
+subordinate resources, so the graph can answer "visualize all certs
+stored in ACM" and so forth.
+
+### Core design question — what *is* an AWS service node?
+
+No AWS API returns "the ACM service" as a resource. A service node is
+**synthesized** — exactly like the `aws_account` node from item 1.
+Item 1 therefore establishes the pattern this builds on: a custom_fn
+that yields a synthesized container node with a deterministic uuid5
+natural key. Item 4 is "item 1, generalized to N services."
+
+### Identity / scope — the real decision
+
+AWS services split global vs regional:
+- Global (IAM, Route53, CloudFront): one instance per account.
+- Regional (ACM, CloudWatch, Lambda, DynamoDB): one instance per
+  account *per region*.
+
+So a service node's natural key is `<service>:<account_id>` for global
+services and `<service>:<account_id>:<region>` for regional ones.
+**Agent recommendation: regional services get per-region service
+nodes** — honest, and "certs in ACM us-east-1" is a useful grouping;
+the dimensions already carry region.
+
+### Proposed shape
+
+- **One generic `aws_service` model with a `service` discriminator
+  field** (`iam` / `acm` / `route53` / `cloudwatch` / …) — rather than
+  one model per service. Service nodes are containers; they carry no
+  rich per-service fields in v0. Mirrors the `ComplianceContext`
+  `regime`-discriminator precedent. One model, one icon-resolution
+  path.
+- **Edge: `BELONGS_TO_SERVICE`**, subordinate → service. Locative,
+  matches `BELONGS_TO_ACCOUNT`; direction contained→container,
+  consistent with item 2's resolution. (Lead candidate — finalize via
+  the add-edge convention.)
+- Synthesis: a custom_fn yields the service nodes; each resource
+  manifest entry declares a `BELONGS_TO_SERVICE` edge to its service
+  node (declarative, per the manifest principle).
+- Start with the 4 George named; the pattern generalizes to every
+  service trivially after.
+
+### IAM is a beast — scoping it
+
+IAM has roles, policies, users, groups, OIDC providers, instance
+profiles, SAML providers, access keys… An IAM **service node** as a
+container (everything IAM-ish edges to it) is fine and cheap. The
+beast is modeling IAM's *internal* structure — policy attachments,
+role trust graphs, permission boundaries — which is a large
+sub-project. **Agent recommendation: IAM gets a container service node
+like the others; IAM internal-relationship modeling stays out of
+scope for this item.**
+
+### Sequencing
+
+Build after this proposal is greenlit. Item 1's synthesized-container
+pattern (now on main) is the foundation; item 4 reuses it. AWS service
+icons via the `get-aws-icons` skill (Route53, ACM, IAM, CloudWatch all
+have official AWS Architecture icons).
 
 ---
 

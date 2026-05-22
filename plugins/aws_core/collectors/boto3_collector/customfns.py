@@ -39,12 +39,126 @@ def _s3_hydrate_ops() -> list[dict[str, str]]:
     return []
 
 
+def _resolve_bucket_region(base_client: Any, bucket_name: str) -> str:
+    """Resolve a bucket's home region.
+
+    ``GetBucket*`` calls are region-bound (S3 redirects otherwise);
+    ``GetBucketLocation`` against the global endpoint gives the region.
+    A failed lookup falls back to ``us-east-1``.
+    """
+    try:
+        location = base_client.get_bucket_location(Bucket=bucket_name)
+        return location.get("LocationConstraint") or "us-east-1"
+    except (ClientError, BotoCoreError):
+        return "us-east-1"
+
+
+# BucketSizeBytes has no all-tiers rollup dimension — it must be queried per
+# storage tier. NumberOfObjects has the convenient AllStorageTypes. The
+# collector sums whichever size tiers return data, so a lifecycled bucket
+# (objects tiered to Glacier etc.) reports a complete total.
+_S3_SIZE_STORAGE_TYPES = (
+    "StandardStorage",
+    "IntelligentTieringFAStorage",
+    "IntelligentTieringIAStorage",
+    "StandardIAStorage",
+    "OneZoneIAStorage",
+    "GlacierInstantRetrievalStorage",
+    "GlacierStorage",
+    "DeepArchiveStorage",
+    "ReducedRedundancyStorage",
+)
+
+
+def _bucket_size_metrics(cw_client: Any, bucket_name: str) -> dict[str, Any]:
+    """Aggregate bucket size + object count from CloudWatch storage metrics.
+
+    S3 publishes ``BucketSizeBytes`` / ``NumberOfObjects`` to the ``AWS/S3``
+    CloudWatch namespace daily, free. One ``get_metric_data`` call per bucket
+    batches the ``NumberOfObjects`` query and a ``BucketSizeBytes`` query per
+    storage tier; tiers with data are summed. This is the fast path — the
+    alternative (summing ``list_objects_v2``) is one call per 1000 objects.
+
+    ``size_observed_at`` is the datapoint's own ``Timestamp`` — the
+    data-currency disclosure (the metrics are daily, so the values are not
+    real-time; the consumer derives staleness from this timestamp). See
+    req-aws-collector-s3-bucket-size.
+
+    A denied/failed CloudWatch call is non-fatal: the three fields come back
+    empty/null (unknown, never a misleading 0) and the bucket still collects.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    empty: dict[str, Any] = {"size_bytes": None, "object_count": None, "size_observed_at": ""}
+    end = datetime.now(UTC)
+    start = end - timedelta(days=3)  # daily metric — a 3-day window catches the latest
+
+    def _query(qid: str, metric: str, storage_type: str) -> dict[str, Any]:
+        return {
+            "Id": qid,
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/S3",
+                    "MetricName": metric,
+                    "Dimensions": [
+                        {"Name": "BucketName", "Value": bucket_name},
+                        {"Name": "StorageType", "Value": storage_type},
+                    ],
+                },
+                "Period": 86400,
+                "Stat": "Average",
+            },
+            "ReturnData": True,
+        }
+
+    queries = [_query("objcount", "NumberOfObjects", "AllStorageTypes")]
+    queries += [_query(f"size{i}", "BucketSizeBytes", st) for i, st in enumerate(_S3_SIZE_STORAGE_TYPES)]
+
+    try:
+        resp = cw_client.get_metric_data(
+            MetricDataQueries=queries,
+            StartTime=start,
+            EndTime=end,
+            ScanBy="TimestampDescending",
+        )
+    except (BotoCoreError, ClientError):
+        return dict(empty)
+
+    object_count: int | None = None
+    size_bytes: int | None = None
+    latest: Any = None
+    for result in resp.get("MetricDataResults", []):
+        values = result.get("Values") or []
+        if not values:
+            continue
+        timestamps = result.get("Timestamps") or []
+        # ScanBy=TimestampDescending -> index 0 is the most recent datapoint.
+        value = values[0]
+        ts = timestamps[0] if timestamps else None
+        if ts is not None and (latest is None or ts > latest):
+            latest = ts
+        if result.get("Id") == "objcount":
+            object_count = int(value)
+        else:
+            size_bytes = (size_bytes or 0) + int(value)
+
+    if object_count is None and size_bytes is None:
+        return dict(empty)
+    return {
+        "size_bytes": size_bytes,
+        "object_count": object_count,
+        "size_observed_at": latest.isoformat() if latest is not None else "",
+    }
+
+
 def s3_buckets_hydrated(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
     """Enumerate S3 buckets and fan out each bucket's compliance sub-config.
 
     Yields one envelope per bucket: the ``ListBuckets`` item at the root
-    (carrying ``BucketArn`` — the stable natural key) plus the
-    ``_hydrate`` / ``_hydrate_mapping`` siblings the template assembles.
+    (carrying ``BucketArn`` — the stable natural key), the ``_hydrate`` /
+    ``_hydrate_mapping`` siblings the hydrate template assembles, and the
+    aggregate ``size_bytes`` / ``object_count`` / ``size_observed_at`` from
+    CloudWatch storage metrics (req-aws-collector-s3-bucket-size).
     """
     base = session.client("s3")
     listing = without_response_metadata(base.list_buckets())
@@ -52,16 +166,13 @@ def s3_buckets_hydrated(session: Any, *, client_for: Any = None) -> Iterator[dic
 
     for bucket in listing.get("Buckets", []):
         name = bucket.get("Name")
-        # GetBucket* is region-bound (S3 redirects otherwise); resolve the
-        # bucket's region from the global endpoint, then bind a regional
-        # client for the fan-out.
-        try:
-            location = base.get_bucket_location(Bucket=name)
-            region = location.get("LocationConstraint") or "us-east-1"
-        except ClientError, BotoCoreError:
-            region = "us-east-1"
+        region = _resolve_bucket_region(base, name)
         regional = session.client("s3", region_name=region)
-        yield hydrate_item(regional, bucket, hydrate_ops, call_kwargs={"Bucket": name})
+        envelope = hydrate_item(regional, bucket, hydrate_ops, call_kwargs={"Bucket": name})
+        # CloudWatch S3 storage metrics are region-bound, like GetBucket*.
+        cw = session.client("cloudwatch", region_name=region)
+        envelope.update(_bucket_size_metrics(cw, name))
+        yield envelope
 
 
 def _pages(client: Any, method: str, **kwargs: Any) -> Iterator[dict[str, Any]]:
@@ -140,6 +251,94 @@ def route53_zones_with_alias_targets(session: Any, *, client_for: Any = None) ->
             }
 
 
+def aws_account_singleton(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
+    """Synthesize the one ``aws_account`` node for the account this run scopes to.
+
+    No AWS API enumerates "the account" as a resource — ``STS
+    GetCallerIdentity`` is the canonical way to learn which account the
+    run's credentials belong to. The optional IAM account alias
+    (``ListAccountAliases``) supplies a friendlier name; absent an alias the
+    name falls back to ``AWS Account <id>``.
+
+    Yields exactly one item. The account id sits at ``Account`` — the
+    manifest entry's ``natural_key`` — so ``node_entity_id("aws_account",
+    "<id>")`` is deterministic. Any node minted elsewhere with the same id
+    (e.g. a hand-written GRIFT batch) upserts cleanly onto the collector's.
+
+    STS and IAM are global; clients are bound to ``us-east-1`` per the
+    global-resource region invariant.
+    """
+    sts = session.client("sts", region_name="us-east-1")
+    identity = without_response_metadata(sts.get_caller_identity())
+    account_id = identity.get("Account") or ""
+
+    aliases: list[str] = []
+    try:
+        iam = session.client("iam", region_name="us-east-1")
+        alias_resp = without_response_metadata(iam.list_account_aliases())
+        aliases = list(alias_resp.get("AccountAliases", []) or [])
+    except (BotoCoreError, ClientError):
+        # The account alias is a nicety, not load-bearing — a denied or
+        # failed ListAccountAliases just falls the name back to the id form.
+        aliases = []
+
+    yield {
+        "Account": account_id,
+        "Arn": identity.get("Arn"),
+        "UserId": identity.get("UserId"),
+        "_account_name": aliases[0] if aliases else f"AWS Account {account_id}",
+        "_account_aliases": aliases,
+    }
+
+
+def cloudfront_distributions_with_oac(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
+    """Enumerate CloudFront distributions, embedding each origin's OAC config.
+
+    ``ListDistributions`` returns distribution summaries that carry an
+    ``Origins.Items[].OriginAccessControlId`` — but the OAC itself (its
+    signing protocol/behavior and origin type) lives behind a separate
+    ``GetOriginAccessControl`` call. An OAC has no ARN; it is referenced by
+    an opaque ``Id``. This ``custom_fn`` resolves every distinct OAC id a
+    distribution's origins reference and embeds the results under
+    ``_origin_access_controls`` (an ``{oac_id: details}`` map) so they land
+    losslessly in the distribution's ``configuration``. The OAC is a
+    configuration detail of the distribution, not a separate node — the
+    "have it handy" call from the strat-sam-demo discussion (2026-05-21).
+
+    The yielded item is the unchanged ``DistributionSummary`` plus that one
+    extra key, so the manifest's ``natural_key`` (``ARN``), ``fields``,
+    ``tags``, and ``edges`` (``Origins.Items[].DomainName``,
+    ``ViewerCertificate.ACMCertificateArn``) all still resolve.
+
+    CloudFront is global; the client is bound to ``us-east-1`` per the
+    global-resource region invariant.
+    """
+    cf = session.client("cloudfront", region_name="us-east-1")
+    # Cache across distributions: two distributions sharing an OAC -> one call.
+    oac_cache: dict[str, Any] = {}
+    for page in _pages(cf, "list_distributions"):
+        for dist in (page.get("DistributionList", {}) or {}).get("Items", []) or []:
+            oac_ids: list[str] = []
+            for origin in (dist.get("Origins") or {}).get("Items", []) or []:
+                oac_id = origin.get("OriginAccessControlId")
+                if oac_id and oac_id not in oac_ids:
+                    oac_ids.append(oac_id)
+            oacs: dict[str, Any] = {}
+            for oac_id in oac_ids:
+                if oac_id not in oac_cache:
+                    try:
+                        resp = without_response_metadata(
+                            cf.get_origin_access_control(Id=oac_id)
+                        )
+                        oac_cache[oac_id] = resp.get("OriginAccessControl") or resp
+                    except (BotoCoreError, ClientError):
+                        # A per-OAC miss is non-fatal: the distribution still
+                        # collects; the slot records None so the gap is visible.
+                        oac_cache[oac_id] = None
+                oacs[oac_id] = oac_cache[oac_id]
+            yield {**dist, "_origin_access_controls": oacs}
+
+
 def dynamodb_tables_described(session: Any, *, client_for: Any) -> Iterator[dict[str, Any]]:
     """Enumerate DynamoDB tables (regional) and describe each.
 
@@ -166,6 +365,52 @@ def dynamodb_tables_described(session: Any, *, client_for: Any) -> Iterator[dict
             table = desc.get("Table") or {}
             if table:
                 yield table
+
+
+def eventbridge_rules_with_targets(session: Any, *, client_for: Any) -> Iterator[dict[str, Any]]:
+    """Enumerate EventBridge rules (regional) with their target ARNs resolved.
+
+    ``ListRules`` returns the rule itself — name, schedule, state, RoleArn —
+    but not *what it invokes*. A rule's targets live behind a separate
+    ``ListTargetsByRule`` call. This custom_fn fans that call out per rule
+    and attaches the target ARNs so the rule → target relationship resolves
+    as an edge; without it a scheduled rule and the Lambda it triggers sit
+    on the grid as disconnected nodes.
+
+    Two keys are attached:
+
+    - ``_target_arns`` — every target ARN, lossless (→ ``configuration``).
+    - ``_lambda_target_arns`` — the Lambda-only subset, which the ``INVOKES``
+      edge rule resolves against. EventBridge targets are polymorphic (SQS,
+      SNS, Step Functions, ECS, …) and the v0 edge rule resolves a single
+      ``target_type``; filtering to Lambda ARNs here keeps non-Lambda
+      targets from producing dangling edges.
+
+    Regional: the engine binds ``client_for`` to the current region. Rules
+    are enumerated on the default event bus (parity with the prior
+    ``ListRules`` source); custom event buses are future scope.
+    """
+    client = client_for("events")
+    for page in _pages(client, "list_rules"):
+        for rule in page.get("Rules", []):
+            name = rule.get("Name")
+            bus = rule.get("EventBusName") or "default"
+            target_arns: list[str] = []
+            try:
+                for tpage in _pages(client, "list_targets_by_rule", Rule=name, EventBusName=bus):
+                    for target in tpage.get("Targets", []):
+                        arn = target.get("Arn")
+                        if arn:
+                            target_arns.append(arn)
+            except (BotoCoreError, ClientError):
+                # A per-rule ListTargetsByRule failure is non-fatal: the rule
+                # still collects, just without resolved target edges.
+                target_arns = []
+            target_arns = list(dict.fromkeys(target_arns))
+            lambda_arns = [
+                a for a in target_arns if a.startswith("arn:aws:lambda:") and ":function:" in a
+            ]
+            yield {**rule, "_target_arns": target_arns, "_lambda_target_arns": lambda_arns}
 
 
 def iam_oidc_providers_described(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
@@ -196,9 +441,12 @@ def iam_oidc_providers_described(session: Any, *, client_for: Any = None) -> Ite
 
 # Manifest custom_fn name -> callable.
 _CUSTOM_FNS = {
+    "aws_account_singleton": aws_account_singleton,
     "s3_buckets_hydrated": s3_buckets_hydrated,
     "route53_zones_with_alias_targets": route53_zones_with_alias_targets,
+    "cloudfront_distributions_with_oac": cloudfront_distributions_with_oac,
     "dynamodb_tables_described": dynamodb_tables_described,
+    "eventbridge_rules_with_targets": eventbridge_rules_with_targets,
     "iam_oidc_providers_described": iam_oidc_providers_described,
 }
 
@@ -206,9 +454,9 @@ _CUSTOM_FNS = {
 def build_custom_fn_registry() -> CustomFnRegistry:
     """The populated ``custom_fn`` registry for the collector.
 
-    Both v0 ``custom_fn`` seams are registered: S3's hydrate fan-out and
-    Route 53's CloudFront-alias cross-join. An unregistered ``custom_fn``
-    still classifies-and-skips, so the registry stays the single source.
+    Every ``custom_fn`` named by the manifest is registered here — the
+    registry is the single source. An unregistered ``custom_fn`` still
+    classifies-and-skips rather than crashing the run.
     """
     registry = CustomFnRegistry()
     for name, fn in _CUSTOM_FNS.items():

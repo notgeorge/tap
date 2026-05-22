@@ -22,6 +22,9 @@ class S3Bucket(BaseModel):
         "versioning": {"type": "string"},
         "encryption": {"type": "string"},
         "public_access_blocked": {"type": "boolean"},
+        "size_bytes": {"type": ["integer", "null"]},
+        "object_count": {"type": ["integer", "null"]},
+        "size_observed_at": {"type": "string"},
         "configuration": {"type": "object"},
         "tags": {"type": "object"},
     }
@@ -32,6 +35,9 @@ class S3Bucket(BaseModel):
         "versioning": {"validation": "jsonschema", "schema": {"type": "string"}},
         "encryption": {"validation": "jsonschema", "schema": {"type": "string"}},
         "public_access_blocked": {"validation": "jsonschema", "schema": {"type": "boolean"}},
+        "size_bytes": {"validation": "jsonschema", "schema": {"type": ["integer", "null"]}},
+        "object_count": {"validation": "jsonschema", "schema": {"type": ["integer", "null"]}},
+        "size_observed_at": {"validation": "jsonschema", "schema": {"type": "string"}},
         "configuration": {"validation": "jsonschema", "schema": {"type": "object"}},
         "tags": {"validation": "jsonschema", "schema": {"type": "object"}},
     }
@@ -42,6 +48,14 @@ class S3Bucket(BaseModel):
     versioning = models.CharField(max_length=32, blank=True, default="")
     encryption = models.CharField(max_length=64, blank=True, default="")
     public_access_blocked = models.BooleanField(default=True)
+    # Aggregate object stats from CloudWatch daily storage metrics — null when
+    # CloudWatch has no datapoint yet (unknown, never a misleading 0).
+    # `size_observed_at` is the datapoint's own timestamp (ISO 8601); the
+    # consumer derives staleness as `now - size_observed_at`. See
+    # req-aws-collector-s3-bucket-size.
+    size_bytes = models.BigIntegerField(blank=True, null=True)
+    object_count = models.BigIntegerField(blank=True, null=True)
+    size_observed_at = models.CharField(max_length=64, blank=True, default="")
     configuration = models.JSONField(default=dict, blank=True)
     tags = models.JSONField(default=dict, blank=True)
 
