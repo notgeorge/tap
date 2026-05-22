@@ -320,6 +320,12 @@ Add to `tap_grid/tests/test_gryphon.py`:
   incidentally hides the over-inclusion. Bare `MATCH (n)`'s edge-inclusion bug slid
   past all five of its filtered Gridkin scenarios and was caught only by a
   no-`WHERE` union test.
+- If the feature **removes a rejection** (makes a previously-unsupported shape
+  legal), grep `test_gryphon.py` for the existing test that asserts the old
+  rejection — it will now fail. Delete it (the new behavior is covered by the
+  feature's own tests) or repurpose it to assert the new behavior. This is the
+  test-side of reconciliation (Step 2): the typeless edge scan had to delete
+  `test_edge_type_scan_requires_typed_edge`.
 
 Executor tests that scan a typed model (e.g. `MATCH (c:character)`) must create the
 **backing model rows** (`Character.objects.create(...)`), not just `Entity` rows —
