@@ -184,6 +184,18 @@ The exact directive name and option spelling may be adjusted during the Sphinx
 implementation if Sphinx-Needs requires a different syntax, but the semantic
 fields in this spec are the contract.
 
+A capability block for a `querying`-affordance feature carries a **worked example**. In v0 the
+example is a delimited literal block in the block body — introduced by `Example::` — not a
+directive option: a directive option value is reliably single-line, and example queries are
+frequently multi-line or exceed the 120-character line limit (which applies inside docstrings).
+The example query is sourced from the block's `covered-by` scenario, so it cannot drift from a
+validated, snapshot-tested query. Promoting the example to a first-class `:example:` directive
+option is revisited once the Sphinx build exists and Sphinx-Needs' multi-line-option behavior is
+known.
+
+More generally: a directive **option** value must fit a single line within the 120-character
+limit; multi-line or long content belongs in the block body.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
@@ -192,6 +204,7 @@ fields in this spec are the contract.
 | req-sphinx-docs-capability-blocks-2 | Canonical review anchor | Proposed | Each capability block lives at the closest code site that owns the implementation claim, or a MyST page for non-code affordances. | Private functions are valid anchors; proximity to the implementation beats reachability through a public symbol. |
 | req-sphinx-docs-capability-blocks-3 | Code and MyST allowed | Proposed | Capability blocks may appear in Python docstrings or MyST source pages. | Non-code blocks need source/code anchor metadata. |
 | req-sphinx-docs-capability-blocks-4 | Load-bearing only | Proposed | Capability blocks are required only for load-bearing affordances; ordinary helpers keep normal docstrings. | |
+| req-sphinx-docs-capability-blocks-5 | Worked example for querying blocks | Proposed | A `querying`-affordance block carries a worked `Example::` literal block in its body, sourced from its `covered-by` scenario. | Directive option values stay single-line; long content goes in the body. |
 
 ### Capability Metadata
 ----

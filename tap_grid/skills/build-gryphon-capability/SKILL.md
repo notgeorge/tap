@@ -139,6 +139,28 @@ weight on this requirement:
 - Confirm the requirement records that the five rung invariants
   (`req-grid-traversal-exec-lowering`) still hold at the chosen rung.
 
+### When the feature reconciles an existing requirement
+
+Not every feature adds a new RID. A capability sometimes closes the gap on a
+requirement that already *claims* the behavior — the executor was simply behind
+the spec. The OR / NOT combinators feature is the worked example: the
+capability-docs slice found that `req-grid-traversal-lang-combinators` was
+`Implemented` and claimed AND / OR / NOT, but the executor ran only AND.
+
+When that is the shape, Step 2 **updates the existing requirement** instead of
+adding a Requirements-table row:
+
+- Do not mint a new RID. Bring the requirement's Implementation prose and ACID
+  statuses into line with what the feature now actually delivers — so the spec
+  stops overclaiming.
+- The capability block for the affordance is *updated*, not created — typically
+  dropping a now-false `:limitations:` line (see Step 6).
+
+The capability-docs gap report (`spec-sphinx-capability-docs.md`,
+`req-sphinx-docs-gap-tracking`) is the clean way to surface these: a block whose
+`:status:` / `:limitations:` disagree with its `:implements:` requirement is
+exactly this case.
+
 ## Step 3: Grammar (`tap_grid/gryphon/grammar.lark`)
 
 - Add the rule(s). New top-level clauses join the `clause` alternation; new
@@ -191,13 +213,34 @@ weight on this requirement:
   `execute_gryphon_raw`, wrapped in a `gryphon_stage("<label>")`.
 - Apply the feature in **every** path that can reach it. ORDER BY / LIMIT had to
   land in both the type-scan projection and the aggregation path; a new predicate
-  leaf must be handled in `_flatten_conjunction`, `_apply_comparison`,
-  `_apply_typescan_predicate`, and `_filter_predicate_for_bindings`.
+  leaf must be handled in `_predicate_to_q` (the WHERE-tree-to-`Q` compiler),
+  `_comparison_to_q`, `_flatten_conjunction` (the OPTIONAL MATCH AND-only split),
+  and `_filter_predicate_for_bindings`, plus `_collect_params_from_predicate` in
+  `ast_nodes.py`.
 - **Reject out-of-scope shapes with a clear, actionable error** that names the
   supported form. Never silently ignore a clause.
 - **Keep the emitted SQL deterministic.** Append a unique tiebreaker
   (`entity_id` / the group-by columns) to any `ORDER BY`; sort `pk__in` lists.
   Non-deterministic SQL makes the Gridkin snapshot flap.
+
+### Capability block
+
+A load-bearing affordance gets a `.. tap:capability::` block in a docstring at
+its closest code anchor — per `spec-sphinx-capability-docs.md`
+(`req-sphinx-docs-capability-blocks`). For a Gryphon feature:
+
+- Author the block — or, for a reconciled requirement (Step 2), **update** the
+  existing one — at the feature's anchor: the executor dispatch function, the
+  AST node, whichever code site owns the claim.
+- Carry the required metadata (`id`, `status`, `audience`, `affordance`,
+  `implements`), a one-line affordance description, a worked `Example::` literal
+  block, and a `:limitations:` line for any material caveat. Directive option
+  values stay single-line within the 120-character limit.
+- `covered-by` and the `Example::` query are sourced from the Gridkin scenario
+  authored in Step 7 — fill them in once that scenario exists.
+- A feature that reconciles an existing requirement updates that requirement's
+  block: drop a now-false `:limitations:` line, refresh the body and example.
+  The OR / NOT feature did exactly this to `cap-grid-gryphon-where`.
 
 ## Step 7: Gridkin Scenarios + Oracle Discipline
 
