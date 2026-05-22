@@ -21,6 +21,7 @@ direct backend query execution.
 | --- | --- | :---: | --- |
 | req-grid-traversal-exec-pipeline | [Execution Pipeline](#execution-pipeline) | Implemented | Normalize → parse → validate → compile → execute → package |
 | req-grid-traversal-exec-compiler | [Compiler Strategy](#compiler-strategy) | Implemented | lark as v1 parser; grammar.lark is the spec artifact |
+| req-grid-traversal-exec-lowering | [Lowering Ladder](#lowering-ladder) | Implemented | Graduated rung order for lowering a query below the ORM; rung 1 (ORM) is the live backend, rungs 2–5 the sanctioned escalation path |
 | req-grid-traversal-exec-scope.sec | [gryphon Safety Scope](#gryphon-safety-scope) | Implemented | Read-only, TAP-scoped, unsupported syntax rejected, inputs validated |
 | req-grid-traversal-exec-sql-capture | [SQL Capture Seam](#sql-capture-seam) | Implemented | `execute_wrapper`-based SQL capture for Gridkin snapshots and `gryphon explain` |
 
@@ -109,7 +110,106 @@ with a human-readable message and line/column information from lark.
 #### Future
 If TAP later needs a richer query planner (query optimization, multiple backends, cost
 estimation), consider whether the grammar-to-AST step should produce a logical plan IR before
-lowering to a physical plan.
+lowering to a physical plan. The physical-lowering step such an IR would target is governed by
+the [Lowering Ladder](#lowering-ladder) (`req-grid-traversal-exec-lowering`) — the IR is the
+structural seam, the ladder is the per-node lowering choice.
+
+
+### Lowering Ladder
+----
+RID: `req-grid-traversal-exec-lowering`
+Status: `Implemented`
+
+When a query shape outgrows the Django ORM, the compiler escalates through a fixed,
+graduated set of lowering mechanisms — the *lowering ladder*. The ladder exists so that
+"reach for raw SQL" is a deliberate, ordered, reviewable decision rather than an ad-hoc one,
+and so that every rung keeps the guarantees the ORM provides for free.
+
+#### Background
+
+gryphon does not compile to SQL directly — it compiles to Django ORM `QuerySet`s, and Django
+renders the SQL (see `req-grid-traversal-exec-sql-capture`). The ORM is doing load-bearing work
+beneath every query: bind-parameter safety, the `search_readonly` alias, dimension scoping, and
+returning model instances the envelope serializers understand. Any mechanism that leaves the
+ORM has to re-earn each of those by hand. The ladder makes the cost of each step explicit.
+
+This requirement does not pre-build rungs 2–5. It records the *order to climb in* and the
+*invariants that hold at every rung*, so that the variable-length-path (`WITH RECURSIVE`) and
+`WITH`-pipelining work — both of which will need rung 4 — has a documented contract to lower
+against. It is the future-seam discipline applied to compilation strategy: name the seams and
+the selection order; build a rung only when a query shape forces it.
+
+#### Implementation
+
+**The lowering principle.** The compiler lowers a query to the **lowest rung that can express
+it**. Each step up the ladder is a deliberate escalation that should be visible and justified in
+review — never reached for as a convenience when a lower rung would do.
+
+**The rungs.**
+
+| Rung | Mechanism | Reach for it when | Cost |
+| :---: | --- | --- | --- |
+| 1 | Django ORM `QuerySet` composition (`.filter`, `.annotate`, `Count(filter=Q)`, `Exists`, `Subquery`, `Window`) | The query is expressible as ORM queryset composition. The default, and the only rung the current executor uses. | None beyond the ORM's own. |
+| 2 | ORM + a `Func` / `Expression` subclass wrapping a PostgreSQL function | A built-in or custom PG function must appear in a `SELECT` expression (`jsonb_path_query`, a window function, a custom aggregate). | A small, reviewed `Func` subclass. Stays inside the ORM — no guarantee is lost. |
+| 3 | A `RawSQL` expression embedded in an otherwise-ORM `QuerySet` | Exactly one expression cannot be said in the ORM, but the surrounding query can. | The raw fragment must be hand-parameterized; the rest of the query keeps the ORM's guarantees. |
+| 4 | A hand-written SQL template executed via `connection` | The query *shape* is beyond the ORM — chiefly `WITH RECURSIVE` for variable-length paths, and `WITH`-clause pipelining with intermediate materialization. | The whole statement is hand-authored: parameterization, the read-only alias, and dimension scoping become the compiler's responsibility, not the ORM's. |
+| 5 | A persistent stored **function** created by a migration, invoked from rung 2–4 | A rung-4 SQL body is genuinely reused across many queries and benefits from being parsed and planned once by PostgreSQL. | A second implementation language (PL/pgSQL or SQL) and a persistent schema object with its own migration lifecycle. See preconditions below. |
+
+**Invariants — preserved at every rung, regardless of how low the query is lowered:**
+
+1. **Read-only.** Execution runs on the `search_readonly` alias and mutates no persisted state
+   (`req-grid-traversal-exec-scope.sec-1`).
+2. **Parameterized values.** Caller and `$param` values are passed as bind parameters — never
+   string-interpolated into SQL. A hand-written rung-4 CTE still parameterizes.
+3. **Dimension scoping** is applied as it would be at rung 1.
+4. **Canonical envelope.** Results still normalize to the canonical `{nodes, edges, rows}`
+   envelope (`req-grid-traversal-exec-pipeline-4`).
+5. **Capture-seam visibility.** The statement is still issued through `connection`, so
+   `capture_sql()` records it (`req-grid-traversal-exec-sql-capture`). This is why the Gridkin
+   expected-SQL snapshot discipline carries over unchanged to a raw-SQL backend — the snapshot
+   simply grows; the validation harness does not care which rung produced the SQL.
+
+The rung table is the memorable part; the invariant list is the load-bearing part. A rung is
+only correctly used when all five invariants still hold.
+
+**Rung 5 preconditions.** Rung 5 is the highest-cost rung and is gated, not forbidden:
+
+- It is a stored **function**, never a stored **procedure**. A read-only language emits
+  `SELECT`s, and a procedure cannot be `CALL`ed inside a `SELECT`; the read-only contract
+  excludes procedures by construction, not by preference.
+- The function body must be genuinely reused across multiple query shapes — a body used by one
+  query belongs at rung 4.
+- The function is managed as a first-class tracked artifact: created/altered by a Django
+  migration, described by a spec requirement, and covered by a Gridkin (or equivalent)
+  snapshot. A stored function that is tracked, specced, and tested is consistent with TAP's
+  data-object-management posture; an untracked one is not.
+- The residual cost — a second implementation language, and a persistent schema object whose
+  migration lifecycle must order correctly against table migrations — is accepted explicitly in
+  the requirement that introduces the function.
+
+**Current state.** The executor uses **rung 1 exclusively**. Rungs 2–5 are the documented,
+sanctioned escalation path; none is exercised yet. The first rung-4 use is anticipated when
+variable-length paths or `WITH` pipelining land (Gryphon wishlist E1 / F1).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-exec-lowering-1 | Lowest-Rung Rule | Implemented | The compiler lowers a query to the lowest ladder rung that can express it; a higher rung is a deliberate, review-visible escalation. | |
+| req-grid-traversal-exec-lowering-2 | Invariants Hold At Every Rung | Implemented | Read-only alias, bind-parameterized values, dimension scoping, canonical-envelope normalization, and capture-seam visibility are preserved at every rung. | The contract that keeps Gridkin valid across backends |
+| req-grid-traversal-exec-lowering-3 | Rung 1 Is The Current Backend | Implemented | The current executor lowers exclusively to rung 1 (ORM querysets); rungs 2–5 are documented but unexercised. | |
+| req-grid-traversal-exec-lowering-4 | Rung 5 Is A Stored Function, Gated | Implemented | If rung 5 is reached it is a PostgreSQL function (never a procedure) and satisfies the rung-5 preconditions: cross-query reuse, first-class tracked-artifact management, explicit cost acceptance. | |
+
+#### Future
+
+- Publish per-construct lowering rules (which gryphon shape lowers to which rung) once rung 4
+  is first exercised — this dovetails with the `req-grid-traversal-exec-pipeline` Future note.
+- When a logical plan IR is introduced (`req-grid-traversal-exec-compiler` Future), each plan
+  node's lowering step selects a rung against this ladder; the ladder becomes that step's
+  contract.
+- Revisit whether a PostgreSQL graph extension (e.g. Apache AGE) belongs as a distinct backend
+  rather than a sixth rung, if reachability queries outgrow hand-written recursive CTEs
+  (Gryphon wishlist E3).
 
 
 ### gryphon Safety Scope
