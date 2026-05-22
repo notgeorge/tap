@@ -193,6 +193,17 @@ def explain_gryphon_raw(
 
     Raises:
         SearchExecutionError: If the query is malformed, unsupported, or fails.
+
+    .. tap:capability:: Gryphon explain / SQL capture
+       :id: cap-grid-gryphon-explain
+       :status: implemented
+       :audience: developer; agent
+       :affordance: debugging
+       :implements: req-grid-traversal-exec-sql-capture
+       :covered-by: pytest:tap_grid/tests/test_gryphon_sql_capture.py
+
+       ``explain_gryphon_raw`` runs a query and returns both the canonical
+       envelope and the ordered, stage-labelled SQL the executor issued.
     """
     with capture_sql() as capture:
         envelope = execute_gryphon_raw(query, inputs, db_alias=db_alias, layer=layer)
@@ -447,6 +458,21 @@ def _execute_type_scan(
 
     Returns:
         Canonical envelope with ``nodes`` list and empty ``edges`` list.
+
+    .. tap:capability:: Gryphon type scan
+       :id: cap-grid-gryphon-type-scan
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-patterns
+       :covered-by: gridkin:type_scan-scan-returns-every-pg-node-in-the-fixture
+
+       A node-only ``MATCH (n:entity_type)`` scans every entity of one
+       registered type. The label is required; a bare ``(n)`` is rejected.
+
+       Example::
+
+          MATCH (n:pg_node)
     """
     if not node.label:
         raise SearchExecutionError("Unsupported gryphon pattern: type scan requires a node label, e.g. (c:character).")
@@ -753,7 +779,21 @@ def _execute_hub_and_spoke(
 ) -> dict[str, Any]:
     """Execute a one-hop neighborhood query for a single hub entity.
 
-    Executes a one-hop neighborhood query driven from the gryphon AST.
+    .. tap:capability:: Gryphon hub-and-spoke neighborhood
+       :id: cap-grid-gryphon-hub-and-spoke
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-patterns
+       :covered-by: gridkin:hub_and_spoke-one-hop-undirected-neighborhood-of-the-dense-hub
+
+       A one-hop edge pattern anchored by ``WHERE n.entity_id = $id`` returns
+       the hub and its immediate neighborhood. Honors outbound, inbound, and
+       undirected edges plus an optional edge-type filter.
+
+       Example::
+
+          MATCH (h)-[e]-(n) WHERE h.entity_id = $hub_id
     """
     from tap_grid.models import Edge, Entity
 
@@ -858,6 +898,21 @@ def _execute_edge_type_scan(
     Used for patterns like ``MATCH (r:realm)-[e:CONTAINS]->(l:location)`` where there is
     no WHERE anchor. Scans all matching edges, filters by direction and endpoint types,
     and returns a graph envelope.
+
+    .. tap:capability:: Gryphon edge-type scan
+       :id: cap-grid-gryphon-edge-type-scan
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-patterns
+       :covered-by: gridkin:edge_type_scan-pg-links-edges-from-pg-hub-to-pg-node
+
+       A one-hop typed edge pattern with no WHERE anchor returns every edge of
+       the given type whose endpoints match the pattern's node labels.
+
+       Example::
+
+          MATCH (a:pg_hub)-[e:PG_LINKS]->(b:pg_node)
     """
     from tap_grid.models import Edge, Entity
 
@@ -1319,6 +1374,22 @@ def _resolve_orm_path(binding: dict[str, Any], field_path: FieldPath) -> str:
     Dispatches to :func:`_orm_path_for_field` for single-step spine paths
     or :func:`_orm_path_for_envelope_path` for multi-step envelope-lane
     paths. Per spec-grid-traversal-language § Envelope-Aware Field Paths.
+
+    .. tap:capability:: Gryphon envelope-aware field paths
+       :id: cap-grid-gryphon-field-paths
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-envelope-paths
+       :covered-by: gridkin:dimensions-scan-filters-pg-node-by-a-dimension-value
+       :limitations: The ``display`` lane is not addressable in WHERE/RETURN; JSON access is dot/bracket-only for now.
+
+       A field path resolves against the canonical envelope: bare spine fields,
+       the ``data`` lane for per-model fields, and ``dimensions`` keys.
+
+       Example::
+
+          MATCH (n:pg_node) WHERE n.dimensions.zone = "north"
     """
     steps = field_path.steps
     if not steps:
@@ -1352,6 +1423,23 @@ def _build_chain_queryset(
     for avoiding the "multi-filter spawns separate joins" behavior.
 
     Variable-length edges and undirected edges are rejected up front.
+
+    .. tap:capability:: Gryphon multi-hop chain traversal
+       :id: cap-grid-gryphon-multi-hop
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-gryphon-multihop; req-grid-gryphon-multihop-envelope
+       :covered-by: gridkin:multi_hop-anchored-two-hop-chain-returns-the-root-s-reachable-subgraph
+       :limitations: Variable-length (``*m..n``) and undirected chain edges parse but the executor rejects them.
+
+       A MATCH pattern with two or more edge hops joins each hop by its shared
+       node, returning the reachable subgraph or a row projection.
+
+       Example::
+
+          MATCH (a:pg_node)-[e1:PG_LINKS]->(b:pg_node)-[e2:PG_LINKS]->(c:pg_node)
+          WHERE a.entity_id = $root_id
     """
     from tap_grid.models import Edge
 
@@ -1413,6 +1501,23 @@ def _apply_predicate_to_qs(
 ):
     """Apply a WHERE predicate tree to a queryset. Currently supports conjunctions of
     simple comparisons; OR/NOT predicates are rejected at parse-to-query time.
+
+    .. tap:capability:: Gryphon WHERE predicates
+       :id: cap-grid-gryphon-where
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-filters; req-grid-traversal-lang-combinators
+       :covered-by: gridkin:type_scan-scan-filters-pg-node-by-an-and-of-two-data-lane-predicates
+       :limitations: OR / NOT parse but every executor WHERE path runs only AND-joined comparisons.
+
+       WHERE filters a pattern by comparisons (``= != < > <= >=``) over field
+       paths, plus inline edge-property maps, combined with AND.
+
+       Example::
+
+          MATCH (n:pg_node)
+          WHERE n.data.kind = "neighbor" AND n.data.severity_score > 15
     """
     if predicate is None:
         return qs
@@ -1468,7 +1573,25 @@ def _apply_not_exists(
     inputs: dict[str, Any],
     db_alias: str,
 ):
-    """Apply a NOT EXISTS clause to the outer queryset via a correlated Exists subquery."""
+    """Apply a NOT EXISTS clause to the outer queryset via a correlated Exists subquery.
+
+    .. tap:capability:: Gryphon NOT EXISTS anti-join
+       :id: cap-grid-gryphon-not-exists
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-gryphon-not-exists
+       :covered-by: gridkin:not_exists-not-exists-excludes-targets-that-have-a-guard-edge
+       :limitations: Bare ``EXISTS`` and nested ``NOT EXISTS`` are rejected.
+
+       ``NOT EXISTS { MATCH ... }`` keeps an outer row only when the correlated
+       inner pattern has no match — a correlated anti-join.
+
+       Example::
+
+          MATCH (s)-[e:PG_LINKS]->(t)
+          NOT EXISTS { MATCH (g)-[:PG_OPTIONAL]->(t) }
+    """
     from django.db.models import Exists, F, OuterRef
 
     if len(nec.match_clause.patterns) != 1:
@@ -1525,6 +1648,21 @@ def _is_graph_envelope_return(return_clause: ReturnClause) -> bool:
     Graph envelope is requested when:
     - RETURN is omitted (items is None) — return all bound variables, or
     - all RETURN items are bare variables (ReturnItem with no field steps or aggregates).
+
+    .. tap:capability:: Gryphon RETURN modes
+       :id: cap-grid-gryphon-return
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-returns
+       :covered-by: gridkin:type_scan-projection-return-of-aliased-field-paths
+
+       An omitted RETURN (or one naming only bare variables) yields a graph
+       envelope; a RETURN of field paths or aggregates yields a row projection.
+
+       Example::
+
+          MATCH (n:pg_node) RETURN n.entity_id AS id, n.name AS label
     """
     if return_clause.items is None:
         return True
@@ -1819,6 +1957,24 @@ def _resolve_order_cols(
     tiebreakers, so output order (and the captured SQL) is fully deterministic
     even when the named keys have ties. With no ORDER BY, the group-by columns
     alone are the order — identical to the executor's prior behavior.
+
+    .. tap:capability:: Gryphon ORDER BY and LIMIT
+       :id: cap-grid-gryphon-order-by-limit
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-gryphon-order-by; req-grid-gryphon-limit
+       :covered-by: gridkin:order_by_limit-count-scoreboard-capped-with-limit-highest-degree-hub-only
+       :limitations: Row-projection RETURN only; ORDER BY / LIMIT paired with a graph-envelope return is rejected.
+
+       ORDER BY orders row-projection results by RETURN outputs (ascending or
+       ``DESC``, multi-key, deterministic tiebreak); LIMIT caps the row count.
+
+       Example::
+
+          MATCH (h)-[:PG_LINKS]->(n)
+          RETURN h.entity_id AS source_id, COUNT(n) AS out_degree
+          ORDER BY out_degree DESC LIMIT 1
     """
     if order_by is None:
         return list(default_internals)
@@ -1851,6 +2007,23 @@ def _compute_rows(
     reuse the JOIN aliases established by ``_build_chain_queryset`` rather than
     adding duplicate JOINs for each references — the fix for multi-hop COUNT
     inflation.
+
+    .. tap:capability:: Gryphon COUNT aggregation
+       :id: cap-grid-gryphon-count
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-gryphon-count; req-grid-gryphon-rows
+       :covered-by: gridkin:aggregation-count-of-pg-node-neighbors-per-hub
+       :limitations: COUNT is the only aggregate; SUM / MIN / MAX / AVG and COUNT(DISTINCT) are not implemented.
+
+       ``COUNT(var)`` in RETURN aggregates with an implicit GROUP BY on the
+       non-aggregated columns; results land in the envelope's ``rows`` list.
+
+       Example::
+
+          MATCH (h:pg_hub)-[:PG_LINKS]->(n:pg_node)
+          RETURN h.entity_id AS hub_id, COUNT(n) AS neighbor_count
     """
     from django.db.models import Count, F
 
@@ -2032,6 +2205,24 @@ def _execute_optional_match(
     so it constrains the optional join and does not drop mandatory rows (the
     notorious Cypher filter-placement gotcha); a WHERE predicate on the
     mandatory variable filters the outer scan.
+
+    .. tap:capability:: Gryphon OPTIONAL MATCH
+       :id: cap-grid-gryphon-optional-match
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-gryphon-optional-match
+       :covered-by: gridkin:optional_match-optional-match-keeps-zero-match-rows-count-is-0-not-absent
+       :limitations: v0 -- one node-only MATCH plus one single-hop OPTIONAL MATCH; the optional variable is COUNT-only.
+
+       OPTIONAL MATCH is a left outer join: a mandatory row with no optional
+       match is kept, with ``COUNT`` of the optional variable returning 0.
+
+       Example::
+
+          MATCH (t:pg_node)
+          OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node)
+          RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target
     """
     from django.db.models import Count, F, Q
 

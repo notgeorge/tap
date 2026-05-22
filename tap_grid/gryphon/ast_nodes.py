@@ -132,6 +132,23 @@ class InComparison:
     True when the field value equals one of `values`. `values` may mix literals
     and `ParamRef`s. An empty `values` matches nothing; a `None` element never
     matches (NULL has no defined equality).
+
+    .. tap:capability:: Gryphon IN-list membership
+       :id: cap-grid-gryphon-in-list
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-in
+       :covered-by: gridkin:in_lists-in-matches-rows-whose-data-lane-value-is-a-listed-member
+
+       ``WHERE field IN [v, ...]`` tests a field against a list of values
+       (literals or ``$param``s). An empty list matches nothing; a ``null``
+       element never matches.
+
+       Example::
+
+          MATCH (n:pg_node) WHERE n.data.kind IN ["neighbor"]
+          RETURN n.entity_id AS id ORDER BY id
     """
 
     field_path: FieldPath
@@ -294,7 +311,23 @@ class GryphonAST:
     optional_match_clauses: tuple[OptionalMatchClause, ...] = ()
 
     def required_params(self) -> frozenset[str]:
-        """Return the set of $var names referenced anywhere in this AST."""
+        """Return the set of $var names referenced anywhere in this AST.
+
+        .. tap:capability:: Gryphon query parameters
+           :id: cap-grid-gryphon-parameters
+           :status: implemented
+           :audience: external-user; agent; developer
+           :affordance: querying
+           :implements: req-grid-traversal-lang-params
+           :covered-by: gridkin:hub_and_spoke-one-hop-undirected-neighborhood-of-the-dense-hub
+
+           A query carries runtime inputs as ``$var`` references, supplied
+           separately from the query text and validated before execution.
+
+           Example::
+
+              MATCH (h)-[e]-(n) WHERE h.entity_id = $hub_id
+        """
         params: set[str] = set()
         _collect_params_from_predicate(self.where_clause.predicate if self.where_clause else None, params)
         for mc in self.match_clauses:
