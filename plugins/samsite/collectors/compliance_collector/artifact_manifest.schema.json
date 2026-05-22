@@ -5,10 +5,20 @@
   "description": "The declarative set of /.well-known/ compliance artifacts the samsite compliance collector fetches. See plugins/samsite/specs/spec-samsite-compliance-collector-v0.md (req-samsite-collector-manifest). Validated at load; an invalid manifest fails the run visibly.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["manifest_version", "site_base_url", "artifacts"],
+  "required": ["manifest_version", "site_base_url", "verification", "artifacts"],
   "properties": {
     "manifest_version": {"type": "string", "minLength": 1},
     "site_base_url": {"type": "string", "minLength": 1, "format": "uri"},
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oidc_issuer", "github_repository"],
+      "description": "The Sigstore verification policy applied to every fetched artifact's signature bundle. oidc_issuer matches the cert's issuer claim; github_repository asserts the workflow that signed the artifact lives in this repo.",
+      "properties": {
+        "oidc_issuer": {"type": "string", "minLength": 1, "format": "uri"},
+        "github_repository": {"type": "string", "minLength": 1}
+      }
+    },
     "artifacts": {
       "type": "array",
       "minItems": 1,

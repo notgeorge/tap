@@ -1,6 +1,10 @@
 {
   "manifest_version": "0",
   "site_base_url": "https://samsite.unified-systems.com",
+  "verification": {
+    "oidc_issuer": "https://token.actions.githubusercontent.com",
+    "github_repository": "notgeorge/samsite"
+  },
   "artifacts": [
     {
       "name": "KSI Signal",

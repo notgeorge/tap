@@ -26,6 +26,7 @@ from .decompose import (
     decompose_vdr_report,
 )
 from .manifest import ArtifactManifestError, load_manifest
+from .verify import verify_artifact
 
 _SITE_RUN_STARTED = "be33"
 _SITE_MANIFEST_LOADED = "3a92"
@@ -37,6 +38,8 @@ _SITE_MANIFEST_INVALID = "8c42"
 _SITE_DECOMPOSE_FAILED = "55c8"
 _SITE_BATCH_SUBMITTED = "0772"
 _SITE_NOTHING_TO_SUBMIT = "12f5"
+_SITE_VERIFY_PASSED = "8acc"
+_SITE_VERIFY_FAILED = "9394"
 
 _FETCH_TIMEOUT_SECONDS = 30
 _USER_AGENT = "tap-samsite-compliance-collector"
@@ -81,6 +84,7 @@ class SamsiteComplianceCollector(CollectorBase):
 
         base_url = manifest["site_base_url"]
         artifacts = manifest["artifacts"]
+        verification_policy = manifest["verification"]
         self.record_info(
             _SITE_MANIFEST_LOADED,
             "MANIFEST_LOADED",
@@ -117,7 +121,38 @@ class SamsiteComplianceCollector(CollectorBase):
                         message_data={"artifact": name},
                     )
 
-            fetched.append({"artifact": artifact, "body": body, "bundle": bundle_bytes})
+            # Verify the signature if a bundle came back.
+            verification: dict[str, Any] | None = None
+            if bundle_bytes is not None:
+                verification = verify_artifact(
+                    body,
+                    bundle_bytes,
+                    oidc_issuer=verification_policy["oidc_issuer"],
+                    github_repository=verification_policy["github_repository"],
+                )
+                if verification["signature_verified"] is True:
+                    self.record_info(
+                        _SITE_VERIFY_PASSED,
+                        "SIGNATURE_VERIFIED",
+                        f"{name}: signature verified, signed by {verification['signed_by'] or '<unknown>'}.",
+                        message_data={"artifact": name, "signed_by": verification["signed_by"]},
+                    )
+                else:
+                    self.record_warn(
+                        _SITE_VERIFY_FAILED,
+                        "SIGNATURE_UNVERIFIED",
+                        f"{name}: signature {('failed verification' if verification['signature_verified'] is False else 'could not be verified')} "
+                        f"(signed_by={verification['signed_by'] or '<unknown>'}).",
+                        message_data={
+                            "artifact": name,
+                            "signature_verified": verification["signature_verified"],
+                            "signed_by": verification["signed_by"],
+                        },
+                    )
+
+            fetched.append(
+                {"artifact": artifact, "body": body, "bundle": bundle_bytes, "verification": verification}
+            )
             self.record_info(
                 _SITE_ARTIFACT_FETCHED,
                 "ARTIFACT_FETCHED",
@@ -152,7 +187,7 @@ class SamsiteComplianceCollector(CollectorBase):
                     message_data={"artifact": artifact["name"]},
                 )
                 continue
-            decomp = decompose_ksi_signal(signal)
+            decomp = decompose_ksi_signal(signal, verification=fetched_item.get("verification"))
             all_nodes.extend(decomp.nodes)
             all_edges.extend(decomp.edges)
             ksi_signal_by_system.update(decomp.ksi_signal_by_system)
@@ -176,6 +211,7 @@ class SamsiteComplianceCollector(CollectorBase):
                 report,
                 ksi_signal_by_system=ksi_signal_by_system,
                 ksi_component_by_id=ksi_component_by_id,
+                verification=fetched_item.get("verification"),
             )
             all_nodes.extend(decomp.nodes)
             all_edges.extend(decomp.edges)
@@ -190,6 +226,7 @@ class SamsiteComplianceCollector(CollectorBase):
                 source_url=base_url + artifact["path"],
                 fetched_at=fetched_at,
                 content_format=artifact["content_format"],
+                verification=fetched_item.get("verification"),
             )
             all_nodes.extend(decomp.nodes)
             all_edges.extend(decomp.edges)
