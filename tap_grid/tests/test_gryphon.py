@@ -1684,6 +1684,21 @@ class TestGryphonOrderByLimitParser:
         with pytest.raises(GryphonParseError, match="one LIMIT"):
             parse_gryphon("MATCH (n:pg_node) RETURN n.name AS l LIMIT 1 LIMIT 2")
 
+    def test_duplicate_where_rejected(self):
+        """req-grid-traversal-lang-shape-6: two WHERE clauses are a parse error, not a silent drop."""
+        with pytest.raises(GryphonParseError, match="one WHERE"):
+            parse_gryphon('MATCH (n:pg_node) WHERE n.name = "a" WHERE n.kind = "b" RETURN n')
+
+    def test_duplicate_return_rejected(self):
+        """req-grid-traversal-lang-shape-6: two RETURN clauses are a parse error, not a silent drop."""
+        with pytest.raises(GryphonParseError, match="one RETURN"):
+            parse_gryphon("MATCH (n:pg_node) RETURN n.name AS a RETURN n.name AS b")
+
+    def test_single_where_still_parses(self):
+        """A single WHERE remains valid — the rejection is for duplicates only."""
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name = "a" RETURN n')
+        assert ast.where_clause is not None
+
 
 # ---------------------------------------------------------------------------
 # TestGryphonOrderByLimitExecutor — req-grid-gryphon-order-by / req-grid-gryphon-limit

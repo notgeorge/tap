@@ -13,6 +13,7 @@ update-triggers:
   - A new demand signal surfaces that argues for promoting a future-seam item
   - openCypher publishes major TCK changes that materially affect the "TCK as inspiration" workflow
   - The three-lane envelope spec (spec-grift-envelope.md) moves Proposed → Implemented and changes envelope shape
+  - A Gryphon failure or correctness gap is discovered (record it under Known Issues)
 assumes:
   - Reader is an LLM (likely me, or another agent) loading context before extending Gryphon
   - Reader will have skimmed `tap_grid/specs/spec-grid-traversal-language.md` and `spec-grid-traversal-execution.md` before reading this doc, so deep ORM/Django mechanics are not re-explained here
@@ -82,6 +83,58 @@ The **rest of the feature-wishlist** (the buckets not listed above) is unchanged
 still forward-looking, still demand-gated. Where a bucket's "how it touches the
 executor today" note is overtaken by events, this status note is the correction of
 record until the bucket text itself is revised.
+
+## Implementation Status — Stage 5 / samsite requests (2026-05-22)
+
+Further wishlist work has since landed on `session/gryphon-playground`, each a
+full-cycle commit via the `build-gryphon-capability` skill:
+
+- **OR / NOT combinators** — the executor compiles the full `AND` / `OR` / `NOT`
+  predicate tree to a Django `Q` tree (`req-grid-traversal-lang-combinators`).
+- **B2 `STARTS_WITH` / `ENDS_WITH` / `CONTAINS`** — case-sensitive substring
+  predicates (`req-grid-traversal-lang-string-match`). Closed the samsite
+  ORM-`startswith` demand signal.
+- **Bare labelless `MATCH (n)`** — scans every registered node type and unions
+  the results, with the field-absence-is-non-matching contract
+  (`req-grid-traversal-lang-bare-match`). The samsite primary request.
+- **Typeless edge scan** — `MATCH (a)-[e]-(b)` with no edge type
+  (`req-grid-traversal-lang-patterns-7`). The samsite secondary request.
+- **Multiple `WHERE` / `RETURN` silent drop closed** — the parser now rejects a
+  duplicate single-clause loudly instead of keeping the first and discarding the
+  rest (`req-grid-traversal-lang-shape-6`). See [Known Issues](#known-issues).
+
+**B4 (label-union `(n:type1|type2)`) is withdrawn**, not deferred: the samsite
+request explicitly killed it — `MATCH (n) WHERE n.entity_type STARTS_WITH "aws_"`
+(bare-MATCH + B2) gives the "all `aws_*` types" capability label-union would have
+provided, with no new label syntax. Treat the B4 bucket below as superseded.
+
+Also: the "BaseModel field reach" gate noted on B3 / C1 appears effectively
+cleared — data-lane access (`n.data.<field>`) works in the executor today.
+
+**Next, when there's appetite:** F1 `WITH` — the top-ranked `extract-ahead` and
+the pipeline keystone. It is the heavy one (a planner-shape change, the first
+lowering-ladder rung-4 user); start a fresh session for it rather than tacking it
+onto a small change.
+
+## Known Issues
+
+Gryphon is the load-bearing read path; a Gryphon failure — a wrong result, a
+silent drop, a crash — is **not acceptable**, and is never to be normalized into
+a "known limitation" the codebase quietly works around. When a Gryphon failure or
+correctness gap is found:
+
+1. **Notify the user.** Surface it explicitly; do not bury it.
+2. **Log it here**, in this section, with enough detail to reproduce.
+3. **Use the test system; do not build around it.** Gryphon has a robust
+   validation surface — Gridkin scenarios plus `test_gryphon.py`. Reach for it to
+   reproduce the failure and to lock the fix; do not route around a failing case
+   by reshaping callers or adding a workaround elsewhere.
+
+Resolved issues stay here as a record; open issues stay here until closed.
+
+| Issue | Status | Detail |
+| --- | :---: | --- |
+| Multiple `WHERE` / `RETURN` clauses silently dropped | Resolved 2026-05-22 | The parser kept only the first `WHERE` / `RETURN` and silently discarded the rest — a query that lied about what it ran. Now rejected loudly at parse time as a `GryphonParseError` (`req-grid-traversal-lang-shape-6`). |
 
 ## What's Deliberately Not In This Doc (In-Flight Elsewhere)
 

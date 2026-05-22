@@ -76,42 +76,30 @@ RETURN hub, edge, neighbor
 | req-grid-traversal-lang-shape-3 | Supports Return Clause | Implemented | gryphon text supports `RETURN` for named variables and projected fields. | |
 | req-grid-traversal-lang-shape-4 | Read-Only Surface Only | Implemented | V1 gryphon text excludes graph mutation clauses; they are rejected at parse time. | |
 | req-grid-traversal-lang-shape-5 | Multiple Match Compositional | Implemented | Multiple `MATCH` clauses extend the binding scope; earlier bindings are in scope for later clauses. | |
+| req-grid-traversal-lang-shape-6 | Single-Clause Enforcement | Implemented | At most one `WHERE` / `RETURN` / `ORDER BY` / `LIMIT` per query; a duplicate is rejected at parse time with a `GryphonParseError`, never silently dropped. | |
 
-#### Known Limitation — Multiple WHERE Clauses Silently Dropped
+#### Multiple WHERE / RETURN / ORDER BY / LIMIT — Rejected At Parse Time
 
-The parser (`tap_grid/gryphon/parser.py::_ASTTransformer.start`) keeps
-only the **first** `WHERE` clause it sees — `where = where_clauses[0]`.
-Any further `WHERE` clauses in the input are **silently discarded**, with
-no error and no warning.
+`WHERE`, `RETURN`, `ORDER BY`, and `LIMIT` are each single-clause. A query
+carrying more than one of any of them is rejected at parse time with a clear
+`GryphonParseError` (`tap_grid/gryphon/parser.py::_ASTTransformer.start`).
 
-This bites the natural-looking multi-MATCH-with-per-clause-WHERE shape:
+Earlier the parser kept only the **first** `WHERE` (and the first `RETURN`)
+and **silently discarded** the rest — a query that lied about what it ran.
+That silent-drop footgun is closed: a duplicate clause is now a loud, explicit
+error, never a silent drop.
 
-```text
-MATCH (n:aws_lambda)   WHERE n.data.tags.Project = "samsite"
-MATCH (n:aws_s3_bucket) WHERE n.data.tags.Project = "samsite"
-```
-
-The second `WHERE` vanishes; the second `MATCH` runs unfiltered. The
-working form today is a **single global WHERE**, applied to each MATCH
+Gryphon's working form is a **single global WHERE**, applied to each MATCH
 clause scoped to the variables that clause binds (per
-`_filter_predicate_for_bindings`). The samsite landing-page search
-(`plugins/samsite/grift/landing.grift.json`, 2026-05-21) uses that
-form — and gives the unfiltered MATCH a distinct variable name so the
-global WHERE does not apply to it.
+`_filter_predicate_for_bindings`). To filter several MATCH clauses
+differently, give them distinct variable names so the one global WHERE scopes
+correctly — the samsite landing-page search
+(`plugins/samsite/grift/landing.grift.json`) does exactly this.
 
-Two acceptable resolutions, neither built yet:
-
-1. **Reject multiple WHERE clauses at parse time** with a clear error
-   ("only one WHERE clause per query; combine predicates with AND, or
-   use distinct variable names so a single global WHERE scopes
-   correctly"). Smallest fix; removes the silent-drop footgun.
-2. **Per-MATCH WHERE attachment** — Cypher's actual semantics, where a
-   `WHERE` attaches to its preceding `MATCH` and filters that clause.
-   Requires a `where_clause` field on `MatchClause` and parser +
-   executor changes.
-
-Until one lands, treat "one WHERE per query" as the contract. Surfaced
-here rather than left buried in commit `b80aecf` so it is discoverable.
+Per-`MATCH` `WHERE` attachment — Cypher's actual semantics, where a `WHERE`
+attaches to its preceding `MATCH` and filters that clause — remains future
+work: it needs a `where_clause` field on `MatchClause` plus parser and
+executor changes, and arrives naturally with `WITH`-style pipelining.
 
 #### Future
 Aggregation and `OPTIONAL MATCH` have since landed as extension clauses — see

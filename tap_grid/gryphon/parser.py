@@ -112,9 +112,16 @@ class _ASTTransformer(Transformer):
 
         if not match_clauses:
             raise GryphonParseError("At least one MATCH clause is required.")
-        # ORDER BY / LIMIT are single-clause: a duplicate is an authoring
-        # mistake, and silently dropping it (as multiple-WHERE does) is the
-        # exact footgun this feature should not reintroduce.
+        # WHERE / RETURN / ORDER BY / LIMIT are all single-clause. A duplicate
+        # is an authoring mistake; silently keeping the first and dropping the
+        # rest is a query that lies about what it ran. Reject loudly instead.
+        if len(where_clauses) > 1:
+            raise GryphonParseError(
+                "Only one WHERE clause is allowed per query — combine predicates with AND "
+                "(Gryphon has a single global WHERE, scoped per variable)."
+            )
+        if len(return_clauses) > 1:
+            raise GryphonParseError("Only one RETURN clause is allowed per query.")
         if len(order_by_clauses) > 1:
             raise GryphonParseError("Only one ORDER BY clause is allowed per query.")
         if len(limit_clauses) > 1:
