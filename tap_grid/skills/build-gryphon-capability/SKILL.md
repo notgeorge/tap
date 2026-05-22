@@ -181,6 +181,13 @@ exactly this case.
   `_collect_params_from_predicate`. Then audit every predicate walker in the
   executor (Step 5) — a new leaf type that a walker does not recognize is silently
   dropped.
+- If you add a predicate **operator** rather than a leaf — a new comparison operator
+  like `STARTS_WITH` — **extend the `Comparison.op` `Literal`** instead of adding a
+  leaf. This is the lightest case: `Comparison` is already handled by every walker,
+  so the only touch-points are the parser's operator normalization (Step 5) and
+  `_comparison_to_q`'s op→lookup map (Step 6) — no walker audit. Reach for a new leaf
+  only when the node carries a genuinely different shape (e.g. `InComparison`'s list
+  value); a same-shape `field op value` predicate is an operator, not a leaf.
 
 ## Step 5: Parser (`tap_grid/gryphon/parser.py`)
 
@@ -301,8 +308,11 @@ Add to `tap_grid/tests/test_gryphon.py`:
 - An **executor** test class (`@pytest.mark.django_db(transaction=True,
   databases=["default", "search_readonly"])`) — the **rejection cases** Gridkin
   cannot express (every out-of-scope shape from Step 1 raising
-  `SearchExecutionError`), plus a positive smoke test. Gridkin covers the positive
-  execution surface; `test_gryphon.py` covers parse-level and error-path behavior.
+  `SearchExecutionError`), a positive smoke test, **and any corner that needs
+  crafted data a shared Tier-1 fixture does not have** — e.g. a needle containing
+  `LIKE` metacharacters — where the row is built inline rather than forcing a whole
+  new fixture. Gridkin owns fixture-shaped breadth; `test_gryphon.py` owns crafted
+  corners and error paths.
 
 Executor tests that scan a typed model (e.g. `MATCH (c:character)`) must create the
 **backing model rows** (`Character.objects.create(...)`), not just `Entity` rows —
