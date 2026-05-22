@@ -20,7 +20,7 @@ tests) lands together, never as a follow-up.
 
 ## Authoritative Sources (read these first; do not guess from memory)
 
-- **[`docs/doc-dev-gryphon-wishlist.md`](../../../docs/doc-dev-gryphon-wishlist.md)** —
+- **[`docs/misc/doc-dev-gryphon-wishlist.md`](../../../docs/misc/doc-dev-gryphon-wishlist.md)** —
   the prioritized wishlist (organized by demand-shape, not Cypher's TOC) and the
   validation contract. Read the bucket for your feature. Trust `git log` over its
   "Implementation Status" section if they disagree.
@@ -28,7 +28,8 @@ tests) lands together, never as a follow-up.
   the language surface: clause shape, predicate semantics, field paths, params,
   returns. Home for predicate-power requirements.
 - **[`tap_grid/specs/spec-grid-traversal-execution.md`](../../specs/spec-grid-traversal-execution.md)** —
-  the execution pipeline, compiler strategy, and the SQL-capture seam.
+  the execution pipeline, compiler strategy, the SQL-capture seam, and the **lowering
+  ladder** (`req-grid-traversal-exec-lowering`) — the rung discipline Step 6 must obey.
 - **[`tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md`](../../specs/spec-grid-gryphon-multihop-aggregation.md)** —
   the extension clauses (multi-hop, NOT EXISTS, COUNT, ORDER BY, LIMIT, OPTIONAL
   MATCH). Home for new extension-clause requirements.
@@ -56,15 +57,87 @@ State the agreed v0 scope before writing code — it becomes the spec requiremen
 
 ## Step 2: Spec First
 
-Add the requirement to the owning spec **before** implementing:
+The spec requirement is written **before** any grammar, AST, or executor code — the
+v0 scope agreed in Step 1 *is* this requirement. The spec is the canonical source of
+truth; the implementation is downstream of it, never the reverse. Writing the
+requirement first also forces the scope to be concrete before code makes it
+accidentally concrete.
 
-- A new `RID` (`req-grid-traversal-lang-<x>` or `req-grid-gryphon-<x>`) row in the
-  Requirements table.
-- A requirement section: `Implementation`, `Development` (why the scope is what it
-  is), an `Acceptance Criteria` ACID table (one ACID per testable behavior,
-  including the rejection cases), and a `Future` list naming every deferred shape.
-- If the feature was listed under another requirement's `Future`, update that list
-  to point at the new RID instead.
+### Which spec owns it
+
+- A new predicate, operator, or field-path capability — something that extends what a
+  `WHERE` clause or a projection can *say* — belongs in
+  `spec-grid-traversal-language.md`.
+- A new clause or a new execution shape — `ORDER BY`, `LIMIT`, `OPTIONAL MATCH`, an
+  aggregate — belongs in `spec-grid-gryphon-multihop-aggregation.md`.
+
+If unsure, find the nearest sibling capability and put the new requirement where it
+lives.
+
+### The requirement, part by part
+
+This is the trodden path: almost every Gryphon capability is a rung-1 feature (pure
+ORM lowering — see Step 6) and follows exactly these six steps.
+
+1. **Requirements-table row.** Add a row to the owning spec's `## Requirements`
+   table — the `RID` (`req-grid-traversal-lang-<x>` for the language spec,
+   `req-grid-gryphon-<x>` for the multihop-aggregation spec), a linked name, a
+   `Status`, and a one-line Notes summary.
+
+2. **The requirement section — match the owning spec's local conventions.** Do not
+   invent a section the sibling requirements do not use. The multihop-aggregation
+   spec uses `Implementation` / `Development` / `Acceptance Criteria` / `Future`.
+   The language spec uses `Background` / `Implementation` / `Examples` /
+   `Acceptance Criteria` / `Future`, sometimes with a `Status Details` subsection.
+   Read a neighbouring requirement in the same file and mirror its shape.
+
+3. **`Implementation`** states three things concretely: the grammar addition (the
+   rule, in grammar syntax), the AST shape (the new dataclass(es)), and **which
+   executor path the feature lands in and which lowering rung it uses**. State the
+   rung explicitly *even when it is rung 1* — "lowers to rung 1: ORM `QuerySet`
+   composition" is one sentence, and it turns the lowering choice into a reviewed,
+   recorded fact rather than a silent default. Per `req-grid-traversal-exec-lowering`,
+   rung 1 is the expectation; saying so out loud is the cheap half of keeping it the
+   expectation.
+
+4. **The scope rationale** — `Development` in the multihop-aggregation spec,
+   `Background` in the language spec — explains *why the v0 scope is what it is*:
+   what was deliberately left out, and what demand signal would pull it in. This is
+   where Step 1's scoping decision is written down, so a future reader cannot mistake
+   a deliberate omission for an oversight.
+
+5. **`Acceptance Criteria`** — an ACID table with **one ACID per testable behavior,
+   including every rejection case**. If the executor rejects an out-of-scope shape
+   with an error (Step 6), there is an ACID for that rejection. The ACID table is
+   what the Gridkin `covers` arrays and the `test_gryphon.py` tests trace back to.
+
+6. **`Future`** — a bullet list naming **every** deferred shape, so the v0 boundary
+   is legible. If the feature was previously a bullet under another requirement's
+   `Future`, update that bullet to point at the new RID rather than leaving a
+   now-stale "this is future work" note.
+
+### When the feature needs a rung above 1
+
+Most do not — rung 1 is the default and covers essentially every foreseeable
+capability. But if Step 6 will lower to rung 2 or higher — a `Func`/`Expression`
+subclass, a `RawSQL` fragment, a hand-written SQL template, a stored function — that
+escalation is surfaced to the user *before* building (Step 6), and it puts extra
+weight on this requirement:
+
+- **State the rung and justify it in the spec text itself.** The requirement must say
+  which rung the feature lowers to and why each lower rung cannot express the query.
+  This justification is spec prose, not a PR comment — it is the durable record of an
+  architectural decision.
+- **Rung 4 (a hand-written SQL template):** document the per-construct lowering rule —
+  which gryphon shape compiles to which SQL shape — so the emitted raw SQL is
+  auditable from the spec, per the `req-grid-traversal-exec-lowering` Future note.
+- **Rung 5 (a stored function):** the function is its own first-class tracked artifact
+  and gets its **own** spec requirement plus a migration — it is not a footnote on the
+  capability's requirement. Check the rung-5 preconditions in
+  `req-grid-traversal-exec-lowering` (cross-query reuse, tracked-artifact management,
+  explicit cost acceptance).
+- Confirm the requirement records that the five rung invariants
+  (`req-grid-traversal-exec-lowering`) still hold at the chosen rung.
 
 ## Step 3: Grammar (`tap_grid/gryphon/grammar.lark`)
 
@@ -101,6 +174,16 @@ Add the requirement to the owning spec **before** implementing:
 
 ## Step 6: Executor (`tap_grid/gryphon/executor.py`)
 
+- **Lower to the lowest rung of the lowering ladder** (`req-grid-traversal-exec-lowering`
+  in the execution spec) that expresses the query. The executor is rung 1 — ORM
+  `QuerySet` composition — throughout, and staying there is the default and the
+  expectation. Climbing (a `Func`/`Expression` subclass, `RawSQL`, a hand-written SQL
+  template, a stored function) is a deliberate escalation, never a convenience: justify
+  it in the spec requirement and the PR, and confirm the five rung invariants still hold
+  at the new rung — read-only alias, bind-parameterized values, dimension scoping,
+  canonical-envelope normalization, capture-seam visibility. If a feature appears to need
+  a rung above 1, that is a design signal — surface it to the user before building it,
+  do not quietly reach for raw SQL.
 - Identify the dispatch path(s): the simple `_execute_ast` (type scan,
   hub-and-spoke, edge-type scan), the advanced `_execute_advanced` (multi-hop,
   NOT EXISTS, COUNT), or a new dedicated path. A genuinely new shape (e.g. OPTIONAL
@@ -218,6 +301,10 @@ Commit the whole cycle as **one commit**. Keep terminal output ASCII-only.
   inline-regex value rule (the `null_val` bug).
 - **Silently ignoring an out-of-scope clause** instead of raising a clear error.
 - **Non-deterministic emitted SQL** — no tiebreaker on ORDER BY, unsorted `pk__in`.
+- **Climbing the lowering ladder when a lower rung expresses the query** — reaching for
+  `RawSQL` or a hand-written SQL template where an ORM `QuerySet` or a `Func` subclass
+  would do. Each rung up sheds an ORM-provided guarantee you must then re-earn by hand
+  (`req-grid-traversal-exec-lowering`).
 - **Copying TCK query text, data, or expecteds.** Inspire from the corner-case
   intent; re-author everything in TAP vocabulary.
 - **A scenario file with no `covers` array** — the loader rejects it.
