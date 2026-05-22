@@ -14,8 +14,6 @@ conftest. Per spec-gridkin-v0.md req-gridkin-snapshot-discipline / -req-traceabi
 
 from __future__ import annotations
 
-import os
-
 from plugins.gryphon_playground.gridkin import coverage, loader
 
 _ORACLE_REMINDER = (
@@ -35,9 +33,9 @@ def pytest_configure(config):
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
-    if os.environ.get("GRIDKIN_UPDATE_SNAPSHOTS"):
+    if loader.env_flag("GRIDKIN_UPDATE_SNAPSHOTS"):
         terminalreporter.section("Gridkin — snapshots regenerated")
         terminalreporter.write_line(_ORACLE_REMINDER)
-    if os.environ.get("GRIDKIN_COVERAGE"):
+    if loader.env_flag("GRIDKIN_COVERAGE"):
         terminalreporter.section("Gridkin — requirement coverage")
         terminalreporter.write_line(coverage.render(loader.discover_scenarios()))

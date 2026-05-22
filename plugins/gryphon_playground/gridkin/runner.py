@@ -72,10 +72,14 @@ def _seed_fixture(scenario: Scenario) -> None:
         raise AssertionError(f"{scenario.scenario_id}: GRIFT fixture not found: {scenario.fixture_path}")
     document = json.loads(scenario.fixture_path.read_text(encoding="utf-8"))
     result = grift_import(document, dangling_edge_mode="strict")
-    if not result.success:
+    # A non-collector direct grift_import caller owns checking result.errors —
+    # result.success alone can miss a partially-rejected import. A bad fixture
+    # must fail loud, not fake-green (the GRIFT atomic-batch-rejection rule).
+    if not result.success or result.errors:
         messages = [issue.message for issue in result.errors]
         raise AssertionError(
-            f"{scenario.scenario_id}: GRIFT fixture failed to import " f"({scenario.fixture_path.name}): {messages}"
+            f"{scenario.scenario_id}: GRIFT fixture {scenario.fixture_path.name} "
+            f"did not import cleanly (success={result.success}): {messages}"
         )
 
 

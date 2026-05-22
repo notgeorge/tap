@@ -1386,7 +1386,9 @@ def _apply_not_exists(
 
     # Correlation: for every variable shared between outer and inner bindings,
     # constrain the inner's ORM path to equal OuterRef of the outer's path.
-    shared = set(outer_bindings.keys()) & set(inner_bindings.keys())
+    # sorted() so the correlation annotations and filters below are built in a
+    # deterministic order — keeps the captured NOT EXISTS SQL stable across runs.
+    shared = sorted(set(outer_bindings.keys()) & set(inner_bindings.keys()))
     if not shared:
         raise SearchExecutionError("NOT EXISTS subqueries must share at least one variable with the outer pattern.")
 
@@ -1454,11 +1456,17 @@ def _collect_graph_envelope(
     When RETURN is omitted, all bound node and edge variables are collected.
     When RETURN names bare variables, only those are collected.
     """
-    # Determine which variables to collect.
+    # Determine which variables to collect. Order must be deterministic —
+    # `bindings` is insertion-ordered (pattern order) and RETURN items keep
+    # their written order — so the values_list column order, and the captured
+    # SQL, are stable across runs. A set here made the advanced-envelope SQL
+    # non-deterministic.
     if return_clause.items is None:
-        requested_vars = set(bindings.keys())
+        requested_vars = list(bindings.keys())
     else:
-        requested_vars = {item.path.variable for item in return_clause.items if isinstance(item, ReturnItem)}
+        requested_vars = list(
+            dict.fromkeys(item.path.variable for item in return_clause.items if isinstance(item, ReturnItem))
+        )
 
     # Partition into node and edge variables and build values_list columns.
     node_columns: list[tuple[str, str]] = []  # (var_name, orm_path)

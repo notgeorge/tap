@@ -10,6 +10,7 @@ Per spec-gridkin-v0.md: req-gridkin-scenario-format, req-gridkin-json-schema.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -22,6 +23,15 @@ SCENARIOS_DIR: Path = PLUGIN_ROOT / "scenarios"
 SCHEMA_PATH: Path = SCENARIOS_DIR / "gridkin-scenario.schema.json"
 
 _FEATURE_SUFFIX = ".gridkin.json"
+
+# Truthy environment-variable values. Anything else — unset, "", "0", "false",
+# "no", "off" — is False, so GRIDKIN_*=0 cannot accidentally enable a switch.
+_TRUTHY_ENV = {"1", "true", "yes", "on"}
+
+
+def env_flag(name: str) -> bool:
+    """True if environment variable `name` is set to a truthy value."""
+    return os.environ.get(name, "").strip().lower() in _TRUTHY_ENV
 
 
 class GridkinScenarioError(Exception):

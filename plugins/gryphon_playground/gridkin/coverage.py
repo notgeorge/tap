@@ -42,15 +42,22 @@ def build_matrix(scenarios: Iterable[Scenario]) -> dict[str, list[str]]:
     return {rid: sorted(ids) for rid, ids in sorted(matrix.items())}
 
 
-def gryphon_spec_rids() -> set[str]:
-    """All requirement-level `req-grid-*` RIDs declared across the Gryphon specs."""
-    rids: set[str] = set()
+def gryphon_spec_ids() -> set[str]:
+    """Every `req-grid-*` id — requirement RIDs and ACIDs — in the Gryphon specs.
+
+    Used to flag `covers` entries that match no real spec id (a typo or a
+    stale id) — an unvalidated `covers` would otherwise count as false coverage.
+    """
+    ids: set[str] = set()
     for spec in _GRYPHON_SPECS:
         if spec.is_file():
-            for rid in _RID_RE.findall(spec.read_text(encoding="utf-8")):
-                if not _ACID_TAIL_RE.search(rid):
-                    rids.add(rid)
-    return rids
+            ids.update(_RID_RE.findall(spec.read_text(encoding="utf-8")))
+    return ids
+
+
+def gryphon_spec_rids() -> set[str]:
+    """Requirement-level RIDs only (ACIDs filtered out) — for the gap list."""
+    return {sid for sid in gryphon_spec_ids() if not _ACID_TAIL_RE.search(sid)}
 
 
 def render(scenarios: Iterable[Scenario]) -> str:
@@ -78,4 +85,15 @@ def render(scenarios: Iterable[Scenario]) -> str:
         lines.extend(f"  {rid}" for rid in uncovered)
     else:
         lines.append("Uncovered Gryphon-spec requirements: (none)")
+
+    # Flag covers entries that match no real spec id — a typo or stale id would
+    # otherwise sit in the matrix above as false coverage.
+    cited = {rid for scenario in scenarios for rid in scenario.covers}
+    unrecognized = sorted(cited - gryphon_spec_ids())
+    lines.append("")
+    if unrecognized:
+        lines.append(f"Unrecognized `covers` ids — typo or stale ({len(unrecognized)}):")
+        lines.extend(f"  {rid}" for rid in unrecognized)
+    else:
+        lines.append("Unrecognized `covers` ids: (none)")
     return "\n".join(lines)
