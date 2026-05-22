@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tap:samsite:compliance-collector:artifact-manifest:v0",
+  "title": "Samsite Compliance Collector Artifact Manifest v0",
+  "description": "The declarative set of /.well-known/ compliance artifacts the samsite compliance collector fetches. See plugins/samsite/specs/spec-samsite-compliance-collector-v0.md (req-samsite-collector-manifest). Validated at load; an invalid manifest fails the run visibly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "site_base_url", "artifacts"],
+  "properties": {
+    "manifest_version": {"type": "string", "minLength": 1},
+    "site_base_url": {"type": "string", "minLength": 1, "format": "uri"},
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/artifact"}
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "path", "handling", "content_format", "why"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "bundle_path": {"type": "string", "minLength": 1},
+        "handling": {"type": "string", "enum": ["ksi_signal", "vdr_report", "compliance_artifact"]},
+        "artifact_kind": {"type": "string", "enum": ["oscal_ssp", "oscal_poam", "iiw"]},
+        "content_format": {"type": "string", "enum": ["json", "csv"]},
+        "why": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

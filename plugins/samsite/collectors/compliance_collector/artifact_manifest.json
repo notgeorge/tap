@@ -1,0 +1,49 @@
+{
+  "manifest_version": "0",
+  "site_base_url": "https://samsite.unified-systems.com",
+  "artifacts": [
+    {
+      "name": "KSI Signal",
+      "path": "/.well-known/ksi-signal.json",
+      "bundle_path": "/.well-known/ksi-signal.bundle",
+      "handling": "ksi_signal",
+      "content_format": "json",
+      "why": "The FedRAMP 20x KSI validation signal — decomposed into ksi_signal / ksi_component / ksi_validation / ksi_violation nodes."
+    },
+    {
+      "name": "VDR Report",
+      "path": "/.well-known/vdr-report.json",
+      "bundle_path": "/.well-known/vdr-report.bundle",
+      "handling": "vdr_report",
+      "content_format": "json",
+      "why": "The Vulnerability Detection and Response report — decomposed into vdr_report / vdr_finding nodes."
+    },
+    {
+      "name": "OSCAL SSP",
+      "path": "/.well-known/oscal-ssp.json",
+      "bundle_path": "/.well-known/oscal-ssp.bundle",
+      "handling": "compliance_artifact",
+      "artifact_kind": "oscal_ssp",
+      "content_format": "json",
+      "why": "OSCAL Rev 5 System Security Plan — a rendering of the KSI inventory; kept whole as a compliance_artifact blob."
+    },
+    {
+      "name": "OSCAL POA&M",
+      "path": "/.well-known/oscal-poam.json",
+      "bundle_path": "/.well-known/oscal-poam.bundle",
+      "handling": "compliance_artifact",
+      "artifact_kind": "oscal_poam",
+      "content_format": "json",
+      "why": "OSCAL Plan of Action & Milestones — a rendering; kept whole as a compliance_artifact blob."
+    },
+    {
+      "name": "IIW Inventory",
+      "path": "/.well-known/iiw.csv",
+      "bundle_path": "/.well-known/iiw.bundle",
+      "handling": "compliance_artifact",
+      "artifact_kind": "iiw",
+      "content_format": "csv",
+      "why": "FedRAMP Integrated Inventory Workbook — a CSV projection of the KSI inventory; kept whole as a compliance_artifact blob."
+    }
+  ]
+}
