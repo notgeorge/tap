@@ -126,6 +126,19 @@ class Comparison:
 
 
 @dataclass(frozen=True)
+class InComparison:
+    """A membership predicate: `n.kind IN ['neighbor', 'island']`.
+
+    True when the field value equals one of `values`. `values` may mix literals
+    and `ParamRef`s. An empty `values` matches nothing; a `None` element never
+    matches (NULL has no defined equality).
+    """
+
+    field_path: FieldPath
+    values: tuple[GryphonValue, ...]
+
+
+@dataclass(frozen=True)
 class AndPred:
     """Conjunction: both operands must be true."""
 
@@ -148,7 +161,7 @@ class NotPred:
     operand: Predicate
 
 
-Predicate = Comparison | AndPred | OrPred | NotPred
+Predicate = Comparison | InComparison | AndPred | OrPred | NotPred
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +311,10 @@ def _collect_params_from_predicate(pred: Predicate | None, out: set[str]) -> Non
     if isinstance(pred, Comparison):
         if isinstance(pred.value, ParamRef):
             out.add(pred.value.name)
+    elif isinstance(pred, InComparison):
+        for v in pred.values:
+            if isinstance(v, ParamRef):
+                out.add(v.name)
     elif isinstance(pred, (AndPred, OrPred)):
         _collect_params_from_predicate(pred.left, out)
         _collect_params_from_predicate(pred.right, out)

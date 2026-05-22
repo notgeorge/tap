@@ -66,6 +66,12 @@ predicate: predicate _OR_KW predicate    -> or_pred
          | comparison
 
 comparison: field_path COMPARE_OP value
+          | field_path _IN_KW value_list  -> in_comparison
+
+// Membership test: the field value must equal one of the listed values.
+// List elements may be literals or $param references; an empty list matches
+// nothing. NULL has no defined equality, so a NULL element matches nothing.
+value_list: "[" (value ("," value)*)? "]"
 
 field_path: NAME field_step*
 field_step: "." NAME               -> dot_step
@@ -126,6 +132,7 @@ _AND_KW:    /AND/i
 _OR_KW:     /OR/i
 _NOT_KW:    /NOT/i
 _AS_KW:     /AS/i
+_IN_KW:     /IN/i
 _EXISTS_KW: /EXISTS/i
 _COUNT_KW:  /COUNT/i
 _ORDER_KW:  /ORDER/i

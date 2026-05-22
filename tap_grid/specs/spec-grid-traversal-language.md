@@ -27,6 +27,7 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-filters-jsonpath | [JSONPath For JSON Field Predicates](#jsonpath-for-json-field-predicates) | Proposed | Adopt RFC 9535 JSONPath for `WHERE` predicates over JSON-backed fields; replace in-house dot/bracket grammar |
 | req-grid-traversal-lang-envelope-paths | [Envelope-Aware Field Paths](#envelope-aware-field-paths) | In Development | Recognize `data` and `display` lane prefixes in `WHERE`/`RETURN`; explicit-only, no routing sugar |
 | req-grid-traversal-lang-combinators | [Predicate Combinators](#predicate-combinators) | Implemented | AND/OR/NOT in WHERE predicates |
+| req-grid-traversal-lang-in | [IN-List Membership](#in-list-membership) | Implemented | `WHERE` membership test against a list of values |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
 | req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
 
@@ -288,8 +289,9 @@ RETURN n.entity_id, n.name
 | req-grid-traversal-lang-filters-6 | Array Wildcard Access Supported | Backlog | Predicates may use `[*]` to mean "any array member". | Subsumed by [JSONPath For JSON Field Predicates](#jsonpath-for-json-field-predicates). |
 
 #### Future
-Consider adding `IN`, `EXISTS`, and collection functions once enough real queries demonstrate
-the need.
+`IN`-list membership has landed — see [IN-List Membership](#in-list-membership)
+(`req-grid-traversal-lang-in`). Consider adding `EXISTS` and collection functions once enough
+real queries demonstrate the need.
 
 
 ### JSONPath For JSON Field Predicates
@@ -516,6 +518,62 @@ Precedence (highest to lowest): `NOT` > `AND` > `OR`. Parentheses override prece
 
 #### Future
 Add `XOR` if a concrete use case demonstrates the need.
+
+
+### IN-List Membership
+----
+RID: `req-grid-traversal-lang-in`
+Status: `Implemented`
+
+A `WHERE` predicate may test a field against a **list of values** with `IN`, instead of spelling out an `OR` chain of equality comparisons.
+
+#### Background
+
+"Type is X or Y or Z" is the single most common shape of dashboard filter. Without `IN` it is written `n.kind = "a" OR n.kind = "b" OR n.kind = "c"` — which scales poorly and, more importantly, cannot be parameterized for a filter that lets a user pick an arbitrary subset of options. `IN` is the readable, list-shaped form.
+
+#### Implementation
+
+- Grammar: the `comparison` rule gains a second alternative — `field_path IN value_list` — where `value_list` is a bracketed, comma-separated list of values:
+
+  ```
+  comparison: field_path COMPARE_OP value
+            | field_path _IN_KW value_list
+  value_list: "[" (value ("," value)*)? "]"
+  ```
+
+- A list element is a `value` — a string, number, boolean, `null`, or a `$param` reference. Element-level parameterization (`IN [$a, $b]`) is supported; whole-list parameterization (`IN $list`) is future work.
+- Semantics: the predicate is true when the field value equals at least one list member. It compiles to the Django `__in` lookup (SQL `IN (...)`).
+- **Empty list** — `IN []` — matches nothing. It is legal, not an error: a parameterized filter that resolves to an empty selection should return no rows, not raise.
+- **`null` in the list** — `null` has no defined equality, so a `null` element never matches any row (SQL `IN` semantics: `x IN (NULL, 2)` is true only for `x = 2`, never for a `NULL` `x`). This is a defined choice, pinned by a Gridkin scenario.
+- `IN` is a comparison leaf: it composes with `AND` (and, where the executor path supports them, `OR` / `NOT`) exactly as an equality comparison does, and is scoped per bound variable by `_filter_predicate_for_bindings` the same way.
+- `IN` works in every WHERE-bearing executor path — type-scan and the multi-hop / aggregation path.
+
+#### Examples
+
+```text
+MATCH (n) WHERE n.entity_type IN ["aws_lambda", "aws_ec2_instance"] RETURN n
+
+MATCH (n:finding) WHERE n.data.severity IN ["high", "critical"] RETURN n
+
+MATCH (n:host) WHERE n.entity_id IN [$a, $b, $c] RETURN n
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-in-1 | IN Predicate Accepted | Implemented | The parser accepts `field_path IN [values]` as a `WHERE` comparison leaf. | |
+| req-grid-traversal-lang-in-2 | Membership Semantics | Implemented | The predicate is true when the field value equals at least one list member; compiles to SQL `IN`. | |
+| req-grid-traversal-lang-in-3 | Empty List Matches Nothing | Implemented | `IN []` is legal and matches no rows. | |
+| req-grid-traversal-lang-in-4 | NULL Member Never Matches | Implemented | A `null` list element matches no row; other members in the same list still match. | SQL `IN` semantics |
+| req-grid-traversal-lang-in-5 | Elements May Be Params | Implemented | List elements may be `$param` references resolved at execution time. | Whole-list `$param` is future work |
+| req-grid-traversal-lang-in-6 | Composes With Combinators | Implemented | An `IN` leaf combines with `AND` like any equality comparison. | |
+
+#### Future
+
+- Whole-list parameterization (`WHERE n.kind IN $kinds`, where `$kinds` resolves to a list) — the fully-dynamic "pick any subset" filter.
+- `NOT IN` as a distinct surface (today expressible as `NOT (... IN ...)` where the executor path supports `NOT`).
+- Label-union node patterns `(n:type1|type2)` — the pattern-level cousin of `IN` over `entity_type` (Gryphon wishlist B4).
 
 
 ### Runtime Inputs And Variables

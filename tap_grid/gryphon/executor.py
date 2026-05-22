@@ -56,6 +56,7 @@ from tap_grid.gryphon.ast_nodes import (
     EdgePattern,
     FieldPath,
     GryphonAST,
+    InComparison,
     KeyStep,
     MatchClause,
     NodePattern,
@@ -559,6 +560,10 @@ def _apply_typescan_predicate(
         if comp.field_path.variable != var:
             continue
         orm_path = _typescan_orm_path(comp.field_path)
+        if isinstance(comp, InComparison):
+            members = [_resolve_value(v, inputs) for v in comp.values]
+            qs = qs.filter(**{f"{orm_path}__in": members})
+            continue
         value = _resolve_value(comp.value, inputs)
         if comp.op == "!=":
             qs = qs.exclude(**{orm_path: value})
@@ -1412,9 +1417,13 @@ def _apply_predicate_to_qs(
     return qs
 
 
-def _flatten_conjunction(predicate: Predicate) -> list[Comparison]:
-    """Flatten an AND tree into a list of Comparisons. Reject OR/NOT (not yet supported in v2)."""
-    if isinstance(predicate, Comparison):
+def _flatten_conjunction(predicate: Predicate) -> list[Comparison | InComparison]:
+    """Flatten an AND tree into a list of comparison leaves.
+
+    A leaf is a `Comparison` or an `InComparison`. OR / NOT are rejected — the
+    AND-only scope is shared by the type-scan and aggregation WHERE compilers.
+    """
+    if isinstance(predicate, (Comparison, InComparison)):
         return [predicate]
     if isinstance(predicate, AndPred):
         return _flatten_conjunction(predicate.left) + _flatten_conjunction(predicate.right)
@@ -1426,7 +1435,7 @@ def _flatten_conjunction(predicate: Predicate) -> list[Comparison]:
 
 def _apply_comparison(
     qs,
-    comp: Comparison,
+    comp: Comparison | InComparison,
     bindings: dict[str, dict[str, Any]],
     inputs: dict[str, Any],
 ):
@@ -1436,8 +1445,12 @@ def _apply_comparison(
         raise SearchExecutionError(f"Unknown variable '{var}' in WHERE predicate.")
 
     orm_path = _resolve_orm_path(bindings[var], fp)
-    value = _resolve_value(comp.value, inputs)
 
+    if isinstance(comp, InComparison):
+        members = [_resolve_value(v, inputs) for v in comp.values]
+        return qs.filter(**{f"{orm_path}__in": members})
+
+    value = _resolve_value(comp.value, inputs)
     lookup_suffix = {"=": "", "!=": "", "<": "__lt", ">": "__gt", "<=": "__lte", ">=": "__gte"}[comp.op]
     if comp.op == "!=":
         return qs.exclude(**{orm_path: value})
@@ -1634,7 +1647,7 @@ def _filter_predicate_for_bindings(
     """
     if predicate is None:
         return None
-    if isinstance(predicate, Comparison):
+    if isinstance(predicate, (Comparison, InComparison)):
         if predicate.field_path.variable in bindings:
             return predicate
         return None

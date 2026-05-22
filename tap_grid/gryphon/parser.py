@@ -19,6 +19,7 @@ from tap_grid.gryphon.ast_nodes import (
     EdgePattern,
     FieldPath,
     GryphonAST,
+    InComparison,
     IndexStep,
     KeyStep,
     LimitClause,
@@ -272,6 +273,12 @@ class _ASTTransformer(Transformer):
     def comparison(self, fp: FieldPath, op: Token, value: Any) -> Comparison:
         return Comparison(field_path=fp, op=str(op), value=value)
 
+    def in_comparison(self, fp: FieldPath, values: tuple[Any, ...]) -> InComparison:
+        return InComparison(field_path=fp, values=values)
+
+    def value_list(self, *values: Any) -> tuple[Any, ...]:
+        return values
+
     # -- Field paths --
 
     def field_path(self, name: Token, *steps: Any) -> FieldPath:
@@ -362,7 +369,9 @@ class _ASTTransformer(Transformer):
     def false_val(self, _token: Token) -> bool:
         return False
 
-    def null_val(self) -> None:
+    def null_val(self, _token: Token) -> None:
+        # @v_args(inline=True) passes the matched `/null/i` token as a child —
+        # the method must accept it, exactly as true_val / false_val do.
         return None
 
     def value(self, inner: Any) -> Any:

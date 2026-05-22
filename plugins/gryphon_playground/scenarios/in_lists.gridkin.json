@@ -1,0 +1,106 @@
+{
+  "feature": "IN-list membership predicates in WHERE clauses",
+  "background": {
+    "grift_fixture": "fixtures/sparse_dense.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "IN matches rows whose data-lane value is a listed member",
+      "tags": ["in-list", "where", "type-scan"],
+      "covers": [
+        "req-grid-traversal-lang-in",
+        "req-grid-traversal-lang-in-1",
+        "req-grid-traversal-lang-in-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"neighbor\"] RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__kind_neighbor.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__kind_neighbor.sql.txt"
+    },
+    {
+      "name": "IN with several numeric members matches any of them",
+      "tags": ["in-list", "where", "type-scan"],
+      "covers": [
+        "req-grid-traversal-lang-in-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN [10, 30] RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__severity_set.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__severity_set.sql.txt"
+    },
+    {
+      "name": "IN with a single-element list matches just that value",
+      "tags": ["in-list", "where", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-in-2"
+      ],
+      "inspired_by": "tck/features/expressions/list/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"island\"] RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__single_element.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__single_element.sql.txt"
+    },
+    {
+      "name": "IN with an empty list matches nothing",
+      "tags": ["in-list", "empty-result", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-in-3"
+      ],
+      "inspired_by": "tck/features/expressions/list/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.kind IN [] RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__empty_list.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__empty_list.sql.txt"
+    },
+    {
+      "name": "IN list containing null — null is not a member, other values still match",
+      "tags": ["in-list", "null", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-in-4"
+      ],
+      "inspired_by": "tck/features/expressions/null/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN [null, 20] RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__null_member.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__null_member.sql.txt"
+    },
+    {
+      "name": "IN on a spine field with element-level params",
+      "tags": ["in-list", "params", "spine"],
+      "covers": [
+        "req-grid-traversal-lang-in-5"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.entity_id IN [$first, $second] RETURN n.entity_id AS id ORDER BY id",
+      "params": {
+        "first": "019e4b02-f37b-72df-a3e5-bafa7b3865a9",
+        "second": "019e4b02-f37b-72df-a3e5-baff05e4468a"
+      },
+      "expected_envelope": "expected/in_lists__param_members.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__param_members.sql.txt"
+    },
+    {
+      "name": "IN narrows the aggregation path before the COUNT",
+      "tags": ["in-list", "aggregation", "count", "advanced"],
+      "covers": [
+        "req-grid-traversal-lang-in-2",
+        "req-grid-gryphon-count"
+      ],
+      "layer": "lite",
+      "query": "MATCH (h)-[:PG_LINKS]->(n:pg_node) WHERE n.data.kind IN [\"neighbor\"] RETURN h.entity_id AS src, COUNT(n) AS c",
+      "expected_envelope": "expected/in_lists__aggregation.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__aggregation.sql.txt"
+    },
+    {
+      "name": "IN composes with AND",
+      "tags": ["in-list", "combinators", "where"],
+      "covers": [
+        "req-grid-traversal-lang-in-6"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"island\"] AND n.data.severity_score > 10 RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__in_and.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__in_and.sql.txt"
+    }
+  ]
+}

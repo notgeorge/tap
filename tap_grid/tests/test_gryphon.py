@@ -1788,3 +1788,127 @@ class TestGryphonOrderByLimitExecutor:
         )
         with pytest.raises(SearchExecutionError, match="ORDER BY / LIMIT"):
             execute_search(search, inputs={})
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonInListParser — req-grid-traversal-lang-in (+ null literal fix)
+# ---------------------------------------------------------------------------
+
+
+class TestGryphonInListParser:
+    """Parser coverage for IN-list membership and the null literal."""
+
+    def test_in_list_parses(self):
+        """req-grid-traversal-lang-in-1: `field IN [values]` parses to an InComparison."""
+        from tap_grid.gryphon.ast_nodes import InComparison
+
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.kind IN ["a", "b"] RETURN n.entity_id AS id')
+        pred = ast.where_clause.predicate
+        assert isinstance(pred, InComparison)
+        assert pred.field_path.variable == "n"
+        assert pred.values == ("a", "b")
+
+    def test_in_empty_list_parses(self):
+        """req-grid-traversal-lang-in-3: an empty IN list is legal and parses."""
+        from tap_grid.gryphon.ast_nodes import InComparison
+
+        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.kind IN [] RETURN n.entity_id AS id")
+        assert isinstance(ast.where_clause.predicate, InComparison)
+        assert ast.where_clause.predicate.values == ()
+
+    def test_in_list_with_params_collected(self):
+        """req-grid-traversal-lang-in-5: $param list elements are collected as required inputs."""
+        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.entity_id IN [$a, $b] RETURN n.entity_id AS id")
+        assert sorted(ast.required_params()) == ["a", "b"]
+
+    def test_in_list_with_null_member_parses(self):
+        """req-grid-traversal-lang-in-4: a null element parses to None inside the list."""
+        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.severity_score IN [null, 20] RETURN n.entity_id AS id")
+        assert ast.where_clause.predicate.values == (None, 20)
+
+    def test_in_composes_with_and(self):
+        """req-grid-traversal-lang-in-6: an IN leaf combines with AND like any comparison."""
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.kind IN ["a"] AND n.severity_score > 5 RETURN n.entity_id AS id')
+        assert isinstance(ast.where_clause.predicate, AndPred)
+
+    def test_null_literal_in_comparison_parses(self):
+        """The null literal parses in a plain comparison — the null_val transformer fix.
+
+        Before the fix, `null_val` did not accept the `/null/i` token lark passes
+        under @v_args(inline=True), so any `= null` raised a parse error.
+        """
+        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.observed_at = null RETURN n.entity_id AS id")
+        assert isinstance(ast.where_clause.predicate, Comparison)
+        assert ast.where_clause.predicate.value is None
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonInListExecutor — req-grid-traversal-lang-in
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonInListExecutor:
+    """Executor coverage for IN-list membership."""
+
+    def _setup_characters(self):
+        """Four characters with distinct bios."""
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+
+        made = {}
+        for name in ("Frodo", "Sam", "Merry", "Pippin"):
+            entity = Entity.objects.create(entity_type="character", name=name)
+            Character.objects.create(entity=entity, name=name, bio=f"{name} bio")
+            made[name] = entity
+        return made
+
+    def test_in_list_matches_listed_values(self):
+        """req-grid-traversal-lang-in-2: IN returns rows whose value is a listed member."""
+        self._setup_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="in-names",
+            definition={
+                "query": (
+                    'MATCH (c:character) WHERE c.name IN ["Frodo", "Pippin"] ' "RETURN c.name AS name ORDER BY name"
+                )
+            },
+        )
+        rows = execute_search(search, inputs={})["rows"]
+        assert [r["name"] for r in rows] == ["Frodo", "Pippin"]
+
+    def test_in_empty_list_matches_nothing(self):
+        """req-grid-traversal-lang-in-3: IN [] returns no rows."""
+        self._setup_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="in-empty",
+            definition={"query": "MATCH (c:character) WHERE c.name IN [] RETURN c.name AS name"},
+        )
+        assert execute_search(search, inputs={}).get("rows", []) == []
+
+    def test_in_list_with_param_elements(self):
+        """req-grid-traversal-lang-in-5: $param list elements resolve at execution time."""
+        made = self._setup_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="in-params",
+            definition={
+                "query": "MATCH (c:character) WHERE c.entity_id IN [$a, $b] RETURN c.name AS name ORDER BY name"
+            },
+        )
+        rows = execute_search(
+            search,
+            inputs={"a": str(made["Merry"].pk), "b": str(made["Sam"].pk)},
+        )["rows"]
+        assert [r["name"] for r in rows] == ["Merry", "Sam"]
