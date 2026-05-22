@@ -211,7 +211,10 @@
       "natural_key": "BucketArn",
       "fields": {
         "name": "Name",
-        "bucket_arn": "BucketArn"
+        "bucket_arn": "BucketArn",
+        "size_bytes": "size_bytes",
+        "object_count": "object_count",
+        "size_observed_at": "size_observed_at"
       },
       "tags": {
         "source": "rgta",

@@ -17,6 +17,7 @@ from __future__ import annotations
 from botocore.exceptions import ClientError
 
 from plugins.aws_core.collectors.boto3_collector.customfns import (
+    _bucket_size_metrics,
     aws_account_singleton,
     cloudfront_distributions_with_oac,
     route53_zones_with_alias_targets,
@@ -300,3 +301,94 @@ class TestCloudfrontDistributionsWithOac:
         items = list(cloudfront_distributions_with_oac(session))
         assert len(items) == 2
         assert session.cf.oac_calls == ["EG8DXNRAHC015"]  # called exactly once
+
+
+# ---------------------------------------------------------------------------
+# _bucket_size_metrics — aggregate bucket size + object count from CloudWatch
+# ---------------------------------------------------------------------------
+
+from datetime import UTC, datetime  # noqa: E402
+
+_TS_OLD = datetime(2026, 5, 19, tzinfo=UTC)
+_TS_NEW = datetime(2026, 5, 20, tzinfo=UTC)
+
+
+class _FakeCloudWatch:
+    """Fake CloudWatch — returns the canned MetricDataResults for get_metric_data."""
+
+    def __init__(self, results=None, raise_error=False):
+        self._results = results if results is not None else []
+        self._raise = raise_error
+        self.last_queries = None
+
+    def get_metric_data(self, *, MetricDataQueries, StartTime, EndTime, ScanBy=None):  # noqa: N803
+        self.last_queries = MetricDataQueries
+        if self._raise:
+            raise ClientError(
+                {"Error": {"Code": "AccessDenied", "Message": "denied"}},
+                "GetMetricData",
+            )
+        return {"MetricDataResults": self._results}
+
+
+class TestBucketSizeMetrics:
+    def test_object_count_and_single_tier_size(self):
+        cw = _FakeCloudWatch(
+            results=[
+                {"Id": "objcount", "Values": [930.0], "Timestamps": [_TS_NEW]},
+                {"Id": "size0", "Values": [1.0e8], "Timestamps": [_TS_NEW]},
+            ]
+        )
+        m = _bucket_size_metrics(cw, "samsite-prod-1")
+        assert m["object_count"] == 930
+        assert m["size_bytes"] == 100_000_000
+        assert m["size_observed_at"] == _TS_NEW.isoformat()
+
+    def test_size_summed_across_storage_tiers(self):
+        # A lifecycled bucket: Standard + Glacier tiers both report size.
+        cw = _FakeCloudWatch(
+            results=[
+                {"Id": "objcount", "Values": [100.0], "Timestamps": [_TS_NEW]},
+                {"Id": "size0", "Values": [1.0e9], "Timestamps": [_TS_NEW]},
+                {"Id": "size6", "Values": [5.0e8], "Timestamps": [_TS_NEW]},
+            ]
+        )
+        m = _bucket_size_metrics(cw, "lifecycled-bucket")
+        assert m["size_bytes"] == 1_500_000_000  # both tiers summed
+        assert m["object_count"] == 100
+
+    def test_latest_timestamp_wins(self):
+        # Datapoints from different days -> size_observed_at is the newest.
+        cw = _FakeCloudWatch(
+            results=[
+                {"Id": "objcount", "Values": [5.0], "Timestamps": [_TS_OLD]},
+                {"Id": "size0", "Values": [1.0e6], "Timestamps": [_TS_NEW]},
+            ]
+        )
+        m = _bucket_size_metrics(cw, "b")
+        assert m["size_observed_at"] == _TS_NEW.isoformat()
+
+    def test_no_datapoints_is_unknown_not_zero(self):
+        # A new/empty bucket with no CloudWatch data -> null fields, not 0.
+        cw = _FakeCloudWatch(
+            results=[
+                {"Id": "objcount", "Values": [], "Timestamps": []},
+                {"Id": "size0", "Values": [], "Timestamps": []},
+            ]
+        )
+        m = _bucket_size_metrics(cw, "empty-bucket")
+        assert m == {"size_bytes": None, "object_count": None, "size_observed_at": ""}
+
+    def test_cloudwatch_failure_is_non_fatal(self):
+        # A denied GetMetricData must not fail the bucket — empty/null result.
+        cw = _FakeCloudWatch(raise_error=True)
+        m = _bucket_size_metrics(cw, "b")
+        assert m == {"size_bytes": None, "object_count": None, "size_observed_at": ""}
+
+    def test_queries_cover_objects_and_every_size_tier(self):
+        cw = _FakeCloudWatch(results=[])
+        _bucket_size_metrics(cw, "b")
+        ids = {q["Id"] for q in cw.last_queries}
+        # One NumberOfObjects query + one BucketSizeBytes query per storage tier.
+        assert "objcount" in ids
+        assert sum(1 for i in ids if i.startswith("size")) >= 5

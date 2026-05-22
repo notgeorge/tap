@@ -39,12 +39,126 @@ def _s3_hydrate_ops() -> list[dict[str, str]]:
     return []
 
 
+def _resolve_bucket_region(base_client: Any, bucket_name: str) -> str:
+    """Resolve a bucket's home region.
+
+    ``GetBucket*`` calls are region-bound (S3 redirects otherwise);
+    ``GetBucketLocation`` against the global endpoint gives the region.
+    A failed lookup falls back to ``us-east-1``.
+    """
+    try:
+        location = base_client.get_bucket_location(Bucket=bucket_name)
+        return location.get("LocationConstraint") or "us-east-1"
+    except (ClientError, BotoCoreError):
+        return "us-east-1"
+
+
+# BucketSizeBytes has no all-tiers rollup dimension — it must be queried per
+# storage tier. NumberOfObjects has the convenient AllStorageTypes. The
+# collector sums whichever size tiers return data, so a lifecycled bucket
+# (objects tiered to Glacier etc.) reports a complete total.
+_S3_SIZE_STORAGE_TYPES = (
+    "StandardStorage",
+    "IntelligentTieringFAStorage",
+    "IntelligentTieringIAStorage",
+    "StandardIAStorage",
+    "OneZoneIAStorage",
+    "GlacierInstantRetrievalStorage",
+    "GlacierStorage",
+    "DeepArchiveStorage",
+    "ReducedRedundancyStorage",
+)
+
+
+def _bucket_size_metrics(cw_client: Any, bucket_name: str) -> dict[str, Any]:
+    """Aggregate bucket size + object count from CloudWatch storage metrics.
+
+    S3 publishes ``BucketSizeBytes`` / ``NumberOfObjects`` to the ``AWS/S3``
+    CloudWatch namespace daily, free. One ``get_metric_data`` call per bucket
+    batches the ``NumberOfObjects`` query and a ``BucketSizeBytes`` query per
+    storage tier; tiers with data are summed. This is the fast path — the
+    alternative (summing ``list_objects_v2``) is one call per 1000 objects.
+
+    ``size_observed_at`` is the datapoint's own ``Timestamp`` — the
+    data-currency disclosure (the metrics are daily, so the values are not
+    real-time; the consumer derives staleness from this timestamp). See
+    req-aws-collector-s3-bucket-size.
+
+    A denied/failed CloudWatch call is non-fatal: the three fields come back
+    empty/null (unknown, never a misleading 0) and the bucket still collects.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    empty: dict[str, Any] = {"size_bytes": None, "object_count": None, "size_observed_at": ""}
+    end = datetime.now(UTC)
+    start = end - timedelta(days=3)  # daily metric — a 3-day window catches the latest
+
+    def _query(qid: str, metric: str, storage_type: str) -> dict[str, Any]:
+        return {
+            "Id": qid,
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/S3",
+                    "MetricName": metric,
+                    "Dimensions": [
+                        {"Name": "BucketName", "Value": bucket_name},
+                        {"Name": "StorageType", "Value": storage_type},
+                    ],
+                },
+                "Period": 86400,
+                "Stat": "Average",
+            },
+            "ReturnData": True,
+        }
+
+    queries = [_query("objcount", "NumberOfObjects", "AllStorageTypes")]
+    queries += [_query(f"size{i}", "BucketSizeBytes", st) for i, st in enumerate(_S3_SIZE_STORAGE_TYPES)]
+
+    try:
+        resp = cw_client.get_metric_data(
+            MetricDataQueries=queries,
+            StartTime=start,
+            EndTime=end,
+            ScanBy="TimestampDescending",
+        )
+    except (BotoCoreError, ClientError):
+        return dict(empty)
+
+    object_count: int | None = None
+    size_bytes: int | None = None
+    latest: Any = None
+    for result in resp.get("MetricDataResults", []):
+        values = result.get("Values") or []
+        if not values:
+            continue
+        timestamps = result.get("Timestamps") or []
+        # ScanBy=TimestampDescending -> index 0 is the most recent datapoint.
+        value = values[0]
+        ts = timestamps[0] if timestamps else None
+        if ts is not None and (latest is None or ts > latest):
+            latest = ts
+        if result.get("Id") == "objcount":
+            object_count = int(value)
+        else:
+            size_bytes = (size_bytes or 0) + int(value)
+
+    if object_count is None and size_bytes is None:
+        return dict(empty)
+    return {
+        "size_bytes": size_bytes,
+        "object_count": object_count,
+        "size_observed_at": latest.isoformat() if latest is not None else "",
+    }
+
+
 def s3_buckets_hydrated(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
     """Enumerate S3 buckets and fan out each bucket's compliance sub-config.
 
     Yields one envelope per bucket: the ``ListBuckets`` item at the root
-    (carrying ``BucketArn`` — the stable natural key) plus the
-    ``_hydrate`` / ``_hydrate_mapping`` siblings the template assembles.
+    (carrying ``BucketArn`` — the stable natural key), the ``_hydrate`` /
+    ``_hydrate_mapping`` siblings the hydrate template assembles, and the
+    aggregate ``size_bytes`` / ``object_count`` / ``size_observed_at`` from
+    CloudWatch storage metrics (req-aws-collector-s3-bucket-size).
     """
     base = session.client("s3")
     listing = without_response_metadata(base.list_buckets())
@@ -52,16 +166,13 @@ def s3_buckets_hydrated(session: Any, *, client_for: Any = None) -> Iterator[dic
 
     for bucket in listing.get("Buckets", []):
         name = bucket.get("Name")
-        # GetBucket* is region-bound (S3 redirects otherwise); resolve the
-        # bucket's region from the global endpoint, then bind a regional
-        # client for the fan-out.
-        try:
-            location = base.get_bucket_location(Bucket=name)
-            region = location.get("LocationConstraint") or "us-east-1"
-        except ClientError, BotoCoreError:
-            region = "us-east-1"
+        region = _resolve_bucket_region(base, name)
         regional = session.client("s3", region_name=region)
-        yield hydrate_item(regional, bucket, hydrate_ops, call_kwargs={"Bucket": name})
+        envelope = hydrate_item(regional, bucket, hydrate_ops, call_kwargs={"Bucket": name})
+        # CloudWatch S3 storage metrics are region-bound, like GetBucket*.
+        cw = session.client("cloudwatch", region_name=region)
+        envelope.update(_bucket_size_metrics(cw, name))
+        yield envelope
 
 
 def _pages(client: Any, method: str, **kwargs: Any) -> Iterator[dict[str, Any]]:

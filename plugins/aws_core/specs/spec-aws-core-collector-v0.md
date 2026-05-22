@@ -91,6 +91,7 @@ no encrypted secrets) are inherited as v0 fences.
 | req-aws-collector-edge-resolver | [Edge Identifier Resolution (Future Seam)](#edge-identifier-resolution-future-seam) | Backlog | The durable fix: pre-batch resolution pass; `key_kind`-driven; misses become observable warnings |
 | req-aws-collector-reconcile | [Grid-State Reconciliation (Future Seam)](#v0-non-goals) | Backlog | Implied-absence/tombstone via the same grid-read primitive as the resolver; one generic reconcile vs Cartography per-type cleanup |
 | req-aws-collector-hydrate | [Fan-Out Hydrate Seam](#fan-out-hydrate-seam) | Approved for Development | First named seam; per-op error-swallow; S3-style many-call |
+| req-aws-collector-s3-bucket-size | [S3 Bucket Size Metrics](#s3-bucket-size-metrics) | Approved for Development | Aggregate size/count from CloudWatch storage metrics; `size_observed_at` data-currency disclosure |
 | req-aws-collector-credentials | [Credential Resolution](#credential-resolution) | Approved for Development | `tap_cares` secret, `aws_static_access_key`, single account |
 | req-aws-collector-runtime | [Collector Runtime Integration](#collector-runtime-integration) | Approved for Development | `CollectorBase` pipeline; mirrors the KSI reference collector |
 | req-aws-collector-regions | [Region Iteration And Resilience](#region-iteration-and-resilience) | Approved for Development | Classify-and-skip; bounded throttle backoff |
@@ -608,6 +609,75 @@ sub-configuration is deferred.
 | req-aws-collector-hydrate-5 | Hydrate Envelope | Approved for Development | Fan-out output is the `_hydrate` event-record map (per slot: `status`, `op`, verbatim `data` or `error_code`) on the enumerate-item root. | |
 | req-aws-collector-hydrate-6 | Absent vs Denied Distinct | Approved for Development | `absent` (not configured) and `denied` (no permission) are distinct first-class statuses, never merged; the KSI reading depends on it. | |
 | req-aws-collector-hydrate-7 | Self-Describing, No Manifest Needed | Approved for Development | `_hydrate_mapping` (slot → `{op, why}`, materialized from the manifest, embedded per-node, deterministic) makes a grid object legible without the manifest. | |
+
+### S3 Bucket Size Metrics
+----
+RID: `req-aws-collector-s3-bucket-size`
+Status: `Approved for Development`
+
+Every `aws_s3_bucket` node carries `size_bytes` and `object_count` so the
+grid distinguishes a four-object bucket from a four-million-object one —
+and, via `size_bytes / object_count`, a pile of tiny objects from a few
+large ones. Both feed the viz: a bucket node can be weighted by its
+actual footprint instead of rendering identically regardless of contents.
+
+#### Source — CloudWatch daily storage metrics, not object listing
+
+The values come from the `AWS/S3` CloudWatch namespace (`BucketSizeBytes`,
+`NumberOfObjects`), which S3 publishes automatically and free once per day.
+One `get_metric_data` call per bucket — batching `NumberOfObjects`
+(`AllStorageTypes`) and `BucketSizeBytes` across every storage tier — gets
+both. The rejected alternative is summing `list_objects_v2`: one call per
+1000 objects, i.e. thousands of calls and (if objects were also nodes) a
+grid-count explosion for a large bucket. CloudWatch is pre-aggregated; the
+collector never enumerates objects.
+
+`BucketSizeBytes` has no all-tiers rollup dimension — it is queried per
+storage tier and the tiers that return data are summed, so a lifecycled
+bucket (objects tiered to Glacier etc.) reports a complete total. The
+CloudWatch call lives inside the `s3_buckets_hydrated` custom_fn, which
+already resolves each bucket's region per-bucket; the CloudWatch client is
+bound to that region.
+
+#### Data currency — the shortcut is disclosed, machine-readably
+
+CloudWatch storage metrics are daily, with up to ~24–48h publish lag, so
+`size_bytes` / `object_count` are not real-time. Rather than estimate the
+staleness, the collector surfaces the exact `Timestamp` of the CloudWatch
+datapoint the values came from, as `size_observed_at` (ISO 8601). A
+consumer computes `now − size_observed_at` and knows the currency
+precisely. The **absolute timestamp is stored; the age is always derived
+at read time, never stored** — a stored age is wrong one second later
+(same discipline as the docs `last-edited` rule).
+
+`size_observed_at` is **data currency** — what wall-clock moment the value
+reflects — and is deliberately distinct from FLIP write provenance (which
+collector / batch wrote the field). The collector ran today; the value
+reflects yesterday's daily rollup. Conflating the two would be wrong.
+This is the first instance of a currency-disclosure field. If a second
+lagged-data consumer appears, generalizing the pattern — a standard
+currency shape, or folding it into FLIP's adjacent axis — is the demand
+signal; it is not pre-built here (future-seam discipline:
+[[feedback-spec-before-mirroring-rules]]).
+
+The per-field constants — "sourced from CloudWatch daily storage metrics,
+granularity daily" — describe the *field*, not the *row*, and live in the
+field schema (the registry-backed discovery surface), not duplicated on
+every bucket row.
+
+When CloudWatch has no datapoint for a bucket (new or just-emptied), all
+three fields are empty/null and internally consistent: "unknown", never a
+misleading "0 bytes".
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-aws-collector-s3-bucket-size-1 | Aggregate, Not Per-Object | Approved for Development | `size_bytes` + `object_count` come from CloudWatch `AWS/S3` storage metrics via one `get_metric_data` call per bucket; the collector never enumerates objects. | |
+| req-aws-collector-s3-bucket-size-2 | All Storage Tiers Summed | Approved for Development | `BucketSizeBytes` is queried across every storage tier and the datapoints with data are summed; `NumberOfObjects` uses `AllStorageTypes`. | `BucketSizeBytes` has no all-tiers rollup dimension. |
+| req-aws-collector-s3-bucket-size-3 | Currency Disclosed | Approved for Development | `size_observed_at` carries the CloudWatch datapoint's own timestamp; the consumer derives age, the collector never stores it. | Data currency — distinct from FLIP write provenance. |
+| req-aws-collector-s3-bucket-size-4 | Unknown Is Not Zero | Approved for Development | A bucket with no CloudWatch datapoint reports empty/null fields, never a misleading 0. | |
+| req-aws-collector-s3-bucket-size-5 | Non-Fatal | Approved for Development | A denied/failed CloudWatch call leaves the three fields empty/null; the bucket still collects. | Mirrors the hydrate-seam per-op resilience. |
 
 ### Credential Resolution
 ----
@@ -1151,6 +1221,19 @@ Deferred from v0:
   dedicated pass. Deferred with the policy resolver.
 - **General jsonpath edge-DSL** beyond the declared rule shape (scalar/list +
   small derived-key transform). Richer expression waits for a demand signal.
+- **Per-object S3 introspection — its own targeted collector.** Listing a
+  bucket's *contents* as individual `aws_s3_object` nodes (with a
+  `STORES_OBJECT` edge from the bucket) is deferred to a dedicated
+  collector — one pointed at a specific bucket deliberately, not part of the
+  general manifest-driven account sweep. Object counts run to the millions
+  (this account already has buckets at 1.7M and 2.1M objects); a blanket
+  node-per-object pass over every bucket would explode the grid and the viz.
+  The general sweep gets only the cheap CloudWatch *aggregate*
+  (`req-aws-collector-s3-bucket-size` — `size_bytes` / `object_count`);
+  deep per-object introspection is an opt-in "point it at one bucket and go
+  to town" tool. The aggregate and the per-object collector compose — cheap
+  universal stats now, targeted deep introspection when a specific bucket
+  warrants it. Backlog.
 - **GovCloud / China partitions.**
 
 #### Acceptance Criteria
