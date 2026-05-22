@@ -29,6 +29,7 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-combinators | [Predicate Combinators](#predicate-combinators) | Implemented | AND/OR/NOT in WHERE predicates |
 | req-grid-traversal-lang-in | [IN-List Membership](#in-list-membership) | Implemented | `WHERE` membership test against a list of values |
 | req-grid-traversal-lang-string-match | [String Match Predicates](#string-match-predicates) | Implemented | `WHERE` substring predicates: `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` |
+| req-grid-traversal-lang-bare-match | [Bare Labelless MATCH](#bare-labelless-match) | Implemented | Labelless `MATCH (n)` scans every registered node type and unions the results |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
 | req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
 
@@ -214,19 +215,11 @@ MATCH (server:host)<-[edge:ON_HOST]-(iface:interface)
 
 #### Future
 
-**Bare `MATCH (n)` type-scan (no label).** Today the executor requires a
-label on `(n)` for type-scan patterns (`req-grid-traversal-lang-patterns-1`
-applies the label as the entity-type filter). Adding "scan every entity
-type" semantics to bare `(n)` would let a single query filter across all
-types — useful for queries like
-`MATCH (n) WHERE n.data.tags.Project = "samsite" RETURN n` without the
-multi-MATCH-per-type verbosity required today. Real work: the executor
-has to enumerate registered model classes, union the results, and
-handle paths that only resolve for some types (e.g. an Edge-only field
-on a node pattern). Top-of-mind for the next round of Gryphon surgery;
-the samsite landing-page filter (2026-05-21) uses multi-MATCH instead
-of waiting for this. (Cross-ref:
-`req-grid-traversal-lang-envelope-paths`.)
+**Bare `MATCH (n)` type-scan — landed.** Labelless `MATCH (n)` scanning every
+registered node type is now its own requirement, [Bare Labelless
+MATCH](#bare-labelless-match) (`req-grid-traversal-lang-bare-match`). It is the
+v0 surface of `req-grid-traversal-lang-patterns-7` ("wildcards by omission")
+for the standalone node type-scan case.
 
 Consider subgraph-scoped gryphon composition, where one gryphon result becomes the graph
 scope for a later gryphon expression. Defer until a concrete use case appears — this expands planner
@@ -630,6 +623,51 @@ MATCH (n:host) WHERE n.name ENDS_WITH $suffix RETURN n
 
 - Case-insensitive variants of the three operators.
 - Wildcard / regex-like pattern matching — a single `LIKE`- or `MATCHES`-style operator generalizing these three. Deliberately deferred: the three explicit operators cover the detected demand and avoid the needle-escaping and case-sensitivity surface a pattern language drags in. Promote when a real query needs a shape the three fixed operators cannot express.
+
+
+### Bare Labelless MATCH
+----
+RID: `req-grid-traversal-lang-bare-match`
+Status: `Implemented`
+
+A node pattern with no label — `MATCH (n)` — scans **every registered node entity type** and unions the results. One labelless clause plus a `WHERE` replaces an N-clause per-type list.
+
+#### Background
+
+A query that wants "every node tagged `Project = samsite`, whatever its type" otherwise needs one `MATCH` clause per type — eleven clauses for the samsite landing-page node search. A labelless `MATCH (n)` is the wildcard over node types; it is the standalone-type-scan case of `req-grid-traversal-lang-patterns-7` ("wildcards by omission").
+
+#### Implementation
+
+- `MATCH (n)` — a node-only pattern with no label — routes to a dedicated executor path; a labelled `(n:type)` is unaffected.
+- **Spine-only `WHERE`** (or no `WHERE`): one scan of the `Entity` spine table, restricted to the registered node types. A spine-field predicate — `entity_type`, `name`, `dimensions` — is evaluated at the scan layer, so `MATCH (n) WHERE n.entity_type STARTS_WITH "aws_"` is a single cheap query, not a sweep of every per-model table. The spine predicate may use `AND` / `OR` / `NOT`.
+- **Data-lane `WHERE`** (`<var>.data.<field>`): each registered node type is scanned and the matched entity ids unioned. **A type that lacks a referenced data field contributes zero rows — silently, never an error.** "Type lacks the field ⇒ that type matches nothing" is the contract: a labelless scan with a data-lane filter crosses entity types that have no such field — and no `data` lane at all — without failing. A data-lane `WHERE` must be `AND`-joined in v0; `OR` / `NOT` across the field-absence boundary would need per-type branch pruning and is deferred.
+- Edges are not scanned — they are not registered node models, and are matched by edge patterns.
+- v0 returns a **graph envelope** only (`RETURN` omitted, or naming bare variables). Row projection over a bare scan, and `ORDER BY` / `LIMIT` on one, are future work.
+
+#### Examples
+
+```text
+MATCH (n) WHERE n.data.tags.Project = "samsite" RETURN n
+
+MATCH (n) WHERE n.entity_type STARTS_WITH "aws_" RETURN n
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-bare-match-1 | Labelless MATCH Accepted | Implemented | `MATCH (n)` with no label is accepted and scans every registered node type. | |
+| req-grid-traversal-lang-bare-match-2 | Results Unioned | Implemented | Entities of every matching type are returned together in one graph envelope. | |
+| req-grid-traversal-lang-bare-match-3 | Field-Absence Is Non-Matching | Implemented | A type lacking a WHERE-referenced data field contributes zero rows, never an error. | The robustness contract |
+| req-grid-traversal-lang-bare-match-4 | Spine Predicate Scans Efficiently | Implemented | A spine-field-only WHERE is one `Entity`-table scan, not a per-type table sweep. | |
+| req-grid-traversal-lang-bare-match-5 | Edges Excluded | Implemented | A labelless `MATCH (n)` scans node types only; edges are matched by edge patterns. | |
+| req-grid-traversal-lang-bare-match-6 | Graph Envelope Only In v0 | Implemented | A bare scan returns a graph envelope; row projection and `ORDER BY` / `LIMIT` are rejected. | |
+
+#### Future
+
+- Row projection over a bare scan (`MATCH (n) RETURN n.entity_id`), and `ORDER BY` / `LIMIT`.
+- `OR` / `NOT` in a data-lane `WHERE` on a bare scan — needs per-type predicate-branch pruning.
+- Typeless edge scan — `MATCH (a)-[e]-(b)` with no edge type — the edge-pattern cousin of this requirement.
 
 
 ### Runtime Inputs And Variables

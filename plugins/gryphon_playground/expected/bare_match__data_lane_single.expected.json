@@ -1,0 +1,18 @@
+{
+  "nodes": [
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
+      "entity_type": "pg_hub",
+      "name": "Dense Hub",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>"
+    }
+  ],
+  "edges": []
+}

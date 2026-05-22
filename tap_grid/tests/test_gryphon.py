@@ -2183,3 +2183,81 @@ class TestGryphonStringMatchExecutor:
             inputs={},
         )["rows"]
         assert [r["name"] for r in rows] == ["Literal"]
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonBareMatchExecutor — req-grid-traversal-lang-bare-match
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonBareMatchExecutor:
+    """Executor coverage for labelless MATCH (n) — the bare scan over all node types."""
+
+    def _setup(self):
+        """Two characters (which have a `bio` field) and two pg_node rows (which do not)."""
+        import uuid
+
+        from plugins.gryphon_playground.models import PgNode
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        made = {}
+        for name in ("Frodo", "Sam"):
+            entity = Entity.objects.create(entity_type="character", name=name)
+            Character.objects.create(entity=entity, name=name, bio=f"{name} the brave")
+            made[name] = entity
+        for name in ("Node A", "Node B"):
+            entity = Entity.objects.create(entity_type="pg_node", name=name)
+            PgNode.objects.create(entity=entity, name=name, kind="island")
+            made[name] = entity
+        return made
+
+    def _search(self, query):
+        return Search(search_type="gryphon", root="node", name="bm", definition={"query": query})
+
+    def test_bare_match_unions_node_types_and_excludes_edges(self):
+        """req-grid-traversal-lang-bare-match-2/-5: every node type unioned; edges excluded."""
+        from tap_grid.models import Edge, Entity
+
+        made = self._setup()
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=made["Frodo"],
+            to_entity=made["Sam"],
+            edge_type="KNOWS",
+        )
+        result = execute_search(self._search("MATCH (n)"), inputs={})
+        assert sorted({node["entity_type"] for node in result["nodes"]}) == ["character", "pg_node"]
+        assert len(result["nodes"]) == 4
+
+    def test_bare_match_field_absence_is_silently_non_matching(self):
+        """req-grid-traversal-lang-bare-match-3: a type lacking the data field matches nothing, no error.
+
+        `bio` is a Character field; pg_node has no `bio`. The bare scan must skip
+        pg_node silently and return only the matching Character.
+        """
+        self._setup()
+        result = execute_search(self._search('MATCH (n) WHERE n.data.bio = "Frodo the brave"'), inputs={})
+        assert sorted(node["name"] for node in result["nodes"]) == ["Frodo"]
+
+    def test_bare_match_row_projection_rejected(self):
+        """req-grid-traversal-lang-bare-match-6: row projection over a bare scan is rejected in v0."""
+        with pytest.raises(SearchExecutionError, match="graph-envelope"):
+            execute_search(self._search("MATCH (n) RETURN n.entity_id AS id"), inputs={})
+
+    def test_bare_match_order_by_rejected(self):
+        """req-grid-traversal-lang-bare-match-6: ORDER BY on a bare scan is rejected in v0."""
+        with pytest.raises(SearchExecutionError, match="ORDER BY / LIMIT"):
+            execute_search(self._search("MATCH (n) RETURN n.entity_id AS id ORDER BY id"), inputs={})
+
+    def test_bare_match_data_lane_or_rejected(self):
+        """A data-lane WHERE on a bare scan must be AND-joined; OR is rejected in v0."""
+        with pytest.raises(SearchExecutionError, match="AND-joined"):
+            execute_search(
+                self._search('MATCH (n) WHERE n.data.kind = "island" OR n.data.kind = "hub"'),
+                inputs={},
+            )

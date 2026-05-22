@@ -1,0 +1,44 @@
+{
+  "nodes": [
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-bafd3e1fc13d",
+      "entity_type": "pg_node",
+      "name": "Lonely Island",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-bafef82d1e41",
+      "entity_type": "pg_node",
+      "name": "Island Alpha",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-baff05e4468a",
+      "entity_type": "pg_node",
+      "name": "Island Beta",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>"
+    }
+  ],
+  "edges": []
+}
