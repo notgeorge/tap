@@ -89,6 +89,16 @@
       "query": "MATCH (n:pg_node) WHERE n.data.is_open = true",
       "expected_envelope": "expected/type_scan__is_open.expected.json",
       "expected_sql_snapshot": "expected/type_scan__is_open.sql.txt"
+    },
+    {
+      "name": "a WHERE predicate that matches nothing returns an empty envelope",
+      "tags": ["type-scan", "where", "empty-result", "tck-inspired"],
+      "covers": ["req-grid-traversal-lang-filters"],
+      "inspired_by": "tck/features/clauses/match-where/",
+      "layer": "full",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 9999",
+      "expected_envelope": "expected/type_scan__where_empty.expected.json",
+      "expected_sql_snapshot": "expected/type_scan__where_empty.sql.txt"
     }
   ]
 }

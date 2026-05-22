@@ -15,6 +15,19 @@
       "query": "MATCH (n:pg_node) WHERE n.data.tags.team = \"infra\"",
       "expected_envelope": "expected/json_payloads__team_infra.expected.json",
       "expected_sql_snapshot": "expected/json_payloads__team_infra.sql.txt"
+    },
+    {
+      "name": "WHERE on a JSON key absent from some nodes matches only nodes that have it",
+      "tags": ["type-scan", "where", "json-payload", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-filters",
+        "req-grid-traversal-lang-envelope-paths-2"
+      ],
+      "inspired_by": "tck/features/clauses/match-where/",
+      "layer": "full",
+      "query": "MATCH (n:pg_node) WHERE n.data.tags.priority = \"high\"",
+      "expected_envelope": "expected/json_payloads__priority_high.expected.json",
+      "expected_sql_snapshot": "expected/json_payloads__priority_high.sql.txt"
     }
   ]
 }

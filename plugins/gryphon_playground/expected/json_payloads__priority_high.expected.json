@@ -1,0 +1,77 @@
+{
+  "nodes": [
+    {
+      "entity_id": "019e4e07-9975-7501-8d81-0fdbae66369e",
+      "entity_type": "pg_node",
+      "name": "Infra High",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>",
+      "data": {
+        "entity_id": "019e4e07-9975-7501-8d81-0fdbae66369e",
+        "name": "Infra High",
+        "description": "Infra-team node, high priority.",
+        "kind": "service",
+        "severity_score": 10,
+        "is_open": true,
+        "observed_at": null,
+        "tags": {
+          "team": "infra",
+          "priority": "high"
+        },
+        "batch_id": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+        "flip_map": {
+          "kind": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "name": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "tags": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "is_open": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "description": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "observed_at": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "severity_score": "019e4e07-9975-7501-8d81-0fdad0d5ee22"
+        }
+      }
+    },
+    {
+      "entity_id": "019e4e07-9975-7501-8d81-0fdd835507e1",
+      "entity_type": "pg_node",
+      "name": "Data High",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>",
+      "data": {
+        "entity_id": "019e4e07-9975-7501-8d81-0fdd835507e1",
+        "name": "Data High",
+        "description": "Data-team node, high priority.",
+        "kind": "service",
+        "severity_score": 30,
+        "is_open": true,
+        "observed_at": null,
+        "tags": {
+          "team": "data",
+          "priority": "high"
+        },
+        "batch_id": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+        "flip_map": {
+          "kind": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "name": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "tags": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "is_open": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "description": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "observed_at": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+          "severity_score": "019e4e07-9975-7501-8d81-0fdad0d5ee22"
+        }
+      }
+    }
+  ],
+  "edges": []
+}

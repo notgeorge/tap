@@ -1,0 +1,14 @@
+{
+  "nodes": [],
+  "edges": [],
+  "rows": [
+    {
+      "source_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
+      "out_degree": 3
+    },
+    {
+      "source_id": "019e4b02-f37b-72df-a3e5-bafef82d1e41",
+      "out_degree": 1
+    }
+  ]
+}

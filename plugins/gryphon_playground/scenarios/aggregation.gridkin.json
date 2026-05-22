@@ -16,6 +16,16 @@
       "query": "MATCH (h:pg_hub)-[:PG_LINKS]->(n:pg_node) RETURN h.entity_id AS hub_id, COUNT(n) AS neighbor_count",
       "expected_envelope": "expected/aggregation__count_neighbors.expected.json",
       "expected_sql_snapshot": "expected/aggregation__count_neighbors.sql.txt"
+    },
+    {
+      "name": "COUNT over a relationship omits zero-degree nodes",
+      "tags": ["aggregation", "count", "empty-result", "tck-inspired"],
+      "covers": ["req-grid-gryphon-count", "req-grid-gryphon-rows"],
+      "inspired_by": "tck/features/expressions/aggregation/",
+      "layer": "lite",
+      "query": "MATCH (h)-[:PG_LINKS]->(n) RETURN h.entity_id AS source_id, COUNT(n) AS out_degree",
+      "expected_envelope": "expected/aggregation__count_omits_zero_degree.expected.json",
+      "expected_sql_snapshot": "expected/aggregation__count_omits_zero_degree.sql.txt"
     }
   ]
 }

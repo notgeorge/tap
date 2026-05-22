@@ -27,6 +27,16 @@
       },
       "expected_envelope": "expected/cycles__three_hop.expected.json",
       "expected_sql_snapshot": "expected/cycles__three_hop.sql.txt"
+    },
+    {
+      "name": "COUNT correctly counts a self-loop relationship",
+      "tags": ["aggregation", "count", "self-loop", "tck-inspired"],
+      "covers": ["req-grid-gryphon-count", "req-grid-gryphon-rows"],
+      "inspired_by": "tck/features/expressions/aggregation/",
+      "layer": "lite",
+      "query": "MATCH (n)-[:PG_LINKS]->(m) RETURN n.entity_id AS node_id, COUNT(m) AS out_degree",
+      "expected_envelope": "expected/cycles__count_self_loop.expected.json",
+      "expected_sql_snapshot": "expected/cycles__count_self_loop.sql.txt"
     }
   ]
 }
