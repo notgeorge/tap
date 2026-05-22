@@ -425,7 +425,9 @@ def _execute_type_scan(
     try:
         model_cls = get_model_class(node.label)
     except KeyError:
-        raise SearchExecutionError(f"Unsupported gryphon pattern: unknown entity type '{node.label}'.")
+        raise SearchExecutionError(
+            f"Unsupported gryphon pattern: unknown entity type '{node.label}'."
+        ) from None
 
     qs = model_cls.objects.using(db_alias).select_related("entity").order_by("entity__name")
 
@@ -589,7 +591,6 @@ def _project_node(domain_obj: Any, items: tuple, var: str) -> dict[str, Any]:
             continue
         if not fp.steps or not isinstance(fp.steps[0], DotStep):
             continue
-        first = fp.steps[0].name
         key, value = _resolve_envelope_path(domain_obj, fp, item.alias)
         result[key] = value
     return result
@@ -1371,9 +1372,7 @@ def _apply_not_exists(
     db_alias: str,
 ):
     """Apply a NOT EXISTS clause to the outer queryset via a correlated Exists subquery."""
-    from django.db.models import Exists, OuterRef
-
-    from django.db.models import F
+    from django.db.models import Exists, F, OuterRef
 
     if len(nec.match_clause.patterns) != 1:
         raise SearchExecutionError("NOT EXISTS subqueries require exactly one pattern.")

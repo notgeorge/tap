@@ -243,9 +243,6 @@ class _ASTTransformer(Transformer):
     def where_clause(self, predicate: Any) -> WhereClause:
         return WhereClause(predicate=predicate)
 
-    def predicate(self, inner: Any) -> Any:
-        return inner
-
     def and_pred(self, left: Any, right: Any) -> AndPred:
         return AndPred(left=left, right=right)
 
