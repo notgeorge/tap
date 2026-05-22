@@ -90,9 +90,9 @@
       "entity_type": "aws_eventbridge_rule",
       "service": "events",
       "scope": "regional",
-      "source": { "aws_op": "ListRules" },
-      "why": "Enumerate EventBridge rules — event/schedule triggers and their invocation roles.",
-      "items_path": "Rules[]",
+      "source": { "custom_fn": "eventbridge_rules_with_targets" },
+      "why": "Enumerate EventBridge rules — event/schedule triggers — with their target ARNs resolved (ListRules gives the rule; ListTargetsByRule gives what it invokes).",
+      "items_path": "[]",
       "natural_key": "Arn",
       "fields": {
         "name": "Name",
@@ -112,6 +112,13 @@
           "target_type": "aws_iam_role",
           "key_kind": "arn",
           "edge_type": "ASSUMES_ROLE",
+          "direction": "outbound"
+        },
+        {
+          "value_path": "_lambda_target_arns",
+          "target_type": "aws_lambda",
+          "key_kind": "arn",
+          "edge_type": "INVOKES",
           "direction": "outbound"
         }
       ]

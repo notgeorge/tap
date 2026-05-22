@@ -1067,17 +1067,25 @@ the demo target is explicit rather than implied.
 
 #### Implementation
 
-Resource entries (eight): S3 bucket, CloudFront distribution, ACM certificate,
-Route 53 hosted zone, Lambda function, IAM role, CloudWatch log group,
-EventBridge rule.
+> **v0 planning snapshot.** This section captured the original eight-entry
+> demo target. The live manifest (`aws_resource_manifest.json`) has since
+> grown past it — `aws_account`, DynamoDB table, IAM OIDC provider entries
+> and their edges were added during build — and the manifest is the
+> authoritative inventory. The collection classes and demo edges below are
+> kept current for the entries they name.
 
-Collection class per entry (from the offline probe):
+Original demo resource entries (eight): S3 bucket, CloudFront distribution,
+ACM certificate, Route 53 hosted zone, Lambda function, IAM role, CloudWatch
+log group, EventBridge rule.
 
-- single-call `aws_op`: Lambda, IAM role, EventBridge rule, CloudWatch log
-  group, CloudFront
-- `custom_fn` + hydrate: S3 (minimal hydrate list), ACM (summary list is
-  sufficient for the demo; full-detail hydrate optional), Route 53 (zones via
-  `aws_op`; record sets via `custom_fn` for the alias edge)
+Collection class per entry:
+
+- single-call `aws_op`: Lambda, IAM role, CloudWatch log group
+- `custom_fn`: S3 (minimal hydrate fan-out), Route 53 (zones + record-set
+  cross-join for the alias edge), CloudFront (distribution list + per-origin
+  `GetOriginAccessControl` fan-out), EventBridge rule (`ListRules` +
+  per-rule `ListTargetsByRule` fan-out for the target edge), ACM (summary
+  list sufficient for the demo)
 
 The demo-legible edges, all declarable (no policy resolver needed — none of
 Sam's edges require policy-document parsing):
@@ -1089,6 +1097,9 @@ Sam's edges require policy-document parsing):
   prior art does not ship — TAP-authored)
 - Lambda → IAM role (`Role` ARN)
 - EventBridge rule → IAM role (`RoleArn`)
+- EventBridge rule → Lambda (`INVOKES`; target ARNs from `ListTargetsByRule`,
+  filtered to Lambda targets) — the daily schedule tick that drives the
+  compliance Lambda
 - Lambda → CloudWatch log group (logging configuration / convention)
 
 #### Acceptance Criteria

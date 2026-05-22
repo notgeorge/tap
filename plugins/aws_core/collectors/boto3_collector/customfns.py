@@ -367,6 +367,52 @@ def dynamodb_tables_described(session: Any, *, client_for: Any) -> Iterator[dict
                 yield table
 
 
+def eventbridge_rules_with_targets(session: Any, *, client_for: Any) -> Iterator[dict[str, Any]]:
+    """Enumerate EventBridge rules (regional) with their target ARNs resolved.
+
+    ``ListRules`` returns the rule itself — name, schedule, state, RoleArn —
+    but not *what it invokes*. A rule's targets live behind a separate
+    ``ListTargetsByRule`` call. This custom_fn fans that call out per rule
+    and attaches the target ARNs so the rule → target relationship resolves
+    as an edge; without it a scheduled rule and the Lambda it triggers sit
+    on the grid as disconnected nodes.
+
+    Two keys are attached:
+
+    - ``_target_arns`` — every target ARN, lossless (→ ``configuration``).
+    - ``_lambda_target_arns`` — the Lambda-only subset, which the ``INVOKES``
+      edge rule resolves against. EventBridge targets are polymorphic (SQS,
+      SNS, Step Functions, ECS, …) and the v0 edge rule resolves a single
+      ``target_type``; filtering to Lambda ARNs here keeps non-Lambda
+      targets from producing dangling edges.
+
+    Regional: the engine binds ``client_for`` to the current region. Rules
+    are enumerated on the default event bus (parity with the prior
+    ``ListRules`` source); custom event buses are future scope.
+    """
+    client = client_for("events")
+    for page in _pages(client, "list_rules"):
+        for rule in page.get("Rules", []):
+            name = rule.get("Name")
+            bus = rule.get("EventBusName") or "default"
+            target_arns: list[str] = []
+            try:
+                for tpage in _pages(client, "list_targets_by_rule", Rule=name, EventBusName=bus):
+                    for target in tpage.get("Targets", []):
+                        arn = target.get("Arn")
+                        if arn:
+                            target_arns.append(arn)
+            except (BotoCoreError, ClientError):
+                # A per-rule ListTargetsByRule failure is non-fatal: the rule
+                # still collects, just without resolved target edges.
+                target_arns = []
+            target_arns = list(dict.fromkeys(target_arns))
+            lambda_arns = [
+                a for a in target_arns if a.startswith("arn:aws:lambda:") and ":function:" in a
+            ]
+            yield {**rule, "_target_arns": target_arns, "_lambda_target_arns": lambda_arns}
+
+
 def iam_oidc_providers_described(session: Any, *, client_for: Any = None) -> Iterator[dict[str, Any]]:
     """Enumerate IAM OIDC identity providers (global) and describe each.
 
@@ -400,6 +446,7 @@ _CUSTOM_FNS = {
     "route53_zones_with_alias_targets": route53_zones_with_alias_targets,
     "cloudfront_distributions_with_oac": cloudfront_distributions_with_oac,
     "dynamodb_tables_described": dynamodb_tables_described,
+    "eventbridge_rules_with_targets": eventbridge_rules_with_targets,
     "iam_oidc_providers_described": iam_oidc_providers_described,
 }
 

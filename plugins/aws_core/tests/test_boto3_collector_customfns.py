@@ -392,3 +392,95 @@ class TestBucketSizeMetrics:
         # One NumberOfObjects query + one BucketSizeBytes query per storage tier.
         assert "objcount" in ids
         assert sum(1 for i in ids if i.startswith("size")) >= 5
+
+
+# ---------------------------------------------------------------------------
+# eventbridge_rules_with_targets — resolve each rule's target ARNs
+# ---------------------------------------------------------------------------
+
+from plugins.aws_core.collectors.boto3_collector.customfns import (  # noqa: E402
+    eventbridge_rules_with_targets,
+)
+
+_LAMBDA_ARN = "arn:aws:lambda:us-east-2:180731181784:function:samsite-prod-1-opa-compliance"
+_SQS_ARN = "arn:aws:sqs:us-east-2:180731181784:some-queue"
+
+
+class _FakeEvents:
+    def __init__(self, rules, targets_by_rule, targets_raise=False):
+        self._rules = rules
+        self._targets = targets_by_rule
+        self._targets_raise = targets_raise
+
+    def can_paginate(self, _m: str) -> bool:
+        return False
+
+    def list_rules(self, **_kw):
+        return {"Rules": self._rules}
+
+    def list_targets_by_rule(self, *, Rule, EventBusName, **_kw):  # noqa: N803
+        if self._targets_raise:
+            raise ClientError(
+                {"Error": {"Code": "AccessDenied", "Message": "denied"}},
+                "ListTargetsByRule",
+            )
+        return {"Targets": self._targets.get(Rule, [])}
+
+
+def _events_client_for(fake_events):
+    def _cf(service: str):
+        assert service == "events"
+        return fake_events
+
+    return _cf
+
+
+class TestEventbridgeRulesWithTargets:
+    def test_lambda_target_resolved(self):
+        rule = {
+            "Name": "samsite-prod-1-opa-compliance",
+            "Arn": "arn:aws:events:us-east-2:180731181784:rule/samsite-prod-1-opa-compliance",
+            "State": "ENABLED",
+            "ScheduleExpression": "rate(1 day)",
+            "EventBusName": "default",
+        }
+        events = _FakeEvents([rule], {"samsite-prod-1-opa-compliance": [{"Id": "t1", "Arn": _LAMBDA_ARN}]})
+        items = list(eventbridge_rules_with_targets(None, client_for=_events_client_for(events)))
+        assert len(items) == 1
+        item = items[0]
+        # Rule identity/projection fields preserved verbatim.
+        assert item["Name"] == "samsite-prod-1-opa-compliance"
+        assert item["ScheduleExpression"] == "rate(1 day)"
+        # The Lambda target resolves into the edge-bearing key.
+        assert item["_target_arns"] == [_LAMBDA_ARN]
+        assert item["_lambda_target_arns"] == [_LAMBDA_ARN]
+
+    def test_non_lambda_target_kept_lossless_but_not_edge_bearing(self):
+        # An SQS target stays in _target_arns (lossless -> configuration) but
+        # is filtered out of _lambda_target_arns so it produces no dangling
+        # INVOKES edge to a non-existent aws_lambda node.
+        rule = {"Name": "r", "Arn": "arn:aws:events:us-east-2:1:rule/r", "EventBusName": "default"}
+        events = _FakeEvents([rule], {"r": [{"Id": "t1", "Arn": _SQS_ARN}]})
+        item = next(iter(eventbridge_rules_with_targets(None, client_for=_events_client_for(events))))
+        assert item["_target_arns"] == [_SQS_ARN]
+        assert item["_lambda_target_arns"] == []
+
+    def test_mixed_targets_split(self):
+        rule = {"Name": "r", "Arn": "arn:aws:events:us-east-2:1:rule/r", "EventBusName": "default"}
+        events = _FakeEvents(
+            [rule],
+            {"r": [{"Id": "t1", "Arn": _LAMBDA_ARN}, {"Id": "t2", "Arn": _SQS_ARN}]},
+        )
+        item = next(iter(eventbridge_rules_with_targets(None, client_for=_events_client_for(events))))
+        assert set(item["_target_arns"]) == {_LAMBDA_ARN, _SQS_ARN}
+        assert item["_lambda_target_arns"] == [_LAMBDA_ARN]
+
+    def test_list_targets_failure_is_non_fatal(self):
+        # A denied ListTargetsByRule must not fail the rule — it still
+        # collects, just with no resolved targets.
+        rule = {"Name": "r", "Arn": "arn:aws:events:us-east-2:1:rule/r", "EventBusName": "default"}
+        events = _FakeEvents([rule], {}, targets_raise=True)
+        item = next(iter(eventbridge_rules_with_targets(None, client_for=_events_client_for(events))))
+        assert item["Name"] == "r"
+        assert item["_target_arns"] == []
+        assert item["_lambda_target_arns"] == []
