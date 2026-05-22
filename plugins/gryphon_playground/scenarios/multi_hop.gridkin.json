@@ -1,0 +1,49 @@
+{
+  "feature": "Multi-hop chain traversal and multi-hop COUNT aggregation",
+  "background": {
+    "grift_fixture": "fixtures/chains.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "anchored two-hop chain returns the root's reachable subgraph",
+      "tags": ["multi-hop", "advanced", "current-behavior"],
+      "covers": [
+        "req-grid-gryphon-multihop",
+        "req-grid-gryphon-multihop-envelope"
+      ],
+      "layer": "lite",
+      "query": "MATCH (a:pg_node)-[e1:PG_LINKS]->(b:pg_node)-[e2:PG_LINKS]->(c:pg_node) WHERE a.entity_id = $root_id",
+      "params": {
+        "root_id": "019e4d9b-00a6-7210-918f-7cada1264813"
+      },
+      "expected_envelope": "expected/multi_hop__anchored.expected.json",
+      "expected_sql_snapshot": "expected/multi_hop__anchored.sql.txt"
+    },
+    {
+      "name": "unanchored two-hop chain returns every chain node with a no-anchor warning",
+      "tags": ["multi-hop", "advanced", "warning", "current-behavior"],
+      "covers": [
+        "req-grid-gryphon-multihop",
+        "req-grid-gryphon-multihop-envelope-1"
+      ],
+      "layer": "lite",
+      "query": "MATCH (a:pg_node)-[e1:PG_LINKS]->(b:pg_node)-[e2:PG_LINKS]->(c:pg_node)",
+      "expected_envelope": "expected/multi_hop__unanchored.expected.json",
+      "expected_sql_snapshot": "expected/multi_hop__unanchored.sql.txt"
+    },
+    {
+      "name": "multi-hop COUNT counts reachable tails per root without inflation",
+      "tags": ["multi-hop", "aggregation", "count", "current-behavior"],
+      "covers": [
+        "req-grid-gryphon-count",
+        "req-grid-gryphon-count-3",
+        "req-grid-gryphon-multihop",
+        "req-grid-gryphon-rows"
+      ],
+      "layer": "lite",
+      "query": "MATCH (a:pg_node)-[:PG_LINKS]->(b:pg_node)-[:PG_LINKS]->(c:pg_node) RETURN a.entity_id AS root_id, COUNT(c) AS tail_count",
+      "expected_envelope": "expected/multi_hop__count.expected.json",
+      "expected_sql_snapshot": "expected/multi_hop__count.sql.txt"
+    }
+  ]
+}

@@ -1,0 +1,325 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e4d9b-00a6-7210-918f-7cacffdf2460",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — chains",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — chains",
+        "description": "A branching two-hop tree (Chain Root fans to two mids, one mid fans to two tails) plus a linear three-node chain and one isolated node. Tier 1 Gridkin fixture exercising multi-hop traversal and multi-hop COUNT aggregation, including the COUNT-inflation corner.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cada1264813",
+            "entity_type": "pg_node",
+            "name": "Chain Root",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:00:00Z",
+            "updated_at": "2026-05-21T13:00:00Z"
+          },
+          "node": {
+            "name": "Chain Root",
+            "description": "Root of the branching two-hop tree.",
+            "kind": "root",
+            "severity_score": 0,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cae986778a7",
+            "entity_type": "pg_node",
+            "name": "Mid One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:00:01Z",
+            "updated_at": "2026-05-21T13:00:01Z"
+          },
+          "node": {
+            "name": "Mid One",
+            "description": "First mid node; fans out to two tails.",
+            "kind": "mid",
+            "severity_score": 10,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7caf4902f22b",
+            "entity_type": "pg_node",
+            "name": "Mid Two",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:00:02Z",
+            "updated_at": "2026-05-21T13:00:02Z"
+          },
+          "node": {
+            "name": "Mid Two",
+            "description": "Second mid node; fans out to one tail.",
+            "kind": "mid",
+            "severity_score": 20,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cb0718770e5",
+            "entity_type": "pg_node",
+            "name": "Tail A",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:00:03Z",
+            "updated_at": "2026-05-21T13:00:03Z"
+          },
+          "node": {
+            "name": "Tail A",
+            "description": "Tail reached via Mid One.",
+            "kind": "tail",
+            "severity_score": 30,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cb1f36889ce",
+            "entity_type": "pg_node",
+            "name": "Tail B",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:00:04Z",
+            "updated_at": "2026-05-21T13:00:04Z"
+          },
+          "node": {
+            "name": "Tail B",
+            "description": "Tail reached via Mid One.",
+            "kind": "tail",
+            "severity_score": 40,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cb29d521ddb",
+            "entity_type": "pg_node",
+            "name": "Tail C",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:00:05Z",
+            "updated_at": "2026-05-21T13:00:05Z"
+          },
+          "node": {
+            "name": "Tail C",
+            "description": "Tail reached via Mid Two.",
+            "kind": "tail",
+            "severity_score": 50,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cb3746837b4",
+            "entity_type": "pg_node",
+            "name": "Lone Start",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:00:06Z",
+            "updated_at": "2026-05-21T13:00:06Z"
+          },
+          "node": {
+            "name": "Lone Start",
+            "description": "Start of the linear three-node chain.",
+            "kind": "root",
+            "severity_score": 60,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cb4a6b4a6e4",
+            "entity_type": "pg_node",
+            "name": "Lone Mid",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:00:07Z",
+            "updated_at": "2026-05-21T13:00:07Z"
+          },
+          "node": {
+            "name": "Lone Mid",
+            "description": "Middle of the linear three-node chain.",
+            "kind": "mid",
+            "severity_score": 70,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cb5266e972d",
+            "entity_type": "pg_node",
+            "name": "Lone End",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:00:08Z",
+            "updated_at": "2026-05-21T13:00:08Z"
+          },
+          "node": {
+            "name": "Lone End",
+            "description": "End of the linear three-node chain.",
+            "kind": "tail",
+            "severity_score": 80,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cb6ddbf7dad",
+            "entity_type": "pg_node",
+            "name": "Isolated",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:00:09Z",
+            "updated_at": "2026-05-21T13:00:09Z"
+          },
+          "node": {
+            "name": "Isolated",
+            "description": "A node with no edges — never part of any multi-hop path.",
+            "kind": "isolated",
+            "severity_score": 90,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cb719f17669",
+            "entity_type": "edge",
+            "name": "Chain Root PG_LINKS Mid One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:01:00Z",
+            "updated_at": "2026-05-21T13:01:00Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4d9b-00a6-7210-918f-7cada1264813",
+            "to_entity_id": "019e4d9b-00a6-7210-918f-7cae986778a7",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cb849f3d2aa",
+            "entity_type": "edge",
+            "name": "Chain Root PG_LINKS Mid Two",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:01:01Z",
+            "updated_at": "2026-05-21T13:01:01Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4d9b-00a6-7210-918f-7cada1264813",
+            "to_entity_id": "019e4d9b-00a6-7210-918f-7caf4902f22b",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cb97db1c797",
+            "entity_type": "edge",
+            "name": "Mid One PG_LINKS Tail A",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:01:02Z",
+            "updated_at": "2026-05-21T13:01:02Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4d9b-00a6-7210-918f-7cae986778a7",
+            "to_entity_id": "019e4d9b-00a6-7210-918f-7cb0718770e5",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cbab0939f33",
+            "entity_type": "edge",
+            "name": "Mid One PG_LINKS Tail B",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:01:03Z",
+            "updated_at": "2026-05-21T13:01:03Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4d9b-00a6-7210-918f-7cae986778a7",
+            "to_entity_id": "019e4d9b-00a6-7210-918f-7cb1f36889ce",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cbba0da7f72",
+            "entity_type": "edge",
+            "name": "Mid Two PG_LINKS Tail C",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:01:04Z",
+            "updated_at": "2026-05-21T13:01:04Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4d9b-00a6-7210-918f-7caf4902f22b",
+            "to_entity_id": "019e4d9b-00a6-7210-918f-7cb29d521ddb",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cbcae1fe8de",
+            "entity_type": "edge",
+            "name": "Lone Start PG_LINKS Lone Mid",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:01:05Z",
+            "updated_at": "2026-05-21T13:01:05Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4d9b-00a6-7210-918f-7cb3746837b4",
+            "to_entity_id": "019e4d9b-00a6-7210-918f-7cb4a6b4a6e4",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4d9b-00a6-7210-918f-7cbd91cb44c1",
+            "entity_type": "edge",
+            "name": "Lone Mid PG_LINKS Lone End",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T13:01:06Z",
+            "updated_at": "2026-05-21T13:01:06Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4d9b-00a6-7210-918f-7cb4a6b4a6e4",
+            "to_entity_id": "019e4d9b-00a6-7210-918f-7cb5266e972d",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}
