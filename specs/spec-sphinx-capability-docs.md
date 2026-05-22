@@ -126,6 +126,12 @@ second copy of the full spec. It is a short implemented-surface claim: what the
 affordance is, what status it has, where its canonical spec lives, what validates
 it, and where a reader can learn how to use it.
 
+A capability block is scoped to one *reader-facing affordance* — what a user or
+agent experiences as a single thing they can do. That may map to one `req-*`
+requirement or stack several; `implements` accepts one or more RIDs (see
+[Capability Metadata](#capability-metadata)). Granularity follows reader
+usefulness, not requirement count.
+
 Capability IDs mirror the house `req-*` style:
 
 ```text
@@ -144,6 +150,19 @@ reviewer would naturally inspect to verify the implementation claim. That may be
 a module docstring, class docstring, function docstring, or a MyST source page
 for non-code or cross-cutting affordances such as settings/configuration.
 
+For a code-backed capability the anchor is the **closest code site that owns the
+claim** — frequently a single function, and a private (`_`-prefixed) function is
+a perfectly good anchor. Public-versus-private is not a selection factor: a
+reader following capability blocks through the code already has the source, so
+the value is proximity to the implementation, not reachability through a public
+symbol. Use a broader module or class docstring only when a capability genuinely
+spans several functions; never relocate a block away from its implementation
+merely to land on a public symbol.
+
+The block is designed to be **human-legible as plain text** in the docstring
+itself — a developer or agent reading the source sees a structured, readable
+metadata block whether or not a Sphinx build has ever processed it.
+
 Blocks are allowed in both Python docstrings and MyST pages. A capability block
 that is not attached directly to a Python object must provide a source/code
 anchor field that names where the implementation claim is reviewed.
@@ -156,9 +175,8 @@ Illustrative shape:
    :status: implemented
    :audience: external-user; agent; developer
    :affordance: querying
-   :since: 0.1.0
    :implements: req-grid-traversal-lang-patterns
-   :covered-by: gridkin:type_scan.scan-returns-every-pg-node-in-the-fixture
+   :covered-by: gridkin:type_scan-scan-returns-every-pg-node-in-the-fixture
    :docs: tap_grid/docs/gryphon/reference.md#type-scan
 ```
 
@@ -171,7 +189,7 @@ fields in this spec are the contract.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-sphinx-docs-capability-blocks-1 | `cap-*` IDs | Proposed | Capability IDs use `cap-<scope>-<system>-<feature>` style, mirroring TAP RID conventions. | |
-| req-sphinx-docs-capability-blocks-2 | Canonical review anchor | Proposed | Each capability block lives at the natural review anchor for the implementation claim. | Not necessarily the narrowest function. |
+| req-sphinx-docs-capability-blocks-2 | Canonical review anchor | Proposed | Each capability block lives at the closest code site that owns the implementation claim, or a MyST page for non-code affordances. | Private functions are valid anchors; proximity to the implementation beats reachability through a public symbol. |
 | req-sphinx-docs-capability-blocks-3 | Code and MyST allowed | Proposed | Capability blocks may appear in Python docstrings or MyST source pages. | Non-code blocks need source/code anchor metadata. |
 | req-sphinx-docs-capability-blocks-4 | Load-bearing only | Proposed | Capability blocks are required only for load-bearing affordances; ordinary helpers keep normal docstrings. | |
 
@@ -195,7 +213,10 @@ Required fields:
 Recommended fields:
 
 - `covered-by` — tests, Gridkin scenario IDs, validation-map rows, or other
-  validation surfaces.
+  validation surfaces. A Gridkin scenario is referenced by its literal
+  `scenario_id` — the `<feature-file-stem>-<slugified-scenario-name>` string the
+  Gridkin loader assigns — prefixed `gridkin:`. A pytest test is referenced by
+  its node id, prefixed `pytest:`.
 - `docs` — human-authored docs target.
 - `since` — first TAP version/release where the capability exists.
 - `changed` — meaningful behavior-change milestone, not every wording edit.
@@ -249,6 +270,11 @@ Capability metadata may carry:
 - `since` — when the capability first became available.
 - `changed` — a meaningful user-visible behavior change.
 
+In v0, `since` is left unpopulated: TAP has no release or version scheme, so a
+uniform placeholder would carry no information. Populating `since` is gated on
+TAP adopting a real versioning scheme — that maturity step is the trigger to
+start recording first-available versions (see [Future](#future)).
+
 Human-authored Sphinx/MyST pages may use Sphinx `versionadded`,
 `versionchanged`, and deprecation directives for reader-facing release notes.
 These should mark behavior changes, not every prose edit.
@@ -258,7 +284,7 @@ These should mark behavior changes, not every prose edit.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-sphinx-docs-versioning-1 | Git is exact history | Proposed | Capability docs do not store edit timestamps or docstring version counters. | Use git log for exact history. |
-| req-sphinx-docs-versioning-2 | `since` allowed | Proposed | Capability blocks may record the first release/version where the capability exists. | |
+| req-sphinx-docs-versioning-2 | `since` allowed | Proposed | Capability blocks may record the first release/version where the capability exists. | Not populated in v0; gated on TAP adopting a real versioning scheme. |
 | req-sphinx-docs-versioning-3 | `changed` is behavioral | Proposed | Capability blocks or prose docs record only meaningful behavior changes, not wording edits. | |
 
 ### Advisory Gap Tracking
@@ -308,9 +334,13 @@ Status: `Proposed`
 
 Rollout is vertical-slice first, then core sweep, then plugins.
 
-1. **Gryphon vertical slice.** Use Gryphon as the proving ground because it has a
-   clear external language surface, active capability growth, specs, Gridkin
-   scenarios, and immediate validation pain.
+1. **Gryphon slice.** Use Gryphon as the proving ground because it has a clear
+   external language surface, active capability growth, specs, Gridkin scenarios,
+   and immediate validation pain. The slice authors capability blocks in their
+   docstring anchors against the semantic-field contract of this spec; it does
+   not require, and is not blocked on, the Sphinx build (`req-sphinx-docs-toolchain-3`).
+   Until that build lands, the blocks are inert, human-legible metadata in the
+   docstrings; Sphinx-Needs validates them when it does.
 2. **Core app sweep.** Apply the convention across load-bearing external and
    agent-relevant affordances in core apps (`tap_grid`, `tap_plugins`,
    `tap_api`, `tap_web`, `tap_viz`, `tap_cares`, later `tap_ai`).
@@ -326,7 +356,7 @@ not part of the first plugin pass.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sphinx-docs-rollout-1 | Gryphon first | Proposed | The first implementation pass applies the convention to Gryphon only. | Do not start with a whole-system census. |
+| req-sphinx-docs-rollout-1 | Gryphon first | Proposed | The first implementation pass applies the convention to Gryphon only, authoring capability blocks in docstrings. | Do not start with a whole-system census; not gated on the Sphinx build. |
 | req-sphinx-docs-rollout-2 | Core sweep second | Proposed | After the vertical slice, load-bearing core app affordances are covered. | |
 | req-sphinx-docs-rollout-3 | Plugins third | Proposed | Plugin docs follow after core conventions are proven. | |
 | req-sphinx-docs-rollout-4 | Grid-derived inventories deferred | Proposed | Page/panel/search/collector inventories derived from grid state are backlog. | Needs runtime docs surfacing design. |
@@ -374,6 +404,13 @@ shape.
 - Machine-readable export of the Sphinx-Needs capability inventory for internal
   agents.
 - Runtime docs browser/search inside TAP.
+- Populate capability `since` once TAP adopts a real versioning/release scheme —
+  versioning maturity is the trigger to begin recording first-available versions.
+- Harden Gridkin `covered-by` links: a Gridkin `scenario_id` is derived from the
+  scenario name, so renaming a scenario silently breaks any capability block's
+  `covered-by` reference to it. The advisory gap report (`req-sphinx-docs-gap-tracking`)
+  catches the break after the fact; an explicit stable `id` field on Gridkin
+  scenarios would prevent it. Accepted as-is for v0.
 
 ## Status Vocabulary
 
