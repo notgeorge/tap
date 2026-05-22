@@ -1,0 +1,32 @@
+{
+  "feature": "Parallel-edge topology — one node pair joined by more than one edge",
+  "background": {
+    "grift_fixture": "fixtures/multi_edge.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "hub-and-spoke returns both parallel edges between the same pair",
+      "tags": ["hub-and-spoke", "multi-edge", "current-behavior"],
+      "covers": ["req-grid-traversal-lang-shape"],
+      "layer": "lite",
+      "query": "MATCH (a)-[e]-(b) WHERE a.entity_id = $source",
+      "params": {
+        "source": "019e4e07-9975-7501-8d81-0fc8952b3f91"
+      },
+      "expected_envelope": "expected/multi_edge__both_edges.expected.json",
+      "expected_sql_snapshot": "expected/multi_edge__both_edges.sql.txt"
+    },
+    {
+      "name": "typed edge pattern selects only the matching parallel edge",
+      "tags": ["hub-and-spoke", "multi-edge", "edge-type", "current-behavior"],
+      "covers": ["req-grid-traversal-lang-shape"],
+      "layer": "lite",
+      "query": "MATCH (a)-[e:PG_NESTS]-(b) WHERE a.entity_id = $source",
+      "params": {
+        "source": "019e4e07-9975-7501-8d81-0fc8952b3f91"
+      },
+      "expected_envelope": "expected/multi_edge__typed.expected.json",
+      "expected_sql_snapshot": "expected/multi_edge__typed.sql.txt"
+    }
+  ]
+}

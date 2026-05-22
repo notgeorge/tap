@@ -1,0 +1,32 @@
+{
+  "feature": "Cyclic topology — traversal returning to its origin, and self-loop edges",
+  "background": {
+    "grift_fixture": "fixtures/cycles.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "hub-and-spoke on a self-looped node returns the node through its loop edge",
+      "tags": ["hub-and-spoke", "self-loop", "cycles", "current-behavior"],
+      "covers": ["req-grid-traversal-lang-shape"],
+      "layer": "lite",
+      "query": "MATCH (n)-[e]-(m) WHERE n.entity_id = $self_node",
+      "params": {
+        "self_node": "019e4e07-9975-7501-8d81-0fc238769248"
+      },
+      "expected_envelope": "expected/cycles__self_loop.expected.json",
+      "expected_sql_snapshot": "expected/cycles__self_loop.sql.txt"
+    },
+    {
+      "name": "three-hop traversal around a three-node cycle returns to the origin",
+      "tags": ["multi-hop", "cycles", "current-behavior"],
+      "covers": ["req-grid-gryphon-multihop"],
+      "layer": "lite",
+      "query": "MATCH (a)-[:PG_LINKS]->(b)-[:PG_LINKS]->(c)-[:PG_LINKS]->(d) WHERE a.entity_id = $node_a",
+      "params": {
+        "node_a": "019e4e07-9975-7501-8d81-0fbf70e51757"
+      },
+      "expected_envelope": "expected/cycles__three_hop.expected.json",
+      "expected_sql_snapshot": "expected/cycles__three_hop.sql.txt"
+    }
+  ]
+}

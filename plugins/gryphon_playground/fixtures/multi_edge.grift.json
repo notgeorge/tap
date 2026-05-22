@@ -1,0 +1,93 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e4e07-9975-7501-8d81-0fc71ac72c4c",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — multi_edge",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — multi_edge",
+        "description": "One node pair connected by two parallel edges of different types (PG_LINKS and PG_NESTS). Tier 1 Gridkin fixture exercising parallel-edge topology — the same pair joined by more than one edge.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fc8952b3f91",
+            "entity_type": "pg_node",
+            "name": "Multi Source",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:10:00Z",
+            "updated_at": "2026-05-21T16:10:00Z"
+          },
+          "node": {
+            "name": "Multi Source",
+            "description": "Source of two parallel edges to Multi Target.",
+            "kind": "source",
+            "severity_score": 10,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fc97af589b8",
+            "entity_type": "pg_node",
+            "name": "Multi Target",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:10:01Z",
+            "updated_at": "2026-05-21T16:10:01Z"
+          },
+          "node": {
+            "name": "Multi Target",
+            "description": "Reached from Multi Source by both a PG_LINKS and a PG_NESTS edge.",
+            "kind": "target",
+            "severity_score": 20,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fca39a3fcda",
+            "entity_type": "edge",
+            "name": "Multi Source PG_LINKS Multi Target",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:11:00Z",
+            "updated_at": "2026-05-21T16:11:00Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4e07-9975-7501-8d81-0fc8952b3f91",
+            "to_entity_id": "019e4e07-9975-7501-8d81-0fc97af589b8",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fcb6e6c20bc",
+            "entity_type": "edge",
+            "name": "Multi Source PG_NESTS Multi Target",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:11:01Z",
+            "updated_at": "2026-05-21T16:11:01Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4e07-9975-7501-8d81-0fc8952b3f91",
+            "to_entity_id": "019e4e07-9975-7501-8d81-0fc97af589b8",
+            "edge_type": "PG_NESTS",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}

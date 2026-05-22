@@ -1,0 +1,182 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e4e07-9975-7501-8d81-0fd060a5b62c",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — nesting",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — nesting",
+        "description": "A three-level containment hierarchy over PG_NESTS edges: a root hub nests two branches, one branch nests two leaves. Tier 1 Gridkin fixture exercising compound/containment topology and multi-hop over a non-PG_LINKS edge type.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fd1935265b4",
+            "entity_type": "pg_hub",
+            "name": "Nest Root",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:40:00Z",
+            "updated_at": "2026-05-21T16:40:00Z"
+          },
+          "node": {
+            "name": "Nest Root",
+            "description": "Root of the containment hierarchy.",
+            "kind": "root",
+            "severity_score": 10,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fd20676235e",
+            "entity_type": "pg_node",
+            "name": "Branch One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:40:01Z",
+            "updated_at": "2026-05-21T16:40:01Z"
+          },
+          "node": {
+            "name": "Branch One",
+            "description": "A branch that nests two leaves.",
+            "kind": "branch",
+            "severity_score": 20,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fd3d45d838f",
+            "entity_type": "pg_node",
+            "name": "Branch Two",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:40:02Z",
+            "updated_at": "2026-05-21T16:40:02Z"
+          },
+          "node": {
+            "name": "Branch Two",
+            "description": "A branch that nests no leaves.",
+            "kind": "branch",
+            "severity_score": 30,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fd4000cdc11",
+            "entity_type": "pg_leaf",
+            "name": "Leaf One A",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:40:03Z",
+            "updated_at": "2026-05-21T16:40:03Z"
+          },
+          "node": {
+            "name": "Leaf One A",
+            "description": "A leaf nested under Branch One.",
+            "kind": "leaf",
+            "severity_score": 40,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fd5ff1349c3",
+            "entity_type": "pg_leaf",
+            "name": "Leaf One B",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:40:04Z",
+            "updated_at": "2026-05-21T16:40:04Z"
+          },
+          "node": {
+            "name": "Leaf One B",
+            "description": "A leaf nested under Branch One.",
+            "kind": "leaf",
+            "severity_score": 50,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fd60cda42a3",
+            "entity_type": "edge",
+            "name": "Nest Root PG_NESTS Branch One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:41:00Z",
+            "updated_at": "2026-05-21T16:41:00Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4e07-9975-7501-8d81-0fd1935265b4",
+            "to_entity_id": "019e4e07-9975-7501-8d81-0fd20676235e",
+            "edge_type": "PG_NESTS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fd7138b5001",
+            "entity_type": "edge",
+            "name": "Nest Root PG_NESTS Branch Two",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:41:01Z",
+            "updated_at": "2026-05-21T16:41:01Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4e07-9975-7501-8d81-0fd1935265b4",
+            "to_entity_id": "019e4e07-9975-7501-8d81-0fd3d45d838f",
+            "edge_type": "PG_NESTS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fd8127168ca",
+            "entity_type": "edge",
+            "name": "Branch One PG_NESTS Leaf One A",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:41:02Z",
+            "updated_at": "2026-05-21T16:41:02Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4e07-9975-7501-8d81-0fd20676235e",
+            "to_entity_id": "019e4e07-9975-7501-8d81-0fd4000cdc11",
+            "edge_type": "PG_NESTS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fd930c004b7",
+            "entity_type": "edge",
+            "name": "Branch One PG_NESTS Leaf One B",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:41:03Z",
+            "updated_at": "2026-05-21T16:41:03Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4e07-9975-7501-8d81-0fd20676235e",
+            "to_entity_id": "019e4e07-9975-7501-8d81-0fd5ff1349c3",
+            "edge_type": "PG_NESTS",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "feature": "WHERE predicates that walk into a per-model JSON field",
+  "background": {
+    "grift_fixture": "fixtures/json_payloads.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "WHERE on a nested JSON tag key filters the type-scan",
+      "tags": ["type-scan", "where", "json-payload", "current-behavior"],
+      "covers": [
+        "req-grid-traversal-lang-filters",
+        "req-grid-traversal-lang-envelope-paths-2"
+      ],
+      "layer": "full",
+      "query": "MATCH (n:pg_node) WHERE n.data.tags.team = \"infra\"",
+      "expected_envelope": "expected/json_payloads__team_infra.expected.json",
+      "expected_sql_snapshot": "expected/json_payloads__team_infra.sql.txt"
+    }
+  ]
+}

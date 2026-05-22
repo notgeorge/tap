@@ -1,0 +1,20 @@
+{
+  "feature": "Containment hierarchy — multi-hop traversal over PG_NESTS edges",
+  "background": {
+    "grift_fixture": "fixtures/nesting.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "two-hop nesting traversal returns the root's leaf-bearing branch and its leaves",
+      "tags": ["multi-hop", "nesting", "current-behavior"],
+      "covers": ["req-grid-gryphon-multihop"],
+      "layer": "lite",
+      "query": "MATCH (r)-[:PG_NESTS]->(b)-[:PG_NESTS]->(l) WHERE r.entity_id = $root",
+      "params": {
+        "root": "019e4e07-9975-7501-8d81-0fd1935265b4"
+      },
+      "expected_envelope": "expected/nesting__two_hop.expected.json",
+      "expected_sql_snapshot": "expected/nesting__two_hop.sql.txt"
+    }
+  ]
+}

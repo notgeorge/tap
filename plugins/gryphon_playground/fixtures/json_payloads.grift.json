@@ -1,0 +1,98 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e4e07-9975-7501-8d81-0fdad0d5ee22",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — json_payloads",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — json_payloads",
+        "description": "Four pg_node entities carrying varied `tags` JSON payloads (team / priority keys). Tier 1 Gridkin fixture exercising WHERE predicates that walk into a per-model JSON field.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fdbae66369e",
+            "entity_type": "pg_node",
+            "name": "Infra High",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:50:00Z",
+            "updated_at": "2026-05-21T16:50:00Z"
+          },
+          "node": {
+            "name": "Infra High",
+            "description": "Infra-team node, high priority.",
+            "kind": "service",
+            "severity_score": 10,
+            "is_open": true,
+            "observed_at": null,
+            "tags": { "team": "infra", "priority": "high" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fdce00dd229",
+            "entity_type": "pg_node",
+            "name": "Infra Low",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:50:01Z",
+            "updated_at": "2026-05-21T16:50:01Z"
+          },
+          "node": {
+            "name": "Infra Low",
+            "description": "Infra-team node, low priority.",
+            "kind": "service",
+            "severity_score": 20,
+            "is_open": true,
+            "observed_at": null,
+            "tags": { "team": "infra", "priority": "low" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fdd835507e1",
+            "entity_type": "pg_node",
+            "name": "Data High",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:50:02Z",
+            "updated_at": "2026-05-21T16:50:02Z"
+          },
+          "node": {
+            "name": "Data High",
+            "description": "Data-team node, high priority.",
+            "kind": "service",
+            "severity_score": 30,
+            "is_open": true,
+            "observed_at": null,
+            "tags": { "team": "data", "priority": "high" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fde295598e9",
+            "entity_type": "pg_node",
+            "name": "Data Plain",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:50:03Z",
+            "updated_at": "2026-05-21T16:50:03Z"
+          },
+          "node": {
+            "name": "Data Plain",
+            "description": "Data-team node with no priority tag.",
+            "kind": "service",
+            "severity_score": 40,
+            "is_open": true,
+            "observed_at": null,
+            "tags": { "team": "data" }
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}
