@@ -1,0 +1,12 @@
+-- statement 1 · stage: advanced
+SELECT "tap_edge"."from_entity_id" AS "_g_col_0", COUNT("tap_edge"."to_entity_id") AS "_g_agg_0"
+FROM "tap_edge"
+INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND NOT EXISTS(SELECT %s AS "a"
+FROM "tap_edge" U0
+INNER JOIN "tap_entity" U1 ON (U0."entity_id" = U1."id")
+WHERE (U1."deleted_at" IS NULL AND U0."edge_type" = %s AND U0."to_entity_id" = ("tap_edge"."to_entity_id"))
+LIMIT 1))
+GROUP BY 1
+ORDER BY 1 ASC
+-- params: ['PG_LINKS', Int4(1), 'PG_OPTIONAL']

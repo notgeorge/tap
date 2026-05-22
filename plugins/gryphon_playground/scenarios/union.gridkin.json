@@ -1,0 +1,17 @@
+{
+  "feature": "Multiple MATCH clauses union into one deduplicated graph envelope",
+  "background": {
+    "grift_fixture": "fixtures/sparse_dense.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "two type-scan MATCH clauses union pg_hub and pg_node nodes",
+      "tags": ["union", "multi-match", "current-behavior"],
+      "covers": ["req-grid-traversal-lang-shape-5"],
+      "layer": "lite",
+      "query": "MATCH (a:pg_hub) MATCH (b:pg_node)",
+      "expected_envelope": "expected/union__hub_and_node.expected.json",
+      "expected_sql_snapshot": "expected/union__hub_and_node.sql.txt"
+    }
+  ]
+}

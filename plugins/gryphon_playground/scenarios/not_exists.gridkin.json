@@ -1,0 +1,33 @@
+{
+  "feature": "NOT EXISTS anti-join excludes rows whose correlated subquery matches",
+  "background": {
+    "grift_fixture": "fixtures/optional_relations.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "NOT EXISTS excludes targets that have a guard edge",
+      "tags": ["not-exists", "advanced", "current-behavior"],
+      "covers": [
+        "req-grid-gryphon-not-exists",
+        "req-grid-gryphon-not-exists-3"
+      ],
+      "layer": "lite",
+      "query": "MATCH (s)-[e:PG_LINKS]->(t) NOT EXISTS { MATCH (g)-[:PG_OPTIONAL]->(t) }",
+      "expected_envelope": "expected/not_exists__unguarded_envelope.expected.json",
+      "expected_sql_snapshot": "expected/not_exists__unguarded_envelope.sql.txt"
+    },
+    {
+      "name": "NOT EXISTS combined with COUNT counts only unguarded targets",
+      "tags": ["not-exists", "aggregation", "count", "current-behavior"],
+      "covers": [
+        "req-grid-gryphon-not-exists",
+        "req-grid-gryphon-count",
+        "req-grid-gryphon-rows"
+      ],
+      "layer": "lite",
+      "query": "MATCH (s)-[:PG_LINKS]->(t) NOT EXISTS { MATCH (g)-[:PG_OPTIONAL]->(t) } RETURN s.entity_id AS source_id, COUNT(t) AS unguarded_count",
+      "expected_envelope": "expected/not_exists__unguarded_count.expected.json",
+      "expected_sql_snapshot": "expected/not_exists__unguarded_count.sql.txt"
+    }
+  ]
+}

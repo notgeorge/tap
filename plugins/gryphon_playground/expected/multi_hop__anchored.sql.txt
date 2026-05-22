@@ -1,5 +1,5 @@
 -- statement 1 · stage: advanced
-SELECT T5."to_entity_id" AS "to_entity__edges_out__to_entity_id", "tap_edge"."to_entity_id" AS "to_entity_id", "tap_edge"."from_entity_id" AS "from_entity_id", "tap_edge"."entity_id" AS "entity_id", T5."entity_id" AS "to_entity__edges_out__entity_id"
+SELECT T5."to_entity_id" AS "to_entity__edges_out__to_entity_id", "tap_edge"."from_entity_id" AS "from_entity_id", "tap_edge"."to_entity_id" AS "to_entity_id", "tap_edge"."entity_id" AS "entity_id", T5."entity_id" AS "to_entity__edges_out__entity_id"
 FROM "tap_edge"
 INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
 INNER JOIN "tap_entity" T3 ON ("tap_edge"."from_entity_id" = T3."id")

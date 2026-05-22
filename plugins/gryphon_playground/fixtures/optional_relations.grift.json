@@ -1,0 +1,182 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e4da0-8a10-7418-b229-c1b8e57476ec",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — optional_relations",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — optional_relations",
+        "description": "A source fanning out to three targets via PG_LINKS, where exactly one target also has an incoming PG_OPTIONAL guard edge. Tier 1 Gridkin fixture for NOT EXISTS anti-joins (some targets guarded, some not) and, in future, OPTIONAL MATCH.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e4da0-8a10-7418-b229-c1b9f005bd94",
+            "entity_type": "pg_hub",
+            "name": "Source",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T14:00:00Z",
+            "updated_at": "2026-05-21T14:00:00Z"
+          },
+          "node": {
+            "name": "Source",
+            "description": "Fans out to three targets via PG_LINKS.",
+            "kind": "source",
+            "severity_score": 0,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4da0-8a10-7418-b229-c1ba2ceca9a7",
+            "entity_type": "pg_node",
+            "name": "Target One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T14:00:01Z",
+            "updated_at": "2026-05-21T14:00:01Z"
+          },
+          "node": {
+            "name": "Target One",
+            "description": "Guarded target — has an incoming PG_OPTIONAL edge.",
+            "kind": "target",
+            "severity_score": 10,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4da0-8a10-7418-b229-c1bbd717ddbc",
+            "entity_type": "pg_node",
+            "name": "Target Two",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T14:00:02Z",
+            "updated_at": "2026-05-21T14:00:02Z"
+          },
+          "node": {
+            "name": "Target Two",
+            "description": "Unguarded target — no incoming PG_OPTIONAL edge.",
+            "kind": "target",
+            "severity_score": 20,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4da0-8a10-7418-b229-c1bc929c357e",
+            "entity_type": "pg_node",
+            "name": "Target Three",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T14:00:03Z",
+            "updated_at": "2026-05-21T14:00:03Z"
+          },
+          "node": {
+            "name": "Target Three",
+            "description": "Unguarded target — no incoming PG_OPTIONAL edge.",
+            "kind": "target",
+            "severity_score": 30,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4da0-8a10-7418-b229-c1bd7fffc884",
+            "entity_type": "pg_node",
+            "name": "Guard",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T14:00:04Z",
+            "updated_at": "2026-05-21T14:00:04Z"
+          },
+          "node": {
+            "name": "Guard",
+            "description": "Holds the PG_OPTIONAL guard edge into Target One.",
+            "kind": "guard",
+            "severity_score": 40,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e4da0-8a11-77ca-9976-97d6eeee59f9",
+            "entity_type": "edge",
+            "name": "Source PG_LINKS Target One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T14:01:00Z",
+            "updated_at": "2026-05-21T14:01:00Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4da0-8a10-7418-b229-c1b9f005bd94",
+            "to_entity_id": "019e4da0-8a10-7418-b229-c1ba2ceca9a7",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4da0-8a11-77ca-9976-97d77b4064a1",
+            "entity_type": "edge",
+            "name": "Source PG_LINKS Target Two",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T14:01:01Z",
+            "updated_at": "2026-05-21T14:01:01Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4da0-8a10-7418-b229-c1b9f005bd94",
+            "to_entity_id": "019e4da0-8a10-7418-b229-c1bbd717ddbc",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4da0-8a11-77ca-9976-97d84f97d818",
+            "entity_type": "edge",
+            "name": "Source PG_LINKS Target Three",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T14:01:02Z",
+            "updated_at": "2026-05-21T14:01:02Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4da0-8a10-7418-b229-c1b9f005bd94",
+            "to_entity_id": "019e4da0-8a10-7418-b229-c1bc929c357e",
+            "edge_type": "PG_LINKS",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4da0-8a11-77ca-9976-97d98253aedd",
+            "entity_type": "edge",
+            "name": "Guard PG_OPTIONAL Target One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T14:01:03Z",
+            "updated_at": "2026-05-21T14:01:03Z"
+          },
+          "edge": {
+            "from_entity_id": "019e4da0-8a10-7418-b229-c1bd7fffc884",
+            "to_entity_id": "019e4da0-8a10-7418-b229-c1ba2ceca9a7",
+            "edge_type": "PG_OPTIONAL",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}
