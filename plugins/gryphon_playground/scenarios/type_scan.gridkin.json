@@ -29,6 +29,18 @@
       "query": "MATCH (n:pg_node) WHERE n.data.kind = \"island\"",
       "expected_envelope": "expected/type_scan__kind_island.expected.json",
       "expected_sql_snapshot": "expected/type_scan__kind_island.sql.txt"
+    },
+    {
+      "name": "bare-variable RETURN yields the graph envelope",
+      "tags": ["type-scan", "return", "current-behavior"],
+      "covers": [
+        "req-grid-traversal-lang-returns-3",
+        "req-grid-traversal-lang-shape"
+      ],
+      "layer": "full",
+      "query": "MATCH (n:pg_node) RETURN n",
+      "expected_envelope": "expected/type_scan__return_bare_var.expected.json",
+      "expected_sql_snapshot": "expected/type_scan__return_bare_var.sql.txt"
     }
   ]
 }

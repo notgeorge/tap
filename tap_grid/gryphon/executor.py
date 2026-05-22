@@ -427,17 +427,21 @@ def _execute_type_scan(
         if scoped_pred is not None:
             qs = _apply_typescan_predicate(qs, scoped_pred, var, inputs)
 
-    items = return_clause.items  # None → graph envelope
-
-    if items is not None:
-        # Projection mode — keep existing behavior (returns projected dicts).
-        nodes: list[dict[str, Any]] = [_project_node(domain_obj, items, var) for domain_obj in qs]
+    # Graph envelope mode — RETURN omitted, or RETURN names only bare variables.
+    # A bare `RETURN n` requests the node itself, which is the graph envelope;
+    # projection mode (projected field dicts) is for RETURN clauses that name
+    # field paths. This mirrors the advanced executor's _is_graph_envelope_return
+    # — without it, `MATCH (n:type) RETURN n` returned a list of empty dicts.
+    if _is_graph_envelope_return(return_clause):
+        domain_objects = list(qs)
+        nodes = _serialize_typed_nodes(domain_objects, layer, db_alias)
         return {"nodes": nodes, "edges": []}
 
-    # Graph envelope mode — use grift serializers.
-    domain_objects = list(qs)
-    nodes = _serialize_typed_nodes(domain_objects, layer, db_alias)
-    return {"nodes": nodes, "edges": []}
+    # Projection mode — RETURN names field paths; returns projected field dicts.
+    items = return_clause.items
+    assert items is not None  # _is_graph_envelope_return is True when items is None
+    projected: list[dict[str, Any]] = [_project_node(domain_obj, items, var) for domain_obj in qs]
+    return {"nodes": projected, "edges": []}
 
 
 def _apply_typescan_predicate(
@@ -668,7 +672,9 @@ def _execute_hub_and_spoke(
     direction = edge_pattern.direction
 
     # select_related("entity") needed for full/extended edge serialization.
-    extra_related = ["entity"] if layer != "lite" else []
+    # The edge's own Entity is needed by every layer's serializer for the spine
+    # surface — select_related it always (skipping it at "lite" caused an N+1).
+    extra_related = ["entity"]
 
     if direction in ("out", "any"):
         outbound_qs = (
@@ -750,7 +756,9 @@ def _execute_edge_type_scan(
 
     direction = edge_pattern.direction
     edge_type = edge_pattern.edge_type
-    extra_related = ["entity"] if layer != "lite" else []
+    # The edge's own Entity is needed by every layer's serializer for the spine
+    # surface — select_related it always (skipping it at "lite" caused an N+1).
+    extra_related = ["entity"]
 
     # Inline edge-property map filter (req-grid-traversal-lang-filters-1).
     inline_prop_filters: dict[str, Any] = {
