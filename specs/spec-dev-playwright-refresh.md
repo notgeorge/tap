@@ -90,7 +90,7 @@ If wedging becomes frequent, layered options:
 
 ## Linked Docs
 
-- [docs/doc-dev-playwright-refresh.md](../docs/doc-dev-playwright-refresh.md) — operator/LLM how-to for invoking the script.
+- [docs/misc/doc-dev-playwright-refresh.md](../docs/misc/doc-dev-playwright-refresh.md) — operator/LLM how-to for invoking the script.
 
 ## Status Vocabulary
 

@@ -34,7 +34,7 @@ contains*; the Gridkin spec governs *the format of the files it contains*.
 
 ## Relationship to the Gryphon Wishlist
 
-[`doc-dev-gryphon-wishlist.md`](../../../docs/doc-dev-gryphon-wishlist.md) is the
+[`doc-dev-gryphon-wishlist.md`](../../../docs/misc/doc-dev-gryphon-wishlist.md) is the
 operational companion to this spec and the Gridkin spec — a prioritized,
 demand-shaped view of what Gryphon needs to grow into, plus the validation
 discipline every Gryphon extension ships under. It is required reading before

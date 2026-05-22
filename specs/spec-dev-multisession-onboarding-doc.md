@@ -2,7 +2,7 @@
 
 ## Philosophy
 
-A developer (human or LLM) provisioning a new isolated TAP dev session needs a single procedural doc to follow — not a hunt across three feature specs. The feature specs (`spec-dev-multisession.md`, `spec-dev-multisession-smoketest.md`, `spec-dev-multisession-teardown.md`) define *what* the multi-session system does and *why*; this doc-spec owns the *how-to* surface — `docs/doc-dev-multisession-onboarding.md` — and tracks its alignment with the underlying behavior.
+A developer (human or LLM) provisioning a new isolated TAP dev session needs a single procedural doc to follow — not a hunt across three feature specs. The feature specs (`spec-dev-multisession.md`, `spec-dev-multisession-smoketest.md`, `spec-dev-multisession-teardown.md`) define *what* the multi-session system does and *why*; this doc-spec owns the *how-to* surface — `docs/misc/doc-dev-multisession-onboarding.md` — and tracks its alignment with the underlying behavior.
 
 The doc is the trial run for the documentation system defined in [spec-docs.md](spec-docs.md). Any rough edges in the trial fold back into the meta-spec.
 
@@ -19,7 +19,7 @@ The doc is the trial run for the documentation system defined in [spec-docs.md](
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-dev-multisession-onboarding-doc-exists | [Doc Exists at Canonical Path](#doc-exists-at-canonical-path) | Proposed | `docs/doc-dev-multisession-onboarding.md` |
+| req-dev-multisession-onboarding-doc-exists | [Doc Exists at Canonical Path](#doc-exists-at-canonical-path) | Proposed | `docs/misc/doc-dev-multisession-onboarding.md` |
 | req-dev-multisession-onboarding-doc-pointer | [Pointer-Only Surface](#pointer-only-surface) | Proposed | Doc names the script invocation and links the specs; no procedural duplication |
 | req-dev-multisession-onboarding-doc-frontmatter | [Frontmatter Per spec-docs](#frontmatter-per-spec-docs) | Proposed | Conforms to `req-docs-frontmatter` |
 | req-dev-multisession-onboarding-doc-handoff | [Handoff to Smoke-Test and Teardown](#handoff-to-smoke-test-and-teardown) | Proposed | Doc tells the reader what to do next |
@@ -29,13 +29,13 @@ The doc is the trial run for the documentation system defined in [spec-docs.md](
 RID: `req-dev-multisession-onboarding-doc-exists`
 Status: `Proposed`
 
-The doc lives at `docs/doc-dev-multisession-onboarding.md`. The path is canonical; cross-references in other specs and docs link here.
+The doc lives at `docs/misc/doc-dev-multisession-onboarding.md`. The path is canonical; cross-references in other specs and docs link here.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-onboarding-doc-exists-1 | File present | Proposed | `docs/doc-dev-multisession-onboarding.md` exists in the repo. | |
+| req-dev-multisession-onboarding-doc-exists-1 | File present | Proposed | `docs/misc/doc-dev-multisession-onboarding.md` exists in the repo. | |
 | req-dev-multisession-onboarding-doc-exists-2 | Cross-references resolve | Proposed | Every link to the doc from other specs/docs resolves. | |
 
 ### Pointer-Only Surface

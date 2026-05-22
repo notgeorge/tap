@@ -21,7 +21,7 @@ This spec governs the **file format and runner contract**. The plugin that hosts
 the Gridkin corpus — its playground node and edge vocabulary, its two-tier fixture
 structure, and the runner's home — is specified in the companion
 [spec-gryphon-playground-v0.md](spec-gryphon-playground-v0.md). The two specs are
-designed to be read together; [`doc-dev-gryphon-wishlist.md`](../../../docs/doc-dev-gryphon-wishlist.md)
+designed to be read together; [`doc-dev-gryphon-wishlist.md`](../../../docs/misc/doc-dev-gryphon-wishlist.md)
 is their shared operational companion.
 
 ## Goals

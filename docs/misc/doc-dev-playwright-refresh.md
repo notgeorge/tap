@@ -1,8 +1,8 @@
 ---
-spec: ../specs/spec-dev-playwright-refresh-doc.md
+spec: ../../specs/spec-dev-playwright-refresh-doc.md
 audience: [llm, developer]
 covers:
-  - ../specs/spec-dev-playwright-refresh.md
+  - ../../specs/spec-dev-playwright-refresh.md
   - req-dev-playwright-refresh-script
   - req-dev-playwright-refresh-restart
   - req-dev-playwright-refresh-scope
@@ -24,9 +24,9 @@ provides: |
 
 # Refreshing the Playwright MCP Server
 
-Spec: [spec-dev-playwright-refresh-doc.md](../specs/spec-dev-playwright-refresh-doc.md)
+Spec: [spec-dev-playwright-refresh-doc.md](../../specs/spec-dev-playwright-refresh-doc.md)
 
-This is the canonical procedure for an attached Claude Code session (or a developer) to recover from a wedged Playwright MCP server. The companion feature spec is [spec-dev-playwright-refresh.md](../specs/spec-dev-playwright-refresh.md).
+This is the canonical procedure for an attached Claude Code session (or a developer) to recover from a wedged Playwright MCP server. The companion feature spec is [spec-dev-playwright-refresh.md](../../specs/spec-dev-playwright-refresh.md).
 
 ## 1. Detect that you actually need this doc
 
@@ -50,7 +50,7 @@ Expected output, one of:
 - `No Playwright MCP processes found.` — there was nothing to clean up. The wedge is somewhere else; do not proceed to step 3.
 - `Killing PIDs: <pids>` followed by `Done. All Playwright MCP processes killed.` — cleanup succeeded.
 
-The script also kills parent npm processes matching `@playwright/mcp` so the MCP socket is fully released. It is safe to re-run; running on a clean system is a no-op (see [req-dev-playwright-refresh-script](../specs/spec-dev-playwright-refresh.md#refresh-script)).
+The script also kills parent npm processes matching `@playwright/mcp` so the MCP socket is fully released. It is safe to re-run; running on a clean system is a no-op (see [req-dev-playwright-refresh-script](../../specs/spec-dev-playwright-refresh.md#refresh-script)).
 
 ## 3. Hand off to a fresh Claude Code session — **HUMAN ACTION REQUIRED**
 
@@ -80,4 +80,4 @@ A clean snapshot returning a page title proves the MCP is live again. If it stil
 
 ## Future
 
-A self-restart hook may replace step 3 (see Future in [spec-dev-playwright-refresh.md](../specs/spec-dev-playwright-refresh.md#future)). Until that lands, step 3 is the unavoidable human handoff.
+A self-restart hook may replace step 3 (see Future in [spec-dev-playwright-refresh.md](../../specs/spec-dev-playwright-refresh.md#future)). Until that lands, step 3 is the unavoidable human handoff.

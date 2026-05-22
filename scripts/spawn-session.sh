@@ -18,7 +18,7 @@
 #   req-dev-multisession-browser-disambiguation — TAP_SESSION_LABEL + *.localhost URL
 #
 # All four are documented in: specs/spec-dev-multisession.md
-# Public-facing entry point: docs/doc-dev-multisession-onboarding.md
+# Public-facing entry point: docs/misc/doc-dev-multisession-onboarding.md
 
 set -euo pipefail
 

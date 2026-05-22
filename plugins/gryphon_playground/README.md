@@ -54,7 +54,7 @@ build any topology — cycles, self-loops, multi-edges, cross-type links.
   contract, oracle assertion discipline, snapshot regeneration discipline,
   requirement traceability, TCK-as-inspiration workflow, JSON Schema. Its
   **v0 Non-Goals** section is required reading before proposing scope expansion.
-- `../../docs/doc-dev-gryphon-wishlist.md` — the operational companion:
+- `../../docs/misc/doc-dev-gryphon-wishlist.md` — the operational companion:
   Gryphon's feature trajectory and the validation discipline every extension
   ships under.
 

@@ -2,7 +2,7 @@
 
 ## Philosophy
 
-When an attached Claude Code session notices that the Playwright MCP server has wedged, it needs a single procedural surface that tells it — without escalating to a human — exactly which script to run, how to interpret the output, and how to hand back to a clean session. This doc-spec owns `docs/doc-dev-playwright-refresh.md`, the canonical procedure, and tracks its alignment with the underlying script defined in [spec-dev-playwright-refresh.md](spec-dev-playwright-refresh.md).
+When an attached Claude Code session notices that the Playwright MCP server has wedged, it needs a single procedural surface that tells it — without escalating to a human — exactly which script to run, how to interpret the output, and how to hand back to a clean session. This doc-spec owns `docs/misc/doc-dev-playwright-refresh.md`, the canonical procedure, and tracks its alignment with the underlying script defined in [spec-dev-playwright-refresh.md](spec-dev-playwright-refresh.md).
 
 The doc is LLM-first because the primary consumer is an attached Claude session running into a wedged MCP; humans read it as the secondary audience.
 
@@ -19,7 +19,7 @@ The doc is LLM-first because the primary consumer is an attached Claude session 
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-dev-playwright-refresh-doc-exists | [Doc Exists at Canonical Path](#doc-exists-at-canonical-path) | Proposed | `docs/doc-dev-playwright-refresh.md` |
+| req-dev-playwright-refresh-doc-exists | [Doc Exists at Canonical Path](#doc-exists-at-canonical-path) | Proposed | `docs/misc/doc-dev-playwright-refresh.md` |
 | req-dev-playwright-refresh-doc-procedure | [Procedure Reflects Current Behavior](#procedure-reflects-current-behavior) | Proposed | Steps match the script |
 | req-dev-playwright-refresh-doc-frontmatter | [Frontmatter Per spec-docs](#frontmatter-per-spec-docs) | Proposed | Conforms to `req-docs-frontmatter` |
 | req-dev-playwright-refresh-doc-llm-runnable | [LLM-Runnable Steps](#llm-runnable-steps) | Proposed | No interactive prompts; tool calls only |
@@ -29,13 +29,13 @@ The doc is LLM-first because the primary consumer is an attached Claude session 
 RID: `req-dev-playwright-refresh-doc-exists`
 Status: `Proposed`
 
-The doc lives at `docs/doc-dev-playwright-refresh.md`. The path is canonical; cross-references in other specs and CLAUDE.md link here.
+The doc lives at `docs/misc/doc-dev-playwright-refresh.md`. The path is canonical; cross-references in other specs and CLAUDE.md link here.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-playwright-refresh-doc-exists-1 | File present | Proposed | `docs/doc-dev-playwright-refresh.md` exists in the repo. | |
+| req-dev-playwright-refresh-doc-exists-1 | File present | Proposed | `docs/misc/doc-dev-playwright-refresh.md` exists in the repo. | |
 | req-dev-playwright-refresh-doc-exists-2 | Cross-references resolve | Proposed | Every link to the doc from other specs/docs/CLAUDE.md resolves. | |
 
 ### Procedure Reflects Current Behavior

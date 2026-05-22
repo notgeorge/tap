@@ -20,7 +20,7 @@ This spec defines the documentation system: where docs live, how they reference 
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-docs-location | [Docs Live in `docs/`](#docs-live-in-docs) | Proposed | Top-level flat directory |
+| req-docs-location | [Docs Live in `docs/`](#docs-live-in-docs) | Refactoring | Superseded in part by `spec-sphinx-capability-docs.md`; root `docs/misc/` is the loose drawer |
 | req-docs-naming | [Doc and Doc-Spec Naming](#doc-and-doc-spec-naming) | Proposed | `doc-` prefix; `-doc.md` suffix on owning specs |
 | req-docs-frontmatter | [Frontmatter Schema](#frontmatter-schema) | Proposed | Required and optional fields |
 | req-docs-owning-spec | [Each Doc Has an Owning Spec](#each-doc-has-an-owning-spec) | Proposed | Doc-spec is its own file |
@@ -36,14 +36,16 @@ This spec defines the documentation system: where docs live, how they reference 
 RID: `req-docs-location`
 Status: `Proposed`
 
-All TAP docs live under a top-level `docs/` directory. Flat structure for now (no audience or topic subdirs); fold into subdirs only if the count crosses ~20 files and a clear partition emerges. App-level docs (per-Django-app) are not part of this system — those stay co-located with their app's `specs/` directory.
+All repo-level TAP docs live under a top-level `docs/` directory. The original flat-directory convention has been superseded by [spec-sphinx-capability-docs.md](spec-sphinx-capability-docs.md): existing loose development docs now live in `docs/misc/`, while app and plugin capability docs may live under `tap_<app>/docs/` and `plugins/<slug>/docs/`.
+
+`docs/misc/` is intentionally a "stuff drawer" for development, LLM, and cross-cutting notes that are useful but not worth precisely categorizing. Source docs only live there; generated Sphinx artifacts are build outputs.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-docs-location-1 | Top-level docs/ exists | Proposed | A `docs/` directory exists at the repo root, gitignore-tracked. | |
-| req-docs-location-2 | Flat structure | Proposed | All docs are direct children of `docs/`, no subdirs (until partition is justified). | |
+| req-docs-location-2 | Misc drawer | Proposed | Loose repo-level docs live under `docs/misc/`. | Supersedes the earlier flat-only convention. |
 
 ### Doc and Doc-Spec Naming
 ----
@@ -280,7 +282,7 @@ The first doc to run through this system is the developer onboarding for multi-s
 
 1. This spec lands first as the meta-spec.
 2. `specs/spec-dev-multisession-onboarding-doc.md` is created as the doc's owning spec.
-3. The Developer Onboarding section is moved out of `specs/spec-dev-multisession.md` and into `docs/doc-dev-multisession-onboarding.md` with the frontmatter pattern.
+3. The Developer Onboarding section is moved out of `specs/spec-dev-multisession.md` and into `docs/misc/doc-dev-multisession-onboarding.md` with the frontmatter pattern.
 4. CLAUDE.md gains a Documentation section describing the drift conventions.
 5. A feedback memory captures the doc-review-on-spec-edit rule.
 
