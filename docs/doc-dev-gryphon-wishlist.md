@@ -54,7 +54,34 @@ The **validation-strategy** half of this doc is now built. As of 2026-05-21, on 
 - The SQL-capture seam is implemented — `tap_grid/gryphon/capture.py`, `explain_gryphon_raw()`, and `req-grid-traversal-exec-sql-capture` in `spec-grid-traversal-execution.md`. The Gridkin expected-SQL snapshot and the future `gryphon explain` command (H3) now share this real infrastructure.
 - A first scenario corpus exists and is green. Expanding it to validate the whole current executor surface is in progress.
 
-The **feature-wishlist** half (buckets A–H below) is unchanged: still forward-looking, still demand-gated. Where a bucket's "how it touches the executor today" note is overtaken by events, this status note is the correction of record until the bucket text itself is revised.
+## Implementation Status — Stage 4 (2026-05-22)
+
+Four wishlist features have since landed on `session/gryphon-playground`, each as
+one full-cycle commit (spec requirement + grammar/AST/parser/executor + Gridkin
+scenarios with oracle expecteds + TCK-mined corner cases + `test_gryphon.py`
+tests):
+
+- **A1 `ORDER BY` + A2 `LIMIT`** — `req-grid-gryphon-order-by` / `req-grid-gryphon-limit`
+  in `spec-grid-gryphon-multihop-aggregation.md`. Row-projection only; deterministic
+  tiebreak; compiles to SQL `ORDER BY` / `LIMIT`.
+- **B1 `IN`-lists** — `req-grid-traversal-lang-in` in `spec-grid-traversal-language.md`.
+  `WHERE field IN [...]`; empty list matches nothing; NULL member never matches;
+  element-level `$param`s.
+- **D1 `OPTIONAL MATCH`** — `req-grid-gryphon-optional-match` in the
+  multihop-aggregation spec. v0 = the single-hop, COUNT-only per-entity scoreboard
+  shape (left-outer join; zero-match rows kept; the WHERE filter-placement gotcha
+  pinned).
+
+The end-to-end process is captured as a skill at
+`tap_grid/skills/build-gryphon-capability/SKILL.md`. The bucket text below for
+A1/A2/B1/D1 is now overtaken by events — those buckets describe delivered behavior;
+the `Status flag`s on the remaining buckets (A3, A4, B2–B4, C, D2, E, F, G, H) are
+unchanged. Trust `git log` and the spec requirement statuses over the prose below.
+
+The **rest of the feature-wishlist** (the buckets not listed above) is unchanged:
+still forward-looking, still demand-gated. Where a bucket's "how it touches the
+executor today" note is overtaken by events, this status note is the correction of
+record until the bucket text itself is revised.
 
 ## What's Deliberately Not In This Doc (In-Flight Elsewhere)
 
