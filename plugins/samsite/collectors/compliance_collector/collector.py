@@ -1,25 +1,30 @@
 """The samsite compliance collector.
 
 A ``CollectorBase`` subclass that fetches samsite's signed ``/.well-known/``
-compliance artifacts over HTTPS. Unlike the boto3 collector it needs no cloud
-credentials — it reads public URLs.
+compliance artifacts over HTTPS, decomposes them into the
+``fedramp_20x_ksi`` compliance-artifact graph, and submits one GRIFT batch.
+Unlike the boto3 collector it needs no cloud credentials — it reads public
+URLs.
 
 Spec: plugins/samsite/specs/spec-samsite-compliance-collector-v0.md.
-
-Build state: ``run()`` fetches every manifest artifact (document + Sigstore
-bundle) and records the result. Signature verification and decomposition into
-the ``fedramp_20x_ksi`` compliance-artifact models are subsequent additive
-phases of the same ``run()``.
 """
 
 from __future__ import annotations
 
+import json
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 from typing import Any
 
 from tap_cares.collectors.base import CollectorBase
 
+from .batch import assemble_batch
+from .decompose import (
+    decompose_compliance_artifact,
+    decompose_ksi_signal,
+    decompose_vdr_report,
+)
 from .manifest import ArtifactManifestError, load_manifest
 
 _SITE_RUN_STARTED = "be33"
@@ -29,9 +34,13 @@ _SITE_ARTIFACT_FETCHED = "c7ac"
 _SITE_ARTIFACT_FETCH_FAILED = "147c"
 _SITE_BUNDLE_FETCH_FAILED = "f159"
 _SITE_MANIFEST_INVALID = "8c42"
+_SITE_DECOMPOSE_FAILED = "55c8"
+_SITE_BATCH_SUBMITTED = "0772"
+_SITE_NOTHING_TO_SUBMIT = "12f5"
 
 _FETCH_TIMEOUT_SECONDS = 30
 _USER_AGENT = "tap-samsite-compliance-collector"
+_COLLECTOR_SOURCE = "plugins.samsite.collectors.compliance_collector"
 
 
 class SamsiteComplianceCollectorError(Exception):
@@ -53,7 +62,8 @@ def _fetch(url: str) -> bytes:
 
 
 class SamsiteComplianceCollector(CollectorBase):
-    """Fetches samsite's signed ``/.well-known/`` compliance artifacts."""
+    """Fetches samsite's signed ``/.well-known/`` compliance artifacts and lands
+    them on the grid as the fedramp_20x_ksi compliance-artifact subgraph."""
 
     def _abort(self, site: str, code: str, message: str) -> None:
         """Record a structured error and raise to halt the run."""
@@ -62,6 +72,7 @@ class SamsiteComplianceCollector(CollectorBase):
 
     def run(self) -> None:
         self.record_info(_SITE_RUN_STARTED, "RUN_STARTED", "Samsite compliance collection started.")
+        fetched_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
         try:
             manifest = load_manifest()
@@ -77,8 +88,7 @@ class SamsiteComplianceCollector(CollectorBase):
             message_data={"site_base_url": base_url, "artifact_count": len(artifacts)},
         )
 
-        # Fetched artifacts, content in hand — the input to the verification
-        # and decomposition phases (which extend this run()).
+        # ---- Phase 1: fetch every artifact + its bundle -----------------------
         fetched: list[dict[str, Any]] = []
         for artifact in artifacts:
             name = artifact["name"]
@@ -120,5 +130,107 @@ class SamsiteComplianceCollector(CollectorBase):
                 },
             )
 
-        self.summary = f"Fetched {len(fetched)}/{len(artifacts)} compliance artifacts."
+        # ---- Phase 2: decompose ---------------------------------------------
+        # KSI signals first — they populate the system/component indexes that
+        # the VDR decomposition uses for REFERENCES_SIGNAL and AFFECTS_RESOURCE.
+        all_nodes: list[dict[str, Any]] = []
+        all_edges: list[dict[str, Any]] = []
+        ksi_signal_by_system: dict[str, str] = {}
+        ksi_component_by_id: dict[str, str] = {}
+
+        for fetched_item in fetched:
+            if fetched_item["artifact"]["handling"] != "ksi_signal":
+                continue
+            artifact = fetched_item["artifact"]
+            try:
+                signal = json.loads(fetched_item["body"])
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                self.record_warn(
+                    _SITE_DECOMPOSE_FAILED,
+                    "DECOMPOSE_FAILED",
+                    f"Could not parse {artifact['name']} as JSON: {exc}",
+                    message_data={"artifact": artifact["name"]},
+                )
+                continue
+            decomp = decompose_ksi_signal(signal)
+            all_nodes.extend(decomp.nodes)
+            all_edges.extend(decomp.edges)
+            ksi_signal_by_system.update(decomp.ksi_signal_by_system)
+            ksi_component_by_id.update(decomp.ksi_component_by_id)
+
+        for fetched_item in fetched:
+            if fetched_item["artifact"]["handling"] != "vdr_report":
+                continue
+            artifact = fetched_item["artifact"]
+            try:
+                report = json.loads(fetched_item["body"])
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                self.record_warn(
+                    _SITE_DECOMPOSE_FAILED,
+                    "DECOMPOSE_FAILED",
+                    f"Could not parse {artifact['name']} as JSON: {exc}",
+                    message_data={"artifact": artifact["name"]},
+                )
+                continue
+            decomp = decompose_vdr_report(
+                report,
+                ksi_signal_by_system=ksi_signal_by_system,
+                ksi_component_by_id=ksi_component_by_id,
+            )
+            all_nodes.extend(decomp.nodes)
+            all_edges.extend(decomp.edges)
+
+        for fetched_item in fetched:
+            artifact = fetched_item["artifact"]
+            if artifact["handling"] != "compliance_artifact":
+                continue
+            decomp = decompose_compliance_artifact(
+                body=fetched_item["body"],
+                artifact_kind=artifact["artifact_kind"],
+                source_url=base_url + artifact["path"],
+                fetched_at=fetched_at,
+                content_format=artifact["content_format"],
+            )
+            all_nodes.extend(decomp.nodes)
+            all_edges.extend(decomp.edges)
+
+        # ---- Phase 3: assemble + submit -------------------------------------
+        if not all_nodes:
+            self.summary = "No artifacts decomposed; nothing to submit."
+            self.record_warn(
+                _SITE_NOTHING_TO_SUBMIT,
+                "NOTHING_TO_SUBMIT",
+                self.summary,
+            )
+            return
+
+        document = assemble_batch(
+            source=_COLLECTOR_SOURCE,
+            manifest_version=manifest["manifest_version"],
+            site_base_url=base_url,
+            nodes=all_nodes,
+            edges=all_edges,
+        )
+        self.submit_grift(document)
+
+        # Brief per-type tally for the summary.
+        from collections import Counter
+
+        node_tally = Counter(env["entity"]["entity_type"] for env in all_nodes)
+        edge_tally = Counter(env["entity"]["entity_type"] for env in all_edges)
+        node_breakdown = ", ".join(f"{count} {entity_type}" for entity_type, count in sorted(node_tally.items()))
+        edge_breakdown = ", ".join(f"{count} {entity_type}" for entity_type, count in sorted(edge_tally.items()))
+        self.summary = (
+            f"Fetched {len(fetched)}/{len(artifacts)} artifacts; "
+            f"submitted {len(all_nodes)} node(s) + {len(all_edges)} edge(s)."
+        )
+        self.record_info(
+            _SITE_BATCH_SUBMITTED,
+            "BATCH_SUBMITTED",
+            f"GRIFT batch submitted — nodes: {node_breakdown}; edges: {edge_breakdown or 'none'}.",
+            message_data={
+                "node_counts": dict(node_tally),
+                "edge_counts": dict(edge_tally),
+            },
+        )
         self.record_info(_SITE_RUN_FINISHED, "RUN_FINISHED", self.summary)
