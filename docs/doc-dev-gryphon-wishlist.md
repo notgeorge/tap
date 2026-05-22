@@ -46,11 +46,21 @@ This doc serves two related purposes:
 
 The doc is expansive on purpose. The primary reader is an LLM loading context before doing Gryphon work, and verbosity costs nothing while front-loaded rationale buys real downstream leverage (per `feedback_explicit_over_brevity_llm_era`). A human reader would do well to skim section headers; an LLM is expected to read end-to-end and use the rationale to make judgment calls on edge cases the doc doesn't enumerate.
 
+## Implementation Status (2026-05-21)
+
+The **validation-strategy** half of this doc is now built. As of 2026-05-21, on `session/gryphon-playground`:
+
+- The Gridkin scenario format, its JSON Schema, and a pytest-discoverable runner are implemented in `plugins/gryphon_playground/` — specced by [spec-gryphon-playground-v0.md](../plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md) and [spec-gridkin-v0.md](../plugins/gryphon_playground/specs/spec-gridkin-v0.md), whose requirements are now `Implemented` (bar the Tier-2 canonical fixture).
+- The SQL-capture seam is implemented — `tap_grid/gryphon/capture.py`, `explain_gryphon_raw()`, and `req-grid-traversal-exec-sql-capture` in `spec-grid-traversal-execution.md`. The Gridkin expected-SQL snapshot and the future `gryphon explain` command (H3) now share this real infrastructure.
+- A first scenario corpus exists and is green. Expanding it to validate the whole current executor surface is in progress.
+
+The **feature-wishlist** half (buckets A–H below) is unchanged: still forward-looking, still demand-gated. Where a bucket's "how it touches the executor today" note is overtaken by events, this status note is the correction of record until the bucket text itself is revised.
+
 ## What's Deliberately Not In This Doc (In-Flight Elsewhere)
 
 Three Gryphon-adjacent workstreams are actively in flight on other sessions or recently landed. Each is excluded from this wishlist:
 
-- **Three-lane envelope shape** (`spec-grift-envelope.md`, status Proposed at time of writing). Unifies node and edge response shapes under a top-level spine surface + a `data` lane (per-model fields) + a `display` lane (consumer-namespaced rendering hints). This affects every Gryphon response envelope and is on track to move from Proposed to Implemented on a parallel session. When that lands, Gridkin scenario expected envelopes are regenerated as a coordinated change.
+- **Three-lane envelope shape** (`spec-grift-envelope.md`). Unifies node and edge response shapes under a top-level spine surface + a `data` lane (per-model fields) + a `display` lane (consumer-namespaced rendering hints). It has since landed in the subgraph serializer — the three-lane shape is what Gridkin scenarios assert against today. `spec-grift-envelope.md` is `In Development`, with acceptance criteria still settling; if its remaining ACIDs change the envelope shape, affected Gridkin expected envelopes regenerate as a coordinated change under the snapshot discipline.
 
 - **BaseModel field reach** — extending Gryphon's predicate and projection surface to reach into typed BaseModel fields (not just Entity envelope fields). Recent in-development requirement `req-grid-traversal-lang-envelope-paths` in the language spec.
 
@@ -490,7 +500,7 @@ Cypher has ~150 built-in functions. We don't and don't aim to. When demand surfa
 
 **Why we'd want it.** Already named in the validation contract below as the eyeball-friendly correctness check. Lifted here separately because it's a *feature* of Gryphon's developer ergonomics, not just a test artifact. A developer building a panel can paste a Gryphon query, see the SQL it would emit against the canonical playground graph, and judge whether the plan looks reasonable before writing a test.
 
-Status: `extract-ahead` (when the Gridkin runner work happens — the explain surface and the Gridkin SQL-snapshot capture share infrastructure).
+Status: `extract-ahead`, partially landed. The shared capture infrastructure now exists — `tap_grid/gryphon/capture.py` (`capture_sql`, `explain_gryphon_raw`, `req-grid-traversal-exec-sql-capture`), which already backs the Gridkin SQL-snapshot. What remains for H3 is the developer-facing CLI / management command. One correction to *What* above: the "No execution" goal is not literally reachable — a multi-stage query builds each stage from the prior stage's results, so the capture runs *during* execution; against the small playground graph this is immaterial.
 
 #### H4. Default values for `$params`
 
