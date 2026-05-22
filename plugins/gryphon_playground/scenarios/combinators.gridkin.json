@@ -1,0 +1,81 @@
+{
+  "feature": "OR / NOT predicate combinators and parenthesized grouping in WHERE",
+  "background": {
+    "grift_fixture": "fixtures/sparse_dense.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "OR matches rows satisfying either branch",
+      "tags": ["combinators", "or", "where"],
+      "covers": [
+        "req-grid-traversal-lang-combinators",
+        "req-grid-traversal-lang-combinators-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score < 10 OR n.data.severity_score > 25 RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/combinators__or_branches.expected.json",
+      "expected_sql_snapshot": "expected/combinators__or_branches.sql.txt"
+    },
+    {
+      "name": "NOT negates a comparison",
+      "tags": ["combinators", "not", "where"],
+      "covers": [
+        "req-grid-traversal-lang-combinators-3"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE NOT n.data.kind = \"island\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/combinators__not_comparison.expected.json",
+      "expected_sql_snapshot": "expected/combinators__not_comparison.sql.txt"
+    },
+    {
+      "name": "parenthesized grouping overrides AND/OR precedence",
+      "tags": ["combinators", "grouping", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-combinators-1",
+        "req-grid-traversal-lang-combinators-4"
+      ],
+      "inspired_by": "tck/features/expressions/boolean/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.kind = \"neighbor\" AND (n.data.severity_score < 15 OR n.data.severity_score > 25) RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/combinators__grouping.expected.json",
+      "expected_sql_snapshot": "expected/combinators__grouping.sql.txt"
+    },
+    {
+      "name": "NOT distributes over an AND (De Morgan)",
+      "tags": ["combinators", "not", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-combinators-1",
+        "req-grid-traversal-lang-combinators-3"
+      ],
+      "inspired_by": "tck/features/expressions/boolean/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE NOT (n.data.kind = \"neighbor\" AND n.data.is_open = true) RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/combinators__de_morgan.expected.json",
+      "expected_sql_snapshot": "expected/combinators__de_morgan.sql.txt"
+    },
+    {
+      "name": "OR composes with an IN-list",
+      "tags": ["combinators", "or", "in-list"],
+      "covers": [
+        "req-grid-traversal-lang-combinators-2",
+        "req-grid-traversal-lang-in"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"island\"] OR n.data.severity_score > 25 RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/combinators__or_with_in.expected.json",
+      "expected_sql_snapshot": "expected/combinators__or_with_in.sql.txt"
+    },
+    {
+      "name": "NOT in the aggregation path narrows before the COUNT",
+      "tags": ["combinators", "not", "aggregation", "advanced"],
+      "covers": [
+        "req-grid-traversal-lang-combinators-3",
+        "req-grid-gryphon-count"
+      ],
+      "layer": "lite",
+      "query": "MATCH (h)-[:PG_LINKS]->(n:pg_node) WHERE NOT n.data.kind = \"island\" RETURN h.entity_id AS src, COUNT(n) AS c",
+      "expected_envelope": "expected/combinators__not_aggregation.expected.json",
+      "expected_sql_snapshot": "expected/combinators__not_aggregation.sql.txt"
+    }
+  ]
+}

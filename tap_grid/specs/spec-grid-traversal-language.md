@@ -508,6 +508,12 @@ RETURN n
 
 Precedence (highest to lowest): `NOT` > `AND` > `OR`. Parentheses override precedence.
 
+Execution compiles the entire `WHERE` predicate tree — `AND` / `OR` / `NOT` and parenthesized
+grouping — into a single Django `Q` expression applied as one filter. The type-scan, multi-hop /
+aggregation, and `NOT EXISTS`-inner WHERE paths all share this compiler. (`OPTIONAL MATCH` v0
+keeps an AND-only WHERE so its mandatory/optional-variable split stays well-defined — see
+`spec-grid-gryphon-multihop-aggregation.md`.)
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |

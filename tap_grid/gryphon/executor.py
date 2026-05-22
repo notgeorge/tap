@@ -495,7 +495,7 @@ def _execute_type_scan(
             where_clause.predicate, {var: {"role": "typescan", "label": node.label}}
         )
         if scoped_pred is not None:
-            qs = _apply_typescan_predicate(qs, scoped_pred, var, inputs)
+            qs = _apply_typescan_predicate(qs, scoped_pred, inputs)
 
     # Graph envelope mode — RETURN omitted, or RETURN names only bare variables.
     # A bare `RETURN n` requests the node itself, which is the graph envelope;
@@ -577,30 +577,18 @@ def _apply_order_limit_typescan(
 def _apply_typescan_predicate(
     qs,
     predicate: Any,
-    var: str,
     inputs: dict[str, Any],
 ):
-    """Apply a WHERE predicate tree to a type-scan queryset.
+    """Apply a WHERE predicate tree to a type-scan queryset as a single ``Q`` filter.
 
-    Supports AND-of-comparisons today (mirrors the aggregation executor's
-    current scope per ``_flatten_conjunction``). OR/NOT inside type-scan
-    WHEREs is rejected with a clear error; demand-tracked for later.
+    The full AND / OR / NOT tree is compiled by :func:`_predicate_to_q`. The
+    predicate reaching here is already scoped to the type-scan's variable by
+    :func:`_filter_predicate_for_bindings`, so every leaf resolves through
+    :func:`_typescan_orm_path`.
     """
-    for comp in _flatten_conjunction(predicate):
-        if comp.field_path.variable != var:
-            continue
-        orm_path = _typescan_orm_path(comp.field_path)
-        if isinstance(comp, InComparison):
-            members = [_resolve_value(v, inputs) for v in comp.values]
-            qs = qs.filter(**{f"{orm_path}__in": members})
-            continue
-        value = _resolve_value(comp.value, inputs)
-        if comp.op == "!=":
-            qs = qs.exclude(**{orm_path: value})
-        else:
-            suffix = {"=": "", "<": "__lt", ">": "__gt", "<=": "__lte", ">=": "__gte"}[comp.op]
-            qs = qs.filter(**{f"{orm_path}{suffix}": value})
-    return qs
+    if predicate is None:
+        return qs
+    return qs.filter(_predicate_to_q(predicate, inputs, _typescan_orm_path))
 
 
 def _typescan_orm_path(field_path: FieldPath) -> str:
@@ -1499,8 +1487,11 @@ def _apply_predicate_to_qs(
     bindings: dict[str, dict[str, Any]],
     inputs: dict[str, Any],
 ):
-    """Apply a WHERE predicate tree to a queryset. Currently supports conjunctions of
-    simple comparisons; OR/NOT predicates are rejected at parse-to-query time.
+    """Apply a WHERE predicate tree to a chain queryset as a single ``Q`` filter.
+
+    The full AND / OR / NOT tree is compiled by :func:`_predicate_to_q`; each
+    leaf's field path resolves against its bound variable. Used by the
+    multi-hop / aggregation path and by ``NOT EXISTS`` inner WHEREs.
 
     .. tap:capability:: Gryphon WHERE predicates
        :id: cap-grid-gryphon-where
@@ -1508,62 +1499,66 @@ def _apply_predicate_to_qs(
        :audience: external-user; agent; developer
        :affordance: querying
        :implements: req-grid-traversal-lang-filters; req-grid-traversal-lang-combinators
-       :covered-by: gridkin:type_scan-scan-filters-pg-node-by-an-and-of-two-data-lane-predicates
-       :limitations: OR / NOT parse but every executor WHERE path runs only AND-joined comparisons.
+       :covered-by: gridkin:combinators-parenthesized-grouping-overrides-and-or-precedence
 
-       WHERE filters a pattern by comparisons (``= != < > <= >=``) over field
-       paths, plus inline edge-property maps, combined with AND.
+       WHERE filters a pattern by comparisons (``= != < > <= >=``, ``IN``) over
+       field paths and inline edge-property maps, combined with ``AND``, ``OR``,
+       ``NOT``, and parenthesized grouping.
 
        Example::
 
           MATCH (n:pg_node)
-          WHERE n.data.kind = "neighbor" AND n.data.severity_score > 15
+          WHERE n.data.kind = "neighbor"
+                AND (n.data.severity_score < 15 OR n.data.severity_score > 25)
     """
     if predicate is None:
         return qs
-    for comp in _flatten_conjunction(predicate):
-        qs = _apply_comparison(qs, comp, bindings, inputs)
-    return qs
+
+    def _resolve(field_path: FieldPath) -> str:
+        var = field_path.variable
+        if var not in bindings:
+            raise SearchExecutionError(f"Unknown variable '{var}' in WHERE predicate.")
+        return _resolve_orm_path(bindings[var], field_path)
+
+    return qs.filter(_predicate_to_q(predicate, inputs, _resolve))
 
 
 def _flatten_conjunction(predicate: Predicate) -> list[Comparison | InComparison]:
     """Flatten an AND tree into a list of comparison leaves.
 
-    A leaf is a `Comparison` or an `InComparison`. OR / NOT are rejected — the
-    AND-only scope is shared by the type-scan and aggregation WHERE compilers.
+    A leaf is a `Comparison` or an `InComparison`. OR / NOT are rejected. Only
+    the OPTIONAL MATCH executor uses this now — it keeps an AND-only WHERE so
+    the mandatory/optional-variable split stays well-defined; the type-scan and
+    multi-hop WHERE paths compile the full tree via :func:`_predicate_to_q`.
     """
     if isinstance(predicate, (Comparison, InComparison)):
         return [predicate]
     if isinstance(predicate, AndPred):
         return _flatten_conjunction(predicate.left) + _flatten_conjunction(predicate.right)
     raise SearchExecutionError(
-        "Aggregation executor currently supports only AND-joined comparisons in WHERE; "
-        "OR and NOT predicates are not yet implemented in this path."
+        "This WHERE clause supports only AND-joined comparisons; OR and NOT are not "
+        "supported here (OPTIONAL MATCH v0 keeps an AND-only WHERE)."
     )
 
 
-def _apply_comparison(
-    qs,
-    comp: Comparison | InComparison,
-    bindings: dict[str, dict[str, Any]],
-    inputs: dict[str, Any],
-):
-    fp = comp.field_path
-    var = fp.variable
-    if var not in bindings:
-        raise SearchExecutionError(f"Unknown variable '{var}' in WHERE predicate.")
+def _predicate_to_q(predicate: Predicate, inputs: dict[str, Any], resolve: Any):
+    """Compile a WHERE predicate tree into a single Django ``Q`` expression.
 
-    orm_path = _resolve_orm_path(bindings[var], fp)
-
-    if isinstance(comp, InComparison):
-        members = [_resolve_value(v, inputs) for v in comp.values]
-        return qs.filter(**{f"{orm_path}__in": members})
-
-    value = _resolve_value(comp.value, inputs)
-    lookup_suffix = {"=": "", "!=": "", "<": "__lt", ">": "__gt", "<=": "__lte", ">=": "__gte"}[comp.op]
-    if comp.op == "!=":
-        return qs.exclude(**{orm_path: value})
-    return qs.filter(**{f"{orm_path}{lookup_suffix}": value})
+    ``AND`` / ``OR`` / ``NOT`` and parenthesized grouping lower to ``Q`` ``&`` /
+    ``|`` / ``~``; a ``Comparison`` / ``InComparison`` leaf lowers via
+    :func:`_comparison_to_q`. ``resolve`` maps a leaf's ``FieldPath`` to its ORM
+    lookup path — the type-scan and chain executors pass different resolvers
+    because their querysets are rooted differently.
+    """
+    if isinstance(predicate, (Comparison, InComparison)):
+        return _comparison_to_q(predicate, resolve(predicate.field_path), inputs)
+    if isinstance(predicate, AndPred):
+        return _predicate_to_q(predicate.left, inputs, resolve) & _predicate_to_q(predicate.right, inputs, resolve)
+    if isinstance(predicate, OrPred):
+        return _predicate_to_q(predicate.left, inputs, resolve) | _predicate_to_q(predicate.right, inputs, resolve)
+    if isinstance(predicate, NotPred):
+        return ~_predicate_to_q(predicate.operand, inputs, resolve)
+    raise SearchExecutionError(f"Unsupported WHERE predicate node: {type(predicate).__name__}")
 
 
 def _apply_not_exists(
@@ -2311,9 +2306,13 @@ def _execute_optional_match(
     qs = model_cls.objects.using(db_alias)
     where_pred = ast.where_clause.predicate if ast.where_clause else None
     if where_pred is not None:
-        # _apply_typescan_predicate flattens the AND-tree (rejecting OR/NOT) and
-        # applies only the comparisons whose variable is `v` — the outer scan.
-        qs = _apply_typescan_predicate(qs, where_pred, v, inputs)
+        # The WHERE splits by variable: comparisons on `v` filter the outer
+        # scan; comparisons on an optional variable join `opt_q`. OPTIONAL MATCH
+        # v0 keeps an AND-only WHERE (``_flatten_conjunction`` rejects OR/NOT)
+        # so this split stays well-defined.
+        v_pred = _filter_predicate_for_bindings(where_pred, {v: {}})
+        if v_pred is not None:
+            qs = _apply_typescan_predicate(qs, v_pred, inputs)
         for comp in _flatten_conjunction(where_pred):
             var = comp.field_path.variable
             if var == v:

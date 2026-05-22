@@ -2039,3 +2039,65 @@ class TestGryphonOptionalMatchExecutor:
         )
         with pytest.raises(SearchExecutionError, match="optional variable can only be COUNTed"):
             execute_search(search, inputs={})
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonCombinatorsExecutor — req-grid-traversal-lang-combinators (OR / NOT)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonCombinatorsExecutor:
+    """Executor coverage for OR / NOT combinators in WHERE.
+
+    The parser has always produced OrPred / NotPred; these confirm the executor
+    now compiles the full predicate tree to a Django Q and runs it, rather than
+    rejecting OR / NOT with an unsupported-feature error.
+    """
+
+    def _setup(self):
+        """Four characters with backing Character rows."""
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        for name in ("Frodo", "Sam", "Merry", "Pippin"):
+            entity = Entity.objects.create(entity_type="character", name=name)
+            Character.objects.create(entity=entity, name=name, bio=f"{name} bio")
+
+    def _search(self, query):
+        return Search(search_type="gryphon", root="node", name="comb", definition={"query": query})
+
+    def test_or_predicate_executes(self):
+        """req-grid-traversal-lang-combinators-2: OR returns rows matching either branch."""
+        self._setup()
+        search = self._search(
+            'MATCH (c:character) WHERE c.name = "Frodo" OR c.name = "Pippin" ' "RETURN c.name AS name ORDER BY name"
+        )
+        rows = execute_search(search, inputs={})["rows"]
+        assert [r["name"] for r in rows] == ["Frodo", "Pippin"]
+
+    def test_not_predicate_executes(self):
+        """req-grid-traversal-lang-combinators-3: NOT negates a comparison."""
+        self._setup()
+        search = self._search('MATCH (c:character) WHERE NOT c.name = "Frodo" RETURN c.name AS name ORDER BY name')
+        rows = execute_search(search, inputs={})["rows"]
+        assert [r["name"] for r in rows] == ["Merry", "Pippin", "Sam"]
+
+    def test_parenthesized_grouping_executes(self):
+        """req-grid-traversal-lang-combinators-4: parentheses override precedence.
+
+        ``(Frodo OR Sam) AND NOT Sam`` resolves to just Frodo; without the
+        parentheses, AND would bind ``Sam AND NOT Sam`` first.
+        """
+        self._setup()
+        search = self._search(
+            'MATCH (c:character) WHERE (c.name = "Frodo" OR c.name = "Sam") AND NOT c.name = "Sam" '
+            "RETURN c.name AS name ORDER BY name"
+        )
+        rows = execute_search(search, inputs={})["rows"]
+        assert [r["name"] for r in rows] == ["Frodo"]
