@@ -12,6 +12,13 @@ exception = "plugins.fedramp_20x_ksi.models.exception.ComplianceException"
 evidence = "plugins.fedramp_20x_ksi.models.evidence.Evidence"
 compliance_context = "plugins.fedramp_20x_ksi.models.compliance_context.ComplianceContext"
 boundary = "plugins.fedramp_20x_ksi.models.boundary.Boundary"
+ksi_signal = "plugins.fedramp_20x_ksi.models.ksi_signal.KsiSignal"
+ksi_component = "plugins.fedramp_20x_ksi.models.ksi_component.KsiComponent"
+ksi_validation = "plugins.fedramp_20x_ksi.models.ksi_validation.KsiValidation"
+ksi_violation = "plugins.fedramp_20x_ksi.models.ksi_violation.KsiViolation"
+vdr_report = "plugins.fedramp_20x_ksi.models.vdr_report.VdrReport"
+vdr_finding = "plugins.fedramp_20x_ksi.models.vdr_finding.VdrFinding"
+compliance_artifact = "plugins.fedramp_20x_ksi.models.compliance_artifact.ComplianceArtifact"
 
 [edges]
 CONTAINS_INDICATOR = "edges/CONTAINS_INDICATOR.edge.json"
