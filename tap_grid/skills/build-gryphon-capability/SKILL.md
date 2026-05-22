@@ -313,6 +313,13 @@ Add to `tap_grid/tests/test_gryphon.py`:
   `LIKE` metacharacters — where the row is built inline rather than forcing a whole
   new fixture. Gridkin owns fixture-shaped breadth; `test_gryphon.py` owns crafted
   corners and error paths.
+- For a feature that **scans or unions a set** (a type scan, bare `MATCH (n)`, a
+  multi-clause union), add a test that asserts the result does *not* include what
+  it must exclude — a no-`WHERE` or count-based assertion. Gridkin scenarios that
+  all carry a `WHERE` can pass even when the scan is **too wide**: the filter
+  incidentally hides the over-inclusion. Bare `MATCH (n)`'s edge-inclusion bug slid
+  past all five of its filtered Gridkin scenarios and was caught only by a
+  no-`WHERE` union test.
 
 Executor tests that scan a typed model (e.g. `MATCH (c:character)`) must create the
 **backing model rows** (`Character.objects.create(...)`), not just `Entity` rows —
