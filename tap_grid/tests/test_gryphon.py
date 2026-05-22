@@ -892,17 +892,6 @@ class TestGryphonEdgeTypeScan:
         assert str(gondor.pk) in node_ids
         assert len(result["edges"]) == 2
 
-    def test_edge_type_scan_requires_typed_edge(self):
-        """Edge-type scan without a typed edge raises SearchExecutionError."""
-        search = Search(
-            search_type="gryphon",
-            root="node",
-            name="test",
-            definition={"query": "MATCH (a:realm)-[e]->(b:location)"},
-        )
-        with pytest.raises(SearchExecutionError, match="typed edge"):
-            execute_search(search, inputs={})
-
 
 # ---------------------------------------------------------------------------
 # TestGryphonUnion — multiple MATCH clauses with UNION merge
@@ -1695,6 +1684,21 @@ class TestGryphonOrderByLimitParser:
         with pytest.raises(GryphonParseError, match="one LIMIT"):
             parse_gryphon("MATCH (n:pg_node) RETURN n.name AS l LIMIT 1 LIMIT 2")
 
+    def test_duplicate_where_rejected(self):
+        """req-grid-traversal-lang-shape-6: two WHERE clauses are a parse error, not a silent drop."""
+        with pytest.raises(GryphonParseError, match="one WHERE"):
+            parse_gryphon('MATCH (n:pg_node) WHERE n.name = "a" WHERE n.kind = "b" RETURN n')
+
+    def test_duplicate_return_rejected(self):
+        """req-grid-traversal-lang-shape-6: two RETURN clauses are a parse error, not a silent drop."""
+        with pytest.raises(GryphonParseError, match="one RETURN"):
+            parse_gryphon("MATCH (n:pg_node) RETURN n.name AS a RETURN n.name AS b")
+
+    def test_single_where_still_parses(self):
+        """A single WHERE remains valid — the rejection is for duplicates only."""
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name = "a" RETURN n')
+        assert ast.where_clause is not None
+
 
 # ---------------------------------------------------------------------------
 # TestGryphonOrderByLimitExecutor — req-grid-gryphon-order-by / req-grid-gryphon-limit
@@ -2101,3 +2105,213 @@ class TestGryphonCombinatorsExecutor:
         )
         rows = execute_search(search, inputs={})["rows"]
         assert [r["name"] for r in rows] == ["Frodo"]
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonStringMatchParser — req-grid-traversal-lang-string-match
+# ---------------------------------------------------------------------------
+
+
+class TestGryphonStringMatchParser:
+    """Parser coverage for the STARTS_WITH / ENDS_WITH / CONTAINS operators."""
+
+    def test_starts_with_parses(self):
+        """req-grid-traversal-lang-string-match-1: STARTS_WITH parses to a Comparison."""
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name STARTS_WITH "Neigh" RETURN n.entity_id AS id')
+        pred = ast.where_clause.predicate
+        assert isinstance(pred, Comparison)
+        assert pred.op == "starts_with"
+        assert pred.value == "Neigh"
+
+    def test_ends_with_and_contains_parse(self):
+        """req-grid-traversal-lang-string-match-1: ENDS_WITH / CONTAINS parse to their ops."""
+        for keyword, op in (("ENDS_WITH", "ends_with"), ("CONTAINS", "contains")):
+            ast = parse_gryphon(f'MATCH (n:pg_node) WHERE n.name {keyword} "x" RETURN n.entity_id AS id')
+            assert ast.where_clause.predicate.op == op
+
+    def test_string_op_keyword_is_case_insensitive(self):
+        """The operator keyword is case-insensitive; the AST `op` normalizes to lower case."""
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name starts_with "x" RETURN n.entity_id AS id')
+        assert ast.where_clause.predicate.op == "starts_with"
+
+    def test_string_match_needle_may_be_param(self):
+        """req-grid-traversal-lang-string-match-4: the needle may be a $param."""
+        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.name ENDS_WITH $suffix RETURN n.entity_id AS id")
+        assert "suffix" in ast.required_params()
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonStringMatchExecutor — req-grid-traversal-lang-string-match
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonStringMatchExecutor:
+    """Executor coverage for the substring operators — positive path plus needle escaping."""
+
+    def _make(self, *specs):
+        """Create characters from (name, bio) tuples."""
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        for name, bio in specs:
+            entity = Entity.objects.create(entity_type="character", name=name)
+            Character.objects.create(entity=entity, name=name, bio=bio)
+
+    def _search(self, query):
+        return Search(search_type="gryphon", root="node", name="sm", definition={"query": query})
+
+    def test_starts_with_executes(self):
+        """req-grid-traversal-lang-string-match-2: STARTS_WITH filters by prefix."""
+        self._make(("Aragorn", "x"), ("Arwen", "x"), ("Boromir", "x"))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.name STARTS_WITH "Ar" RETURN c.name AS name ORDER BY name'),
+            inputs={},
+        )["rows"]
+        assert [r["name"] for r in rows] == ["Aragorn", "Arwen"]
+
+    def test_like_metacharacters_in_needle_are_literal(self):
+        """req-grid-traversal-lang-string-match-5: a `%` in the needle matches literally.
+
+        If `%` were treated as a LIKE wildcard, `CONTAINS "100%"` would also match
+        "battery 100 then percent"; escaped, it matches only the literal "100%".
+        """
+        self._make(("Literal", "battery 100% charged"), ("Wildcard", "battery 100 then percent"))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.data.bio CONTAINS "100%" RETURN c.name AS name'),
+            inputs={},
+        )["rows"]
+        assert [r["name"] for r in rows] == ["Literal"]
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonBareMatchExecutor — req-grid-traversal-lang-bare-match
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonBareMatchExecutor:
+    """Executor coverage for labelless MATCH (n) — the bare scan over all node types."""
+
+    def _setup(self):
+        """Two characters (which have a `bio` field) and two pg_node rows (which do not)."""
+        import uuid
+
+        from plugins.gryphon_playground.models import PgNode
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        made = {}
+        for name in ("Frodo", "Sam"):
+            entity = Entity.objects.create(entity_type="character", name=name)
+            Character.objects.create(entity=entity, name=name, bio=f"{name} the brave")
+            made[name] = entity
+        for name in ("Node A", "Node B"):
+            entity = Entity.objects.create(entity_type="pg_node", name=name)
+            PgNode.objects.create(entity=entity, name=name, kind="island")
+            made[name] = entity
+        return made
+
+    def _search(self, query):
+        return Search(search_type="gryphon", root="node", name="bm", definition={"query": query})
+
+    def test_bare_match_unions_node_types_and_excludes_edges(self):
+        """req-grid-traversal-lang-bare-match-2/-5: every node type unioned; edges excluded."""
+        from tap_grid.models import Edge, Entity
+
+        made = self._setup()
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=made["Frodo"],
+            to_entity=made["Sam"],
+            edge_type="KNOWS",
+        )
+        result = execute_search(self._search("MATCH (n)"), inputs={})
+        assert sorted({node["entity_type"] for node in result["nodes"]}) == ["character", "pg_node"]
+        assert len(result["nodes"]) == 4
+
+    def test_bare_match_field_absence_is_silently_non_matching(self):
+        """req-grid-traversal-lang-bare-match-3: a type lacking the data field matches nothing, no error.
+
+        `bio` is a Character field; pg_node has no `bio`. The bare scan must skip
+        pg_node silently and return only the matching Character.
+        """
+        self._setup()
+        result = execute_search(self._search('MATCH (n) WHERE n.data.bio = "Frodo the brave"'), inputs={})
+        assert sorted(node["name"] for node in result["nodes"]) == ["Frodo"]
+
+    def test_bare_match_row_projection_rejected(self):
+        """req-grid-traversal-lang-bare-match-6: row projection over a bare scan is rejected in v0."""
+        with pytest.raises(SearchExecutionError, match="graph-envelope"):
+            execute_search(self._search("MATCH (n) RETURN n.entity_id AS id"), inputs={})
+
+    def test_bare_match_order_by_rejected(self):
+        """req-grid-traversal-lang-bare-match-6: ORDER BY on a bare scan is rejected in v0."""
+        with pytest.raises(SearchExecutionError, match="ORDER BY / LIMIT"):
+            execute_search(self._search("MATCH (n) RETURN n.entity_id AS id ORDER BY id"), inputs={})
+
+    def test_bare_match_data_lane_or_rejected(self):
+        """A data-lane WHERE on a bare scan must be AND-joined; OR is rejected in v0."""
+        with pytest.raises(SearchExecutionError, match="AND-joined"):
+            execute_search(
+                self._search('MATCH (n) WHERE n.data.kind = "island" OR n.data.kind = "hub"'),
+                inputs={},
+            )
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonTypelessEdgeScanExecutor — req-grid-traversal-lang-patterns-7
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonTypelessEdgeScanExecutor:
+    """Executor coverage for the typeless edge scan — MATCH (a)-[e]-(b), no edge type."""
+
+    def _setup(self):
+        """Frodo WIELDS the Ring and OWNS the Shire — two edges of different types."""
+        import uuid
+
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Edge, Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        frodo = Entity.objects.create(entity_type="character", name="Frodo")
+        ring = Entity.objects.create(entity_type="artifact", name="One Ring")
+        shire = Entity.objects.create(entity_type="realm", name="The Shire")
+        for src, tgt, edge_type in ((frodo, ring, "WIELDS"), (frodo, shire, "OWNS")):
+            Edge.objects.create(
+                entity=Entity.objects.create(entity_type="edge"),
+                from_entity=src,
+                to_entity=tgt,
+                edge_type=edge_type,
+            )
+
+    def _search(self, query):
+        return Search(search_type="gryphon", root="node", name="te", definition={"query": query})
+
+    def test_typeless_edge_scan_returns_all_edge_types(self):
+        """req-grid-traversal-lang-patterns-7: a labelless edge scans edges of every type.
+
+        Previously `MATCH (a)-[e]-(b)` with no edge type raised an unsupported-
+        pattern error; it now scans every edge.
+        """
+        self._setup()
+        result = execute_search(self._search("MATCH (a)-[e]->(b)"), inputs={})
+        assert len(result["edges"]) == 2
+
+    def test_typeless_edge_scan_honors_endpoint_labels(self):
+        """A labelless edge still filters by the pattern's node labels."""
+        self._setup()
+        result = execute_search(self._search("MATCH (a:character)-[e]->(b:artifact)"), inputs={})
+        # The character->artifact WIELDS edge only; the character->realm OWNS edge is excluded.
+        assert len(result["edges"]) == 1

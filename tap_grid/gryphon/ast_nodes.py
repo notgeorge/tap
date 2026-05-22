@@ -118,10 +118,16 @@ class PathPattern:
 
 @dataclass(frozen=True)
 class Comparison:
-    """A single field-op-value predicate: `hub.entity_id = $entity_id`."""
+    """A single field-op-value predicate: `hub.entity_id = $entity_id`.
+
+    `op` covers the scalar comparison operators and the substring operators
+    `starts_with` / `ends_with` / `contains` (parsed from the case-insensitive
+    `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` keywords). All are structurally
+    `field_path op value`; the substring operators expect a string value.
+    """
 
     field_path: FieldPath
-    op: Literal["=", "!=", "<", ">", "<=", ">="]
+    op: Literal["=", "!=", "<", ">", "<=", ">=", "starts_with", "ends_with", "contains"]
     value: GryphonValue
 
 

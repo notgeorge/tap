@@ -181,6 +181,13 @@ exactly this case.
   `_collect_params_from_predicate`. Then audit every predicate walker in the
   executor (Step 5) — a new leaf type that a walker does not recognize is silently
   dropped.
+- If you add a predicate **operator** rather than a leaf — a new comparison operator
+  like `STARTS_WITH` — **extend the `Comparison.op` `Literal`** instead of adding a
+  leaf. This is the lightest case: `Comparison` is already handled by every walker,
+  so the only touch-points are the parser's operator normalization (Step 5) and
+  `_comparison_to_q`'s op→lookup map (Step 6) — no walker audit. Reach for a new leaf
+  only when the node carries a genuinely different shape (e.g. `InComparison`'s list
+  value); a same-shape `field op value` predicate is an operator, not a leaf.
 
 ## Step 5: Parser (`tap_grid/gryphon/parser.py`)
 
@@ -301,8 +308,24 @@ Add to `tap_grid/tests/test_gryphon.py`:
 - An **executor** test class (`@pytest.mark.django_db(transaction=True,
   databases=["default", "search_readonly"])`) — the **rejection cases** Gridkin
   cannot express (every out-of-scope shape from Step 1 raising
-  `SearchExecutionError`), plus a positive smoke test. Gridkin covers the positive
-  execution surface; `test_gryphon.py` covers parse-level and error-path behavior.
+  `SearchExecutionError`), a positive smoke test, **and any corner that needs
+  crafted data a shared Tier-1 fixture does not have** — e.g. a needle containing
+  `LIKE` metacharacters — where the row is built inline rather than forcing a whole
+  new fixture. Gridkin owns fixture-shaped breadth; `test_gryphon.py` owns crafted
+  corners and error paths.
+- For a feature that **scans or unions a set** (a type scan, bare `MATCH (n)`, a
+  multi-clause union), add a test that asserts the result does *not* include what
+  it must exclude — a no-`WHERE` or count-based assertion. Gridkin scenarios that
+  all carry a `WHERE` can pass even when the scan is **too wide**: the filter
+  incidentally hides the over-inclusion. Bare `MATCH (n)`'s edge-inclusion bug slid
+  past all five of its filtered Gridkin scenarios and was caught only by a
+  no-`WHERE` union test.
+- If the feature **removes a rejection** (makes a previously-unsupported shape
+  legal), grep `test_gryphon.py` for the existing test that asserts the old
+  rejection — it will now fail. Delete it (the new behavior is covered by the
+  feature's own tests) or repurpose it to assert the new behavior. This is the
+  test-side of reconciliation (Step 2): the typeless edge scan had to delete
+  `test_edge_type_scan_requires_typed_edge`.
 
 Executor tests that scan a typed model (e.g. `MATCH (c:character)`) must create the
 **backing model rows** (`Character.objects.create(...)`), not just `Entity` rows —

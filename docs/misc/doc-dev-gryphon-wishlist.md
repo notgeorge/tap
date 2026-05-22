@@ -13,6 +13,7 @@ update-triggers:
   - A new demand signal surfaces that argues for promoting a future-seam item
   - openCypher publishes major TCK changes that materially affect the "TCK as inspiration" workflow
   - The three-lane envelope spec (spec-grift-envelope.md) moves Proposed → Implemented and changes envelope shape
+  - A Gryphon failure or correctness gap is discovered (record it under Known Issues)
 assumes:
   - Reader is an LLM (likely me, or another agent) loading context before extending Gryphon
   - Reader will have skimmed `tap_grid/specs/spec-grid-traversal-language.md` and `spec-grid-traversal-execution.md` before reading this doc, so deep ORM/Django mechanics are not re-explained here
@@ -82,6 +83,58 @@ The **rest of the feature-wishlist** (the buckets not listed above) is unchanged
 still forward-looking, still demand-gated. Where a bucket's "how it touches the
 executor today" note is overtaken by events, this status note is the correction of
 record until the bucket text itself is revised.
+
+## Implementation Status — Stage 5 / samsite requests (2026-05-22)
+
+Further wishlist work has since landed on `session/gryphon-playground`, each a
+full-cycle commit via the `build-gryphon-capability` skill:
+
+- **OR / NOT combinators** — the executor compiles the full `AND` / `OR` / `NOT`
+  predicate tree to a Django `Q` tree (`req-grid-traversal-lang-combinators`).
+- **B2 `STARTS_WITH` / `ENDS_WITH` / `CONTAINS`** — case-sensitive substring
+  predicates (`req-grid-traversal-lang-string-match`). Closed the samsite
+  ORM-`startswith` demand signal.
+- **Bare labelless `MATCH (n)`** — scans every registered node type and unions
+  the results, with the field-absence-is-non-matching contract
+  (`req-grid-traversal-lang-bare-match`). The samsite primary request.
+- **Typeless edge scan** — `MATCH (a)-[e]-(b)` with no edge type
+  (`req-grid-traversal-lang-patterns-7`). The samsite secondary request.
+- **Multiple `WHERE` / `RETURN` silent drop closed** — the parser now rejects a
+  duplicate single-clause loudly instead of keeping the first and discarding the
+  rest (`req-grid-traversal-lang-shape-6`). See [Known Issues](#known-issues).
+
+**B4 (label-union `(n:type1|type2)`) is withdrawn**, not deferred: the samsite
+request explicitly killed it — `MATCH (n) WHERE n.entity_type STARTS_WITH "aws_"`
+(bare-MATCH + B2) gives the "all `aws_*` types" capability label-union would have
+provided, with no new label syntax. Treat the B4 bucket below as superseded.
+
+Also: the "BaseModel field reach" gate noted on B3 / C1 appears effectively
+cleared — data-lane access (`n.data.<field>`) works in the executor today.
+
+**Next, when there's appetite:** F1 `WITH` — the top-ranked `extract-ahead` and
+the pipeline keystone. It is the heavy one (a planner-shape change, the first
+lowering-ladder rung-4 user); start a fresh session for it rather than tacking it
+onto a small change.
+
+## Known Issues
+
+Gryphon is the load-bearing read path; a Gryphon failure — a wrong result, a
+silent drop, a crash — is **not acceptable**, and is never to be normalized into
+a "known limitation" the codebase quietly works around. When a Gryphon failure or
+correctness gap is found:
+
+1. **Notify the user.** Surface it explicitly; do not bury it.
+2. **Log it here**, in this section, with enough detail to reproduce.
+3. **Use the test system; do not build around it.** Gryphon has a robust
+   validation surface — Gridkin scenarios plus `test_gryphon.py`. Reach for it to
+   reproduce the failure and to lock the fix; do not route around a failing case
+   by reshaping callers or adding a workaround elsewhere.
+
+Resolved issues stay here as a record; open issues stay here until closed.
+
+| Issue | Status | Detail |
+| --- | :---: | --- |
+| Multiple `WHERE` / `RETURN` clauses silently dropped | Resolved 2026-05-22 | The parser kept only the first `WHERE` / `RETURN` and silently discarded the rest — a query that lied about what it ran. Now rejected loudly at parse time as a `GryphonParseError` (`req-grid-traversal-lang-shape-6`). |
 
 ## What's Deliberately Not In This Doc (In-Flight Elsewhere)
 
@@ -231,6 +284,8 @@ Today's predicate surface supports `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`, `OR`,
 **Status flag.** `extract-ahead`. The demand signal is already detected.
 
 **Validation contract size.** ~4-5 Gridkin scenarios. Corners: case sensitivity, empty needle, special characters in needle (regex-like characters in non-regex predicate).
+
+**Backlog — wildcard / regex-like matching.** B2 ships three fixed, explicit operators (`STARTS_WITH` / `ENDS_WITH` / `CONTAINS`) rather than a single wildcard or pattern operator. A more general predicate — `LIKE`-style wildcards (`aws_%`) or regex-like matching against field values — would be genuinely nice for free-form dashboard search. It is deliberately **not on the critical path**: the three explicit operators cover the detected demand (type-prefix filters, name search), read clearly, and avoid the injection/needle-escaping and case-sensitivity surface a pattern language drags in. Promote when a real query needs matching the three fixed shapes cannot express; until then, named here so we don't reach for it by reflex. (When B2 is built, this note migrates into the new requirement's `Future` list.)
 
 #### B3. `IS NULL` / `IS NOT NULL`
 
@@ -448,6 +503,8 @@ Once OPTIONAL MATCH and the additional aggregates are in, the lack of WITH is th
 **Status flag.** `extract-ahead` 🌟 — second-highest-priority extract-ahead item, after OPTIONAL MATCH. Worth designing the planner with WITH in mind even if we ship single-stage queries only at first; the planner shape change is what hurts to retrofit.
 
 **Validation contract size.** ~8-10 Gridkin scenarios. Corners explicitly mined from `tck/features/clauses/with/`. Variable scope across stages, scoping by alias rename, multi-WITH chains, WITH followed by OPTIONAL MATCH, aggregation followed by WITH followed by aggregation.
+
+**Bundle in: per-`MATCH` `WHERE` attachment (revisit when building F1).** Gryphon today has a single global `WHERE`, scoped per variable by the executor (`_filter_predicate_for_bindings`); a duplicate top-level `WHERE` is rejected loudly (`req-grid-traversal-lang-shape-6`, 2026-05-22 — see [Known Issues](#known-issues)). The end-state is **per-clause `WHERE` attachment** — `WHERE` as a sub-clause of `MATCH` (and of `WITH`), Cypher's actual model — which removes the "use distinct variable names" workaround and handles variable reuse across clauses cleanly. That is the **same mechanism** `WITH` needs: *a clause node carries its own optional `where_clause`, applied to that clause's output*. Build it **as part of F1**, not separately — one coherent "every stage (`MATCH` / `WITH`) carries a `WHERE`" design, decided once with all of it in the same context. Touchpoints: grammar moves `where_clause` under `match_clause`; `MatchClause` gains a `where_clause` field; the executor applies each clause's `WHERE` directly. (Decided 2026-05-22 with George — when F1 lands, per-`MATCH` `WHERE` lands in the same change.)
 
 #### F2. Explicit `UNION` / `UNION ALL`
 

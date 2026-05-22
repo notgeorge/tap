@@ -197,7 +197,7 @@ def explain_gryphon_raw(
     .. tap:capability:: Gryphon explain / SQL capture
        :id: cap-grid-gryphon-explain
        :status: implemented
-       :audience: developer; agent
+       :audience: agent; developer
        :affordance: debugging
        :implements: req-grid-traversal-exec-sql-capture
        :covered-by: pytest:tap_grid/tests/test_gryphon_sql_capture.py
@@ -304,11 +304,25 @@ def _dispatch_pattern(
     layer: SubgraphLayer,
 ) -> dict[str, Any]:
     """Route a single MATCH pattern to the appropriate execution mode."""
-    # Type scan: node-only pattern (no edges).
+    # Type scan: node-only pattern (no edges). A labelless node is the bare
+    # scan over every registered node type; a labelled node scans one type.
     if len(pattern.edges) == 0:
+        node = pattern.nodes[0]
+        if node.label is None:
+            with gryphon_stage("bare-type-scan"):
+                return _execute_bare_type_scan(
+                    node,
+                    return_clause,
+                    where_clause=where_clause,
+                    order_by=order_by,
+                    limit=limit,
+                    inputs=inputs or {},
+                    db_alias=db_alias,
+                    layer=layer,
+                )
         with gryphon_stage("type-scan"):
             return _execute_type_scan(
-                pattern.nodes[0],
+                node,
                 return_clause,
                 where_clause=where_clause,
                 order_by=order_by,
@@ -348,9 +362,8 @@ def _dispatch_pattern(
                     layer=layer,
                 )
 
-    # Edge-type scan: edge pattern with no WHERE anchor (or anchor not in this pattern).
-    if not edge_pat.edge_type:
-        raise SearchExecutionError("Unsupported gryphon pattern: edge-type scan requires a typed edge.")
+    # Edge-type scan: edge pattern with no WHERE anchor (or anchor not in this
+    # pattern). The edge type may be omitted — a labelless edge scans every type.
     with gryphon_stage("edge-type-scan"):
         return _execute_edge_type_scan(
             left_node=pattern.nodes[0],
@@ -468,13 +481,16 @@ def _execute_type_scan(
        :covered-by: gridkin:type_scan-scan-returns-every-pg-node-in-the-fixture
 
        A node-only ``MATCH (n:entity_type)`` scans every entity of one
-       registered type. The label is required; a bare ``(n)`` is rejected.
+       registered type. A labelless ``MATCH (n)`` routes instead to the bare
+       scan over every registered node type (`cap-grid-gryphon-bare-match`).
 
        Example::
 
           MATCH (n:pg_node)
     """
     if not node.label:
+        # _dispatch_pattern routes a labelless node to _execute_bare_type_scan;
+        # this guard only fires if _execute_type_scan is called directly.
         raise SearchExecutionError("Unsupported gryphon pattern: type scan requires a node label, e.g. (c:character).")
 
     from tap_grid.registry import get_model_class
@@ -754,6 +770,188 @@ def _resolve_envelope_path(domain_obj: Any, field_path: FieldPath, explicit_alia
 
 
 # ---------------------------------------------------------------------------
+# Bare type scan — labelless MATCH (n) across every registered node type
+# ---------------------------------------------------------------------------
+
+
+def _predicate_field_paths(predicate: Any) -> list[FieldPath]:
+    """Collect every `FieldPath` referenced anywhere in a predicate tree."""
+    if predicate is None:
+        return []
+    if isinstance(predicate, (Comparison, InComparison)):
+        return [predicate.field_path]
+    if isinstance(predicate, (AndPred, OrPred)):
+        return _predicate_field_paths(predicate.left) + _predicate_field_paths(predicate.right)
+    if isinstance(predicate, NotPred):
+        return _predicate_field_paths(predicate.operand)
+    return []
+
+
+def _is_pure_conjunction(predicate: Any) -> bool:
+    """True if the predicate tree is only comparison leaves joined by AND."""
+    if predicate is None:
+        return True
+    if isinstance(predicate, (Comparison, InComparison)):
+        return True
+    if isinstance(predicate, AndPred):
+        return _is_pure_conjunction(predicate.left) and _is_pure_conjunction(predicate.right)
+    return False
+
+
+def _bare_spine_orm_path(field_path: FieldPath) -> str:
+    """ORM lookup for a spine field path against an `Entity`-rooted queryset.
+
+    A labelless ``MATCH (n)`` with a spine-only WHERE scans the `Entity` spine
+    table directly, where spine fields are columns on the row itself — unlike a
+    per-model queryset, where `_typescan_orm_path` reaches them via `entity__`.
+    `entity_id` is the Entity primary-key column, `id`.
+    """
+    steps = field_path.steps
+    if not steps or not isinstance(steps[0], DotStep):
+        raise SearchExecutionError("FieldPath must start with a dot-step.")
+    first = steps[0].name
+    if first == "entity_id":
+        if len(steps) > 1:
+            raise SearchExecutionError("`entity_id` is a scalar; it cannot be walked into.")
+        return "id"
+    if first in _spine_field_names():
+        rest = steps[1:]
+        if not rest:
+            return first
+        if first in _JSON_TYPED_SPINE_FIELDS:
+            for step in rest:
+                if not isinstance(step, (DotStep, KeyStep)):
+                    raise SearchExecutionError("Spine JSON access supports dot-steps and bracket-key steps only.")
+            inner = "__".join(s.name if isinstance(s, DotStep) else s.key for s in rest)
+            return f"{first}__{inner}"
+        raise SearchExecutionError(f"Spine field {first!r} is a scalar; it cannot be walked into.")
+    raise SearchExecutionError(
+        f"Field {first!r} is not a spine field; address per-model fields as `<var>.data.{first}`."
+    )
+
+
+def _execute_bare_type_scan(
+    node: NodePattern,
+    return_clause: ReturnClause,
+    *,
+    where_clause: Any = None,
+    order_by: Any = None,
+    limit: Any = None,
+    inputs: dict[str, Any] | None = None,
+    db_alias: str,
+    layer: SubgraphLayer,
+) -> dict[str, Any]:
+    """Execute a labelless ``MATCH (n)`` — scan every registered node type, union.
+
+    A labelless node pattern is a wildcard over node entity types: it returns
+    the entities of every registered type, so one labelless clause plus a WHERE
+    replaces an N-clause per-type list.
+
+    - **Spine-only WHERE** (or no WHERE): one scan of the `Entity` spine table,
+      restricted to the registered node types (`entity_type__in`), so a
+      spine-field predicate — `entity_type` especially — stays a single cheap
+      query rather than a scan of every per-model table.
+    - **Data-lane WHERE** (`<var>.data.<field>`): the predicate must be
+      AND-joined; each registered node type is scanned, and a type that lacks a
+      referenced data field contributes zero rows — silently, never an error.
+      Matched entity ids are unioned and the entities bulk-fetched.
+
+    Edges are not scanned — the `edge` type is excluded by entity_type; edges
+    are matched by edge patterns. v0 returns a graph envelope only.
+
+    .. tap:capability:: Gryphon bare (labelless) MATCH
+       :id: cap-grid-gryphon-bare-match
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-bare-match
+       :covered-by: gridkin:bare_match-labelless-scan-filtered-by-an-entity-type-prefix
+       :limitations: Graph-envelope result only; a data-lane WHERE must be AND-joined; ORDER BY / LIMIT unsupported (v0).
+
+       ``MATCH (n)`` with no label scans every registered node type and unions
+       the results. A type lacking a WHERE-referenced data field matches
+       nothing rather than erroring, so a data-lane filter crosses types safely.
+
+       Example::
+
+          MATCH (n) WHERE n.data.tags.Project = "samsite"
+    """
+    from tap_grid.models import Entity
+    from tap_grid.registry import get_model_class, list_entity_types
+
+    inputs = inputs or {}
+    var = node.variable or "n"
+
+    if order_by is not None or limit is not None:
+        raise SearchExecutionError(
+            "ORDER BY / LIMIT on a labelless MATCH (n) are not supported yet; scope the scan to a labelled type."
+        )
+    if not _is_graph_envelope_return(return_clause):
+        raise SearchExecutionError(
+            "A labelless MATCH (n) supports graph-envelope results only (RETURN omitted or naming bare "
+            "variables); row projection over a bare scan is future work."
+        )
+
+    scoped_pred = None
+    if where_clause is not None:
+        scoped_pred = _filter_predicate_for_bindings(where_clause.predicate, {var: {}})
+
+    # Classify the WHERE's field paths into spine vs. data lane.
+    data_lane_fields: set[str] = set()
+    for field_path in _predicate_field_paths(scoped_pred):
+        if not field_path.steps or not isinstance(field_path.steps[0], DotStep):
+            continue
+        head = field_path.steps[0].name
+        if head == _DISPLAY_LANE_PREFIX:
+            raise SearchExecutionError(
+                "Cannot use the `display` lane in a WHERE predicate — display values are computed, not stored."
+            )
+        if head == _DATA_LANE_PREFIX:
+            if len(field_path.steps) < 2 or not isinstance(field_path.steps[1], DotStep):
+                raise SearchExecutionError("A `data` lane path needs a field, e.g. `<var>.data.<field>`.")
+            data_lane_fields.add(field_path.steps[1].name)
+
+    # Node types only. `edge` is itself a registered (BaseModel-backed) type,
+    # so it must be excluded by entity_type — a labelless MATCH (n) is a node
+    # pattern; edges are matched by edge patterns. `registered` is the sorted
+    # (entity_type, model) list of node types.
+    registered: list[tuple[str, type]] = [
+        (entity_type, get_model_class(entity_type))
+        for entity_type in sorted(list_entity_types())
+        if entity_type != "edge"
+    ]
+
+    if not data_lane_fields:
+        # Spine-only (or absent) WHERE — one Entity-spine scan, scoped to the
+        # registered node types so edges and unregistered rows are excluded.
+        qs = Entity.objects.using(db_alias).filter(entity_type__in=[et for et, _ in registered])
+        if scoped_pred is not None:
+            qs = qs.filter(_predicate_to_q(scoped_pred, inputs, _bare_spine_orm_path))
+        entities = list(qs)
+    else:
+        # Data-lane WHERE — AND-only, so a type missing a field can be skipped
+        # wholesale (an unsatisfiable AND); OR / NOT would need per-type branch
+        # pruning, deferred.
+        if not _is_pure_conjunction(scoped_pred):
+            raise SearchExecutionError(
+                "A labelless MATCH (n) with a data-lane WHERE supports only AND-joined comparisons; "
+                "OR / NOT over data-lane fields is not supported yet."
+            )
+        matched_ids: set[Any] = set()
+        for _entity_type, model_cls in registered:
+            model_fields = {f.name for f in model_cls._meta.get_fields()}
+            if not data_lane_fields.issubset(model_fields):
+                continue  # this type lacks a referenced data field — matches nothing
+            model_qs = model_cls.objects.using(db_alias).filter(
+                _predicate_to_q(scoped_pred, inputs, _typescan_orm_path)
+            )
+            matched_ids.update(model_qs.values_list("entity_id", flat=True))
+        entities = list(Entity.objects.using(db_alias).filter(pk__in=sorted(matched_ids))) if matched_ids else []
+
+    return {"nodes": _serialize_entity_nodes(entities, layer, db_alias), "edges": []}
+
+
+# ---------------------------------------------------------------------------
 # Hub-and-spoke ORM execution
 # ---------------------------------------------------------------------------
 
@@ -881,11 +1079,12 @@ def _execute_edge_type_scan(
     db_alias: str,
     layer: SubgraphLayer,
 ) -> dict[str, Any]:
-    """Execute an edge-type scan — all edges of a given type, filtered by endpoint labels.
+    """Execute an edge-type scan — all edges (optionally of one type), filtered by endpoint labels.
 
     Used for patterns like ``MATCH (r:realm)-[e:CONTAINS]->(l:location)`` where there is
     no WHERE anchor. Scans all matching edges, filters by direction and endpoint types,
-    and returns a graph envelope.
+    and returns a graph envelope. The edge type is optional — a labelless ``-[e]-``
+    scans edges of every type.
 
     .. tap:capability:: Gryphon edge-type scan
        :id: cap-grid-gryphon-edge-type-scan
@@ -895,8 +1094,9 @@ def _execute_edge_type_scan(
        :implements: req-grid-traversal-lang-patterns
        :covered-by: gridkin:edge_type_scan-pg-links-edges-from-pg-hub-to-pg-node
 
-       A one-hop typed edge pattern with no WHERE anchor returns every edge of
-       the given type whose endpoints match the pattern's node labels.
+       A one-hop edge pattern with no WHERE anchor returns every edge whose
+       endpoints match the pattern's node labels. The edge type is optional —
+       a labelless ``-[e]-`` scans edges of every type.
 
        Example::
 
@@ -906,6 +1106,8 @@ def _execute_edge_type_scan(
 
     direction = edge_pattern.direction
     edge_type = edge_pattern.edge_type
+    # The edge type is optional — a labelless edge (``-[e]-``) scans every type.
+    type_filter: dict[str, Any] = {"edge_type": edge_type} if edge_type else {}
     # The edge's own Entity is needed by every layer's serializer for the spine
     # surface — select_related it always (skipping it at "lite" caused an N+1).
     extra_related = ["entity"]
@@ -918,7 +1120,7 @@ def _execute_edge_type_scan(
     qualifying_edges: list[Edge] = []
 
     if direction in ("out", "any"):
-        filters: dict[str, Any] = {"edge_type": edge_type, **inline_prop_filters}
+        filters: dict[str, Any] = {**type_filter, **inline_prop_filters}
         if left_node.label:
             filters["from_entity__entity_type"] = left_node.label
         if right_node.label:
@@ -932,7 +1134,7 @@ def _execute_edge_type_scan(
         qualifying_edges.extend(qs)
 
     if direction in ("in", "any"):
-        filters = {"edge_type": edge_type, **inline_prop_filters}
+        filters = {**type_filter, **inline_prop_filters}
         if left_node.label:
             filters["to_entity__entity_type"] = left_node.label
         if right_node.label:
@@ -2163,9 +2365,29 @@ def _serialize_edge_list(
 def _comparison_to_q(comp: Comparison | InComparison, orm_path: str, inputs: dict[str, Any]):
     """Translate a single comparison leaf into a Django ``Q`` over ``orm_path``.
 
-    Used to fold WHERE predicates on the OPTIONAL MATCH variables into the
-    Count(filter=...) clause — so they constrain the optional join rather than
-    drop mandatory rows.
+    The shared leaf compiler for every WHERE path: :func:`_predicate_to_q` calls
+    it for each `Comparison` / `InComparison`, and ``_execute_optional_match``
+    folds WHERE predicates on the optional variables into the
+    ``Count(filter=...)`` clause through it.
+
+    .. tap:capability:: Gryphon string-match predicates
+       :id: cap-grid-gryphon-string-match
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-string-match
+       :covered-by: gridkin:string_match-starts-with-matches-a-name-prefix
+       :limitations: Case-sensitive; no wildcard / regex operator; the three fixed operators only.
+
+       ``STARTS_WITH`` / ``ENDS_WITH`` / ``CONTAINS`` test a string field against
+       a prefix / suffix / substring. The needle is escaped, so ``LIKE``
+       metacharacters (``%`` ``_``) match literally; an empty needle matches
+       every string.
+
+       Example::
+
+          MATCH (n:pg_node) WHERE n.name STARTS_WITH "Neighbor"
+          RETURN n.entity_id AS id ORDER BY id
     """
     from django.db.models import Q
 
@@ -2176,7 +2398,19 @@ def _comparison_to_q(comp: Comparison | InComparison, orm_path: str, inputs: dic
     value = _resolve_value(comp.value, inputs)
     if comp.op == "!=":
         return ~Q(**{orm_path: value})
-    suffix = {"=": "", "<": "__lt", ">": "__gt", "<=": "__lte", ">=": "__gte"}[comp.op]
+    # The scalar comparison operators plus the substring operators
+    # (req-grid-traversal-lang-string-match) -- all positive, single-value
+    # lookups on `orm_path`.
+    suffix = {
+        "=": "",
+        "<": "__lt",
+        ">": "__gt",
+        "<=": "__lte",
+        ">=": "__gte",
+        "starts_with": "__startswith",
+        "ends_with": "__endswith",
+        "contains": "__contains",
+    }[comp.op]
     return Q(**{f"{orm_path}{suffix}": value})
 
 

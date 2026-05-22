@@ -28,6 +28,8 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-envelope-paths | [Envelope-Aware Field Paths](#envelope-aware-field-paths) | In Development | Recognize `data` and `display` lane prefixes in `WHERE`/`RETURN`; explicit-only, no routing sugar |
 | req-grid-traversal-lang-combinators | [Predicate Combinators](#predicate-combinators) | Implemented | AND/OR/NOT in WHERE predicates |
 | req-grid-traversal-lang-in | [IN-List Membership](#in-list-membership) | Implemented | `WHERE` membership test against a list of values |
+| req-grid-traversal-lang-string-match | [String Match Predicates](#string-match-predicates) | Implemented | `WHERE` substring predicates: `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` |
+| req-grid-traversal-lang-bare-match | [Bare Labelless MATCH](#bare-labelless-match) | Implemented | Labelless `MATCH (n)` scans every registered node type and unions the results |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
 | req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
 
@@ -74,42 +76,30 @@ RETURN hub, edge, neighbor
 | req-grid-traversal-lang-shape-3 | Supports Return Clause | Implemented | gryphon text supports `RETURN` for named variables and projected fields. | |
 | req-grid-traversal-lang-shape-4 | Read-Only Surface Only | Implemented | V1 gryphon text excludes graph mutation clauses; they are rejected at parse time. | |
 | req-grid-traversal-lang-shape-5 | Multiple Match Compositional | Implemented | Multiple `MATCH` clauses extend the binding scope; earlier bindings are in scope for later clauses. | |
+| req-grid-traversal-lang-shape-6 | Single-Clause Enforcement | Implemented | At most one `WHERE` / `RETURN` / `ORDER BY` / `LIMIT` per query; a duplicate is rejected at parse time with a `GryphonParseError`, never silently dropped. | |
 
-#### Known Limitation — Multiple WHERE Clauses Silently Dropped
+#### Multiple WHERE / RETURN / ORDER BY / LIMIT — Rejected At Parse Time
 
-The parser (`tap_grid/gryphon/parser.py::_ASTTransformer.start`) keeps
-only the **first** `WHERE` clause it sees — `where = where_clauses[0]`.
-Any further `WHERE` clauses in the input are **silently discarded**, with
-no error and no warning.
+`WHERE`, `RETURN`, `ORDER BY`, and `LIMIT` are each single-clause. A query
+carrying more than one of any of them is rejected at parse time with a clear
+`GryphonParseError` (`tap_grid/gryphon/parser.py::_ASTTransformer.start`).
 
-This bites the natural-looking multi-MATCH-with-per-clause-WHERE shape:
+Earlier the parser kept only the **first** `WHERE` (and the first `RETURN`)
+and **silently discarded** the rest — a query that lied about what it ran.
+That silent-drop footgun is closed: a duplicate clause is now a loud, explicit
+error, never a silent drop.
 
-```text
-MATCH (n:aws_lambda)   WHERE n.data.tags.Project = "samsite"
-MATCH (n:aws_s3_bucket) WHERE n.data.tags.Project = "samsite"
-```
-
-The second `WHERE` vanishes; the second `MATCH` runs unfiltered. The
-working form today is a **single global WHERE**, applied to each MATCH
+Gryphon's working form is a **single global WHERE**, applied to each MATCH
 clause scoped to the variables that clause binds (per
-`_filter_predicate_for_bindings`). The samsite landing-page search
-(`plugins/samsite/grift/landing.grift.json`, 2026-05-21) uses that
-form — and gives the unfiltered MATCH a distinct variable name so the
-global WHERE does not apply to it.
+`_filter_predicate_for_bindings`). To filter several MATCH clauses
+differently, give them distinct variable names so the one global WHERE scopes
+correctly — the samsite landing-page search
+(`plugins/samsite/grift/landing.grift.json`) does exactly this.
 
-Two acceptable resolutions, neither built yet:
-
-1. **Reject multiple WHERE clauses at parse time** with a clear error
-   ("only one WHERE clause per query; combine predicates with AND, or
-   use distinct variable names so a single global WHERE scopes
-   correctly"). Smallest fix; removes the silent-drop footgun.
-2. **Per-MATCH WHERE attachment** — Cypher's actual semantics, where a
-   `WHERE` attaches to its preceding `MATCH` and filters that clause.
-   Requires a `where_clause` field on `MatchClause` and parser +
-   executor changes.
-
-Until one lands, treat "one WHERE per query" as the contract. Surfaced
-here rather than left buried in commit `b80aecf` so it is discoverable.
+Per-`MATCH` `WHERE` attachment — Cypher's actual semantics, where a `WHERE`
+attaches to its preceding `MATCH` and filters that clause — remains future
+work: it needs a `where_clause` field on `MatchClause` plus parser and
+executor changes, and arrives naturally with `WITH`-style pipelining.
 
 #### Future
 Aggregation and `OPTIONAL MATCH` have since landed as extension clauses — see
@@ -209,23 +199,15 @@ MATCH (server:host)<-[edge:ON_HOST]-(iface:interface)
 | req-grid-traversal-lang-patterns-4 | Supports Path Variables | Implemented | Entire matched paths may be bound to named variables. | |
 | req-grid-traversal-lang-patterns-5 | Supports Bounded Repetition | Implemented | gryphon patterns support bounded hop repetition such as `*1..3`. | |
 | req-grid-traversal-lang-patterns-6 | Supports Anonymous Repeated Edges | Implemented | Bounded traversal may omit edge variable and edge type. | |
-| req-grid-traversal-lang-patterns-7 | Supports Wildcards By Omission | Implemented | Unspecified node labels or edge types behave as wildcards within TAP scope. | |
+| req-grid-traversal-lang-patterns-7 | Supports Wildcards By Omission | Implemented | Unspecified node labels or edge types behave as wildcards within TAP scope. | A labelless edge in an edge-type scan (`MATCH (a)-[e]-(b)`) scans every edge type; a labelless node is the bare type scan (`req-grid-traversal-lang-bare-match`). |
 
 #### Future
 
-**Bare `MATCH (n)` type-scan (no label).** Today the executor requires a
-label on `(n)` for type-scan patterns (`req-grid-traversal-lang-patterns-1`
-applies the label as the entity-type filter). Adding "scan every entity
-type" semantics to bare `(n)` would let a single query filter across all
-types — useful for queries like
-`MATCH (n) WHERE n.data.tags.Project = "samsite" RETURN n` without the
-multi-MATCH-per-type verbosity required today. Real work: the executor
-has to enumerate registered model classes, union the results, and
-handle paths that only resolve for some types (e.g. an Edge-only field
-on a node pattern). Top-of-mind for the next round of Gryphon surgery;
-the samsite landing-page filter (2026-05-21) uses multi-MATCH instead
-of waiting for this. (Cross-ref:
-`req-grid-traversal-lang-envelope-paths`.)
+**Bare `MATCH (n)` type-scan — landed.** Labelless `MATCH (n)` scanning every
+registered node type is now its own requirement, [Bare Labelless
+MATCH](#bare-labelless-match) (`req-grid-traversal-lang-bare-match`). It is the
+v0 surface of `req-grid-traversal-lang-patterns-7` ("wildcards by omission")
+for the standalone node type-scan case.
 
 Consider subgraph-scoped gryphon composition, where one gryphon result becomes the graph
 scope for a later gryphon expression. Defer until a concrete use case appears — this expands planner
@@ -581,6 +563,99 @@ MATCH (n:host) WHERE n.entity_id IN [$a, $b, $c] RETURN n
 - Whole-list parameterization (`WHERE n.kind IN $kinds`, where `$kinds` resolves to a list) — the fully-dynamic "pick any subset" filter.
 - `NOT IN` as a distinct surface (today expressible as `NOT (... IN ...)` where the executor path supports `NOT`).
 - Label-union node patterns `(n:type1|type2)` — the pattern-level cousin of `IN` over `entity_type` (Gryphon wishlist B4).
+
+
+### String Match Predicates
+----
+RID: `req-grid-traversal-lang-string-match`
+Status: `Implemented`
+
+A `WHERE` predicate may test a string field against a substring with `STARTS_WITH`, `ENDS_WITH`, or `CONTAINS`.
+
+#### Background
+
+Prefix / suffix / substring filtering is the predicate behind type-prefix filters (`entity_type STARTS_WITH "aws_"`), name search in finders, and log-grep-style dashboard search boxes. Samsite's pass-1 landing page reached for raw ORM `entity_type__startswith` — that ORM reach is the Gryphon-over-ORM rule firing, the demand signal for this predicate (Gryphon wishlist B2).
+
+#### Implementation
+
+- Three word operators join the `comparison` grammar production alongside `COMPARE_OP` and `IN`: `field_path STARTS_WITH value`, `field_path ENDS_WITH value`, `field_path CONTAINS value`. The operators are case-insensitive keywords; the needle `value` is a string literal or a `$param` reference.
+- They are ordinary `Comparison` AST nodes — the operator set on `Comparison` is extended, not a new predicate leaf — so they compose with `AND` / `OR` / `NOT`, scope per bound variable, and flow through the predicate-tree-to-`Q` compiler exactly as `=` does.
+- They compile to the Django `__startswith` / `__endswith` / `__contains` lookups (SQL `LIKE`).
+- **Case-sensitive.** Matching is case-sensitive, mirroring Cypher's `STARTS WITH`. Case-insensitive variants are future work.
+- **`LIKE` metacharacters are literal.** `%` and `_` in the needle match themselves — the lookups parameterize and escape the needle, so `CONTAINS "50%"` matches the literal substring `50%`, never `50` followed by anything.
+- An empty needle matches every string value (`STARTS_WITH ""` is `LIKE '%'`).
+- The needle is expected to be a string; applying these operators to a non-string field is not guarded — behavior is whatever the backend lookup does, the same laxity as `<` / `>`.
+
+#### Examples
+
+```text
+MATCH (n) WHERE n.entity_type STARTS_WITH "aws_" RETURN n
+
+MATCH (n:finding) WHERE n.data.title CONTAINS "timeout" RETURN n
+
+MATCH (n:host) WHERE n.name ENDS_WITH $suffix RETURN n
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-string-match-1 | Operators Accepted | Implemented | The parser accepts `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` as `WHERE` comparison operators. | |
+| req-grid-traversal-lang-string-match-2 | Substring Semantics | Implemented | The operators match a prefix / suffix / any substring; an empty needle matches every string value. | |
+| req-grid-traversal-lang-string-match-3 | Case-Sensitive | Implemented | Matching is case-sensitive. | Case-insensitive variant is future work |
+| req-grid-traversal-lang-string-match-4 | Needle May Be A Param | Implemented | The needle may be a `$param` reference resolved at execution time. | |
+| req-grid-traversal-lang-string-match-5 | LIKE Metacharacters Literal | Implemented | `%` / `_` in the needle match literally; needles are escaped, not interpreted as wildcards. | Security-relevant |
+| req-grid-traversal-lang-string-match-6 | Composes With Combinators | Implemented | A string-match comparison combines with `AND` / `OR` / `NOT` like any comparison. | |
+
+#### Future
+
+- Case-insensitive variants of the three operators.
+- Wildcard / regex-like pattern matching — a single `LIKE`- or `MATCHES`-style operator generalizing these three. Deliberately deferred: the three explicit operators cover the detected demand and avoid the needle-escaping and case-sensitivity surface a pattern language drags in. Promote when a real query needs a shape the three fixed operators cannot express.
+
+
+### Bare Labelless MATCH
+----
+RID: `req-grid-traversal-lang-bare-match`
+Status: `Implemented`
+
+A node pattern with no label — `MATCH (n)` — scans **every registered node entity type** and unions the results. One labelless clause plus a `WHERE` replaces an N-clause per-type list.
+
+#### Background
+
+A query that wants "every node tagged `Project = samsite`, whatever its type" otherwise needs one `MATCH` clause per type — eleven clauses for the samsite landing-page node search. A labelless `MATCH (n)` is the wildcard over node types; it is the standalone-type-scan case of `req-grid-traversal-lang-patterns-7` ("wildcards by omission").
+
+#### Implementation
+
+- `MATCH (n)` — a node-only pattern with no label — routes to a dedicated executor path; a labelled `(n:type)` is unaffected.
+- **Spine-only `WHERE`** (or no `WHERE`): one scan of the `Entity` spine table, restricted to the registered node types. A spine-field predicate — `entity_type`, `name`, `dimensions` — is evaluated at the scan layer, so `MATCH (n) WHERE n.entity_type STARTS_WITH "aws_"` is a single cheap query, not a sweep of every per-model table. The spine predicate may use `AND` / `OR` / `NOT`.
+- **Data-lane `WHERE`** (`<var>.data.<field>`): each registered node type is scanned and the matched entity ids unioned. **A type that lacks a referenced data field contributes zero rows — silently, never an error.** "Type lacks the field ⇒ that type matches nothing" is the contract: a labelless scan with a data-lane filter crosses entity types that have no such field — and no `data` lane at all — without failing. A data-lane `WHERE` must be `AND`-joined in v0; `OR` / `NOT` across the field-absence boundary would need per-type branch pruning and is deferred.
+- Edges are not scanned — they are not registered node models, and are matched by edge patterns.
+- v0 returns a **graph envelope** only (`RETURN` omitted, or naming bare variables). Row projection over a bare scan, and `ORDER BY` / `LIMIT` on one, are future work.
+
+#### Examples
+
+```text
+MATCH (n) WHERE n.data.tags.Project = "samsite" RETURN n
+
+MATCH (n) WHERE n.entity_type STARTS_WITH "aws_" RETURN n
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-bare-match-1 | Labelless MATCH Accepted | Implemented | `MATCH (n)` with no label is accepted and scans every registered node type. | |
+| req-grid-traversal-lang-bare-match-2 | Results Unioned | Implemented | Entities of every matching type are returned together in one graph envelope. | |
+| req-grid-traversal-lang-bare-match-3 | Field-Absence Is Non-Matching | Implemented | A type lacking a WHERE-referenced data field contributes zero rows, never an error. | The robustness contract |
+| req-grid-traversal-lang-bare-match-4 | Spine Predicate Scans Efficiently | Implemented | A spine-field-only WHERE is one `Entity`-table scan, not a per-type table sweep. | |
+| req-grid-traversal-lang-bare-match-5 | Edges Excluded | Implemented | A labelless `MATCH (n)` scans node types only; edges are matched by edge patterns. | |
+| req-grid-traversal-lang-bare-match-6 | Graph Envelope Only In v0 | Implemented | A bare scan returns a graph envelope; row projection and `ORDER BY` / `LIMIT` are rejected. | |
+
+#### Future
+
+- Row projection over a bare scan (`MATCH (n) RETURN n.entity_id`), and `ORDER BY` / `LIMIT`.
+- `OR` / `NOT` in a data-lane `WHERE` on a bare scan — needs per-type predicate-branch pruning.
+- Typeless edge scan — `MATCH (a)-[e]-(b)` with no edge type — the edge-pattern cousin of this requirement.
 
 
 ### Runtime Inputs And Variables

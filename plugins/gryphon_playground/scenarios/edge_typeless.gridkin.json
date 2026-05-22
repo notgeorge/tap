@@ -1,0 +1,43 @@
+{
+  "feature": "Typeless edge scan — MATCH (a)-[e]-(b) with no edge type",
+  "background": {
+    "grift_fixture": "fixtures/optional_relations.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "typeless directed edge scan returns edges of every type",
+      "tags": ["edge-typeless", "edge-type-scan"],
+      "covers": [
+        "req-grid-traversal-lang-patterns",
+        "req-grid-traversal-lang-patterns-7"
+      ],
+      "layer": "lite",
+      "query": "MATCH (a)-[e]->(b)",
+      "expected_envelope": "expected/edge_typeless__all_types.expected.json",
+      "expected_sql_snapshot": "expected/edge_typeless__all_types.sql.txt"
+    },
+    {
+      "name": "typeless edge scan filtered by endpoint labels",
+      "tags": ["edge-typeless", "edge-type-scan"],
+      "covers": [
+        "req-grid-traversal-lang-patterns-7"
+      ],
+      "layer": "lite",
+      "query": "MATCH (a:pg_hub)-[e]->(b:pg_node)",
+      "expected_envelope": "expected/edge_typeless__typed_endpoints.expected.json",
+      "expected_sql_snapshot": "expected/edge_typeless__typed_endpoints.sql.txt"
+    },
+    {
+      "name": "typeless undirected edge scan deduplicates across both directions",
+      "tags": ["edge-typeless", "edge-type-scan", "undirected"],
+      "covers": [
+        "req-grid-traversal-lang-patterns-3",
+        "req-grid-traversal-lang-patterns-7"
+      ],
+      "layer": "lite",
+      "query": "MATCH (a)-[e]-(b)",
+      "expected_envelope": "expected/edge_typeless__undirected.expected.json",
+      "expected_sql_snapshot": "expected/edge_typeless__undirected.sql.txt"
+    }
+  ]
+}
