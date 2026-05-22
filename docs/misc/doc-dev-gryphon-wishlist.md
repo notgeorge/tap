@@ -232,6 +232,8 @@ Today's predicate surface supports `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`, `OR`,
 
 **Validation contract size.** ~4-5 Gridkin scenarios. Corners: case sensitivity, empty needle, special characters in needle (regex-like characters in non-regex predicate).
 
+**Backlog — wildcard / regex-like matching.** B2 ships three fixed, explicit operators (`STARTS_WITH` / `ENDS_WITH` / `CONTAINS`) rather than a single wildcard or pattern operator. A more general predicate — `LIKE`-style wildcards (`aws_%`) or regex-like matching against field values — would be genuinely nice for free-form dashboard search. It is deliberately **not on the critical path**: the three explicit operators cover the detected demand (type-prefix filters, name search), read clearly, and avoid the injection/needle-escaping and case-sensitivity surface a pattern language drags in. Promote when a real query needs matching the three fixed shapes cannot express; until then, named here so we don't reach for it by reflex. (When B2 is built, this note migrates into the new requirement's `Future` list.)
+
 #### B3. `IS NULL` / `IS NOT NULL`
 
 **What.** `WHERE n.deleted_at IS NULL`, `WHERE n.description IS NOT NULL`.
