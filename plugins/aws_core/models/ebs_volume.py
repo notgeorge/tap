@@ -16,6 +16,12 @@ class EbsVolume(BaseModel):
     ENTITY_ICON: ClassVar[str] = "aws-ebs"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.cloud": "aws"}
 
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string"},
         "volume_id": {"type": "string"},

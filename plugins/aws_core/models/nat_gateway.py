@@ -16,6 +16,12 @@ class NatGateway(BaseModel):
     ENTITY_ICON: ClassVar[str] = "aws-nat-gateway"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.cloud": "aws"}
 
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string"},
         "nat_gateway_id": {"type": "string"},
