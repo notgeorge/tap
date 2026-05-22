@@ -211,7 +211,7 @@ MATCH (server:host)<-[edge:ON_HOST]-(iface:interface)
 | req-grid-traversal-lang-patterns-4 | Supports Path Variables | Implemented | Entire matched paths may be bound to named variables. | |
 | req-grid-traversal-lang-patterns-5 | Supports Bounded Repetition | Implemented | gryphon patterns support bounded hop repetition such as `*1..3`. | |
 | req-grid-traversal-lang-patterns-6 | Supports Anonymous Repeated Edges | Implemented | Bounded traversal may omit edge variable and edge type. | |
-| req-grid-traversal-lang-patterns-7 | Supports Wildcards By Omission | Implemented | Unspecified node labels or edge types behave as wildcards within TAP scope. | |
+| req-grid-traversal-lang-patterns-7 | Supports Wildcards By Omission | Implemented | Unspecified node labels or edge types behave as wildcards within TAP scope. | A labelless edge in an edge-type scan (`MATCH (a)-[e]-(b)`) scans every edge type; a labelless node is the bare type scan (`req-grid-traversal-lang-bare-match`). |
 
 #### Future
 

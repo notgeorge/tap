@@ -362,9 +362,8 @@ def _dispatch_pattern(
                     layer=layer,
                 )
 
-    # Edge-type scan: edge pattern with no WHERE anchor (or anchor not in this pattern).
-    if not edge_pat.edge_type:
-        raise SearchExecutionError("Unsupported gryphon pattern: edge-type scan requires a typed edge.")
+    # Edge-type scan: edge pattern with no WHERE anchor (or anchor not in this
+    # pattern). The edge type may be omitted — a labelless edge scans every type.
     with gryphon_stage("edge-type-scan"):
         return _execute_edge_type_scan(
             left_node=pattern.nodes[0],
@@ -1080,11 +1079,12 @@ def _execute_edge_type_scan(
     db_alias: str,
     layer: SubgraphLayer,
 ) -> dict[str, Any]:
-    """Execute an edge-type scan — all edges of a given type, filtered by endpoint labels.
+    """Execute an edge-type scan — all edges (optionally of one type), filtered by endpoint labels.
 
     Used for patterns like ``MATCH (r:realm)-[e:CONTAINS]->(l:location)`` where there is
     no WHERE anchor. Scans all matching edges, filters by direction and endpoint types,
-    and returns a graph envelope.
+    and returns a graph envelope. The edge type is optional — a labelless ``-[e]-``
+    scans edges of every type.
 
     .. tap:capability:: Gryphon edge-type scan
        :id: cap-grid-gryphon-edge-type-scan
@@ -1094,8 +1094,9 @@ def _execute_edge_type_scan(
        :implements: req-grid-traversal-lang-patterns
        :covered-by: gridkin:edge_type_scan-pg-links-edges-from-pg-hub-to-pg-node
 
-       A one-hop typed edge pattern with no WHERE anchor returns every edge of
-       the given type whose endpoints match the pattern's node labels.
+       A one-hop edge pattern with no WHERE anchor returns every edge whose
+       endpoints match the pattern's node labels. The edge type is optional —
+       a labelless ``-[e]-`` scans edges of every type.
 
        Example::
 
@@ -1105,6 +1106,8 @@ def _execute_edge_type_scan(
 
     direction = edge_pattern.direction
     edge_type = edge_pattern.edge_type
+    # The edge type is optional — a labelless edge (``-[e]-``) scans every type.
+    type_filter: dict[str, Any] = {"edge_type": edge_type} if edge_type else {}
     # The edge's own Entity is needed by every layer's serializer for the spine
     # surface — select_related it always (skipping it at "lite" caused an N+1).
     extra_related = ["entity"]
@@ -1117,7 +1120,7 @@ def _execute_edge_type_scan(
     qualifying_edges: list[Edge] = []
 
     if direction in ("out", "any"):
-        filters: dict[str, Any] = {"edge_type": edge_type, **inline_prop_filters}
+        filters: dict[str, Any] = {**type_filter, **inline_prop_filters}
         if left_node.label:
             filters["from_entity__entity_type"] = left_node.label
         if right_node.label:
@@ -1131,7 +1134,7 @@ def _execute_edge_type_scan(
         qualifying_edges.extend(qs)
 
     if direction in ("in", "any"):
-        filters = {"edge_type": edge_type, **inline_prop_filters}
+        filters = {**type_filter, **inline_prop_filters}
         if left_node.label:
             filters["to_entity__entity_type"] = left_node.label
         if right_node.label:

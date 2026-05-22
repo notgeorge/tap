@@ -892,17 +892,6 @@ class TestGryphonEdgeTypeScan:
         assert str(gondor.pk) in node_ids
         assert len(result["edges"]) == 2
 
-    def test_edge_type_scan_requires_typed_edge(self):
-        """Edge-type scan without a typed edge raises SearchExecutionError."""
-        search = Search(
-            search_type="gryphon",
-            root="node",
-            name="test",
-            definition={"query": "MATCH (a:realm)-[e]->(b:location)"},
-        )
-        with pytest.raises(SearchExecutionError, match="typed edge"):
-            execute_search(search, inputs={})
-
 
 # ---------------------------------------------------------------------------
 # TestGryphonUnion — multiple MATCH clauses with UNION merge
@@ -2261,3 +2250,53 @@ class TestGryphonBareMatchExecutor:
                 self._search('MATCH (n) WHERE n.data.kind = "island" OR n.data.kind = "hub"'),
                 inputs={},
             )
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonTypelessEdgeScanExecutor — req-grid-traversal-lang-patterns-7
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonTypelessEdgeScanExecutor:
+    """Executor coverage for the typeless edge scan — MATCH (a)-[e]-(b), no edge type."""
+
+    def _setup(self):
+        """Frodo WIELDS the Ring and OWNS the Shire — two edges of different types."""
+        import uuid
+
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Edge, Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        frodo = Entity.objects.create(entity_type="character", name="Frodo")
+        ring = Entity.objects.create(entity_type="artifact", name="One Ring")
+        shire = Entity.objects.create(entity_type="realm", name="The Shire")
+        for src, tgt, edge_type in ((frodo, ring, "WIELDS"), (frodo, shire, "OWNS")):
+            Edge.objects.create(
+                entity=Entity.objects.create(entity_type="edge"),
+                from_entity=src,
+                to_entity=tgt,
+                edge_type=edge_type,
+            )
+
+    def _search(self, query):
+        return Search(search_type="gryphon", root="node", name="te", definition={"query": query})
+
+    def test_typeless_edge_scan_returns_all_edge_types(self):
+        """req-grid-traversal-lang-patterns-7: a labelless edge scans edges of every type.
+
+        Previously `MATCH (a)-[e]-(b)` with no edge type raised an unsupported-
+        pattern error; it now scans every edge.
+        """
+        self._setup()
+        result = execute_search(self._search("MATCH (a)-[e]->(b)"), inputs={})
+        assert len(result["edges"]) == 2
+
+    def test_typeless_edge_scan_honors_endpoint_labels(self):
+        """A labelless edge still filters by the pattern's node labels."""
+        self._setup()
+        result = execute_search(self._search("MATCH (a:character)-[e]->(b:artifact)"), inputs={})
+        # The character->artifact WIELDS edge only; the character->realm OWNS edge is excluded.
+        assert len(result["edges"]) == 1
