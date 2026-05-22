@@ -151,6 +151,10 @@ def execute_gryphon_raw(
             "naming only bare variables). Graph-envelope ordering is future work."
         )
 
+    if ast.optional_match_clauses:
+        with gryphon_stage("optional-match"):
+            return _execute_optional_match(ast, inputs, db_alias=db_alias, layer=layer)
+
     if _has_advanced_features(ast):
         with gryphon_stage("advanced"):
             return _execute_advanced(ast, inputs, db_alias=db_alias, layer=layer)
@@ -1981,3 +1985,214 @@ def _serialize_edge_list(
         )
         for e in edges
     ]
+
+
+# ---------------------------------------------------------------------------
+# OPTIONAL MATCH executor (left-outer-join semantics)
+# ---------------------------------------------------------------------------
+
+
+def _comparison_to_q(comp: Comparison | InComparison, orm_path: str, inputs: dict[str, Any]):
+    """Translate a single comparison leaf into a Django ``Q`` over ``orm_path``.
+
+    Used to fold WHERE predicates on the OPTIONAL MATCH variables into the
+    Count(filter=...) clause — so they constrain the optional join rather than
+    drop mandatory rows.
+    """
+    from django.db.models import Q
+
+    if isinstance(comp, InComparison):
+        members = [_resolve_value(v, inputs) for v in comp.values]
+        return Q(**{f"{orm_path}__in": members})
+
+    value = _resolve_value(comp.value, inputs)
+    if comp.op == "!=":
+        return ~Q(**{orm_path: value})
+    suffix = {"=": "", "<": "__lt", ">": "__gt", "<=": "__lte", ">=": "__gte"}[comp.op]
+    return Q(**{f"{orm_path}{suffix}": value})
+
+
+def _execute_optional_match(
+    ast: GryphonAST,
+    inputs: dict[str, Any],
+    *,
+    db_alias: str,
+    layer: SubgraphLayer,
+) -> dict[str, Any]:
+    """Execute a MATCH + OPTIONAL MATCH query — left-outer-join semantics.
+
+    v0 scope: exactly one node-only mandatory MATCH (a labelled type scan
+    binding ``v``), exactly one single-hop OPTIONAL MATCH anchored on ``v``, and
+    a row-projection RETURN that projects ``v``'s fields and COUNTs the optional
+    variable. The optional pattern compiles to a ``Count(edge, filter=Q)`` over
+    a LEFT JOIN, so a mandatory row with no optional match still appears with a
+    count of 0 rather than being dropped — the whole point of OPTIONAL MATCH.
+
+    A WHERE predicate on the optional variable is folded into the ``filter=Q``,
+    so it constrains the optional join and does not drop mandatory rows (the
+    notorious Cypher filter-placement gotcha); a WHERE predicate on the
+    mandatory variable filters the outer scan.
+    """
+    from django.db.models import Count, F, Q
+
+    from tap_grid.registry import get_model_class
+
+    # --- structural validation: the v0 OPTIONAL MATCH shape -----------------
+    if len(ast.match_clauses) != 1:
+        raise SearchExecutionError("OPTIONAL MATCH v0 requires exactly one mandatory MATCH clause.")
+    mc = ast.match_clauses[0]
+    if len(mc.patterns) != 1 or mc.patterns[0].edges:
+        raise SearchExecutionError(
+            "OPTIONAL MATCH v0 requires the mandatory MATCH to be a single node-only type scan, "
+            "e.g. MATCH (t:pg_node)."
+        )
+    anchor_node = mc.patterns[0].nodes[0]
+    if not anchor_node.label:
+        raise SearchExecutionError(
+            "OPTIONAL MATCH v0 requires a label on the mandatory MATCH node, e.g. MATCH (t:pg_node)."
+        )
+    v = anchor_node.variable or anchor_node.label
+
+    if len(ast.optional_match_clauses) != 1:
+        raise SearchExecutionError("OPTIONAL MATCH v0 supports exactly one OPTIONAL MATCH clause.")
+    opt_clause = ast.optional_match_clauses[0]
+    if len(opt_clause.patterns) != 1 or len(opt_clause.patterns[0].edges) != 1:
+        raise SearchExecutionError(
+            "OPTIONAL MATCH v0 requires a single-hop optional pattern, e.g. OPTIONAL MATCH (t)-[:E]->(w)."
+        )
+    opt_pat = opt_clause.patterns[0]
+    opt_edge = opt_pat.edges[0]
+    if opt_edge.min_hops != 1 or opt_edge.max_hops != 1:
+        raise SearchExecutionError("OPTIONAL MATCH v0 does not support variable-length optional edges.")
+    if opt_edge.direction not in ("out", "in"):
+        raise SearchExecutionError("OPTIONAL MATCH v0 requires a directed optional edge (-> or <-).")
+    if ast.not_exists_clauses:
+        raise SearchExecutionError("OPTIONAL MATCH does not combine with NOT EXISTS in v0.")
+    if _is_graph_envelope_return(ast.return_clause):
+        raise SearchExecutionError(
+            "OPTIONAL MATCH v0 requires a row-projection RETURN that projects the MATCH variable's "
+            "fields and COUNTs the optional variable; graph-envelope OPTIONAL MATCH is future work."
+        )
+
+    left_node, w_node = opt_pat.nodes[0], opt_pat.nodes[1]
+    if left_node.variable != v:
+        raise SearchExecutionError(
+            f"The OPTIONAL MATCH pattern must start from the MATCH variable '{v}', e.g. OPTIONAL MATCH ({v})-[:E]->(w)."
+        )
+
+    try:
+        model_cls = get_model_class(anchor_node.label)
+    except KeyError:
+        raise SearchExecutionError(f"Unsupported gryphon pattern: unknown entity type '{anchor_node.label}'.") from None
+
+    # --- ORM paths from the mandatory model, through the optional edge ------
+    # `->` : v is the edge's from_entity, the optional node w is to_entity.
+    # `<-` : v is to_entity, w is from_entity.
+    if opt_edge.direction == "out":
+        edge_path = "entity__edges_out"
+        w_entity_path = f"{edge_path}__to_entity"
+    else:
+        edge_path = "entity__edges_in"
+        w_entity_path = f"{edge_path}__from_entity"
+
+    # Bindings for the optional variables, rooted at the mandatory-model qs, so
+    # `_resolve_orm_path` can translate WHERE predicates that reference them.
+    opt_bindings: dict[str, dict[str, Any]] = {}
+    if w_node.variable:
+        opt_bindings[w_node.variable] = {"role": "node", "entity_path": w_entity_path, "label": w_node.label}
+    if opt_edge.variable:
+        opt_bindings[opt_edge.variable] = {"role": "edge", "edge_path": edge_path}
+
+    # --- the optional-join filter Q -----------------------------------------
+    # The optional pattern's own constraints (edge type, w label, inline edge
+    # props) and any WHERE predicate on an optional variable all become part of
+    # this Q. Folded into Count(..., filter=Q), they constrain the join — they
+    # never drop a mandatory row.
+    opt_q = Q()
+    if opt_edge.edge_type:
+        opt_q &= Q(**{f"{edge_path}__edge_type": opt_edge.edge_type})
+    if w_node.label:
+        opt_q &= Q(**{f"{w_entity_path}__entity_type": w_node.label})
+    for key, raw_value in opt_edge.inline_props.items():
+        opt_q &= Q(**{f"{edge_path}__properties__{key}": _resolve_value(raw_value, inputs)})
+
+    # --- WHERE: v-comps filter the outer scan, opt-comps join the filter Q --
+    qs = model_cls.objects.using(db_alias)
+    where_pred = ast.where_clause.predicate if ast.where_clause else None
+    if where_pred is not None:
+        # _apply_typescan_predicate flattens the AND-tree (rejecting OR/NOT) and
+        # applies only the comparisons whose variable is `v` — the outer scan.
+        qs = _apply_typescan_predicate(qs, where_pred, v, inputs)
+        for comp in _flatten_conjunction(where_pred):
+            var = comp.field_path.variable
+            if var == v:
+                continue
+            if var not in opt_bindings:
+                raise SearchExecutionError(
+                    f"WHERE references variable '{var}', which is bound by neither the MATCH nor the "
+                    f"OPTIONAL MATCH."
+                )
+            orm_path = _resolve_orm_path(opt_bindings[var], comp.field_path)
+            opt_q &= _comparison_to_q(comp, orm_path, inputs)
+
+    # --- group-by columns + Count aggregates from RETURN --------------------
+    items = ast.return_clause.items
+    assert items is not None  # _is_graph_envelope_return is True when items is None
+    group_annotations: dict[str, Any] = {}
+    agg_annotations: dict[str, Any] = {}
+    group_pairs: list[tuple[str, str]] = []  # (internal_alias, user_alias)
+    agg_pairs: list[tuple[str, str]] = []  # (internal_alias, user_alias)
+
+    for idx, item in enumerate(items):
+        if isinstance(item, ReturnItem):
+            fp = item.path
+            if fp.variable != v:
+                raise SearchExecutionError(
+                    "OPTIONAL MATCH v0: RETURN field paths must reference the MATCH variable; the "
+                    "optional variable can only be COUNTed."
+                )
+            internal = f"_om_col_{idx}"
+            group_annotations[internal] = F(_typescan_orm_path(fp))
+            group_pairs.append((internal, _return_item_key(item)))
+        elif isinstance(item, AggregateReturnItem):
+            agg = item.aggregate
+            if agg.function != "count":
+                raise SearchExecutionError(f"OPTIONAL MATCH v0 supports only COUNT; got {agg.function!r}.")
+            arg = agg.argument
+            if arg.variable not in opt_bindings or arg.steps:
+                raise SearchExecutionError(
+                    "OPTIONAL MATCH v0: COUNT(...) must count a bare optional variable, e.g. COUNT(g)."
+                )
+            # COUNT over the optional variable counts matching optional edges
+            # (single hop: one edge == one optional-variable binding). The LEFT
+            # JOIN means a mandatory row with no match counts 0, not NULL.
+            internal = f"_om_agg_{idx}"
+            agg_annotations[internal] = Count(edge_path, filter=opt_q)
+            agg_pairs.append((internal, item.alias))
+        else:
+            raise SearchExecutionError(f"Unexpected RETURN item type: {type(item).__name__}")
+
+    if not agg_annotations:
+        raise SearchExecutionError(
+            "OPTIONAL MATCH v0 requires the RETURN to COUNT the optional variable, e.g. COUNT(g) AS guards."
+        )
+
+    group_internals = [i for i, _ in group_pairs]
+    qs = qs.annotate(**group_annotations).values(*group_internals).annotate(**agg_annotations)
+
+    key_to_internal: dict[str, str] = {user: internal for internal, user in group_pairs}
+    key_to_internal.update({user: internal for internal, user in agg_pairs})
+    qs = qs.order_by(*_resolve_order_cols(ast.order_by, key_to_internal, group_internals))
+    if ast.limit is not None:
+        qs = qs[: ast.limit.count]
+
+    rows: list[dict[str, Any]] = []
+    for raw in qs:
+        row: dict[str, Any] = {}
+        for internal, user in group_pairs:
+            val = raw.get(internal)
+            row[user] = str(val) if hasattr(val, "hex") else val
+        for internal, user in agg_pairs:
+            row[user] = raw.get(internal)
+        rows.append(row)
+    return {"nodes": [], "edges": [], "rows": rows}

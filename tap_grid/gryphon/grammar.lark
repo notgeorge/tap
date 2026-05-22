@@ -8,6 +8,7 @@
 start: clause+
 
 clause: match_clause
+      | optional_match_clause
       | where_clause
       | return_clause
       | not_exists_clause
@@ -25,6 +26,11 @@ not_exists_clause: _NOT_KW _EXISTS_KW "{" match_clause where_clause? "}"
 // ---------------------------------------------------------------------------
 
 match_clause: _MATCH_KW path_var? pattern ("," pattern)*
+
+// OPTIONAL MATCH — left-outer-join semantics: the pattern binds where it can,
+// and where it cannot the mandatory rows are still kept (the optional
+// variables go unbound rather than dropping the row).
+optional_match_clause: _OPTIONAL_KW _MATCH_KW pattern ("," pattern)*
 
 path_var: NAME "="
 
@@ -126,6 +132,7 @@ param_ref: "$" NAME
 // ---------------------------------------------------------------------------
 
 _MATCH_KW:  /MATCH/i
+_OPTIONAL_KW: /OPTIONAL/i
 _WHERE_KW:  /WHERE/i
 _RETURN_KW: /RETURN/i
 _AND_KW:    /AND/i

@@ -112,8 +112,9 @@ Until one lands, treat "one WHERE per query" as the contract. Surfaced
 here rather than left buried in commit `b80aecf` so it is discoverable.
 
 #### Future
-Consider whether `OPTIONAL MATCH`, `WITH`, and aggregation are needed after the first round of
-graph and naming use cases is implemented.
+Aggregation and `OPTIONAL MATCH` have since landed as extension clauses — see
+`spec-grid-gryphon-multihop-aggregation.md` (`req-grid-gryphon-count`,
+`req-grid-gryphon-optional-match`). `WITH` (pipelined composition) remains future work.
 
 
 ### gryphon Storage Form

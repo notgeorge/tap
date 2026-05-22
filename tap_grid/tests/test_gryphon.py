@@ -1912,3 +1912,130 @@ class TestGryphonInListExecutor:
             inputs={"a": str(made["Merry"].pk), "b": str(made["Sam"].pk)},
         )["rows"]
         assert [r["name"] for r in rows] == ["Merry", "Sam"]
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonOptionalMatchParser — req-grid-gryphon-optional-match
+# ---------------------------------------------------------------------------
+
+
+class TestGryphonOptionalMatchParser:
+    """Parser coverage for the OPTIONAL MATCH clause."""
+
+    def test_optional_match_parses(self):
+        """req-grid-gryphon-optional-match-1: OPTIONAL MATCH parses into its own clause list."""
+        from tap_grid.gryphon.ast_nodes import OptionalMatchClause
+
+        ast = parse_gryphon(
+            "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) "
+            "RETURN t.entity_id AS target, COUNT(g) AS guards"
+        )
+        assert len(ast.match_clauses) == 1
+        assert len(ast.optional_match_clauses) == 1
+        assert isinstance(ast.optional_match_clauses[0], OptionalMatchClause)
+        opt_pat = ast.optional_match_clauses[0].patterns[0]
+        assert opt_pat.edges[0].edge_type == "PG_OPTIONAL"
+        assert opt_pat.edges[0].direction == "in"
+
+    def test_optional_match_params_collected(self):
+        """$param refs inside an OPTIONAL MATCH pattern are collected as required inputs."""
+        ast = parse_gryphon(
+            "MATCH (t:pg_node) OPTIONAL MATCH (t)-[:E {tier: $tier}]->(w:pg_node) "
+            "RETURN t.entity_id AS id, COUNT(w) AS c"
+        )
+        assert "tier" in ast.required_params()
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonOptionalMatchExecutor — req-grid-gryphon-optional-match
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonOptionalMatchExecutor:
+    """Executor coverage for OPTIONAL MATCH — zero-preservation plus the v0 scope bounds."""
+
+    def _setup(self):
+        """Three characters (with backing Character rows); only Frodo wields an artifact."""
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Edge, Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+
+        chars = {}
+        for n in ("Frodo", "Sam", "Merry"):
+            entity = Entity.objects.create(entity_type="character", name=n)
+            Character.objects.create(entity=entity, name=n, bio=f"{n} bio")
+            chars[n] = entity
+        ring = Entity.objects.create(entity_type="artifact", name="One Ring")
+        Edge.objects.create(
+            entity=Entity.objects.create(entity_type="edge"),
+            from_entity=chars["Frodo"],
+            to_entity=ring,
+            edge_type="WIELDS",
+        )
+        return chars
+
+    def _search(self, query):
+        return Search(search_type="gryphon", root="node", name="om", definition={"query": query})
+
+    def test_optional_match_keeps_zero_match_rows(self):
+        """req-grid-gryphon-optional-match-2/-3: every character appears; COUNT is 0 where unmatched."""
+        chars = self._setup()
+        search = self._search(
+            "MATCH (c:character) OPTIONAL MATCH (c)-[:WIELDS]->(a:artifact) "
+            "RETURN c.entity_id AS character, COUNT(a) AS wielded"
+        )
+        rows = {r["character"]: r["wielded"] for r in execute_search(search, inputs={})["rows"]}
+        assert rows[str(chars["Frodo"].pk)] == 1
+        assert rows[str(chars["Sam"].pk)] == 0
+        assert rows[str(chars["Merry"].pk)] == 0
+
+    def test_optional_match_multi_hop_rejected(self):
+        """req-grid-gryphon-optional-match-8: a multi-hop optional pattern is rejected in v0."""
+        search = self._search(
+            "MATCH (c:character) OPTIONAL MATCH (c)-[:WIELDS]->(a:artifact)-[:IN]->(r:realm) "
+            "RETURN c.entity_id AS id, COUNT(a) AS c"
+        )
+        with pytest.raises(SearchExecutionError, match="single-hop"):
+            execute_search(search, inputs={})
+
+    def test_optional_match_multiple_clauses_rejected(self):
+        """req-grid-gryphon-optional-match-8: more than one OPTIONAL MATCH is rejected in v0."""
+        search = self._search(
+            "MATCH (c:character) "
+            "OPTIONAL MATCH (c)-[:WIELDS]->(a:artifact) "
+            "OPTIONAL MATCH (c)-[:OWNS]->(r:realm) "
+            "RETURN c.entity_id AS id, COUNT(a) AS c"
+        )
+        with pytest.raises(SearchExecutionError, match="exactly one OPTIONAL MATCH"):
+            execute_search(search, inputs={})
+
+    def test_optional_match_graph_envelope_rejected(self):
+        """req-grid-gryphon-optional-match-8: a graph-envelope RETURN is rejected in v0."""
+        search = self._search("MATCH (c:character) OPTIONAL MATCH (c)-[:WIELDS]->(a:artifact)")
+        with pytest.raises(SearchExecutionError, match="row-projection"):
+            execute_search(search, inputs={})
+
+    def test_optional_match_unanchored_rejected(self):
+        """req-grid-gryphon-optional-match-8: the optional pattern must start from the MATCH variable."""
+        search = self._search(
+            "MATCH (c:character) OPTIONAL MATCH (x:artifact)-[:IN]->(r:realm) "
+            "RETURN c.entity_id AS id, COUNT(r) AS c"
+        )
+        with pytest.raises(SearchExecutionError, match="must start from the MATCH variable"):
+            execute_search(search, inputs={})
+
+    def test_optional_match_projecting_optional_var_rejected(self):
+        """req-grid-gryphon-optional-match-8: the optional variable can only be COUNTed, not projected."""
+        self._setup()
+        search = self._search(
+            "MATCH (c:character) OPTIONAL MATCH (c)-[:WIELDS]->(a:artifact) "
+            "RETURN c.entity_id AS id, a.entity_id AS art"
+        )
+        with pytest.raises(SearchExecutionError, match="optional variable can only be COUNTed"):
+            execute_search(search, inputs={})

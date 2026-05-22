@@ -27,6 +27,7 @@ from tap_grid.gryphon.ast_nodes import (
     NodePattern,
     NotExistsClause,
     NotPred,
+    OptionalMatchClause,
     OrderByClause,
     OrderByItem,
     OrPred,
@@ -102,6 +103,7 @@ class _ASTTransformer(Transformer):
 
     def start(self, *clauses: Any) -> GryphonAST:
         match_clauses = [c for c in clauses if isinstance(c, MatchClause)]
+        optional_match_clauses = [c for c in clauses if isinstance(c, OptionalMatchClause)]
         where_clauses = [c for c in clauses if isinstance(c, WhereClause)]
         return_clauses = [c for c in clauses if isinstance(c, ReturnClause)]
         not_exists_clauses = [c for c in clauses if isinstance(c, NotExistsClause)]
@@ -128,6 +130,7 @@ class _ASTTransformer(Transformer):
             not_exists_clauses=tuple(not_exists_clauses),
             order_by=order_by_clauses[0] if order_by_clauses else None,
             limit=limit_clauses[0] if limit_clauses else None,
+            optional_match_clauses=tuple(optional_match_clauses),
         )
 
     def clause(self, inner: Any) -> Any:
@@ -155,6 +158,9 @@ class _ASTTransformer(Transformer):
 
     def path_var(self, name: Token) -> str:
         return str(name)
+
+    def optional_match_clause(self, *patterns: Any) -> OptionalMatchClause:
+        return OptionalMatchClause(patterns=tuple(p for p in patterns if isinstance(p, PathPattern)))
 
     def pattern(self, *args: Any) -> PathPattern:
         nodes = [a for a in args if isinstance(a, NodePattern)]

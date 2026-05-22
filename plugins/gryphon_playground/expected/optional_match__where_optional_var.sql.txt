@@ -1,0 +1,11 @@
+-- statement 1 · stage: optional-match
+SELECT "gryphon_playground_pg_node"."entity_id" AS "_om_col_0", COUNT("tap_edge"."id") FILTER (WHERE ("tap_edge"."edge_type" = %s AND T4."entity_type" = %s AND T5."severity_score" > %s)) AS "_om_agg_1"
+FROM "gryphon_playground_pg_node"
+INNER JOIN "tap_entity" ON ("gryphon_playground_pg_node"."entity_id" = "tap_entity"."id")
+LEFT OUTER JOIN "tap_edge" ON ("tap_entity"."id" = "tap_edge"."to_entity_id")
+LEFT OUTER JOIN "tap_entity" T4 ON ("tap_edge"."from_entity_id" = T4."id")
+LEFT OUTER JOIN "gryphon_playground_pg_node" T5 ON (T4."id" = T5."entity_id")
+WHERE "tap_entity"."deleted_at" IS NULL
+GROUP BY 1
+ORDER BY 1 ASC
+-- params: ['PG_OPTIONAL', 'pg_node', Int4(100)]

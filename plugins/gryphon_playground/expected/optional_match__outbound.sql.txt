@@ -1,0 +1,10 @@
+-- statement 1 · stage: optional-match
+SELECT "gryphon_playground_pg_hub"."entity_id" AS "_om_col_0", COUNT("tap_edge"."id") FILTER (WHERE ("tap_edge"."edge_type" = %s AND T4."entity_type" = %s)) AS "_om_agg_1"
+FROM "gryphon_playground_pg_hub"
+INNER JOIN "tap_entity" ON ("gryphon_playground_pg_hub"."entity_id" = "tap_entity"."id")
+LEFT OUTER JOIN "tap_edge" ON ("tap_entity"."id" = "tap_edge"."from_entity_id")
+LEFT OUTER JOIN "tap_entity" T4 ON ("tap_edge"."to_entity_id" = T4."id")
+WHERE "tap_entity"."deleted_at" IS NULL
+GROUP BY 1
+ORDER BY 1 ASC
+-- params: ['PG_LINKS', 'pg_node']

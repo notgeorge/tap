@@ -178,6 +178,18 @@ class MatchClause:
 
 
 @dataclass(frozen=True)
+class OptionalMatchClause:
+    """An OPTIONAL MATCH clause — left-outer-join semantics.
+
+    Structurally like a MatchClause's pattern list, but a non-match leaves the
+    optional variables unbound rather than dropping the mandatory row. No path
+    variable in v0.
+    """
+
+    patterns: tuple[PathPattern, ...]
+
+
+@dataclass(frozen=True)
 class WhereClause:
     """A WHERE clause with its root predicate."""
 
@@ -279,6 +291,7 @@ class GryphonAST:
     not_exists_clauses: tuple[NotExistsClause, ...] = ()
     order_by: OrderByClause | None = None
     limit: LimitClause | None = None
+    optional_match_clauses: tuple[OptionalMatchClause, ...] = ()
 
     def required_params(self) -> frozenset[str]:
         """Return the set of $var names referenced anywhere in this AST."""
@@ -286,6 +299,8 @@ class GryphonAST:
         _collect_params_from_predicate(self.where_clause.predicate if self.where_clause else None, params)
         for mc in self.match_clauses:
             _collect_params_from_match(mc, params)
+        for omc in self.optional_match_clauses:
+            _collect_params_from_patterns(omc.patterns, params)
         for nec in self.not_exists_clauses:
             _collect_params_from_match(nec.match_clause, params)
             if nec.where_clause is not None:
@@ -293,8 +308,8 @@ class GryphonAST:
         return frozenset(params)
 
 
-def _collect_params_from_match(mc: MatchClause, out: set[str]) -> None:
-    for pattern in mc.patterns:
+def _collect_params_from_patterns(patterns: tuple[PathPattern, ...], out: set[str]) -> None:
+    for pattern in patterns:
         for node in pattern.nodes:
             for v in node.inline_props.values():
                 if isinstance(v, ParamRef):
@@ -303,6 +318,10 @@ def _collect_params_from_match(mc: MatchClause, out: set[str]) -> None:
             for v in edge.inline_props.values():
                 if isinstance(v, ParamRef):
                     out.add(v.name)
+
+
+def _collect_params_from_match(mc: MatchClause, out: set[str]) -> None:
+    _collect_params_from_patterns(mc.patterns, out)
 
 
 def _collect_params_from_predicate(pred: Predicate | None, out: set[str]) -> None:

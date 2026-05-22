@@ -31,6 +31,7 @@ The extension is scoped tight on purpose. `COUNT` is the only aggregate; `SUM`/`
 | req-grid-gryphon-multihop-envelope | [Multi-Hop Graph Envelope](#multi-hop-graph-envelope) | Implemented | Multi-hop queries return graph envelope (nodes + edges) when RETURN is omitted or uses bare variables |
 | req-grid-gryphon-order-by | [ORDER BY Row Ordering](#order-by-row-ordering) | Implemented | `ORDER BY` over row-projection outputs; ascending default, `DESC` explicit, multi-key, deterministic tiebreak |
 | req-grid-gryphon-limit | [LIMIT Row Capping](#limit-row-capping) | Implemented | `LIMIT n` caps row-projection output; compiles to SQL `LIMIT` |
+| req-grid-gryphon-optional-match | [OPTIONAL MATCH Left-Outer Join](#optional-match-left-outer-join) | Implemented | `OPTIONAL MATCH` keeps mandatory rows that have no optional match; `COUNT` of the optional variable is 0, not absent |
 | req-grid-gryphon-compat | [Backward Compatibility](#backward-compatibility) | Implemented | Existing queries parse, execute, and return identical results |
 
 ---
@@ -363,6 +364,74 @@ Gryphon gains a `LIMIT n` clause that caps the number of rows a row-projection q
 
 ---
 
+### OPTIONAL MATCH Left-Outer Join
+----
+RID: `req-grid-gryphon-optional-match`
+Status: `Implemented`
+
+Gryphon gains an `OPTIONAL MATCH` clause: a second pattern that, where it does not match, leaves its variables unbound rather than dropping the mandatory row. It is the left-outer-join primitive — the missing piece for every per-entity scoreboard.
+
+#### Background And Motivation
+
+The load-bearing query for a compliance dashboard is "show me every X and how many related Y it has." Written with a plain `MATCH`:
+
+```text
+MATCH (l:aws_lambda)-[:HAS_FINDING]->(f:finding)
+RETURN l.entity_id AS lambda, COUNT(f) AS findings
+```
+
+this **silently drops every Lambda with zero findings** — an inner join. The clean Lambdas vanish from the scoreboard, which is the exact opposite of what a scoreboard should show. `OPTIONAL MATCH` fixes this: every Lambda appears, and `COUNT(f)` is `0` where there is no finding (`COUNT` ignores unbound/NULL — the one place SQL's null handling is exactly what we want).
+
+#### Implementation
+
+- Grammar: a top-level `optional_match_clause` — `OPTIONAL MATCH` followed by a pattern — sibling to `MATCH`.
+- AST: `OptionalMatchClause`; `GryphonAST` gains `optional_match_clauses`.
+- The executor routes any query carrying an `OPTIONAL MATCH` to a dedicated path (`_execute_optional_match`).
+
+**v0 shape.** The implemented surface is the per-entity-scoreboard shape, scoped tight:
+
+- Exactly one mandatory `MATCH` — a single node-only **type scan** with a label, binding the mandatory variable `v` (e.g. `MATCH (t:pg_node)`).
+- Exactly one `OPTIONAL MATCH` — a **single-hop, directed** pattern that starts from `v` (`OPTIONAL MATCH (v)-[e:E]->(w)` or `(v)<-[e:E]-(w)`).
+- A **row-projection** `RETURN` that projects `v`'s fields and `COUNT`s the optional variable (`w` or the optional edge `e`).
+
+**Compilation.** The mandatory `MATCH` is the type-scan queryset. The optional hop compiles to a Django `Count(<edge>, filter=Q(...))` over a `LEFT OUTER JOIN` to the edge table. Because the join is a left join and the optional pattern's constraints live in the `COUNT(...) FILTER (WHERE ...)` clause, a mandatory row with no qualifying optional edge still appears, with a count of `0`. Counting the optional node `w` and counting the optional edge `e` are equivalent over a single hop (one edge is one binding).
+
+**WHERE placement — the filter-placement gotcha.** A single global `WHERE` is split by variable:
+
+- A predicate on the mandatory variable `v` filters the **outer scan** (it is a real row filter — `MATCH (t) ... WHERE t.kind = "target"` returns only `target` rows).
+- A predicate on an optional variable (`w` or `e`) is folded into the **optional join's `filter=Q`**. It constrains which optional edges match — it does **not** drop mandatory rows. `OPTIONAL MATCH (t)<-[:E]-(g) WHERE g.severity > 100` still returns every `t`; the ones whose `g` fails the predicate simply count `0`. This is the well-known Cypher gotcha (a `WHERE` "inside" an `OPTIONAL MATCH` behaves differently from one after it); pinning it correctly is a v0 requirement.
+
+`OR` / `NOT` in the `WHERE`, and predicates referencing a variable bound by neither clause, are rejected — consistent with the AND-only scope of the rest of the executor.
+
+**Out of v0 scope** (each rejected with a clear error, each a named future item): a multi-hop optional pattern; more than one `OPTIONAL MATCH`; an optional pattern not anchored on `v`; a graph-envelope (non-row) `RETURN`; projecting an optional variable's fields (it can only be `COUNT`ed); combining `OPTIONAL MATCH` with `NOT EXISTS`.
+
+#### Development
+
+The v0 scope is the per-entity-scoreboard shape and nothing wider, because that shape alone unblocks the KSI scoreboard and every Rampart-step compliance dashboard. The two genuinely hard generalizations — a multi-hop optional pattern, and projecting (not just counting) the optional variable's rows — both need row-per-edge materialization of the left join, which the `Count(filter=Q)` compilation deliberately sidesteps. They wait for a query that needs them. The filter-placement gotcha, by contrast, is *not* deferred: getting it wrong is a silent-wrong-answer bug, so it is pinned by a Gridkin scenario in v0.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-gryphon-optional-match-1 | OPTIONAL MATCH Accepted | Implemented | The parser accepts `OPTIONAL MATCH` as a top-level clause; the executor routes it to the left-outer-join path. | |
+| req-grid-gryphon-optional-match-2 | Zero-Match Keeps The Row | Implemented | A mandatory row with no qualifying optional match is still returned, rather than dropped as a plain `MATCH` would. | The headline behavior |
+| req-grid-gryphon-optional-match-3 | COUNT Of Optional Is Zero | Implemented | `COUNT` of the optional variable (node or edge) is `0` for a mandatory row with no match, not NULL or absent. | |
+| req-grid-gryphon-optional-match-4 | WHERE On Optional Var Constrains The Join | Implemented | A `WHERE` predicate on an optional variable is folded into the optional join filter; it never drops a mandatory row. | The Cypher filter-placement gotcha |
+| req-grid-gryphon-optional-match-5 | WHERE On Mandatory Var Filters Outer Scan | Implemented | A `WHERE` predicate on the mandatory variable filters the outer type scan as a real row filter. | |
+| req-grid-gryphon-optional-match-6 | Directed Optional Edge | Implemented | The optional hop may be outbound (`->`) or inbound (`<-`); both compile correctly. | Undirected is rejected |
+| req-grid-gryphon-optional-match-7 | Composes With ORDER BY / LIMIT | Implemented | An `OPTIONAL MATCH` scoreboard accepts `ORDER BY` (including by the `COUNT` alias) and `LIMIT`. | The "top-N scoreboard" verb |
+| req-grid-gryphon-optional-match-8 | v0 Scope Bounds Enforced | Implemented | Multi-hop optional patterns, multiple `OPTIONAL MATCH` clauses, an unanchored optional pattern, graph-envelope returns, and optional-variable field projection are each rejected with a clear error. | Each is a named future item |
+
+#### Future
+
+- Multi-hop optional patterns (`OPTIONAL MATCH (v)-[:E1]->(x)-[:E2]->(w)`).
+- Projecting the optional variable's rows, not only `COUNT`ing them (`RETURN v, w` with `w` NULL where unmatched) — needs row-per-edge left-join materialization.
+- More than one `OPTIONAL MATCH` clause; chained optionals where a later one depends on an earlier.
+- Graph-envelope `OPTIONAL MATCH` (`{nodes, edges}` of the mandatory scan plus the matched optional subgraph).
+- Positive `EXISTS { ... }` — the presence-test cousin (Gryphon wishlist D2).
+
+---
+
 ### Backward Compatibility
 ----
 RID: `req-grid-gryphon-compat`
@@ -396,7 +465,7 @@ Every query that parses and executes before this extension lands continues to pa
 - **`COUNT(DISTINCT ...)`** and **`COUNT(*)`**.
 - **`HAVING`** clause for post-aggregation filtering.
 - **`SKIP` / `OFFSET`** for query-level pagination, composing with `ORDER BY` / `LIMIT`.
-- **`OPTIONAL MATCH`** for left-outer-join semantics.
+- **Multi-hop / projecting `OPTIONAL MATCH`** — `req-grid-gryphon-optional-match` landed the single-hop, COUNT-only scoreboard shape; multi-hop optional patterns and projecting (not counting) the optional variable remain future work.
 - **`UNION`** and **`UNION ALL`** across sibling queries.
 - **Variable-length edge traversal** with cycle handling (`-[:E*1..3]->`).
 - **Path variable binding** and path-level projections.

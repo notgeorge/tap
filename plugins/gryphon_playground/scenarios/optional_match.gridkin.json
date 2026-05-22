@@ -1,0 +1,92 @@
+{
+  "feature": "OPTIONAL MATCH — left-outer-join semantics over a single optional hop",
+  "background": {
+    "grift_fixture": "fixtures/optional_relations.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "OPTIONAL MATCH keeps zero-match rows — COUNT is 0, not absent",
+      "tags": ["optional-match", "scoreboard", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-optional-match",
+        "req-grid-gryphon-optional-match-1",
+        "req-grid-gryphon-optional-match-2",
+        "req-grid-gryphon-optional-match-3"
+      ],
+      "inspired_by": "tck/features/clauses/optional-match/",
+      "layer": "lite",
+      "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
+      "expected_envelope": "expected/optional_match__keeps_zero.expected.json",
+      "expected_sql_snapshot": "expected/optional_match__keeps_zero.sql.txt"
+    },
+    {
+      "name": "a plain MATCH of the same shape drops the zero-match rows",
+      "tags": ["optional-match", "contrast", "current-behavior"],
+      "covers": [
+        "req-grid-gryphon-optional-match-2",
+        "req-grid-gryphon-count"
+      ],
+      "layer": "lite",
+      "query": "MATCH (t:pg_node)<-[:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
+      "expected_envelope": "expected/optional_match__plain_match_drops.expected.json",
+      "expected_sql_snapshot": "expected/optional_match__plain_match_drops.sql.txt"
+    },
+    {
+      "name": "OPTIONAL MATCH along an outbound edge counts the fan-out",
+      "tags": ["optional-match", "outbound"],
+      "covers": [
+        "req-grid-gryphon-optional-match-6"
+      ],
+      "layer": "lite",
+      "query": "MATCH (h:pg_hub) OPTIONAL MATCH (h)-[:PG_LINKS]->(t:pg_node) RETURN h.entity_id AS hub, COUNT(t) AS links",
+      "expected_envelope": "expected/optional_match__outbound.expected.json",
+      "expected_sql_snapshot": "expected/optional_match__outbound.sql.txt"
+    },
+    {
+      "name": "OPTIONAL MATCH scoreboard composes with ORDER BY and LIMIT",
+      "tags": ["optional-match", "order-by", "limit", "top-n"],
+      "covers": [
+        "req-grid-gryphon-optional-match-7"
+      ],
+      "layer": "lite",
+      "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY guards DESC LIMIT 1",
+      "expected_envelope": "expected/optional_match__order_limit.expected.json",
+      "expected_sql_snapshot": "expected/optional_match__order_limit.sql.txt"
+    },
+    {
+      "name": "WHERE on the optional variable constrains the join — it does not drop rows",
+      "tags": ["optional-match", "where", "filter-placement", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-optional-match-2",
+        "req-grid-gryphon-optional-match-4"
+      ],
+      "inspired_by": "tck/features/clauses/optional-match/",
+      "layer": "lite",
+      "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) WHERE g.data.severity_score > 100 RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
+      "expected_envelope": "expected/optional_match__where_optional_var.expected.json",
+      "expected_sql_snapshot": "expected/optional_match__where_optional_var.sql.txt"
+    },
+    {
+      "name": "WHERE on the mandatory variable filters the outer scan",
+      "tags": ["optional-match", "where"],
+      "covers": [
+        "req-grid-gryphon-optional-match-5"
+      ],
+      "layer": "lite",
+      "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) WHERE t.data.kind = \"target\" RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
+      "expected_envelope": "expected/optional_match__where_mandatory_var.expected.json",
+      "expected_sql_snapshot": "expected/optional_match__where_mandatory_var.sql.txt"
+    },
+    {
+      "name": "COUNT of the optional edge variable counts matching optional edges",
+      "tags": ["optional-match", "count", "edge-variable"],
+      "covers": [
+        "req-grid-gryphon-optional-match-3"
+      ],
+      "layer": "lite",
+      "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[e:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(e) AS guard_edges ORDER BY target",
+      "expected_envelope": "expected/optional_match__count_edge.expected.json",
+      "expected_sql_snapshot": "expected/optional_match__count_edge.sql.txt"
+    }
+  ]
+}
