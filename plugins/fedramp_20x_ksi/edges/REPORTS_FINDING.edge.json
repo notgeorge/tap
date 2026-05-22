@@ -1,0 +1,10 @@
+{
+  "slug": "REPORTS_FINDING",
+  "name": "Reports Finding",
+  "description": "A VDR report carries a vulnerability finding. One edge per findings[] and risk_accepted[] entry.",
+  "sources": ["vdr_report"],
+  "targets": ["vdr_finding"],
+  "default_dimensions": {
+    "compliance": "vdr"
+  }
+}

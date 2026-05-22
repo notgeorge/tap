@@ -1,0 +1,10 @@
+{
+  "slug": "DECLARES_COMPONENT",
+  "name": "Declares Component",
+  "description": "A KSI signal names a component of the system it describes. One edge per components[] entry.",
+  "sources": ["ksi_signal"],
+  "targets": ["ksi_component"],
+  "default_dimensions": {
+    "compliance": "ksi-signal"
+  }
+}
