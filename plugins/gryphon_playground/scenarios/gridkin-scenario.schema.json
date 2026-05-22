@@ -21,6 +21,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Path, relative to the plugin root, to the GRIFT fixture that seeds the test database."
+        },
+        "soft_delete": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Entity UUIDs to soft-delete via the service-layer delete_node verb after the GRIFT fixture is imported, before any scenario runs. GRIFT import is additive/upsert-only (spec-grift-v0.md), so soft-deleted graph state is established here."
         }
       }
     },

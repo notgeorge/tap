@@ -488,7 +488,8 @@ Optional:
 - On import, `dimensions` is merged with the target type's defaults using the explicit-wins rule defined in `req-grid-dimension-dc` (node types contribute `DEFAULT_DIMENSIONS`; edge types contribute their registered `default_dimensions`). Envelope keys win over defaults. See `req-grid-dimension-dc-5`.
 - `name` is the canonical human-readable identifier when present.
 - If `name` is present it must not be an empty string.
-- `created_at`, `updated_at`, and `deleted_at` are optional in v0, but if present they are imported and validated.
+- `created_at` and `updated_at` are optional in v0, but if present they are imported and validated.
+- `deleted_at` is optional; if present it is validated for timestamp sanity (see below) but **not applied**. GRIFT import in v0 is additive / upsert-only: it creates and updates entities and never tombstones them. An envelope's `deleted_at` does not mark the imported entity deleted, and the importer never deletes entities. Deleting nodes through GRIFT is a known gap, deliberately out of scope for v0 until the delete method is designed.
 - A batch envelope must use `entity_type == "batch"`.
 - An edge envelope must use `entity_type == "edge"`.
 

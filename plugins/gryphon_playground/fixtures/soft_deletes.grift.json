@@ -1,0 +1,79 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e4e07-9975-7501-8d81-0fcca4b0539d",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — soft_deletes",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — soft_deletes",
+        "description": "Three live pg_node entities; the scenario soft-deletes one after import via its soft_delete directive. Tier 1 Gridkin fixture confirming the executor's deleted_at IS NULL filter hides soft-deleted nodes.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fcd6037b410",
+            "entity_type": "pg_node",
+            "name": "Live One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:20:00Z",
+            "updated_at": "2026-05-21T16:20:00Z"
+          },
+          "node": {
+            "name": "Live One",
+            "description": "A live (non-deleted) node.",
+            "kind": "live",
+            "severity_score": 10,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fce5a1efac6",
+            "entity_type": "pg_node",
+            "name": "Live Two",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:20:01Z",
+            "updated_at": "2026-05-21T16:20:01Z"
+          },
+          "node": {
+            "name": "Live Two",
+            "description": "A live (non-deleted) node.",
+            "kind": "live",
+            "severity_score": 20,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e4e07-9975-7501-8d81-0fcfead6b2d7",
+            "entity_type": "pg_node",
+            "name": "Deleted One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-21T16:20:02Z",
+            "updated_at": "2026-05-21T16:20:02Z"
+          },
+          "node": {
+            "name": "Deleted One",
+            "description": "Soft-deleted by the scenario's soft_delete directive after import — must not appear in any query result.",
+            "kind": "deleted",
+            "severity_score": 30,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

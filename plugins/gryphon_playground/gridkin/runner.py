@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from tap_grid.grift import grift_import
 from tap_grid.gryphon import explain_gryphon_raw
+from tap_grid.services import delete_node
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -67,7 +68,7 @@ def run_scenario(scenario: Scenario, *, update_snapshots: bool = False) -> list[
 
 
 def _seed_fixture(scenario: Scenario) -> None:
-    """Load the scenario's GRIFT fixture into the test database."""
+    """Seed the test DB: import the GRIFT fixture, then apply soft-delete directives."""
     if not scenario.fixture_path.is_file():
         raise AssertionError(f"{scenario.scenario_id}: GRIFT fixture not found: {scenario.fixture_path}")
     document = json.loads(scenario.fixture_path.read_text(encoding="utf-8"))
@@ -81,6 +82,15 @@ def _seed_fixture(scenario: Scenario) -> None:
             f"{scenario.scenario_id}: GRIFT fixture {scenario.fixture_path.name} "
             f"did not import cleanly (success={result.success}): {messages}"
         )
+
+    # GRIFT import is additive/upsert-only (spec-grift-v0.md) — it never
+    # tombstones entities. Soft-deleted graph state is set up here instead:
+    # each `soft_delete` entity id is deleted through the service-layer
+    # delete_node verb, post-import, before the scenario query runs.
+    for entity_id in scenario.soft_delete:
+        delete_result = delete_node(entity_id)
+        if not delete_result.success:
+            raise AssertionError(f"{scenario.scenario_id}: soft-delete of {entity_id} failed: {delete_result.errors}")
 
 
 # Spine fields that carry provenance, not query semantics: the import-time

@@ -55,6 +55,7 @@ class Scenario:
     expected_envelope_path: Path
     expected_sql_path: Path
     source_file: Path
+    soft_delete: tuple[str, ...] = ()
 
 
 def _slugify(text: str) -> str:
@@ -98,7 +99,9 @@ def _parse_file(path: Path, schema: dict[str, Any]) -> list[Scenario]:
         raise GridkinScenarioError(f"{path.name}: schema violation at {location} — {exc.message}") from exc
 
     feature = document["feature"]
-    fixture_path = PLUGIN_ROOT / document["background"]["grift_fixture"]
+    background = document["background"]
+    fixture_path = PLUGIN_ROOT / background["grift_fixture"]
+    soft_delete = tuple(background.get("soft_delete", []))
     feature_stem = path.name[: -len(_FEATURE_SUFFIX)]
 
     parsed: list[Scenario] = []
@@ -118,6 +121,7 @@ def _parse_file(path: Path, schema: dict[str, Any]) -> list[Scenario]:
                 expected_envelope_path=PLUGIN_ROOT / raw["expected_envelope"],
                 expected_sql_path=PLUGIN_ROOT / raw["expected_sql_snapshot"],
                 source_file=path,
+                soft_delete=soft_delete,
             )
         )
     return parsed

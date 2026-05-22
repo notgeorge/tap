@@ -1,0 +1,18 @@
+{
+  "feature": "Soft-deleted entities are hidden from query results",
+  "background": {
+    "grift_fixture": "fixtures/soft_deletes.grift.json",
+    "soft_delete": ["019e4e07-9975-7501-8d81-0fcfead6b2d7"]
+  },
+  "scenarios": [
+    {
+      "name": "type-scan excludes a soft-deleted node",
+      "tags": ["type-scan", "soft-delete", "current-behavior"],
+      "covers": ["req-grid-traversal-lang-shape"],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node)",
+      "expected_envelope": "expected/soft_deletes__type_scan.expected.json",
+      "expected_sql_snapshot": "expected/soft_deletes__type_scan.sql.txt"
+    }
+  ]
+}
