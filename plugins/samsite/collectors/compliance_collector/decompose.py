@@ -204,7 +204,16 @@ def decompose_ksi_signal(
         val_key = f"{signal_id}/{validation_id}"
         val_node_id = str(node_entity_id("ksi_validation", val_key))
         policy = validation.get("policy") or {}
-        val_name = f"{validation_id} ({validation.get('result', '?')})"
+        # Name is the closest thing to "what does this validation check?" we
+        # can derive without joining — the validation_id is opaque on its own,
+        # so include the component_refs it evaluated. (The canonical join is
+        # still the EVALUATES_COMPONENT edge below; this is display-projection
+        # denormalization so the table shows context at a glance.)
+        component_refs = validation.get("component_refs") or []
+        if component_refs:
+            val_name = f"{validation_id}: {', '.join(component_refs)}"
+        else:
+            val_name = validation_id
         out.nodes.append(
             _node_envelope(
                 "ksi_validation",

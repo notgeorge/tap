@@ -79,6 +79,7 @@ TABLE_CONFIG_SCHEMA: dict[str, Any] = {
                             "json",
                             "passFailBadge",
                             "painBadge",
+                            "arrayCount",
                         ],
                     },
                     "tooltip": {"type": "string", "enum": ["full_value"]},

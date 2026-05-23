@@ -149,6 +149,11 @@
       return '<span style="background:' + pair[0] + ';color:' + pair[1] +
         ';padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px">' + v + '</span>';
     },
+    arrayCount: function (cell) {
+      var v = cell.getValue();
+      if (!Array.isArray(v) || v.length === 0) return '<span style="color:#9ca3af">—</span>';
+      return String(v.length);
+    },
   };
 
   function buildCustomColumns(specs) {
@@ -268,6 +273,9 @@
           var entityType = data.entity_type || "";
           var urlId = ((data.display || {}).tap_viz || {}).url_id || "";
           if (urlId && entityType) {
+            // Save scroll position so the back-button restoration can return
+            // the user to where they were on this page.
+            saveScrollForReturn();
             window.location.href = "/object/" + entityType + "/" + urlId + "/";
           }
         });
@@ -400,4 +408,62 @@
   } else {
     mountPageSizeSelectors(document);
   }
+
+  // ---------------------------------------------------------------------
+  // Scroll restoration.
+  //
+  // Pages with table panels lazy-load their content via HTMX after initial
+  // page render. Browsers' default scroll restoration fires BEFORE the
+  // panels expand the document height, so back-navigation lands at the top
+  // even though the browser "tried" to restore. Workaround: take over the
+  // restoration ourselves — save scrollY when navigating away via a row
+  // click, restore once the document is tall enough to accommodate it
+  // (after htmx:afterSettle fires for the lazy panels).
+  // ---------------------------------------------------------------------
+  var SCROLL_KEY_PREFIX = "tap-return-scroll:";
+
+  function saveScrollForReturn() {
+    try {
+      sessionStorage.setItem(SCROLL_KEY_PREFIX + window.location.pathname, String(window.scrollY));
+    } catch (e) {
+      // sessionStorage can fail in private mode; silently ignore.
+    }
+  }
+
+  function _scrollKey() { return SCROLL_KEY_PREFIX + window.location.pathname; }
+
+  var _scrollRestoreDone = false;
+  function tryRestoreScroll() {
+    if (_scrollRestoreDone) return;
+    var savedY;
+    try { savedY = sessionStorage.getItem(_scrollKey()); } catch (e) { return; }
+    if (!savedY) return;
+    var targetY = parseInt(savedY, 10);
+    if (isNaN(targetY) || targetY <= 0) {
+      try { sessionStorage.removeItem(_scrollKey()); } catch (e) { /* ignore */ }
+      _scrollRestoreDone = true;
+      return;
+    }
+    // Only scroll once the document is tall enough for the saved Y to be valid.
+    if (document.documentElement.scrollHeight >= targetY + window.innerHeight - 50) {
+      window.scrollTo(0, targetY);
+      try { sessionStorage.removeItem(_scrollKey()); } catch (e) { /* ignore */ }
+      _scrollRestoreDone = true;
+    }
+  }
+
+  // Take manual control so the browser doesn't auto-restore to the wrong
+  // (pre-lazy-load) position.
+  if ("scrollRestoration" in history) {
+    history.scrollRestoration = "manual";
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", tryRestoreScroll);
+  } else {
+    tryRestoreScroll();
+  }
+  // Each HTMX settle expands the page; retry restoration in case the
+  // document just grew tall enough.
+  document.addEventListener("htmx:afterSettle", tryRestoreScroll);
 })();

@@ -176,11 +176,14 @@
               "default_page_size": 200,
               "columns": [
                 {"field": "name", "title": "Component", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.component_type", "title": "Type", "width": 160},
-                {"field": "data.native_id", "title": "Native ID", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.security_confidentiality", "title": "C", "width": 55},
-                {"field": "data.security_integrity", "title": "I", "width": 55},
-                {"field": "data.security_availability", "title": "A", "width": 55},
+                {"field": "data.component_type", "title": "Type", "width": 145},
+                {"field": "data.attributes.function", "title": "Function", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.attributes.public", "title": "Public", "formatter": "tickCross", "width": 70},
+                {"field": "data.security_confidentiality", "title": "C", "width": 50},
+                {"field": "data.security_integrity", "title": "I", "width": 50},
+                {"field": "data.security_availability", "title": "A", "width": 50},
+                {"field": "data.information_flow", "title": "Flows", "formatter": "arrayCount", "width": 70, "headerSort": false},
+                {"field": "data.native_id", "title": "Native ID", "widthGrow": 1, "tooltip": "full_value"},
                 {"field": "data.global_purl", "title": "Package URL", "widthGrow": 1, "tooltip": "full_value"}
               ]
             }
@@ -201,10 +204,11 @@
               "column_mode": "common_metadata",
               "default_page_size": 100,
               "columns": [
-                {"field": "name", "title": "Validation", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.policy_id", "title": "Policy", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.policy_version", "title": "Version", "width": 100},
-                {"field": "data.result", "title": "Result", "formatter": "passFailBadge", "width": 90}
+                {"field": "data.validation_id", "title": "ID", "width": 100},
+                {"field": "name", "title": "Evaluates Component(s)", "widthGrow": 3, "tooltip": "full_value"},
+                {"field": "data.result", "title": "Result", "formatter": "passFailBadge", "width": 90},
+                {"field": "data.policy_id", "title": "Policy", "widthGrow": 1, "tooltip": "full_value"},
+                {"field": "data.policy_version", "title": "Version", "width": 90}
               ]
             }
           }
@@ -272,15 +276,17 @@
               "column_mode": "common_metadata",
               "default_page_size": 100,
               "columns": [
-                {"field": "data.tracking_id", "title": "Tracking ID", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.source", "title": "Source", "width": 120},
-                {"field": "data.pain", "title": "PAIN", "formatter": "painBadge", "width": 80},
-                {"field": "data.internet_reachable", "title": "IRV", "formatter": "tickCross", "width": 60},
-                {"field": "data.likely_exploitable", "title": "LEV", "formatter": "tickCross", "width": 60},
-                {"field": "data.is_kev", "title": "KEV", "formatter": "tickCross", "width": 60},
-                {"field": "data.current_disposition", "title": "Disposition", "width": 130},
-                {"field": "data.remediation_due_at", "title": "Due", "formatter": "datetime", "width": 150},
-                {"field": "data.is_blocking", "title": "Blocking", "formatter": "tickCross", "width": 80}
+                {"field": "data.title", "title": "Finding", "widthGrow": 3, "tooltip": "full_value"},
+                {"field": "data.resource", "title": "Resource", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.source", "title": "Source", "width": 100},
+                {"field": "data.cve", "title": "CVE", "width": 130, "tooltip": "full_value"},
+                {"field": "data.pain", "title": "PAIN", "formatter": "painBadge", "width": 75},
+                {"field": "data.internet_reachable", "title": "IRV", "formatter": "tickCross", "width": 55},
+                {"field": "data.likely_exploitable", "title": "LEV", "formatter": "tickCross", "width": 55},
+                {"field": "data.is_kev", "title": "KEV", "formatter": "tickCross", "width": 55},
+                {"field": "data.current_disposition", "title": "Disposition", "width": 125},
+                {"field": "data.remediation_due_at", "title": "Due", "formatter": "datetime", "width": 145},
+                {"field": "data.is_blocking", "title": "Blocking", "formatter": "tickCross", "width": 75}
               ]
             }
           }
