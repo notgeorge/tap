@@ -91,6 +91,86 @@
     },
   ];
 
+  // ---------------------------------------------------------------------
+  // Preset formatters — referenced by name from a panel's `columns` config
+  // (config.columns[].formatter). String names keep the panel config
+  // declarative (no inline JS in grift); the JS owns the rendering.
+  // ---------------------------------------------------------------------
+  function _safeStr(v) { return v == null ? "" : String(v); }
+
+  var FORMATTERS = {
+    plaintext: function (cell) { return _safeStr(cell.getValue()); },
+    datetime: function (cell) {
+      var v = cell.getValue();
+      if (!v) return "";
+      try {
+        var d = new Date(v);
+        if (isNaN(d)) return _safeStr(v);
+        // Compact local rendering: yyyy-mm-dd hh:mm.
+        var pad = function (n) { return String(n).padStart(2, "0"); };
+        return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+          " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+      } catch (e) { return _safeStr(v); }
+    },
+    tickCross: function (cell) {
+      var v = cell.getValue();
+      if (v === true || v === "true") return '<span style="color:#16a34a;font-weight:600">✓</span>';
+      if (v === false || v === "false") return '<span style="color:#dc2626;font-weight:600">✕</span>';
+      return '<span style="color:#9ca3af">–</span>';
+    },
+    ellipsisSuffix: function (cell) {
+      var v = _safeStr(cell.getValue());
+      return v.length > 8 ? "…" + v.slice(-8) : v;
+    },
+    json: function (cell) {
+      var v = cell.getValue();
+      if (v == null) return "";
+      if (typeof v === "object") {
+        var s = JSON.stringify(v);
+        return s.length > 60 ? s.slice(0, 60) + "…" : s;
+      }
+      return _safeStr(v);
+    },
+    passFailBadge: function (cell) {
+      var v = _safeStr(cell.getValue()).toLowerCase();
+      if (v === "pass") return '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px">PASS</span>';
+      if (v === "fail") return '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px">FAIL</span>';
+      return _safeStr(cell.getValue());
+    },
+    painBadge: function (cell) {
+      var v = _safeStr(cell.getValue());
+      var colors = {
+        N1: ["#dbeafe", "#1e40af"], N2: ["#dcfce7", "#166534"],
+        N3: ["#fef3c7", "#92400e"], N4: ["#fed7aa", "#9a3412"],
+        N5: ["#fecaca", "#991b1b"],
+      };
+      var pair = colors[v];
+      if (!pair) return v;
+      return '<span style="background:' + pair[0] + ';color:' + pair[1] +
+        ';padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px">' + v + '</span>';
+    },
+  };
+
+  function buildCustomColumns(specs) {
+    return specs.map(function (spec) {
+      var col = {
+        field: spec.field,
+        title: spec.title,
+        headerSort: spec.headerSort !== false,
+      };
+      if (spec.width != null) col.width = spec.width;
+      if (spec.widthGrow != null) col.widthGrow = spec.widthGrow;
+      var fmt = FORMATTERS[spec.formatter || "plaintext"];
+      if (fmt) {
+        col.formatter = fmt;
+      }
+      if (spec.tooltip === "full_value") {
+        col.tooltip = function (e, cell) { return _safeStr(cell.getValue()); };
+      }
+      return col;
+    });
+  }
+
   // Columns for edge mode — endpoint labels resolved into display.tap_viz.
   // Edge envelopes follow the same shape as node envelopes; edge_type and
   // properties live in `data`, from/to labels in `display.tap_viz.{from,to}_label`.
@@ -148,8 +228,25 @@
       return;
     }
 
+    // Per-panel custom column spec (from panel.config.columns); when present,
+    // overrides the default common_metadata / edge column sets.
+    var customColumns = null;
+    var customColumnsScript = document.getElementById("tap-table-columns-" + panelId);
+    if (customColumnsScript) {
+      try {
+        customColumns = JSON.parse(customColumnsScript.textContent);
+      } catch (e) {
+        console.warn("TAP table panel: failed to parse columns spec for panel", panelId, e);
+      }
+    }
+
     var mode = mountEl.getAttribute("data-tap-table-mode") || "node";
-    var columns = mode === "edge" ? EDGE_COLUMNS : COMMON_METADATA_COLUMNS;
+    var columns;
+    if (customColumns && customColumns.length > 0) {
+      columns = buildCustomColumns(customColumns);
+    } else {
+      columns = mode === "edge" ? EDGE_COLUMNS : COMMON_METADATA_COLUMNS;
+    }
 
     var tableOptions = {
       data: rows,

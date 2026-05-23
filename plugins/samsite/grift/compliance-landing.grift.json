@@ -145,7 +145,19 @@
             "slug": "samsite-compliance-ksi-signals",
             "name": "KSI Signal emissions",
             "view": "tap_web/panels/table_panel.html",
-            "config": {"column_mode": "common_metadata", "default_page_size": 25}
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 25,
+              "columns": [
+                {"field": "name", "title": "Name", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.signal_id", "title": "Signal ID", "formatter": "ellipsisSuffix", "width": 120, "tooltip": "full_value"},
+                {"field": "data.system_id", "title": "System ID", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.emitted_at", "title": "Emitted At", "formatter": "datetime", "width": 150},
+                {"field": "data.emitter", "title": "Emitter", "width": 90},
+                {"field": "data.signature_verified", "title": "Verified", "formatter": "tickCross", "width": 80},
+                {"field": "data.fedramp_certified", "title": "FedRAMP", "formatter": "tickCross", "width": 85}
+              ]
+            }
           }
         },
         {
@@ -159,7 +171,19 @@
             "slug": "samsite-compliance-ksi-components",
             "name": "KSI Components",
             "view": "tap_web/panels/table_panel.html",
-            "config": {"column_mode": "common_metadata", "default_page_size": 200}
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 200,
+              "columns": [
+                {"field": "name", "title": "Component", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.component_type", "title": "Type", "width": 160},
+                {"field": "data.native_id", "title": "Native ID", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.security_confidentiality", "title": "C", "width": 55},
+                {"field": "data.security_integrity", "title": "I", "width": 55},
+                {"field": "data.security_availability", "title": "A", "width": 55},
+                {"field": "data.global_purl", "title": "Package URL", "widthGrow": 1, "tooltip": "full_value"}
+              ]
+            }
           }
         },
         {
@@ -173,7 +197,16 @@
             "slug": "samsite-compliance-ksi-validations",
             "name": "KSI Validations",
             "view": "tap_web/panels/table_panel.html",
-            "config": {"column_mode": "common_metadata", "default_page_size": 100}
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 100,
+              "columns": [
+                {"field": "name", "title": "Validation", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.policy_id", "title": "Policy", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.policy_version", "title": "Version", "width": 100},
+                {"field": "data.result", "title": "Result", "formatter": "passFailBadge", "width": 90}
+              ]
+            }
           }
         },
         {
@@ -187,7 +220,16 @@
             "slug": "samsite-compliance-ksi-violations",
             "name": "KSI Violations",
             "view": "tap_web/panels/table_panel.html",
-            "config": {"column_mode": "common_metadata", "default_page_size": 50}
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 50,
+              "columns": [
+                {"field": "name", "title": "Violation", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.violation_type", "title": "Type", "width": 200},
+                {"field": "data.severity", "title": "Severity", "width": 100},
+                {"field": "data.resource", "title": "Resource", "widthGrow": 2, "tooltip": "full_value"}
+              ]
+            }
           }
         },
         {
@@ -201,7 +243,18 @@
             "slug": "samsite-compliance-vdr-reports",
             "name": "VDR Reports",
             "view": "tap_web/panels/table_panel.html",
-            "config": {"column_mode": "common_metadata", "default_page_size": 25}
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 25,
+              "columns": [
+                {"field": "name", "title": "Name", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.report_id", "title": "Report ID", "formatter": "ellipsisSuffix", "width": 120, "tooltip": "full_value"},
+                {"field": "data.vdr_class", "title": "Class", "width": 80},
+                {"field": "data.emitted_at", "title": "Emitted At", "formatter": "datetime", "width": 150},
+                {"field": "data.system_id", "title": "System", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.signature_verified", "title": "Verified", "formatter": "tickCross", "width": 80}
+              ]
+            }
           }
         },
         {
@@ -215,7 +268,21 @@
             "slug": "samsite-compliance-vdr-findings",
             "name": "VDR Findings",
             "view": "tap_web/panels/table_panel.html",
-            "config": {"column_mode": "common_metadata", "default_page_size": 100}
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 100,
+              "columns": [
+                {"field": "data.tracking_id", "title": "Tracking ID", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.source", "title": "Source", "width": 120},
+                {"field": "data.pain", "title": "PAIN", "formatter": "painBadge", "width": 80},
+                {"field": "data.internet_reachable", "title": "IRV", "formatter": "tickCross", "width": 60},
+                {"field": "data.likely_exploitable", "title": "LEV", "formatter": "tickCross", "width": 60},
+                {"field": "data.is_kev", "title": "KEV", "formatter": "tickCross", "width": 60},
+                {"field": "data.current_disposition", "title": "Disposition", "width": 130},
+                {"field": "data.remediation_due_at", "title": "Due", "formatter": "datetime", "width": 150},
+                {"field": "data.is_blocking", "title": "Blocking", "formatter": "tickCross", "width": 80}
+              ]
+            }
           }
         },
         {
@@ -229,7 +296,18 @@
             "slug": "samsite-compliance-artifacts",
             "name": "Compliance Artifacts",
             "view": "tap_web/panels/table_panel.html",
-            "config": {"column_mode": "common_metadata", "default_page_size": 25}
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 25,
+              "columns": [
+                {"field": "data.kind", "title": "Kind", "width": 130},
+                {"field": "data.source_url", "title": "Source URL", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.size_bytes", "title": "Size (bytes)", "width": 110},
+                {"field": "data.fetched_at", "title": "Fetched", "formatter": "datetime", "width": 150},
+                {"field": "data.signature_verified", "title": "Verified", "formatter": "tickCross", "width": 80},
+                {"field": "data.signed_by", "title": "Signed By", "widthGrow": 2, "tooltip": "full_value"}
+              ]
+            }
           }
         },
         {
