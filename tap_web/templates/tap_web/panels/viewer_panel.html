@@ -42,11 +42,14 @@
     <section>
         <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Details</h3>
         <dl class="bg-white border border-slate-200 rounded divide-y divide-slate-100">
-            {% for label, value in viewer_field_pairs %}
+            {% for label, value, is_block in viewer_field_pairs %}
             <div class="px-4 py-3 sm:grid sm:grid-cols-3 sm:gap-4">
                 <dt class="text-sm font-medium text-slate-500">{{ label }}</dt>
                 <dd class="mt-1 text-sm text-slate-800 sm:mt-0 sm:col-span-2">
-                    {% if value %}{{ value }}{% else %}<span class="text-slate-400 italic">--</span>{% endif %}
+                    {% if value %}
+                        {% if is_block %}<pre class="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed bg-slate-50 border border-slate-200 rounded p-2 overflow-x-auto max-h-96">{{ value }}</pre>
+                        {% else %}{{ value }}{% endif %}
+                    {% else %}<span class="text-slate-400 italic">--</span>{% endif %}
                 </dd>
             </div>
             {% empty %}

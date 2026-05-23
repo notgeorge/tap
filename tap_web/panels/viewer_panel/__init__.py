@@ -54,6 +54,52 @@ class ViewerPanelType:
         return _get_viewer_context(entity_id, entity_type)
 
 
+def _format_value(value: Any) -> tuple[str, bool]:
+    """Format a model field value for display.
+
+    Returns: (display_text, is_block) — is_block is True for multi-line
+    values (e.g. pretty-printed JSON) the template should render in a
+    code block.
+    """
+    import json
+    from datetime import date, datetime
+
+    if value is None:
+        return ("", False)
+    if isinstance(value, bool):
+        return ("true" if value else "false", False)
+    if isinstance(value, (dict, list)):
+        if not value:
+            return ("", False)
+        rendered = json.dumps(value, indent=2, sort_keys=True, default=str)
+        return (rendered, "\n" in rendered)
+    if isinstance(value, (datetime, date)):
+        return (value.isoformat(), False)
+    text = str(value)
+    return (text, "\n" in text)
+
+
+def _model_field_pairs(obj: Any) -> list[tuple[str, str, bool]]:
+    """Walk obj's declared Django fields → display tuples.
+
+    The fallback used when no editor descriptor is registered for the
+    entity type. Skips the entity FK chain, primary keys, and the spine's
+    own bookkeeping; keeps the model's own declared fields in declaration
+    order.
+    """
+    pairs: list[tuple[str, str, bool]] = []
+    seen: set[str] = set()
+    for field in obj._meta.get_fields():
+        if field.is_relation or field.name in {"id", "entity_id"} or field.name in seen:
+            continue
+        seen.add(field.name)
+        value = getattr(obj, field.name, None)
+        text, is_block = _format_value(value)
+        label = str(field.verbose_name or field.name).replace("_", " ").title()
+        pairs.append((label, text, is_block))
+    return pairs
+
+
 def _get_viewer_context(entity_id: str, entity_type: str) -> dict[str, Any]:
     """Build viewer context for a single entity."""
     from tap_grid.registry import get_model_class
@@ -71,7 +117,7 @@ def _get_viewer_context(entity_id: str, entity_type: str) -> dict[str, Any]:
 
     descriptor = get_editor(entity_type)
 
-    field_pairs: list[tuple[str, Any]] = []
+    field_pairs: list[tuple[str, str, bool]] = []
     if descriptor is not None:
         initial = descriptor.get_editor_initial(obj)
         form_class = descriptor.get_form_class(obj)
@@ -80,7 +126,14 @@ def _get_viewer_context(entity_id: str, entity_type: str) -> dict[str, Any]:
             for name, field in form.fields.items():
                 label = str(field.label or name.replace("_", " ").title())
                 value = initial.get(name, "")
-                field_pairs.append((label, value))
+                text, is_block = _format_value(value)
+                field_pairs.append((label, text, is_block))
+
+    # Universal fallback: when no editor (or no form) gave us a field list,
+    # walk the model's own declared fields. Gives every TAP-managed entity
+    # type a baseline drill-down without requiring an editor first.
+    if not field_pairs:
+        field_pairs = _model_field_pairs(obj)
 
     extra = descriptor.get_extra_context(obj) if descriptor else {}
 
