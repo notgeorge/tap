@@ -1,0 +1,464 @@
+{
+  "metadata": {"grift_version": "0"},
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e5502-cee6-744a-93b2-958a9df9b52d",
+        "entity_type": "batch",
+        "name": "Samsite Compliance landing v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite.grift.compliance-landing",
+        "name": "Samsite Compliance landing v0.1.0",
+        "description": "The basics: one page that exposes every entity the samsite compliance collector lands on the grid — KSI signal, components, validations, violations, VDR report, findings, compliance artifacts — each as a node-table panel. No joins yet; this is the see-the-data-first pass. Detail views via click-through on any row."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-958b9a924ac8",
+            "entity_type": "search",
+            "name": "KSI Signal emissions",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "KSI Signal emissions",
+            "description": "Every KSI signal emission on the grid — one per fedramp-20x KSI document the collector has ingested.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": ["MATCH (n:ksi_signal)"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-958c04ca2961",
+            "entity_type": "search",
+            "name": "KSI Components",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "KSI Components",
+            "description": "Every component the latest KSI signal(s) declare. Dedup across emissions by component_id (per req-samsite-collector-identity).",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": ["MATCH (n:ksi_component)"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-958dca40acab",
+            "entity_type": "search",
+            "name": "KSI Validations",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "KSI Validations",
+            "description": "Every validation result the KSI signal(s) carry — policy pass/fail per emission.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": ["MATCH (n:ksi_validation)"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-958e8d3d688e",
+            "entity_type": "search",
+            "name": "KSI Violations",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "KSI Violations",
+            "description": "Every policy violation a failed KSI validation reports. Empty when all validations pass.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": ["MATCH (n:ksi_violation)"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-958f54c25e32",
+            "entity_type": "search",
+            "name": "VDR Reports",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "VDR Reports",
+            "description": "Every Vulnerability Detection and Response report emission on the grid.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": ["MATCH (n:vdr_report)"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-95900a2e5492",
+            "entity_type": "search",
+            "name": "VDR Findings",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "VDR Findings",
+            "description": "Every vulnerability finding the VDR reports carry. Sam's evaluation framework (PAIN N1-N5, IRV, LEV, KEV, SLA, disposition) lives as typed fields on each row — visible in the click-through detail.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": ["MATCH (n:vdr_finding)"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-9591eafcb900",
+            "entity_type": "search",
+            "name": "Compliance Artifacts",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Compliance Artifacts",
+            "description": "The fetched rendering artifacts kept whole — OSCAL SSP, OSCAL POA&M, IIW inventory. The content blob lives on the node detail (Page 2 work will give that a classy renderer).",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": ["MATCH (n:compliance_artifact)"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-959208090e06",
+            "entity_type": "panel",
+            "name": "KSI Signal emissions",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-compliance-ksi-signals",
+            "name": "KSI Signal emissions",
+            "view": "tap_web/panels/table_panel.html",
+            "config": {"column_mode": "common_metadata", "default_page_size": 25}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-9593dab8fd0d",
+            "entity_type": "panel",
+            "name": "KSI Components",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-compliance-ksi-components",
+            "name": "KSI Components",
+            "view": "tap_web/panels/table_panel.html",
+            "config": {"column_mode": "common_metadata", "default_page_size": 200}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-9594b7c51a99",
+            "entity_type": "panel",
+            "name": "KSI Validations",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-compliance-ksi-validations",
+            "name": "KSI Validations",
+            "view": "tap_web/panels/table_panel.html",
+            "config": {"column_mode": "common_metadata", "default_page_size": 100}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-9595c7d31dc9",
+            "entity_type": "panel",
+            "name": "KSI Violations",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-compliance-ksi-violations",
+            "name": "KSI Violations",
+            "view": "tap_web/panels/table_panel.html",
+            "config": {"column_mode": "common_metadata", "default_page_size": 50}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-959691ca5c4c",
+            "entity_type": "panel",
+            "name": "VDR Reports",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-compliance-vdr-reports",
+            "name": "VDR Reports",
+            "view": "tap_web/panels/table_panel.html",
+            "config": {"column_mode": "common_metadata", "default_page_size": 25}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-9597dbe72a5c",
+            "entity_type": "panel",
+            "name": "VDR Findings",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-compliance-vdr-findings",
+            "name": "VDR Findings",
+            "view": "tap_web/panels/table_panel.html",
+            "config": {"column_mode": "common_metadata", "default_page_size": 100}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-9598e6e741a3",
+            "entity_type": "panel",
+            "name": "Compliance Artifacts",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-compliance-artifacts",
+            "name": "Compliance Artifacts",
+            "view": "tap_web/panels/table_panel.html",
+            "config": {"column_mode": "common_metadata", "default_page_size": 25}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "entity_type": "page",
+            "name": "Samsite Compliance",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Samsite Compliance",
+            "slug": "/samsite/compliance",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-signal": {"panel-id": "ksi-signal"},
+                    "row-2-components": {"panel-id": "components"},
+                    "row-3-validations": {"panel-id": "validations"},
+                    "row-4-violations": {"panel-id": "violations"},
+                    "row-5-vdr-report": {"panel-id": "vdr-report"},
+                    "row-6-findings": {"panel-id": "findings"},
+                    "row-7-artifacts": {"panel-id": "artifacts"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-959af4fc4436",
+            "entity_type": "edge",
+            "name": "KSI Signal panel USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-959208090e06",
+            "to_entity_id": "019e5502-cee6-744a-93b2-958b9a924ac8",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-959bd170679b",
+            "entity_type": "edge",
+            "name": "KSI Components panel USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9593dab8fd0d",
+            "to_entity_id": "019e5502-cee6-744a-93b2-958c04ca2961",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-959cffa9c8c8",
+            "entity_type": "edge",
+            "name": "KSI Validations panel USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9594b7c51a99",
+            "to_entity_id": "019e5502-cee6-744a-93b2-958dca40acab",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-959ddad2ea64",
+            "entity_type": "edge",
+            "name": "KSI Violations panel USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9595c7d31dc9",
+            "to_entity_id": "019e5502-cee6-744a-93b2-958e8d3d688e",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-959e5eca4eb0",
+            "entity_type": "edge",
+            "name": "VDR Reports panel USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-959691ca5c4c",
+            "to_entity_id": "019e5502-cee6-744a-93b2-958f54c25e32",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-959fed022bec",
+            "entity_type": "edge",
+            "name": "VDR Findings panel USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9597dbe72a5c",
+            "to_entity_id": "019e5502-cee6-744a-93b2-95900a2e5492",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-95a0bb717e8a",
+            "entity_type": "edge",
+            "name": "Compliance Artifacts panel USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9598e6e741a3",
+            "to_entity_id": "019e5502-cee6-744a-93b2-9591eafcb900",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-95a14436ff21",
+            "entity_type": "edge",
+            "name": "Samsite Compliance page USES_PANEL (signal)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e5502-cee6-744a-93b2-959208090e06",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "ksi-signal"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-95a28716a9c3",
+            "entity_type": "edge",
+            "name": "Samsite Compliance page USES_PANEL (components)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e5502-cee6-744a-93b2-9593dab8fd0d",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "components"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-95a3b08e76d1",
+            "entity_type": "edge",
+            "name": "Samsite Compliance page USES_PANEL (validations)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e5502-cee6-744a-93b2-9594b7c51a99",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "validations"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-95a4cca7e91f",
+            "entity_type": "edge",
+            "name": "Samsite Compliance page USES_PANEL (violations)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e5502-cee6-744a-93b2-9595c7d31dc9",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "violations"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-95a5e9b48121",
+            "entity_type": "edge",
+            "name": "Samsite Compliance page USES_PANEL (vdr-report)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e5502-cee6-744a-93b2-959691ca5c4c",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "vdr-report"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-95a6071ce237",
+            "entity_type": "edge",
+            "name": "Samsite Compliance page USES_PANEL (findings)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e5502-cee6-744a-93b2-9597dbe72a5c",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "findings"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-95a724ee2c43",
+            "entity_type": "edge",
+            "name": "Samsite Compliance page USES_PANEL (artifacts)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e5502-cee6-744a-93b2-9598e6e741a3",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "artifacts"}}
+          }
+        }
+      ]
+    }
+  ]
+}
