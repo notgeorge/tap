@@ -318,30 +318,91 @@
         },
         {
           "entity": {
-            "entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
-            "entity_type": "page",
-            "name": "Samsite Compliance",
+            "entity_id": "019e5530-e02c-734c-82e5-8f5b1f358255",
+            "entity_type": "search",
+            "name": "KSI Themes (catalog)",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "KSI Themes (catalog)",
+            "description": "The KSI 20x themes — the rubric Sam's signal measures against. From the fedramp_20x_ksi catalog, not from the signal itself.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {"query": ["MATCH (n:ksi_theme)"]}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5530-e02c-734c-82e5-8f5c99335fa5",
+            "entity_type": "search",
+            "name": "KSI Indicators (catalog)",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "KSI Indicators (catalog)",
+            "description": "All 46 KSI 20x indicators with their write-ups, classes, and controls. Reference material — not yet cross-linked to Sam's terraform.compliance validations (named back-to-Sam follow-up).",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {"query": ["MATCH (n:ksi_indicator)"]}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5530-e02c-734c-82e5-8f5dbe1930c4",
+            "entity_type": "panel",
+            "name": "KSI Themes",
             "dimensions": {"tap.graph": "web"}
           },
           "node": {
-            "name": "Samsite Compliance",
-            "slug": "/samsite/compliance",
-            "layout": {
-              "columns": {
-                "col-1": {
-                  "width": "1fr",
-                  "rows": {
-                    "row-1-signal": {"panel-id": "ksi-signal"},
-                    "row-2-components": {"panel-id": "components"},
-                    "row-3-validations": {"panel-id": "validations"},
-                    "row-4-violations": {"panel-id": "violations"},
-                    "row-5-vdr-report": {"panel-id": "vdr-report"},
-                    "row-6-findings": {"panel-id": "findings"},
-                    "row-7-artifacts": {"panel-id": "artifacts"}
-                  }
-                }
-              }
+            "slug": "samsite-compliance-ksi-themes",
+            "name": "KSI Themes",
+            "view": "tap_web/panels/table_panel.html",
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 25,
+              "columns": [
+                {"field": "name", "title": "Theme", "widthGrow": 2, "tooltip": "full_value"}
+              ]
             }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5530-e02c-734c-82e5-8f5e71a5a388",
+            "entity_type": "panel",
+            "name": "KSI Indicators",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-compliance-ksi-indicators",
+            "name": "KSI Indicators",
+            "view": "tap_web/panels/table_panel.html",
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 100,
+              "columns": [
+                {"field": "data.code", "title": "Code", "width": 130},
+                {"field": "data.name", "title": "Name", "widthGrow": 2, "tooltip": "full_value"},
+                {"field": "data.description", "title": "Description", "widthGrow": 4, "tooltip": "full_value"},
+                {"field": "data.status", "title": "Status", "width": 110},
+                {"field": "data.reference_url", "title": "Reference", "widthGrow": 1, "tooltip": "full_value"}
+              ]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5530-e02c-734c-82e5-8f754642ed22",
+            "entity_type": "search",
+            "name": "_compliance_landing_batch1_marker",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "_compliance_landing_batch1_marker",
+            "description": "Placeholder marker so batch 1 has at least one node (GRIFT requires nodes[]). The page node moved to batch 2 to defer its hotlink validation until after batch 1's USES_PANEL edges land.",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {"query": ["MATCH (n) WHERE n.entity_id = \"00000000-0000-0000-0000-000000000000\""]}
           }
         }
       ],
@@ -541,8 +602,110 @@
             "edge_type": "USES_PANEL",
             "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "artifacts"}}
           }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5530-e02c-734c-82e5-8f5f77124d87",
+            "entity_type": "edge",
+            "name": "KSI Themes panel USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5530-e02c-734c-82e5-8f5dbe1930c4",
+            "to_entity_id": "019e5530-e02c-734c-82e5-8f5b1f358255",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5530-e02c-734c-82e5-8f60434ce8f0",
+            "entity_type": "edge",
+            "name": "KSI Indicators panel USES_SEARCH",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5530-e02c-734c-82e5-8f5e71a5a388",
+            "to_entity_id": "019e5530-e02c-734c-82e5-8f5c99335fa5",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5530-e02c-734c-82e5-8f6157f06732",
+            "entity_type": "edge",
+            "name": "Samsite Compliance page USES_PANEL (themes)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e5530-e02c-734c-82e5-8f5dbe1930c4",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "themes"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e5530-e02c-734c-82e5-8f622092182f",
+            "entity_type": "edge",
+            "name": "Samsite Compliance page USES_PANEL (indicators)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e5530-e02c-734c-82e5-8f5e71a5a388",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "indicators"}}
+          }
         }
       ]
+    },
+    {
+      "batch_entity": {
+        "entity_id": "019e5530-e02c-734c-82e5-8f744b203700",
+        "entity_type": "batch",
+        "name": "Samsite Compliance landing — add themes/indicators rows",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite.grift.compliance-landing",
+        "name": "Samsite Compliance landing — add themes/indicators rows",
+        "description": "Second batch — updates the page layout to reference the KSI Themes + Indicators panels added in batch 1. Split out because validate_hotlinks queries the DB at node-upsert time and nodes process before edges within a batch, so the page-with-new-rows can't be in the same batch that supplies its new USES_PANEL edges. Two batches = edges land first, then the page references them."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "entity_type": "page",
+            "name": "Samsite Compliance",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Samsite Compliance",
+            "slug": "/samsite/compliance",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-signal": {"panel-id": "ksi-signal"},
+                    "row-2-components": {"panel-id": "components"},
+                    "row-3-validations": {"panel-id": "validations"},
+                    "row-4-violations": {"panel-id": "violations"},
+                    "row-5-vdr-report": {"panel-id": "vdr-report"},
+                    "row-6-findings": {"panel-id": "findings"},
+                    "row-7-artifacts": {"panel-id": "artifacts"},
+                    "row-8-themes": {"panel-id": "themes"},
+                    "row-9-indicators": {"panel-id": "indicators"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "edges": []
     }
   ]
 }

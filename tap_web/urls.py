@@ -30,5 +30,37 @@ urlpatterns = [
         {"page_slug": "genericom/instance"},
         name="genericom-instance",
     ),
+    # samsite per-type viewer pages — entity_type is pinned per route so the
+    # shared viewer_panel resolves the right model from <uuid:entity_id>.
+    path(
+        "samsite/finding/<uuid:entity_id>",
+        views.parameterized_page_view,
+        {"page_slug": "samsite/finding", "entity_type": "vdr_finding"},
+        name="samsite-finding",
+    ),
+    path(
+        "samsite/indicator/<uuid:entity_id>",
+        views.parameterized_page_view,
+        {"page_slug": "samsite/indicator", "entity_type": "ksi_indicator"},
+        name="samsite-indicator",
+    ),
+    path(
+        "samsite/component/<uuid:entity_id>",
+        views.parameterized_page_view,
+        {"page_slug": "samsite/component", "entity_type": "ksi_component"},
+        name="samsite-component",
+    ),
+    path(
+        "samsite/signal/<uuid:entity_id>",
+        views.parameterized_page_view,
+        {"page_slug": "samsite/signal", "entity_type": "ksi_signal"},
+        name="samsite-signal",
+    ),
+    path(
+        "samsite/artifact/<uuid:entity_id>",
+        views.parameterized_page_view,
+        {"page_slug": "samsite/artifact", "entity_type": "compliance_artifact"},
+        name="samsite-artifact",
+    ),
     path("<path:page_slug>", views.page_view, name="page"),
 ]

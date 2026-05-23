@@ -156,6 +156,17 @@
     },
   };
 
+  // Per-entity-type detail URLs override the generic /object/<type>/.../ route
+  // when a custom page exists (Path B parameterized pages). Coupling lives in
+  // the URL map for now; a per-plugin registration mechanism would lift this.
+  var PER_TYPE_DETAIL_URL = {
+    vdr_finding:         function (id) { return "/samsite/finding/"   + id; },
+    ksi_indicator:       function (id) { return "/samsite/indicator/" + id; },
+    ksi_component:       function (id) { return "/samsite/component/" + id; },
+    ksi_signal:          function (id) { return "/samsite/signal/"    + id; },
+    compliance_artifact: function (id) { return "/samsite/artifact/"  + id; },
+  };
+
   function buildCustomColumns(specs) {
     return specs.map(function (spec) {
       var col = {
@@ -271,11 +282,16 @@
         el.addEventListener("click", function () {
           var data = row.getData();
           var entityType = data.entity_type || "";
+          var entityId = data.entity_id || "";
           var urlId = ((data.display || {}).tap_viz || {}).url_id || "";
-          if (urlId && entityType) {
-            // Save scroll position so the back-button restoration can return
-            // the user to where they were on this page.
-            saveScrollForReturn();
+          if (!entityType) return;
+          // Save scroll position so the back-button restoration can return
+          // the user to where they were on this page.
+          saveScrollForReturn();
+          var perType = PER_TYPE_DETAIL_URL[entityType];
+          if (perType && entityId) {
+            window.location.href = perType(entityId);
+          } else if (urlId) {
             window.location.href = "/object/" + entityType + "/" + urlId + "/";
           }
         });
