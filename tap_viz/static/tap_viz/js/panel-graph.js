@@ -310,15 +310,21 @@ TapParentLabelOverlay.prototype._syncPosition = function (node) {
     if (!wrapper) return;
 
     var pos = node.position();
-    var w = node.width();
-    var h = node.height();
 
     // Guard against pre-layout NaN dimensions.
-    if (isNaN(pos.x) || isNaN(pos.y) || isNaN(w) || isNaN(h)) return;
+    if (isNaN(pos.x) || isNaN(pos.y)) return;
 
-    // Position at horizontal center, vertical top of compound node.
+    // Anchor the wrapper's bottom-center to the host's visible top edge:
+    // pos.x is the horizontal center, bb.y1 is the rendered top of the
+    // bbox (including the compound's padding + border). Using bbox.y1
+    // rather than pos.y - h/2 places the label outside-center above the
+    // visible compound border — `h` here is the model-rect height, which
+    // for a compound parent excludes ~32 px of padding + border, so a
+    // h-based anchor falls inside the visible compound by that margin.
+    var bb = node.boundingBox({includeLabels: false});
+    if (isNaN(bb.x1) || isNaN(bb.y1)) return;
     var x = pos.x;
-    var y = pos.y - h / 2;
+    var y = bb.y1;
 
     var t = "translate(-50%, -100%) translate(" + x.toFixed(2) + "px," + y.toFixed(2) + "px)";
     var s = wrapper.style;
