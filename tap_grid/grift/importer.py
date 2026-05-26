@@ -55,6 +55,13 @@ class GriftIssue:
     from_entity_id: str | None = None
     to_entity_id: str | None = None
     edge_entity_id: str | None = None
+    # Optimistic-concurrency diagnostic fields populated by
+    # req-grid-import-grift-occ for `entity_version_conflict` issues so
+    # clients can implement retry-or-surface logic without parsing the
+    # message. Both are `None` for non-OCC issues. `actual_entity_version`
+    # is also `None` when the target entity was missing entirely.
+    entity_expected_version: int | None = None
+    actual_entity_version: int | None = None
 
 
 @dataclass
@@ -215,15 +222,29 @@ _NODE_ALLOWED = frozenset(["entity", "node"])
 _EDGE_REQUIRED = frozenset(["entity", "edge"])
 _EDGE_ALLOWED = frozenset(["entity", "edge"])
 _ENVELOPE_REQUIRED = frozenset(["entity_id", "entity_type", "dimensions"])
+# `entity_expected_version` is the optional OCC declaration on upsert
+# envelopes (req-grift-concurrency-version). The importer parses and
+# threads it through to the service-layer verb's pipeline-level guard.
 _ENVELOPE_ALLOWED = frozenset(
-    ["entity_id", "entity_type", "name", "dimensions", "created_at", "updated_at", "deleted_at"]
+    [
+        "entity_id",
+        "entity_type",
+        "name",
+        "dimensions",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "entity_expected_version",
+    ]
 )
 _EDGE_PAYLOAD_REQUIRED = frozenset(["from_entity_id", "to_entity_id", "edge_type", "properties"])
 _EDGE_PAYLOAD_ALLOWED = frozenset(["from_entity_id", "to_entity_id", "edge_type", "properties"])
 
-# Removal-section schema (req-grift-import-deletes).
+# Removal-section schema (req-grift-import-deletes). `entity_expected_version`
+# is the optional OCC declaration on a removal target (same contract as on
+# upsert envelopes).
 _REMOVAL_TARGET_REQUIRED = frozenset(["entity_id", "entity_type", "reason"])
-_REMOVAL_TARGET_ALLOWED = frozenset(["entity_id", "entity_type", "reason"])
+_REMOVAL_TARGET_ALLOWED = frozenset(["entity_id", "entity_type", "reason", "entity_expected_version"])
 _DELETES_REQUIRED = frozenset(["on_missing", "on_tombstoned", "edges", "nodes"])
 _DELETES_ALLOWED = frozenset(["on_missing", "on_tombstoned", "edges", "nodes"])
 _PURGES_REQUIRED = frozenset(["on_missing", "edges", "nodes"])
@@ -259,6 +280,9 @@ _ERROR_CODES = frozenset(
         "removal_entity_type_mismatch",
         "grift_purge_refused_production",
         "removal_execution_failed",
+        # Optimistic concurrency (req-grift-concurrency-version,
+        # req-grid-import-grift-occ).
+        "entity_version_conflict",
     ]
 )
 
@@ -281,6 +305,8 @@ def _issue(
     from_entity_id: str | None = None,
     to_entity_id: str | None = None,
     edge_entity_id: str | None = None,
+    entity_expected_version: int | None = None,
+    actual_entity_version: int | None = None,
 ) -> GriftIssue:
     return GriftIssue(
         code=code,
@@ -294,6 +320,8 @@ def _issue(
         from_entity_id=from_entity_id,
         to_entity_id=to_entity_id,
         edge_entity_id=edge_entity_id,
+        entity_expected_version=entity_expected_version,
+        actual_entity_version=actual_entity_version,
     )
 
 
@@ -707,7 +735,11 @@ class _ParsedRemovalTarget:
     listed under; `section` is "deletes" or "purges"; `path` is the JSONPath
     pointing at this target in the document for diagnostics. `batch_entity_id`
     is the owning batch's entity_id, captured so cross-document issues can
-    cite which batch declared the duplicate target.
+    cite which batch declared the duplicate target. `entity_expected_version`
+    is the optional OCC declaration (req-grift-concurrency-version); when
+    set, the importer passes it to the delete/purge verb as the
+    `entity_expected_version` keyword and the verb performs the version
+    check inside the same batch transaction.
     """
 
     entity_id: str
@@ -717,6 +749,7 @@ class _ParsedRemovalTarget:
     kind: Literal["edge", "node"]
     path: str
     batch_entity_id: str
+    entity_expected_version: int | None = None
 
 
 @dataclass
@@ -948,6 +981,22 @@ def _validate_removal_section(
                 )
                 continue
 
+            # Optional OCC declaration (req-grift-concurrency-version).
+            target_expected_version: int | None = target.get("entity_expected_version")
+            if target_expected_version is not None:
+                if not isinstance(target_expected_version, int) or target_expected_version < 1:
+                    issues.append(
+                        _issue(
+                            "schema_validation_failed",
+                            f"Removal target entity_expected_version at {target_path} must be "
+                            "a positive integer (minimum 1); Entity.version starts at 1.",
+                            "schema",
+                            f"{target_path}.entity_expected_version",
+                            batch_entity_id=batch_entity_id,
+                        )
+                    )
+                    continue
+
             # Static type-vs-list sanity (req-grid-import-grift-removal-preflight
             # "Transaction-Scoped Target Checks"). The dynamic per-row check
             # happens inside the batch transaction; this catches obvious
@@ -1005,6 +1054,7 @@ def _validate_removal_section(
                     kind=target_kind,
                     path=target_path,
                     batch_entity_id=batch_entity_id,
+                    entity_expected_version=target_expected_version,
                 )
             )
 
@@ -2220,11 +2270,47 @@ def _execute_grift_batch(
                 entity_type = node_obj["entity"]["entity_type"]
                 envelope_name = node_obj["entity"].get("name")
                 envelope_dims = node_obj["entity"].get("dimensions") or {}
+                envelope_expected_version = node_obj["entity"].get("entity_expected_version")
                 payload = node_obj["node"]
                 node_path = f"{batch_path}.nodes[{node_idx}]"
 
-                if Entity.objects.filter(pk=uuid.UUID(node_entity_id)).exists():
-                    ops.append(WriteOperation(verb="replace_node", target=node_entity_id, payload=payload))
+                entity_exists = Entity.objects.filter(pk=uuid.UUID(node_entity_id)).exists()
+
+                # req-grift-concurrency-version-7 (Declared Expectation Beats
+                # Missing Entity): an envelope that declares
+                # entity_expected_version and points at an entity_id with no
+                # matching local entity is a `entity_version_conflict` with
+                # actual_entity_version=null, regardless of whether the
+                # bundle would otherwise route to create or replace. Surface
+                # this as a hard execution error and roll the batch back.
+                if envelope_expected_version is not None and not entity_exists:
+                    issues.append(
+                        _issue(
+                            "entity_version_conflict",
+                            f"Envelope at {node_path}.entity declared "
+                            f"entity_expected_version={envelope_expected_version} but no "
+                            f"local entity exists with entity_id={node_entity_id}.",
+                            "execution",
+                            f"{node_path}.entity.entity_expected_version",
+                            entity_id=node_entity_id,
+                            batch_entity_id=batch_entity_id,
+                            entity_type=entity_type,
+                            operation="replace_node",
+                            entity_expected_version=envelope_expected_version,
+                            actual_entity_version=None,
+                        )
+                    )
+                    raise _BatchFailed()
+
+                if entity_exists:
+                    ops.append(
+                        WriteOperation(
+                            verb="replace_node",
+                            target=node_entity_id,
+                            payload=payload,
+                            entity_expected_version=envelope_expected_version,
+                        )
+                    )
                     replace_spine_intents.append(
                         {
                             "entity_id": node_entity_id,
@@ -2258,6 +2344,7 @@ def _execute_grift_batch(
                 edge_entity_id = edge_obj["entity"]["entity_id"]
                 edge = edge_obj["edge"]
                 envelope_dims = edge_obj["entity"].get("dimensions") or {}
+                envelope_expected_version = edge_obj["entity"].get("entity_expected_version")
                 edge_path = f"{batch_path}.edges[{edge_idx}]"
 
                 if edge_entity_id in dangling_edge_ids:
@@ -2280,9 +2367,38 @@ def _execute_grift_batch(
                     continue
 
                 properties = edge.get("properties") or {}
-                if Entity.objects.filter(pk=uuid.UUID(edge_entity_id)).exists():
+                edge_exists = Entity.objects.filter(pk=uuid.UUID(edge_entity_id)).exists()
+
+                # req-grift-concurrency-version-7 — same declared-on-missing
+                # rule as for node envelopes.
+                if envelope_expected_version is not None and not edge_exists:
+                    issues.append(
+                        _issue(
+                            "entity_version_conflict",
+                            f"Envelope at {edge_path}.entity declared "
+                            f"entity_expected_version={envelope_expected_version} but no "
+                            f"local entity exists with entity_id={edge_entity_id}.",
+                            "execution",
+                            f"{edge_path}.entity.entity_expected_version",
+                            entity_id=edge_entity_id,
+                            batch_entity_id=batch_entity_id,
+                            entity_type="edge",
+                            operation="replace_edge",
+                            entity_expected_version=envelope_expected_version,
+                            actual_entity_version=None,
+                            edge_entity_id=edge_entity_id,
+                        )
+                    )
+                    raise _BatchFailed()
+
+                if edge_exists:
                     ops.append(
-                        WriteOperation(verb="replace_edge", target=edge_entity_id, payload={"properties": properties})
+                        WriteOperation(
+                            verb="replace_edge",
+                            target=edge_entity_id,
+                            payload={"properties": properties},
+                            entity_expected_version=envelope_expected_version,
+                        )
                     )
                     upserted_entities.append(
                         GriftUpsertedEntity(
@@ -2323,11 +2439,25 @@ def _execute_grift_batch(
                     raise _BatchFailed()
 
                 # Append delete WriteOperations to the same write_batch call.
+                # Per-target entity_expected_version (req-grift-concurrency-version)
+                # flows through to the pipeline OCC guard.
                 for target in removal_plan.executable_deletes:
                     if target.kind == "edge":
-                        ops.append(WriteOperation(verb="delete_edge", target=target.entity_id))
+                        ops.append(
+                            WriteOperation(
+                                verb="delete_edge",
+                                target=target.entity_id,
+                                entity_expected_version=target.entity_expected_version,
+                            )
+                        )
                     else:
-                        ops.append(WriteOperation(verb="delete_node", target=target.entity_id))
+                        ops.append(
+                            WriteOperation(
+                                verb="delete_node",
+                                target=target.entity_id,
+                                entity_expected_version=target.entity_expected_version,
+                            )
+                        )
                     op_meta.append(
                         {
                             "path": target.path,
@@ -2365,6 +2495,26 @@ def _execute_grift_batch(
                         # complete fix list rather than discovering them one
                         # rerun at a time.
                         for err in op_result.errors:
+                            # OCC conflicts surface with their own code +
+                            # detail payload so callers can implement
+                            # retry-or-surface logic (req-grid-import-grift-occ-3).
+                            if err.code == "entity_version_conflict":
+                                detail = err.detail or {}
+                                issues.append(
+                                    _issue(
+                                        "entity_version_conflict",
+                                        err.message,
+                                        "execution",
+                                        meta["path"],
+                                        entity_id=meta["entity_id"],
+                                        batch_entity_id=batch_entity_id,
+                                        entity_type=meta["entity_type"],
+                                        operation=op_result.operation,
+                                        entity_expected_version=detail.get("entity_expected_version"),
+                                        actual_entity_version=detail.get("actual_entity_version"),
+                                    )
+                                )
+                                continue
                             issues.append(
                                 _issue(
                                     "execution_failed",
@@ -2411,6 +2561,7 @@ def _execute_grift_batch(
                     ServiceNotFoundError,
                     ServiceValidationError,
                 )
+                from tap_grid.exceptions import ServiceVersionConflictError as _SVCE
                 from tap_grid.services import purge_edge, purge_node
 
                 # Purge edges first, then nodes (matches the documented order).
@@ -2419,12 +2570,43 @@ def _execute_grift_batch(
                 for target in edge_purges + node_purges:
                     try:
                         if target.kind == "edge":
-                            purge_edge(target.entity_id, caller_context=ctx, reason=target.reason)
+                            purge_edge(
+                                target.entity_id,
+                                caller_context=ctx,
+                                entity_expected_version=target.entity_expected_version,
+                                reason=target.reason,
+                            )
                             edges_purged += 1
                         else:
-                            purge_node(target.entity_id, caller_context=ctx, reason=target.reason)
+                            purge_node(
+                                target.entity_id,
+                                caller_context=ctx,
+                                entity_expected_version=target.entity_expected_version,
+                                reason=target.reason,
+                            )
                             nodes_purged += 1
                         _record_purge_summary_event(target, batch, actor, outcome="applied")
+                    except _SVCE as exc:
+                        # OCC mismatch / declared-on-missing — surface with the
+                        # detail payload so callers can implement retry-or-surface
+                        # logic (req-grid-import-grift-occ-3).
+                        issues.append(
+                            _issue(
+                                "entity_version_conflict",
+                                f"Purge of {target.kind} {target.entity_id} failed OCC: "
+                                f"expected={exc.entity_expected_version}, "
+                                f"actual={exc.actual_entity_version}",
+                                "execution",
+                                target.path,
+                                entity_id=target.entity_id,
+                                batch_entity_id=batch_entity_id,
+                                entity_type=target.entity_type,
+                                operation="purge",
+                                entity_expected_version=exc.entity_expected_version,
+                                actual_entity_version=exc.actual_entity_version,
+                            )
+                        )
+                        raise _BatchFailed() from exc
                     except (ServiceConflictError, ServiceNotFoundError, ServiceValidationError) as exc:
                         issues.append(
                             _issue(
@@ -3106,6 +3288,7 @@ def grift_import(
             "removal_target_missing",
             "removal_target_tombstoned",
             "removal_entity_type_mismatch",
+            "entity_version_conflict",
         }
     )
     exec_errors = [i for i in exec_issues if i.code in _EXEC_ERROR_CODES]

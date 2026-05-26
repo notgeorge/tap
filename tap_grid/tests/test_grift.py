@@ -1502,3 +1502,199 @@ class TestGriftSkippedBatchHadRemovalsWarning:
         r2 = grift_import(doc)
         assert r2.success
         assert not any(w.code == "skipped_batch_had_removals" for w in r2.warnings)
+
+
+# ---------------------------------------------------------------------------
+# Optimistic concurrency via GRIFT (req-grift-concurrency-version,
+# req-grid-import-grift-occ)
+# ---------------------------------------------------------------------------
+
+
+def _entity_version(entity_id: str) -> int:
+    return Entity.objects.values_list("version", flat=True).get(pk=uuid.UUID(entity_id))
+
+
+@pytest.mark.django_db
+class TestGriftEnvelopeOCC:
+    """Upsert envelopes carry an optional entity_expected_version.
+
+    Locks req-grid-import-grift-occ-1 / -2 / -3 / -5 for the envelope path
+    and req-grift-concurrency-version-7 (declared expectation on missing).
+    """
+
+    def test_envelope_with_matching_version_succeeds(self):
+        # Seed character.
+        bid1 = _batch_entity_id()
+        nid = _node_entity_id()
+        char = _character_node(nid, name="Frodo", bio="ringbearer")
+        result1 = grift_import(_minimal_doc([_batch_container(bid1, nodes=[char])]))
+        assert result1.success
+        v_after_create = _entity_version(nid)
+
+        # Re-import with envelope declaring matching expected version.
+        bid2 = _batch_entity_id()
+        char_v2 = _character_node(nid, name="Frodo", bio="updated")
+        char_v2["entity"]["entity_expected_version"] = v_after_create
+        result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[char_v2])]))
+        assert result2.success, [(e.code, e.message) for e in result2.errors]
+        # Single-bump invariant.
+        assert _entity_version(nid) == v_after_create + 1
+
+    def test_envelope_with_mismatched_version_emits_entity_version_conflict(self):
+        bid1 = _batch_entity_id()
+        nid = _node_entity_id()
+        char = _character_node(nid)
+        grift_import(_minimal_doc([_batch_container(bid1, nodes=[char])]))
+        v = _entity_version(nid)
+
+        bid2 = _batch_entity_id()
+        char_v2 = _character_node(nid, name="Frodo", bio="newer")
+        char_v2["entity"]["entity_expected_version"] = v + 99  # wrong
+        result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[char_v2])]))
+        assert not result2.success
+        conflicts = [e for e in result2.errors if e.code == "entity_version_conflict"]
+        assert len(conflicts) == 1
+        assert conflicts[0].entity_expected_version == v + 99
+        assert conflicts[0].actual_entity_version == v
+        # Atomic rollback — no bump.
+        assert _entity_version(nid) == v
+
+    def test_envelope_declared_on_missing_entity_emits_conflict_with_null_actual(self):
+        """req-grift-concurrency-version-7: a declared expectation on a
+        nonexistent entity is a conflict (not a silent route to create)."""
+        bid = _batch_entity_id()
+        nid = _node_entity_id()  # never created
+        char = _character_node(nid)
+        char["entity"]["entity_expected_version"] = 1
+        result = grift_import(_minimal_doc([_batch_container(bid, nodes=[char])]))
+        assert not result.success
+        conflicts = [e for e in result.errors if e.code == "entity_version_conflict"]
+        assert len(conflicts) == 1
+        assert conflicts[0].entity_expected_version == 1
+        assert conflicts[0].actual_entity_version is None
+
+    def test_envelope_without_expected_version_is_unaffected(self):
+        # Existing behavior: omitting entity_expected_version means no check.
+        bid1 = _batch_entity_id()
+        nid = _node_entity_id()
+        char = _character_node(nid)
+        grift_import(_minimal_doc([_batch_container(bid1, nodes=[char])]))
+
+        bid2 = _batch_entity_id()
+        char_v2 = _character_node(nid, name="Frodo", bio="updated")
+        # No entity_expected_version on envelope.
+        result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[char_v2])]))
+        assert result2.success
+
+
+@pytest.mark.django_db
+class TestGriftRemovalOCC:
+    """Removal targets carry an optional entity_expected_version."""
+
+    def _seed(self, name: str = "Frodo") -> str:
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        result = grift_import(_minimal_doc([_batch_container(bid, nodes=[_character_node(nid, name=name)])]))
+        assert result.success
+        return nid
+
+    def test_delete_with_matching_version_succeeds(self):
+        nid = self._seed()
+        v = _entity_version(nid)
+        bid = _batch_entity_id()
+        deletes = {
+            "on_missing": "error",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [
+                {
+                    "entity_id": nid,
+                    "entity_type": "character",
+                    "reason": "occ-test",
+                    "entity_expected_version": v,
+                }
+            ],
+        }
+        from tap_grid.tests.test_grift import _container_with_removals
+
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert result.success, [(e.code, e.message) for e in result.errors]
+        assert result.counts.nodes_deleted == 1
+
+    def test_delete_with_mismatched_version_emits_conflict(self):
+        nid = self._seed()
+        v = _entity_version(nid)
+        bid = _batch_entity_id()
+        deletes = {
+            "on_missing": "error",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [
+                {
+                    "entity_id": nid,
+                    "entity_type": "character",
+                    "reason": "stale",
+                    "entity_expected_version": v + 1,
+                }
+            ],
+        }
+        from tap_grid.tests.test_grift import _container_with_removals
+
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert not result.success
+        conflicts = [e for e in result.errors if e.code == "entity_version_conflict"]
+        assert len(conflicts) == 1
+        assert conflicts[0].entity_expected_version == v + 1
+        assert conflicts[0].actual_entity_version == v
+        # Rolled back.
+        assert _entity_version(nid) == v
+
+
+@pytest.mark.django_db
+class TestGriftRemovalTargetSchemaOCC:
+    """Schema validation of entity_expected_version on removal targets."""
+
+    def test_zero_expected_version_rejected(self):
+        # Entity.version starts at 1; expected_version=0 is invalid.
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        deletes = {
+            "on_missing": "ignore",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [
+                {
+                    "entity_id": nid,
+                    "entity_type": "character",
+                    "reason": "test",
+                    "entity_expected_version": 0,
+                }
+            ],
+        }
+        from tap_grid.tests.test_grift import _container_with_removals
+
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert not result.success
+        assert any(e.code == "schema_validation_failed" for e in result.errors)
+
+    def test_string_expected_version_rejected(self):
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        deletes = {
+            "on_missing": "ignore",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [
+                {
+                    "entity_id": nid,
+                    "entity_type": "character",
+                    "reason": "test",
+                    "entity_expected_version": "1",  # wrong type
+                }
+            ],
+        }
+        from tap_grid.tests.test_grift import _container_with_removals
+
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert not result.success
+        assert any(e.code == "schema_validation_failed" for e in result.errors)

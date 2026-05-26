@@ -70,6 +70,11 @@
               "format": "date-time"
             }
           ]
+        },
+        "entity_expected_version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional optimistic-concurrency declaration: the local Entity.version the sender expects to act on. Enforced atomically by the importer at execution time. See req-grift-concurrency-version."
         }
       }
     },
@@ -168,6 +173,11 @@
         "reason": {
           "type": "string",
           "minLength": 1
+        },
+        "entity_expected_version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional optimistic-concurrency declaration: the local Entity.version the sender expects to remove. Enforced atomically by the importer at execution time. See req-grift-concurrency-version."
         }
       }
     },
