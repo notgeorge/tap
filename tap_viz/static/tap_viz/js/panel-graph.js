@@ -250,14 +250,16 @@ TapParentLabelOverlay.prototype._ensureWrapper = function (node) {
     if (node.hasClass("tap-dim-anchor")) return null;
 
     // Prefer prebuilt label data; fall back to the node's own data so the
-    // overlay works without server-side metadata. _original_icon_url is
-    // where badge-nodes.js stashes the icon after swapping it off the host
-    // (so the badge can render it instead of the host background); for
-    // compound parents that never got a badge, that field is the only
-    // place the URL lives.
+    // overlay works without server-side metadata. When a type-icon badge is
+    // active for the host (_badge_active), the badge is already rendering
+    // the icon as a separate corner node — repeating it inside the label
+    // overlay would be visual duplication, so the overlay label is
+    // text-only in that case.
     var pl = this._data[id] || {
         label: node.data("label") || node.data("entity_type") || id,
-        icon_url: node.data("icon_url") || node.data("_original_icon_url") || "",
+        icon_url: node.data("_badge_active")
+            ? ""
+            : (node.data("icon_url") || node.data("_original_icon_url") || ""),
     };
 
     var wrapper = document.createElement("div");
