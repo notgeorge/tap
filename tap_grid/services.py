@@ -1762,6 +1762,18 @@ def create_edge(
     edge violates topology constraints.
     Raises EdgePropertyValidationError (via Edge.save()) if properties fail
     the registered schema for this edge type.
+
+    Provenance: emits a ``link``-type BatchEvent on success, mirroring the
+    pipeline's `_record_provenance` for ``create_edge`` ops. Recording is
+    best-effort and requires an active batch context (either an explicit
+    ``caller_context.batch_id`` or one already in the ContextVar). Calls
+    outside any batch context proceed without an event.
+
+    Future: this function predates the typed write pipeline and currently
+    bypasses ``_execute_write_pipeline``. A future refactor should route
+    through ``write_batch`` for full pipeline parity (FLIP propagation,
+    OCC support, unified validation) — the legacy direct-create path is
+    kept for the 100+ existing callers; migration is a separate concern.
     """
     # Edges cannot connect to other edges (req-grid-edge-nono)
     if from_entity.entity_type == "edge":
@@ -1781,6 +1793,25 @@ def create_edge(
     if name:
         edge.entity.name = name
         edge.entity.save(update_fields=["name", "updated_at"])
+
+    # Provenance: record a BatchEvent so this bare-helper path produces the
+    # same audit trail the pipeline-routed `WriteOperation(verb="create_edge")`
+    # produces via `_record_provenance`. No-ops cleanly if no batch context is
+    # active (record_batch_event resolves batch_id from CallerContext.batch_id
+    # or returns None). Wrapped in a try/except so a provenance failure never
+    # breaks the edge create itself.
+    from tap_grid.batch import record_batch_event
+
+    try:
+        record_batch_event(
+            entity=edge.entity,
+            event_type="link",
+            model_name="Edge",
+            actor=caller_context.user if caller_context is not None else None,
+            batch_id=caller_context.batch_id if caller_context is not None else None,
+        )
+    except Exception:
+        logger.exception("[e1c4] Best-effort BatchEvent emission failed for create_edge entity_id=%s", edge.entity_id)
 
     return edge
 
