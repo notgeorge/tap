@@ -923,7 +923,34 @@
             }
           }
         }
-      ]
+      ],
+      "deletes": {
+        "on_missing": "ignore",
+        "on_tombstoned": "ignore",
+        "edges": [],
+        "nodes": [
+          {
+            "entity_id": "019e646a-85fc-7159-b12b-c6615684ac4c",
+            "entity_type": "arrangement",
+            "reason": "Stale samsite-dns-arrangement orphan from the pre-cluster-split layout (see commit 4ab480b). Replaced by the 3 samsite-website-* arrangements."
+          },
+          {
+            "entity_id": "019e646a-85fc-7159-b12b-c6629f88777b",
+            "entity_type": "arrangement",
+            "reason": "Stale samsite-site-arrangement orphan from the pre-cluster-split layout (see commit 4ab480b). Replaced by the 3 samsite-website-* arrangements."
+          },
+          {
+            "entity_id": "019e646a-85fc-7159-b12b-c663337116a2",
+            "entity_type": "arrangement",
+            "reason": "Stale samsite-compliance-arrangement orphan from the pre-cluster-split layout (see commit 4ab480b). Replaced by the 3 samsite-compliance-* arrangements."
+          },
+          {
+            "entity_id": "019e646a-85fc-7159-b12b-c66477eb82f5",
+            "entity_type": "arrangement",
+            "reason": "Stale samsite-bootstrap-arrangement orphan from the pre-cluster-split layout (see commit 4ab480b). Replaced by the 3 samsite-bootstrap-* arrangements."
+          }
+        ]
+      }
     }
   ]
 }
