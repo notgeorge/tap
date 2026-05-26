@@ -1,36 +1,31 @@
 /**
  * Samsite landing systems layout.
  *
- * Places the four samsite system anchors at fixed X positions in a single
- * horizontal row. Each anchor pairs with a per-system arrangement (declared
- * on the Layout entity) that stacks the rest of that system's nodes
- * vertically below its anchor — giving four side-by-side story columns:
+ * Hybrid approach (path 3 from the design conversation): this module places
+ * the three *cluster roots* — the entry node of each story — at fixed (x, y)
+ * positions on the canvas. Everything else within each cluster is positioned
+ * by stackable per-cluster arrangements (declared on the Layout entity) that
+ * express the actual 2D flow between nodes, not just a vertical stack:
  *
- *   dns       site         compliance       bootstrap
- *   (Route53) (CloudFront) (EventBridge)    (OIDC)
- *       │         │             │              │
- *      ACM       S3          Lambda        deploy-IAM
- *                          IAM role        tfstate-S3
- *                          log group       tfstate-DDB
+ *   WEBSITE cluster                 COMPLIANCE cluster           BOOTSTRAP cluster
+ *   Route53 ── ACM                  EventBridge                  OIDC
+ *      │                                  │                        │
+ *   CloudFront ── S3                   Lambda ── log-grp          deploy-IAM ── tfstate-S3
+ *                                        │  └─ IAM-role above logs            │
+ *                                                                          tfstate-DDB above
  *
- * The four `Component` tag values (`dns`, `site`, `compliance`, `bootstrap`)
- * are independently tweakable: edit the corresponding Arrangement entity to
- * adjust spacing without touching this module. To change which system goes
- * where, edit the SYSTEM_ANCHORS table below.
+ * Each arrangement is a single-rule positioning step (anchor + member +
+ * axis + offset) — they stack to build up the 2D structure. The Layout
+ * entity references all of them in execution order.
  *
  * Companion entity: the Layout entity `samsite-landing-layout` in
- * plugins/samsite/grift/landing.grift.json references this module via
- * `definition.js_file` and lists the four arrangements that execute after
- * this function returns.
+ * plugins/samsite/grift/landing.grift.json.
  */
 
-const SYSTEM_ANCHORS = [
-    // dns + site visually pair (the public-facing website story); compliance and
-    // bootstrap are clearly separated.
-    {component: "dns",        anchor_type: "aws_route53_zone",         x:  300, y: 250},
-    {component: "site",       anchor_type: "aws_cloudfront_distribution", x:  600, y: 250},
-    {component: "compliance", anchor_type: "aws_eventbridge_rule",     x: 1050, y: 250},
-    {component: "bootstrap",  anchor_type: "aws_iam_oidc_provider",    x: 1500, y: 250},
+const CLUSTER_ROOTS = [
+    {root_entity_type: "aws_route53_zone",      x:  250, y: 220, cluster: "website"},
+    {root_entity_type: "aws_eventbridge_rule",  x:  850, y: 220, cluster: "compliance"},
+    {root_entity_type: "aws_iam_oidc_provider", x: 1400, y: 220, cluster: "bootstrap"},
 ];
 
 // The aws_account container + boundary sit at top-left so the SCOPED_TO_BOUNDARY
@@ -43,18 +38,14 @@ const CONTAINER_NODES = [
 export async function execute(context) {
     const {cy} = context;
 
-    // Anchors — one per Component. The cy element only carries spine + display
-    // fields in its data (not the typed model fields like `tags`), so we can't
-    // filter by tags.Project at this layer. The graph this layout is rendered
-    // against is already scoped to samsite-tagged nodes by the panel's seed
-    // search, and each anchor type has exactly one instance on that scope, so
-    // positioning by entity_type alone is sufficient. (If the seed search
-    // later widens, the right place to add a discriminator is via a
-    // display.tap_viz hint baked into the envelope server-side — not a tags
-    // lookup here.)
-    for (const a of SYSTEM_ANCHORS) {
-        cy.nodes(`[entity_type="${a.anchor_type}"]`)
-            .forEach((n) => n.position({x: a.x, y: a.y}));
+    // Place the three cluster roots — entry node of each story. Each root
+    // entity_type has exactly one samsite-tagged instance on the panel's
+    // seed-search scope, so positioning by entity_type alone is sufficient.
+    // Arrangements (run after this module returns) position the rest of
+    // each cluster relative to its root and to each other.
+    for (const r of CLUSTER_ROOTS) {
+        cy.nodes(`[entity_type="${r.root_entity_type}"]`)
+            .forEach((n) => n.position({x: r.x, y: r.y}));
     }
 
     // Container nodes (aws_account, boundary) — positioned but not tied to a

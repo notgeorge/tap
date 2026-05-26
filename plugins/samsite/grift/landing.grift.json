@@ -74,113 +74,16 @@
             "definition": {
               "js_file": "plugins/samsite/static/samsite/js/projections/landing-systems.js",
               "arrangements": [
-                "019e646a-85fc-7159-b12b-c6615684ac4c",
-                "019e646a-85fc-7159-b12b-c6629f88777b",
-                "019e646a-85fc-7159-b12b-c663337116a2",
-                "019e646a-85fc-7159-b12b-c66477eb82f5"
+                "019e6497-bd8e-720e-b05f-261850974c1f",
+                "019e6497-bd8e-720e-b05f-261a4e883a18",
+                "019e6497-bd8e-720e-b05f-261c49912a1a",
+                "019e6497-bd8e-720e-b05f-261ec2f149a3",
+                "019e6497-bd8e-720e-b05f-26207f4e7c50",
+                "019e6497-bd8e-720e-b05f-262298ffdd94",
+                "019e6497-bd8e-720e-b05f-26243f90f71f",
+                "019e6497-bd8e-720e-b05f-2626eb7d55a5",
+                "019e6497-bd8e-720e-b05f-262811f45090"
               ]
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e646a-85fc-7159-b12b-c6615684ac4c",
-            "entity_type": "arrangement",
-            "name": "samsite-dns-arrangement",
-            "dimensions": {
-              "tap.graph": "web"
-            }
-          },
-          "node": {
-            "name": "samsite-dns-arrangement",
-            "description": "DNS column \u2014 anchored on the Route53 hosted zone (samsite.unified-systems.com). One member today: the ACM certificate. Vertical column under the anchor; tweak spacing here without touching the layout module.",
-            "definition": {
-              "anchor": {
-                "gryphon": "MATCH (n:aws_route53_zone) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
-              },
-              "members": {
-                "gryphon": "MATCH (n) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
-              },
-              "positioning": "vertical",
-              "distribution": "even",
-              "anchor_offset_px": 120
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e646a-85fc-7159-b12b-c6629f88777b",
-            "entity_type": "arrangement",
-            "name": "samsite-site-arrangement",
-            "dimensions": {
-              "tap.graph": "web"
-            }
-          },
-          "node": {
-            "name": "samsite-site-arrangement",
-            "description": "Site-serving column \u2014 anchored on the CloudFront distribution. One member today: the S3 origin bucket (samsite-prod-1). Vertical column under the anchor. Visually pairs with the dns column to read as the public-facing website story.",
-            "definition": {
-              "anchor": {
-                "gryphon": "MATCH (n:aws_cloudfront_distribution) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
-              },
-              "members": {
-                "gryphon": "MATCH (n) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
-              },
-              "positioning": "vertical",
-              "distribution": "even",
-              "anchor_offset_px": 120
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e646a-85fc-7159-b12b-c663337116a2",
-            "entity_type": "arrangement",
-            "name": "samsite-compliance-arrangement",
-            "dimensions": {
-              "tap.graph": "web"
-            }
-          },
-          "node": {
-            "name": "samsite-compliance-arrangement",
-            "description": "Compliance backend column \u2014 anchored on the EventBridge rule (the schedule that fires the compliance Lambda). Members: the Lambda, its IAM role, its CloudWatch log group. Vertical column under the anchor.",
-            "definition": {
-              "anchor": {
-                "gryphon": "MATCH (n:aws_eventbridge_rule) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
-              },
-              "members": {
-                "gryphon": "MATCH (n) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
-              },
-              "positioning": "vertical",
-              "distribution": "even",
-              "anchor_offset_px": 110,
-              "span_px": 240
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e646a-85fc-7159-b12b-c66477eb82f5",
-            "entity_type": "arrangement",
-            "name": "samsite-bootstrap-arrangement",
-            "dimensions": {
-              "tap.graph": "web"
-            }
-          },
-          "node": {
-            "name": "samsite-bootstrap-arrangement",
-            "description": "Deploy/bootstrap column \u2014 anchored on the GitHub Actions OIDC provider (token.actions.githubusercontent.com). Members: the deploy IAM role, the Terraform state S3 bucket, the Terraform state DynamoDB lock table. Vertical column under the anchor.",
-            "definition": {
-              "anchor": {
-                "gryphon": "MATCH (n:aws_iam_oidc_provider) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
-              },
-              "members": {
-                "gryphon": "MATCH (n) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
-              },
-              "positioning": "vertical",
-              "distribution": "even",
-              "anchor_offset_px": 110,
-              "span_px": 240
             }
           }
         },
@@ -301,6 +204,231 @@
           "node": {
             "name": "Samsite Authorization Boundary",
             "description": "The FedRAMP authorization boundary for the samsite deployment \u2014 the perimeter of components in scope for samaydlette.com's ATO. Initial pass: pinned to the aws_account via SCOPED_TO_BOUNDARY; per-resource membership edges follow."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-261850974c1f",
+            "entity_type": "arrangement",
+            "name": "samsite-website-route53-routes-to-cdn",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "samsite-website-route53-routes-to-cdn",
+            "description": "Places the CloudFront distribution directly below the Route53 hosted zone \u2014 the ROUTES_TRAFFIC edge runs vertically as the user-traffic path's main spine.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_route53_zone) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
+              },
+              "members": {
+                "gryphon": "MATCH (n:aws_cloudfront_distribution) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
+              },
+              "positioning": "vertical",
+              "distribution": "even",
+              "anchor_offset_px": 130
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-261a4e883a18",
+            "entity_type": "arrangement",
+            "name": "samsite-website-route53-pairs-with-cert",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "samsite-website-route53-pairs-with-cert",
+            "description": "Places the ACM certificate to the right of Route53 \u2014 the RETRIEVES_CERT_FROM edge's lookup, kept on the same row as Route53 so the cert reads as 'paired with the zone'.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_route53_zone) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
+              },
+              "members": {
+                "gryphon": "MATCH (n:aws_acm_certificate) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
+              },
+              "positioning": "horizontal",
+              "distribution": "even",
+              "anchor_offset_px": 240
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-261c49912a1a",
+            "entity_type": "arrangement",
+            "name": "samsite-website-cdn-fetches-from-s3",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "samsite-website-cdn-fetches-from-s3",
+            "description": "Places the S3 origin bucket to the right of CloudFront on the second row \u2014 the RETRIEVES_CONTENT_FROM edge's origin lookup.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_cloudfront_distribution) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
+              },
+              "members": {
+                "gryphon": "MATCH (n:aws_s3_bucket) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
+              },
+              "positioning": "horizontal",
+              "distribution": "even",
+              "anchor_offset_px": 240
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-261ec2f149a3",
+            "entity_type": "arrangement",
+            "name": "samsite-compliance-eventbridge-invokes-lambda",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "samsite-compliance-eventbridge-invokes-lambda",
+            "description": "Places the compliance Lambda directly below the EventBridge rule \u2014 INVOKES, the scheduled trigger that fires the Lambda.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_eventbridge_rule) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+              },
+              "members": {
+                "gryphon": "MATCH (n:aws_lambda) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+              },
+              "positioning": "vertical",
+              "distribution": "even",
+              "anchor_offset_px": 130
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-26207f4e7c50",
+            "entity_type": "arrangement",
+            "name": "samsite-compliance-lambda-writes-logs",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "samsite-compliance-lambda-writes-logs",
+            "description": "Places the CloudWatch log group to the right of the Lambda \u2014 WRITES_LOGS branch.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_lambda) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+              },
+              "members": {
+                "gryphon": "MATCH (n:aws_cloudwatch_log_group) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+              },
+              "positioning": "horizontal",
+              "distribution": "even",
+              "anchor_offset_px": 240
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-262298ffdd94",
+            "entity_type": "arrangement",
+            "name": "samsite-compliance-role-above-logs",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "samsite-compliance-role-above-logs",
+            "description": "Stacks the Lambda's IAM role just above the CloudWatch log group \u2014 the ASSUMES_ROLE branch off Lambda, expressed by anchoring on the previously-placed log-group node so the two right-of-Lambda branches don't overlap. Arrangement-stacking pattern per spec-viz-arrangement \u00a7 Stackable.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_cloudwatch_log_group) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+              },
+              "members": {
+                "gryphon": "MATCH (n:aws_iam_role) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+              },
+              "positioning": "vertical",
+              "distribution": "even",
+              "anchor_offset_px": -130
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-26243f90f71f",
+            "entity_type": "arrangement",
+            "name": "samsite-bootstrap-oidc-federates-to-deploy",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "samsite-bootstrap-oidc-federates-to-deploy",
+            "description": "Places the deploy IAM role directly below the GitHub Actions OIDC provider \u2014 FEDERATES_INTO, the trust path GitHub uses to assume the deploy role.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_iam_oidc_provider) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
+              },
+              "members": {
+                "gryphon": "MATCH (n:aws_iam_role) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
+              },
+              "positioning": "vertical",
+              "distribution": "even",
+              "anchor_offset_px": 130
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-2626eb7d55a5",
+            "entity_type": "arrangement",
+            "name": "samsite-bootstrap-deploy-stores-state",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "samsite-bootstrap-deploy-stores-state",
+            "description": "Places the Terraform state S3 bucket to the right of the deploy IAM role \u2014 the state-storage branch.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_iam_role) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
+              },
+              "members": {
+                "gryphon": "MATCH (n:aws_s3_bucket) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
+              },
+              "positioning": "horizontal",
+              "distribution": "even",
+              "anchor_offset_px": 240
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-262811f45090",
+            "entity_type": "arrangement",
+            "name": "samsite-bootstrap-lock-above-state",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "samsite-bootstrap-lock-above-state",
+            "description": "Stacks the DynamoDB state-lock table just above the tfstate S3 bucket \u2014 same stacking pattern as the compliance side (anchors on the previously-placed S3 so the two right-of-deploy-IAM branches don't overlap).",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_s3_bucket) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
+              },
+              "members": {
+                "gryphon": "MATCH (n:aws_dynamodb_table) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
+              },
+              "positioning": "vertical",
+              "distribution": "even",
+              "anchor_offset_px": -130
+            }
           }
         }
       ],
@@ -467,86 +595,6 @@
         },
         {
           "entity": {
-            "entity_id": "019e646c-5a91-730a-b93c-6133560fda28",
-            "entity_type": "edge",
-            "name": "Layout USES_ARRANGEMENT samsite-dns-arrangement",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
-            "to_entity_id": "019e646a-85fc-7159-b12b-c6615684ac4c",
-            "edge_type": "USES_ARRANGEMENT",
-            "properties": {
-              "hotlink": {
-                "model": "layout",
-                "spec": "layout-arrangements",
-                "value": "019e646a-85fc-7159-b12b-c6615684ac4c"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e646c-5a91-730a-b93c-6134c6ddb8f8",
-            "entity_type": "edge",
-            "name": "Layout USES_ARRANGEMENT samsite-site-arrangement",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
-            "to_entity_id": "019e646a-85fc-7159-b12b-c6629f88777b",
-            "edge_type": "USES_ARRANGEMENT",
-            "properties": {
-              "hotlink": {
-                "model": "layout",
-                "spec": "layout-arrangements",
-                "value": "019e646a-85fc-7159-b12b-c6629f88777b"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e646c-5a91-730a-b93c-6135a3be62eb",
-            "entity_type": "edge",
-            "name": "Layout USES_ARRANGEMENT samsite-compliance-arrangement",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
-            "to_entity_id": "019e646a-85fc-7159-b12b-c663337116a2",
-            "edge_type": "USES_ARRANGEMENT",
-            "properties": {
-              "hotlink": {
-                "model": "layout",
-                "spec": "layout-arrangements",
-                "value": "019e646a-85fc-7159-b12b-c663337116a2"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e646c-5a91-730a-b93c-6136848fd97c",
-            "entity_type": "edge",
-            "name": "Layout USES_ARRANGEMENT samsite-bootstrap-arrangement",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
-            "to_entity_id": "019e646a-85fc-7159-b12b-c66477eb82f5",
-            "edge_type": "USES_ARRANGEMENT",
-            "properties": {
-              "hotlink": {
-                "model": "layout",
-                "spec": "layout-arrangements",
-                "value": "019e646a-85fc-7159-b12b-c66477eb82f5"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
             "entity_id": "6532c421-abc0-5bed-831a-8a38c9412449",
             "entity_type": "edge",
             "name": "Page USES_PANEL Samsite Landing Graph",
@@ -577,6 +625,186 @@
             "to_entity_id": "9ccaf518-bf6d-5d09-bd77-a0e7c3d839a4",
             "edge_type": "USES_LANDING_PAGE",
             "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-2619ec83f83a",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-website-route53-routes-to-cdn",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e6497-bd8e-720e-b05f-261850974c1f",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019e6497-bd8e-720e-b05f-261850974c1f"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-261b9d700705",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-website-route53-pairs-with-cert",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e6497-bd8e-720e-b05f-261a4e883a18",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019e6497-bd8e-720e-b05f-261a4e883a18"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-261df1ac92ac",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-website-cdn-fetches-from-s3",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e6497-bd8e-720e-b05f-261c49912a1a",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019e6497-bd8e-720e-b05f-261c49912a1a"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-261fb4ce7d2c",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-compliance-eventbridge-invokes-lambda",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e6497-bd8e-720e-b05f-261ec2f149a3",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019e6497-bd8e-720e-b05f-261ec2f149a3"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-2621de68a6be",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-compliance-lambda-writes-logs",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e6497-bd8e-720e-b05f-26207f4e7c50",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019e6497-bd8e-720e-b05f-26207f4e7c50"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-26233764445d",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-compliance-role-above-logs",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e6497-bd8e-720e-b05f-262298ffdd94",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019e6497-bd8e-720e-b05f-262298ffdd94"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-2625fa5b546b",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-bootstrap-oidc-federates-to-deploy",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e6497-bd8e-720e-b05f-26243f90f71f",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019e6497-bd8e-720e-b05f-26243f90f71f"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-2627046d6bad",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-bootstrap-deploy-stores-state",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e6497-bd8e-720e-b05f-2626eb7d55a5",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019e6497-bd8e-720e-b05f-2626eb7d55a5"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6497-bd8e-720e-b05f-2629889dea48",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-bootstrap-lock-above-state",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e6497-bd8e-720e-b05f-262811f45090",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019e6497-bd8e-720e-b05f-262811f45090"
+              }
+            }
           }
         }
       ]

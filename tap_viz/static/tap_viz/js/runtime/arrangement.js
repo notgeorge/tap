@@ -104,24 +104,27 @@ async function _executeOne(cy, arrangement, inputs) {
         const spanPx = arrangement.span_px;
         const anchorOffsetPx = arrangement.anchor_offset_px;
         const anchorAxisValue = anchorPos[axisKey];
+        const hasExplicitPlacement = spanPx != null || anchorOffsetPx != null;
 
         let start;
         let end;
-        if (spanPx != null) {
-            // Explicit anchor-relative placement: members start at
+        if (hasExplicitPlacement) {
+            // Anchor-relative placement: members start at
             // anchor + anchor_offset_px (default 0) and span span_px total
             // along the axis. All members end up on one side of the anchor
             // when anchor_offset_px > 0 — the typical "story reads below
-            // the anchor" case.
+            // the anchor" case. Either field alone is enough to trigger
+            // this branch; a single-member arrangement only needs an
+            // offset to place its member at a fixed distance.
             const offset = anchorOffsetPx != null ? anchorOffsetPx : 0;
             start = anchorAxisValue + offset;
-            end = start + spanPx;
+            end = start + (spanPx != null ? spanPx : 0);
         } else if (members.length >= 2) {
             // Legacy: span members' current min..max range.
             start = members[0].position()[axisKey];
             end = members[members.length - 1].position()[axisKey];
         } else {
-            // Single member with no explicit span — nothing to distribute.
+            // Single member with no explicit placement — nothing to distribute.
             return {warnings};
         }
 
