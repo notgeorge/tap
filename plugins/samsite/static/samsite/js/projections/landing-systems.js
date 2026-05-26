@@ -5,18 +5,33 @@
  * the three *cluster roots* — the entry node of each story — at fixed (x, y)
  * positions on the canvas. Everything else within each cluster is positioned
  * by stackable per-cluster arrangements (declared on the Layout entity) that
- * express the actual 2D flow between nodes, not just a vertical stack:
+ * express the actual 2D flow between nodes, not just a vertical stack.
  *
- *   WEBSITE cluster                 COMPLIANCE cluster           BOOTSTRAP cluster
- *   Route53 ── ACM                  EventBridge                  OIDC
- *      │                                  │                        │
- *   CloudFront ── S3                   Lambda ── log-grp          deploy-IAM ── tfstate-S3
- *                                        │  └─ IAM-role above logs            │
- *                                                                          tfstate-DDB above
+ * Vertical stacking (3 rows, ~600 px wide canvas):
+ *
+ *   ┌──────────────────────────────────────┐
+ *   │ COMPLIANCE                           │   ← top
+ *   │   EventBridge                        │
+ *   │     │                                │
+ *   │   Lambda ── log-grp                  │
+ *   │     │  └─ IAM-role above logs        │
+ *   ├──────────────────────────────────────┤
+ *   │ WEBSITE                              │   ← middle
+ *   │   Route53 ── ACM                     │
+ *   │     │                                │
+ *   │   CloudFront ── S3                   │
+ *   ├──────────────────────────────────────┤
+ *   │ DEPLOY / BOOTSTRAP                   │   ← bottom
+ *   │   OIDC                               │
+ *   │     │                                │
+ *   │   deploy-IAM ── tfstate-S3           │
+ *   │                  └─ tfstate-DDB      │
+ *   └──────────────────────────────────────┘
  *
  * Each arrangement is a single-rule positioning step (anchor + member +
  * axis + offset) — they stack to build up the 2D structure. The Layout
- * entity references all of them in execution order.
+ * entity references all of them in execution order. Arrangements are
+ * root-anchor relative, so moving a root translates its whole cluster.
  *
  * Companion entity: the Layout entity `samsite-landing-layout` in
  * plugins/samsite/grift/landing.grift.json.
@@ -25,9 +40,9 @@
 import {resolveNesting, HIDDEN_CONTAINMENT_CLASS} from "/static/tap_viz/js/runtime/nested-projection.js";
 
 const CLUSTER_ROOTS = [
-    {root_entity_type: "aws_route53_zone",      x:  250, y: 220, cluster: "website"},
-    {root_entity_type: "aws_eventbridge_rule",  x:  850, y: 220, cluster: "compliance"},
-    {root_entity_type: "aws_iam_oidc_provider", x: 1400, y: 220, cluster: "bootstrap"},
+    {root_entity_type: "aws_eventbridge_rule",  x:  250, y:  200, cluster: "compliance"},
+    {root_entity_type: "aws_route53_zone",      x:  250, y:  450, cluster: "website"},
+    {root_entity_type: "aws_iam_oidc_provider", x:  250, y:  700, cluster: "bootstrap"},
 ];
 
 // aws_account and boundary become compound parents around the three cluster
