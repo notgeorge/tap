@@ -1,0 +1,1657 @@
+{
+  "plan-of-action-and-milestones": {
+    "uuid": "8ba8f788-5e0b-43d4-ac61-e30f17437cff",
+    "metadata": {
+      "title": "samaydlette.com Plan of Action and Milestones",
+      "last-modified": "2026-05-22T21:55:58Z",
+      "version": "1.0.0",
+      "oscal-version": "1.1.2",
+      "roles": [
+        {
+          "id": "system-owner",
+          "title": "System Owner"
+        },
+        {
+          "id": "poam-poc",
+          "title": "POA&M Point of Contact"
+        }
+      ],
+      "parties": [
+        {
+          "uuid": "37ee06a6-f762-4d8f-ab70-3109a7b9d7b9",
+          "type": "person",
+          "name": "Sam Aydlette",
+          "email-addresses": [
+            "sam.aydlette@gmail.com"
+          ]
+        }
+      ],
+      "responsible-parties": [
+        {
+          "role-id": "system-owner",
+          "party-uuids": [
+            "37ee06a6-f762-4d8f-ab70-3109a7b9d7b9"
+          ]
+        },
+        {
+          "role-id": "poam-poc",
+          "party-uuids": [
+            "37ee06a6-f762-4d8f-ab70-3109a7b9d7b9"
+          ]
+        }
+      ],
+      "props": [
+        {
+          "name": "cloud-service-provider",
+          "ns": "https://fedramp.gov/ns/oscal",
+          "value": "Sam Aydlette"
+        },
+        {
+          "name": "cloud-service-offering",
+          "ns": "https://fedramp.gov/ns/oscal",
+          "value": "samaydlette.com"
+        },
+        {
+          "name": "impact-level",
+          "ns": "https://fedramp.gov/ns/oscal",
+          "value": "moderate"
+        },
+        {
+          "name": "authorization-status",
+          "ns": "https://samsite.unified-systems.com/ns/oscal",
+          "value": "self-attested-proof-of-concept"
+        },
+        {
+          "name": "fedramp-certified",
+          "ns": "https://samsite.unified-systems.com/ns/oscal",
+          "value": "false"
+        }
+      ],
+      "remarks": "This Plan of Action and Milestones is a self-attested proof-of-concept artifact. The system it describes is NOT FedRAMP-authorized. No 3PAO assessment has been conducted; no agency Authorization to Operate is in place. The POA&M is published to demonstrate an architectural pattern (canonical-inventory-derived OSCAL artifacts) aligned with FedRAMP NTC-0009. Treat all entries as the operator's self-attestation. Companion artifacts: ksi-signal.json, oscal-ssp.json, vdr-report.json, iiw.csv at https://samsite.unified-systems.com/.well-known/. See https://samsite.unified-systems.com/research/the-plumbing.html for context."
+    },
+    "import-ssp": {
+      "href": "https://samsite.unified-systems.com/.well-known/oscal-ssp.json"
+    },
+    "system-id": {
+      "id": "urn:samaydlette:website-prod"
+    },
+    "poam-items": [
+      {
+        "uuid": "b184bd4b-1824-4ec0-89df-bc3ec0a1d992",
+        "title": "Long-lived AWS access keys for the deployer",
+        "description": "The CI deployer authenticates to AWS using an IAM user's access key + secret access key, stored in GitHub Actions encrypted secrets. If either secret leaks, the credentials remain valid until manually rotated. As an active compensating control while the OIDC migration is deferred, the operator rotates the AWS access key every 90 days; the procedure is documented in docs/policies/secure-configuration-guide.md and the rotation log is tracked in docs/security-review.md. The 90-day cadence bounds the leakage window but does not eliminate the standing-privilege surface; this POA&M item remains open until the OIDC migration is complete.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-001"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "ia-2, ia-5, ac-2"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CodeGuard rule codeguard-0-iac-security"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "codeguard-0-iac-security"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-iam-user::github-actions-deployer; github-secret::AWS_ACCESS_KEY_ID; github-secret::AWS_SECRET_ACCESS_KEY"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Operator time (~half day); no additional cost."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Migrate to GitHub OIDC role assumption against AWS. Provision an aws_iam_openid_connect_provider for token.actions.githubusercontent.com and a deployer role whose trust policy restricts sub to repo:sam-aydlette/samaydlette.com:*. Switch the workflow's aws-actions/configure-aws-credentials step from access-key inputs to role-to-assume. Verify, then delete the IAM user and remove the GitHub Actions secrets."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-08-31"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "moderate"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "open"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "open"
+          }
+        ]
+      },
+      {
+        "uuid": "176f3b0f-2865-4274-8bb4-7d84ffec87e9",
+        "title": "Runtime KSI signal not cryptographically signed",
+        "description": "The runtime KSI signal at /.well-known/ksi-signal-runtime.json is published by the Lambda without a cryptographic signature. Consumers trust it implicitly via 'AWS has not lied about what is at the well-known URL.' That is the standard static-site CDN trust model, but it does not reduce to the public Sigstore transparency log the deploy-time signal does. (As of this revision, the deploy-time KSI signal, OSCAL SSP, OSCAL POA&M, VDR report, and IIW CSV are all Sigstore-signed in CI; this POA&M item is now narrowed to the runtime signal specifically, which still requires a separate signing mechanism since the Lambda cannot use GitHub OIDC.)",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-002"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "au-10, si-7, sc-12, sc-13"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Internal review"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "internal-review-2026-05-06"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-lambda::compliance-monitor; aws-s3-key::.well-known/ksi-signal-runtime.json"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Operator time (~half day); ~$1/month KMS cost."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "AWS KMS asymmetric signing in the Lambda. Provision an ECC NIST P-256 key with key_usage = SIGN_VERIFY, grant the Lambda role kms:Sign and kms:GetPublicKey, sign the canonical-form bytes, embed the signature in provenance.attestation, and publish the public key at /.well-known/runtime-signing-pubkey.pem."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "When an external consumer asks to verify the runtime signal end-to-end."
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "open"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "open"
+          }
+        ]
+      },
+      {
+        "uuid": "a11d5085-e283-41ae-a16e-33442511954e",
+        "title": "S3 cross-region replication not configured",
+        "description": "Single-region static site. Cross-region replication adds cost without commensurate availability benefit at the declared 21-day RTO.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-003"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "cp-9"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_144"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-s3-bucket::website-prod"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "845eb35b-df74-4b41-a7ee-8ca66155e602",
+        "title": "S3 event notifications not configured",
+        "description": "Lambda writes to S3 but does not subscribe to S3 events. No event-driven workflow in scope.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-004"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "au-2"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_23"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-s3-bucket::website-prod"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "7c39fa2e-c6d5-4385-b669-267e961e010e",
+        "title": "S3 access logging not enabled",
+        "description": "CloudTrail covers the audit need account-wide. CloudFront access logs were similarly excluded for cost.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-005"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "au-2, au-3"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_18"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-s3-bucket::website-prod"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "e0a509ed-20d5-46b7-9c3c-13b90fc2ff05",
+        "title": "S3 lifecycle configuration not defined",
+        "description": "Static website assets have no expiration policy; lifecycle rules are not applicable.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-006"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "si-12"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_300"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-s3-bucket::website-prod"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "281fbe59-e106-4291-9337-0ad062013f09",
+        "title": "CloudFront WAF not attached",
+        "description": "Cost trade-off (~$120/year). Static personal site has no forms, no auth endpoints, no expensive backend; AWS Shield Standard is the baseline DDoS protection at zero marginal cost.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-007"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "sc-7, si-4"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_68"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-cloudfront-distribution"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "moderate"
+          },
+          {
+            "name": "adjusted-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "yes"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "7fb27ca5-563f-4bd7-b52e-38e561bc9432",
+        "title": "Log4j-specific WAF rules not configured",
+        "description": "No Java runtime in scope (Lambda runs Node.js; site is static HTML/CSS/JS). Log4j-class vulnerabilities cannot exist in this stack.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-008"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "si-3"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_174"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-cloudfront-distribution"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "7c6c8b26-087e-480c-b9d1-df7a110390f5",
+        "title": "CloudFront origin failover not configured",
+        "description": "Single S3 origin. No secondary origin to fail over to; multi-origin would require multi-region storage (see POAM-016).",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-009"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "cp-2, cp-7"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_86"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-cloudfront-distribution"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "aa55f8c4-778f-4771-8787-125ebd9de560",
+        "title": "Lambda VPC configuration absent",
+        "description": "Lambda has no internet egress, no sensitive data, no private endpoint targets. NAT Gateway (~$45/month) adds cost without commensurate isolation benefit.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-010"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "sc-7"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_117"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-lambda::compliance-monitor"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "c109f585-126f-4200-8933-073247e4369f",
+        "title": "Lambda environment variables not customer-key encrypted",
+        "description": "Lambda env vars hold bucket name, distribution ID, system ID \u2014 all non-sensitive and visible in the public runtime signal. AWS-default encryption suffices.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-011"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "sc-12, sc-28"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_173"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-lambda::compliance-monitor"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "b5d6e9fe-de61-4d6b-ab2f-8af4b4242565",
+        "title": "Lambda concurrent execution limit not set",
+        "description": "Daily EventBridge invocation; no concurrent invocations realistic. Cost-control limit not required.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-012"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "sc-5"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_115"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-lambda::compliance-monitor"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "713bbcb4-cd11-4d5c-b4f2-2431b02a88fc",
+        "title": "Lambda DLQ not configured",
+        "description": "Daily idempotent run; failures are recoverable on the next day's invocation. DLQ adds cost for marginal observability benefit.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-013"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "si-4"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_116"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-lambda::compliance-monitor"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "20a685e8-0e0b-4a0d-8f54-ed4fd0392e37",
+        "title": "Lambda X-Ray tracing not enabled",
+        "description": "Observability concern, not a security control. Cost-driven exclusion; CloudWatch Logs covers the diagnostic need.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-014"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "au-2"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_50"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-lambda::compliance-monitor"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "cc167302-c452-473f-a8a1-44b1308939f9",
+        "title": "Lambda zip not signed via AWS Signer",
+        "description": "Source-level signing chain in place: deploy-time KSI signal is Sigstore-signed; Wasm policy bytes are verifiable via the canonical inventory's content hash. A tampered Lambda zip would also have to forge the Sigstore signature to be undetected. AWS Signer adds defense-in-depth at marginal cost; not currently justified.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-015"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "si-7, sa-12"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_272"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-lambda::compliance-monitor"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "moderate"
+          },
+          {
+            "name": "adjusted-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "yes"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "5ac9449a-0bd2-47ba-b2fa-cca846a97807",
+        "title": "Multi-region active-passive failover absent",
+        "description": "Cost trade-off (~$300/year). Declared 21-day RTO accommodates single-region AWS failure. Documented in docs/recovery-plan.md.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-016"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "cp-2, cp-7"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Architectural decision"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "recovery-plan.md"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-account::all-resources"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "b831c325-713c-476f-b151-0ae3a91910f0",
+        "title": "CloudWatch log retention shorter than 1 year (7-day retention)",
+        "description": "7-day CloudWatch log retention is intentional. Logs are operational debug content, contain no PII, and have no security-correlation requirement that depends on >7-day retention for a sole-operator system. Anything older than a week is not actionable for IR. Cost-driven; deliberate scope decision documented in AU-1 policy.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-017"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "au-11"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_338"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-cloudwatch-log-group::route53-query-log; aws-cloudwatch-log-group::lambda-execution"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      },
+      {
+        "uuid": "5130e23f-5546-4675-8237-c50ca0e931c5",
+        "title": "CloudWatch log group not customer-key encrypted (uses AWS-default encryption)",
+        "description": "AWS-default encryption (server-side AES-256) is enabled on the log group. No PII in log content; only operational debug data and AWS API request metadata. Customer-managed KMS encryption adds cost and operational complexity without commensurate benefit at this scope.",
+        "props": [
+          {
+            "name": "poam-id",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "POAM-018"
+          },
+          {
+            "name": "controls",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "sc-28"
+          },
+          {
+            "name": "weakness-detector-source",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Checkov"
+          },
+          {
+            "name": "weakness-source-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "CKV_AWS_158"
+          },
+          {
+            "name": "asset-identifier",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "aws-cloudwatch-log-group::route53-query-log; aws-cloudwatch-log-group::lambda-execution"
+          },
+          {
+            "name": "point-of-contact",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Sam Aydlette (operator)"
+          },
+          {
+            "name": "resources-required",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "None at present (risk-accepted). If reactivated, cost and operator time per item."
+          },
+          {
+            "name": "remediation-plan-summary",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "Reactivate the corresponding Checkov check by removing the inline #checkov:skip= annotation in infrastructure/main.tf, then implement the missing control. Cost varies per item."
+          },
+          {
+            "name": "original-detection-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-06"
+          },
+          {
+            "name": "scheduled-completion-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "n/a (risk-accepted)"
+          },
+          {
+            "name": "status-date",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "2026-05-08"
+          },
+          {
+            "name": "vendor-dependency",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "original-risk-rating",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "low"
+          },
+          {
+            "name": "risk-adjustment",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "no"
+          },
+          {
+            "name": "status",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "risk-accepted"
+          },
+          {
+            "name": "category",
+            "ns": "https://fedramp.gov/ns/oscal",
+            "value": "configuration"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -55,6 +55,11 @@ Thumbs.db
 # Vendored third-party assets (AWS icon pack, etc.) — stashed locally, raided for
 # individually relicensed icons copied into plugin static dirs.
 vendor/
+# Carve-out: plugin-internal vendor dirs ARE committed (e.g. roscale ships the
+# OSCAL 1.1.2 JSON Schema bundle per req-roscale-vendor). Plugin specs are the
+# authority on what their vendor/ contains; the generic raid pattern doesn't apply.
+!plugins/*/vendor/
+!plugins/*/vendor/**
 
 # In-flight debugging screenshots. Convention: save ad-hoc screenshots to
 # screenshots/ so they don't clutter the repo root. Contents are transient.

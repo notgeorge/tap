@@ -1,0 +1,332 @@
+/* ROSCALE workbench panels — shared styles for the SSP and POA&M workbenches.
+ * Plain CSS, no preprocessor; class prefix `roscale-` to scope from host pages.
+ */
+
+.roscale-workbench {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1f2937;
+  line-height: 1.45;
+  font-size: 14px;
+}
+
+.roscale-workbench h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  color: #111827;
+}
+
+.roscale-workbench h4 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+.roscale-workbench code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: #f3f4f6;
+  padding: 0.05em 0.35em;
+  border-radius: 3px;
+}
+
+.roscale-workbench .roscale-meta {
+  color: #6b7280;
+  font-size: 0.85em;
+}
+
+/* --- Cards / sections --- */
+
+.roscale-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 0 0 1rem;
+}
+
+.roscale-card summary {
+  cursor: pointer;
+}
+
+.roscale-card details + details {
+  margin-top: 0.5rem;
+}
+
+/* --- Validation strip --- */
+
+.roscale-validation-strip {
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  margin: 0 0 1rem;
+  font-size: 0.95em;
+}
+
+.roscale-validation-clean {
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+}
+
+.roscale-validation-warn {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.roscale-validation-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+}
+
+.roscale-validation-detail {
+  margin-top: 0.5rem;
+}
+
+.roscale-issue-list {
+  margin: 0.25rem 0 0.5rem 1rem;
+  padding: 0;
+}
+
+.roscale-issue-list li {
+  margin: 0.15rem 0;
+}
+
+/* --- Self-attestation banner --- */
+
+.roscale-attestation-banner {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  margin: 0 0 1rem;
+}
+
+/* --- Fallback (latest emission) banner --- */
+
+.roscale-fallback-banner {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  margin: 0 0 1rem;
+  font-size: 0.95em;
+}
+
+/* --- Error state --- */
+
+.roscale-error-state {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 0 0 1rem;
+}
+
+.roscale-error-header {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.roscale-error-phase {
+  color: #6b7280;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  margin-right: 0.5em;
+}
+
+/* --- Key/value blocks --- */
+
+.roscale-kv {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) 3fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.roscale-kv dt {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.roscale-kv dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+/* --- Headline stat grid --- */
+
+.roscale-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.roscale-stat {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.roscale-stat-num {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.roscale-stat-label {
+  display: block;
+  font-size: 0.85em;
+  color: #6b7280;
+  margin-top: 0.15rem;
+}
+
+.roscale-stat-breakdown {
+  margin-top: 0.5rem;
+}
+
+/* --- SSP control implementation --- */
+
+.roscale-family + .roscale-family {
+  margin-top: 0.5rem;
+}
+
+.roscale-req-list {
+  margin: 0.5rem 0 0 0;
+  padding: 0 0 0 0.5rem;
+  list-style: none;
+}
+
+.roscale-req-list > li {
+  margin: 0.4rem 0;
+  padding: 0.4rem 0.5rem;
+  border-left: 3px solid #e5e7eb;
+}
+
+.roscale-req-header {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.roscale-impl-status {
+  font-size: 0.8em;
+  padding: 0.05em 0.4em;
+  border-radius: 3px;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.roscale-impl-implemented {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.roscale-impl-partial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.roscale-impl-planned, .roscale-impl-alternative-implementation {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.roscale-impl-not-applicable {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.roscale-origination {
+  font-size: 0.8em;
+  color: #6b7280;
+}
+
+.roscale-req-statement, .roscale-req-remarks {
+  margin: 0.25rem 0 0;
+}
+
+/* --- Components / users --- */
+
+.roscale-component-list {
+  margin: 0.25rem 0 0 1rem;
+  padding: 0;
+}
+
+.roscale-component-list li {
+  margin: 0.35rem 0;
+}
+
+/* --- Back matter --- */
+
+.roscale-rlinks {
+  margin: 0.25rem 0 0 1rem;
+  font-size: 0.9em;
+}
+
+/* --- POA&M register table --- */
+
+.roscale-poam-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.roscale-poam-table th, .roscale-poam-table td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.roscale-poam-table th {
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 600;
+}
+
+.roscale-poam-status {
+  text-transform: capitalize;
+}
+
+.roscale-poam-status-open {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.roscale-poam-status-risk-accepted {
+  color: #6b7280;
+}
+
+.roscale-poam-detail-row td {
+  background: #f9fafb;
+  font-size: 0.95em;
+  padding-top: 0.25rem;
+  padding-bottom: 0.6rem;
+}
+
+/* --- Raw JSON fallback --- */
+
+.roscale-raw-json summary {
+  font-weight: 500;
+}
+
+.roscale-json {
+  background: #1f2937;
+  color: #e5e7eb;
+  border-radius: 4px;
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  max-height: 60vh;
+}
