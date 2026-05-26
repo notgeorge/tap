@@ -141,8 +141,14 @@ export async function execute(context) {
     // independently tweakable via its arrangement.
 
     // Fit only on the initial load so re-runs (e.g., HTMX refresh of the
-    // panel) don't yank the viewport away from the user.
+    // panel) don't yank the viewport away from the user. cy.fit centers the
+    // bbox in the viewport; we then pan down a touch so the boundary's
+    // parent-label overlay ("Samsite Authorization Boundary") — which sits
+    // ~20 screen-px above the cy bbox top — clears the panel edge instead
+    // of clipping. 50 px is the buffer the label + comfortable headroom
+    // needs at the default fit zoom.
     if (context.trigger_reason === "initial_load") {
         cy.fit(cy.nodes(":visible"), 60);
+        cy.panBy({x: 0, y: 50});
     }
 }
