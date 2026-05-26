@@ -38,6 +38,26 @@
  */
 
 import {resolveNesting, HIDDEN_CONTAINMENT_CLASS} from "/static/tap_viz/js/runtime/nested-projection.js";
+import {applyScopeBoxes} from "/static/tap_viz/js/runtime/layout-scope-boxes.js";
+
+// Per-cluster scope-box configs. One box per cluster Layout (each sibling
+// Layout under samsite-landing-elevation owns one node group, per
+// spec-viz-layouts § Philosophy). Members are selected by the AWS resource
+// tag Component=<cluster> — the same predicate the arrangement member
+// queries use. Future work (server-side scope resolution) will pass these
+// from the projection JSON instead of hardcoding them here.
+const SCOPE_BOXES = [
+    {label: "Compliance Flow",   filter: (n) => (n.data("tags") || {}).Component === "compliance"},
+    // Website cluster is the union of two underlying tag values: Component=dns
+    // (Route53 zone + ACM cert) and Component=site (CloudFront + S3 origin) —
+    // a separation that exists in the upstream Terraform but reads as one
+    // story on the landing.
+    {label: "Website Serving",   filter: (n) => {
+        const c = (n.data("tags") || {}).Component;
+        return c === "dns" || c === "site";
+    }},
+    {label: "Deploy & Bootstrap", filter: (n) => (n.data("tags") || {}).Component === "bootstrap"},
+];
 
 const CLUSTER_ROOTS = [
     {root_entity_type: "aws_eventbridge_rule",  x:  250, y:  200, cluster: "compliance"},
@@ -105,6 +125,14 @@ export async function execute(context) {
     // at the element level so the boundary reads as an outline-only frame
     // around the aws_account compound rather than a tinted card.
     cy.nodes('[entity_type="boundary"]').style({"background-opacity": 0});
+
+    // Draw a labeled overlay box per cluster Layout (compliance / website /
+    // bootstrap), wrapping the nodes that belong to each. Scope boxes are
+    // the visual companion to the Layout entity (spec-viz-layouts § Philosophy
+    // — one Layout = one node group); they cross-cut the compound parent
+    // hierarchy because Cytoscape compound parents are strictly hierarchical
+    // but a scope box is a free overlay.
+    applyScopeBoxes(cy, SCOPE_BOXES);
 
     // Members of each system are positioned by the per-Component arrangements
     // wired on the Layout entity — they run automatically after this module

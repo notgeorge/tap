@@ -417,6 +417,13 @@ function initGraph(panelId) {
             // can read `n.data("dimensions").<key>` without re-fetching from
             // the server. Always an object; never null.
             dimensions: n.dimensions || {},
+            // Per-model tags (e.g. AWS resource tags: Project, Component,
+            // Environment). Lifted onto the cy data dict so client-side
+            // runtimes — layout-scope-boxes, ad-hoc filters — can select by
+            // tag without re-fetching. Sourced from the envelope's per-model
+            // `data.tags` field; nodes whose model doesn't carry tags get
+            // an empty object so selectors don't NPE.
+            tags: ((n.data || {}).tags) || {},
         };
         if (colors.fill) data.fill_color = colors.fill;
         if (colors.border) data.border_color = colors.border;
