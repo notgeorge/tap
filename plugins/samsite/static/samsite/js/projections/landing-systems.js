@@ -141,14 +141,21 @@ export async function execute(context) {
     // independently tweakable via its arrangement.
 
     // Fit only on the initial load so re-runs (e.g., HTMX refresh of the
-    // panel) don't yank the viewport away from the user. cy.fit centers the
-    // bbox in the viewport; we then pan down a touch so the boundary's
-    // parent-label overlay ("Samsite Authorization Boundary") — which sits
-    // ~20 screen-px above the cy bbox top — clears the panel edge instead
-    // of clipping. 50 px is the buffer the label + comfortable headroom
-    // needs at the default fit zoom.
+    // panel) don't yank the viewport away from the user. Mirrors the
+    // toolbar's "fit to view" button (panel-graph.js → `cy.fit()`) so the
+    // initial framing matches what a user gets by pressing that button.
+    //
+    // Deferred via setTimeout so cascade-reveal finishes before the fit
+    // measures — the cascade animates opacity but each layer's bbox isn't
+    // fully settled until its frame lands. 600 ms is comfortably past the
+    // ~500 ms cascade duration. After fit, pan down 30 px so the
+    // boundary's parent-label overlay ("Samsite Authorization Boundary"),
+    // which sits ~20 screen-px above the cy bbox top edge, clears the
+    // panel top instead of clipping.
     if (context.trigger_reason === "initial_load") {
-        cy.fit(cy.nodes(":visible"), 60);
-        cy.panBy({x: 0, y: 50});
+        setTimeout(() => {
+            cy.fit();
+            cy.panBy({x: 0, y: 30});
+        }, 600);
     }
 }
