@@ -30,7 +30,7 @@ Status: `Implemented`
 The service layer should define a stable family of service exceptions and error codes instead of leaking arbitrary framework exceptions to callers.
 
 #### Status Details
-`ServiceError.code` is a Literal with seven stable values. Matching exception classes exist in `tap_grid/exceptions.py`.
+`ServiceError.code` is a Literal of stable values; the current taxonomy is enumerated below. Matching exception classes exist in `tap_grid/exceptions.py`.
 
 #### Implementation
 The taxonomy distinguishes:
@@ -42,8 +42,13 @@ The taxonomy distinguishes:
 - `conflict` — `ServiceConflictError`: operation would create a conflict
 - `unsupported_operation` — `ServiceUnsupportedOperationError`: requested operation not supported
 - `internal_error` — unhandled exception (outer try/except in pipeline)
+- `hotlink_validation_failed` — pre-commit consistency phase detected a hotlink mismatch (`req-grid-hotlink-deferred`)
+- `entity_version_conflict` — `ServiceVersionConflictError`: a write operation declared `entity_expected_version` but the local `Entity.version` did not match (`req-grid-service-batch-occ`)
+- `entity_expected_version_not_allowed_on_create` — `ServiceValidationError` subtype: caller passed `entity_expected_version` to a create verb, where no prior version exists (`req-grid-service-write-occ`)
 
 Every public-facing service error carries a stable code string in `ServiceError.code`.
+
+The `entity_version_conflict` code carries a structured `detail` payload with `{entity_expected_version, actual_entity_version, entity_id}` so callers can implement retry-or-surface logic without scraping the message string. `actual_entity_version` is `null` when the target entity was deleted out from under the operation.
 
 #### Acceptance Criteria
 
@@ -52,6 +57,7 @@ Every public-facing service error carries a stable code string in `ServiceError.
 | req-grid-service-errors-taxonomy-1 | Stable Service Exceptions | Implemented | Public service operations fail through a documented set of service exception types. | |
 | req-grid-service-errors-taxonomy-2 | Stable Error Codes | Implemented | Public service errors include stable machine-usable error codes. | |
 | req-grid-service-errors-taxonomy-3 | Core Failure Categories Covered | Implemented | The error taxonomy distinguishes validation, constraint, authz, not found, conflict, unsupported, and internal failures. | |
+| req-grid-service-errors-taxonomy-4 | Optimistic Concurrency Errors Covered | Approved for Development | The error taxonomy includes `entity_version_conflict` (verb-level OCC mismatch) and `entity_expected_version_not_allowed_on_create` (caller misuse of OCC on a create verb). | Detail payload includes `entity_expected_version`, `actual_entity_version`, `entity_id`. |
 
 #### Future
 Decide whether the stable error code namespace should also be versioned independently of exception class names.

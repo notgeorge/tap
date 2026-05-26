@@ -25,6 +25,10 @@ This separation is deliberate. The file format should stay stable and portable, 
 | req-grid-import-grift-time | [Reference Time](#reference-time) | Implemented | Single datetime comparison point per file |
 | req-grid-import-grift-identity | [Identity And Matching](#identity-and-matching) | Implemented | Entity and batch identity rules |
 | req-grid-import-grift-batch | [Batch Execution](#batch-execution) | Implemented | Per-batch transactional import behavior |
+| req-grid-import-grift-removals | [Imperative Removal Execution](#imperative-removal-execution) | Approved for Development | Batch-level `deletes` and `purges` sections execute explicit removals after upserts and before hotlink consistency checks |
+| req-grid-import-grift-removal-preflight | [Removal Preflight](#removal-preflight) | Approved for Development | Validate removal shape, duplicate targets, type sanity, and DEBUG gate; existence and tombstone-state checks happen inside the batch transaction |
+| req-grid-import-grift-occ | [Optimistic Concurrency Enforcement](#optimistic-concurrency-enforcement) | Approved for Development | Enforce `entity_expected_version` declarations atomically inside the batch transaction; conflict aborts the batch loudly |
+| req-grid-import-grift-skipped-batch-removals | [Skipped Batch Removal Warning](#skipped-batch-removal-warning) | Approved for Development | A re-imported document whose batch is skipped by `req-grid-import-grift-identity` AND contains removal sections emits a loud warning |
 | req-grid-import-grift-force-reimport | [Force Re-Import](#force-re-import) | Implemented | Explicit bypass of the skip-if-exists batch guard, DEBUG-gated |
 | req-grid-import-grift-batch-scoped-sweep | [Batch-Scoped Sweep](#batch-scoped-sweep) | Implemented | Tombstone orphaned entities created by a force-reimported batch; optional strict mode aborts on any guardrail miss |
 | req-grid-import-grift-sweep-purge | [Sweep Purge](#sweep-purge) | Implemented | Hard-delete escalation of batch-scoped sweep, DEBUG-gated |
@@ -71,8 +75,15 @@ Before any mutation begins, the importer must complete a full-file preflight pas
 7. Resolve all edge endpoint references against:
    - entities present in the same file
    - entities already present in the local grid
-8. Determine which batches already exist locally.
-9. Produce one preflight result that drives the execution phase.
+8. Validate optional batch-level removal sections (`deletes`, `purges`):
+   - section policy values
+   - required `edges` and `nodes` arrays
+   - required `entity_id`, `entity_type`, and `reason` on every target
+   - duplicate removal targets across all removal sections in the file
+   - DEBUG-only permission for purge sections
+   - (target existence, tombstone-state, and `entity_type` row sanity are NOT done at file-preflight — they are done inside each batch's transaction with row-level guarantees; see `req-grid-import-grift-removal-preflight` and `req-grid-import-grift-occ`)
+9. Determine which batches already exist locally.
+10. Produce one preflight result that drives the execution phase.
 
 ### Preflight Rule
 
@@ -163,6 +174,290 @@ This rule applies on any import path that performs a replace, including force re
 ### Import Modes
 
 GRIFT itself is neutral about create, replace, patch, or upsert semantics. The importer may expose one or more execution modes, but whichever mode it chooses must operate on the canonical GRIFT identities and validated full-object payloads produced by preflight.
+
+## Imperative Removal Execution
+----
+RID: `req-grid-import-grift-removals`
+Status: `Approved for Development`
+
+A GRIFT batch may include explicit `deletes` and `purges` sections as defined by `req-grift-import-deletes` in `spec-grift-v0.md`. The importer must treat those sections as imperative batch operations, not as desired-state reconciliation.
+
+### Execution Order
+
+For each batch that executes, mutation order is:
+
+1. create or replace declared nodes
+2. create or replace declared edges
+3. transaction-scoped removal-target checks (existence, type sanity, tombstone-state policy) per `req-grid-import-grift-removal-preflight`
+4. tombstone `deletes.edges` (each verb call carries `entity_expected_version` when declared)
+5. tombstone `deletes.nodes` (each verb call carries `entity_expected_version` when declared)
+6. hard-delete `purges.edges` (each verb call carries `entity_expected_version` when declared)
+7. hard-delete `purges.nodes` (each verb call carries `entity_expected_version` when declared)
+8. batch-scoped sweep, when force re-importing (`req-grid-import-grift-batch-scoped-sweep`)
+9. pre-commit consistency checks, including hotlink validation
+
+Edge removals run before node removals inside each section. This makes relationship removal explicit and lets node deletes operate on the intended post-edge-removal graph.
+
+Steps 4–7 are performed by the service-layer delete and purge verbs. Each verb performs its own atomic check-and-mutate so that optimistic-concurrency `entity_expected_version` declarations (`req-grid-import-grift-occ`) have a zero-width race window. A version-conflict or other verb-level failure on any removal aborts the batch transaction; every upsert, delete, and purge in this batch rolls back.
+
+Delete operations must be appended to the same service-layer `write_batch()` execution as node and edge upserts, so the pre-commit consistency phase sees the final post-delete graph. Delete operations use the normal service-layer delete verbs:
+
+- `deletes.edges[]` routes to `delete_edge_by_entity` / `delete_edge`
+- `deletes.nodes[]` routes to `delete_node`
+
+Purge operations route through DEBUG-only service-layer purge primitives:
+
+- `purges.edges[]` routes to `purge_edge`
+- `purges.nodes[]` routes to `purge_node`
+
+If purge operations cannot share the same `write_batch()` machinery as tombstone deletes, the importer must still execute them inside the same per-batch database transaction and before the batch-scoped sweep and pre-commit consistency phase. A failure in any purge operation rolls back the full batch, including earlier upserts and tombstone deletes.
+
+### Provenance And Reason Capture
+
+Every removal target's `reason` must be preserved in batch-scoped trace data.
+
+For tombstone deletes, the target-level `BatchEvent` metadata should include at least:
+
+```json
+{
+  "grift_operation": "delete",
+  "reason": "No longer part of this seed set."
+}
+```
+
+For purges, target-level rows may be removed as part of the purge contract, so the importer must also emit a surviving batch-level summary event against the batch entity. That summary should include:
+
+- operation kind: `delete` or `purge`
+- target `entity_id`
+- target `entity_type`
+- target kind: `edge` or `node`
+- `reason`
+- outcome: `applied`, `missing`, `already_tombstoned`, `warned`, or `ignored`
+
+The summary event may reuse a dedicated `BatchEventType` value if one exists, or use an equivalently structured event record. The trace must survive purges.
+
+### Non-Goals
+
+- The importer does not infer deletion from objects absent from `nodes` or `edges`.
+- The importer does not delete by query, type, dimension, or batch ownership under this requirement.
+- The importer does not perform authoritative upstream reconciliation. AWS/account-style trimming is future desired-state machinery, not this feature.
+
+## Removal Preflight
+----
+RID: `req-grid-import-grift-removal-preflight`
+Status: `Approved for Development`
+
+Removal preflight is split into two phases by **what it can check without reading mutable database state**.
+
+File-level preflight checks shape, policy enum values, duplicate targets across the document, and the DEBUG gate. These checks are pure functions of the document plus immutable settings; they do not require database reads against rows that might change before execution.
+
+Target-existence, entity-type row sanity, tombstone-state policy application, and version-conflict detection happen **inside the batch's `transaction.atomic()` block**, immediately before that batch's removal verbs run. This guarantees the policy decision is made against the same database snapshot the mutation will operate on, closing the race window that any read-then-act file-preflight design would leave open. See `req-grid-import-grift-occ` for the version-conflict half of that contract.
+
+### File-Level Preflight Checks
+
+The importer must enforce the GRIFT schema requirements for removal sections at file-preflight time:
+
+- section-level policy fields are required
+- `deletes.on_missing` is one of `error`, `warn`, `ignore`
+- `deletes.on_tombstoned` is one of `error`, `warn`, `ignore`
+- `purges.on_missing` is one of `error`, `warn`, `ignore`
+- `edges` and `nodes` arrays are required inside each present section
+- every target requires `entity_id`, `entity_type`, and non-empty `reason`
+- `entity_expected_version`, when present, is a positive integer (minimum 1; `Entity.version` starts at 1, so 0 is not a valid expected value)
+- item-level policy overrides are invalid in v0
+
+### Duplicate Targets
+
+The same `entity_id` may not appear more than once across all removal sections in the same GRIFT document. This includes:
+
+- duplicate entries inside one `deletes.edges` / `deletes.nodes` / `purges.edges` / `purges.nodes` array
+- the same target appearing in both delete and purge sections
+- the same target appearing as both a node and an edge removal target
+
+Duplicate removal targets are hard file-preflight errors with a stable code such as `duplicate_removal_target`.
+
+### Upsert / Removal Cross-Section Duplicates
+
+An `entity_id` that appears as an upsert envelope (in any batch's `nodes` or `edges` array) AND as a removal target (in any batch's `deletes.*` or `purges.*` array) in the same GRIFT document is a hard file-preflight error with the code `entity_id_in_upsert_and_removal`. The combination is technically order-deterministic — upserts run before removals within each batch — but reads as an authoring mistake (you wrote the entity twice; the second write erases the first) and almost always indicates that one of the two declarations was a copy-paste error or a wrong file. Forcing it loud at preflight matches the rest of GRIFT's strict-by-default posture; an author who genuinely wants to upsert-then-remove can do so by splitting the work into two separate GRIFT documents.
+
+### Purge Gate
+
+Any present `purges` section with at least one declared target is permitted if and only if Django `DEBUG` is `True`. When `DEBUG` is `False`, file-preflight emits a hard error such as `grift_purge_refused_production`. There is no command-line override, settings override, or environment-variable override.
+
+The gate fires on declaration, not on execution-outcome. A `purges` section with a single target on a `DEBUG=False` host is refused at file-preflight even if that target turns out to be `on_missing`'d at execution. This makes the DEBUG gate a property of *what the document asks for*, not *what ends up running*, which is what an operator reviewing a bundle wants to see.
+
+### Transaction-Scoped Target Checks
+
+Inside each batch's `transaction.atomic()` block, **after** node and edge upserts complete and **before** removal verbs run, the importer performs per-target state checks. The checks must run against a **row-locked** view of each target's Entity row — Postgres's default isolation level (READ COMMITTED) does not by itself prevent another transaction from mutating the target between the check and the verb call, so the importer takes a `SELECT … FOR UPDATE` on each target's Entity row (or equivalent row-level lock) at the start of this phase and holds it until the batch commits or rolls back. This guarantees the policy decision and the subsequent verb call see the same row state.
+
+With the lock held, for each removal target the importer resolves the local Entity row by `entity_id`.
+
+If the target is missing:
+
+- `on_missing == "error"` aborts the batch with a `removal_target_missing` issue
+- `on_missing == "warn"` records a warning and skips this target
+- `on_missing == "ignore"` records no issue and skips this target
+
+If the target exists but its local `entity_type` does not match the declared `entity_type`, the batch aborts with a `removal_entity_type_mismatch` issue. Policy knobs do not soften type mismatch.
+
+If a target is listed under `edges`, its local and declared `entity_type` must be `"edge"`. If a target is listed under `nodes`, its local and declared `entity_type` must not be `"edge"`.
+
+For tombstone deletes, if the target already has `Entity.deleted_at` set:
+
+- `on_tombstoned == "error"` aborts the batch with a `removal_target_tombstoned` issue
+- `on_tombstoned == "warn"` records a warning and skips this target
+- `on_tombstoned == "ignore"` records no issue and skips this target
+
+For purge, tombstoned-but-present targets are valid purge targets. There is no `purges.on_tombstoned` setting.
+
+Targets that pass these checks proceed to their removal verb, which carries `entity_expected_version` (when declared) through to the service-layer Entity-row guard that performs the delete or purge. The version check happens inside that verb; see `req-grid-import-grift-occ` and `req-grid-service-batch-occ`.
+
+### Reporting
+
+The import result should expose removal counts and issues separately enough that callers can distinguish removal outcomes from upsert outcomes.
+
+Recommended count fields:
+
+- `entities_deleted`
+- `edges_deleted`
+- `nodes_deleted`
+- `entities_purged`
+- `edges_purged`
+- `nodes_purged`
+- `removals_skipped`
+
+Recommended issue codes:
+
+- `duplicate_removal_target`
+- `entity_id_in_upsert_and_removal`
+- `removal_target_missing`
+- `removal_entity_type_mismatch`
+- `removal_target_tombstoned`
+- `grift_purge_refused_production`
+- `removal_execution_failed`
+- `entity_version_conflict` — see `req-grid-import-grift-occ`
+
+## Optimistic Concurrency Enforcement
+----
+RID: `req-grid-import-grift-occ`
+Status: `Approved for Development`
+
+The importer enforces the GRIFT optimistic-concurrency contract (`req-grift-concurrency-version` in `spec-grift-v0.md`) at the database-mutation boundary. A target that declares `entity_expected_version` must observe that version at the moment the mutation runs; otherwise the entire batch aborts and rolls back atomically.
+
+### What Gets Checked
+
+OCC enforcement covers exactly the targets described in `req-grift-concurrency-version`:
+
+- node / edge envelopes whose `entity_id` already exists locally and therefore drive a replace
+- every target in `deletes.edges` / `deletes.nodes`
+- every target in `purges.edges` / `purges.nodes`
+
+Targets that omit `entity_expected_version` are processed without a version check. Targets that include `entity_expected_version` are processed with the check. Mixed bundles are supported on a per-target basis.
+
+### Where The Check Runs
+
+The check is delegated to the service layer. Each affected verb accepts `entity_expected_version` as a keyword argument; the verb enforces the check via a single atomic guard on the `Entity` row (a conditional `UPDATE` carrying the version predicate, or a `SELECT … FOR UPDATE` followed by a compare-and-act, both inside the verb's transaction). Exactly one `Entity.version` increment is recorded per successful operation; downstream typed-model save, history, FLIP, and spine sync run inside the same guarded transaction. See `req-grid-service-batch-occ` in `spec-grid-service-batch.md` and the per-verb specifications in `spec-grid-service-write.md` and `spec-grid-service-delete.md`.
+
+The importer does not perform a separate read-then-check; it passes `entity_expected_version` straight through to the verb. If the verb reports a version conflict, the importer translates it into a GRIFT issue and bails.
+
+### Conflict Semantics
+
+A version conflict is fatal to the batch. There is no `on_entity_version_conflict` policy:
+
+- the batch's atomic transaction rolls back
+- every upsert, delete, and purge in this batch is undone
+- a `entity_version_conflict` issue is emitted with the conflict details
+- the batch's outcome is reported as failed
+
+The conflict issue must include enough information for the sender to recover:
+
+- `entity_id`
+- `entity_type`
+- `entity_expected_version` (from the document)
+- `actual_entity_version` (from the local Entity row at the moment the mutation was attempted)
+- `path` (JSONPath to the offending target within the document)
+- `operation` (the verb the importer was about to run: `replace_node`, `delete_node`, etc.)
+
+Multiple in-flight verbs may all carry `entity_expected_version`, but the importer fails on the first conflict it encounters and surfaces only that one in v0. The implementation may surface every detected conflict in a future revision; the spec does not require it.
+
+### Interaction With Removal Policy Knobs
+
+`entity_expected_version` is independent of `on_missing` and `on_tombstoned`:
+
+- if a target is `on_missing="ignore"` skipped at the transaction-scoped check, the version check is also skipped (the verb never runs)
+- if a target is `on_tombstoned="warn"` skipped, the version check is also skipped
+- if a target passes the existence and tombstone-state checks, the version check runs as described above
+
+This ordering means a target declared with `on_missing="ignore"` and a stale `entity_expected_version` does not produce a spurious conflict for a target that wasn't going to be modified anyway.
+
+### Client Guidance
+
+Senders that engage OCC are responsible for retry-on-conflict. The recommended pattern is:
+
+1. capture local `Entity.version` for every target before authoring the bundle
+2. submit the bundle
+3. on `entity_version_conflict`:
+   - re-read the affected entities
+   - re-evaluate the sender's intent in light of the new state
+   - re-author and resubmit, or surface the conflict to the operator if the new state changes the answer
+
+A future TAP client library is expected to wrap this loop with exponential-backoff retries on conflicts, mirroring `client-go`'s `RetryOnConflict`, asyncpg / SQLAlchemy retry-on-`40001`, and CockroachDB's documented retry loop. The library is not part of this requirement; the contract is documented here so future libraries converge on the same shape.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-import-grift-occ-1 | Atomic Check-And-Mutate | Approved for Development | The version check is performed atomically with the mutation by the service-layer verb, not as a separate read-then-act step in the importer. | Race window is zero. |
+| req-grid-import-grift-occ-2 | Conflict Aborts The Batch | Approved for Development | Any `entity_version_conflict` from any in-scope target rolls the batch back atomically. | All-or-nothing with the surrounding `transaction.atomic()`. |
+| req-grid-import-grift-occ-3 | Diagnostic Detail Included | Approved for Development | The `entity_version_conflict` issue includes `entity_id`, `entity_type`, `entity_expected_version`, `actual_entity_version`, `path`, and `operation`. | |
+| req-grid-import-grift-occ-4 | No Policy Knob | Approved for Development | The file format and importer do not expose a way to soften a version conflict; it always fails loud. | |
+| req-grid-import-grift-occ-5 | Mixed Bundles Allowed | Approved for Development | A batch may freely combine targets with and without `entity_expected_version`; each is enforced independently. | |
+| req-grid-import-grift-occ-6 | Policy-Skipped Targets Bypass Version Check | Approved for Development | A target that the transaction-scoped check skips (e.g. `on_missing="ignore"`) does not produce a version-conflict issue even if its `entity_expected_version` would have mismatched. | |
+| req-grid-import-grift-occ-7 | Conflict-Resolution Is Client Responsibility | Approved for Development | The importer does not retry on conflict. Senders own the retry-or-surface decision. | A future client library is expected to wrap retry-with-backoff. |
+
+
+## Skipped Batch Removal Warning
+----
+RID: `req-grid-import-grift-skipped-batch-removals`
+Status: `Approved for Development`
+
+A batch whose `batch_entity_id` already exists locally is skipped by `req-grid-import-grift-identity`. The existing visibility contract (`req-grid-import-grift-ordering-6`) requires a `[skip]` log line and a `result.skipped_batches[]` entry with the explicit `--force-batches` recipe. That is sufficient when the skipped batch contained only upserts: the author can re-run with `--force-batches` if they meant to re-apply.
+
+Skipped batches that contain removal sections are a higher-blast-radius case. A missed upsert can be recovered by re-authoring or re-running; a missed removal leaves stale state in the grid with no visible signal that anything was supposed to be different. The author of the bundle has to remember the document contained `deletes` or `purges` to even think to check `skipped_batches[]`.
+
+### Required Behavior
+
+When a batch is skipped by the skip-if-exists rule AND that batch's container in the incoming document includes either a non-empty `deletes` section or a non-empty `purges` section, the importer must:
+
+- emit a warning-level log line distinct from the standard `[skip]` line, identifying the batch and naming the removal counts
+- include a `skipped_batch_had_removals` warning in `result.warnings[]`, with the offending batch's `batch_entity_id`, the counts of declared removal targets by section, and the same `--force-batches=<id>` recipe so the operator can re-run loudly
+
+The warning fires on declaration of removal targets, not on whether those targets would have removed anything. An author who writes `deletes` with five targets meant for those five removals to fire; if the batch is skipped, all five missed.
+
+A skipped batch whose removal sections are entirely empty (`deletes` and `purges` both present-but-empty, or both absent) does not require this extra warning — the conventional skip line covers it.
+
+### Issue Shape
+
+Recommended issue code: `skipped_batch_had_removals`.
+
+Recommended payload fields:
+
+- `batch_entity_id`
+- `deletes_edges_count`
+- `deletes_nodes_count`
+- `purges_edges_count`
+- `purges_nodes_count`
+- `force_recipe` — the literal `--force-batches=<id>` string that would re-run the batch
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-import-grift-skipped-batch-removals-1 | Warning On Skipped Batch With Removals | Approved for Development | A skipped batch whose document container includes one or more non-empty removal sections produces a `skipped_batch_had_removals` warning. | |
+| req-grid-import-grift-skipped-batch-removals-2 | Empty Sections Do Not Trigger | Approved for Development | A skipped batch with no declared removal targets does not produce this warning. | The standard skip log line is sufficient. |
+| req-grid-import-grift-skipped-batch-removals-3 | Recipe Included | Approved for Development | The warning payload includes the literal `--force-batches=<id>` invocation that would re-run the batch. | |
+| req-grid-import-grift-skipped-batch-removals-4 | Separate From Standard Skip Line | Approved for Development | The warning is emitted in addition to, not instead of, the existing `[skip]` log line and `skipped_batches[]` entry from `req-grid-import-grift-ordering-6`. | |
+
 
 ## Deterministic Ordering And Last-Write-Wins
 ----
@@ -274,7 +569,8 @@ This is the escape valve promised by *"Future versions may add content-hash or s
 - For each named batch, the importer bypasses the skip check and runs the full batch execution path (`req-grid-import-grift-batch`).
 - The batch's node and edge writes go through the service layer with `CallerContext.batch_id = batch_entity.entity_id` — the **original** id, unchanged. Force re-import does not mint a new batch; it re-applies the existing one.
 - Upsert semantics apply: existing nodes with matching `entity_id` are updated; new nodes introduced in the revised content are created; unchanged nodes are no-ops.
-- Removals — entities that existed under this batch previously but are absent from the revised content — are NOT handled by this requirement. Removal behavior is defined by `req-grid-import-grift-batch-scoped-sweep`.
+- Removal sections are re-applied. `deletes` and `purges` declared in the revised batch run on every force re-import in their normal execution position (`req-grid-import-grift-removals` execution order). Their idempotency properties under repeated application come from the section policy knobs (`on_missing`, `on_tombstoned`) and from `entity_expected_version` declarations; the importer itself does not deduplicate removals across force re-imports.
+- Sweep removals — entities that existed under this batch previously but are absent from the revised content — are NOT handled by this requirement. Sweep behavior is defined by `req-grid-import-grift-batch-scoped-sweep`; explicit `deletes` / `purges` sections are defined separately by `req-grid-import-grift-removals`. When both apply, explicit removals execute first and sweep skips targets already tombstoned by them (per `req-grid-import-grift-batch-scoped-sweep`).
 
 ### Environment Gate
 
@@ -305,14 +601,26 @@ Status: `Implemented`
 
 When a batch is force re-imported (`req-grid-import-grift-force-reimport`), the revised content may omit nodes or edges that the original ingestion created. The sweep detects those orphans and tombstones them via the service-layer delete path, bounded strictly to entities this batch originally created.
 
+### Ordering Relative To Explicit Removals
+
+Explicit removal sections (`req-grid-import-grift-removals`) execute **before** the sweep within the same batch transaction. The execution sequence is:
+
+1. node and edge upserts
+2. explicit `deletes` and `purges`
+3. batch-scoped sweep
+4. pre-commit consistency phase (hotlinks, etc.)
+
+A candidate entity that has already been tombstoned by an explicit `deletes` target in this same batch is *not* a sweep candidate — the sweep skips already-tombstoned entities by design (it tombstones via the service-layer delete path, which is idempotent against already-tombstoned targets). This avoids double-effort and keeps the audit trail attributable to the explicit removal that fired first.
+
 ### Sweep Candidates
 
 A candidate for sweep is an entity meeting all of:
 
 - the entity's **creation history row** (first historical record) carries `batch_id == <the batch being force-reimported>`
 - the entity's current `entity_id` does not appear in the revised batch's node or edge set
+- the entity is not already tombstoned (whether by this batch's explicit `deletes` or by prior history)
 
-Candidates are computed after the revised batch's upserts have been staged (so the new node/edge set is known) but before any deletions are applied.
+Candidates are computed after the revised batch's upserts have been staged AND after this batch's explicit removal sections have run, so the candidate set reflects the post-explicit-removal graph. This ordering means a bundle author may use explicit `deletes` for entities they want to name explicitly (with attached `reason`) and rely on the sweep for the longer tail of entities the batch originally created.
 
 ### Guardrails
 

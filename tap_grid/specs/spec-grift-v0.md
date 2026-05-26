@@ -4,7 +4,9 @@
 
 GRIFT, the Grid Interchange Format, is TAP's JSON-based interchange format for moving graph data between files and grids. GRIFT v0 is intentionally small, strict, and practical: it should be easy to validate, easy to diff, and sufficient to refactor plugin seed data such as the LOTR dataset into portable JSON files.
 
-GRIFT is a full-object interchange format. It does not describe patches, history replay, or FLIP state. It carries enough canonical information for an importer to choose its own create, replace, upsert, or skip behavior while preserving universal entity identity through `entity_id`.
+GRIFT's node and edge lanes are full-object interchange: they do not describe patches, history replay, or FLIP state. They carry enough canonical information for an importer to choose its own create, replace, upsert, or skip behavior while preserving universal entity identity through `entity_id`. GRIFT's removal lanes are explicit identity-targeted operations, declared separately from node and edge upserts.
+
+GRIFT also carries an optional **optimistic concurrency** contract. Any mutating target — an upsert envelope or a removal target — may declare the version of the local entity it expects to act on. The importer enforces that expectation atomically: if the local version has moved on, the conflicting batch fails loud rather than overwriting state the author did not see. This is the same model Kubernetes uses with `resourceVersion`, Postgres SERIALIZABLE uses with `40001 serialization_failure`, and event-sourcing frameworks use with `entity_expected_version` on aggregate writes. The author's mental model is "apply if the grid still matches my plan, else tell me." Senders that need to recover from a conflict re-read, re-plan, and resubmit.
 
 ## Goals
 
@@ -29,6 +31,10 @@ GRIFT is a full-object interchange format. It does not describe patches, history
 - edge object: one item in a batch `edges` array, consisting of `entity` plus `edge`
 - node payload: the `node` object containing typed full-object node data
 - edge payload: the `edge` object containing typed full-object edge data and explicit endpoints
+- removal section: an optional batch-level `deletes` or `purges` object containing explicit removal targets
+- removal target: one item in a removal section's `edges` or `nodes` array, consisting of `entity_id`, `entity_type`, `reason`, and an optional `entity_expected_version`
+- expected version: an optional integer on a mutating target (upsert envelope or removal target) declaring the local `Entity.version` the sender believes is current; a mismatch at execution time aborts the batch with a `entity_version_conflict` issue
+- version conflict: the importer's detection that a mutating target's `entity_expected_version` does not match the local `Entity.version` at the moment of execution
 
 ## JSON Schemas
 
@@ -80,6 +86,11 @@ These schemas are normative for structure and basic field validation. Model-spec
           "format": "date-time"
         }
       ]
+    },
+    "entity_expected_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional optimistic-concurrency declaration: the local Entity.version the sender expects to act on. Enforced by the importer at execution time. Omitted means 'don't check' (legacy / first-write behavior)."
     }
   }
 }
@@ -173,6 +184,98 @@ These schemas are normative for structure and basic field validation. Model-spec
       "items": {
         "$ref": "#/$defs/GriftEdgeObject"
       }
+    },
+    "deletes": {
+      "$ref": "#/$defs/GriftDeletesSection"
+    },
+    "purges": {
+      "$ref": "#/$defs/GriftPurgesSection"
+    }
+  }
+}
+```
+
+### `GriftRemovalTarget`
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entity_id", "entity_type", "reason"],
+  "properties": {
+    "entity_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "entity_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entity_expected_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional optimistic-concurrency declaration: the local Entity.version the sender expects to remove. Enforced by the importer at execution time. Omitted means 'don't check'."
+    }
+  }
+}
+```
+
+### `GriftDeletesSection`
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["on_missing", "on_tombstoned", "edges", "nodes"],
+  "properties": {
+    "on_missing": {
+      "enum": ["error", "warn", "ignore"]
+    },
+    "on_tombstoned": {
+      "enum": ["error", "warn", "ignore"]
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GriftRemovalTarget"
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GriftRemovalTarget"
+      }
+    }
+  }
+}
+```
+
+### `GriftPurgesSection`
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["on_missing", "edges", "nodes"],
+  "properties": {
+    "on_missing": {
+      "enum": ["error", "warn", "ignore"]
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GriftRemovalTarget"
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GriftRemovalTarget"
+      }
     }
   }
 }
@@ -251,6 +354,11 @@ These schemas are normative for structure and basic field validation. Model-spec
               "format": "date-time"
             }
           ]
+        },
+        "entity_expected_version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional optimistic-concurrency declaration: the local Entity.version the sender expects to act on. Enforced by the importer at execution time."
         }
       }
     },
@@ -324,6 +432,83 @@ These schemas are normative for structure and basic field validation. Model-spec
           "items": {
             "$ref": "#/$defs/GriftEdgeObject"
           }
+        },
+        "deletes": {
+          "$ref": "#/$defs/GriftDeletesSection"
+        },
+        "purges": {
+          "$ref": "#/$defs/GriftPurgesSection"
+        }
+      }
+    },
+    "GriftRemovalTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "entity_type", "reason"],
+      "properties": {
+        "entity_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "entity_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entity_expected_version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional optimistic-concurrency declaration: the local Entity.version the sender expects to remove. Enforced by the importer at execution time."
+        }
+      }
+    },
+    "GriftDeletesSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["on_missing", "on_tombstoned", "edges", "nodes"],
+      "properties": {
+        "on_missing": {
+          "enum": ["error", "warn", "ignore"]
+        },
+        "on_tombstoned": {
+          "enum": ["error", "warn", "ignore"]
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GriftRemovalTarget"
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GriftRemovalTarget"
+          }
+        }
+      }
+    },
+    "GriftPurgesSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["on_missing", "edges", "nodes"],
+      "properties": {
+        "on_missing": {
+          "enum": ["error", "warn", "ignore"]
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GriftRemovalTarget"
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GriftRemovalTarget"
+          }
         }
       }
     }
@@ -343,7 +528,8 @@ These schemas are normative for structure and basic field validation. Model-spec
 | req-grift-validation | [Validation Rules](#validation-rules) | Implemented | Strict schema and sanity rules |
 | req-grift-seed-ids | [Seed Data ID Convention](#seed-data-id-convention) | Deprecated | Superseded by [spec-grid-uuid-selection.md](spec-grid-uuid-selection.md) and [spec-grift-seed-ids-real-uuid7.md](spec-grift-seed-ids-real-uuid7.md) |
 | req-grift-order | [Canonical Export Ordering](#canonical-export-ordering) | Backlog | Export ordering (no exporter yet) |
-| req-grift-import-deletes | [Import-Time Deletions](#import-time-deletions) | Backlog | Idempotent removal of nodes/edges that disappear from a re-imported batch |
+| req-grift-import-deletes | [Imperative Removal Sections](#imperative-removal-sections) | Approved for Development | Explicit batch-level delete and purge operations; not desired-state reconciliation |
+| req-grift-concurrency-version | [Optimistic Concurrency Via Expected Version](#optimistic-concurrency-via-expected-version) | Approved for Development | Optional `entity_expected_version` on any mutating target declares the local `Entity.version` the sender expects; the importer aborts the batch on mismatch |
 | req-grift-v0-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Explicit exclusions for this version |
 
 ## Document Format
@@ -489,7 +675,7 @@ Optional:
 - `name` is the canonical human-readable identifier when present.
 - If `name` is present it must not be an empty string.
 - `created_at` and `updated_at` are optional in v0, but if present they are imported and validated.
-- `deleted_at` is optional; if present it is validated for timestamp sanity (see below) but **not applied**. GRIFT import in v0 is additive / upsert-only: it creates and updates entities and never tombstones them. An envelope's `deleted_at` does not mark the imported entity deleted, and the importer never deletes entities. Deleting nodes through GRIFT is a known gap, deliberately out of scope for v0 until the delete method is designed.
+- `deleted_at` is optional; if present it is validated for timestamp sanity (see below) but **not applied** by node or edge upsert. An envelope's `deleted_at` does not mark the imported entity deleted. Import-time deletion intent is declared only through the batch-level `deletes` section, and hard-delete intent only through the batch-level `purges` section.
 - A batch envelope must use `entity_type == "batch"`.
 - An edge envelope must use `entity_type == "edge"`.
 
@@ -512,12 +698,17 @@ GRIFT batches preserve serialized TAP batch structure and group imported nodes a
 
 ### Batch Shape
 
-Each item in `batches` is an object with exactly these keys:
+Each item in `batches` is an object with these required keys:
 
 - `batch_entity`
 - `batch_node`
 - `nodes`
 - `edges`
+
+It may also contain these optional keys:
+
+- `deletes`
+- `purges`
 
 Unknown keys are invalid.
 
@@ -528,6 +719,10 @@ Unknown keys are invalid.
 `nodes` is an array of node objects and is always present.
 
 `edges` is an array of edge objects and is always present.
+
+`deletes`, when present, is an imperative removal section for ordinary tombstone deletes. It is not inferred from absent `nodes` or `edges`.
+
+`purges`, when present, is an imperative removal section for DEBUG-only hard deletes. It is not inferred from absent `nodes` or `edges`.
 
 ### Batch Payload
 
@@ -570,7 +765,18 @@ In v0:
     }
   },
   "nodes": [],
-  "edges": []
+  "edges": [],
+  "deletes": {
+    "on_missing": "error",
+    "on_tombstoned": "ignore",
+    "edges": [],
+    "nodes": []
+  },
+  "purges": {
+    "on_missing": "error",
+    "edges": [],
+    "nodes": []
+  }
 }
 ```
 
@@ -750,25 +956,184 @@ Recommended formatting:
 
 These formatting requirements support human readability for type-based plugin data files while still allowing large mixed-type imports.
 
-## Import-Time Deletions
+## Imperative Removal Sections
 ----
 RID: `req-grift-import-deletes`
-Status: `Backlog`
+Status: `Approved for Development`
 
-Today GRIFT import is purely additive: re-importing a bundle creates or updates nodes and edges declared in the JSON, but never reaps entities that were *removed* from the bundle. Operators who need to retire a previously-seeded node (for example, retiring the administrivia `landing_page` after reassigning the landing role to another plugin) must currently follow the JSON change with a one-shot service-layer `delete_node` / `delete_edge_by_entity` call, performed manually via `manage.py shell` or an ad-hoc management command.
+GRIFT batches may declare explicit removal operations alongside their node and edge upserts. These operations are imperative: they mean "apply these removals as part of this batch." They do **not** mean "make the grid exactly match this file" and they do not infer removals from objects absent from `nodes` or `edges`.
 
-This requirement covers a future opt-in mechanism that lets a re-imported batch tombstone entities that were present in the prior import but are absent from the new one. The likely shape, sketched here for reference:
+### Removal Section Shape
 
-- Import scope is the *batch*, not the bundle: each `batch_entity_id` carries an authoritative list of `entity_id`s that belong to that batch.
-- On re-import, the importer can compare prior batch membership (recorded server-side at import time) against the new bundle and tombstone the difference via the service layer.
-- The behavior is opt-in per bundle (e.g. a `batch_entity.dimensions["grift.reap"] = "strict" | "off"` flag), and never crosses batch boundaries (batch B never reaps entities owned by batch A).
-- Deletes flow through the standard service-layer pipeline so they get history rows, FLIP/provenance, and edge cascade, identical to a hand-written `delete_node` call.
+A batch may include a `deletes` section, a `purges` section, both, or neither.
 
-Until this requirement lands, plugin authors removing previously-seeded entities should:
+`deletes` has this shape:
 
-1. Remove the node and any edges referencing it from the bundle JSON.
-2. Bump the batch version + `batch_entity_id` so the change reads as a new batch revision.
-3. Issue a one-shot service-layer delete for the affected `entity_id`(s) (via `manage.py shell` or a plugin-local management command).
+```json
+{
+  "on_missing": "error",
+  "on_tombstoned": "ignore",
+  "edges": [
+    {
+      "entity_id": "01962ebd-f9d4-7f8a-9b4e-0e4f4d2dc201",
+      "entity_type": "edge",
+      "reason": "Replaced by a canonical relationship."
+    }
+  ],
+  "nodes": [
+    {
+      "entity_id": "01962ebd-f9d4-7f8a-9b4e-0e4f4d2dc101",
+      "entity_type": "character",
+      "reason": "No longer part of this seed set."
+    }
+  ]
+}
+```
+
+`purges` has this shape:
+
+```json
+{
+  "on_missing": "error",
+  "edges": [],
+  "nodes": []
+}
+```
+
+Rules:
+
+- `edges` and `nodes` are always present inside a removal section, even when empty.
+- Removal targets require `entity_id`, `entity_type`, and `reason`.
+- `entity_type` is a sanity check against the local Entity row. It is not optional decoration.
+- `reason` is required so removal context can be traced from the batch and its event metadata.
+- Section-level knobs apply to every target in that section. v0 does not support item-level overrides.
+
+### Section Knobs
+
+Allowed `on_missing` values:
+
+- `error`
+- `warn`
+- `ignore`
+
+Allowed `deletes.on_tombstoned` values:
+
+- `error`
+- `warn`
+- `ignore`
+
+Default policy for authors who want conventional behavior:
+
+- `deletes.on_missing = "error"`
+- `deletes.on_tombstoned = "ignore"`
+- `purges.on_missing = "error"`
+
+A purge operator is asking for DEBUG-only hard deletion. If the target identifier is wrong, they almost certainly want to know loudly rather than have the bundle complete with a "warned" outcome. The conventional policy mirrors `deletes.on_missing` for the same reason: missing identifiers usually mean an authoring mistake, not desired state.
+
+The schema requires the policy fields to be present rather than silently applying defaults. This keeps GRIFT explicit and diffable.
+
+### Semantics
+
+`deletes` performs ordinary TAP tombstone delete behavior through the service layer. History is preserved, `deleted_at` is set, and node deletes tombstone touching edges according to the standard delete contract.
+
+`purges` performs DEBUG-only hard-delete behavior. Purge removes the target row, its Entity spine, relevant history rows, and target-specific BatchEvent rows according to the service-layer purge contract. Purge is for development cleanup and reset workflows, not normal product deletion.
+
+Edge targets are processed before node targets within each section. This lets a bundle explicitly remove relationships before removing nodes and keeps the declared order consistent with TAP's graph shape.
+
+### Non-Goals
+
+- Desired-state reconciliation is out of scope. A future AWS-style authoritative import may trim entities that are no longer present upstream, but this requirement does not define that machinery.
+- Removal by query, dimension, type, or batch ownership is out of scope. v0 removal targets explicit entity IDs only.
+- Item-level policy overrides are out of scope. Split the work into separate batches if mixed policy is needed.
+
+## Optimistic Concurrency Via Expected Version
+----
+RID: `req-grift-concurrency-version`
+Status: `Approved for Development`
+
+GRIFT carries an optional optimistic-concurrency contract for mutating targets. A sender that knows the version of an entity it intends to act on may declare that expectation on the mutating target; the importer enforces the expectation atomically at execution time. A mismatch fails the batch loudly rather than silently overwriting state the sender did not see.
+
+This is the same model adopted by Kubernetes (`resourceVersion`), Postgres `SERIALIZABLE` (`40001 serialization_failure`), CockroachDB, AWS Cloud Control, Jira / GitHub API ETags, and event-sourcing frameworks with `entity_expected_version` on aggregate writes. GRIFT adopts it because GRIFT is the primary write surface for the grid, will be exercised by many senders concurrently in the satellite / outpost direction, and central locking does not scale to that shape. OCC pushes the conflict-resolution decision to the sender — which is the only party that knows whether to retry, re-plan, or surface the conflict to its operator — and lets the importer remain stateless about retry policy.
+
+### Scope
+
+Optimistic concurrency applies to **mutating targets**:
+
+- node objects whose envelope's `entity_id` already exists locally and therefore drives a replace (`req-grid-import-grift-batch` / per-entity last-write-wins)
+- edge objects whose envelope's `entity_id` already exists locally and therefore drives a replace
+- every target inside a `deletes` section
+- every target inside a `purges` section
+
+It does NOT apply to:
+
+- node or edge envelopes where the sender omits `entity_expected_version` AND the local grid has no matching entity — these route through the normal create flow with no version check
+- batch envelopes (`batch_entity`) — batch identity is governed by `req-grid-import-grift-identity`, not OCC
+- `batch_node` payloads (the batch model row, not a contended entity)
+
+#### Declared Expectation On A Missing Local Entity
+
+GRIFT upsert routes create vs. replace from local state, not from the document. The same envelope can route to a replace on one grid (where the entity exists) and a create on another grid (where it doesn't). This asymmetry interacts with OCC: a sender who *declared* `entity_expected_version` is asserting "I expect this entity to exist with version N." Silently demoting that to a create-with-version-ignored would let bundles succeed on a grid where the sender's expectation is wrong by definition (there is no version N — there is no entity).
+
+The contract is therefore: **a node or edge envelope that declares `entity_expected_version` and points at an entity_id with no matching local entity is a version conflict.** It surfaces with `entity_version_conflict` and `actual_entity_version = null`, the same shape used when a local entity exists but its version moved. This makes the contract symmetric — the sender's expectation is enforced regardless of how the local state diverges from it — and makes the bundle's behavior independent of the receiving grid's state, except for the conflict signal itself.
+
+A sender who genuinely intends "create this entity if missing, replace it if present" should omit `entity_expected_version` (the create path is unguarded by design). A sender who declares `entity_expected_version` is explicitly opting out of "create if missing."
+
+### Declaration
+
+The declaration is the optional `entity_expected_version` field on:
+
+- `GriftEntityEnvelope` — for upsert envelopes (nodes, edges)
+- `GriftRemovalTarget` — for delete and purge targets
+
+`entity_expected_version` is a positive integer (minimum 1) matching the local `Entity.version` field shape; `Entity.version` is a monotonic counter that starts at 1 on entity creation, so 0 is not a valid expected value. Senders that do not wish to engage OCC for a given target omit the field; the importer then performs the requested write without a version check (existing behavior).
+
+A sender may freely mix targets with and without `entity_expected_version` in the same batch. Each target is enforced independently.
+
+### Enforcement
+
+For every mutating target in an executing batch:
+
+- if `entity_expected_version` is omitted, the importer applies the operation without a version check
+- if `entity_expected_version` is present, the importer applies the operation only if the local `Entity.version` matches `entity_expected_version` at the moment of execution
+- a mismatch is a `entity_version_conflict` issue and aborts the batch atomically via the standard transactional rollback contract
+
+The version check is enforced by the service-layer verb that performs the mutation, using a single atomic guard on the `Entity` row (a conditional UPDATE or a `SELECT … FOR UPDATE` followed by a compare-and-act, both performed inside the verb's transaction). The race window between version-check and version-mutation is zero, and exactly one `Entity.version` increment is recorded per successful operation. The detailed contract is governed by `req-grid-import-grift-occ` in `spec-grid-import-grift.md` and `req-grid-service-batch-occ` in `spec-grid-service-batch.md`.
+
+### Failure Semantics
+
+A version conflict is **not** a recoverable per-target outcome:
+
+- there is no `on_entity_version_conflict` policy knob analogous to `on_missing` / `on_tombstoned`
+- the importer never silently overwrites stale-version state
+- the importer never silently skips a target whose version moved
+- the batch fails as a whole and rolls back; the sender is responsible for re-reading, re-planning, and (if appropriate) resubmitting
+
+This asymmetry is intentional. `on_missing` / `on_tombstoned` describe expected variations in target state that the bundle author has already decided how to handle in policy text. A version conflict describes a state change the author did not anticipate; the safe response is to surface it loudly, not to apply a default response chosen by the file format.
+
+### Reference Time And Versions
+
+GRIFT already captures a single `reference_time` per import (`req-grid-import-grift-time`) used for timestamp comparison. `entity_expected_version` is a complementary mechanism: `reference_time` governs WHAT counts as a valid imported timestamp; `entity_expected_version` governs whether the local entity has moved since the sender prepared the batch.
+
+The sender is responsible for capturing `entity_expected_version` values that are coherent with one another (e.g. by reading the target entities under a single repeatable-read transaction or by reading them from a recent snapshot). GRIFT does not define how `entity_expected_version` values are obtained; it only enforces them at import.
+
+### Future Work
+
+- a future "weak" version mode might allow targets to declare `entity_expected_version_at_least` semantics for non-conflicting forward-only writes; deferred until a use case lands
+- service-layer verbs (`replace_node`, `patch_node`, `delete_node`, `purge_node`, edge siblings) accept an `entity_expected_version` parameter so non-GRIFT callers can use the same contract; defined in `req-grid-service-batch-occ` and the relevant verb specs
+- a future TAP client helper library (`tap_client.grift`) is expected to wrap the retry-on-conflict loop; see commentary in `req-grid-import-grift-occ` Client Guidance
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grift-concurrency-version-1 | Optional Field On Envelope And Removal | Approved for Development | `entity_expected_version` is an optional positive integer (minimum 1) field on `GriftEntityEnvelope` and `GriftRemovalTarget`. `Entity.version` starts at 1, so 0 is not a valid expected value. | |
+| req-grift-concurrency-version-2 | Applies To Mutating Targets Only | Approved for Development | OCC applies to replace-flow upsert envelopes and to delete / purge removal targets. Envelopes that omit `entity_expected_version` and find no local entity route through the create path with no version check. `batch_entity` and `batch_node` are out of scope. | |
+| req-grift-concurrency-version-7 | Declared Expectation Beats Missing Entity | Approved for Development | An envelope that declares `entity_expected_version` and points at an entity_id with no matching local entity is a `entity_version_conflict` with `actual_entity_version = null`. The sender's declared expectation is enforced regardless of whether the local divergence is "wrong version" or "no entity at all." | Makes the contract symmetric and bundle behavior grid-independent. |
+| req-grift-concurrency-version-3 | Omitted Means Skip Check | Approved for Development | A target with no `entity_expected_version` proceeds without a version check, preserving existing import behavior. | |
+| req-grift-concurrency-version-4 | Mismatch Aborts Batch | Approved for Development | A version mismatch on any in-scope target aborts the batch with a `entity_version_conflict` issue; the batch rolls back atomically. | |
+| req-grift-concurrency-version-5 | No Conflict Policy Knob | Approved for Development | The file format does not expose `on_entity_version_conflict`. Version conflicts always fail loud. | |
+| req-grift-concurrency-version-6 | Mixed Bundles Permitted | Approved for Development | A single batch may freely mix targets with and without `entity_expected_version`. | |
+
 
 ## v0 Non-Goals
 ----

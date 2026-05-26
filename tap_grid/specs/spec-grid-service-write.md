@@ -19,6 +19,7 @@ Write operations are where the TAP service layer earns its keep. The write contr
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-grid-service-write-surface | [Write Operation Surface](#write-operation-surface) | Implemented | Canonical public write verbs |
+| req-grid-service-write-occ | [Optimistic Concurrency Parameter](#optimistic-concurrency-parameter) | Approved for Development | Mutating verbs accept `entity_expected_version` for atomic check-and-mutate |
 | req-grid-service-write-payloads | [Write Payload Semantics](#write-payload-semantics) | Implemented | Slug-driven payload handling and strict rejection |
 | req-grid-service-write-internal | [Internal-Only Write Exclusion](#internal-only-write-exclusion) | Implemented | Default service-layer CRUD verbs reject internal-only model types |
 | req-grid-service-write-internal-create | [Trusted-Internal Create Entry Point](#trusted-internal-create-entry-point) | Proposed | `_create_node_internal` runs the full write pipeline minus the `INTERNAL_ONLY` gate for trusted subsystem helpers |
@@ -63,6 +64,87 @@ These public verbs should share one internal dispatcher/pipeline.
 
 #### Future
 Decide whether any thin generic write wrapper is needed in addition to the explicit verbs.
+
+### Optimistic Concurrency Parameter
+----
+RID: `req-grid-service-write-occ`
+Status: `Approved for Development`
+
+Every mutating write verb accepts an optional `entity_expected_version: int | None = None` parameter that engages optimistic concurrency control for that call. When set, the verb performs the version check atomically with the mutation; when omitted, the verb writes without a version check (existing behavior).
+
+This is the per-verb surface of the OCC contract specified by `req-grid-service-batch-occ` in `spec-grid-service-batch.md`. The semantics, error code, and conflict-handling rules are defined there. This requirement only documents the verb signatures.
+
+#### Implementation
+
+Signatures gain `entity_expected_version`:
+
+```python
+def patch_node(
+    target: str | uuid.UUID,
+    payload: dict,
+    *,
+    caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
+    dry_run: bool = False,
+    result_mode: Literal["minimal", "standard", "verbose"] = "standard",
+) -> WriteResult: ...
+
+def replace_node(
+    target: str | uuid.UUID,
+    payload: dict,
+    *,
+    caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
+    dry_run: bool = False,
+    result_mode: Literal["minimal", "standard", "verbose"] = "standard",
+) -> WriteResult: ...
+
+def patch_edge(
+    target: str | uuid.UUID,
+    payload: dict,
+    *,
+    caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
+    dry_run: bool = False,
+    result_mode: Literal["minimal", "standard", "verbose"] = "standard",
+) -> WriteResult: ...
+
+def replace_edge(
+    target: str | uuid.UUID,
+    payload: dict,
+    *,
+    caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
+    dry_run: bool = False,
+    result_mode: Literal["minimal", "standard", "verbose"] = "standard",
+) -> WriteResult: ...
+```
+
+Create verbs (`create_node`, `create_edge`) accept `entity_expected_version` only to provide a uniform call surface, but raise a stable error if it is set:
+
+```python
+def create_node(
+    type_slug: str,
+    payload: dict,
+    *,
+    caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,  # must be None
+    ...,
+) -> WriteResult: ...
+```
+
+A create with `entity_expected_version` set is a caller mistake (no prior version exists to expect). The error code is `entity_expected_version_not_allowed_on_create`, distinct from `entity_version_conflict`, so callers see the right diagnostic.
+
+For batched writes, the same parameter is carried on `WriteOperation.entity_expected_version` and threaded through the pipeline to the verb. Both surfaces — single-verb calls and `write_batch()` — share the implementation defined in `req-grid-service-batch-occ`.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-write-occ-1 | Mutating Verbs Accept Expected Version | Approved for Development | `patch_node`, `replace_node`, `patch_edge`, `replace_edge` accept `entity_expected_version: int \| None = None`. | |
+| req-grid-service-write-occ-2 | Create Verbs Reject Expected Version | Approved for Development | `create_node` and `create_edge` raise `entity_expected_version_not_allowed_on_create` if `entity_expected_version` is set. | Distinct from `entity_version_conflict`. |
+| req-grid-service-write-occ-3 | Default Is Inline | Approved for Development | Omitting `entity_expected_version` runs the existing write path with no version check. | |
+| req-grid-service-write-occ-4 | Conflict Surfaces As Standard Error | Approved for Development | A version mismatch returns the standard `WriteResult` with `errors[0].code == "entity_version_conflict"` and the detail payload described in `req-grid-service-batch-occ`. | |
 
 ### Service Schema Simplification
 ----

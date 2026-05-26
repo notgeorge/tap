@@ -143,6 +143,78 @@
           "items": {
             "$ref": "#/$defs/GriftEdgeObject"
           }
+        },
+        "deletes": {
+          "$ref": "#/$defs/GriftDeletesSection"
+        },
+        "purges": {
+          "$ref": "#/$defs/GriftPurgesSection"
+        }
+      }
+    },
+    "GriftRemovalTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "entity_type", "reason"],
+      "properties": {
+        "entity_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "entity_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "GriftDeletesSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["on_missing", "on_tombstoned", "edges", "nodes"],
+      "properties": {
+        "on_missing": {
+          "enum": ["error", "warn", "ignore"]
+        },
+        "on_tombstoned": {
+          "enum": ["error", "warn", "ignore"]
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GriftRemovalTarget"
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GriftRemovalTarget"
+          }
+        }
+      }
+    },
+    "GriftPurgesSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["on_missing", "edges", "nodes"],
+      "properties": {
+        "on_missing": {
+          "enum": ["error", "warn", "ignore"]
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GriftRemovalTarget"
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GriftRemovalTarget"
+          }
         }
       }
     }

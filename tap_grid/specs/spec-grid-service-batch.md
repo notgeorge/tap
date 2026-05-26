@@ -29,6 +29,7 @@ Batch records should also be legible as first-class change events. They need eno
 | req-grid-service-batch-diag | [Per-Item Diagnostics](#per-item-diagnostics) | Implemented | Batch partial diagnostics and reporting |
 | req-grid-service-batch-tx | [Transactional Commit Behavior](#transactional-commit-behavior) | Implemented | All-or-nothing commit model |
 | req-grid-service-batch-precommit-consistency | [Pre-Commit Consistency Phase](#pre-commit-consistency-phase) | Implemented | After per-op success, before commit, run cross-row graph-consistency checks (hotlinks today) and attribute failures per-op |
+| req-grid-service-batch-occ | [Optimistic Concurrency Per Operation](#optimistic-concurrency-per-operation) | Approved for Development | `WriteOperation.entity_expected_version` declares the local `Entity.version` an op expects; the verb performs an atomic check-and-mutate and surfaces `entity_version_conflict` |
 
 
 ### Batch Model
@@ -433,6 +434,105 @@ The phase deliberately runs *before* commit, not after. A post-commit check coul
 v0 has exactly one consumer (hotlink validation, `req-grid-hotlink-deferred`). If a second consumer lands, extract a small registry that lets consumers register `drain_callback(results)` against the phase rather than each subsystem hard-coding its own ContextVar plumbing. Do not pre-build the registry; let demand pull it.
 
 The phase is also the natural attachment point for future read-side consistency assertions (e.g. "every edge created by this batch resolves to a node that is either pre-existing or created earlier in this same batch"). Such checks are out of scope for v0 but should land here when they land.
+
+
+### Optimistic Concurrency Per Operation
+----
+RID: `req-grid-service-batch-occ`
+Status: `Approved for Development`
+
+Service-layer write and delete verbs expose an `entity_expected_version` parameter so callers can engage optimistic concurrency control at per-operation granularity. The verb enforces the version check via a single conditional Entity-row guard inside the verb's transaction (see Atomic Entity-Row Guard below for the two equivalent shapes the guard may take), guaranteeing a zero-width race window between the check and the act and recording exactly one `Entity.version` increment per successful call.
+
+This requirement is the service-layer half of GRIFT's optimistic-concurrency contract (`req-grift-concurrency-version` in `spec-grift-v0.md`, enforced by `req-grid-import-grift-occ` in `spec-grid-import-grift.md`) and is also available to non-GRIFT callers. Direct service-layer callers (admin tools, future API surfaces, internal scripts) can opt into OCC without going through GRIFT.
+
+#### Status Details
+
+Approved for Development. Implementation extends `WriteOperation` with an optional `entity_expected_version` field, threads it through `_execute_write_pipeline` to the underlying verb, and surfaces conflicts as `WriteResult.errors[].code == "entity_version_conflict"`. The per-verb specifications (`spec-grid-service-write.md`, `spec-grid-service-delete.md`) define the parameter signature on each public verb.
+
+#### Implementation
+
+**`WriteOperation` carries `entity_expected_version`.** A new optional field, type `int | None`, default `None`. When `None`, the verb runs without a version check (existing behavior). When set, the verb enforces the check via a single conditional Entity-row guard inside the verb's transaction (see Atomic Entity-Row Guard below for the two equivalent shapes the guard may take).
+
+**Atomic Entity-row guard.** The verb enforces the version check via a single conditional guard on the `Entity` row inside the verb's own `transaction.atomic()`. The guard takes one of two equivalent shapes:
+
+1. **Conditional Entity-row update.** A statement of the form `UPDATE entity SET version = version + 1, updated_at = now() WHERE id = X AND version = N RETURNING ...` runs as the first SQL action of the verb. If zero rows match, no other state in this verb's pipeline has changed; the verb raises (see Result Shape below) and the surrounding `transaction.atomic()` rolls back. If one row matches, `Entity.version` has incremented exactly once and the verb proceeds to the typed-model save, history, FLIP propagation, spine name sync, and any other downstream steps inside the same transaction.
+2. **`SELECT … FOR UPDATE` on the Entity row.** The verb takes a row-level lock on `Entity` at the start of its pipeline, reads the current version, compares to `entity_expected_version`, raises on mismatch, then proceeds with the same downstream steps and a single explicit `Entity.version += 1` on success.
+
+Both forms satisfy the contract because they share three properties:
+
+- the version comparison and the version increment are part of the same transaction-scoped guard
+- exactly one `Entity.version` increment is recorded per successful verb call
+- on any failure downstream (typed-model validation, history failure, FLIP failure, hotlink check, deferred hook), the surrounding `transaction.atomic()` rolls back and the increment is undone
+
+The choice between forms is an implementation detail of each verb. Patch/replace verbs that need typed-model `save()` machinery (which currently bumps `version` itself) typically lock the row first and skip a duplicate increment; verbs whose work is fully expressible as a single SQL update (most edge deletes, some purges) typically use the conditional UPDATE form. The contract above is what callers can rely on; the SQL shape is not.
+
+**No double version-bump.** Whichever form a verb uses, the typed-model `save()` path must contribute exactly one effective `Entity.version` increment per successful verb call. If `BaseModel.save()` would otherwise increment `version` on its own, the OCC guard arranges to set or skip that increment so the net change is +1. Verbs are responsible for documenting their integration with `BaseModel.save()` and `HistoricalRecords` so reviewers can confirm the single-increment invariant.
+
+**Verb signatures.** Every write verb accepts `entity_expected_version: int | None = None`:
+
+- `create_node` — `entity_expected_version` is meaningless (no prior version); the parameter is rejected with a stable error if set
+- `patch_node`, `replace_node` — `entity_expected_version` enforced as described
+- `delete_node` — `entity_expected_version` enforced
+- `create_edge` — same rejection-if-set rule as `create_node`
+- `patch_edge`, `replace_edge` — `entity_expected_version` enforced
+- `delete_edge_by_entity` / `delete_edge` — `entity_expected_version` enforced
+- `purge_node`, `purge_edge` — `entity_expected_version` enforced (see `spec-grid-service-delete.md`)
+
+**Result shape.** Two distinct failure cases must be distinguishable in the result:
+
+| Caller state | Local Entity state | Result code | `detail.actual_entity_version` |
+| --- | --- | --- | --- |
+| `entity_expected_version` omitted | entity missing | `not_found` | absent |
+| `entity_expected_version` omitted | entity exists | (success or other error per verb contract) | — |
+| `entity_expected_version = N` | entity missing entirely | `entity_version_conflict` | `null` |
+| `entity_expected_version = N` | entity exists, `Entity.version = N` | success | — |
+| `entity_expected_version = N` | entity exists, `Entity.version ≠ N` | `entity_version_conflict` | `<actual int>` |
+
+Rationale for the split: a direct caller who did not engage OCC and hit a missing entity meant "operate on this entity" and the absence is the relevant failure (`not_found`). A direct caller who declared `entity_expected_version` was asserting "this entity exists with version N" — the absence falsifies that assertion in the same way a wrong-version row does, and the caller's retry-or-surface logic wants to treat both as conflicts. GRIFT removal targets layer their own `on_missing` policy on top of this; see `req-grid-import-grift-occ`.
+
+A `entity_version_conflict` failure becomes a `WriteResult` with:
+
+- `success = False`
+- `errors[0].code = "entity_version_conflict"`
+- `errors[0].message` — human-readable message including expected vs actual (or "expected vs missing")
+- `errors[0].detail` — `{ "entity_expected_version": <int>, "actual_entity_version": <int | null>, "entity_id": <uuid str> }`
+
+A `not_found` failure (direct caller, no OCC, missing entity) uses the existing `ServiceNotFoundError` / `not_found` code with no `actual_entity_version` field — this path is unchanged from pre-OCC behavior.
+
+The new `entity_version_conflict` code is added to the `ServiceError.code` Literal so type-checkers see it.
+
+**Batch interaction.** A `entity_version_conflict` on any operation triggers the standard `_BailOut` path: the surrounding `transaction.atomic()` rolls back; subsequent operations in the batch are not executed. This matches the all-or-nothing commit contract (`req-grid-service-batch-tx`).
+
+**Dry-run.** Dry-run mode performs the version check normally and reports a conflict as it would in real commit mode. The rollback at the end of the dry-run does not change the conflict semantics: callers see the conflict in `WriteResult.errors` even though no data was persisted.
+
+#### Caller Guidance
+
+OCC is opt-in. Callers that engage it own the retry-or-surface decision on conflict. The recommended pattern is the same one documented in `req-grid-import-grift-occ` Client Guidance: re-read state, re-evaluate intent, resubmit or surface to the operator.
+
+The service layer does NOT retry automatically. A future helper module may wrap retry-with-backoff for common patterns (mirror of `client-go`'s `RetryOnConflict`), but that is out of scope for this requirement.
+
+#### Non-Goals
+
+- Caller-managed broad locking is out of scope. A verb may use a verb-internal `SELECT … FOR UPDATE` on its own target Entity row as the implementation of the OCC guard (see Atomic Entity-Row Guard above), but this requirement does not introduce a public surface for callers to declare or hold broader pessimistic locks across multiple operations. Tactical `SELECT FOR UPDATE` inside caller-owned transactions remains available but is not a public verb-contract feature.
+- "Latest version wins" or "force overwrite" modes are out of scope. The verbs perform exactly the check the caller declared and never bypass it; bypassing OCC is simply "omit `entity_expected_version`," which is the default behavior.
+- Range checks (e.g. `entity_expected_version_at_least`) are out of scope; deferred to a future seam if a use case lands.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-batch-occ-1 | Optional Field On WriteOperation | Approved for Development | `WriteOperation.entity_expected_version: int \| None = None` is added; omitted means no check. | |
+| req-grid-service-batch-occ-2 | Atomic Entity-Row Guard | Approved for Development | The version check is enforced via a single conditional guard on the `Entity` row (atomic `UPDATE … WHERE version = N` or `SELECT … FOR UPDATE` + compare) inside the verb's own transaction. Exactly one `Entity.version` increment is recorded per successful verb call; downstream typed-model save / history / FLIP / spine sync run inside the same guarded transaction and contribute no additional version bumps. | Race window is zero; integration with `BaseModel.save()` documented per verb. |
+| req-grid-service-batch-occ-3 | Conflict Vs Not-Found Distinguished | Approved for Development | A direct caller with no OCC and a missing entity sees `not_found`. A direct caller with OCC and a missing entity sees `entity_version_conflict` with `actual_entity_version = null`. A direct caller with OCC and a wrong-version entity sees `entity_version_conflict` with `actual_entity_version = <int>`. Detail payload `{entity_expected_version, actual_entity_version, entity_id}`. | GRIFT removal `on_missing` policy applies on top of this in `req-grid-import-grift-occ`. |
+| req-grid-service-batch-occ-4 | Create Verbs Reject Expected Version | Approved for Development | `create_node` and `create_edge` reject `entity_expected_version` if set (no prior version exists to expect). | Stable error code, distinct from `entity_version_conflict`. |
+| req-grid-service-batch-occ-5 | Conflict Triggers Batch Rollback | Approved for Development | A `entity_version_conflict` triggers the existing `_BailOut` path; the `transaction.atomic()` block rolls back. | All-or-nothing per `req-grid-service-batch-tx`. |
+| req-grid-service-batch-occ-6 | Dry-Run Honors The Check | Approved for Development | Dry-run mode performs the check and reports conflicts; the surrounding rollback does not mask the conflict in results. | |
+| req-grid-service-batch-occ-7 | No Implicit Retry | Approved for Development | The service layer does not retry on conflict. Callers own retry logic. | |
+
+#### Future
+
+- A future client-side helper module wraps retry-with-backoff for callers that want the K8s `RetryOnConflict` ergonomics; not in v0 scope.
+- A future `entity_expected_version_at_least` predicate could support forward-only writers; deferred until demand lands.
 
 
 **Note — caller-managed rollback (2026-04-10):** Plugin validation (`validate_plugin --level runs`) needs to exercise the full write pipeline and then discard all side effects, including auto-created Batch entities. This is handled today by the validation system wrapping its checks in a caller-owned `transaction.atomic()` block that always rolls back. The batch system itself does not offer a built-in "disposable" or "rollback" mode because the decision to discard results is a caller-level concern, not a batch-level one. `_ensure_batch` was moved inside the service layer's `transaction.atomic()` so that it participates in rollback rather than leaking orphan Batch rows. If a second caller emerges with the same execute-then-discard need, consider extracting a shared `rollback_transaction()` context manager as a utility — but do not add rollback semantics to the batch model itself.

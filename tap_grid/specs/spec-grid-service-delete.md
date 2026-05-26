@@ -21,6 +21,8 @@ Delete behavior is a critical part of the service-layer contract because it dete
 | req-grid-service-delete-scope | [Delete Scope And Wrappers](#delete-scope-and-wrappers) | Implemented | delete_node + delete_edge_by_entity route through write pipeline |
 | req-grid-service-delete-tombstone | [Tombstoned Delete Semantics](#tombstoned-delete-semantics) | Implemented | Delete behavior uses `deleted_at` tombstones through the service layer |
 | req-grid-service-purge | [Service-Layer Purge](#service-layer-purge) | Implemented | DEBUG-only hard-delete escape hatch; `purge_node` + `manage.py purge_entities` |
+| req-grid-service-purge-edge | [Service-Layer Edge Purge](#service-layer-edge-purge) | Approved for Development | DEBUG-only `purge_edge` primitive for hard-deleting a single Edge entity without node cascade |
+| req-grid-service-delete-occ | [Optimistic Concurrency Parameter On Delete And Purge](#optimistic-concurrency-parameter-on-delete-and-purge) | Approved for Development | Delete and purge verbs accept `entity_expected_version` for atomic check-and-mutate |
 | req-grid-service-delete-future | [Deferred Delete Policy Design](#deferred-delete-policy-design) | Refactoring | Explicit deferral narrowed now that tombstones are specified here |
 
 
@@ -209,9 +211,125 @@ The command iterates the targets and calls `purge_node` once per entity. Output 
 #### Future
 
 - **Chokepoint with the GRIFT batch sweep purge.** The GRIFT importer's `_apply_sweep_purge` path (`req-grid-import-grift-sweep-purge`) currently inlines the hard-delete sequence. A future refactor should route per-entity purge through `purge_node` so that both surfaces share one hard-delete primitive, one DEBUG gate, one log format, and any future changes (PurgeLog, cascade policy revisions) land in a single place. The GRIFT sweep would retain its batch-scoped ownership guardrails (Guardrail A / B) on top of the shared per-entity primitive. Tracked by this Future note and a sibling note on `req-grid-import-grift-sweep-purge`.
-- **`purge_edge`.** v0 purge is node-only — `purge_node` refuses edge entities. A future `purge_edge(entity_id, *, caller_context, reason)` would hard-delete a single Edge entity (typed row + Entity spine + Edge history + BatchEvent rows) under the same DEBUG-only gate. It would NOT cascade — edges have no neighbors of their own to take with them. Useful cases: surgically removing a tombstoned edge that's cluttering analysis, or cleaning up orphan Edge `Entity` rows whose typed row was lost (a pathology that shouldn't happen in normal operation but can arise from hand-rolled `.delete()` calls during dev iteration). The CLI would gain `--entity-type edge` support so the same `manage.py purge_entities` surface handles both cases.
 - **PurgeLog table.** When the first production use case arrives (GDPR right-to-erasure, bad-ingest rollback), add a `PurgeLog` row per purge with no FK back to the purged entity, so the application can answer "was entity X ever here, when did it leave, and why" without resurrecting the row.
 - **REST exposure.** Not in v0; revisit when TAP has a real auth + permissions model that can distinguish "operator with purge rights" from any other actor.
+
+### Service-Layer Edge Purge
+----
+RID: `req-grid-service-purge-edge`
+Status: `Approved for Development`
+
+TAP needs a DEBUG-only hard-delete primitive for a single Edge entity. This is the edge sibling of `purge_node`, and is required before GRIFT `purges.edges[]` can route through the service layer rather than duplicating hard-delete logic in the importer.
+
+#### Implementation
+
+Function shape:
+
+```python
+def purge_edge(
+    entity_id: str | uuid.UUID,
+    *,
+    caller_context: CallerContext | None = None,
+    reason: str,
+) -> PurgeResult:
+    """Hard-delete one Edge entity and its history/event rows."""
+```
+
+What gets deleted in one `purge_edge` call:
+
+1. The Edge typed row identified by `entity_id`.
+2. The Edge's Entity-spine row.
+3. The Edge's `HistoricalEdge` rows.
+4. `BatchEvent` rows referencing the purged Edge.
+
+What is NOT deleted:
+
+- Either endpoint node.
+- Any other edge touching either endpoint.
+- Any Batch row.
+
+`purge_edge` enforces the same DEBUG-only invariant as `purge_node`: it is permitted if and only if Django `DEBUG` is `True`, with no alternate override. It requires a non-empty `reason` and captures that reason in the application log alongside the entity_id, actor, and edge endpoints when available.
+
+`purge_edge` only accepts entities whose `entity_type == "edge"`. Calling it for a node entity raises a conflict error with a stable code such as `purge_edge_wrong_type`.
+
+The `manage.py purge_entities` command should accept `--entity-type edge` once `purge_edge` exists, routing edge targets to `purge_edge` and non-edge targets to `purge_node`.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-purge-edge-1 | DEBUG-only gate | Approved for Development | `purge_edge` refuses to run unless `settings.DEBUG` is `True`. | Same invariant as `purge_node`. |
+| req-grid-service-purge-edge-2 | Edge type only | Approved for Development | `purge_edge` accepts only Entity rows with `entity_type == "edge"` and rejects node entities. | |
+| req-grid-service-purge-edge-3 | Endpoint nodes survive | Approved for Development | Purging an edge hard-deletes only that edge and its own metadata/history; endpoint nodes survive. | |
+| req-grid-service-purge-edge-4 | History rows go with the edge | Approved for Development | Edge history rows for the purged edge are hard-deleted. | |
+| req-grid-service-purge-edge-5 | BatchEvent rows go with the edge | Approved for Development | BatchEvent rows referencing the purged edge are hard-deleted. | |
+| req-grid-service-purge-edge-6 | Reason required | Approved for Development | A non-empty reason is required and logged with the purge. | |
+| req-grid-service-purge-edge-7 | CLI routes edge purges | Approved for Development | `manage.py purge_entities --entity-type edge` routes each target through `purge_edge`. | |
+
+
+### Optimistic Concurrency Parameter On Delete And Purge
+----
+RID: `req-grid-service-delete-occ`
+Status: `Approved for Development`
+
+Delete and purge verbs accept `entity_expected_version` per the OCC contract defined in `req-grid-service-batch-occ` (`spec-grid-service-batch.md`). This requirement documents the signatures and semantics specific to delete and purge surfaces; the general contract, error code, and conflict-handling rules live in the batch spec.
+
+#### Implementation
+
+Signatures gain `entity_expected_version`:
+
+```python
+def delete_node(
+    target: str | uuid.UUID,
+    *,
+    caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
+    reason: str | None = None,
+) -> WriteResult: ...
+
+def delete_edge_by_entity(
+    target: str | uuid.UUID,
+    *,
+    caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
+    reason: str | None = None,
+) -> WriteResult: ...
+
+def purge_node(
+    entity_id: str | uuid.UUID,
+    *,
+    caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
+    reason: str,
+) -> PurgeResult: ...
+
+def purge_edge(
+    entity_id: str | uuid.UUID,
+    *,
+    caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
+    reason: str,
+) -> PurgeResult: ...
+```
+
+Behavior:
+
+- Omitting `entity_expected_version` performs the delete or purge with no version check (current behavior).
+- Setting `entity_expected_version` runs the verb through the service-layer Entity-row guard defined in `req-grid-service-batch-occ`. Tombstone delete updates the row after the guard passes; purge removes the row (and its history / BatchEvent / typed-row dependents per the purge contract) after the guard passes. If the guard fails, the verb returns a conflict result with the detail payload defined in `req-grid-service-batch-occ`.
+- For tombstone deletes specifically: an already-tombstoned target where the caller's `entity_expected_version` matches the current version is a successful no-op (the delete verb is already idempotent against tombstoned targets; OCC does not change that). An already-tombstoned target where `entity_expected_version` does not match is a conflict, surfacing the version mismatch as usual.
+- For purges: an already-tombstoned target is a valid purge target (purge removes the row entirely). The version check still applies — purging a tombstoned target whose version moved (e.g. someone restored the tombstone state under the operator's feet) is a conflict.
+
+`purge_node` and `purge_edge` retain their DEBUG-only invariant; the version check is in addition to, not a replacement for, the DEBUG gate.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-delete-occ-1 | Delete Verbs Accept Expected Version | Approved for Development | `delete_node` and `delete_edge_by_entity` accept `entity_expected_version: int \| None = None`. | |
+| req-grid-service-delete-occ-2 | Purge Verbs Accept Expected Version | Approved for Development | `purge_node` and `purge_edge` accept `entity_expected_version: int \| None = None`. | DEBUG gate still applies. |
+| req-grid-service-delete-occ-3 | Atomic Check-And-Mutate | Approved for Development | The version check is performed atomically with the delete or purge SQL statement. | Race window is zero. |
+| req-grid-service-delete-occ-4 | Conflict Surfaces As Standard Error | Approved for Development | A version mismatch returns a result with `errors[0].code == "entity_version_conflict"` per `req-grid-service-batch-occ`. | |
+| req-grid-service-delete-occ-5 | Tombstoned Idempotency Preserved | Approved for Development | An already-tombstoned target with matching `entity_expected_version` is a successful no-op for tombstone deletes; an already-tombstoned target with mismatching `entity_expected_version` is a conflict. | |
 
 
 ### Deferred Delete Policy Design
