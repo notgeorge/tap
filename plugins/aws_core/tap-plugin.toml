@@ -75,4 +75,3 @@ FEDERATES_INTO = "edges/FEDERATES_INTO.edge.json"
 [grift]
 dimension = "grift/dimension.grift.json"
 regions = "grift/regions.grift.json"
-aws-collector-schedule = "grift/aws-collector-schedule.grift.json"

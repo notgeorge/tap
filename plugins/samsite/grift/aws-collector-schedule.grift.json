@@ -10,9 +10,9 @@
         "dimensions": {}
       },
       "batch_node": {
-        "source": "plugins.aws_core",
-        "name": "AWS Core collector schedule v0.1.0",
-        "description": "Seeds a Schedule that fires the AWS Core (boto3) collector once per day at 12:00 UTC. Paired with the Samsite Compliance schedule (midnight) so AWS resource state is refreshed mid-day and compliance synthesis runs ~12 hours later against the fresh data. The SCHEDULED_TARGET edge points at the AWS Core collector entity, whose entity_id is the UUIDv5 derived from its registry scope:key per req-tap-cares-collector-model-10."
+        "source": "plugins.samsite",
+        "name": "AWS Core collector schedule (samsite-owned) v0.1.0",
+        "description": "Samsite-owned schedule for the AWS Core (boto3) collector. Lives in the samsite plugin rather than aws_core because aws_core ships to consumers that shouldn't get a scheduled collection by default — a schedule belongs to the project that wants its AWS state refreshed, not to the shared collector plugin. Fires once per day at 12:00 UTC, paired with the Samsite Compliance schedule (midnight) so AWS resource state refreshes mid-day and compliance synthesis runs ~12 hours later against the fresh data. The SCHEDULED_TARGET edge points at the AWS Core collector entity (whose entity_id is the UUIDv5 derived from its registry scope:key per req-tap-cares-collector-model-10) — the target lives in aws_core, only the schedule that fires it is samsite-owned."
       },
       "nodes": [
         {
