@@ -238,10 +238,16 @@ def _render_graph_panel_context(
 
     placement = layout.definition.get("presentation", {}).get("placement", "cytoscape:cose")
 
+    # Pass through panel.config.height so the graph_panel template gets the
+    # same sizing affordance synthetic pages would otherwise lose. Uses the
+    # same sanitizer as the regular graph panel path.
+    from tap_viz.panels.graph_panel import _sanitize_panel_height
+
     return {
         "graph_nodes_json": safe_json(list(nodes.values())),
         "graph_edges_json": safe_json(list(edges.values())),
         "graph_placement": placement,
+        "graph_height": _sanitize_panel_height((panel.config or {}).get("height")),
         "graph_error": None,
     }
 

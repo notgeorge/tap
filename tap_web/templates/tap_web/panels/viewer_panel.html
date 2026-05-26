@@ -10,25 +10,38 @@
     <div class="text-sm text-slate-400 italic">No subject configured.</div>
 
     {% else %}
-    <div class="mb-4 flex items-center justify-between">
-        <div>
-            <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">{{ viewer_entity_type }}</span>
-            <h2 class="text-xl font-bold mt-0.5">{{ viewer_obj_name }}</h2>
+    {% comment %}Identity hero — icon + entity name + type kicker + edit action.
+       Reads top-down as the story-doctrine "this is X (a Y)" opening sentence.
+       Uses flex with inline-style widths because relying on Tailwind `sm:`
+       responsive variants was unreliable here (some purge in the static
+       build was dropping them).{% endcomment %}
+    <header class="mb-6 pb-5 border-b border-slate-200" style="display:flex; align-items:flex-start; justify-content:space-between; gap:1.5rem;">
+        <div style="display:flex; align-items:flex-start; gap:1rem; min-width:0; flex:1 1 auto;">
+            {% if viewer_icon_url %}
+            <div class="rounded-lg bg-slate-50 border border-slate-200" style="flex:0 0 48px; width:48px; height:48px; display:flex; align-items:center; justify-content:center;">
+                <img src="{{ viewer_icon_url }}" alt="" aria-hidden="true" style="width:36px; height:36px;">
+            </div>
+            {% endif %}
+            <div style="min-width:0;">
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wide">{{ viewer_entity_type }}</div>
+                <h1 class="text-2xl font-bold text-slate-900 break-words" style="margin-top:2px;">{{ viewer_obj_name }}</h1>
+            </div>
         </div>
         {% if viewer_edit_url %}
         <a href="{{ viewer_edit_url }}"
-           class="group flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+           class="rounded-md border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+           style="flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; white-space:nowrap;">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:16px; height:16px;">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
             </svg>
             Edit
         </a>
         {% endif %}
-    </div>
+    </header>
 
     {% if viewer_panel_render_url %}
-    <section class="mb-4">
+    <section class="mb-6">
         <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Panel Preview</h3>
         <div class="border border-slate-200 rounded bg-white p-4 min-h-16"
              hx-get="{{ viewer_panel_render_url }}"
@@ -39,23 +52,49 @@
     </section>
     {% endif %}
 
+    {% comment %}Facts — typed fields rendered as a two-column table.
+       Switched from a `<dl class="sm:grid sm:grid-cols-3">` stack to a real
+       `<table>` because the Tailwind responsive grid utilities were
+       unreliable in this build and the dl was rendering label-above-value
+       instead of side-by-side. Tables get the alignment for free.
+
+       Block values (JSON dicts, multi-line text) are tucked into a
+       collapsed <details> so they don't dominate the row. Raw JSON dump
+       for now; per-type structural renderers are a separate follow-up.{% endcomment %}
     <section>
         <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Details</h3>
-        <dl class="bg-white border border-slate-200 rounded divide-y divide-slate-100">
-            {% for label, value, is_block in viewer_field_pairs %}
-            <div class="px-4 py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-                <dt class="text-sm font-medium text-slate-500">{{ label }}</dt>
-                <dd class="mt-1 text-sm text-slate-800 sm:mt-0 sm:col-span-2">
-                    {% if value %}
-                        {% if is_block %}<pre class="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed bg-slate-50 border border-slate-200 rounded p-2 overflow-x-auto max-h-96">{{ value }}</pre>
-                        {% else %}{{ value }}{% endif %}
-                    {% else %}<span class="text-slate-400 italic">--</span>{% endif %}
-                </dd>
-            </div>
-            {% empty %}
-            <div class="px-4 py-3 text-sm text-slate-400 italic">No details available.</div>
-            {% endfor %}
-        </dl>
+        <div class="bg-white border border-slate-200 rounded-md overflow-hidden">
+            <table class="w-full text-sm" style="border-collapse:collapse;">
+                <colgroup>
+                    <col style="width:33%;">
+                    <col style="width:67%;">
+                </colgroup>
+                <tbody>
+                    {% for label, value, is_block in viewer_field_pairs %}
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                        <th scope="row" class="font-medium text-slate-500" style="padding:12px 16px; vertical-align:top; text-align:left;">{{ label }}</th>
+                        <td class="text-slate-800" style="padding:12px 16px; vertical-align:top;">
+                            {% if value %}
+                                {% if is_block %}
+                                <details class="group">
+                                    <summary class="cursor-pointer list-none text-xs font-medium text-slate-500 hover:text-slate-700" style="display:inline-flex; align-items:center; gap:4px; white-space:nowrap;">
+                                        <svg class="transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px; height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                        <span>Show structured value</span>
+                                    </summary>
+                                    <pre class="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-relaxed bg-slate-50 border border-slate-200 rounded p-2 overflow-x-auto max-h-96">{{ value }}</pre>
+                                </details>
+                                {% else %}{{ value }}{% endif %}
+                            {% else %}<span class="text-slate-400 italic">—</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="2" class="text-sm text-slate-400 italic" style="padding:12px 16px;">No details available.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </section>
     {% endif %}
 </div>

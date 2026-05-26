@@ -60,7 +60,10 @@
         "slug": "entity-neighborhood-graph",
         "name": "Entity Graph",
         "view": "tap_viz/panels/graph_panel.html",
-        "config": {}
+        "config": {
+          "height": "420px",
+          "hide_header": true
+        }
       }
     },
     {
@@ -73,7 +76,9 @@
         "slug": "entity-viewer",
         "name": "Entity Viewer",
         "view": "tap_web/panels/viewer_panel.html",
-        "config": {}
+        "config": {
+          "hide_header": true
+        }
       }
     },
     {
@@ -86,7 +91,9 @@
         "slug": "entity-flip",
         "name": "Entity FLIP",
         "view": "tap_web/panels/flip_panel.html",
-        "config": {}
+        "config": {
+          "hide_header": true
+        }
       }
     },
     {
