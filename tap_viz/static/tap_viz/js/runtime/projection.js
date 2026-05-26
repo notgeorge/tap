@@ -192,6 +192,21 @@ export async function initProjection(cy, projection, opts = {}) {
             cy.nodes().lock();
         }
 
+        // Initial framing on first load. Runs AFTER all layouts have
+        // completed and badges have been applied, so cy.fit() sees the
+        // settled bbox (calling fit inside a layout is a no-op against
+        // mid-reconcile state — Cytoscape treats the layout phase as
+        // in-flight). Still BEFORE cascade-reveal unhides the container,
+        // so the user sees the fade-in already framed instead of a snap
+        // from un-fit to fit. Skipped on non-initial transitions so
+        // re-runs (HTMX refresh, elevation change) don't yank the
+        // viewport away from the user. Padding 50 px is symmetric
+        // headroom — enough for parent-label overlays without clipping
+        // the bottom edge.
+        if (triggerReason === "initial_load") {
+            cy.fit(undefined, 50);
+        }
+
         // Cascade reveal on initial load — nodes pop in layer by layer.
         if (triggerReason === "initial_load") {
             const {cascadeReveal} = await import("./cascade-reveal.js");

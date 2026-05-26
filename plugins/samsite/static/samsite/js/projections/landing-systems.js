@@ -140,24 +140,11 @@ export async function execute(context) {
     // system's job, and keeping it there means each system stays
     // independently tweakable via its arrangement.
 
-    // Fit only on the initial load so re-runs (e.g., HTMX refresh of the
-    // panel) don't yank the viewport away from the user. Mirrors the
-    // toolbar's "fit to view" button (panel-graph.js → `cy.fit()`) plus
-    // symmetric padding so the boundary's parent-label overlay
-    // ("Samsite Authorization Boundary"), rendered ~20 screen-px above
-    // the cy bbox top edge by TapParentLabelOverlay, has room to breathe
-    // instead of clipping against the panel top. Symmetric (not just
-    // top-biased) so the bottom edge doesn't clip either — a previous
-    // panBy-only attempt fixed the top by pushing the whole scene down
-    // and clipped the bottom in turn.
-    //
-    // Deferred via setTimeout so cascade-reveal finishes before the fit
-    // measures — the cascade animates opacity but each layer's bbox isn't
-    // fully settled until its frame lands. 600 ms is comfortably past the
-    // ~500 ms cascade duration.
-    if (context.trigger_reason === "initial_load") {
-        setTimeout(() => {
-            cy.fit(undefined, 50);
-        }, 600);
-    }
+    // Initial framing happens in projection.js between runLayoutsSerially
+    // and cascade-reveal, not here. cy.fit() during the layout phase is
+    // a no-op (or returns mid-reconcile bboxes) because Cytoscape treats
+    // layouts as in-flight; only post-layout fits frame correctly. The
+    // projection runtime now does the fit at the right moment with the
+    // container still hidden, so the cascade fade-in animates the
+    // already-framed scene.
 }
