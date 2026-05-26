@@ -1176,3 +1176,329 @@ class TestGriftHotlinkUpsert:
         ]
         # Atomic rollback — no page persisted.
         assert not Entity.objects.filter(pk=uuid.UUID(page_id)).exists()
+
+
+# ---------------------------------------------------------------------------
+# Imperative removal sections (req-grift-import-deletes,
+# req-grid-import-grift-removals, req-grid-import-grift-removal-preflight)
+# ---------------------------------------------------------------------------
+
+
+def _container_with_removals(
+    batch_entity_id: str,
+    nodes: list[dict] | None = None,
+    edges: list[dict] | None = None,
+    deletes: dict | None = None,
+    purges: dict | None = None,
+) -> dict[str, Any]:
+    """Variant of _batch_container that includes optional removal sections."""
+    c = _batch_container(batch_entity_id, nodes=nodes, edges=edges)
+    if deletes is not None:
+        c["deletes"] = deletes
+    if purges is not None:
+        c["purges"] = purges
+    return c
+
+
+def _remove_target(entity_id: str, entity_type: str, reason: str = "test") -> dict:
+    return {"entity_id": entity_id, "entity_type": entity_type, "reason": reason}
+
+
+@pytest.mark.django_db
+class TestGriftRemovalPreflightShape:
+    """File-preflight: shape, duplicates, DEBUG gate."""
+
+    def test_deletes_section_requires_policy_fields(self):
+        bid = _batch_entity_id()
+        # Missing on_missing.
+        deletes = {"on_tombstoned": "ignore", "edges": [], "nodes": []}
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert not result.success
+        assert any(e.code == "schema_validation_failed" and "on_missing" in e.message for e in result.errors)
+
+    def test_purges_section_does_not_have_on_tombstoned(self):
+        bid = _batch_entity_id()
+        purges = {"on_missing": "error", "on_tombstoned": "ignore", "edges": [], "nodes": []}
+        # Settings.DEBUG=True in tests, so the gate would pass — but
+        # additionalProperties=false rejects the extra key first.
+        result = grift_import(_minimal_doc([_container_with_removals(bid, purges=purges)]))
+        assert not result.success
+        assert any(e.code == "schema_validation_failed" for e in result.errors)
+
+    def test_invalid_policy_value_rejected(self):
+        bid = _batch_entity_id()
+        deletes = {"on_missing": "bogus", "on_tombstoned": "ignore", "edges": [], "nodes": []}
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert not result.success
+        assert any(e.code == "schema_validation_failed" for e in result.errors)
+
+    def test_target_requires_reason(self):
+        bid = _batch_entity_id()
+        target = {"entity_id": _node_entity_id(), "entity_type": "character"}  # missing reason
+        deletes = {"on_missing": "error", "on_tombstoned": "ignore", "edges": [], "nodes": [target]}
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert not result.success
+        assert any(e.code == "schema_validation_failed" and "reason" in e.message for e in result.errors)
+
+    def test_duplicate_target_within_sub_array_rejected(self):
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        t1 = _remove_target(nid, "character", "first")
+        t2 = _remove_target(nid, "character", "second")
+        deletes = {"on_missing": "error", "on_tombstoned": "ignore", "edges": [], "nodes": [t1, t2]}
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert not result.success
+        assert any(e.code == "duplicate_removal_target" for e in result.errors)
+
+    def test_duplicate_target_across_deletes_and_purges_rejected(self):
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        deletes = {
+            "on_missing": "ignore",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(nid, "character", "delete")],
+        }
+        purges = {
+            "on_missing": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(nid, "character", "purge")],
+        }
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes, purges=purges)]))
+        assert not result.success
+        assert any(e.code == "duplicate_removal_target" for e in result.errors)
+
+    def test_entity_id_in_upsert_and_removal_rejected(self):
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        upsert = _character_node(nid)
+        deletes = {
+            "on_missing": "ignore",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(nid, "character", "I changed my mind")],
+        }
+        result = grift_import(_minimal_doc([_container_with_removals(bid, nodes=[upsert], deletes=deletes)]))
+        assert not result.success
+        assert any(e.code == "entity_id_in_upsert_and_removal" for e in result.errors)
+
+    def test_edge_target_in_nodes_list_rejected(self):
+        bid = _batch_entity_id()
+        eid = _edge_entity_id()
+        # Edge entity in the 'nodes' sub-array — static type sanity catches it.
+        deletes = {
+            "on_missing": "ignore",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(eid, "edge", "wrong list")],
+        }
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert not result.success
+        assert any(e.code == "removal_entity_type_mismatch" for e in result.errors)
+
+    def test_node_entity_type_in_edges_list_rejected(self):
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        deletes = {
+            "on_missing": "ignore",
+            "on_tombstoned": "ignore",
+            "edges": [_remove_target(nid, "character", "wrong list")],
+            "nodes": [],
+        }
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert not result.success
+        assert any(e.code == "removal_entity_type_mismatch" for e in result.errors)
+
+
+@pytest.mark.django_db
+class TestGriftRemovalExecution:
+    """Transaction-scoped checks + actual delete/purge execution."""
+
+    def _seed_one_character(self, *, name: str = "Frodo") -> str:
+        """Create one character via a first grift_import; return its entity_id."""
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        char = _character_node(nid, name=name)
+        result = grift_import(_minimal_doc([_batch_container(bid, nodes=[char])]))
+        assert result.success
+        return nid
+
+    def test_delete_existing_node_via_second_grift_import(self):
+        nid = self._seed_one_character()
+        assert Entity.objects.filter(pk=uuid.UUID(nid)).exists()
+
+        bid = _batch_entity_id()
+        deletes = {
+            "on_missing": "error",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(nid, "character", "retired")],
+        }
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert result.success, result.errors
+        assert result.counts.nodes_deleted == 1
+        # Tombstoned — Entity row still exists with deleted_at set.
+        assert Entity.objects.filter(pk=uuid.UUID(nid), deleted_at__isnull=False).exists()
+        # Typed-model live manager (LiveManager) filters it out.
+        from plugins.lotr.models import Character
+
+        assert not Character.objects.filter(entity_id=uuid.UUID(nid)).exists()
+
+    def test_delete_missing_target_on_missing_error_fails(self):
+        bid = _batch_entity_id()
+        missing_id = _node_entity_id()
+        deletes = {
+            "on_missing": "error",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(missing_id, "character", "delete ghost")],
+        }
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert not result.success
+        assert any(e.code == "removal_target_missing" for e in result.errors)
+
+    def test_delete_missing_target_on_missing_ignore_skips(self):
+        bid = _batch_entity_id()
+        missing_id = _node_entity_id()
+        deletes = {
+            "on_missing": "ignore",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(missing_id, "character", "ok if gone")],
+        }
+        result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
+        assert result.success, result.errors
+        assert result.counts.nodes_deleted == 0
+        assert result.counts.removals_skipped == 1
+
+    def test_delete_already_tombstoned_on_tombstoned_ignore_skips(self):
+        nid = self._seed_one_character()
+        # First delete: tombstones it.
+        bid1 = _batch_entity_id()
+        deletes1 = {
+            "on_missing": "error",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(nid, "character", "first tombstone")],
+        }
+        r1 = grift_import(_minimal_doc([_container_with_removals(bid1, deletes=deletes1)]))
+        assert r1.success
+        # Second delete: target already tombstoned; on_tombstoned=ignore → skip.
+        bid2 = _batch_entity_id()
+        deletes2 = {
+            "on_missing": "error",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(nid, "character", "second pass")],
+        }
+        r2 = grift_import(_minimal_doc([_container_with_removals(bid2, deletes=deletes2)]))
+        assert r2.success, r2.errors
+        assert r2.counts.nodes_deleted == 0
+        assert r2.counts.removals_skipped == 1
+
+    def test_purge_existing_node_via_grift_import(self, settings):
+        settings.DEBUG = True
+        nid = self._seed_one_character()
+        bid = _batch_entity_id()
+        purges = {
+            "on_missing": "error",
+            "edges": [],
+            "nodes": [_remove_target(nid, "character", "hard remove for dev reset")],
+        }
+        result = grift_import(_minimal_doc([_container_with_removals(bid, purges=purges)]))
+        assert result.success, result.errors
+        assert result.counts.nodes_purged == 1
+        # Hard-deleted — gone entirely.
+        assert not Entity.objects.filter(pk=uuid.UUID(nid)).exists()
+
+    def test_batch_rolls_back_atomically_on_removal_failure(self):
+        """If one removal fails, every upsert + earlier removal in this batch
+        also rolls back."""
+        nid_alive = self._seed_one_character(name="Sam")
+        nid_ghost = _node_entity_id()  # doesn't exist
+
+        bid = _batch_entity_id()
+        new_char_id = _node_entity_id()
+        upsert = _character_node(new_char_id, name="Pippin")
+        deletes = {
+            "on_missing": "error",  # ghost triggers failure
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [
+                _remove_target(nid_alive, "character", "would tombstone"),
+                _remove_target(nid_ghost, "character", "ghost"),
+            ],
+        }
+        result = grift_import(_minimal_doc([_container_with_removals(bid, nodes=[upsert], deletes=deletes)]))
+        assert not result.success, [(e.code, e.message) for e in result.errors]
+        assert any(e.code == "removal_target_missing" for e in result.errors), [
+            (e.code, e.message) for e in result.errors
+        ]
+        # Atomicity: Pippin (the upsert) should NOT have been created.
+        assert not Entity.objects.filter(pk=uuid.UUID(new_char_id)).exists()
+        # Sam should still be alive (not tombstoned).
+        assert Entity.objects.filter(pk=uuid.UUID(nid_alive), deleted_at__isnull=True).exists()
+
+    def test_cross_section_dupe_across_two_batches_rejected(self):
+        """An entity_id appearing in batch A's deletes and batch B's purges
+        within the same document triggers duplicate_removal_target."""
+        bid_a = _batch_entity_id()
+        bid_b = _batch_entity_id()
+        nid = _node_entity_id()
+        deletes = {
+            "on_missing": "ignore",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(nid, "character", "batch A")],
+        }
+        purges = {
+            "on_missing": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(nid, "character", "batch B")],
+        }
+        result = grift_import(
+            _minimal_doc(
+                [
+                    _container_with_removals(bid_a, deletes=deletes),
+                    _container_with_removals(bid_b, purges=purges),
+                ]
+            )
+        )
+        assert not result.success
+        assert any(e.code == "duplicate_removal_target" for e in result.errors)
+
+
+@pytest.mark.django_db
+class TestGriftSkippedBatchHadRemovalsWarning:
+    """req-grid-import-grift-skipped-batch-removals — loud warning when a
+    skipped batch had non-empty removal sections."""
+
+    def test_skipped_batch_with_deletes_emits_warning(self):
+        # First, ingest the batch.
+        bid = _batch_entity_id()
+        deletes = {
+            "on_missing": "ignore",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(_node_entity_id(), "character", "first run target")],
+        }
+        doc = _minimal_doc([_container_with_removals(bid, deletes=deletes)])
+        r1 = grift_import(doc)
+        assert r1.success
+        # Re-run: the batch is now skipped, and removal sections did NOT fire.
+        r2 = grift_import(doc)
+        assert r2.success  # still a clean import (skip is not an error)
+        assert any(w.code == "skipped_batch_had_removals" for w in r2.warnings)
+        # Recipe is embedded in the warning message.
+        recipe_warning = next(w for w in r2.warnings if w.code == "skipped_batch_had_removals")
+        assert f"--force-batches={bid}" in recipe_warning.message
+
+    def test_skipped_batch_without_removals_does_not_warn(self):
+        bid = _batch_entity_id()
+        nid = _node_entity_id()
+        doc = _minimal_doc([_batch_container(bid, nodes=[_character_node(nid)])])
+        r1 = grift_import(doc)
+        assert r1.success
+        r2 = grift_import(doc)
+        assert r2.success
+        assert not any(w.code == "skipped_batch_had_removals" for w in r2.warnings)

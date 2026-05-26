@@ -71,6 +71,12 @@ class GriftCounts:
     entities_purged: int = 0
     sweep_skipped: int = 0
     entities_upserted: int = 0
+    # Imperative removal sections (req-grift-import-deletes).
+    edges_deleted: int = 0
+    nodes_deleted: int = 0
+    edges_purged: int = 0
+    nodes_purged: int = 0
+    removals_skipped: int = 0
     errors: int = 0
     warnings: int = 0
 
@@ -129,6 +135,12 @@ class GriftImportedBatch:
     # in the grid and were replaced in-place by this batch. See
     # req-grid-import-grift-ordering.
     upserted_entities: list[GriftUpsertedEntity] = None  # type: ignore[assignment]
+    # Imperative removal sections (req-grift-import-deletes).
+    edges_deleted: int = 0
+    nodes_deleted: int = 0
+    edges_purged: int = 0
+    nodes_purged: int = 0
+    removals_skipped: int = 0
 
     def __post_init__(self):
         if self.swept_entities is None:
@@ -176,6 +188,14 @@ class _PreflightResult:
     batches_to_skip: list[GriftSkippedBatch]
     dangling_edge_ids: set[str]
     issues: list[GriftIssue]
+    # Side-channel: removal sections parsed during preflight, keyed by
+    # batch_idx. Avoids mutating the input document (which would fail strict
+    # JSON-schema validation on a repeat import of the same dict object).
+    parsed_removals_by_idx: dict[int, Any] = None  # type: ignore[assignment]
+
+    def __post_init__(self):
+        if self.parsed_removals_by_idx is None:
+            self.parsed_removals_by_idx = {}
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +206,10 @@ _DOC_REQUIRED = frozenset(["metadata", "_reserved", "batches"])
 _DOC_ALLOWED = frozenset(["metadata", "_reserved", "batches"])
 _METADATA_ALLOWED = frozenset(["grift_version"])
 _BATCH_REQUIRED = frozenset(["batch_entity", "batch_node", "nodes", "edges"])
-_BATCH_ALLOWED = frozenset(["batch_entity", "batch_node", "nodes", "edges"])
+# Removal sections (`deletes`, `purges`) are optional per
+# req-grift-import-deletes; presence is detected at parse time and validated
+# in removal preflight. They are NOT in _BATCH_REQUIRED.
+_BATCH_ALLOWED = frozenset(["batch_entity", "batch_node", "nodes", "edges", "deletes", "purges"])
 _NODE_REQUIRED = frozenset(["entity", "node"])
 _NODE_ALLOWED = frozenset(["entity", "node"])
 _EDGE_REQUIRED = frozenset(["entity", "edge"])
@@ -197,6 +220,15 @@ _ENVELOPE_ALLOWED = frozenset(
 )
 _EDGE_PAYLOAD_REQUIRED = frozenset(["from_entity_id", "to_entity_id", "edge_type", "properties"])
 _EDGE_PAYLOAD_ALLOWED = frozenset(["from_entity_id", "to_entity_id", "edge_type", "properties"])
+
+# Removal-section schema (req-grift-import-deletes).
+_REMOVAL_TARGET_REQUIRED = frozenset(["entity_id", "entity_type", "reason"])
+_REMOVAL_TARGET_ALLOWED = frozenset(["entity_id", "entity_type", "reason"])
+_DELETES_REQUIRED = frozenset(["on_missing", "on_tombstoned", "edges", "nodes"])
+_DELETES_ALLOWED = frozenset(["on_missing", "on_tombstoned", "edges", "nodes"])
+_PURGES_REQUIRED = frozenset(["on_missing", "edges", "nodes"])
+_PURGES_ALLOWED = frozenset(["on_missing", "edges", "nodes"])
+_REMOVAL_POLICY_VALUES = frozenset(["error", "warn", "ignore"])
 
 # Codes that are always treated as hard errors (not warnings).
 _ERROR_CODES = frozenset(
@@ -218,6 +250,15 @@ _ERROR_CODES = frozenset(
         "sweep_strict_aborted",
         "force_reimport_batch_not_found",
         "purge_requires_force_reimport",
+        # Imperative removal section codes (req-grift-import-deletes,
+        # req-grid-import-grift-removal-preflight).
+        "duplicate_removal_target",
+        "entity_id_in_upsert_and_removal",
+        "removal_target_missing",
+        "removal_target_tombstoned",
+        "removal_entity_type_mismatch",
+        "grift_purge_refused_production",
+        "removal_execution_failed",
     ]
 )
 
@@ -654,6 +695,328 @@ def _validate_edge_payload(
 
 
 # ---------------------------------------------------------------------------
+# Removal-section preflight helper (req-grid-import-grift-removal-preflight)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _ParsedRemovalTarget:
+    """One removal target parsed from a `deletes` or `purges` section.
+
+    `kind` is "edge" or "node" depending on which sub-array the target was
+    listed under; `section` is "deletes" or "purges"; `path` is the JSONPath
+    pointing at this target in the document for diagnostics. `batch_entity_id`
+    is the owning batch's entity_id, captured so cross-document issues can
+    cite which batch declared the duplicate target.
+    """
+
+    entity_id: str
+    entity_type: str
+    reason: str
+    section: Literal["deletes", "purges"]
+    kind: Literal["edge", "node"]
+    path: str
+    batch_entity_id: str
+
+
+@dataclass
+class _ParsedRemovalSections:
+    """Parsed removal sections for one batch.
+
+    Populated by ``_validate_removal_section`` during file-preflight; used by
+    `_execute_grift_batch` to drive the transaction-scoped target checks
+    (`req-grid-import-grift-removal-preflight`) and the actual delete/purge
+    verbs (`req-grid-import-grift-removals`).
+    """
+
+    deletes_on_missing: Literal["error", "warn", "ignore"] | None = None
+    deletes_on_tombstoned: Literal["error", "warn", "ignore"] | None = None
+    purges_on_missing: Literal["error", "warn", "ignore"] | None = None
+    deletes_edges: list[_ParsedRemovalTarget] = None  # type: ignore[assignment]
+    deletes_nodes: list[_ParsedRemovalTarget] = None  # type: ignore[assignment]
+    purges_edges: list[_ParsedRemovalTarget] = None  # type: ignore[assignment]
+    purges_nodes: list[_ParsedRemovalTarget] = None  # type: ignore[assignment]
+
+    def __post_init__(self):
+        if self.deletes_edges is None:
+            self.deletes_edges = []
+        if self.deletes_nodes is None:
+            self.deletes_nodes = []
+        if self.purges_edges is None:
+            self.purges_edges = []
+        if self.purges_nodes is None:
+            self.purges_nodes = []
+
+    def has_purge_targets(self) -> bool:
+        return bool(self.purges_edges or self.purges_nodes)
+
+    def has_any_targets(self) -> bool:
+        return bool(self.deletes_edges or self.deletes_nodes or self.purges_edges or self.purges_nodes)
+
+    def all_targets(self) -> list[_ParsedRemovalTarget]:
+        return self.deletes_edges + self.deletes_nodes + self.purges_edges + self.purges_nodes
+
+
+def _validate_removal_section(
+    section_obj: Any,
+    section_kind: Literal["deletes", "purges"],
+    batch_path: str,
+    batch_entity_id: str,
+    issues: list[GriftIssue],
+) -> tuple[
+    Literal["error", "warn", "ignore"] | None,
+    Literal["error", "warn", "ignore"] | None,
+    list[_ParsedRemovalTarget],
+    list[_ParsedRemovalTarget],
+]:
+    """Validate one `deletes` or `purges` section's shape and collect targets.
+
+    Returns a tuple ``(on_missing, on_tombstoned, edge_targets, node_targets)``.
+    ``on_tombstoned`` is always ``None`` for the purges section. Invalid
+    targets are skipped with hard-error issues recorded against ``issues``;
+    valid targets are returned in declaration order. Cross-section and
+    cross-document duplicate checks happen at the caller level after every
+    batch has been parsed.
+    """
+    section_path = f"{batch_path}.{section_kind}"
+
+    if not isinstance(section_obj, dict):
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"{section_kind} section at {section_path} must be an object",
+                "schema",
+                section_path,
+                batch_entity_id=batch_entity_id,
+            )
+        )
+        return None, None, [], []
+
+    required = _DELETES_REQUIRED if section_kind == "deletes" else _PURGES_REQUIRED
+    allowed = _DELETES_ALLOWED if section_kind == "deletes" else _PURGES_ALLOWED
+
+    for key in section_obj:
+        if key not in allowed:
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"Unknown key '{key}' in {section_kind} section at {section_path}",
+                    "schema",
+                    f"{section_path}.{key}",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
+
+    for req in required:
+        if req not in section_obj:
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"Missing required key '{req}' in {section_kind} section at {section_path}",
+                    "schema",
+                    f"{section_path}.{req}",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
+
+    on_missing = section_obj.get("on_missing")
+    if on_missing is not None and on_missing not in _REMOVAL_POLICY_VALUES:
+        issues.append(
+            _issue(
+                "schema_validation_failed",
+                f"{section_kind}.on_missing must be one of {sorted(_REMOVAL_POLICY_VALUES)}; got {on_missing!r}",
+                "schema",
+                f"{section_path}.on_missing",
+                batch_entity_id=batch_entity_id,
+            )
+        )
+        on_missing = None
+
+    on_tombstoned = None
+    if section_kind == "deletes":
+        on_tombstoned = section_obj.get("on_tombstoned")
+        if on_tombstoned is not None and on_tombstoned not in _REMOVAL_POLICY_VALUES:
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"deletes.on_tombstoned must be one of {sorted(_REMOVAL_POLICY_VALUES)}; got {on_tombstoned!r}",
+                    "schema",
+                    f"{section_path}.on_tombstoned",
+                    batch_entity_id=batch_entity_id,
+                )
+            )
+            on_tombstoned = None
+
+    def _parse_targets(sub_array: Any, sub_kind: Literal["edges", "nodes"]) -> list[_ParsedRemovalTarget]:
+        sub_path = f"{section_path}.{sub_kind}"
+        if not isinstance(sub_array, list):
+            issues.append(
+                _issue(
+                    "schema_validation_failed",
+                    f"{sub_path} must be an array",
+                    "schema",
+                    sub_path,
+                    batch_entity_id=batch_entity_id,
+                )
+            )
+            return []
+
+        target_kind: Literal["edge", "node"] = "edge" if sub_kind == "edges" else "node"
+        parsed: list[_ParsedRemovalTarget] = []
+        seen_in_this_sub: set[str] = set()
+
+        for idx, target in enumerate(sub_array):
+            target_path = f"{sub_path}[{idx}]"
+
+            if not isinstance(target, dict):
+                issues.append(
+                    _issue(
+                        "schema_validation_failed",
+                        f"Removal target at {target_path} must be an object",
+                        "schema",
+                        target_path,
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
+                continue
+
+            for key in target:
+                if key not in _REMOVAL_TARGET_ALLOWED:
+                    issues.append(
+                        _issue(
+                            "schema_validation_failed",
+                            f"Unknown key '{key}' in removal target at {target_path}",
+                            "schema",
+                            f"{target_path}.{key}",
+                            batch_entity_id=batch_entity_id,
+                        )
+                    )
+
+            for req_key in _REMOVAL_TARGET_REQUIRED:
+                if req_key not in target:
+                    issues.append(
+                        _issue(
+                            "schema_validation_failed",
+                            f"Missing required key '{req_key}' in removal target at {target_path}",
+                            "schema",
+                            f"{target_path}.{req_key}",
+                            batch_entity_id=batch_entity_id,
+                        )
+                    )
+
+            if not all(k in target for k in _REMOVAL_TARGET_REQUIRED):
+                continue
+
+            raw_eid = target["entity_id"]
+            try:
+                normalized_eid = str(uuid.UUID(str(raw_eid)))
+            except ValueError, AttributeError, TypeError:
+                issues.append(
+                    _issue(
+                        "schema_validation_failed",
+                        f"Removal target entity_id '{raw_eid}' is not a valid UUID",
+                        "schema",
+                        f"{target_path}.entity_id",
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
+                continue
+
+            entity_type = target["entity_type"]
+            if not isinstance(entity_type, str) or not entity_type:
+                issues.append(
+                    _issue(
+                        "schema_validation_failed",
+                        f"Removal target entity_type at {target_path} must be a non-empty string",
+                        "schema",
+                        f"{target_path}.entity_type",
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
+                continue
+
+            reason = target["reason"]
+            if not isinstance(reason, str) or not reason.strip():
+                issues.append(
+                    _issue(
+                        "schema_validation_failed",
+                        f"Removal target reason at {target_path} must be a non-empty string",
+                        "schema",
+                        f"{target_path}.reason",
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
+                continue
+
+            # Static type-vs-list sanity (req-grid-import-grift-removal-preflight
+            # "Transaction-Scoped Target Checks"). The dynamic per-row check
+            # happens inside the batch transaction; this catches obvious
+            # authoring mistakes at file-preflight.
+            if target_kind == "edge" and entity_type != "edge":
+                issues.append(
+                    _issue(
+                        "removal_entity_type_mismatch",
+                        f"Removal target at {target_path} is in the 'edges' list but "
+                        f"declares entity_type={entity_type!r}; edge removals must declare entity_type='edge'",
+                        "preflight",
+                        f"{target_path}.entity_type",
+                        entity_id=normalized_eid,
+                        batch_entity_id=batch_entity_id,
+                        entity_type=entity_type,
+                    )
+                )
+                continue
+            if target_kind == "node" and entity_type == "edge":
+                issues.append(
+                    _issue(
+                        "removal_entity_type_mismatch",
+                        f"Removal target at {target_path} is in the 'nodes' list but "
+                        f"declares entity_type='edge'; node removals must declare a node entity_type",
+                        "preflight",
+                        f"{target_path}.entity_type",
+                        entity_id=normalized_eid,
+                        batch_entity_id=batch_entity_id,
+                        entity_type=entity_type,
+                    )
+                )
+                continue
+
+            # Duplicate within this sub-array.
+            if normalized_eid in seen_in_this_sub:
+                issues.append(
+                    _issue(
+                        "duplicate_removal_target",
+                        f"Removal target entity_id {normalized_eid} appears more than once " f"in {sub_path}",
+                        "preflight",
+                        f"{target_path}.entity_id",
+                        entity_id=normalized_eid,
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
+                continue
+            seen_in_this_sub.add(normalized_eid)
+
+            parsed.append(
+                _ParsedRemovalTarget(
+                    entity_id=normalized_eid,
+                    entity_type=entity_type,
+                    reason=reason,
+                    section=section_kind,
+                    kind=target_kind,
+                    path=target_path,
+                    batch_entity_id=batch_entity_id,
+                )
+            )
+
+        return parsed
+
+    edge_targets = _parse_targets(section_obj.get("edges", []), "edges")
+    node_targets = _parse_targets(section_obj.get("nodes", []), "nodes")
+
+    return on_missing, on_tombstoned, edge_targets, node_targets
+
+
+# ---------------------------------------------------------------------------
 # Preflight
 # ---------------------------------------------------------------------------
 
@@ -777,6 +1140,7 @@ def _run_preflight(
     dangling_edge_ids: set[str] = set()
     batches_to_import: list[tuple[int, dict[str, Any]]] = []
     batches_to_skip: list[GriftSkippedBatch] = []
+    parsed_removals_by_idx: dict[int, _ParsedRemovalSections] = {}
 
     for batch_idx, batch_container in enumerate(document["batches"]):
         batch_path = f"$.batches[{batch_idx}]"
@@ -1117,6 +1481,88 @@ def _run_preflight(
                 edge_obj["edge"], f"{edge_path}.edge", issues, batch_entity_id=batch_entity_id, entity_id=edge_entity_id
             )
 
+        # --- Removal section preflight (req-grid-import-grift-removal-preflight) ---
+        # Validate optional `deletes` and `purges` sections: shape, target
+        # shape, within-section duplicates, static type-vs-list sanity. Stash
+        # parsed sections on the batch_container under `_parsed_removals` so
+        # the executor can drive transaction-scoped checks + verb calls
+        # without re-parsing.
+        parsed_removals = _ParsedRemovalSections()
+        if "deletes" in batch_container:
+            (
+                parsed_removals.deletes_on_missing,
+                parsed_removals.deletes_on_tombstoned,
+                parsed_removals.deletes_edges,
+                parsed_removals.deletes_nodes,
+            ) = _validate_removal_section(
+                batch_container["deletes"],
+                "deletes",
+                batch_path,
+                batch_entity_id,
+                issues,
+            )
+        if "purges" in batch_container:
+            (
+                parsed_removals.purges_on_missing,
+                _ignored,
+                parsed_removals.purges_edges,
+                parsed_removals.purges_nodes,
+            ) = _validate_removal_section(
+                batch_container["purges"],
+                "purges",
+                batch_path,
+                batch_entity_id,
+                issues,
+            )
+
+        # Cross-section duplicate inside this batch: same entity_id appearing
+        # under more than one of deletes.edges / deletes.nodes / purges.edges /
+        # purges.nodes (across sub-arrays, including same-target-in-both-
+        # delete-and-purge and node-vs-edge mix). Within-sub-array dupes were
+        # caught by the helper.
+        per_batch_seen: dict[str, _ParsedRemovalTarget] = {}
+        for target in parsed_removals.all_targets():
+            if target.entity_id in per_batch_seen:
+                first = per_batch_seen[target.entity_id]
+                issues.append(
+                    _issue(
+                        "duplicate_removal_target",
+                        f"Removal target entity_id {target.entity_id} appears in both "
+                        f"{first.section}.{first.kind}s and {target.section}.{target.kind}s "
+                        f"within {batch_path}",
+                        "preflight",
+                        f"{target.path}.entity_id",
+                        entity_id=target.entity_id,
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
+                continue
+            per_batch_seen[target.entity_id] = target
+
+        # Purge DEBUG gate (req-grid-import-grift-removal-preflight "Purge
+        # Gate"). Fires on declaration, not on outcome — a purges section
+        # with at least one declared target is refused under DEBUG=False
+        # regardless of whether targets end up being skipped at execution
+        # time.
+        if parsed_removals.has_purge_targets():
+            from django.conf import settings as _settings
+
+            if not getattr(_settings, "DEBUG", False):
+                issues.append(
+                    _issue(
+                        "grift_purge_refused_production",
+                        f"purges section in {batch_path} is refused: DEBUG=False. "
+                        "Purge is permitted only when DEBUG=True; see req-grid-service-purge.",
+                        "preflight",
+                        f"{batch_path}.purges",
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
+
+        # Stash for the executor (keyed by batch_idx to avoid mutating the
+        # input document; mutating would break second-import re-validation).
+        parsed_removals_by_idx[batch_idx] = parsed_removals
+
         # Check batch idempotency: already exists locally?
         # req-grid-import-grift-force-reimport: bypass the skip-if-exists guard
         # when this batch_entity_id is in the explicit force_batches set.
@@ -1128,6 +1574,33 @@ def _run_preflight(
             batches_to_skip.append(
                 GriftSkippedBatch(batch_entity_id=batch_entity_id, path=batch_path, reason="batch_already_imported")
             )
+            # req-grid-import-grift-skipped-batch-removals: if the skipped
+            # batch declared removal targets, emit a loud warning so the
+            # operator sees that their explicit `deletes`/`purges` did not
+            # fire. The normal [skip] line + skipped_batches[] entry covers
+            # upsert-only batches; for removal-bearing batches we add a
+            # distinct warning with the --force-batches recipe.
+            if parsed_removals.has_any_targets():
+                de = len(parsed_removals.deletes_edges)
+                dn = len(parsed_removals.deletes_nodes)
+                pe = len(parsed_removals.purges_edges)
+                pn = len(parsed_removals.purges_nodes)
+                issues.append(
+                    _issue(
+                        "skipped_batch_had_removals",
+                        (
+                            f"Batch {batch_entity_id} was skipped (already imported) but its "
+                            f"document container declared removal targets: "
+                            f"deletes.edges={de}, deletes.nodes={dn}, "
+                            f"purges.edges={pe}, purges.nodes={pn}. "
+                            f"These removals did NOT fire. To re-run this batch with the "
+                            f"removals applied, invoke with --force-batches={batch_entity_id}."
+                        ),
+                        "preflight",
+                        batch_path,
+                        batch_entity_id=batch_entity_id,
+                    )
+                )
         elif already_exists and batch_entity_id in force_batches:
             # Force re-import: skip the guard and include this batch in
             # batches_to_import. Execution-time code distinguishes force re-imports
@@ -1251,6 +1724,51 @@ def _run_preflight(
                     )
                 )
 
+    # --- Cross-document removal duplicates + upsert/removal cross-section
+    # duplicates (req-grid-import-grift-removal-preflight). Same entity_id may
+    # not appear under more than one removal target across the entire document
+    # (handled via duplicate_removal_target). Same entity_id may not appear
+    # both as an upsert (in `nodes`/`edges`) AND as a removal target anywhere
+    # in the document (handled via entity_id_in_upsert_and_removal). ---
+    seen_removal_ids: dict[str, _ParsedRemovalTarget] = {}
+    for batch_idx_s, batch_container_s in batches_to_import:
+        parsed = parsed_removals_by_idx.get(batch_idx_s)
+        if parsed is None:
+            continue
+        for target in parsed.all_targets():
+            prior = seen_removal_ids.get(target.entity_id)
+            if prior is not None and prior is not target:
+                issues.append(
+                    _issue(
+                        "duplicate_removal_target",
+                        f"Removal target entity_id {target.entity_id} appears more than once "
+                        f"across the document (first at {prior.path}, again at {target.path})",
+                        "preflight",
+                        f"{target.path}.entity_id",
+                        entity_id=target.entity_id,
+                        batch_entity_id=batch_container_s["batch_entity"]["entity_id"],
+                    )
+                )
+            else:
+                seen_removal_ids[target.entity_id] = target
+
+    if seen_removal_ids:
+        upsert_and_removal_collisions = seen_removal_ids.keys() & all_entity_ids
+        for collision_eid in sorted(upsert_and_removal_collisions):
+            target = seen_removal_ids[collision_eid]
+            issues.append(
+                _issue(
+                    "entity_id_in_upsert_and_removal",
+                    f"entity_id {collision_eid} appears both as an upsert (nodes/edges) "
+                    f"and as a removal target ({target.section}.{target.kind}s) in the same "
+                    "document. Split into separate documents if upsert-then-remove is intended.",
+                    "preflight",
+                    f"{target.path}.entity_id",
+                    entity_id=collision_eid,
+                    batch_entity_id=target.batch_entity_id,
+                )
+            )
+
     # Decide overall ok: any hard-error issue means preflight failed.
     has_hard_error = any(i.code in _ERROR_CODES for i in issues)
     ok = not has_hard_error
@@ -1261,6 +1779,7 @@ def _run_preflight(
         batches_to_skip=batches_to_skip,
         dangling_edge_ids=dangling_edge_ids,
         issues=issues,
+        parsed_removals_by_idx=parsed_removals_by_idx,
     )
 
 
@@ -1277,6 +1796,296 @@ class _SweepStrictAborted(Exception):
     """Raised inside _execute_grift_batch when --sweep-strict + a guardrail miss."""
 
 
+# ---------------------------------------------------------------------------
+# Removal-phase helpers (req-grid-import-grift-removals,
+# req-grid-import-grift-removal-preflight)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _RemovalPhasePlan:
+    """Output of the transaction-scoped removal-target check phase.
+
+    Carries the targets that survived policy application (existence,
+    tombstone-state, entity_type sanity) and are ready to feed to the
+    write_batch deletes / direct purge calls, plus per-target diagnostic
+    issues and skip counts.
+    """
+
+    executable_deletes: list[_ParsedRemovalTarget]
+    executable_purges: list[_ParsedRemovalTarget]
+    removals_skipped: int
+    issues: list[GriftIssue]
+
+
+def _check_and_lock_removal_targets(
+    parsed_removals: _ParsedRemovalSections,
+    batch_path: str,
+    batch_entity_id: str,
+) -> _RemovalPhasePlan:
+    """Run transaction-scoped checks for one batch's removal targets.
+
+    MUST be called inside an open ``transaction.atomic()`` block. Acquires a
+    row-level ``SELECT … FOR UPDATE`` on each target's Entity row, then
+    applies the section policies (on_missing for deletes and purges,
+    on_tombstoned for deletes) to decide which targets are executable, which
+    are skipped, and which raise hard errors. The lock is held until the
+    surrounding transaction commits or rolls back, closing the read-then-act
+    race that Postgres READ COMMITTED otherwise leaves open.
+    """
+    executable_deletes: list[_ParsedRemovalTarget] = []
+    executable_purges: list[_ParsedRemovalTarget] = []
+    removals_skipped = 0
+    issues: list[GriftIssue] = []
+
+    all_targets = parsed_removals.all_targets()
+    if not all_targets:
+        return _RemovalPhasePlan(
+            executable_deletes=[],
+            executable_purges=[],
+            removals_skipped=0,
+            issues=[],
+        )
+
+    # Acquire row-level locks on every target's Entity row. The lock holds
+    # for the rest of the transaction; subsequent reads observe the same
+    # state policy decisions are based on. The Entity model's default
+    # manager does not auto-filter tombstoned rows (unlike BaseModel
+    # subclasses), so Entity.objects already returns the rows we need for
+    # both `on_tombstoned` and purge semantics.
+    target_uuids = [uuid.UUID(t.entity_id) for t in all_targets]
+    locked_rows = {str(row.pk): row for row in Entity.objects.select_for_update().filter(pk__in=target_uuids)}
+
+    def _apply_policy(
+        target: _ParsedRemovalTarget,
+        on_missing: Literal["error", "warn", "ignore"] | None,
+        on_tombstoned: Literal["error", "warn", "ignore"] | None,
+        is_purge: bool,
+    ) -> Literal["execute", "skip"] | None:
+        """Return the outcome for one target, or None if a hard error was emitted."""
+        nonlocal removals_skipped
+
+        # Defaults: error on missing, ignore on tombstoned (per spec recommendation).
+        policy_on_missing = on_missing or "error"
+        policy_on_tombstoned = on_tombstoned or "ignore"
+
+        entity = locked_rows.get(target.entity_id)
+
+        # Missing target.
+        if entity is None:
+            if policy_on_missing == "error":
+                issues.append(
+                    _issue(
+                        "removal_target_missing",
+                        f"Removal target {target.entity_id} not found locally "
+                        f"(section={target.section}, on_missing=error).",
+                        "execution",
+                        target.path,
+                        entity_id=target.entity_id,
+                        batch_entity_id=batch_entity_id,
+                        entity_type=target.entity_type,
+                        operation="purge" if is_purge else "delete",
+                    )
+                )
+                return None
+            if policy_on_missing == "warn":
+                issues.append(
+                    _issue(
+                        "removal_target_missing_warned",  # warning code
+                        f"Removal target {target.entity_id} not found locally; "
+                        f"section={target.section} on_missing=warn — skipping.",
+                        "execution",
+                        target.path,
+                        entity_id=target.entity_id,
+                        batch_entity_id=batch_entity_id,
+                        entity_type=target.entity_type,
+                        operation="purge" if is_purge else "delete",
+                    )
+                )
+            removals_skipped += 1
+            return "skip"
+
+        # entity_type sanity (vs declared, vs sub-array list).
+        if entity.entity_type != target.entity_type:
+            issues.append(
+                _issue(
+                    "removal_entity_type_mismatch",
+                    f"Removal target {target.entity_id} has local entity_type="
+                    f"{entity.entity_type!r} but the bundle declared {target.entity_type!r}.",
+                    "execution",
+                    target.path,
+                    entity_id=target.entity_id,
+                    batch_entity_id=batch_entity_id,
+                    entity_type=entity.entity_type,
+                    operation="purge" if is_purge else "delete",
+                )
+            )
+            return None
+        if target.kind == "edge" and entity.entity_type != "edge":
+            issues.append(
+                _issue(
+                    "removal_entity_type_mismatch",
+                    f"Removal target {target.entity_id} is in the 'edges' list but "
+                    f"the local entity has entity_type={entity.entity_type!r}.",
+                    "execution",
+                    target.path,
+                    entity_id=target.entity_id,
+                    batch_entity_id=batch_entity_id,
+                    entity_type=entity.entity_type,
+                    operation="purge" if is_purge else "delete",
+                )
+            )
+            return None
+        if target.kind == "node" and entity.entity_type == "edge":
+            issues.append(
+                _issue(
+                    "removal_entity_type_mismatch",
+                    f"Removal target {target.entity_id} is in the 'nodes' list but "
+                    "the local entity has entity_type='edge'.",
+                    "execution",
+                    target.path,
+                    entity_id=target.entity_id,
+                    batch_entity_id=batch_entity_id,
+                    entity_type=entity.entity_type,
+                    operation="purge" if is_purge else "delete",
+                )
+            )
+            return None
+
+        # Tombstone state (deletes only; purges accept tombstoned targets).
+        if not is_purge and entity.deleted_at is not None:
+            if policy_on_tombstoned == "error":
+                issues.append(
+                    _issue(
+                        "removal_target_tombstoned",
+                        f"Delete target {target.entity_id} is already tombstoned "
+                        f"(deleted_at set); on_tombstoned=error.",
+                        "execution",
+                        target.path,
+                        entity_id=target.entity_id,
+                        batch_entity_id=batch_entity_id,
+                        entity_type=target.entity_type,
+                        operation="delete",
+                    )
+                )
+                return None
+            if policy_on_tombstoned == "warn":
+                issues.append(
+                    _issue(
+                        "removal_target_tombstoned_warned",
+                        f"Delete target {target.entity_id} is already tombstoned; " f"on_tombstoned=warn — skipping.",
+                        "execution",
+                        target.path,
+                        entity_id=target.entity_id,
+                        batch_entity_id=batch_entity_id,
+                        entity_type=target.entity_type,
+                        operation="delete",
+                    )
+                )
+            removals_skipped += 1
+            return "skip"
+
+        return "execute"
+
+    # Deletes: edges then nodes (within-section order preserved).
+    for target in parsed_removals.deletes_edges + parsed_removals.deletes_nodes:
+        outcome = _apply_policy(
+            target,
+            parsed_removals.deletes_on_missing,
+            parsed_removals.deletes_on_tombstoned,
+            is_purge=False,
+        )
+        if outcome == "execute":
+            executable_deletes.append(target)
+
+    # Purges: edges then nodes.
+    for target in parsed_removals.purges_edges + parsed_removals.purges_nodes:
+        outcome = _apply_policy(
+            target,
+            parsed_removals.purges_on_missing,
+            None,
+            is_purge=True,
+        )
+        if outcome == "execute":
+            executable_purges.append(target)
+
+    return _RemovalPhasePlan(
+        executable_deletes=executable_deletes,
+        executable_purges=executable_purges,
+        removals_skipped=removals_skipped,
+        issues=issues,
+    )
+
+
+def _record_removal_reason_event(
+    target: _ParsedRemovalTarget,
+    batch: Any,
+    actor: Any,
+) -> None:
+    """Emit a BatchEvent capturing the GRIFT-bundle reason for one removal target.
+
+    Co-exists with the standard provenance BatchEvent that the service-layer
+    write pipeline records inside ``_execute_write_pipeline``. The standard
+    event records "the delete happened"; this event captures "and here is the
+    GRIFT-bundle reason for it." Searchable by ``metadata.grift_operation``.
+
+    For tombstone deletes: the typed Entity row still exists (deleted_at set)
+    so the event is emitted against the target's entity_id. For purges:
+    callers route the summary through a batch-level event instead via
+    ``_record_purge_summary_event`` so the trace survives the Entity row
+    deletion.
+    """
+    from tap_grid.models import BatchEvent, BatchEventType
+
+    is_purge = target.section == "purges"
+    event_type = BatchEventType.UNLINK if target.kind == "edge" else BatchEventType.DELETE
+    BatchEvent.objects.create(
+        batch=batch,
+        event_type=event_type,
+        entity_id=uuid.UUID(target.entity_id),
+        entity_type=target.entity_type,
+        actor=actor,
+        metadata={
+            "grift_operation": "purge" if is_purge else "delete",
+            "grift_target_path": target.path,
+            "grift_target_kind": target.kind,
+            "reason": target.reason,
+        },
+    )
+
+
+def _record_purge_summary_event(
+    target: _ParsedRemovalTarget,
+    batch: Any,
+    actor: Any,
+    outcome: Literal["applied", "missing", "warned", "ignored"],
+) -> None:
+    """Emit a batch-level summary BatchEvent for one purge target.
+
+    Recorded against the BATCH Entity (not the purged entity) so it survives
+    the purge. The purged target's identity travels in metadata. See
+    req-grid-import-grift-removals Provenance And Reason Capture.
+    """
+    from tap_grid.models import BatchEvent, BatchEventType
+
+    BatchEvent.objects.create(
+        batch=batch,
+        event_type=BatchEventType.UNLINK if target.kind == "edge" else BatchEventType.DELETE,
+        entity_id=batch.entity.id,
+        entity_type="batch",
+        actor=actor,
+        metadata={
+            "grift_operation": "purge",
+            "target_entity_id": target.entity_id,
+            "target_entity_type": target.entity_type,
+            "target_kind": target.kind,
+            "grift_target_path": target.path,
+            "reason": target.reason,
+            "outcome": outcome,
+        },
+    )
+
+
 def _execute_grift_batch(
     batch_container: dict[str, Any],
     *,
@@ -1288,6 +2097,7 @@ def _execute_grift_batch(
     force_batches: set[str] | None = None,
     sweep_strict: bool = False,
     purge: bool = False,
+    parsed_removals: _ParsedRemovalSections | None = None,
 ) -> tuple[GriftImportedBatch, list[GriftIssue]]:
     """Import one GRIFT batch atomically. Returns (batch_summary, issues)."""
     from tap_grid.models import Batch
@@ -1297,6 +2107,11 @@ def _execute_grift_batch(
     nodes_imported = 0
     edges_imported = 0
     edges_skipped = 0
+    edges_deleted = 0
+    nodes_deleted = 0
+    edges_purged = 0
+    nodes_purged = 0
+    removals_skipped = 0
     swept_entities: list[GriftSweptEntity] = []
     sweep_skipped: list[GriftSweepSkipped] = []
     sweep_strict_aborted = False
@@ -1491,16 +2306,54 @@ def _execute_grift_batch(
                     )
                 op_meta.append({"path": edge_path, "entity_id": edge_entity_id, "entity_type": "edge", "kind": "edge"})
 
-            # Execute all node + edge ops in one write_batch call (atomic).
+            # --- Imperative removal phase (req-grid-import-grift-removals,
+            # req-grid-import-grift-removal-preflight). Transaction-scoped
+            # target checks with row-level locks decide which deletes survive
+            # policy (on_missing / on_tombstoned) and which purges are
+            # executable. Deletes are appended to the write_batch call so the
+            # pre-commit consistency phase (hotlinks etc.) sees the post-delete
+            # graph. Purges run after write_batch returns, still inside the
+            # batch transaction. ---
+            removal_plan: _RemovalPhasePlan | None = None
+            if parsed_removals is not None and parsed_removals.has_any_targets():
+                removal_plan = _check_and_lock_removal_targets(parsed_removals, batch_path, batch_entity_id)
+                issues.extend(removal_plan.issues)
+                removals_skipped = removal_plan.removals_skipped
+                if any(i.code in _ERROR_CODES for i in removal_plan.issues):
+                    raise _BatchFailed()
+
+                # Append delete WriteOperations to the same write_batch call.
+                for target in removal_plan.executable_deletes:
+                    if target.kind == "edge":
+                        ops.append(WriteOperation(verb="delete_edge", target=target.entity_id))
+                    else:
+                        ops.append(WriteOperation(verb="delete_node", target=target.entity_id))
+                    op_meta.append(
+                        {
+                            "path": target.path,
+                            "entity_id": target.entity_id,
+                            "entity_type": target.entity_type,
+                            "kind": "removal_delete_edge" if target.kind == "edge" else "removal_delete_node",
+                            "removal_target": target,
+                        }
+                    )
+
+            # Execute all node + edge + delete ops in one write_batch call (atomic).
             if ops:
                 batch_result = write_batch(ops, caller_context=ctx)
                 any_failure = False
-                for op_result, meta in zip(batch_result.results, op_meta):
+                for op_result, meta in zip(batch_result.results, op_meta, strict=True):
                     if op_result.success:
                         if meta["kind"] == "node":
                             nodes_imported += 1
-                        else:
+                        elif meta["kind"] == "edge":
                             edges_imported += 1
+                        elif meta["kind"] == "removal_delete_edge":
+                            edges_deleted += 1
+                            _record_removal_reason_event(meta["removal_target"], batch, actor)
+                        elif meta["kind"] == "removal_delete_node":
+                            nodes_deleted += 1
+                            _record_removal_reason_event(meta["removal_target"], batch, actor)
                     else:
                         any_failure = True
                         # Collect every per-op error as its own issue. Don't
@@ -1538,6 +2391,54 @@ def _execute_grift_batch(
                 # sync and to keep this post-pass cheap.
                 if replace_spine_intents:
                     _sync_spine_for_replaced_nodes(replace_spine_intents)
+
+            # --- Purge phase (req-grid-import-grift-removals). Purges run
+            # OUTSIDE write_batch because the service-layer purge verbs are not
+            # write_batch-routable in v0; they execute inside the same per-batch
+            # transaction.atomic() so any failure rolls back the entire batch
+            # (upserts, deletes, partial purges). Each purge emits a
+            # batch-level summary BatchEvent so the trace survives the purged
+            # Entity row.
+            #
+            # Known limitation (slice 1): purges do not feed the hotlink
+            # pre-commit consistency phase. If a purge removes an edge that a
+            # surviving node's HOTLINKS references and that node was not
+            # written in this batch, no validation runs. Acceptable for v0;
+            # generalized consistency-phase-as-hook is a future seam.
+            if removal_plan is not None and removal_plan.executable_purges:
+                from tap_grid.exceptions import (
+                    ServiceConflictError,
+                    ServiceNotFoundError,
+                    ServiceValidationError,
+                )
+                from tap_grid.services import purge_edge, purge_node
+
+                # Purge edges first, then nodes (matches the documented order).
+                edge_purges = [t for t in removal_plan.executable_purges if t.kind == "edge"]
+                node_purges = [t for t in removal_plan.executable_purges if t.kind == "node"]
+                for target in edge_purges + node_purges:
+                    try:
+                        if target.kind == "edge":
+                            purge_edge(target.entity_id, caller_context=ctx, reason=target.reason)
+                            edges_purged += 1
+                        else:
+                            purge_node(target.entity_id, caller_context=ctx, reason=target.reason)
+                            nodes_purged += 1
+                        _record_purge_summary_event(target, batch, actor, outcome="applied")
+                    except (ServiceConflictError, ServiceNotFoundError, ServiceValidationError) as exc:
+                        issues.append(
+                            _issue(
+                                "removal_execution_failed",
+                                f"Purge of {target.kind} {target.entity_id} failed: " f"{type(exc).__name__}: {exc}",
+                                "execution",
+                                target.path,
+                                entity_id=target.entity_id,
+                                batch_entity_id=batch_entity_id,
+                                entity_type=target.entity_type,
+                                operation="purge",
+                            )
+                        )
+                        raise _BatchFailed() from exc
 
             # req-grid-import-grift-batch-scoped-sweep: on force re-import,
             # detect entities the previous ingestion of this batch created
@@ -1596,8 +2497,25 @@ def _execute_grift_batch(
     except Exception as exc:
         issues.append(_issue("execution_failed", str(exc), "execution", batch_path, batch_entity_id=batch_entity_id))
 
-    errors_count = sum(1 for i in issues if i.code in ("execution_failed", "sweep_strict_aborted"))
-    warnings_count = sum(1 for i in issues if i.code == "dangling_edge")
+    errors_count = sum(
+        1
+        for i in issues
+        if i.code in ("execution_failed", "sweep_strict_aborted", "removal_execution_failed") or i.code in _ERROR_CODES
+    )
+    warnings_count = sum(
+        1
+        for i in issues
+        if i.code in ("dangling_edge", "removal_target_missing_warned", "removal_target_tombstoned_warned")
+    )
+
+    # On rollback the removal counters are stale (the work didn't persist).
+    # `_BatchFailed` clears upserted_entities above for the same reason;
+    # mirror that for removal stats so they don't lie about partial success.
+    if any(i.code in _ERROR_CODES for i in issues) or sweep_strict_aborted:
+        edges_deleted = 0
+        nodes_deleted = 0
+        edges_purged = 0
+        nodes_purged = 0
 
     return (
         GriftImportedBatch(
@@ -1613,6 +2531,11 @@ def _execute_grift_batch(
             sweep_skipped=sweep_skipped,
             sweep_strict_aborted=sweep_strict_aborted,
             upserted_entities=upserted_entities,
+            edges_deleted=edges_deleted,
+            nodes_deleted=nodes_deleted,
+            edges_purged=edges_purged,
+            nodes_purged=nodes_purged,
+            removals_skipped=removals_skipped,
         ),
         issues,
     )
@@ -2170,12 +3093,23 @@ def grift_import(
             force_batches=force_batches_set,
             sweep_strict=sweep_strict,
             purge=purge,
+            parsed_removals=preflight.parsed_removals_by_idx.get(batch_idx),
         )
         imported_batches.append(summary)
         exec_issues.extend(batch_issues)
 
-    exec_errors = [i for i in exec_issues if i.code in ("execution_failed", "sweep_strict_aborted")]
-    exec_warnings = [i for i in exec_issues if i.code not in ("execution_failed", "sweep_strict_aborted")]
+    _EXEC_ERROR_CODES = frozenset(
+        {
+            "execution_failed",
+            "sweep_strict_aborted",
+            "removal_execution_failed",
+            "removal_target_missing",
+            "removal_target_tombstoned",
+            "removal_entity_type_mismatch",
+        }
+    )
+    exec_errors = [i for i in exec_issues if i.code in _EXEC_ERROR_CODES]
+    exec_warnings = [i for i in exec_issues if i.code not in _EXEC_ERROR_CODES]
 
     all_errors = errors + exec_errors
     all_warnings = warnings + exec_warnings
@@ -2196,6 +3130,11 @@ def grift_import(
         entities_purged=sum(sum(1 for s in b.swept_entities if s.action == "purge") for b in imported_batches),
         sweep_skipped=sum(len(b.sweep_skipped) for b in imported_batches),
         entities_upserted=sum(len(b.upserted_entities) for b in imported_batches),
+        edges_deleted=sum(b.edges_deleted for b in imported_batches),
+        nodes_deleted=sum(b.nodes_deleted for b in imported_batches),
+        edges_purged=sum(b.edges_purged for b in imported_batches),
+        nodes_purged=sum(b.nodes_purged for b in imported_batches),
+        removals_skipped=sum(b.removals_skipped for b in imported_batches),
         errors=len(all_errors),
         warnings=len(all_warnings),
     )

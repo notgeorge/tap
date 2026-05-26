@@ -1,0 +1,21 @@
+{
+  "feature": "Imperative removal section (deletes) executes cleanly under on_missing=ignore",
+  "background": {
+    "grift_fixture": "fixtures/removals.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "post-removal graph contains only the upserted nodes",
+      "tags": ["removals", "deletes", "regression-lock"],
+      "covers": [
+        "req-grift-import-deletes",
+        "req-grid-import-grift-removals",
+        "req-grid-import-grift-removal-preflight"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"Removal Demo Node \"",
+      "expected_envelope": "expected/removals__post_removal_nodes.expected.json",
+      "expected_sql_snapshot": "expected/removals__post_removal_nodes.sql.txt"
+    }
+  ]
+}

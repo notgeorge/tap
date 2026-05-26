@@ -1,0 +1,68 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e6563-ddae-75f4-b3d8-b4bff4669c77",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — removals",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — removals",
+        "description": "Single-batch GRIFT bundle that upserts two playground nodes AND declares a `deletes` section whose target does not exist locally. With on_missing=ignore the removal target is silently skipped (removals_skipped == 1). The fixture locks the slice-1 protocol: the bundle imports cleanly, the deletes section is processed by the importer (parse + transaction-scoped check + policy application), and the post-import graph contains exactly the upserted nodes. If the removal pipeline regresses (sections rejected, policy misapplied, executor crashes), the fixture fails to import and the Gridkin scenario fails before the query runs.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e6563-ddae-75f4-b3d8-b4c044a626bc",
+            "entity_type": "pg_node",
+            "name": "Removal Demo Node A",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "Removal Demo Node A",
+            "description": "Upserted alongside a deletes section that targets a non-existent entity.",
+            "kind": "demo",
+            "severity_score": 5,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6563-ddae-75f4-b3d8-b4c177be88c8",
+            "entity_type": "pg_node",
+            "name": "Removal Demo Node B",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "Removal Demo Node B",
+            "description": "Second upsert in the same batch.",
+            "kind": "demo",
+            "severity_score": 10,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": [],
+      "deletes": {
+        "on_missing": "ignore",
+        "on_tombstoned": "ignore",
+        "edges": [],
+        "nodes": [
+          {
+            "entity_id": "019e6563-ddae-75f4-b3d8-b4c2895e2509",
+            "entity_type": "pg_node",
+            "reason": "Locks the removal protocol: target does not exist locally; on_missing=ignore silently skips it."
+          }
+        ]
+      }
+    }
+  ]
+}
