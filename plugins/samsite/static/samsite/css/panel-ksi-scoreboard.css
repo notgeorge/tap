@@ -1,0 +1,265 @@
+/* Samsite KSI Scoreboard — themed indicator status grid. */
+
+.samsite-scoreboard {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1f2937;
+  line-height: 1.45;
+  font-size: 14px;
+}
+
+.samsite-scoreboard h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #111827;
+}
+
+.samsite-scoreboard code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: #f3f4f6;
+  padding: 0.05em 0.4em;
+  border-radius: 3px;
+}
+
+/* --- Header strip --- */
+
+.samsite-scoreboard-header {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.samsite-scoreboard-headline {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.samsite-scoreboard-class {
+  font-size: 1.05rem;
+}
+
+.samsite-scoreboard-count {
+  color: #6b7280;
+  font-size: 0.9em;
+}
+
+.samsite-scoreboard-totals {
+  margin-top: 0.5rem;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.samsite-scoreboard-pill {
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.samsite-scoreboard-pill-passing { background: #d1fae5; color: #065f46; }
+.samsite-scoreboard-pill-in-progress { background: #fef3c7; color: #92400e; }
+.samsite-scoreboard-pill-accepted { background: #dbeafe; color: #1e40af; }
+.samsite-scoreboard-pill-gap { background: #fee2e2; color: #991b1b; }
+
+.samsite-scoreboard-poam-warning,
+.samsite-scoreboard-fallback-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.85em;
+  color: #4b5563;
+  font-style: italic;
+}
+
+.samsite-scoreboard-poam-warning strong { color: #92400e; }
+
+/* --- Theme block --- */
+
+.samsite-scoreboard-theme {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin: 0 0 1rem;
+  background: #ffffff;
+}
+
+.samsite-scoreboard-theme-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.samsite-scoreboard-theme-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #6b7280;
+  font-size: 0.85em;
+}
+
+.samsite-scoreboard-theme-count {
+  color: #6b7280;
+  font-size: 0.85em;
+}
+
+.samsite-scoreboard-theme-description {
+  margin: 0.25rem 0 0.5rem;
+  color: #4b5563;
+  font-size: 0.9em;
+}
+
+/* --- Indicator list --- */
+
+.samsite-scoreboard-indicator-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.samsite-scoreboard-indicator {
+  border-left: 3px solid #e5e7eb;
+  padding: 0;
+  margin: 0.4rem 0;
+}
+
+.samsite-scoreboard-indicator-passing { border-left-color: #10b981; }
+.samsite-scoreboard-indicator-in-progress { border-left-color: #f59e0b; }
+.samsite-scoreboard-indicator-accepted { border-left-color: #3b82f6; }
+.samsite-scoreboard-indicator-gap { border-left-color: #ef4444; }
+
+.samsite-scoreboard-indicator details {
+  padding: 0.5rem 0.75rem;
+}
+
+.samsite-scoreboard-indicator summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.samsite-scoreboard-indicator summary::-webkit-details-marker { display: none; }
+
+.samsite-scoreboard-indicator-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: #f3f4f6;
+  padding: 0.1em 0.5em;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+.samsite-scoreboard-indicator-name {
+  font-weight: 500;
+  flex: 1 1 auto;
+}
+
+.samsite-scoreboard-indicator-progress {
+  color: #6b7280;
+  font-size: 0.85em;
+}
+
+/* --- Status badges (shared SSP-status sub-badge) --- */
+
+.samsite-scoreboard-indicator-badge,
+.samsite-scoreboard-control-status {
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.samsite-scoreboard-badge-passing,
+.samsite-scoreboard-badge-pass { background: #d1fae5; color: #065f46; }
+.samsite-scoreboard-badge-in-progress,
+.samsite-scoreboard-badge-open { background: #fef3c7; color: #92400e; }
+.samsite-scoreboard-badge-accepted { background: #dbeafe; color: #1e40af; }
+.samsite-scoreboard-badge-gap,
+.samsite-scoreboard-badge-unmapped { background: #fee2e2; color: #991b1b; }
+.samsite-scoreboard-badge-n\/a { background: #f3f4f6; color: #6b7280; }
+.samsite-scoreboard-badge-partial { background: #fed7aa; color: #9a3412; }
+
+.samsite-scoreboard-indicator-description {
+  margin: 0.4rem 0;
+  color: #4b5563;
+  font-size: 0.9em;
+}
+
+/* --- Per-control table --- */
+
+.samsite-scoreboard-controls {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+  margin-top: 0.4rem;
+}
+
+.samsite-scoreboard-controls th,
+.samsite-scoreboard-controls td {
+  border-bottom: 1px solid #f3f4f6;
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.samsite-scoreboard-controls th {
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 600;
+}
+
+/* --- Error / empty / provenance --- */
+
+.samsite-scoreboard-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  border-radius: 6px;
+  padding: 1rem;
+  margin: 0 0 1rem;
+}
+
+.samsite-scoreboard-error-header { font-weight: 600; margin-bottom: 0.25rem; }
+.samsite-scoreboard-error-phase {
+  color: #6b7280;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  margin-right: 0.5em;
+}
+
+.samsite-scoreboard-empty {
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 6px;
+  padding: 1rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.samsite-scoreboard-provenance {
+  margin-top: 1rem;
+  color: #6b7280;
+  font-size: 0.85em;
+}
+
+.samsite-scoreboard-provenance summary { cursor: pointer; }
+
+.samsite-scoreboard-provenance dl {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0 0;
+}
+
+.samsite-scoreboard-provenance dt { font-weight: 600; }
+.samsite-scoreboard-provenance dd { margin: 0; }

@@ -144,6 +144,87 @@
           }
         }
       ]
+    },
+    {
+      "batch_entity": {
+        "entity_id": "019e65d6-8754-7b35-a46d-fc45757ef64a",
+        "entity_type": "batch",
+        "name": "Samsite KSI Scoreboard page v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite.grift.compliance-pages",
+        "name": "Samsite KSI Scoreboard page v0.1.0",
+        "description": "Seeds /samsite/compliance/scoreboard hosting the samsite-ksi-scoreboard panel — a synthesized roll-up that joins the on-grid FedRAMP 20x KSI catalog (ksi_indicator + ksi_theme) against the latest OSCAL SSP and POA&M emissions to compute per-indicator passing/in-progress/accepted/gap status. Panel falls back to the latest emission of each kind when no URL var is supplied; deep links with explicit entity_ids still work."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e65d6-8754-7fc1-b65e-63d41b5d8750",
+            "entity_type": "page",
+            "name": "Samsite — KSI Scoreboard",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Samsite — KSI Scoreboard",
+            "slug": "/samsite/compliance/scoreboard",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-scoreboard": {"panel-id": "scoreboard", "height": "1fr"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e65d6-8754-7380-bc82-38de9eae421b",
+            "entity_type": "panel",
+            "name": "Samsite KSI Scoreboard",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-ksi-scoreboard",
+            "name": "Samsite KSI Scoreboard",
+            "description": "Synthesized 20x KSI scoreboard. Resolves the latest oscal_ssp + oscal_poam compliance_artifacts (via panel-level fallback) and joins them against ksi_indicator nodes on the grid. URL deep links: ?oscal_ssp_artifact_entity_id=<id>&oscal_poam_artifact_entity_id=<id>.",
+            "view": "samsite/panels/ksi_scoreboard.html",
+            "config": {
+              "ssp_artifact_entity_id_var": "oscal_ssp_artifact_entity_id",
+              "poam_artifact_entity_id_var": "oscal_poam_artifact_entity_id",
+              "fallback": {
+                "ssp_kind": "oscal_ssp",
+                "poam_kind": "oscal_poam"
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e65d6-8754-7ed1-8eaf-9f8b7efa4d20",
+            "entity_type": "edge",
+            "name": "Samsite Scoreboard Page USES_PANEL Scoreboard",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e65d6-8754-7fc1-b65e-63d41b5d8750",
+            "to_entity_id": "019e65d6-8754-7380-bc82-38de9eae421b",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "scoreboard"
+              }
+            }
+          }
+        }
+      ]
     }
   ]
 }

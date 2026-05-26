@@ -1067,6 +1067,11 @@
                   "label": "OSCAL POA&M Workbench",
                   "href": "/samsite/compliance/poam",
                   "description": "Render the latest OSCAL Plan of Action and Milestones as an action register."
+                },
+                {
+                  "label": "KSI Scoreboard",
+                  "href": "/samsite/compliance/scoreboard",
+                  "description": "Synthesized FedRAMP 20x KSI status — joins the indicator catalog against the latest SSP + POA&M for passing/in-progress/accepted/gap per KSI."
                 }
               ]
             }

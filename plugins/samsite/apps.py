@@ -36,3 +36,12 @@ class SamsiteConfig(TapPluginConfig):
         from tap_web.registry import panel_type_registry
 
         panel_type_registry.register("samsite-nav-links", NavLinksPanelType)
+
+        # KSI Scoreboard — synthesizes per-indicator pass/in-progress/accepted/gap
+        # status by joining the on-grid KSI catalog against the latest SSP +
+        # POA&M emissions. Samsite-specific because the catalog + artifacts are
+        # samsite's; the panel can be lifted to fedramp_20x_ksi later if a
+        # second consumer appears.
+        from plugins.samsite.panels.ksi_scoreboard import KsiScoreboardPanelType
+
+        panel_type_registry.register("samsite-ksi-scoreboard", KsiScoreboardPanelType)
