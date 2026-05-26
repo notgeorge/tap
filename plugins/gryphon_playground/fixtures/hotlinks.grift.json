@@ -1,0 +1,105 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e64a1-a860-7020-ad0d-f2c884393994",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — hotlinks",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — hotlinks",
+        "description": "A single batch that creates a page whose layout references two panel-ids, the two backing panel nodes, and both USES_PANEL hotlink edges. The deferred-hotlink mechanism (req-grid-hotlink-deferred) enqueues the page during its per-op validation and the pre-commit consistency phase (req-grid-service-batch-precommit-consistency) re-validates against the now-current edge set. The drain must see both edges to pass exact-mode hotlink validation; if the drain regresses (does not run, queries the wrong edges, attributes incorrectly), the fixture fails to import and the Gridkin scenario fails before the query runs.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e64a1-a860-7020-ad0d-f2ca8e1689da",
+            "entity_type": "page",
+            "name": "Hotlink Demo Page",
+            "dimensions": { "tap.graph": "web" }
+          },
+          "node": {
+            "name": "Hotlink Demo Page",
+            "slug": "/gridkin-hotlinks",
+            "description": "",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": { "panel-id": "a" },
+                    "row-2": { "panel-id": "b" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e64a1-a860-7020-ad0d-f2cb7a9e100e",
+            "entity_type": "panel",
+            "name": "Panel A",
+            "dimensions": { "tap.graph": "web" }
+          },
+          "node": {
+            "name": "Panel A",
+            "slug": "gridkin-hotlinks-panel-a",
+            "description": "",
+            "view": "tap_web/panel_error.html"
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e64a1-a860-7020-ad0d-f2cc75fc2d00",
+            "entity_type": "panel",
+            "name": "Panel B",
+            "dimensions": { "tap.graph": "web" }
+          },
+          "node": {
+            "name": "Panel B",
+            "slug": "gridkin-hotlinks-panel-b",
+            "description": "",
+            "view": "tap_web/panel_error.html"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e64a1-a860-7020-ad0d-f2cdee844360",
+            "entity_type": "edge",
+            "dimensions": { "tap.graph": "web" }
+          },
+          "edge": {
+            "from_entity_id": "019e64a1-a860-7020-ad0d-f2ca8e1689da",
+            "to_entity_id": "019e64a1-a860-7020-ad0d-f2cb7a9e100e",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": { "model": "page", "spec": "page-panels", "value": "a" }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e64a1-a860-7020-ad0d-f2ce644ea16b",
+            "entity_type": "edge",
+            "dimensions": { "tap.graph": "web" }
+          },
+          "edge": {
+            "from_entity_id": "019e64a1-a860-7020-ad0d-f2ca8e1689da",
+            "to_entity_id": "019e64a1-a860-7020-ad0d-f2cc75fc2d00",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": { "model": "page", "spec": "page-panels", "value": "b" }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

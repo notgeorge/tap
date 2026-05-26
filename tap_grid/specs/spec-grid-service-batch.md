@@ -28,6 +28,7 @@ Batch records should also be legible as first-class change events. They need eno
 | req-grid-service-batch-dryrun | [Dry-Run Behavior](#dry-run-behavior) | Implemented | Full validation without persistence |
 | req-grid-service-batch-diag | [Per-Item Diagnostics](#per-item-diagnostics) | Implemented | Batch partial diagnostics and reporting |
 | req-grid-service-batch-tx | [Transactional Commit Behavior](#transactional-commit-behavior) | Implemented | All-or-nothing commit model |
+| req-grid-service-batch-precommit-consistency | [Pre-Commit Consistency Phase](#pre-commit-consistency-phase) | Implemented | After per-op success, before commit, run cross-row graph-consistency checks (hotlinks today) and attribute failures per-op |
 
 
 ### Batch Model
@@ -384,6 +385,55 @@ If a committed batch fails validation or persistence for any operation, the batc
 
 #### Future
 Revisit partial commit models only if a concrete operational need emerges; they are not part of the v1 batch contract.
+
+### Pre-Commit Consistency Phase
+----
+RID: `req-grid-service-batch-precommit-consistency`
+Status: `Implemented`
+
+A batch is the smallest unit in which cross-row graph-consistency invariants can be evaluated. Per-row validation in `_execute_write_pipeline` is the right place to check that *a row's payload* is well-formed, but it is the wrong place to check invariants about *the post-batch graph* — those invariants need every node and edge in the batch to have already landed. The batch pipeline therefore exposes a dedicated phase that runs after every per-op pipeline has succeeded and before the atomic transaction commits.
+
+In v0 the sole consumer is hotlink validation (`req-grid-hotlink-deferred` in `spec-grid-hotlink.md`). The phase is specified here to formalize *when* such checks run inside `write_batch`, so future graph-consistency checks have a documented seam to attach to rather than reinventing the timing one consumer at a time.
+
+#### Status Details
+Implemented in `tap_grid/services.py` `write_batch`. Hotlink deferral activates the phase by enqueuing checks via the side-channel ContextVar defined in `tap_grid/caller_context.py`. After the per-op loop completes successfully, `write_batch` drains the queue, attributes any failures to the matching per-op `WriteResult`, and raises `_BailOut` on any failure so the surrounding `transaction.atomic()` rolls back. Dry-run rollback semantics are preserved.
+
+#### Implementation
+
+**Phase position.** The consistency phase runs inside the same `transaction.atomic()` block as the per-op loop, after the loop completes with every `WriteResult.success == True`, and before the dry-run rollback / commit boundary. If any per-op pipeline failed earlier, the batch has already short-circuited via `_BailOut`; the consistency phase is skipped because the atomic block is already rolling back.
+
+**Drain behavior.** Each consumer of the phase (today: hotlinks) deposits work into a context-bound queue during the per-op loop and drains its own queue inside the consistency phase. The phase itself does not define a generic registry in v0; it documents the seam and the drain timing. Adding a second consumer is a future refactor, not a v0 surface (`Future`, below).
+
+**Failure attribution.** Per-row validation failures attribute to one `WriteResult` naturally because the failure happens inside that op's pipeline. Consistency-phase failures are *about* one or more entities — typically one — and must be attributed back to the `WriteResult` of the operation whose `entity_id` the consistency check is reporting on. The phase does this by entity_id lookup against the `results` list: each matching result is flipped to `success=False` and the consistency error is appended.
+
+**Collect-all semantics.** A consistency phase collects every failure across its inputs before raising, matching the all-fields behavior already established in per-row validation (`BaseModel.full_validate` collects every field error before raising). Each consumer enumerates its full deferred set rather than stopping at the first failure, so a single drain pass surfaces the complete picture of what the batch left inconsistent.
+
+**Rollback consequence.** Any consistency-phase failure raises `_BailOut`, rolling back the entire atomic block. The batch is all-or-nothing whether the failure originated in per-row validation or in the consistency phase.
+
+**Error code separation.** Consistency-phase failures should use codes distinct from per-row `validation_error`, so downstream consumers (e.g. the GRIFT importer's `execution_failed` mapping) can distinguish payload bugs from cross-row consistency bugs. Hotlinks use `hotlink_validation_failed`; future consumers should follow the same convention.
+
+#### Development
+The seam exists because cross-row invariants are real and recurring: hotlinks today, plausibly future constraint checks that depend on a node + its neighbors landing together, plausibly future referential-integrity assertions across edges that the batch creates simultaneously. Each one breaks if validated per-row. Codifying the phase once means future consumers attach to a known boundary instead of inventing one inside their own subsystem.
+
+The phase deliberately runs *before* commit, not after. A post-commit check could only report failures after data persisted, which would invert the batch contract from "all-or-nothing" to "best-effort with eventual diagnostics" — wrong for v0's transactional model. The cost is the consistency phase reads from the in-transaction snapshot, which is exactly what every consumer wants (it sees the batch's intended end-state graph).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-batch-precommit-consistency-1 | Phase Runs Inside Atomic Block | Implemented | The consistency phase runs inside the same `transaction.atomic()` as the per-op loop, so any failure rolls back every batch write. | |
+| req-grid-service-batch-precommit-consistency-2 | Phase Runs After Per-Op Success | Implemented | The phase runs only after every per-op `WriteResult.success == True`. A prior per-op failure short-circuits the batch via `_BailOut` and the phase is skipped. | The atomic block rolls back regardless. |
+| req-grid-service-batch-precommit-consistency-3 | Phase Runs Before Commit / Dry-Run Rollback | Implemented | The phase runs before the dry-run rollback branch and before the implicit commit at the end of the atomic block. | Dry-run semantics preserved. |
+| req-grid-service-batch-precommit-consistency-4 | Per-Op Failure Attribution | Implemented | Consistency failures are attributed to the `WriteResult` whose `entity_id` matches the failure's subject; that result is flipped to `success=False` with the failure appended. | If multiple operations touched the same entity, attribution falls on the last such operation. |
+| req-grid-service-batch-precommit-consistency-5 | Collect All Failures | Implemented | The phase collects every failure before raising, matching the all-fields behavior of per-row validation. No first-failure bail. | Mirrors `BaseModel.full_validate` collection semantics. |
+| req-grid-service-batch-precommit-consistency-6 | All-Or-Nothing Rollback | Implemented | Any consistency-phase failure rolls back the entire batch via `_BailOut`. | Same code path as per-op failures. |
+| req-grid-service-batch-precommit-consistency-7 | Distinct Error Codes | Implemented | Consistency-phase failures use codes distinct from per-row `validation_error` so callers can distinguish payload errors from cross-row consistency errors. | Hotlinks use `hotlink_validation_failed`. |
+
+#### Future
+v0 has exactly one consumer (hotlink validation, `req-grid-hotlink-deferred`). If a second consumer lands, extract a small registry that lets consumers register `drain_callback(results)` against the phase rather than each subsystem hard-coding its own ContextVar plumbing. Do not pre-build the registry; let demand pull it.
+
+The phase is also the natural attachment point for future read-side consistency assertions (e.g. "every edge created by this batch resolves to a node that is either pre-existing or created earlier in this same batch"). Such checks are out of scope for v0 but should land here when they land.
+
 
 **Note — caller-managed rollback (2026-04-10):** Plugin validation (`validate_plugin --level runs`) needs to exercise the full write pipeline and then discard all side effects, including auto-created Batch entities. This is handled today by the validation system wrapping its checks in a caller-owned `transaction.atomic()` block that always rolls back. The batch system itself does not offer a built-in "disposable" or "rollback" mode because the decision to discard results is a caller-level concern, not a batch-level one. `_ensure_batch` was moved inside the service layer's `transaction.atomic()` so that it participates in rollback rather than leaking orphan Batch rows. If a second caller emerges with the same execute-then-discard need, consider extracting a shared `rollback_transaction()` context manager as a utility — but do not add rollback semantics to the batch model itself.
 

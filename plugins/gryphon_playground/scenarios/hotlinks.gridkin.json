@@ -1,0 +1,27 @@
+{
+  "feature": "Hotlink upsert across two batches — verify the deferred-validation fix end-to-end",
+  "background": {
+    "grift_fixture": "fixtures/hotlinks.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "post-upsert USES_PANEL edges from the demo page reach both panels",
+      "tags": ["hotlinks", "upsert", "regression-lock"],
+      "covers": [
+        "req-grid-hotlink-deferred",
+        "req-grid-hotlink-deferred-3",
+        "req-grid-hotlink-deferred-4",
+        "req-grid-service-batch-precommit-consistency",
+        "req-grid-service-batch-precommit-consistency-1",
+        "req-grid-service-batch-precommit-consistency-3"
+      ],
+      "layer": "lite",
+      "query": "MATCH (p)-[e:USES_PANEL]->(panel) WHERE p.entity_id = $page",
+      "params": {
+        "page": "019e64a1-a860-7020-ad0d-f2ca8e1689da"
+      },
+      "expected_envelope": "expected/hotlinks__post_upsert_edges.expected.json",
+      "expected_sql_snapshot": "expected/hotlinks__post_upsert_edges.sql.txt"
+    }
+  ]
+}

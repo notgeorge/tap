@@ -1,0 +1,71 @@
+{
+  "nodes": [
+    {
+      "entity_id": "019e64a1-a860-7020-ad0d-f2ca8e1689da",
+      "entity_type": "page",
+      "name": "Hotlink Demo Page",
+      "dimensions": {
+        "tap.graph": "web"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e64a1-a860-7020-ad0d-f2cb7a9e100e",
+      "entity_type": "panel",
+      "name": "Panel A",
+      "dimensions": {
+        "tap.graph": "web"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e64a1-a860-7020-ad0d-f2cc75fc2d00",
+      "entity_type": "panel",
+      "name": "Panel B",
+      "dimensions": {
+        "tap.graph": "web"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>"
+    }
+  ],
+  "edges": [
+    {
+      "entity_id": "019e64a1-a860-7020-ad0d-f2cdee844360",
+      "entity_type": "edge",
+      "name": "019e64a1-a860-7020-ad0d-f2ca8e1689da --[USES_PANEL]--> 019e64a1-a860-7020-ad0d-f2cb7a9e100e",
+      "dimensions": {
+        "tap.graph": "web"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e64a1-a860-7020-ad0d-f2ce644ea16b",
+      "entity_type": "edge",
+      "name": "019e64a1-a860-7020-ad0d-f2ca8e1689da --[USES_PANEL]--> 019e64a1-a860-7020-ad0d-f2cc75fc2d00",
+      "dimensions": {
+        "tap.graph": "web"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 2,
+      "originating_grid_id": "<volatile>"
+    }
+  ]
+}

@@ -210,10 +210,7 @@ class TestGriftEnvelopeValidation:
         container["batch_entity"]["name"] = ""
         result = grift_import(_minimal_doc([container]))
         assert not result.success
-        assert any(
-            "name" in e.message or "non-empty" in e.message or "too short" in e.message
-            for e in result.errors
-        )
+        assert any("name" in e.message or "non-empty" in e.message or "too short" in e.message for e in result.errors)
 
     def test_dimensions_non_string_value_rejected(self):
         bid = _batch_entity_id()
@@ -695,17 +692,12 @@ class TestGriftEnvelopeDimensions:
         """Empty envelope dimensions still applies DEFAULT_DIMENSIONS."""
         batch_id = _batch_entity_id()
         node_id = _node_entity_id()
-        doc = _minimal_doc(
-            [_batch_container(batch_id, nodes=[self._dimension_node(node_id, {})])]
-        )
+        doc = _minimal_doc([_batch_container(batch_id, nodes=[self._dimension_node(node_id, {})])])
         result = grift_import(doc)
         assert result.success
 
         entity = Entity.objects.get(pk=uuid.UUID(node_id))
         assert entity.dimensions == {"tap.meta": "dimension"}
-
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -744,9 +736,7 @@ class TestGriftForceReimport:
         assert result.success
 
         # Revise node payload and force re-import.
-        revised = _minimal_doc(
-            [_batch_container(bid, nodes=[_character_node(nid, name="Renamed", bio="New bio")])]
-        )
+        revised = _minimal_doc([_batch_container(bid, nodes=[_character_node(nid, name="Renamed", bio="New bio")])])
         result2 = grift_import(revised, force_batches=[bid])
         assert result2.success, result2.errors
         assert result2.counts.batches_force_reimported == 1
@@ -759,9 +749,7 @@ class TestGriftForceReimport:
         assert c.bio == "New bio"
 
         # FORCE_REIMPORT audit event landed.
-        evt = BatchEvent.objects.filter(
-            batch__entity_id=bid, event_type=BatchEventType.FORCE_REIMPORT
-        ).first()
+        evt = BatchEvent.objects.filter(batch__entity_id=bid, event_type=BatchEventType.FORCE_REIMPORT).first()
         assert evt is not None
         assert evt.metadata.get("purge") is False
 
@@ -789,8 +777,7 @@ class TestGriftForceReimport:
         assert not result.success
         # Both gates trip; purge-specific error is reported.
         assert any(
-            e.code in ("sweep_purge_refused_production", "force_reimport_refused_production")
-            for e in result.errors
+            e.code in ("sweep_purge_refused_production", "force_reimport_refused_production") for e in result.errors
         )
 
     def test_sweep_tombstones_orphan_nodes(self):
@@ -800,9 +787,7 @@ class TestGriftForceReimport:
         nid_drop = _node_entity_id()
         grift_import(self._initial_doc(bid, [nid_keep, nid_drop]))
 
-        revised = _minimal_doc(
-            [_batch_container(bid, nodes=[_character_node(nid_keep, name="char-0")])]
-        )
+        revised = _minimal_doc([_batch_container(bid, nodes=[_character_node(nid_keep, name="char-0")])])
         result = grift_import(revised, force_batches=[bid])
         assert result.success, result.errors
 
@@ -822,8 +807,8 @@ class TestGriftForceReimport:
         """Guardrail A — an entity touched by a different batch is skipped."""
         from tap_grid.batch import create_batch
         from tap_grid.caller_context import CallerContext
-        from tap_grid.services import write_batch
         from tap_grid.service_types import WriteOperation
+        from tap_grid.services import write_batch
 
         bid = _batch_entity_id()
         nid = _node_entity_id()
@@ -909,8 +894,8 @@ class TestGriftForceReimport:
         """--sweep-strict aborts the entire force re-import if any candidate fails."""
         from tap_grid.batch import create_batch
         from tap_grid.caller_context import CallerContext
-        from tap_grid.services import write_batch
         from tap_grid.service_types import WriteOperation
+        from tap_grid.services import write_batch
 
         bid = _batch_entity_id()
         nid_keep = _node_entity_id()
@@ -926,9 +911,7 @@ class TestGriftForceReimport:
         )
 
         # Strict-mode force re-import should abort — no writes applied.
-        revised = _minimal_doc(
-            [_batch_container(bid, nodes=[_character_node(nid_keep, name="Changed", bio="Y")])]
-        )
+        revised = _minimal_doc([_batch_container(bid, nodes=[_character_node(nid_keep, name="Changed", bio="Y")])])
         result = grift_import(revised, force_batches=[bid], sweep_strict=True)
         assert not result.success
         assert any(e.code == "sweep_strict_aborted" for e in result.errors)
@@ -1068,3 +1051,128 @@ class TestEnvelopePayloadNameMatch:
         result = grift_import(_minimal_doc([container]))
         assert not result.success
         assert not Entity.objects.filter(pk=uuid.UUID(nid)).exists()
+
+
+# ---------------------------------------------------------------------------
+# Hotlink integration: GRIFT upsert with hotlink-bearing nodes
+# req-grid-hotlink-deferred ↔ req-grid-service-batch-precommit-consistency
+# ---------------------------------------------------------------------------
+
+
+def _page_node(entity_id: str, slug: str, panel_ids: list[str], name: str = "P") -> dict[str, Any]:
+    rows = {f"row-{i + 1}": {"panel-id": pid} for i, pid in enumerate(panel_ids)}
+    layout = {"columns": {"col-1": {"width": "1fr", "rows": rows}}}
+    return {
+        "entity": {
+            "entity_id": entity_id,
+            "entity_type": "page",
+            "name": name,
+            "dimensions": {"tap.graph": "web"},
+        },
+        "node": {"name": name, "slug": slug, "description": "", "layout": layout},
+    }
+
+
+def _panel_node(entity_id: str, slug: str, name: str = "Panel") -> dict[str, Any]:
+    return {
+        "entity": {
+            "entity_id": entity_id,
+            "entity_type": "panel",
+            "name": name,
+            "dimensions": {"tap.graph": "web"},
+        },
+        "node": {"name": name, "slug": slug, "description": "", "view": "tap_web/panel_error.html"},
+    }
+
+
+def _uses_panel_edge(edge_entity_id: str, from_id: str, to_id: str, panel_id: str) -> dict[str, Any]:
+    return {
+        "entity": {
+            "entity_id": edge_entity_id,
+            "entity_type": "edge",
+            "dimensions": {"tap.graph": "web"},
+        },
+        "edge": {
+            "from_entity_id": from_id,
+            "to_entity_id": to_id,
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": panel_id}},
+        },
+    }
+
+
+@pytest.mark.django_db
+class TestGriftHotlinkUpsert:
+    """GRIFT bundles that mix hotlink-bearing nodes with their edges must
+    succeed on upsert. This exercises req-grid-hotlink-deferred end-to-end via
+    the importer (which goes through write_batch).
+    """
+
+    def test_upsert_revising_layout_with_new_edge_in_same_batch(self):
+        """The originating bug: re-importing a page whose new layout references
+        a panel-id whose USES_PANEL edge is in the same batch."""
+        # Bundle 1: page + one panel + matching edge.
+        b1 = _batch_entity_id()
+        page_id = _node_entity_id()
+        panel_a_id = _node_entity_id()
+        edge_a_id = _edge_entity_id()
+
+        page_v1 = _page_node(page_id, "/grift-hotlink", panel_ids=["a"])
+        panel_a = _panel_node(panel_a_id, "panel-a")
+        edge_a = _uses_panel_edge(edge_a_id, page_id, panel_a_id, "a")
+
+        result1 = grift_import(_minimal_doc([_batch_container(b1, nodes=[page_v1, panel_a], edges=[edge_a])]))
+        assert result1.success, result1.errors
+
+        # Bundle 2: re-import the page with revised layout referencing a NEW
+        # panel-id "b", plus the new panel node and the new USES_PANEL edge
+        # in the SAME batch. Pre-fix this failed because the importer ran
+        # replace_node and validate_hotlinks fired against the old edge set.
+        b2 = _batch_entity_id()
+        panel_b_id = _node_entity_id()
+        edge_b_id = _edge_entity_id()
+
+        page_v2 = _page_node(page_id, "/grift-hotlink", panel_ids=["a", "b"])
+        panel_b = _panel_node(panel_b_id, "panel-b")
+        edge_b = _uses_panel_edge(edge_b_id, page_id, panel_b_id, "b")
+
+        result2 = grift_import(_minimal_doc([_batch_container(b2, nodes=[page_v2, panel_b], edges=[edge_b])]))
+        assert result2.success, result2.errors
+
+        # Verify post-upsert graph: page has both edges, layout has both rows.
+        from tap_grid.models import Edge as EdgeModel
+        from tap_web.models import Page
+
+        page = Page.objects.get(entity_id=uuid.UUID(page_id))
+        rows = page.layout["columns"]["col-1"]["rows"]
+        assert {r["panel-id"] for r in rows.values()} == {"a", "b"}
+        edge_values = {
+            (e.properties or {}).get("hotlink", {}).get("value")
+            for e in EdgeModel.objects.filter(from_entity_id=uuid.UUID(page_id), edge_type="USES_PANEL")
+        }
+        assert edge_values == {"a", "b"}
+
+    def test_grift_bundle_with_inconsistent_hotlink_fails_loudly(self):
+        """A GRIFT bundle whose page layout references a panel-id that has no
+        matching edge anywhere in the bundle must fail with a clear error and
+        leave the graph unchanged."""
+        bid = _batch_entity_id()
+        page_id = _node_entity_id()
+        panel_a_id = _node_entity_id()
+        edge_a_id = _edge_entity_id()
+
+        # Layout references "a" AND "ghost", but only the "a" edge is provided.
+        page = _page_node(page_id, "/grift-hotlink-bad", panel_ids=["a", "ghost"])
+        panel_a = _panel_node(panel_a_id, "panel-a-bad")
+        edge_a = _uses_panel_edge(edge_a_id, page_id, panel_a_id, "a")
+
+        result = grift_import(_minimal_doc([_batch_container(bid, nodes=[page, panel_a], edges=[edge_a])]))
+        assert not result.success
+        # The failure should surface as an execution-phase issue (the importer
+        # translates per-op errors into "execution_failed" issues; the per-op
+        # WriteResult carries the hotlink_validation_failed code internally).
+        assert any("hotlink" in (issue.code + issue.message).lower() for issue in result.errors), [
+            (i.code, i.message) for i in result.errors
+        ]
+        # Atomic rollback — no page persisted.
+        assert not Entity.objects.filter(pk=uuid.UUID(page_id)).exists()

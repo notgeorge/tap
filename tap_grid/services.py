@@ -28,7 +28,14 @@ from django.db import models as django_models
 from django.db import transaction
 from django.utils import timezone
 
-from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
+from tap_grid.caller_context import (
+    CallerContext,
+    drain_deferred_hotlink_checks,
+    get_caller_context,
+    reset_deferred_hotlink_checks,
+    set_caller_context,
+    start_deferred_hotlink_checks,
+)
 from tap_grid.constraints import validate_edge as _validate_edge_constraint
 from tap_grid.exceptions import (
     InvalidEdgeError,
@@ -484,6 +491,83 @@ def _execute_write_pipeline(
 # ---------------------------------------------------------------------------
 
 
+def _drain_hotlink_checks_into_results(results: list[WriteResult]) -> bool:
+    """Pre-commit consistency phase: drain the deferred-hotlink queue.
+
+    Implements req-grid-service-batch-precommit-consistency for the hotlink
+    consumer (req-grid-hotlink-deferred). The deferred queue holds the model
+    instances whose hotlinks were skipped during per-op validation. The drain
+    re-runs validate_hotlinks() on each instance — by now every node and edge
+    in this batch has been saved, so the validator sees the batch's intended
+    end-state graph.
+
+    The drain collects every failure across the full queue (no first-failure
+    bail), attributes each failure to the WriteResult whose entity_id matches
+    the failing instance (flipping it to success=False and appending the
+    error), and returns True iff any failure was recorded.
+
+    Note: drain_deferred_hotlink_checks() resets the queue to an empty list,
+    so re-entrant calls to validate_hotlinks() from within this drain do not
+    feed back into the queue we are draining.
+
+    Args:
+        results: The per-op WriteResult list, used to attribute failures by
+            entity_id.
+
+    Returns:
+        True if at least one hotlink failure was collected; False otherwise.
+    """
+    from tap_grid.hotlink import validate_hotlinks
+
+    queue = drain_deferred_hotlink_checks()
+    if not queue:
+        return False
+
+    # Build entity_id → WriteResult index for attribution. If multiple ops
+    # touched the same entity, the LAST op wins per
+    # req-grid-service-batch-precommit-consistency-4.
+    result_by_eid: dict[str, WriteResult] = {}
+    for r in results:
+        if r.entity_id is not None:
+            result_by_eid[str(r.entity_id)] = r
+
+    any_failure = False
+    for instance in queue:
+        try:
+            validate_hotlinks(instance)
+        except DjangoValidationError as exc:
+            any_failure = True
+            errors: list[ServiceError] = []
+            try:
+                for field_name, messages in exc.message_dict.items():
+                    for msg in messages:
+                        errors.append(
+                            ServiceError(
+                                code="hotlink_validation_failed",
+                                message=str(msg),
+                                field=field_name if field_name != "__all__" else None,
+                            )
+                        )
+            except AttributeError:
+                for msg in exc.messages:
+                    errors.append(ServiceError(code="hotlink_validation_failed", message=str(msg)))
+
+            target = result_by_eid.get(str(instance.entity_id)) if instance.entity_id else None
+            if target is not None:
+                target.success = False
+                target.errors.extend(errors)
+            else:
+                # No matching result (shouldn't happen — every saved instance
+                # came from a per-op pipeline that produced a WriteResult).
+                # Attach to the last result as a safety net so the failure is
+                # not silently dropped.
+                if results:
+                    results[-1].success = False
+                    results[-1].errors.extend(errors)
+
+    return any_failure
+
+
 def write_batch(
     operations: list[WriteOperation],
     *,
@@ -523,6 +607,13 @@ def write_batch(
     prior_ctx = get_caller_context()
     set_caller_context(CallerContext(user=user, batch_id=effective_batch_id))
 
+    # Activate deferred-hotlink mode for this batch scope (req-grid-hotlink-
+    # deferred). Per-op pipelines that call full_validate() → validate_hotlinks()
+    # will enqueue the instance instead of validating inline; the pre-commit
+    # consistency phase below drains the queue once every node and edge in the
+    # batch has been saved.
+    defer_token = start_deferred_hotlink_checks()
+
     results: list[WriteResult] = []
     batch_errors: list[ServiceError] = []
 
@@ -547,6 +638,13 @@ def write_batch(
                 if not result.success:
                     raise _BailOut()
 
+            # Pre-commit consistency phase (req-grid-service-batch-precommit-
+            # consistency). Drain the deferred hotlink queue; any failure flips
+            # the matching per-op result and short-circuits via _BailOut so the
+            # surrounding transaction.atomic() rolls back.
+            if _drain_hotlink_checks_into_results(results):
+                raise _BailOut()
+
             if dry_run:
                 raise _DryRunRollback()
 
@@ -558,6 +656,7 @@ def write_batch(
         logger.exception("[0b64] Unexpected error in write_batch")
         batch_errors.append(ServiceError(code="internal_error", message=str(exc)))
     finally:
+        reset_deferred_hotlink_checks(defer_token)
         set_caller_context(prior_ctx)
 
     overall_success = not batch_errors and all(r.success for r in results)
@@ -817,8 +916,7 @@ def _assert_debug_for_purge() -> None:
 
     if not getattr(settings, "DEBUG", False):
         raise ServiceConflictError(
-            "purge_node is permitted only when DEBUG=True (purge_refused_production); "
-            "see req-grid-service-purge."
+            "purge_node is permitted only when DEBUG=True (purge_refused_production); " "see req-grid-service-purge."
         )
 
 
@@ -863,9 +961,7 @@ def purge_node(
     try:
         target_uuid = _coerce_uuid(entity_id)
     except (ValueError, TypeError) as exc:
-        raise ServiceValidationError(
-            f"entity_id is not a valid UUID: {entity_id!r}"
-        ) from exc
+        raise ServiceValidationError(f"entity_id is not a valid UUID: {entity_id!r}") from exc
     if target_uuid is None:
         raise ServiceValidationError("entity_id must be provided.")
 
@@ -893,9 +989,9 @@ def purge_node(
     from tap_grid.registry import get_model_class
 
     touching_edge_ids = list(
-        Edge.all_objects.filter(
-            Q(from_entity_id=target_uuid) | Q(to_entity_id=target_uuid)
-        ).values_list("entity_id", flat=True)
+        Edge.all_objects.filter(Q(from_entity_id=target_uuid) | Q(to_entity_id=target_uuid)).values_list(
+            "entity_id", flat=True
+        )
     )
 
     try:

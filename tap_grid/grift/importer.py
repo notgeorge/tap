@@ -1306,9 +1306,9 @@ def _execute_grift_batch(
     batch_node = batch_container["batch_node"]
     batch_entity_id = batch_entity["entity_id"]
     force_batches = force_batches or set()
-    is_force_reimport = batch_entity_id in force_batches and Batch.all_objects.filter(
-        entity_id=batch_entity_id
-    ).exists()
+    is_force_reimport = (
+        batch_entity_id in force_batches and Batch.all_objects.filter(entity_id=batch_entity_id).exists()
+    )
 
     # Build importer provenance for description_json.
     importer_data: dict[str, Any] = {
@@ -1346,9 +1346,7 @@ def _execute_grift_batch(
         merged_desc_json = {"format": "tap.grift.import.v0", "data": importer_data}
     elif incoming_desc.get("format") == "tap.grift.import.v0":
         merged_desc_json = {"format": "tap.grift.import.v0", "data": importer_data}
-    elif isinstance(incoming_desc.get("format"), str) and isinstance(
-        incoming_desc.get("data"), dict
-    ):
+    elif isinstance(incoming_desc.get("format"), str) and isinstance(incoming_desc.get("data"), dict):
         merged_data = {**incoming_desc["data"], "_tap_grift_import": importer_data}
         merged_desc_json = {"format": incoming_desc["format"], "data": merged_data}
     else:
@@ -1496,6 +1494,7 @@ def _execute_grift_batch(
             # Execute all node + edge ops in one write_batch call (atomic).
             if ops:
                 batch_result = write_batch(ops, caller_context=ctx)
+                any_failure = False
                 for op_result, meta in zip(batch_result.results, op_meta):
                     if op_result.success:
                         if meta["kind"] == "node":
@@ -1503,6 +1502,15 @@ def _execute_grift_batch(
                         else:
                             edges_imported += 1
                     else:
+                        any_failure = True
+                        # Collect every per-op error as its own issue. Don't
+                        # short-circuit on the first failed op — the batch's
+                        # pre-commit consistency phase (req-grid-service-batch-
+                        # precommit-consistency) can attribute hotlink failures
+                        # to multiple ops, and the GRIFT report should surface
+                        # all of them in one pass so the bundle author sees the
+                        # complete fix list rather than discovering them one
+                        # rerun at a time.
                         for err in op_result.errors:
                             issues.append(
                                 _issue(
@@ -1516,7 +1524,8 @@ def _execute_grift_batch(
                                     operation=op_result.operation,
                                 )
                             )
-                        raise _BatchFailed()
+                if any_failure:
+                    raise _BatchFailed()
 
                 # req-grid-import-grift-batch (Spine Sync): for every successful
                 # replace_node, propagate the bundle's envelope-side spine fields
@@ -1694,18 +1703,13 @@ def _run_batch_scoped_sweep(
     """
     from django.db.models import Q
 
-    from tap_grid.models import BatchEvent, BatchEventType, Edge, Entity
+    from tap_grid.models import BatchEvent, BatchEventType, Edge
 
     # --- Build the new-version id sets (post-apply state). ---
-    new_node_ids: set[str] = {
-        n["entity"]["entity_id"] for n in batch_container.get("nodes", [])
-    }
-    new_edge_ids: set[str] = {
-        e["entity"]["entity_id"] for e in batch_container.get("edges", [])
-    }
+    new_node_ids: set[str] = {n["entity"]["entity_id"] for n in batch_container.get("nodes", [])}
+    new_edge_ids: set[str] = {e["entity"]["entity_id"] for e in batch_container.get("edges", [])}
     new_edge_endpoints: list[tuple[str, str]] = [
-        (e["edge"]["from_entity_id"], e["edge"]["to_entity_id"])
-        for e in batch_container.get("edges", [])
+        (e["edge"]["from_entity_id"], e["edge"]["to_entity_id"]) for e in batch_container.get("edges", [])
     ]
 
     # --- Candidates: entities this batch CREATEd that are absent from the new sets. ---
@@ -1738,9 +1742,7 @@ def _run_batch_scoped_sweep(
     for entity_id_str, entity_type in candidate_entity_ids:
         # Guardrail A — ownership. Any event for this entity from a different batch?
         external_writes_exist = (
-            BatchEvent.objects.filter(entity_id=entity_id_str)
-            .exclude(batch__entity_id=batch_entity_id)
-            .exists()
+            BatchEvent.objects.filter(entity_id=entity_id_str).exclude(batch__entity_id=batch_entity_id).exists()
         )
         if external_writes_exist:
             skipped.append(
@@ -1775,9 +1777,7 @@ def _run_batch_scoped_sweep(
                 continue
 
             # New-version edges that point at this candidate.
-            touched_by_new = any(
-                entity_id_str in (from_id, to_id) for from_id, to_id in new_edge_endpoints
-            )
+            touched_by_new = any(entity_id_str in (from_id, to_id) for from_id, to_id in new_edge_endpoints)
             if touched_by_new:
                 skipped.append(
                     GriftSweepSkipped(
@@ -1856,9 +1856,7 @@ def _apply_sweep_purge(
         # If one appears here, we raise; the enclosing transaction rolls back
         # the whole force re-import (including any prior purges in this run).
         foreign_events = (
-            BatchEvent.objects.filter(entity_id=candidate_uuid)
-            .exclude(batch__entity_id=batch_entity_id)
-            .exists()
+            BatchEvent.objects.filter(entity_id=candidate_uuid).exclude(batch__entity_id=batch_entity_id).exists()
         )
         if foreign_events:
             raise RuntimeError(
@@ -1956,9 +1954,7 @@ def _emit_force_reimport_event(
             "purge": purge,
             "sweep_strict": sweep_strict,
             "swept_entity_ids": [s.entity_id for s in swept_entities],
-            "sweep_skipped_reasons": {
-                s.entity_id: s.reason for s in sweep_skipped
-            },
+            "sweep_skipped_reasons": {s.entity_id: s.reason for s in sweep_skipped},
         },
     )
 
@@ -2050,8 +2046,7 @@ def grift_import(
             errors=[
                 _issue(
                     "force_reimport_refused_production",
-                    "Force re-import is permitted if and only if DEBUG=True. "
-                    "Refusing the invocation.",
+                    "Force re-import is permitted if and only if DEBUG=True. " "Refusing the invocation.",
                     "preflight",
                     "$",
                 )
@@ -2073,8 +2068,7 @@ def grift_import(
             errors=[
                 _issue(
                     "sweep_purge_refused_production",
-                    "--purge is permitted if and only if DEBUG=True. "
-                    "Refusing the invocation.",
+                    "--purge is permitted if and only if DEBUG=True. " "Refusing the invocation.",
                     "preflight",
                     "$",
                 )
@@ -2189,25 +2183,17 @@ def grift_import(
     # Batches that executed successfully. A force re-import that aborted via
     # --sweep-strict is counted as a failure (nothing landed) but still has
     # an entry in imported_batches for reporting.
-    successfully_imported = [
-        b for b in imported_batches
-        if not b.sweep_strict_aborted and b.errors_count == 0
-    ]
+    successfully_imported = [b for b in imported_batches if not b.sweep_strict_aborted and b.errors_count == 0]
 
     counts = GriftCounts(
         batches_imported=len(successfully_imported),
         batches_skipped=len(preflight.batches_to_skip),
-        batches_force_reimported=sum(
-            1 for b in successfully_imported if b.force_reimported
-        ),
+        batches_force_reimported=sum(1 for b in successfully_imported if b.force_reimported),
         nodes_imported=sum(b.nodes_imported for b in imported_batches),
         edges_imported=sum(b.edges_imported for b in imported_batches),
         edges_skipped=sum(b.edges_skipped for b in imported_batches),
         entities_swept=sum(len(b.swept_entities) for b in imported_batches),
-        entities_purged=sum(
-            sum(1 for s in b.swept_entities if s.action == "purge")
-            for b in imported_batches
-        ),
+        entities_purged=sum(sum(1 for s in b.swept_entities if s.action == "purge") for b in imported_batches),
         sweep_skipped=sum(len(b.sweep_skipped) for b in imported_batches),
         entities_upserted=sum(len(b.upserted_entities) for b in imported_batches),
         errors=len(all_errors),

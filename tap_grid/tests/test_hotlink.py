@@ -505,3 +505,299 @@ class TestHotlinkEdgeData:
         assert hl["model"] == "page"
         assert hl["spec"] == "page-panels"
         assert hl["value"] == "main"
+
+
+# ---------------------------------------------------------------------------
+# req-grid-hotlink-deferred: deferred validation in batch contexts
+# req-grid-service-batch-precommit-consistency: pre-commit consistency phase
+# ---------------------------------------------------------------------------
+
+
+def _page_layout(panel_ids: list[str]) -> dict:
+    rows = {f"row-{i + 1}": {"panel-id": pid} for i, pid in enumerate(panel_ids)}
+    return {"columns": {"col-1": {"width": "1fr", "rows": rows}}}
+
+
+class TestDeferredHotlinkQueueMechanics:
+    """The ContextVar-backed deferred-hotlink queue (no DB / no batch)."""
+
+    def test_inactive_by_default(self):
+        from tap_grid.caller_context import is_deferring_hotlinks
+
+        assert is_deferring_hotlinks() is False
+
+    def test_start_and_reset(self):
+        from tap_grid.caller_context import (
+            is_deferring_hotlinks,
+            reset_deferred_hotlink_checks,
+            start_deferred_hotlink_checks,
+        )
+
+        token = start_deferred_hotlink_checks()
+        assert is_deferring_hotlinks() is True
+        reset_deferred_hotlink_checks(token)
+        assert is_deferring_hotlinks() is False
+
+    def test_enqueue_noop_when_inactive(self):
+        from tap_grid.caller_context import drain_deferred_hotlink_checks, enqueue_deferred_hotlink_check
+
+        # Should not raise, should not enqueue.
+        enqueue_deferred_hotlink_check(object())  # type: ignore[arg-type]
+        assert drain_deferred_hotlink_checks() == []
+
+    def test_enqueue_and_drain(self):
+        from tap_grid.caller_context import (
+            drain_deferred_hotlink_checks,
+            enqueue_deferred_hotlink_check,
+            is_deferring_hotlinks,
+            reset_deferred_hotlink_checks,
+            start_deferred_hotlink_checks,
+        )
+
+        token = start_deferred_hotlink_checks()
+        try:
+            sentinel_a = object()
+            sentinel_b = object()
+            enqueue_deferred_hotlink_check(sentinel_a)  # type: ignore[arg-type]
+            enqueue_deferred_hotlink_check(sentinel_b)  # type: ignore[arg-type]
+            assert is_deferring_hotlinks() is True
+            drained = drain_deferred_hotlink_checks()
+            assert drained == [sentinel_a, sentinel_b]
+            # Drain deactivates deferred mode so re-entrant validate_hotlinks()
+            # calls during the drain run inline rather than re-enqueueing.
+            assert is_deferring_hotlinks() is False
+            # Second drain is a no-op.
+            assert drain_deferred_hotlink_checks() == []
+        finally:
+            reset_deferred_hotlink_checks(token)
+
+
+@pytest.mark.django_db
+class TestDeferredHotlinkInWriteBatch:
+    """write_batch defers validate_hotlinks() and drains pre-commit."""
+
+    def _make_panel(self, slug: str):
+        from tap_web.models import Panel
+
+        return Panel.objects.create(slug=slug, name=slug, view="tap_web/panel_error.html")
+
+    def test_inline_save_outside_batch_still_validates(self):
+        """Direct model.save() (no write_batch) keeps inline hotlink validation."""
+        from tap_web.models import Page
+
+        # Create a page with no edges.
+        page = Page(name="Solo", slug="/solo-deferred", layout=_page_layout(["nope"]))
+        page.save(skip_validation=True)
+        # Now full_validate (called by future save) should fail inline since
+        # no deferral context is active.
+        with pytest.raises(ValidationError):
+            page.full_validate()
+
+    def test_upsert_with_new_edge_in_same_batch_succeeds(self):
+        """Page layout references a panel-id whose edge is created in the SAME batch.
+
+        This is the originating bug: validate_hotlinks ran inline during the
+        per-op pipeline for replace_node and saw the OLD edge set (no edge for
+        the new panel-id). With deferred validation, the drain runs after both
+        the node replace and the new edge create have landed, so the validator
+        sees the post-batch edge set.
+        """
+        import uuid
+
+        from tap_grid.service_types import WriteOperation
+        from tap_grid.services import write_batch
+        from tap_web.models import Page
+
+        # Initial state: page with panel "a", matching edge.
+        panel_a = self._make_panel("p-a")
+        page = Page.objects.create(name="P", slug="/upsert-new-edge", layout=_page_layout(["a"]))
+        _make_page_panel_edge(page.entity, panel_a.entity, "a")
+
+        # Add panel "b" up front (a real entity to point a new edge at).
+        panel_b = self._make_panel("p-b")
+
+        # Batch: replace page to reference both "a" and "b", AND create the
+        # USES_PANEL edge for "b" in the same batch.
+        new_edge_id = str(uuid.uuid4())
+        result = write_batch(
+            [
+                WriteOperation(
+                    verb="replace_node",
+                    target=str(page.entity_id),
+                    payload={
+                        "name": "P",
+                        "slug": "/upsert-new-edge",
+                        "description": "",
+                        "layout": _page_layout(["a", "b"]),
+                    },
+                ),
+                WriteOperation(
+                    verb="create_edge",
+                    from_target=str(page.entity_id),
+                    to_target=str(panel_b.entity_id),
+                    edge_type="USES_PANEL",
+                    payload={"properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "b"}}},
+                    entity_id=new_edge_id,
+                ),
+            ]
+        )
+
+        assert result.success, result.results
+        page.refresh_from_db()
+        assert "row-2" in page.layout["columns"]["col-1"]["rows"]
+
+    def test_upsert_with_missing_edge_fails_with_per_op_attribution(self):
+        """Layout references a panel-id with no matching edge anywhere — failure
+        attributed to the replace_node op via hotlink_validation_failed."""
+        from tap_grid.service_types import WriteOperation
+        from tap_grid.services import write_batch
+        from tap_web.models import Page
+
+        panel_a = self._make_panel("attr-a")
+        page = Page.objects.create(name="P", slug="/attr-fail", layout=_page_layout(["a"]))
+        _make_page_panel_edge(page.entity, panel_a.entity, "a")
+
+        # Revise layout to add "missing"; do NOT create the matching edge.
+        result = write_batch(
+            [
+                WriteOperation(
+                    verb="replace_node",
+                    target=str(page.entity_id),
+                    payload={
+                        "name": "P",
+                        "slug": "/attr-fail",
+                        "description": "",
+                        "layout": _page_layout(["a", "missing"]),
+                    },
+                ),
+            ]
+        )
+
+        assert result.success is False
+        assert len(result.results) == 1
+        offending = result.results[0]
+        assert offending.success is False
+        codes = {e.code for e in offending.errors}
+        assert "hotlink_validation_failed" in codes
+        # Rollback: the page on disk still references just "a".
+        page.refresh_from_db()
+        assert page.layout == _page_layout(["a"])
+
+    def test_drain_collects_all_failures_across_multiple_pages(self):
+        """Two failing pages in one batch both attributed; no first-fail bail."""
+        from tap_grid.service_types import WriteOperation
+        from tap_grid.services import write_batch
+        from tap_web.models import Page
+
+        # Two pages, each with one valid edge.
+        panel_x = self._make_panel("multi-x")
+        panel_y = self._make_panel("multi-y")
+        page1 = Page.objects.create(name="P1", slug="/multi-1", layout=_page_layout(["x"]))
+        page2 = Page.objects.create(name="P2", slug="/multi-2", layout=_page_layout(["y"]))
+        _make_page_panel_edge(page1.entity, panel_x.entity, "x")
+        _make_page_panel_edge(page2.entity, panel_y.entity, "y")
+
+        # Batch: replace both pages with layouts that reference panel-ids that
+        # have no matching edges. Neither replace adds the needed edge.
+        result = write_batch(
+            [
+                WriteOperation(
+                    verb="replace_node",
+                    target=str(page1.entity_id),
+                    payload={
+                        "name": "P1",
+                        "slug": "/multi-1",
+                        "description": "",
+                        "layout": _page_layout(["x", "missing-1"]),
+                    },
+                ),
+                WriteOperation(
+                    verb="replace_node",
+                    target=str(page2.entity_id),
+                    payload={
+                        "name": "P2",
+                        "slug": "/multi-2",
+                        "description": "",
+                        "layout": _page_layout(["y", "missing-2"]),
+                    },
+                ),
+            ]
+        )
+
+        assert result.success is False
+        # Both per-op results should carry hotlink errors (not just the first).
+        op1, op2 = result.results
+        assert op1.success is False
+        assert op2.success is False
+        assert any(e.code == "hotlink_validation_failed" for e in op1.errors)
+        assert any(e.code == "hotlink_validation_failed" for e in op2.errors)
+
+    def test_fresh_create_with_edge_in_same_batch_succeeds(self):
+        """A brand-new page (entity_id None at enqueue) whose USES_PANEL edge
+        lands in the same batch validates correctly post-drain."""
+        import uuid
+
+        from tap_grid.service_types import WriteOperation
+        from tap_grid.services import write_batch
+
+        panel = self._make_panel("fresh-create-panel")
+
+        new_page_id = str(uuid.uuid4())
+        new_edge_id = str(uuid.uuid4())
+        result = write_batch(
+            [
+                WriteOperation(
+                    verb="create_node",
+                    type_slug="page",
+                    payload={
+                        "name": "Fresh",
+                        "slug": "/fresh-create",
+                        "description": "",
+                        "layout": _page_layout(["only"]),
+                    },
+                    entity_id=new_page_id,
+                ),
+                WriteOperation(
+                    verb="create_edge",
+                    from_target=new_page_id,
+                    to_target=str(panel.entity_id),
+                    edge_type="USES_PANEL",
+                    payload={"properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "only"}}},
+                    entity_id=new_edge_id,
+                ),
+            ]
+        )
+        assert result.success, result.results
+
+    def test_dry_run_drain_runs_and_rolls_back(self):
+        """Dry-run still runs the consistency phase; failure surfaces; nothing persists."""
+        from tap_grid.service_types import WriteOperation
+        from tap_grid.services import write_batch
+        from tap_web.models import Page
+
+        panel = self._make_panel("dry-run")
+        page = Page.objects.create(name="P", slug="/dry-run-page", layout=_page_layout(["ok"]))
+        _make_page_panel_edge(page.entity, panel.entity, "ok")
+        original_layout = dict(page.layout)
+
+        result = write_batch(
+            [
+                WriteOperation(
+                    verb="replace_node",
+                    target=str(page.entity_id),
+                    payload={
+                        "name": "P",
+                        "slug": "/dry-run-page",
+                        "description": "",
+                        "layout": _page_layout(["ok", "ghost"]),
+                    },
+                ),
+            ],
+            dry_run=True,
+        )
+
+        # Dry-run failure surfaces; page on disk unchanged.
+        assert result.success is False
+        assert any(e.code == "hotlink_validation_failed" for e in result.results[0].errors)
+        page.refresh_from_db()
+        assert page.layout == original_layout

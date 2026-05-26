@@ -59,6 +59,7 @@ class ServiceError:
         "conflict",
         "unsupported_operation",
         "internal_error",
+        "hotlink_validation_failed",
     ]
     message: str
     field: str | None = None

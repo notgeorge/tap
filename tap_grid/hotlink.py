@@ -188,16 +188,33 @@ def validate_hotlinks(instance: BaseModel) -> None:
     Skips validation when instance.entity_id is None (first-save / unsaved instance).
     Edges and the node are not yet synchronised at that point (Option A).
 
+    Deferred mode (req-grid-hotlink-deferred): when the deferred-hotlink-check
+    queue is active for this execution context (set up by write_batch), append
+    (model_cls, entity_id) and return without validating. The batch's pre-commit
+    consistency phase drains the queue after every node and edge has landed,
+    re-runs validate_hotlinks() against the now-current edge set, and attributes
+    failures back to the originating per-op WriteResult.
+
     Args:
         instance: The BaseModel subclass instance to validate.
 
     Raises:
-        ValidationError: If any hotlink definition's consistency check fails.
+        ValidationError: If any hotlink definition's consistency check fails
+            (inline mode only — deferred mode raises during the drain, not here).
     """
+    from tap_grid.caller_context import enqueue_deferred_hotlink_check, is_deferring_hotlinks
     from tap_grid.models import Edge
 
     hotlinks: list[dict] = getattr(instance.__class__, "HOTLINKS", [])
     if not hotlinks:
+        return
+
+    # Deferred mode: enqueue the instance (whether or not entity_id is set yet)
+    # and return. The pipeline assigns entity_id during save, so by the time
+    # the drain runs the instance carries its final id and validate_hotlinks
+    # called on the same instance will see the current edge set.
+    if is_deferring_hotlinks():
+        enqueue_deferred_hotlink_check(instance)
         return
 
     # Option A: skip on first save — no edges exist yet to compare against.

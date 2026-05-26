@@ -27,6 +27,7 @@ In addition to the model-level declaration, participating edges carry explicit h
 | req-grid-hotlink-edge-data | [Hotlink Edge Instance Data](#hotlink-edge-instance-data) | Implemented | Participating edges carry explicit `properties.hotlink` metadata |
 | req-grid-hotlink-selector | [Hotlink Selector System](#hotlink-selector-system) | Implemented | v1 uses a simple TAP path selector; selector backends are pluggable |
 | req-grid-hotlink-validation | [Hotlink Validation Semantics](#hotlink-validation-semantics) | Implemented | Service layer validates extracted references against edges |
+| req-grid-hotlink-deferred | [Deferred Validation In Batch Contexts](#deferred-validation-in-batch-contexts) | Implemented | Multi-op batches defer hotlink checks until all node + edge writes have landed, then drain before commit |
 | req-grid-hotlink-mutation | [Hotlink Mutation Boundaries](#hotlink-mutation-boundaries) | Proposed | Reverse edge-mutation protection is a planned next phase |
 
 ## Explanation
@@ -276,6 +277,63 @@ The system should validate against the node's current persisted edges at save ti
 
 #### Future
 Consider exposing a reusable reconciliation helper that computes both identifier sets and returns a structured diff for admin tooling, diagnostics, and future write orchestration.
+
+
+### Deferred Validation In Batch Contexts
+----
+RID: `req-grid-hotlink-deferred`
+Status: `Implemented`
+
+A node's hotlink contract is a statement about the *post-batch* graph, not about the graph as it exists during the per-row save inside that batch. When a multi-operation write batch replaces a node whose embedded references point at edges the same batch is about to create, validating the node at save time sees a stale edge set and rejects a write that is in fact consistent after the batch lands. Deferred validation moves the hotlink check to the end of the batch, after every node and edge write has been staged but before the transaction commits, so the validator sees the graph the caller actually declared.
+
+This requirement specifies *when* hotlink validation runs in a batch context. It does not change the semantics defined in `req-grid-hotlink-validation`; the same extract-and-compare logic runs, just at a different point in the pipeline.
+
+#### Status Details
+Implemented. `tap_grid/caller_context.py` exposes a side-channel ContextVar (`_pending_hotlink_checks`) that batched writes activate. `validate_hotlinks` in `tap_grid/hotlink.py` consults it and enqueues `(model_cls, entity_id)` instead of validating inline when deferral is active. `write_batch` in `tap_grid/services.py` drains the queue after the ops loop and before the atomic commit, attributing failures back to the originating `WriteResult`. See `req-grid-service-batch-precommit-consistency` in `spec-grid-service-batch.md` for the batch pipeline's view of the same phase.
+
+#### Implementation
+
+**Opt-in via context.** Hotlink deferral is opt-in for a write scope, not the global default. The deferral state lives in a ContextVar separate from `CallerContext` (which is frozen). When the queue is `None`, validation runs inline as defined in `req-grid-hotlink-validation` (preserves direct-`model.save()` semantics). When the queue is a list, validation enqueues and returns immediately.
+
+**Activated by `write_batch` (not the per-op pipeline).** The activation happens at the batch boundary: `write_batch` enables the queue at the top of its `transaction.atomic()` block, runs all per-op pipelines under deferral, then drains. Per-op pipeline `full_validate()` calls participate transparently. Nested re-entry of `write_batch` is not supported in v0 (one batch context per write scope).
+
+**Drain timing.** The drain runs after the ops loop, after every per-op pipeline has reported `success=True`, and before the dry-run rollback / commit. If any per-op pipeline failed, the batch has already short-circuited; no drain is needed since the atomic block will roll back regardless.
+
+**Drain disables further deferral.** Before the drain re-runs `validate_hotlinks` on each enqueued instance, the ContextVar is reset to `None`, so the re-entrant validate call performs inline validation against the now-current edge set. This avoids self-deferring loops.
+
+**All-failures collection.** The drain pass iterates the full queue and collects every hotlink failure. It does not bail on the first failed entity. The result is a complete picture of which nodes the bundle left inconsistent, mirroring the existing all-fields-collected behavior inside a single `validate_hotlinks` call.
+
+**Per-operation failure attribution.** Each enqueued entry carries `entity_id`. After the drain collects errors, each error is attributed to the `WriteResult` of the operation whose `entity_id` matches — flipping that result to `success=False` and appending the hotlink error. This makes the failure surface inside `BatchWriteResult.results` legible to the same per-op machinery that surfaces validation errors today (e.g. the GRIFT importer's `_BatchFailed` path attaches per-op messages to its issues list). If multiple operations in the same batch touched the same `entity_id`, the failure attributes to the last such operation, which is the one whose declared state is being measured.
+
+**Rollback on any failure.** Any error collected during the drain causes the atomic block to roll back, identical to a per-op failure. The batch is all-or-nothing; partial hotlink consistency is never persisted.
+
+#### Boundaries
+
+- Direct `model.save()` (outside the service layer) keeps inline hotlink validation. The deferral mechanism is local to `write_batch` callers.
+- Dry-run mode runs the drain like a real commit. A dry-run that would have failed hotlink validation reports the same per-op failure set; the atomic rolls back as it always does for dry-run.
+- The Option A first-save skip (`entity_id is None`) is still honored in the inline path. In the deferred path, fresh-create ops also defer; their `entity_id` is set by the pipeline before the drain runs, so the drain validates them against the now-attached edges.
+- Hotlink failures discovered in the drain emit a stable error code `hotlink_validation_failed` distinct from per-op `validation_error`, so callers can distinguish "node payload was malformed" from "batch left the graph inconsistent".
+
+#### Development
+The structural insight: hotlink consistency is a *whole-batch* property, not a *per-row* property. The per-row save is the wrong place to check it because nothing about a row's payload, taken in isolation, can answer the question — the answer depends on what other rows in the same batch do. Per-row validation was the natural starting point and worked while the only writes were single-row, but multi-op batches surface the mismatch. The fix is to push the check to the boundary where the question is actually answerable.
+
+This is also why deferral lives in `tap_grid` and not in the GRIFT importer: any caller assembling a multi-operation write that mixes node payloads with their materializing edges hits the same shape (importer, future bulk admin APIs, scripted writes, future federation paths). Putting the deferral in `write_batch` covers all of them with one mechanism.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-hotlink-deferred-1 | Opt-In Deferral State | Implemented | A side-channel ContextVar carries the deferred-hotlink queue; deferral is inactive (queue is `None`) by default and activated by batch contexts. | Inline `model.save()` outside a batch keeps existing behavior. |
+| req-grid-hotlink-deferred-2 | Validate Enqueues Under Deferral | Implemented | When deferral is active, `validate_hotlinks` appends `(model_cls, entity_id)` and returns instead of running inline. | The Option A first-save skip still suppresses enqueue for unsaved instances. |
+| req-grid-hotlink-deferred-3 | Drain Runs At Batch End | Implemented | The drain runs after all per-op pipelines succeed and before commit / dry-run rollback, inside the same atomic block. | If any per-op pipeline already failed, no drain is needed. |
+| req-grid-hotlink-deferred-4 | Drain Disables Deferral | Implemented | The drain resets the ContextVar before re-invoking `validate_hotlinks` so the re-entrant call validates inline. | Prevents self-deferring loops. |
+| req-grid-hotlink-deferred-5 | All Failures Collected | Implemented | The drain iterates every enqueued entry and collects every hotlink failure rather than stopping at the first failure. | Mirrors the all-fields behavior inside a single `validate_hotlinks` call. |
+| req-grid-hotlink-deferred-6 | Per-Op Failure Attribution | Implemented | Each hotlink failure is attributed to the `WriteResult` whose `entity_id` matches the enqueued entry; that result is flipped to `success=False` with the failure appended. | Failure code is `hotlink_validation_failed`. |
+| req-grid-hotlink-deferred-7 | All-Or-Nothing Rollback | Implemented | Any drain failure causes the atomic block to roll back. The batch never partially persists with inconsistent hotlinks. | Identical commit semantics to a per-op failure. |
+| req-grid-hotlink-deferred-8 | Stable Failure Code | Implemented | Drain failures use the code `hotlink_validation_failed`, distinct from per-op `validation_error`. | Lets callers distinguish payload errors from batch-level graph-consistency errors. |
+
+#### Future
+A natural extension is a generalized "before-commit graph-consistency phase" hook that other future consistency checks could register against (`req-grid-service-batch-precommit-consistency` mentions this as an explicit future seam). Hotlinks are the only current consumer; widen the surface only when a second use case lands.
 
 
 ### Hotlink Mutation Boundaries
