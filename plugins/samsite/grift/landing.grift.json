@@ -61,17 +61,143 @@
           "entity": {
             "entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
             "entity_type": "layout",
-            "name": "samsite-aws-flat",
+            "name": "samsite-landing-layout",
             "dimensions": {"tap.graph": "web"}
           },
           "node": {
-            "name": "samsite-aws-flat",
-            "description": "Flat cose layout — no nesting, no curated arrangement. Pass-1 view: see everything in the account at once, including legacy cruft.",
+            "name": "samsite-landing-layout",
+            "description": "Four-system side-by-side layout. landing-systems.js places each system's anchor (dns/site/compliance/bootstrap) at a fixed X; the four per-Component arrangements then stack each system's members vertically below its anchor — giving four side-by-side story columns the user can tweak independently by editing the corresponding Arrangement entity.",
             "definition": {
-              "inputs": [],
-              "steps": [{"type": "search", "search-id": "main"}],
-              "presentation": {"placement": "cytoscape:cose"},
-              "interactions": {}
+              "js_file": "plugins/samsite/static/samsite/js/projections/landing-systems.js",
+              "arrangements": [
+                "019e646a-85fc-7159-b12b-c6615684ac4c",
+                "019e646a-85fc-7159-b12b-c6629f88777b",
+                "019e646a-85fc-7159-b12b-c663337116a2",
+                "019e646a-85fc-7159-b12b-c66477eb82f5"
+              ]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646a-85fc-7159-b12b-c6615684ac4c",
+            "entity_type": "arrangement",
+            "name": "samsite-dns-arrangement",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "samsite-dns-arrangement",
+            "description": "DNS column — anchored on the Route53 hosted zone (samsite.unified-systems.com). One member today: the ACM certificate. Vertical column under the anchor; tweak spacing here without touching the layout module.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_route53_zone) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
+              },
+              "members": {
+                "gryphon": "MATCH (n) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
+              },
+              "positioning": "vertical",
+              "distribution": "even"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646a-85fc-7159-b12b-c6629f88777b",
+            "entity_type": "arrangement",
+            "name": "samsite-site-arrangement",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "samsite-site-arrangement",
+            "description": "Site-serving column — anchored on the CloudFront distribution. One member today: the S3 origin bucket (samsite-prod-1). Vertical column under the anchor. Visually pairs with the dns column to read as the public-facing website story.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_cloudfront_distribution) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
+              },
+              "members": {
+                "gryphon": "MATCH (n) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
+              },
+              "positioning": "vertical",
+              "distribution": "even"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646a-85fc-7159-b12b-c663337116a2",
+            "entity_type": "arrangement",
+            "name": "samsite-compliance-arrangement",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "samsite-compliance-arrangement",
+            "description": "Compliance backend column — anchored on the EventBridge rule (the schedule that fires the compliance Lambda). Members: the Lambda, its IAM role, its CloudWatch log group. Vertical column under the anchor.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_eventbridge_rule) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+              },
+              "members": {
+                "gryphon": "MATCH (n) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+              },
+              "positioning": "vertical",
+              "distribution": "even"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646a-85fc-7159-b12b-c66477eb82f5",
+            "entity_type": "arrangement",
+            "name": "samsite-bootstrap-arrangement",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "samsite-bootstrap-arrangement",
+            "description": "Deploy/bootstrap column — anchored on the GitHub Actions OIDC provider (token.actions.githubusercontent.com). Members: the deploy IAM role, the Terraform state S3 bucket, the Terraform state DynamoDB lock table. Vertical column under the anchor.",
+            "definition": {
+              "anchor": {
+                "gryphon": "MATCH (n:aws_iam_oidc_provider) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
+              },
+              "members": {
+                "gryphon": "MATCH (n) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
+              },
+              "positioning": "vertical",
+              "distribution": "even"
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646a-85fc-7159-b12b-c665b668b4e2",
+            "entity_type": "elevation",
+            "name": "samsite-landing-elevation",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "samsite-landing-elevation",
+            "description": "Single elevation for the samsite landing — top-level four-system overview. Deeper elevations (zoom into one system) are a future addition.",
+            "definition": {
+              "zoom": 1.0,
+              "description": "Four-system overview of the samsite AWS deployment.",
+              "layouts": ["e49c40aa-508a-5751-9c58-7df6b73ff385"],
+              "double_tap_targets": []
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646a-85fc-7159-b12b-c666838d81bc",
+            "entity_type": "projection",
+            "name": "samsite-landing-projection",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "samsite-landing-projection",
+            "description": "Samsite landing projection — four side-by-side system columns (dns, site, compliance, bootstrap) so the visitor reads the AWS deployment as four parallel stories rather than a single force-directed blob.",
+            "definition": {
+              "node_style": {"mode": "icon-badge"},
+              "elevations": ["019e646a-85fc-7159-b12b-c665b668b4e2"],
+              "default_elevation_id": "019e646a-85fc-7159-b12b-c665b668b4e2"
             }
           }
         },
@@ -150,42 +276,182 @@
           "entity": {
             "entity_id": "314de02d-0e22-5411-a1a3-b34d3e63a243",
             "entity_type": "edge",
-            "name": "Layout USES_SEARCH (nodes)",
+            "name": "Panel USES_SEARCH (nodes seed)",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "from_entity_id": "8630ba38-df57-5da1-92fa-0412368583cd",
             "to_entity_id": "eb9fb415-ba8d-57e5-ab3f-1e2411ce0822",
             "edge_type": "USES_SEARCH",
-            "properties": {"search-id": "main"}
+            "properties": {}
           }
         },
         {
           "entity": {
             "entity_id": "f5b1c9dc-9e3f-5b0b-9bba-3c93fcd2d9a3",
             "entity_type": "edge",
-            "name": "Layout USES_SEARCH (edges)",
+            "name": "Panel USES_SEARCH (edges seed)",
             "dimensions": {}
           },
           "edge": {
-            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "from_entity_id": "8630ba38-df57-5da1-92fa-0412368583cd",
             "to_entity_id": "c0a6a6cf-89b3-5b78-8c5e-fb55ad33b85e",
             "edge_type": "USES_SEARCH",
-            "properties": {"search-id": "edges"}
+            "properties": {}
           }
         },
         {
           "entity": {
             "entity_id": "b81edb9c-fe48-523c-a48a-0cad70223163",
             "entity_type": "edge",
-            "name": "Panel USES_LAYOUT samsite-aws-flat",
+            "name": "Panel USES_PROJECTION samsite-landing-projection",
             "dimensions": {}
           },
           "edge": {
             "from_entity_id": "8630ba38-df57-5da1-92fa-0412368583cd",
+            "to_entity_id": "019e646a-85fc-7159-b12b-c666838d81bc",
+            "edge_type": "USES_PROJECTION",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e647c-aba0-7579-9846-8be7988da761",
+            "entity_type": "edge",
+            "name": "Panel USES_PROJECTION (v1 fresh edge — replaces the unconvertible USES_LAYOUT one above)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "8630ba38-df57-5da1-92fa-0412368583cd",
+            "to_entity_id": "019e646a-85fc-7159-b12b-c666838d81bc",
+            "edge_type": "USES_PROJECTION",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e647c-aba0-7579-9846-8be88532f367",
+            "entity_type": "edge",
+            "name": "Panel USES_SEARCH nodes (v1 fresh edge)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "8630ba38-df57-5da1-92fa-0412368583cd",
+            "to_entity_id": "eb9fb415-ba8d-57e5-ab3f-1e2411ce0822",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e647c-aba0-7579-9846-8be9a928d093",
+            "entity_type": "edge",
+            "name": "Panel USES_SEARCH edges (v1 fresh edge)",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "8630ba38-df57-5da1-92fa-0412368583cd",
+            "to_entity_id": "c0a6a6cf-89b3-5b78-8c5e-fb55ad33b85e",
+            "edge_type": "USES_SEARCH",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646c-5a91-730a-b93c-6130dfdf44f0",
+            "entity_type": "edge",
+            "name": "Projection USES_ELEVATION samsite-landing-elevation",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e646a-85fc-7159-b12b-c666838d81bc",
+            "to_entity_id": "019e646a-85fc-7159-b12b-c665b668b4e2",
+            "edge_type": "USES_ELEVATION",
+            "properties": {"hotlink": {"model": "projection", "spec": "projection-elevations", "value": "019e646a-85fc-7159-b12b-c665b668b4e2"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646c-5a91-730a-b93c-6131131e091d",
+            "entity_type": "edge",
+            "name": "Projection USES_DEFAULT_ELEVATION samsite-landing-elevation",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e646a-85fc-7159-b12b-c666838d81bc",
+            "to_entity_id": "019e646a-85fc-7159-b12b-c665b668b4e2",
+            "edge_type": "USES_DEFAULT_ELEVATION",
+            "properties": {"hotlink": {"model": "projection", "spec": "projection-default-elevation", "value": "019e646a-85fc-7159-b12b-c665b668b4e2"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646c-5a91-730a-b93c-6132f2aea773",
+            "entity_type": "edge",
+            "name": "Elevation USES_LAYOUT samsite-landing-layout",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e646a-85fc-7159-b12b-c665b668b4e2",
             "to_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
             "edge_type": "USES_LAYOUT",
-            "properties": {"layout-id": "default"}
+            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-layouts", "value": "e49c40aa-508a-5751-9c58-7df6b73ff385"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646c-5a91-730a-b93c-6133560fda28",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-dns-arrangement",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e646a-85fc-7159-b12b-c6615684ac4c",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "019e646a-85fc-7159-b12b-c6615684ac4c"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646c-5a91-730a-b93c-6134c6ddb8f8",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-site-arrangement",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e646a-85fc-7159-b12b-c6629f88777b",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "019e646a-85fc-7159-b12b-c6629f88777b"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646c-5a91-730a-b93c-6135a3be62eb",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-compliance-arrangement",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e646a-85fc-7159-b12b-c663337116a2",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "019e646a-85fc-7159-b12b-c663337116a2"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e646c-5a91-730a-b93c-6136848fd97c",
+            "entity_type": "edge",
+            "name": "Layout USES_ARRANGEMENT samsite-bootstrap-arrangement",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "e49c40aa-508a-5751-9c58-7df6b73ff385",
+            "to_entity_id": "019e646a-85fc-7159-b12b-c66477eb82f5",
+            "edge_type": "USES_ARRANGEMENT",
+            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "019e646a-85fc-7159-b12b-c66477eb82f5"}}
           }
         },
         {
