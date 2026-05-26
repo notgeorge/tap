@@ -1,0 +1,52 @@
+{
+  "metadata": {"grift_version": "0"},
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e663a-8f09-77d1-bdde-e0f3cefe7a4e",
+        "entity_type": "batch",
+        "name": "Samsite Compliance collector schedule v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite",
+        "name": "Samsite Compliance collector schedule v0.1.0",
+        "description": "Seeds a Schedule that fires the Samsite Compliance collector once per day at 00:00 UTC. Paired with the AWS Core schedule (12:00 UTC) — compliance synthesis runs midnight so it processes the AWS resource state collected at noon. The SCHEDULED_TARGET edge points at the Samsite Compliance collector entity, whose entity_id is the UUIDv5 derived from its registry scope:key per req-tap-cares-collector-model-10."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e663a-8f09-77d1-bdde-e0f487201960",
+            "entity_type": "schedule",
+            "name": "Samsite Compliance collector — midnight",
+            "dimensions": {"tap_cares": "schedule"}
+          },
+          "node": {
+            "name": "Samsite Compliance collector — midnight",
+            "description": "Runs the Samsite Compliance collector once per day at 00:00 UTC to fetch KSI signal, VDR report, OSCAL SSP/POA&M, and IIW renderings and decompose them into KSI / VDR / compliance_artifact nodes on the graph.",
+            "enabled": true,
+            "cron_expression": "0 0 * * *",
+            "max_active_runs": 1
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e663a-8f09-77d1-bdde-e0f5f727513e",
+            "entity_type": "edge",
+            "name": "Samsite Compliance midnight schedule SCHEDULED_TARGET samsite-compliance collector",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e663a-8f09-77d1-bdde-e0f487201960",
+            "to_entity_id": "0698cbd6-53de-554a-847b-01e30c8f8999",
+            "edge_type": "SCHEDULED_TARGET",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}
