@@ -211,6 +211,13 @@ Keep it short at scaffold time, then maintain it as decisions accumulate. Do not
 
 Periodically revisit root `README.md` and any plugin-local docs during plugin work, especially after adding models, edges, collectors, GRIFT seed data, validation behavior, or operational assumptions. Treat stale plugin documentation as spec drift: update it in the same change set when the implementation or architecture moves. Use `docs/` for setup guides, operator runbooks, inventories, and longer design notes that would make the root README hard to scan.
 
+## If Your Plugin Ships Templates
+
+If the plugin will render its own panels or pages, those land under `plugins/<slug>/templates/<slug>/...` and the actual authoring follows the [`add-panel`](../../../tap_web/skills/add-panel/SKILL.md) and [`add-page`](../../../tap_web/skills/add-page/SKILL.md) skills. Two scaffold-time things worth knowing up front:
+
+- **Tailwind utilities require a manual stylesheet rebuild.** The compiled `tap_web/static/tap_web/css/tailwind.css` does not auto-rebuild when you add new utility classes. Procedure documented in [`docs/misc/doc-dev-tailwind-rebuild.md`](../../../docs/misc/doc-dev-tailwind-rebuild.md). The symptom of forgetting: the `class=` attribute is set, the computed style ignores it.
+- **Plugin templates aren't yet scanned by the Tailwind config.** Until the BACKLOG fix lands (see [`tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md`](../../../tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md) — `req-web-tailwind-pipeline-content-paths`), utilities used only inside `plugins/<slug>/templates/` won't end up in the compiled output no matter how many times you rebuild. The add-panel skill enumerates workarounds.
+
 ## Plugin Configuration And Dependencies (hard rules)
 
 Two anti-patterns that have bitten this codebase — do not repeat them:
