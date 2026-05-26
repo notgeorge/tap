@@ -28,3 +28,11 @@ class SamsiteConfig(TapPluginConfig):
                 "the fedramp_20x_ksi compliance-artifact graph."
             ),
         )
+
+        # Samsite-side nav-link cards panel — generic static-link renderer used
+        # by samsite GRIFT to wire one-click discovery between samsite pages
+        # (req-samsite-pages-discovery-1).
+        from plugins.samsite.panels.nav_links import NavLinksPanelType
+        from tap_web.registry import panel_type_registry
+
+        panel_type_registry.register("samsite-nav-links", NavLinksPanelType)

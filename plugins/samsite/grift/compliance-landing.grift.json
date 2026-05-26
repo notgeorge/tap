@@ -1,5 +1,7 @@
 {
-  "metadata": {"grift_version": "0"},
+  "metadata": {
+    "grift_version": "0"
+  },
   "_reserved": {},
   "batches": [
     {
@@ -12,7 +14,7 @@
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-landing",
         "name": "Samsite Compliance landing v0.1.0",
-        "description": "The basics: one page that exposes every entity the samsite compliance collector lands on the grid — KSI signal, components, validations, violations, VDR report, findings, compliance artifacts — each as a node-table panel. No joins yet; this is the see-the-data-first pass. Detail views via click-through on any row."
+        "description": "The basics: one page that exposes every entity the samsite compliance collector lands on the grid \u2014 KSI signal, components, validations, violations, VDR report, findings, compliance artifacts \u2014 each as a node-table panel. No joins yet; this is the see-the-data-first pass. Detail views via click-through on any row."
       },
       "nodes": [
         {
@@ -24,11 +26,13 @@
           },
           "node": {
             "name": "KSI Signal emissions",
-            "description": "Every KSI signal emission on the grid — one per fedramp-20x KSI document the collector has ingested.",
+            "description": "Every KSI signal emission on the grid \u2014 one per fedramp-20x KSI document the collector has ingested.",
             "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "query": ["MATCH (n:ksi_signal)"]
+              "query": [
+                "MATCH (n:ksi_signal)"
+              ]
             }
           }
         },
@@ -45,7 +49,9 @@
             "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "query": ["MATCH (n:ksi_component)"]
+              "query": [
+                "MATCH (n:ksi_component)"
+              ]
             }
           }
         },
@@ -58,11 +64,13 @@
           },
           "node": {
             "name": "KSI Validations",
-            "description": "Every validation result the KSI signal(s) carry — policy pass/fail per emission.",
+            "description": "Every validation result the KSI signal(s) carry \u2014 policy pass/fail per emission.",
             "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "query": ["MATCH (n:ksi_validation)"]
+              "query": [
+                "MATCH (n:ksi_validation)"
+              ]
             }
           }
         },
@@ -79,7 +87,9 @@
             "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "query": ["MATCH (n:ksi_violation)"]
+              "query": [
+                "MATCH (n:ksi_violation)"
+              ]
             }
           }
         },
@@ -96,7 +106,9 @@
             "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "query": ["MATCH (n:vdr_report)"]
+              "query": [
+                "MATCH (n:vdr_report)"
+              ]
             }
           }
         },
@@ -109,11 +121,13 @@
           },
           "node": {
             "name": "VDR Findings",
-            "description": "Every vulnerability finding the VDR reports carry. Sam's evaluation framework (PAIN N1-N5, IRV, LEV, KEV, SLA, disposition) lives as typed fields on each row — visible in the click-through detail.",
+            "description": "Every vulnerability finding the VDR reports carry. Sam's evaluation framework (PAIN N1-N5, IRV, LEV, KEV, SLA, disposition) lives as typed fields on each row \u2014 visible in the click-through detail.",
             "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "query": ["MATCH (n:vdr_finding)"]
+              "query": [
+                "MATCH (n:vdr_finding)"
+              ]
             }
           }
         },
@@ -126,11 +140,13 @@
           },
           "node": {
             "name": "Compliance Artifacts",
-            "description": "The fetched rendering artifacts kept whole — OSCAL SSP, OSCAL POA&M, IIW inventory. The content blob lives on the node detail (Page 2 work will give that a classy renderer).",
+            "description": "The fetched rendering artifacts kept whole \u2014 OSCAL SSP, OSCAL POA&M, IIW inventory. The content blob lives on the node detail (Page 2 work will give that a classy renderer).",
             "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "query": ["MATCH (n:compliance_artifact)"]
+              "query": [
+                "MATCH (n:compliance_artifact)"
+              ]
             }
           }
         },
@@ -139,7 +155,9 @@
             "entity_id": "019e5502-cee6-744a-93b2-959208090e06",
             "entity_type": "panel",
             "name": "KSI Signal emissions",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-compliance-ksi-signals",
@@ -149,13 +167,48 @@
               "column_mode": "common_metadata",
               "default_page_size": 25,
               "columns": [
-                {"field": "name", "title": "Name", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.signal_id", "title": "Signal ID", "formatter": "ellipsisSuffix", "width": 120, "tooltip": "full_value"},
-                {"field": "data.system_id", "title": "System ID", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.emitted_at", "title": "Emitted At", "formatter": "datetime", "width": 150},
-                {"field": "data.emitter", "title": "Emitter", "width": 90},
-                {"field": "data.signature_verified", "title": "Verified", "formatter": "tickCross", "width": 80},
-                {"field": "data.fedramp_certified", "title": "FedRAMP", "formatter": "tickCross", "width": 85}
+                {
+                  "field": "name",
+                  "title": "Name",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.signal_id",
+                  "title": "Signal ID",
+                  "formatter": "ellipsisSuffix",
+                  "width": 120,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.system_id",
+                  "title": "System ID",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.emitted_at",
+                  "title": "Emitted At",
+                  "formatter": "datetime",
+                  "width": 150
+                },
+                {
+                  "field": "data.emitter",
+                  "title": "Emitter",
+                  "width": 90
+                },
+                {
+                  "field": "data.signature_verified",
+                  "title": "Verified",
+                  "formatter": "tickCross",
+                  "width": 80
+                },
+                {
+                  "field": "data.fedramp_certified",
+                  "title": "FedRAMP",
+                  "formatter": "tickCross",
+                  "width": 85
+                }
               ]
             }
           }
@@ -165,7 +218,9 @@
             "entity_id": "019e5502-cee6-744a-93b2-9593dab8fd0d",
             "entity_type": "panel",
             "name": "KSI Components",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-compliance-ksi-components",
@@ -175,16 +230,63 @@
               "column_mode": "common_metadata",
               "default_page_size": 200,
               "columns": [
-                {"field": "name", "title": "Component", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.component_type", "title": "Type", "width": 145},
-                {"field": "data.attributes.function", "title": "Function", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.attributes.public", "title": "Public", "formatter": "tickCross", "width": 70},
-                {"field": "data.security_confidentiality", "title": "C", "width": 50},
-                {"field": "data.security_integrity", "title": "I", "width": 50},
-                {"field": "data.security_availability", "title": "A", "width": 50},
-                {"field": "data.information_flow", "title": "Flows", "formatter": "arrayCount", "width": 70, "headerSort": false},
-                {"field": "data.native_id", "title": "Native ID", "widthGrow": 1, "tooltip": "full_value"},
-                {"field": "data.global_purl", "title": "Package URL", "widthGrow": 1, "tooltip": "full_value"}
+                {
+                  "field": "name",
+                  "title": "Component",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.component_type",
+                  "title": "Type",
+                  "width": 145
+                },
+                {
+                  "field": "data.attributes.function",
+                  "title": "Function",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.attributes.public",
+                  "title": "Public",
+                  "formatter": "tickCross",
+                  "width": 70
+                },
+                {
+                  "field": "data.security_confidentiality",
+                  "title": "C",
+                  "width": 50
+                },
+                {
+                  "field": "data.security_integrity",
+                  "title": "I",
+                  "width": 50
+                },
+                {
+                  "field": "data.security_availability",
+                  "title": "A",
+                  "width": 50
+                },
+                {
+                  "field": "data.information_flow",
+                  "title": "Flows",
+                  "formatter": "arrayCount",
+                  "width": 70,
+                  "headerSort": false
+                },
+                {
+                  "field": "data.native_id",
+                  "title": "Native ID",
+                  "widthGrow": 1,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.global_purl",
+                  "title": "Package URL",
+                  "widthGrow": 1,
+                  "tooltip": "full_value"
+                }
               ]
             }
           }
@@ -194,7 +296,9 @@
             "entity_id": "019e5502-cee6-744a-93b2-9594b7c51a99",
             "entity_type": "panel",
             "name": "KSI Validations",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-compliance-ksi-validations",
@@ -204,11 +308,34 @@
               "column_mode": "common_metadata",
               "default_page_size": 100,
               "columns": [
-                {"field": "data.validation_id", "title": "ID", "width": 100},
-                {"field": "name", "title": "Evaluates Component(s)", "widthGrow": 3, "tooltip": "full_value"},
-                {"field": "data.result", "title": "Result", "formatter": "passFailBadge", "width": 90},
-                {"field": "data.policy_id", "title": "Policy", "widthGrow": 1, "tooltip": "full_value"},
-                {"field": "data.policy_version", "title": "Version", "width": 90}
+                {
+                  "field": "data.validation_id",
+                  "title": "ID",
+                  "width": 100
+                },
+                {
+                  "field": "name",
+                  "title": "Evaluates Component(s)",
+                  "widthGrow": 3,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.result",
+                  "title": "Result",
+                  "formatter": "passFailBadge",
+                  "width": 90
+                },
+                {
+                  "field": "data.policy_id",
+                  "title": "Policy",
+                  "widthGrow": 1,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.policy_version",
+                  "title": "Version",
+                  "width": 90
+                }
               ]
             }
           }
@@ -218,7 +345,9 @@
             "entity_id": "019e5502-cee6-744a-93b2-9595c7d31dc9",
             "entity_type": "panel",
             "name": "KSI Violations",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-compliance-ksi-violations",
@@ -228,10 +357,28 @@
               "column_mode": "common_metadata",
               "default_page_size": 50,
               "columns": [
-                {"field": "name", "title": "Violation", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.violation_type", "title": "Type", "width": 200},
-                {"field": "data.severity", "title": "Severity", "width": 100},
-                {"field": "data.resource", "title": "Resource", "widthGrow": 2, "tooltip": "full_value"}
+                {
+                  "field": "name",
+                  "title": "Violation",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.violation_type",
+                  "title": "Type",
+                  "width": 200
+                },
+                {
+                  "field": "data.severity",
+                  "title": "Severity",
+                  "width": 100
+                },
+                {
+                  "field": "data.resource",
+                  "title": "Resource",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                }
               ]
             }
           }
@@ -241,7 +388,9 @@
             "entity_id": "019e5502-cee6-744a-93b2-959691ca5c4c",
             "entity_type": "panel",
             "name": "VDR Reports",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-compliance-vdr-reports",
@@ -251,12 +400,42 @@
               "column_mode": "common_metadata",
               "default_page_size": 25,
               "columns": [
-                {"field": "name", "title": "Name", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.report_id", "title": "Report ID", "formatter": "ellipsisSuffix", "width": 120, "tooltip": "full_value"},
-                {"field": "data.vdr_class", "title": "Class", "width": 80},
-                {"field": "data.emitted_at", "title": "Emitted At", "formatter": "datetime", "width": 150},
-                {"field": "data.system_id", "title": "System", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.signature_verified", "title": "Verified", "formatter": "tickCross", "width": 80}
+                {
+                  "field": "name",
+                  "title": "Name",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.report_id",
+                  "title": "Report ID",
+                  "formatter": "ellipsisSuffix",
+                  "width": 120,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.vdr_class",
+                  "title": "Class",
+                  "width": 80
+                },
+                {
+                  "field": "data.emitted_at",
+                  "title": "Emitted At",
+                  "formatter": "datetime",
+                  "width": 150
+                },
+                {
+                  "field": "data.system_id",
+                  "title": "System",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.signature_verified",
+                  "title": "Verified",
+                  "formatter": "tickCross",
+                  "width": 80
+                }
               ]
             }
           }
@@ -266,7 +445,9 @@
             "entity_id": "019e5502-cee6-744a-93b2-9597dbe72a5c",
             "entity_type": "panel",
             "name": "VDR Findings",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-compliance-vdr-findings",
@@ -276,17 +457,70 @@
               "column_mode": "common_metadata",
               "default_page_size": 100,
               "columns": [
-                {"field": "data.title", "title": "Finding", "widthGrow": 3, "tooltip": "full_value"},
-                {"field": "data.resource", "title": "Resource", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.source", "title": "Source", "width": 100},
-                {"field": "data.cve", "title": "CVE", "width": 130, "tooltip": "full_value"},
-                {"field": "data.pain", "title": "PAIN", "formatter": "painBadge", "width": 75},
-                {"field": "data.internet_reachable", "title": "IRV", "formatter": "tickCross", "width": 55},
-                {"field": "data.likely_exploitable", "title": "LEV", "formatter": "tickCross", "width": 55},
-                {"field": "data.is_kev", "title": "KEV", "formatter": "tickCross", "width": 55},
-                {"field": "data.current_disposition", "title": "Disposition", "width": 125},
-                {"field": "data.remediation_due_at", "title": "Due", "formatter": "datetime", "width": 145},
-                {"field": "data.is_blocking", "title": "Blocking", "formatter": "tickCross", "width": 75}
+                {
+                  "field": "data.title",
+                  "title": "Finding",
+                  "widthGrow": 3,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.resource",
+                  "title": "Resource",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.source",
+                  "title": "Source",
+                  "width": 100
+                },
+                {
+                  "field": "data.cve",
+                  "title": "CVE",
+                  "width": 130,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.pain",
+                  "title": "PAIN",
+                  "formatter": "painBadge",
+                  "width": 75
+                },
+                {
+                  "field": "data.internet_reachable",
+                  "title": "IRV",
+                  "formatter": "tickCross",
+                  "width": 55
+                },
+                {
+                  "field": "data.likely_exploitable",
+                  "title": "LEV",
+                  "formatter": "tickCross",
+                  "width": 55
+                },
+                {
+                  "field": "data.is_kev",
+                  "title": "KEV",
+                  "formatter": "tickCross",
+                  "width": 55
+                },
+                {
+                  "field": "data.current_disposition",
+                  "title": "Disposition",
+                  "width": 125
+                },
+                {
+                  "field": "data.remediation_due_at",
+                  "title": "Due",
+                  "formatter": "datetime",
+                  "width": 145
+                },
+                {
+                  "field": "data.is_blocking",
+                  "title": "Blocking",
+                  "formatter": "tickCross",
+                  "width": 75
+                }
               ]
             }
           }
@@ -296,7 +530,9 @@
             "entity_id": "019e5502-cee6-744a-93b2-9598e6e741a3",
             "entity_type": "panel",
             "name": "Compliance Artifacts",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-compliance-artifacts",
@@ -306,12 +542,40 @@
               "column_mode": "common_metadata",
               "default_page_size": 25,
               "columns": [
-                {"field": "data.kind", "title": "Kind", "width": 130},
-                {"field": "data.source_url", "title": "Source URL", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.size_bytes", "title": "Size (bytes)", "width": 110},
-                {"field": "data.fetched_at", "title": "Fetched", "formatter": "datetime", "width": 150},
-                {"field": "data.signature_verified", "title": "Verified", "formatter": "tickCross", "width": 80},
-                {"field": "data.signed_by", "title": "Signed By", "widthGrow": 2, "tooltip": "full_value"}
+                {
+                  "field": "data.kind",
+                  "title": "Kind",
+                  "width": 130
+                },
+                {
+                  "field": "data.source_url",
+                  "title": "Source URL",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.size_bytes",
+                  "title": "Size (bytes)",
+                  "width": 110
+                },
+                {
+                  "field": "data.fetched_at",
+                  "title": "Fetched",
+                  "formatter": "datetime",
+                  "width": 150
+                },
+                {
+                  "field": "data.signature_verified",
+                  "title": "Verified",
+                  "formatter": "tickCross",
+                  "width": 80
+                },
+                {
+                  "field": "data.signed_by",
+                  "title": "Signed By",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                }
               ]
             }
           }
@@ -325,10 +589,14 @@
           },
           "node": {
             "name": "KSI Themes (catalog)",
-            "description": "The KSI 20x themes — the rubric Sam's signal measures against. From the fedramp_20x_ksi catalog, not from the signal itself.",
+            "description": "The KSI 20x themes \u2014 the rubric Sam's signal measures against. From the fedramp_20x_ksi catalog, not from the signal itself.",
             "search_type": "gryphon",
             "root": "node",
-            "definition": {"query": ["MATCH (n:ksi_theme)"]}
+            "definition": {
+              "query": [
+                "MATCH (n:ksi_theme)"
+              ]
+            }
           }
         },
         {
@@ -340,10 +608,14 @@
           },
           "node": {
             "name": "KSI Indicators (catalog)",
-            "description": "All 46 KSI 20x indicators with their write-ups, classes, and controls. Reference material — not yet cross-linked to Sam's terraform.compliance validations (named back-to-Sam follow-up).",
+            "description": "All 46 KSI 20x indicators with their write-ups, classes, and controls. Reference material \u2014 not yet cross-linked to Sam's terraform.compliance validations (named back-to-Sam follow-up).",
             "search_type": "gryphon",
             "root": "node",
-            "definition": {"query": ["MATCH (n:ksi_indicator)"]}
+            "definition": {
+              "query": [
+                "MATCH (n:ksi_indicator)"
+              ]
+            }
           }
         },
         {
@@ -351,7 +623,9 @@
             "entity_id": "019e5530-e02c-734c-82e5-8f5dbe1930c4",
             "entity_type": "panel",
             "name": "KSI Themes",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-compliance-ksi-themes",
@@ -361,7 +635,12 @@
               "column_mode": "common_metadata",
               "default_page_size": 25,
               "columns": [
-                {"field": "name", "title": "Theme", "widthGrow": 2, "tooltip": "full_value"}
+                {
+                  "field": "name",
+                  "title": "Theme",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                }
               ]
             }
           }
@@ -371,7 +650,9 @@
             "entity_id": "019e5530-e02c-734c-82e5-8f5e71a5a388",
             "entity_type": "panel",
             "name": "KSI Indicators",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-compliance-ksi-indicators",
@@ -381,11 +662,34 @@
               "column_mode": "common_metadata",
               "default_page_size": 100,
               "columns": [
-                {"field": "data.code", "title": "Code", "width": 130},
-                {"field": "data.name", "title": "Name", "widthGrow": 2, "tooltip": "full_value"},
-                {"field": "data.description", "title": "Description", "widthGrow": 4, "tooltip": "full_value"},
-                {"field": "data.status", "title": "Status", "width": 110},
-                {"field": "data.reference_url", "title": "Reference", "widthGrow": 1, "tooltip": "full_value"}
+                {
+                  "field": "data.code",
+                  "title": "Code",
+                  "width": 130
+                },
+                {
+                  "field": "data.name",
+                  "title": "Name",
+                  "widthGrow": 2,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.description",
+                  "title": "Description",
+                  "widthGrow": 4,
+                  "tooltip": "full_value"
+                },
+                {
+                  "field": "data.status",
+                  "title": "Status",
+                  "width": 110
+                },
+                {
+                  "field": "data.reference_url",
+                  "title": "Reference",
+                  "widthGrow": 1,
+                  "tooltip": "full_value"
+                }
               ]
             }
           }
@@ -402,7 +706,11 @@
             "description": "Placeholder marker so batch 1 has at least one node (GRIFT requires nodes[]). The page node moved to batch 2 to defer its hotlink validation until after batch 1's USES_PANEL edges land.",
             "search_type": "gryphon",
             "root": "node",
-            "definition": {"query": ["MATCH (n) WHERE n.entity_id = \"00000000-0000-0000-0000-000000000000\""]}
+            "definition": {
+              "query": [
+                "MATCH (n) WHERE n.entity_id = \"00000000-0000-0000-0000-000000000000\""
+              ]
+            }
           }
         }
       ],
@@ -516,7 +824,13 @@
             "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "to_entity_id": "019e5502-cee6-744a-93b2-959208090e06",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "ksi-signal"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "ksi-signal"
+              }
+            }
           }
         },
         {
@@ -530,7 +844,13 @@
             "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "to_entity_id": "019e5502-cee6-744a-93b2-9593dab8fd0d",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "components"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "components"
+              }
+            }
           }
         },
         {
@@ -544,7 +864,13 @@
             "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "to_entity_id": "019e5502-cee6-744a-93b2-9594b7c51a99",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "validations"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "validations"
+              }
+            }
           }
         },
         {
@@ -558,7 +884,13 @@
             "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "to_entity_id": "019e5502-cee6-744a-93b2-9595c7d31dc9",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "violations"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "violations"
+              }
+            }
           }
         },
         {
@@ -572,7 +904,13 @@
             "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "to_entity_id": "019e5502-cee6-744a-93b2-959691ca5c4c",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "vdr-report"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "vdr-report"
+              }
+            }
           }
         },
         {
@@ -586,7 +924,13 @@
             "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "to_entity_id": "019e5502-cee6-744a-93b2-9597dbe72a5c",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "findings"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "findings"
+              }
+            }
           }
         },
         {
@@ -600,7 +944,13 @@
             "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "to_entity_id": "019e5502-cee6-744a-93b2-9598e6e741a3",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "artifacts"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "artifacts"
+              }
+            }
           }
         },
         {
@@ -642,7 +992,13 @@
             "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "to_entity_id": "019e5530-e02c-734c-82e5-8f5dbe1930c4",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "themes"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "themes"
+              }
+            }
           }
         },
         {
@@ -656,22 +1012,97 @@
             "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "to_entity_id": "019e5530-e02c-734c-82e5-8f5e71a5a388",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "indicators"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "indicators"
+              }
+            }
           }
         }
       ]
     },
     {
       "batch_entity": {
-        "entity_id": "019e5530-e02c-734c-82e5-8f744b203700",
+        "entity_id": "019e6531-ef00-75a7-ad57-e08e31d5e95d",
         "entity_type": "batch",
-        "name": "Samsite Compliance landing — add themes/indicators rows",
+        "name": "Samsite Compliance landing \u2014 add nav-links panel",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-landing",
-        "name": "Samsite Compliance landing — add themes/indicators rows",
-        "description": "Second batch — updates the page layout to reference the KSI Themes + Indicators panels added in batch 1. Split out because validate_hotlinks queries the DB at node-upsert time and nodes process before edges within a batch, so the page-with-new-rows can't be in the same batch that supplies its new USES_PANEL edges. Two batches = edges land first, then the page references them."
+        "name": "Samsite Compliance landing \u2014 add nav-links panel",
+        "description": "Adds the samsite-nav-links panel instance + USES_PANEL edge hotlinked as 'nav' on the /samsite/compliance page. Imported BEFORE the page-layout-bump batch so the page's row-0-nav hotlink resolves at validate_hotlinks time."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e651a-900a-7689-b437-ff827b136317",
+            "entity_type": "panel",
+            "name": "Compliance Workbench Shortcuts",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "slug": "samsite-nav-links",
+            "name": "Compliance Workbench Shortcuts",
+            "description": "Nav-link cards on /samsite/compliance pointing to the OSCAL SSP and POA&M workbench pages. Bare URLs resolve to the latest emission via ROSCALE's panel-level fallback (req-roscale-input-5).",
+            "view": "samsite/panels/nav_links.html",
+            "config": {
+              "links": [
+                {
+                  "label": "OSCAL SSP Workbench",
+                  "href": "/samsite/compliance/oscal",
+                  "description": "Render the latest OSCAL System Security Plan as a readable workbench."
+                },
+                {
+                  "label": "OSCAL POA&M Workbench",
+                  "href": "/samsite/compliance/poam",
+                  "description": "Render the latest OSCAL Plan of Action and Milestones as an action register."
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e651a-900a-73cc-a670-8582f67a10cc",
+            "entity_type": "edge",
+            "name": "Compliance Page USES_PANEL Nav Links",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e651a-900a-7689-b437-ff827b136317",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "nav"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "batch_entity": {
+        "entity_id": "019e6531-ef00-7715-8624-8d5871fcd1b6",
+        "entity_type": "batch",
+        "name": "Samsite Compliance landing v0.2.0 \u2014 page layout w/ nav row",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite.grift.compliance-landing",
+        "name": "Samsite Compliance landing v0.2.0 \u2014 page layout w/ nav row",
+        "description": "Re-upserts the /samsite/compliance page with a 10-row layout: the new row-0-nav at the top references the samsite-nav-links panel (added in the sibling 'add nav-links panel' batch above), followed by the existing 9 table rows."
       },
       "nodes": [
         {
@@ -679,7 +1110,9 @@
             "entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "entity_type": "page",
             "name": "Samsite Compliance",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "Samsite Compliance",
@@ -689,15 +1122,37 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1-signal": {"panel-id": "ksi-signal"},
-                    "row-2-components": {"panel-id": "components"},
-                    "row-3-validations": {"panel-id": "validations"},
-                    "row-4-violations": {"panel-id": "violations"},
-                    "row-5-vdr-report": {"panel-id": "vdr-report"},
-                    "row-6-findings": {"panel-id": "findings"},
-                    "row-7-artifacts": {"panel-id": "artifacts"},
-                    "row-8-themes": {"panel-id": "themes"},
-                    "row-9-indicators": {"panel-id": "indicators"}
+                    "row-1-nav": {
+                      "panel-id": "nav",
+                      "height": "auto"
+                    },
+                    "row-2-signal": {
+                      "panel-id": "ksi-signal"
+                    },
+                    "row-3-components": {
+                      "panel-id": "components"
+                    },
+                    "row-4-validations": {
+                      "panel-id": "validations"
+                    },
+                    "row-5-violations": {
+                      "panel-id": "violations"
+                    },
+                    "row-6-vdr-report": {
+                      "panel-id": "vdr-report"
+                    },
+                    "row-7-findings": {
+                      "panel-id": "findings"
+                    },
+                    "row-8-artifacts": {
+                      "panel-id": "artifacts"
+                    },
+                    "row-9-themes": {
+                      "panel-id": "themes"
+                    },
+                    "row-10-indicators": {
+                      "panel-id": "indicators"
+                    }
                   }
                 }
               }

@@ -1,0 +1,17 @@
+{% load static %}
+<div class="samsite-nav-links">
+  {% if panel.config.links %}
+    <ul class="samsite-nav-links-list">
+      {% for link in panel.config.links %}
+        <li class="samsite-nav-link-card">
+          <a href="{{ link.href }}" class="samsite-nav-link">
+            <span class="samsite-nav-link-label">{{ link.label }}</span>
+            {% if link.description %}<span class="samsite-nav-link-desc">{{ link.description }}</span>{% endif %}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="samsite-nav-links-empty">No links configured.</p>
+  {% endif %}
+</div>
