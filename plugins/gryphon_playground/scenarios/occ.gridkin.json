@@ -1,0 +1,30 @@
+{
+  "feature": "Optimistic concurrency happy path via GRIFT — declared expected_version matches",
+  "background": {
+    "grift_fixture": [
+      "fixtures/occ_seed.grift.json",
+      "fixtures/occ_update.grift.json"
+    ]
+  },
+  "scenarios": [
+    {
+      "name": "post-OCC-update node reflects the update payload and a bumped version",
+      "tags": ["occ", "happy-path", "regression-lock"],
+      "covers": [
+        "req-grift-concurrency-version",
+        "req-grift-concurrency-version-1",
+        "req-grid-import-grift-occ",
+        "req-grid-import-grift-occ-1",
+        "req-grid-service-batch-occ",
+        "req-gridkin-multi-fixture-load"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.entity_id = $node",
+      "params": {
+        "node": "019e6623-dce0-739e-8c9a-9bd93998c471"
+      },
+      "expected_envelope": "expected/occ__post_update_node.expected.json",
+      "expected_sql_snapshot": "expected/occ__post_update_node.sql.txt"
+    }
+  ]
+}

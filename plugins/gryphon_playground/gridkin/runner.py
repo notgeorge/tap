@@ -68,20 +68,29 @@ def run_scenario(scenario: Scenario, *, update_snapshots: bool = False) -> list[
 
 
 def _seed_fixture(scenario: Scenario) -> None:
-    """Seed the test DB: import the GRIFT fixture, then apply soft-delete directives."""
-    if not scenario.fixture_path.is_file():
-        raise AssertionError(f"{scenario.scenario_id}: GRIFT fixture not found: {scenario.fixture_path}")
-    document = json.loads(scenario.fixture_path.read_text(encoding="utf-8"))
-    result = grift_import(document, dangling_edge_mode="strict")
-    # A non-collector direct grift_import caller owns checking result.errors —
-    # result.success alone can miss a partially-rejected import. A bad fixture
-    # must fail loud, not fake-green (the GRIFT atomic-batch-rejection rule).
-    if not result.success or result.errors:
-        messages = [issue.message for issue in result.errors]
-        raise AssertionError(
-            f"{scenario.scenario_id}: GRIFT fixture {scenario.fixture_path.name} "
-            f"did not import cleanly (success={result.success}): {messages}"
-        )
+    """Seed the test DB: import each GRIFT fixture in order, then apply
+    soft-delete directives.
+
+    Multi-fixture scenarios (req-gridkin-multi-fixture-load) declare an
+    array of fixture paths. The runner imports each in order; every fixture
+    must import cleanly (`result.success && not result.errors`) or the
+    scenario fails. Soft-delete directives run once after the last fixture
+    loads.
+    """
+    for fixture_path in scenario.fixture_paths:
+        if not fixture_path.is_file():
+            raise AssertionError(f"{scenario.scenario_id}: GRIFT fixture not found: {fixture_path}")
+        document = json.loads(fixture_path.read_text(encoding="utf-8"))
+        result = grift_import(document, dangling_edge_mode="strict")
+        # A non-collector direct grift_import caller owns checking result.errors —
+        # result.success alone can miss a partially-rejected import. A bad fixture
+        # must fail loud, not fake-green (the GRIFT atomic-batch-rejection rule).
+        if not result.success or result.errors:
+            messages = [issue.message for issue in result.errors]
+            raise AssertionError(
+                f"{scenario.scenario_id}: GRIFT fixture {fixture_path.name} "
+                f"did not import cleanly (success={result.success}): {messages}"
+            )
 
     # GRIFT import is additive/upsert-only (spec-grift-v0.md) — it never
     # tombstones entities. Soft-deleted graph state is set up here instead:

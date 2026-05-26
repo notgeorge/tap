@@ -40,7 +40,13 @@ class GridkinScenarioError(Exception):
 
 @dataclass(frozen=True)
 class Scenario:
-    """One Gridkin scenario, with every path resolved against the plugin root."""
+    """One Gridkin scenario, with every path resolved against the plugin root.
+
+    `fixture_paths` is always a tuple of one or more paths; the loader
+    normalizes the schema's string-or-array `grift_fixture` form into this
+    canonical shape. Multi-fixture scenarios import each path in order
+    (req-gridkin-multi-fixture-load).
+    """
 
     scenario_id: str  # stable pytest-parametrize id, also the -k filter target
     feature: str
@@ -51,7 +57,7 @@ class Scenario:
     layer: Literal["lite", "full", "extended"]
     query: str
     params: dict[str, Any]
-    fixture_path: Path
+    fixture_paths: tuple[Path, ...]
     expected_envelope_path: Path
     expected_sql_path: Path
     source_file: Path
@@ -100,7 +106,15 @@ def _parse_file(path: Path, schema: dict[str, Any]) -> list[Scenario]:
 
     feature = document["feature"]
     background = document["background"]
-    fixture_path = PLUGIN_ROOT / background["grift_fixture"]
+    # `grift_fixture` is string OR array of strings per
+    # gridkin-scenario.schema.json. Normalize both forms into a tuple of
+    # Paths so the runner has one uniform shape to loop over
+    # (req-gridkin-multi-fixture-load).
+    raw_fixture = background["grift_fixture"]
+    if isinstance(raw_fixture, str):
+        fixture_paths = (PLUGIN_ROOT / raw_fixture,)
+    else:
+        fixture_paths = tuple(PLUGIN_ROOT / entry for entry in raw_fixture)
     soft_delete = tuple(background.get("soft_delete", []))
     feature_stem = path.name[: -len(_FEATURE_SUFFIX)]
 
@@ -117,7 +131,7 @@ def _parse_file(path: Path, schema: dict[str, Any]) -> list[Scenario]:
                 layer=raw.get("layer", "full"),
                 query=raw["query"],
                 params=raw.get("params", {}),
-                fixture_path=fixture_path,
+                fixture_paths=fixture_paths,
                 expected_envelope_path=PLUGIN_ROOT / raw["expected_envelope"],
                 expected_sql_path=PLUGIN_ROOT / raw["expected_sql_snapshot"],
                 source_file=path,

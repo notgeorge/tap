@@ -1,0 +1,18 @@
+{
+  "nodes": [
+    {
+      "entity_id": "019e6623-dce0-739e-8c9a-9bd93998c471",
+      "entity_type": "pg_node",
+      "name": "OCC Demo Node",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 3,
+      "originating_grid_id": "<volatile>"
+    }
+  ],
+  "edges": []
+}

@@ -97,7 +97,7 @@ def _scenario(scenario_id: str, covers: tuple[str, ...]) -> Scenario:
         layer="full",
         query="MATCH (n:pg_node) RETURN n",
         params={},
-        fixture_path=Path("x"),
+        fixture_paths=(Path("x"),),
         expected_envelope_path=Path("x"),
         expected_sql_path=Path("x"),
         source_file=Path("x"),

@@ -46,6 +46,7 @@ is their shared operational companion.
 | req-gridkin-req-traceability | [Requirement Traceability](#requirement-traceability) | Implemented | Every scenario cites the spec RIDs it covers |
 | req-gridkin-tck-inspiration | [TCK as Scenario Inspiration](#tck-as-scenario-inspiration) | Implemented | Mine the openCypher TCK for corner-case intent; never port queries |
 | req-gridkin-json-schema | [JSON Schema for Scenario Files](#json-schema-for-scenario-files) | Implemented | Author and validate-at-load a JSON Schema for the scenario format |
+| req-gridkin-multi-fixture-load | [Multi-Fixture Background Loads](#multi-fixture-background-loads) | Approved for Development | `background.grift_fixture` accepts a list of fixture paths; the runner imports each in order |
 | req-gridkin-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Explicitly deferred concerns |
 
 ### Gridkin Scenario Format
@@ -445,6 +446,39 @@ designed and shipped together.
 | --- | --- | :---: | --- | --- |
 | req-gridkin-json-schema-1 | Schema Authored Same-Change | Implemented | The schema is written in the same change that introduces the runner — not a follow-up. | |
 | req-gridkin-json-schema-2 | Validation On Load | Implemented | Every scenario file is validated against the schema before its contents are used; invalid files fail loudly. | |
+
+### Multi-Fixture Background Loads
+----
+RID: `req-gridkin-multi-fixture-load`
+Status: `Approved for Development`
+
+`background.grift_fixture` accepts either a single path (the existing form) or an ordered array of paths. When the array form is used, the runner imports each fixture in order during the seed phase. This unlocks scenarios that need pre-existing state for the flow under test — the canonical motivating case is optimistic concurrency (`req-grift-concurrency-version`), where the interesting OCC paths require an entity to exist before a subsequent fixture declares an `entity_expected_version` against it.
+
+#### Implementation
+
+The schema relaxes `background.grift_fixture` to `oneOf` `{string, array of strings (minItems 1)}`. The loader normalizes both forms into a `tuple[Path, ...]` on the `Scenario` dataclass (renamed `fixture_path` → `fixture_paths`). The runner's seed phase loops over the tuple and imports each fixture with the same contract the single-fixture form has today: every fixture must satisfy `result.success and not result.errors`, or the scenario fails loudly with the offending fixture's name in the error message.
+
+Soft-delete directives in `background.soft_delete` apply once after the last fixture finishes loading. They are not interleaved between fixtures and there is no per-fixture override.
+
+#### Boundaries
+
+- Every fixture in the sequence must import cleanly. The harness does not yet support expected-failure fixtures (e.g. "fixture #2 is supposed to fail with `entity_version_conflict`"); that pattern stays in pytest where multi-call + assertion machinery is well-trodden.
+- No per-fixture options. All fixtures load with the same `dangling_edge_mode="strict"` the runner uses today. Adding per-fixture options is a future seam, not a v0 concern.
+- The order of fixtures is significant. The loader preserves declaration order; the runner imports in that order. Re-ordering a fixture array changes the test.
+
+#### Backward Compatibility
+
+The single-string form remains valid and behaves identically to today. No existing scenario needs to change. The change is purely additive to the schema's permitted shape.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-multi-fixture-load-1 | String Or Array | Approved for Development | `background.grift_fixture` validates as either a string or an array of strings with at least one element. | Schema `oneOf` constraint. |
+| req-gridkin-multi-fixture-load-2 | Normalized Loader Surface | Approved for Development | The `Scenario` dataclass exposes `fixture_paths: tuple[Path, ...]` regardless of the source form. Single-string fixtures yield a one-element tuple. | |
+| req-gridkin-multi-fixture-load-3 | Sequential Import | Approved for Development | The runner imports each fixture in declared order via `grift_import(...)`; every fixture must succeed cleanly. | Same import-cleanly contract as single-fixture. |
+| req-gridkin-multi-fixture-load-4 | Soft-Delete After All Fixtures | Approved for Development | `background.soft_delete` runs once, after the last fixture finishes loading. | Soft-deletes are not interleaved or per-fixture. |
+| req-gridkin-multi-fixture-load-5 | Backward Compatible | Approved for Development | Existing scenarios using the single-string form continue to work unchanged. | Purely additive change to the schema. |
 
 ### v0 Non-Goals
 ----
