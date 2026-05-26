@@ -96,18 +96,46 @@ async function _executeOne(cy, arrangement, inputs) {
     }
 
     // --- Step 2: Even distribution ---
-    if (arrangement.distribution === "even" && members.length >= 2) {
-        // Sort members by their current position along the axis.
+    if (arrangement.distribution === "even" && members.length >= 1) {
+        // Sort members by their current position along the axis so the
+        // result is deterministic regardless of fetch order.
         members.sort((a, b) => a.position()[axisKey] - b.position()[axisKey]);
 
-        const min = members[0].position()[axisKey];
-        const max = members[members.length - 1].position()[axisKey];
-        const gap = (max - min) / (members.length - 1);
+        const spanPx = arrangement.span_px;
+        const anchorOffsetPx = arrangement.anchor_offset_px;
+        const anchorAxisValue = anchorPos[axisKey];
 
-        for (let i = 0; i < members.length; i++) {
-            const pos = {...members[i].position()};
-            pos[axisKey] = min + i * gap;
-            members[i].position(pos);
+        let start;
+        let end;
+        if (spanPx != null) {
+            // Explicit anchor-relative placement: members start at
+            // anchor + anchor_offset_px (default 0) and span span_px total
+            // along the axis. All members end up on one side of the anchor
+            // when anchor_offset_px > 0 — the typical "story reads below
+            // the anchor" case.
+            const offset = anchorOffsetPx != null ? anchorOffsetPx : 0;
+            start = anchorAxisValue + offset;
+            end = start + spanPx;
+        } else if (members.length >= 2) {
+            // Legacy: span members' current min..max range.
+            start = members[0].position()[axisKey];
+            end = members[members.length - 1].position()[axisKey];
+        } else {
+            // Single member with no explicit span — nothing to distribute.
+            return {warnings};
+        }
+
+        if (members.length === 1) {
+            const pos = {...members[0].position()};
+            pos[axisKey] = start;
+            members[0].position(pos);
+        } else {
+            const gap = (end - start) / (members.length - 1);
+            for (let i = 0; i < members.length; i++) {
+                const pos = {...members[i].position()};
+                pos[axisKey] = start + i * gap;
+                members[i].position(pos);
+            }
         }
     }
 

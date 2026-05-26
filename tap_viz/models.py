@@ -35,6 +35,13 @@ _ARRANGEMENT_DEFINITION_SCHEMA: dict[str, Any] = {
         },
         "positioning": {"type": "string", "enum": ["horizontal", "vertical"]},
         "distribution": {"type": "string", "enum": ["even"]},
+        # Optional anchor-relative placement (req-viz-arrangement-span).
+        # When `span_px` is present, even-distribution lays members out across
+        # exactly that many pixels along the positioning axis, starting at
+        # anchor + `anchor_offset_px` (default 0). Both are optional; when
+        # absent the legacy behavior uses members' current min..max span.
+        "span_px": {"type": "number", "minimum": 0},
+        "anchor_offset_px": {"type": "number"},
     },
 }
 
