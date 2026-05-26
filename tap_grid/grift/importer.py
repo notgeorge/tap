@@ -3280,19 +3280,15 @@ def grift_import(
         imported_batches.append(summary)
         exec_issues.extend(batch_issues)
 
-    _EXEC_ERROR_CODES = frozenset(
-        {
-            "execution_failed",
-            "sweep_strict_aborted",
-            "removal_execution_failed",
-            "removal_target_missing",
-            "removal_target_tombstoned",
-            "removal_entity_type_mismatch",
-            "entity_version_conflict",
-        }
-    )
-    exec_errors = [i for i in exec_issues if i.code in _EXEC_ERROR_CODES]
-    exec_warnings = [i for i in exec_issues if i.code not in _EXEC_ERROR_CODES]
+    # Single source of truth for hard-error classification across phases:
+    # `_is_error` (defined above) is the canonical classifier — it consults
+    # `_ERROR_CODES` AND applies the permissive-mode carve-out for
+    # `dangling_edge` issues. Reusing the same helper for execution-phase
+    # issues eliminates the prior duplicate frozenset that risked drifting
+    # when new codes landed AND correctly treats execution-phase dangling-
+    # edge "skipped in permissive" records as warnings, not errors.
+    exec_errors = [i for i in exec_issues if _is_error(i)]
+    exec_warnings = [i for i in exec_issues if not _is_error(i)]
 
     all_errors = errors + exec_errors
     all_warnings = warnings + exec_warnings
