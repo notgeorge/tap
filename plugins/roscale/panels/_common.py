@@ -468,14 +468,12 @@ def poam_items(doc: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(it, dict):
             continue
         props = it.get("props") or []
-        controls = []
-        for rel in it.get("related-findings") or []:
-            # findings → controls indirection isn't on the item itself; controls
-            # are most often a prop named "control" or in related-observations.
-            pass
-        controls_prop = _prop_value(props, "control")
-        if controls_prop:
-            controls = [c.strip() for c in controls_prop.split(",") if c.strip()]
+        # FedRAMP POA&M convention puts referenced Rev-5 control IDs in a
+        # `controls` (plural) prop as a comma-separated string, e.g.
+        # "ia-2, ia-5, ac-2". Verified against Samsite's live POA&M.
+        controls_prop = _prop_value(props, "controls") or _prop_value(props, "control")
+        controls = [c.strip() for c in controls_prop.split(",")] if controls_prop else []
+        controls = [c for c in controls if c]
         out.append(
             {
                 "uuid": it.get("uuid") or "",
