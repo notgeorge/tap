@@ -464,6 +464,12 @@
                   "tooltip": "full_value"
                 },
                 {
+                  "field": "data.description",
+                  "title": "Description",
+                  "widthGrow": 4,
+                  "tooltip": "full_value"
+                },
+                {
                   "field": "data.resource",
                   "title": "Resource",
                   "widthGrow": 2,
