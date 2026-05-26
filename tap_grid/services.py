@@ -45,6 +45,7 @@ from tap_grid.exceptions import (
     ServiceNotFoundError,
     ServiceUnsupportedOperationError,
     ServiceValidationError,
+    ServiceVersionConflictError,
 )
 from tap_grid.models import Edge, Entity
 from tap_grid.service_types import (
@@ -265,6 +266,25 @@ def _execute_write_pipeline(
         is_create = op.verb in ("create_node", "create_edge")
         is_delete = op.verb in ("delete_node", "delete_edge")
 
+        # OCC pre-check: reject `entity_expected_version` on create verbs.
+        # No prior version exists to expect, so this is always a caller mistake.
+        # (req-grid-service-batch-occ-4 / req-grid-service-write-occ-2.)
+        if is_create and op.entity_expected_version is not None:
+            return WriteResult(
+                success=False,
+                batch_id=batch_id,
+                operation=op.verb,
+                errors=[
+                    ServiceError(
+                        code="entity_expected_version_not_allowed_on_create",
+                        message=(
+                            f"{op.verb} does not accept entity_expected_version; "
+                            "no prior version exists on a create."
+                        ),
+                    )
+                ],
+            )
+
         model_cls: type
         instance: Any
         from_entity: Entity | None = None
@@ -305,7 +325,36 @@ def _execute_write_pipeline(
             # patch / replace / delete verbs — load existing instance by target entity_id.
             if target_uuid is None:
                 raise ServiceValidationError(f"target is required for {op.verb}.")
-            target_entity = _load_entity_or_raise(target_uuid)
+
+            # OCC guard (req-grid-service-batch-occ): when the caller declared
+            # entity_expected_version, take a row-level SELECT FOR UPDATE on
+            # the Entity row up front. The lock holds until the surrounding
+            # transaction commits or rolls back; the subsequent typed-model
+            # save + spine sync (or the explicit delete update) is the single
+            # version bump per the spec's single-bump invariant. Missing
+            # entity is reported as `entity_version_conflict` (not
+            # `not_found`) when OCC is engaged, per the spec's not-found-vs-
+            # conflict matrix.
+            if op.entity_expected_version is not None:
+                locked_row = (
+                    Entity.objects.select_for_update().filter(pk=target_uuid).only("entity_type", "version").first()
+                )
+                if locked_row is None:
+                    raise ServiceVersionConflictError(
+                        entity_expected_version=op.entity_expected_version,
+                        actual_entity_version=None,
+                        entity_id=str(target_uuid),
+                    )
+                if locked_row.version != op.entity_expected_version:
+                    raise ServiceVersionConflictError(
+                        entity_expected_version=op.entity_expected_version,
+                        actual_entity_version=locked_row.version,
+                        entity_id=str(target_uuid),
+                    )
+                target_entity = locked_row
+            else:
+                target_entity = _load_entity_or_raise(target_uuid)
+
             try:
                 model_cls = get_model_class(target_entity.entity_type)
             except KeyError:
@@ -454,6 +503,22 @@ def _execute_write_pipeline(
             object_summary=summary,
         )
 
+    except ServiceVersionConflictError as exc:
+        # OCC conflict — surfaces with the structured detail payload so
+        # callers can implement retry-or-surface logic without parsing the
+        # message string. See req-grid-service-batch-occ-3.
+        return WriteResult(
+            success=False,
+            batch_id=batch_id,
+            operation=op.verb,
+            errors=[
+                ServiceError(
+                    code="entity_version_conflict",
+                    message=str(exc),
+                    detail=exc.to_detail(),
+                )
+            ],
+        )
     except (
         ServiceValidationError,
         ServiceConstraintError,
@@ -703,6 +768,7 @@ def patch_node(
     payload: dict[str, Any],
     *,
     caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
     dry_run: bool = False,
     result_mode: Literal["minimal", "standard", "verbose"] = "standard",
 ) -> WriteResult:
@@ -714,13 +780,22 @@ def patch_node(
         target: Entity UUID of the object to patch.
         payload: Field values validated against SERVICE_CRUD_SCHEMA["patch"].
         caller_context: Optional actor identity and batch scope.
+        entity_expected_version: Optional OCC declaration (req-grid-service-batch-occ).
+            When set, the pipeline takes a SELECT FOR UPDATE on the target
+            Entity row and verifies its `version` matches before mutation.
+            Mismatch → `entity_version_conflict` with detail payload.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
 
     Returns:
         WriteResult with entity_id populated on success.
     """
-    op = WriteOperation(verb="patch_node", target=target, payload=payload)
+    op = WriteOperation(
+        verb="patch_node",
+        target=target,
+        payload=payload,
+        entity_expected_version=entity_expected_version,
+    )
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
     return (
         batch_result.results[0]
@@ -734,6 +809,7 @@ def replace_node(
     payload: dict[str, Any],
     *,
     caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
     dry_run: bool = False,
     result_mode: Literal["minimal", "standard", "verbose"] = "standard",
 ) -> WriteResult:
@@ -746,13 +822,21 @@ def replace_node(
         target: Entity UUID of the object to replace.
         payload: Field values validated against SERVICE_CRUD_SCHEMA["replace"].
         caller_context: Optional actor identity and batch scope.
+        entity_expected_version: Optional OCC declaration (req-grid-service-batch-occ).
+            When set, the pipeline verifies `Entity.version` before mutation;
+            mismatch → `entity_version_conflict`.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
 
     Returns:
         WriteResult with entity_id populated on success.
     """
-    op = WriteOperation(verb="replace_node", target=target, payload=payload)
+    op = WriteOperation(
+        verb="replace_node",
+        target=target,
+        payload=payload,
+        entity_expected_version=entity_expected_version,
+    )
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
     return (
         batch_result.results[0]
@@ -765,6 +849,7 @@ def delete_node(
     target: str | uuid.UUID,
     *,
     caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
     dry_run: bool = False,
     result_mode: Literal["minimal", "standard", "verbose"] = "standard",
 ) -> WriteResult:
@@ -775,13 +860,20 @@ def delete_node(
     Args:
         target: Entity UUID of the object to delete.
         caller_context: Optional actor identity and batch scope.
+        entity_expected_version: Optional OCC declaration (req-grid-service-delete-occ).
+            When set, the pipeline verifies `Entity.version` before tombstoning;
+            mismatch → `entity_version_conflict`.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
 
     Returns:
         WriteResult with entity_id=None on success.
     """
-    op = WriteOperation(verb="delete_node", target=target)
+    op = WriteOperation(
+        verb="delete_node",
+        target=target,
+        entity_expected_version=entity_expected_version,
+    )
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
     return (
         batch_result.results[0]
@@ -795,6 +887,7 @@ def patch_edge(
     payload: dict[str, Any],
     *,
     caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
     dry_run: bool = False,
     result_mode: Literal["minimal", "standard", "verbose"] = "standard",
 ) -> WriteResult:
@@ -806,13 +899,21 @@ def patch_edge(
         target: Entity UUID of the Edge to patch.
         payload: Field values validated against Edge.SERVICE_CRUD_SCHEMA["patch"].
         caller_context: Optional actor identity and batch scope.
+        entity_expected_version: Optional OCC declaration (req-grid-service-write-occ).
+            When set, the pipeline verifies `Entity.version` before mutation;
+            mismatch → `entity_version_conflict`.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
 
     Returns:
         WriteResult with entity_id populated on success.
     """
-    op = WriteOperation(verb="patch_edge", target=target, payload=payload)
+    op = WriteOperation(
+        verb="patch_edge",
+        target=target,
+        payload=payload,
+        entity_expected_version=entity_expected_version,
+    )
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
     return (
         batch_result.results[0]
@@ -826,6 +927,7 @@ def replace_edge(
     payload: dict[str, Any],
     *,
     caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
     dry_run: bool = False,
     result_mode: Literal["minimal", "standard", "verbose"] = "standard",
 ) -> WriteResult:
@@ -837,13 +939,21 @@ def replace_edge(
         target: Entity UUID of the Edge to replace.
         payload: Field values validated against Edge.SERVICE_CRUD_SCHEMA["replace"].
         caller_context: Optional actor identity and batch scope.
+        entity_expected_version: Optional OCC declaration (req-grid-service-write-occ).
+            When set, the pipeline verifies `Entity.version` before mutation;
+            mismatch → `entity_version_conflict`.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
 
     Returns:
         WriteResult with entity_id populated on success.
     """
-    op = WriteOperation(verb="replace_edge", target=target, payload=payload)
+    op = WriteOperation(
+        verb="replace_edge",
+        target=target,
+        payload=payload,
+        entity_expected_version=entity_expected_version,
+    )
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
     return (
         batch_result.results[0]
@@ -856,6 +966,7 @@ def delete_edge_by_entity(
     target: str | uuid.UUID,
     *,
     caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
     dry_run: bool = False,
     result_mode: Literal["minimal", "standard", "verbose"] = "standard",
 ) -> WriteResult:
@@ -864,13 +975,20 @@ def delete_edge_by_entity(
     Args:
         target: Entity UUID of the Edge to delete.
         caller_context: Optional actor identity and batch scope.
+        entity_expected_version: Optional OCC declaration (req-grid-service-delete-occ).
+            When set, the pipeline verifies `Entity.version` before tombstoning;
+            mismatch → `entity_version_conflict`.
         dry_run: If True, validate but do not persist.
         result_mode: Controls WriteResult detail level.
 
     Returns:
         WriteResult with entity_id=None on success.
     """
-    op = WriteOperation(verb="delete_edge", target=target)
+    op = WriteOperation(
+        verb="delete_edge",
+        target=target,
+        entity_expected_version=entity_expected_version,
+    )
     batch_result = write_batch([op], caller_context=caller_context, dry_run=dry_run, result_mode=result_mode)
     return (
         batch_result.results[0]
@@ -924,6 +1042,7 @@ def purge_node(
     entity_id: str | uuid.UUID,
     *,
     caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
     reason: str,
 ) -> PurgeResult:
     """Hard-delete an entity, its touching edges, and history rows.
@@ -942,6 +1061,11 @@ def purge_node(
     Args:
         entity_id: Entity UUID of the node to purge.
         caller_context: Optional actor identity, captured in the log line.
+        entity_expected_version: Optional OCC declaration (req-grid-service-delete-occ).
+            When set, the purge takes a SELECT FOR UPDATE on the Entity row
+            and verifies `Entity.version` matches before the hard delete.
+            Mismatch (or missing entity with OCC engaged) → ServiceVersionConflictError.
+            The DEBUG gate still applies independently.
         reason: Required free-form description of why the purge is happening.
             Captured in the application log alongside the entity_id and actor.
 
@@ -951,7 +1075,12 @@ def purge_node(
     Raises:
         ServiceConflictError: If `settings.DEBUG` is False.
         ServiceValidationError: If entity_id cannot be coerced, or `reason` is empty.
-        ServiceNotFoundError: If no Entity with that UUID exists.
+        ServiceNotFoundError: If no Entity with that UUID exists (only when
+            entity_expected_version is None; with OCC engaged, missing-entity
+            surfaces as ServiceVersionConflictError instead).
+        ServiceVersionConflictError: When entity_expected_version is set and
+            does not match the local `Entity.version` (or the entity is
+            missing).
     """
     _assert_debug_for_purge()
 
@@ -965,41 +1094,61 @@ def purge_node(
     if target_uuid is None:
         raise ServiceValidationError("entity_id must be provided.")
 
-    entity = Entity.objects.filter(pk=target_uuid).first()
-    if entity is None:
-        raise ServiceNotFoundError(f"No Entity with entity_id={target_uuid}.")
-    entity_type = entity.entity_type
-
-    if entity_type == "edge":
-        # Edges have their own delete path (delete_edge_by_entity); purge is
-        # scoped to node-style entities so we don't conflate purging a node
-        # (which cascades to its edges) with purging an edge directly.
-        raise ServiceConflictError(
-            f"purge_node targets node entities; entity {target_uuid} is an edge. "
-            "Purging an edge directly is not supported in v0."
-        )
-
     actor = caller_context.user if caller_context is not None else None
 
-    # Find touching edges before we delete the spine. Both directions, including
-    # tombstoned edges (Edge.all_objects), so the purge actually clears them.
     from django.db.models import Q
 
     from tap_grid.models import BatchEvent
     from tap_grid.registry import get_model_class
 
-    touching_edge_ids = list(
-        Edge.all_objects.filter(Q(from_entity_id=target_uuid) | Q(to_entity_id=target_uuid)).values_list(
-            "entity_id", flat=True
-        )
-    )
-
-    try:
-        model_cls = get_model_class(entity_type)
-    except KeyError:
-        model_cls = None
-
     with transaction.atomic():
+        # OCC guard (req-grid-service-delete-occ). When entity_expected_version
+        # is declared, take SELECT FOR UPDATE on the Entity row up front and
+        # verify the version; this is the only entity-row read for the
+        # function and the lock holds for the rest of the transaction so the
+        # subsequent cascade reads + hard deletes run on a stable view.
+        if entity_expected_version is not None:
+            entity = Entity.objects.select_for_update().filter(pk=target_uuid).first()
+            if entity is None:
+                raise ServiceVersionConflictError(
+                    entity_expected_version=entity_expected_version,
+                    actual_entity_version=None,
+                    entity_id=str(target_uuid),
+                )
+            if entity.version != entity_expected_version:
+                raise ServiceVersionConflictError(
+                    entity_expected_version=entity_expected_version,
+                    actual_entity_version=entity.version,
+                    entity_id=str(target_uuid),
+                )
+        else:
+            entity = Entity.objects.filter(pk=target_uuid).first()
+            if entity is None:
+                raise ServiceNotFoundError(f"No Entity with entity_id={target_uuid}.")
+        entity_type = entity.entity_type
+
+        if entity_type == "edge":
+            # Edges have their own delete path (delete_edge_by_entity); purge is
+            # scoped to node-style entities so we don't conflate purging a node
+            # (which cascades to its edges) with purging an edge directly.
+            raise ServiceConflictError(
+                f"purge_node targets node entities; entity {target_uuid} is an edge. "
+                "Purging an edge directly is not supported in v0."
+            )
+
+        # Find touching edges before we delete the spine. Both directions, including
+        # tombstoned edges (Edge.all_objects), so the purge actually clears them.
+        touching_edge_ids = list(
+            Edge.all_objects.filter(Q(from_entity_id=target_uuid) | Q(to_entity_id=target_uuid)).values_list(
+                "entity_id", flat=True
+            )
+        )
+
+        try:
+            model_cls = get_model_class(entity_type)
+        except KeyError:
+            model_cls = None
+
         # Order matters here: we MUST delete the Entity rows (which cascade to
         # the typed BaseModel rows via OneToOneField(on_delete=CASCADE)) BEFORE
         # sweeping history. django-simple-history's post_delete signal fires on
@@ -1049,6 +1198,7 @@ def purge_edge(
     entity_id: str | uuid.UUID,
     *,
     caller_context: CallerContext | None = None,
+    entity_expected_version: int | None = None,
     reason: str,
 ) -> PurgeResult:
     """Hard-delete one Edge entity and its history/event rows.
@@ -1063,6 +1213,11 @@ def purge_edge(
     Args:
         entity_id: Entity UUID of the Edge to purge.
         caller_context: Optional actor identity, captured in the log line.
+        entity_expected_version: Optional OCC declaration (req-grid-service-delete-occ).
+            When set, the purge takes a SELECT FOR UPDATE on the Entity row
+            and verifies `Entity.version` matches before the hard delete.
+            Mismatch (or missing entity with OCC engaged) → ServiceVersionConflictError.
+            The DEBUG gate still applies independently.
         reason: Required free-form description of why the purge is happening.
             Captured in the application log alongside the entity_id and actor.
 
@@ -1074,7 +1229,12 @@ def purge_edge(
         ServiceConflictError: If ``settings.DEBUG`` is False, or if the
             target Entity is not of type "edge" (purge_edge_wrong_type).
         ServiceValidationError: If entity_id cannot be coerced, or `reason` is empty.
-        ServiceNotFoundError: If no Entity with that UUID exists.
+        ServiceNotFoundError: If no Entity with that UUID exists (only when
+            entity_expected_version is None; with OCC engaged, missing-entity
+            surfaces as ServiceVersionConflictError instead).
+        ServiceVersionConflictError: When entity_expected_version is set and
+            does not match the local `Entity.version` (or the entity is
+            missing).
     """
     _assert_debug_for_purge("purge_edge")
 
@@ -1088,28 +1248,47 @@ def purge_edge(
     if target_uuid is None:
         raise ServiceValidationError("entity_id must be provided.")
 
-    entity = Entity.objects.filter(pk=target_uuid).first()
-    if entity is None:
-        raise ServiceNotFoundError(f"No Entity with entity_id={target_uuid}.")
-
-    if entity.entity_type != "edge":
-        raise ServiceConflictError(
-            f"purge_edge targets edge entities; entity {target_uuid} has "
-            f"entity_type={entity.entity_type!r} (purge_edge_wrong_type). "
-            "Use purge_node for node entities."
-        )
-
     actor = caller_context.user if caller_context is not None else None
 
     from tap_grid.models import BatchEvent
 
-    # Capture endpoints before the cascade for the log line. Use all_objects so
-    # a tombstoned edge still surfaces its endpoints.
-    edge_row = Edge.all_objects.filter(entity_id=target_uuid).first()
-    from_id = edge_row.from_entity_id if edge_row else None
-    to_id = edge_row.to_entity_id if edge_row else None
-
     with transaction.atomic():
+        # OCC guard (req-grid-service-delete-occ). When declared, take
+        # SELECT FOR UPDATE on the Entity row up front and verify version
+        # before any reads or writes; the lock holds for the rest of the
+        # transaction.
+        if entity_expected_version is not None:
+            entity = Entity.objects.select_for_update().filter(pk=target_uuid).first()
+            if entity is None:
+                raise ServiceVersionConflictError(
+                    entity_expected_version=entity_expected_version,
+                    actual_entity_version=None,
+                    entity_id=str(target_uuid),
+                )
+            if entity.version != entity_expected_version:
+                raise ServiceVersionConflictError(
+                    entity_expected_version=entity_expected_version,
+                    actual_entity_version=entity.version,
+                    entity_id=str(target_uuid),
+                )
+        else:
+            entity = Entity.objects.filter(pk=target_uuid).first()
+            if entity is None:
+                raise ServiceNotFoundError(f"No Entity with entity_id={target_uuid}.")
+
+        if entity.entity_type != "edge":
+            raise ServiceConflictError(
+                f"purge_edge targets edge entities; entity {target_uuid} has "
+                f"entity_type={entity.entity_type!r} (purge_edge_wrong_type). "
+                "Use purge_node for node entities."
+            )
+
+        # Capture endpoints before the cascade for the log line. Use all_objects so
+        # a tombstoned edge still surfaces its endpoints.
+        edge_row = Edge.all_objects.filter(entity_id=target_uuid).first()
+        from_id = edge_row.from_entity_id if edge_row else None
+        to_id = edge_row.to_entity_id if edge_row else None
+
         # Delete order mirrors purge_node:
         #   1) Entity row (cascades the typed Edge row via OneToOneField CASCADE)
         #   2) Edge history rows (django-simple-history does not cascade

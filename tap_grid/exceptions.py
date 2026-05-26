@@ -71,3 +71,46 @@ class ServiceUnsupportedOperationError(Exception):
     """Raised internally by the service layer when a requested operation is not supported."""
 
     pass
+
+
+class ServiceVersionConflictError(Exception):
+    """Raised internally by the service layer when an OCC version check fails.
+
+    Carries the structured detail payload the spec requires for the
+    `entity_version_conflict` error code (req-grid-service-batch-occ).
+    `actual_entity_version` is `None` when the target entity is missing
+    entirely; this distinguishes "you expected version N but the entity
+    is gone" from "you expected N but it has moved to M."
+    """
+
+    def __init__(
+        self,
+        *,
+        entity_expected_version: int,
+        actual_entity_version: int | None,
+        entity_id: str,
+    ) -> None:
+        self.entity_expected_version = entity_expected_version
+        self.actual_entity_version = actual_entity_version
+        self.entity_id = entity_id
+        if actual_entity_version is None:
+            msg = (
+                f"entity_version_conflict: caller expected version "
+                f"{entity_expected_version} on entity {entity_id}, but the "
+                "entity does not exist locally."
+            )
+        else:
+            msg = (
+                f"entity_version_conflict: caller expected version "
+                f"{entity_expected_version} on entity {entity_id}, but local "
+                f"Entity.version is {actual_entity_version}."
+            )
+        super().__init__(msg)
+
+    def to_detail(self) -> dict[str, object]:
+        """Return the structured detail payload for ServiceError.detail."""
+        return {
+            "entity_expected_version": self.entity_expected_version,
+            "actual_entity_version": self.actual_entity_version,
+            "entity_id": self.entity_id,
+        }

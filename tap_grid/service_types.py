@@ -27,6 +27,13 @@ class WriteOperation:
         dimensions: Caller-supplied dimensions for create verbs. Merged over the
             model class's DEFAULT_DIMENSIONS (caller wins on conflicting keys).
             Applied on both create_node and create_edge paths.
+        entity_expected_version: Optional optimistic-concurrency declaration
+            (req-grid-service-batch-occ). When set, the pipeline takes a
+            SELECT FOR UPDATE on the target Entity row before mutation and
+            raises `entity_version_conflict` if `Entity.version` does not
+            match. Create verbs reject the parameter with
+            `entity_expected_version_not_allowed_on_create`. Omitted means
+            no version check (current behavior).
     """
 
     verb: str
@@ -38,6 +45,7 @@ class WriteOperation:
     edge_type: str | None = None
     entity_id: str | uuid.UUID | None = None
     dimensions: dict[str, str] | None = None
+    entity_expected_version: int | None = None
 
 
 @dataclass
@@ -60,6 +68,9 @@ class ServiceError:
         "unsupported_operation",
         "internal_error",
         "hotlink_validation_failed",
+        # Optimistic concurrency (req-grid-service-batch-occ).
+        "entity_version_conflict",
+        "entity_expected_version_not_allowed_on_create",
     ]
     message: str
     field: str | None = None
