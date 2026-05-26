@@ -140,9 +140,11 @@ export async function execute(context) {
     // system's job, and keeping it there means each system stays
     // independently tweakable via its arrangement.
 
-    // Fit only on the initial load so re-runs (e.g., HTMX refresh of the
-    // panel) don't yank the viewport away from the user.
-    if (context.trigger_reason === "initial_load") {
-        cy.fit(cy.nodes(":visible"), 60);
-    }
+    // Initial framing happens in projection.js between runLayoutsSerially
+    // and cascade-reveal, not here. cy.fit() during the layout phase is
+    // a no-op (or returns mid-reconcile bboxes) because Cytoscape treats
+    // layouts as in-flight; only post-layout fits frame correctly. The
+    // projection runtime now does the fit at the right moment with the
+    // container still hidden, so the cascade fade-in animates the
+    // already-framed scene.
 }
