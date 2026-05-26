@@ -1,5 +1,19 @@
 /* TAP Graph Panel — toolbar and fullscreen styles */
 
+/* Static background grid for the cytoscape container. Replaces the
+   cytoscape-grid-guide drawn grid (which lagged pan/zoom by a frame and
+   slid visibly out of sync with the nodes). This CSS grid does not track
+   the cy viewport — it's just a fixed backdrop pattern at the container
+   level — so there's no sync window to get wrong. Spacing (40px) and
+   color (slate-300) match the previous drawn grid for visual continuity. */
+.tap-cy-static-grid {
+    background-image:
+        linear-gradient(to right, #cbd5e1 1px, transparent 1px),
+        linear-gradient(to bottom, #cbd5e1 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+
+
 .tap-cy-toolbar {
     position: absolute;
     top: 8px;
