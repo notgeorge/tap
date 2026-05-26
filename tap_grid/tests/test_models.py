@@ -346,3 +346,130 @@ class TestEdgePropertyValidation:
         edge = Edge(from_entity=a, to_entity=b, edge_type="NO_SCHEMA_EDGE", properties={"anything": [1, None]})
         edge.save()
         assert edge.pk is not None
+
+
+# ---------------------------------------------------------------------------
+# Tombstone-aware managers: req-grid-entity-tombstone-managers
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestEntityTombstoneFilters:
+    """`.live()` and `.tombstoned()` on Entity manager + queryset.
+
+    Locks req-grid-entity-tombstone-managers acceptance criteria 2-4: the
+    Entity default manager returns both live and tombstoned rows; the
+    chainable filters narrow correctly; defaults are unchanged.
+    """
+
+    def _tombstone(self, entity):
+        """Mark an entity tombstoned via direct ORM update (bypasses the
+        service layer; this is a low-level manager test)."""
+        from django.utils import timezone
+
+        Entity.objects.filter(pk=entity.pk).update(deleted_at=timezone.now())
+
+    def test_default_manager_returns_both_live_and_tombstoned(self):
+        live = create_entity("character", name="Live")
+        dead = create_entity("character", name="Dead")
+        self._tombstone(dead)
+        pks = set(Entity.objects.filter(pk__in=[live.pk, dead.pk]).values_list("pk", flat=True))
+        assert pks == {live.pk, dead.pk}
+
+    def test_live_filter_excludes_tombstoned(self):
+        live = create_entity("character", name="Live")
+        dead = create_entity("character", name="Dead")
+        self._tombstone(dead)
+        pks = set(Entity.objects.live().filter(pk__in=[live.pk, dead.pk]).values_list("pk", flat=True))
+        assert pks == {live.pk}
+
+    def test_tombstoned_filter_excludes_live(self):
+        live = create_entity("character", name="Live")
+        dead = create_entity("character", name="Dead")
+        self._tombstone(dead)
+        pks = set(Entity.objects.tombstoned().filter(pk__in=[live.pk, dead.pk]).values_list("pk", flat=True))
+        assert pks == {dead.pk}
+
+    def test_filters_chain_with_normal_queryset_operations(self):
+        a = create_entity("character", name="Aragorn")
+        b = create_entity("character", name="Boromir")
+        self._tombstone(b)
+        names = set(
+            Entity.objects.live()
+            .filter(pk__in=[a.pk, b.pk])
+            .filter(entity_type="character")
+            .values_list("name", flat=True)
+        )
+        assert names == {"Aragorn"}
+
+
+@pytest.mark.django_db
+class TestBaseModelTombstoneFilters:
+    """`.live()` and `.tombstoned()` on BaseModel subclass managers.
+
+    Locks req-grid-entity-tombstone-managers-3 / -4 / -5: both `objects`
+    (LiveManager) and `all_objects` expose the chainables; defaults are
+    unchanged; LiveManager itself uses `.live()` internally.
+    """
+
+    def _tombstone(self, instance):
+        from django.utils import timezone
+
+        Entity.objects.filter(pk=instance.entity_id).update(deleted_at=timezone.now())
+
+    def test_default_live_manager_excludes_tombstoned(self):
+        from plugins.lotr.models import Character
+
+        a = Character.objects.create(name="Frodo", bio="ringbearer")
+        b = Character.objects.create(name="Gollum", bio="precious")
+        self._tombstone(b)
+        names = set(Character.objects.filter(pk__in=[a.pk, b.pk]).values_list("name", flat=True))
+        assert names == {"Frodo"}
+
+    def test_all_objects_returns_both(self):
+        from plugins.lotr.models import Character
+
+        a = Character.objects.create(name="Sam", bio="gardener")
+        b = Character.objects.create(name="Lobelia", bio="thief")
+        self._tombstone(b)
+        names = set(Character.all_objects.filter(pk__in=[a.pk, b.pk]).values_list("name", flat=True))
+        assert names == {"Sam", "Lobelia"}
+
+    def test_all_objects_live_narrows_to_live(self):
+        from plugins.lotr.models import Character
+
+        a = Character.objects.create(name="Pippin", bio="took")
+        b = Character.objects.create(name="Saruman", bio="fallen")
+        self._tombstone(b)
+        names = set(Character.all_objects.live().filter(pk__in=[a.pk, b.pk]).values_list("name", flat=True))
+        assert names == {"Pippin"}
+
+    def test_all_objects_tombstoned_returns_only_tombstoned(self):
+        from plugins.lotr.models import Character
+
+        a = Character.objects.create(name="Merry", bio="brandybuck")
+        b = Character.objects.create(name="Wormtongue", bio="schemer")
+        self._tombstone(b)
+        names = set(Character.all_objects.tombstoned().filter(pk__in=[a.pk, b.pk]).values_list("name", flat=True))
+        assert names == {"Wormtongue"}
+
+    def test_objects_tombstoned_composes_with_live_manager_and_returns_empty(self):
+        """Chained filter composition: LiveManager + .tombstoned() = always empty.
+
+        `Character.objects` is `LiveManager`, whose get_queryset() applies
+        `.live()` (entity__deleted_at__isnull=True). Chaining `.tombstoned()`
+        on top adds the opposite predicate (entity__deleted_at__isnull=False).
+        The two predicates AND together to never-true, so the result is the
+        empty set.
+
+        This is honest QuerySet composition — chained filters compose, they
+        don't replace each other. For BaseModel-subclass tombstone queries
+        the canonical surface is `Model.all_objects.tombstoned()`. See the
+        gotcha called out in `req-grid-entity-tombstone-managers`.
+        """
+        from plugins.lotr.models import Character
+
+        a = Character.objects.create(name="Galadriel", bio="elf")
+        b = Character.objects.create(name="Witch-King", bio="nazgul")
+        self._tombstone(b)
+        assert Character.objects.tombstoned().filter(pk__in=[a.pk, b.pk]).count() == 0

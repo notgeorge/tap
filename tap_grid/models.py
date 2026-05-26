@@ -124,7 +124,9 @@ def _check_service_contract(cls: type) -> None:
 
     field_schema: dict = cls.__dict__["FIELD_CRUD_SCHEMA"]
     if not isinstance(field_schema, dict):
-        raise ImproperlyConfigured(f"{cls.__name__}.FIELD_CRUD_SCHEMA must be a dict, got {type(field_schema).__name__}.")
+        raise ImproperlyConfigured(
+            f"{cls.__name__}.FIELD_CRUD_SCHEMA must be a dict, got {type(field_schema).__name__}."
+        )
     for fname, fschema in field_schema.items():
         if not isinstance(fschema, dict):
             raise ImproperlyConfigured(
@@ -189,6 +191,37 @@ class User(AbstractUser):
         db_table = "tap_user"
 
 
+# ---------------------------------------------------------------------------
+# Entity tombstone-aware queryset + manager (req-grid-entity-tombstone-managers)
+# ---------------------------------------------------------------------------
+#
+# `Entity.deleted_at` is the canonical home of tombstone state. The Entity
+# default manager intentionally returns BOTH live and tombstoned rows (most
+# internal infrastructure — GRIFT identity, sweep, force-reimport, history,
+# audit — needs the unfiltered view). Callers that want a narrow view use
+# the chainable filters defined below. The BaseModel-side queryset and
+# managers (LiveManager / AllObjectsManager) live near BaseModel further
+# down; they share the same `.live()` / `.tombstoned()` surface so explicit
+# filtering reads the same way on either side, even though the underlying
+# expression differs (`deleted_at` vs `entity__deleted_at`).
+
+
+class EntityQuerySet(models.QuerySet["Entity"]):
+    """QuerySet for Entity exposing `.live()` and `.tombstoned()` filters.
+
+    The filter is on this very table (``deleted_at IS NULL`` for live).
+    """
+
+    def live(self) -> EntityQuerySet:
+        return self.filter(deleted_at__isnull=True)
+
+    def tombstoned(self) -> EntityQuerySet:
+        return self.filter(deleted_at__isnull=False)
+
+
+EntityManager = models.Manager.from_queryset(EntityQuerySet)
+
+
 class Entity(models.Model):
     """The atomic unit of meaning in TAP. All domain objects are entities.
 
@@ -229,6 +262,12 @@ class Entity(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Tombstone-aware manager: returns both live and tombstoned rows by
+    # default (internal infrastructure dominates the call sites). Callers
+    # narrow with `.live()` / `.tombstoned()` chainables when needed.
+    # See req-grid-entity-tombstone-managers in spec-grid-entity.md.
+    objects = EntityManager()
 
     class Meta:
         db_table = "tap_entity"
@@ -308,11 +347,56 @@ class EntityType(models.Model):
         return self.name
 
 
-class LiveManager(models.Manager["BaseModel"]):
-    """Default manager for BaseModel subclasses — excludes tombstoned entities."""
+# ---------------------------------------------------------------------------
+# BaseModel tombstone-aware queryset + managers (req-grid-entity-tombstone-managers)
+# ---------------------------------------------------------------------------
+#
+# Typed BaseModel rows reach tombstone state through their FK to Entity;
+# the filter expression is `entity__deleted_at` rather than `deleted_at`.
+# The `.live()` / `.tombstoned()` surface is identical to the Entity side
+# defined above so explicit-intent filtering reads the same way regardless
+# of which surface the caller starts from.
+#
+# `LiveManager.get_queryset()` calls `.live()` itself so the default-manager
+# behavior is sourced from the same filter expression as the chainable —
+# one home for the live filter, no risk of drift between them.
 
-    def get_queryset(self) -> models.QuerySet[BaseModel]:
-        return super().get_queryset().filter(entity__deleted_at__isnull=True)
+
+class BaseModelQuerySet(models.QuerySet["BaseModel"]):
+    """QuerySet for BaseModel subclasses exposing `.live()` and `.tombstoned()`.
+
+    The filter joins through the FK to Entity (``entity__deleted_at IS NULL``
+    for live).
+    """
+
+    def live(self) -> BaseModelQuerySet:
+        return self.filter(entity__deleted_at__isnull=True)
+
+    def tombstoned(self) -> BaseModelQuerySet:
+        return self.filter(entity__deleted_at__isnull=False)
+
+
+_BaseModelManagerBase = models.Manager.from_queryset(BaseModelQuerySet)
+
+
+class LiveManager(_BaseModelManagerBase):  # type: ignore[misc,valid-type]
+    """Default manager for BaseModel subclasses — excludes tombstoned entities.
+
+    `LiveManager.get_queryset()` invokes `.live()` so the default-manager
+    behavior reads from the same filter expression as the chainable
+    `.live()` method — one source of truth.
+    """
+
+    def get_queryset(self) -> BaseModelQuerySet:
+        return super().get_queryset().live()
+
+
+class AllObjectsManager(_BaseModelManagerBase):  # type: ignore[misc,valid-type]
+    """Unfiltered manager for BaseModel subclasses; includes tombstoned rows.
+
+    Exposes `.live()` and `.tombstoned()` so callers can narrow explicitly
+    when needed.
+    """
 
 
 class BaseModel(models.Model):
@@ -357,7 +441,7 @@ class BaseModel(models.Model):
     INTERNAL_ONLY: ClassVar[bool] = False
 
     objects = LiveManager()
-    all_objects = models.Manager()
+    all_objects = AllObjectsManager()
 
     # History tracking — enabled by default for all concrete BaseModel subclasses.
     # DSH creates a separate HistoricalX table per concrete model in each app.
@@ -474,7 +558,8 @@ class BaseModel(models.Model):
             # due to Django metaclass ordering; we catch it here instead.
             if not hasattr(self, field_name):
                 raise ImproperlyConfigured(
-                    f"{self.__class__.__name__}.FIELD_VALIDATION_SCHEMA: '{field_name}' is not an " f"attribute of this model."
+                    f"{self.__class__.__name__}.FIELD_VALIDATION_SCHEMA: '{field_name}' is not an "
+                    f"attribute of this model."
                 )
 
             validation = entry["validation"]

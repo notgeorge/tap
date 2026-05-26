@@ -28,6 +28,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-metadata | [Canonical Entity Metadata](#canonical-entity-metadata) | In Development | Platform-level canonical metadata contract for entity instances: `name`, `description`, `description_json`. `name` is fully implemented; `description` and `description_json` are pending. |
 | req-grid-entity-display | [Display Metadata](#display-metadata) | In Development | `DEFAULT_DISPLAY` class attribute implemented on `BaseModel`; instance-level `display` JSONField deferred |
 | req-grid-entity-cascade | [Edge-Directed Cascade Deletion](#edge-directed-cascade-deletion) | Backlog | When an entity is deleted, cascades should be expressible in terms of edge relationships, not just Django's raw FK CASCADE |
+| req-grid-entity-tombstone-managers | [Tombstone State And Manager Surface](#tombstone-state-and-manager-surface) | Approved for Development | `Entity.deleted_at` is the single canonical home of tombstone state; manager defaults differ by surface; both surfaces expose uniform `.live()` / `.tombstoned()` chainable filters |
 
 
 ## Explanation
@@ -726,6 +727,87 @@ Questions to resolve when this is picked up:
 - **Transactionality**: multi-hop cascades should be atomic; partial deletes are worse than no delete.
 - **Interaction with FLIP**: every deletion — including cascade-triggered ones — must be recorded as a provenance event. Cascade chains may need a shared batch ID so the audit trail shows the full causal chain.
 - **Soft delete**: edge-directed cascade is a natural hook point for introducing soft-delete semantics (mark deleted rather than destroy rows), which would make the whole thing reversible.
+
+---
+
+### Tombstone State And Manager Surface
+----
+RID: `req-grid-entity-tombstone-managers`
+Status: `Approved for Development`
+
+Tombstone state has exactly one canonical home: `Entity.deleted_at`. Typed `BaseModel` subclasses do not carry a per-row tombstone flag; their default `LiveManager` joins through the FK to `Entity` and filters by `entity__deleted_at__isnull=True`. This means the spine is the single source of truth for whether an entity is live or tombstoned, and structural drift between the two surfaces is impossible — there is no second flag to fall out of sync.
+
+What does differ between the two surfaces is the **default manager behavior**, and that asymmetry is intentional:
+
+| Surface | Default `objects` returns | `all_objects` exists? |
+| --- | --- | --- |
+| `Entity` | Live AND tombstoned rows | No (default = all) |
+| BaseModel subclass | Live rows only (via `LiveManager`) | Yes (returns all rows) |
+
+The defaults match each surface's typical consumer. Spine queries are dominated by internal infrastructure (GRIFT identity checks, batch-scoped sweep, force-reimport, history, audit) that needs to see tombstoned rows by default; live-only filtering would require every internal call to opt back in. Typed-row queries are dominated by application code that wants live data by default; including tombstoned rows would silently leak deleted state into business logic.
+
+The cost of this asymmetry is learnability: a reader who knows the BaseModel pattern (`objects = live`, `all_objects = both`) may assume Entity follows the same shape and reach for `Entity.all_objects` (which does not exist). Two mitigations apply: this requirement, and the uniform chainable filters defined below.
+
+#### Implementation
+
+Both surfaces expose two QuerySet methods so explicit-intent filtering uses the same vocabulary on the spine and on typed rows. The methods are chainable and compose with normal QuerySet operations:
+
+```python
+# Spine surface — default manager returns both; chainables narrow.
+Entity.objects.live()              # live entities only
+Entity.objects.tombstoned()        # tombstoned entities only
+
+# Typed-row surface — `objects` is LiveManager (already live-filtered);
+# `all_objects` is the unfiltered manager. Chainables apply to either.
+Character.objects.live()           # no-op vs default (LiveManager already filters)
+Character.all_objects.live()       # narrow back to live
+Character.all_objects.tombstoned() # tombstoned characters only — canonical typed-row tombstone query
+```
+
+```python
+Entity.objects.live().filter(entity_type="character")
+Character.all_objects.tombstoned().filter(updated_at__lt=cutoff)
+```
+
+##### Typed-row gotcha: prefer `all_objects.tombstoned()` over `objects.tombstoned()`
+
+`Character.objects.tombstoned()` looks like it should "return tombstoned characters," but it does not. `Character.objects` is `LiveManager`, whose `get_queryset()` already applies `.live()` (filter `entity__deleted_at__isnull=True`); the `.tombstoned()` chain on top adds the opposite predicate (filter `entity__deleted_at__isnull=False`); the two predicates AND together to never-true and the result is always empty. This is honest queryset composition — the chained filters compose, they don't replace each other — but the typo-shaped invitation is real.
+
+**Rule:** for BaseModel-subclass tombstone queries, use `Model.all_objects.tombstoned()`. `Model.objects.tombstoned()` is structurally well-defined but always empty; it is not the canonical surface and should not appear in production call sites.
+
+The spine surface does not have this gotcha because `Entity.objects` is not pre-filtered — `Entity.objects.tombstoned()` and `Entity.all_objects.tombstoned()` (which does not exist on Entity) would behave identically.
+
+##### How the chainables are wired
+
+The two methods are implemented on two QuerySet subclasses (`EntityQuerySet` and `BaseModelQuerySet`) because the filter expression differs:
+
+- `EntityQuerySet.live()` filters `deleted_at__isnull=True` (the field is on this table).
+- `BaseModelQuerySet.live()` filters `entity__deleted_at__isnull=True` (the field is on the related Entity via FK).
+
+The existing `LiveManager` continues to apply `.live()` at construction time so the BaseModel subclass default is unchanged. Adding `.live()` / `.tombstoned()` is purely additive; no existing call site changes behavior.
+
+#### Development
+
+Two designs were considered for tightening this surface:
+
+1. **Symmetrize the defaults** — add a `LiveEntityManager` to `Entity` so the spine's `objects` filters tombstones by default, matching typed rows. Rejected for v0: every existing `Entity.objects` call site would need to be audited to decide whether the intent was "any entity" (force-reimport, sweep, GRIFT identity check, history) or "live entity"; the wrong choice would silently change behavior. The current asymmetry is correct for the dominant consumer of each surface.
+2. **Parameterize the existing managers** — let callers say `Entity.objects(include_tombstoned=False)` or similar. Rejected: not idiomatic Django and mixes "manager default" with "caller intent" in one surface. The two-manager pattern + chainable filter is the standard idiom.
+
+The chosen approach (additive `.live()` / `.tombstoned()` methods) gives callers a uniform expression for explicit-intent filtering without changing any defaults or requiring a code audit.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-entity-tombstone-managers-1 | Single Canonical Home | Approved for Development | `Entity.deleted_at` is the single source of truth for tombstone state; typed `BaseModel` rows carry no per-row tombstone flag and instead read the spine through the FK. | Drift is structurally impossible. |
+| req-grid-entity-tombstone-managers-2 | Default Manager Asymmetry Documented | Approved for Development | `Entity.objects` returns both live and tombstoned rows by default; BaseModel subclass `objects` (via `LiveManager`) returns live rows only. Both defaults are intentional given each surface's typical consumer. | |
+| req-grid-entity-tombstone-managers-3 | Chainable `.live()` And `.tombstoned()` | Approved for Development | Both `Entity` managers and BaseModel subclass managers expose `.live()` and `.tombstoned()` queryset methods. The two methods compose with normal QuerySet operations; BaseModel-subclass tombstone queries use the unfiltered manager surface, `Model.all_objects.tombstoned()`. | Implementation uses two QuerySet subclasses keyed by the appropriate filter expression. See the typed-row gotcha in Implementation. |
+| req-grid-entity-tombstone-managers-4 | No Default Behavior Change | Approved for Development | Adding `.live()` / `.tombstoned()` does not alter the queryset any existing call site receives by default. The methods are additive opt-in filters. | |
+| req-grid-entity-tombstone-managers-5 | LiveManager Uses `.live()` Internally | Approved for Development | `LiveManager.get_queryset()` applies `.live()` so the BaseModel-subclass default matches the chainable filter expression. | Single source of truth for the live filter. |
+
+#### Future
+
+If a future use case emerges where the spine surface's default of "include tombstoned" causes confusion or correctness drift (e.g. a new admin tool that lists entities and accidentally surfaces tombstones), the right next move is to either symmetrize the defaults (deferred Option A from this Development section) or introduce a typed `LiveEntityQuerySet` exit point exposed for that use case. Neither is needed in v0.
 
 ---
 
