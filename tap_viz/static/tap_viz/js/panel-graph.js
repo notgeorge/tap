@@ -250,10 +250,14 @@ TapParentLabelOverlay.prototype._ensureWrapper = function (node) {
     if (node.hasClass("tap-dim-anchor")) return null;
 
     // Prefer prebuilt label data; fall back to the node's own data so the
-    // overlay works without server-side metadata.
+    // overlay works without server-side metadata. _original_icon_url is
+    // where badge-nodes.js stashes the icon after swapping it off the host
+    // (so the badge can render it instead of the host background); for
+    // compound parents that never got a badge, that field is the only
+    // place the URL lives.
     var pl = this._data[id] || {
         label: node.data("label") || node.data("entity_type") || id,
-        icon_url: node.data("icon_url") || "",
+        icon_url: node.data("icon_url") || node.data("_original_icon_url") || "",
     };
 
     var wrapper = document.createElement("div");
@@ -787,6 +791,17 @@ function initGraph(panelId) {
         import("/static/tap_viz/js/runtime/projection.js")
             .then(function (mod) {
                 return mod.initProjection(cy, projection, {inputs: panelInputs});
+            })
+            .then(function () {
+                // After the projection runtime settles, init the parent-label
+                // HTML overlay if any Cytoscape compound parents exist (e.g.,
+                // projections that nest via resolveNesting + cy.move). The
+                // overlay falls back to node.data() when parentLabelData has
+                // no entry for an id, so projection-created parents render.
+                if (cy.nodes(":parent").length > 0) {
+                    var overlay = new TapParentLabelOverlay(cy, parentLabelData);
+                    overlay.init();
+                }
             })
             .catch(function (err) {
                 console.error("[TAP projection] init failed", err);

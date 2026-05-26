@@ -22,7 +22,7 @@
  * plugins/samsite/grift/landing.grift.json.
  */
 
-import {resolveNesting} from "/static/tap_viz/js/runtime/nested-projection.js";
+import {resolveNesting, HIDDEN_CONTAINMENT_CLASS} from "/static/tap_viz/js/runtime/nested-projection.js";
 
 const CLUSTER_ROOTS = [
     {root_entity_type: "aws_route53_zone",      x:  250, y: 220, cluster: "website"},
@@ -71,12 +71,25 @@ export async function execute(context) {
     // arrangements — projectNested's natural-layout positioning would
     // override them. The aws_account / boundary bboxes auto-fit around
     // whatever positions the arrangements settle the children into.
-    const {parentByChildId, warnings} = resolveNesting(cy, NESTING_RELATIONSHIPS);
+    const {parentByChildId, hiddenEdgeIds, warnings} = resolveNesting(cy, NESTING_RELATIONSHIPS);
     warnings.forEach((w) => console.warn("[landing-systems nesting]", w.category, w.message));
     Object.entries(parentByChildId).forEach(([childId, parentId]) => {
         const child = cy.getElementById(childId);
         if (child && child.length > 0) child.move({parent: parentId});
     });
+    // Hide edges that drove a containment assignment — once a node is nested
+    // inside its parent compound, the edge that established that containment
+    // (e.g. SCOPED_TO_BOUNDARY) is visual noise: the spatial nesting already
+    // says it. The class is honored by the global tap_viz hidden-edge style.
+    hiddenEdgeIds.forEach((edgeId) => {
+        const edge = cy.getElementById(edgeId);
+        if (edge && edge.length > 0) edge.addClass(HIDDEN_CONTAINMENT_CLASS);
+    });
+    // Boundary visual: transparent body, red border only. Override the
+    // per-model `:parent[fill_color]` rule (which sets background-opacity 1)
+    // at the element level so the boundary reads as an outline-only frame
+    // around the aws_account compound rather than a tinted card.
+    cy.nodes('[entity_type="boundary"]').style({"background-opacity": 0});
 
     // Members of each system are positioned by the per-Component arrangements
     // wired on the Layout entity — they run automatically after this module
