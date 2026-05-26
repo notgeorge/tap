@@ -36,6 +36,7 @@ This specification defines the geometry contract and the runtime projection API.
 | req-viz-nested-projection-two-pass | [Two-Pass Measure/Position](#two-pass-measureposition) | Implemented | Measure bottom-up; position top-down. Supersedes viewport-constrained layout order. |
 | req-viz-nested-projection-natural-layouts | [Natural Layouts](#natural-layouts) | Implemented | Built-in natural layouts: `grid`, `stack-vertical`, `tiered-rows` |
 | req-viz-nested-projection-runtime-api | [Runtime Projection API](#runtime-projection-api) | Implemented | `projectNested` runtime module owns the geometry pipeline |
+| req-viz-nested-projection-dimension-match | [Dimension-Equality Relationships](#dimension-equality-relationships) | Implemented | `{dimension_match: {parent_type, dimension}}` pairs children whose dimension value matches a parent's — implicit containment via shared spine dimension, no edge required |
 | req-viz-nested-projection-container-visual | [Container Visual Switch](#container-visual-switch) | Implemented | Viewport parents switch to container rendering automatically |
 | req-viz-nested-projection-additive-elevations | [Additive Elevation Nesting](#additive-elevation-nesting) | Approved for Development | Deeper elevations extend the nesting chain without collapsing higher levels |
 | req-viz-nested-projection-scene-activation | [Scene-Wide Elevation Activation](#scene-wide-elevation-activation) | Approved for Development | Whole-scene elevation switching remains the v1 model |
@@ -354,6 +355,56 @@ Separating classification from placement lets authors add scene-specific layouts
 - Horizontal-stack, row-packed, circular, and force-directed natural layouts.
 - Plugin-author registration API for custom natural layouts.
 - Warn on unassigned children in `tiered-rows` when the projection expects full coverage.
+
+
+### Dimension-Equality Relationships
+----
+RID: `req-viz-nested-projection-dimension-match`
+Status: `Implemented`
+
+A relationship may declare containment via *shared spine dimension value* instead of a graph edge.
+
+#### Implementation
+
+The relationship config supports a second shape alongside `gryphon`:
+
+```javascript
+relationships: [
+    // Edge-walking (existing shape):
+    {name: "boundary-contains-account", gryphon: "(parent:boundary)<-[:SCOPED_TO_BOUNDARY]-(child:aws_account)"},
+
+    // Dimension-equality (new shape):
+    {name: "account-owns-resource", dimension_match: {parent_type: "aws_account", dimension: "aws_account"}},
+]
+```
+
+`dimension_match` carries two fields:
+
+- `parent_type` — the `entity_type` of nodes that act as parents under this rule.
+- `dimension` — the spine `dimensions` key whose value pairs parents to children.
+
+`resolveNesting` matches every node of `parent_type` against every other node whose `dimensions[<dimension>]` equals the parent's `dimensions[<dimension>]`. The matched node becomes a child of the matched parent. The standard single-parent / cycle-detection / hidden-edge-tracking pipeline applies just as it does for edge-walking rules; in particular a child found by both an edge rule and a dimension rule will produce a `multiple_parents` warning and be rejected, matching the existing semantics.
+
+Children read `dimensions` from their cy data, which is populated server-side by the graph_panel projection context (`spec-grift-envelope` — spine fields flat at top of the GRIFT envelope). Layouts running outside the projection pipeline do not need to fetch dimensions separately.
+
+#### Development
+
+Adding an edge for every parent-child pair that's already implicit in a shared dimension value duplicates information the graph already carries. AWS resources are the originating proof: every `aws_*` node a boto3 collection produces carries `dimensions.aws_account = "<account-id>"`, and the `aws_account` singleton node carries the same value. Materializing an `OWNS_RESOURCE` edge from the account to each of its hundreds of resources would be an `O(n)` graph-noise increase per collection for no information gain — the dimension already says it. Dimension-equality is the right primitive for this kind of implicit "membership in scoping container" relationship, leaving edges for relationships whose existence is itself the assertion (e.g. `SCOPED_TO_BOUNDARY`, which encodes a compliance-meaningful decision separate from any tag).
+
+Edge-walking and dimension-equality rules are designed to coexist in the same `relationships[]` array. A layout that nests on both — for example, `boundary→account` via edge AND `account→resource` via dimension — describes the most common "outer authored container + inner implicit membership" pattern with no compromise on either side.
+
+#### Future
+
+- `dimension_match` could be extended with a `value` constraint so a parent of `parent_type` only adopts children whose dimension equals an explicit literal (rather than matching the parent's own value) — useful when no parent node exists on the grid but the membership should still nest.
+- A `multi_dimension_match` could pair on conjunction of dimension equalities (`aws_account` AND `aws_region`), separating per-region clusters inside an account.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-nested-projection-dimension-match-1 | Pairs By Dimension Value | Implemented | Children whose `dimensions[<dimension>]` equals a `parent_type` node's `dimensions[<dimension>]` are assigned as that node's children. | |
+| req-viz-nested-projection-dimension-match-2 | Coexists With Edge Rules | Implemented | Edge-walking and dimension-equality relationships may appear in the same `relationships[]` array. Standard single-parent and cycle-detection apply to the union. | |
+| req-viz-nested-projection-dimension-match-3 | Dimensions Available Client-Side | Implemented | Cy node data carries `dimensions` (panel-graph.js populates from the GRIFT envelope's spine fields) so the runtime can match without re-fetching. | |
 
 
 ### Runtime Projection API

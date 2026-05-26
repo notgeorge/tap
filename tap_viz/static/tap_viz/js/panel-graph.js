@@ -399,6 +399,12 @@ function initGraph(panelId) {
             icon_url: tapViz.icon_url || "",
             shape: tapViz.shape || "ellipse",
             url_id: tapViz.url_id || "",
+            // Spine dimensions — needed client-side for dimension-equality
+            // nesting (spec-viz-nested-projection § dimension_match). Carried
+            // shallow on the data dict so cytoscape selectors / runtime code
+            // can read `n.data("dimensions").<key>` without re-fetching from
+            // the server. Always an object; never null.
+            dimensions: n.dimensions || {},
         };
         if (colors.fill) data.fill_color = colors.fill;
         if (colors.border) data.border_color = colors.border;
