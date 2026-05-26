@@ -904,19 +904,19 @@ class PurgeResult:
     error: str | None = None
 
 
-def _assert_debug_for_purge() -> None:
-    """Enforce the DEBUG-only invariant on purge_node.
+def _assert_debug_for_purge(verb_name: str = "purge_node") -> None:
+    """Enforce the DEBUG-only invariant on purge verbs.
 
     Mirrors req-grid-import-grift-sweep-purge so the "purges are DEBUG-only"
     rule reads consistently across the GRIFT sweep purge and the service-layer
-    purge. There is no alternate flag, env var, or settings key that enables
-    purge in any other configuration.
+    purge verbs (purge_node, purge_edge). There is no alternate flag, env var,
+    or settings key that enables purge in any other configuration.
     """
     from django.conf import settings
 
     if not getattr(settings, "DEBUG", False):
         raise ServiceConflictError(
-            "purge_node is permitted only when DEBUG=True (purge_refused_production); " "see req-grid-service-purge."
+            f"{verb_name} is permitted only when DEBUG=True (purge_refused_production); " "see req-grid-service-purge."
         )
 
 
@@ -1042,6 +1042,97 @@ def purge_node(
         purged_entity_id=str(target_uuid),
         purged_entity_type=entity_type,
         purged_edges=[str(eid) for eid in touching_edge_ids],
+    )
+
+
+def purge_edge(
+    entity_id: str | uuid.UUID,
+    *,
+    caller_context: CallerContext | None = None,
+    reason: str,
+) -> PurgeResult:
+    """Hard-delete one Edge entity and its history/event rows.
+
+    DEBUG-only. Removes the typed Edge row, its Entity-spine row, its
+    HistoricalEdge rows, and BatchEvent rows referencing the edge. Endpoint
+    nodes survive; this is the edge sibling of purge_node and does NOT
+    cascade to either endpoint.
+
+    See req-grid-service-purge-edge for the full contract.
+
+    Args:
+        entity_id: Entity UUID of the Edge to purge.
+        caller_context: Optional actor identity, captured in the log line.
+        reason: Required free-form description of why the purge is happening.
+            Captured in the application log alongside the entity_id and actor.
+
+    Returns:
+        PurgeResult describing the purged edge. ``purged_edges`` is empty
+        (an edge purge has no cascade — the edge itself is the target).
+
+    Raises:
+        ServiceConflictError: If ``settings.DEBUG`` is False, or if the
+            target Entity is not of type "edge" (purge_edge_wrong_type).
+        ServiceValidationError: If entity_id cannot be coerced, or `reason` is empty.
+        ServiceNotFoundError: If no Entity with that UUID exists.
+    """
+    _assert_debug_for_purge("purge_edge")
+
+    if not reason or not reason.strip():
+        raise ServiceValidationError("purge_edge requires a non-empty `reason`.")
+
+    try:
+        target_uuid = _coerce_uuid(entity_id)
+    except (ValueError, TypeError) as exc:
+        raise ServiceValidationError(f"entity_id is not a valid UUID: {entity_id!r}") from exc
+    if target_uuid is None:
+        raise ServiceValidationError("entity_id must be provided.")
+
+    entity = Entity.objects.filter(pk=target_uuid).first()
+    if entity is None:
+        raise ServiceNotFoundError(f"No Entity with entity_id={target_uuid}.")
+
+    if entity.entity_type != "edge":
+        raise ServiceConflictError(
+            f"purge_edge targets edge entities; entity {target_uuid} has "
+            f"entity_type={entity.entity_type!r} (purge_edge_wrong_type). "
+            "Use purge_node for node entities."
+        )
+
+    actor = caller_context.user if caller_context is not None else None
+
+    from tap_grid.models import BatchEvent
+
+    # Capture endpoints before the cascade for the log line. Use all_objects so
+    # a tombstoned edge still surfaces its endpoints.
+    edge_row = Edge.all_objects.filter(entity_id=target_uuid).first()
+    from_id = edge_row.from_entity_id if edge_row else None
+    to_id = edge_row.to_entity_id if edge_row else None
+
+    with transaction.atomic():
+        # Delete order mirrors purge_node:
+        #   1) Entity row (cascades the typed Edge row via OneToOneField CASCADE)
+        #   2) Edge history rows (django-simple-history does not cascade
+        #      history with the live row)
+        #   3) BatchEvent rows referencing the purged edge
+        Entity.objects.filter(pk=target_uuid).delete()
+        Edge.history.filter(entity_id=target_uuid).delete()
+        BatchEvent.objects.filter(entity_id=target_uuid).delete()
+
+    logger.info(
+        "[4a1b] purge_edge: entity_id=%s from=%s to=%s actor=%s reason=%r",
+        target_uuid,
+        from_id,
+        to_id,
+        actor,
+        reason,
+    )
+
+    return PurgeResult(
+        success=True,
+        purged_entity_id=str(target_uuid),
+        purged_entity_type="edge",
+        purged_edges=[],
     )
 
 

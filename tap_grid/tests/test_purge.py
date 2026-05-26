@@ -34,7 +34,6 @@ from tap_grid.services import (
     purge_node,
 )
 
-
 # ---------------------------------------------------------------------------
 # DEBUG-only gate — req-grid-service-purge-1
 # ---------------------------------------------------------------------------
@@ -176,9 +175,7 @@ class TestReasonRequired:
         entity = create_entity("character", name="Glorfindel")
         with caplog.at_level("INFO", logger="tap_grid.services"):
             purge_node(entity.pk, reason="cleanup before rebenchmark")
-        assert any(
-            "cleanup before rebenchmark" in rec.getMessage() for rec in caplog.records
-        )
+        assert any("cleanup before rebenchmark" in rec.getMessage() for rec in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -304,3 +301,178 @@ class TestPurgeEntitiesCLI:
             "--all-of-type",
             "--reason=test",
         )
+
+
+# ---------------------------------------------------------------------------
+# purge_edge — req-grid-service-purge-edge
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPurgeEdge:
+    """Edge-targeted hard-delete primitive (sibling of purge_node).
+
+    Covers:
+      -1 DEBUG-only gate
+      -2 Edge type only (rejects node entities)
+      -3 Endpoint nodes survive
+      -4 Edge history rows go with the edge
+      -5 BatchEvent rows referencing the edge are hard-deleted
+      -6 Reason required
+      -7 CLI routes edge purges via --entity-type=edge
+    """
+
+    def test_debug_gate_refuses(self, settings):
+        from tap_grid.services import purge_edge
+
+        settings.DEBUG = True
+        a = create_entity("character", name="A")
+        b = create_entity("location", name="B")
+        edge = create_edge(a, b, "LOCATED_IN")
+        settings.DEBUG = False
+        with pytest.raises(ServiceConflictError, match="purge_refused_production"):
+            purge_edge(edge.entity_id, reason="should fail")
+
+    def test_purge_edge_accepts_edge_entity(self, settings):
+        from tap_grid.services import purge_edge
+
+        settings.DEBUG = True
+        a = create_entity("character", name="A")
+        b = create_entity("location", name="B")
+        edge = create_edge(a, b, "LOCATED_IN")
+        eid = edge.entity_id
+
+        result = purge_edge(eid, reason="dev")
+        assert result.success
+        assert result.purged_entity_id == str(eid)
+        assert result.purged_entity_type == "edge"
+        assert result.purged_edges == []  # no cascade
+        # Edge typed row + Entity row are gone.
+        assert not Edge.all_objects.filter(entity_id=eid).exists()
+        assert not Entity.objects.filter(pk=eid).exists()
+
+    def test_purge_edge_refuses_node_entity(self, settings):
+        from tap_grid.services import purge_edge
+
+        settings.DEBUG = True
+        node = create_entity("character", name="Frodo")
+        with pytest.raises(ServiceConflictError, match="purge_edge_wrong_type"):
+            purge_edge(node.pk, reason="dev")
+        assert Entity.objects.filter(pk=node.pk).exists()
+
+    def test_purge_edge_endpoints_survive(self, settings):
+        from tap_grid.services import purge_edge
+
+        settings.DEBUG = True
+        a = create_entity("character", name="A")
+        b = create_entity("location", name="B")
+        edge = create_edge(a, b, "LOCATED_IN")
+
+        purge_edge(edge.entity_id, reason="dev")
+
+        assert Entity.objects.filter(pk=a.pk).exists()
+        assert Entity.objects.filter(pk=b.pk).exists()
+
+    def test_edge_history_rows_purged(self, settings):
+        from tap_grid.services import purge_edge
+
+        settings.DEBUG = True
+        a = create_entity("character", name="A")
+        b = create_entity("location", name="B")
+        edge = create_edge(a, b, "LOCATED_IN")
+        eid = edge.entity_id
+
+        # Edge model uses django-simple-history; creation logged a historical row.
+        assert Edge.history.filter(entity_id=eid).exists()
+
+        purge_edge(eid, reason="dev")
+
+        assert not Edge.history.filter(entity_id=eid).exists()
+
+    def test_batch_event_rows_for_edge_purged(self, settings):
+        from tap_grid.batch import create_batch
+        from tap_grid.models import BatchEventType
+        from tap_grid.services import purge_edge
+
+        settings.DEBUG = True
+        a = create_entity("character", name="A")
+        b = create_entity("location", name="B")
+        edge = create_edge(a, b, "LOCATED_IN")
+        eid = edge.entity_id
+
+        # Manually emit a BatchEvent referencing this edge so the post-purge
+        # assertion is non-trivial. (`create_edge` is the low-level
+        # entity-only helper and does not itself produce edge BatchEvents.)
+        batch = create_batch(name="edge-purge-test", source="test")
+        BatchEvent.objects.create(
+            batch=batch,
+            event_type=BatchEventType.LINK,
+            entity_id=eid,
+            entity_type="edge",
+            metadata={"manual": True},
+        )
+        assert BatchEvent.objects.filter(entity_id=eid).exists()
+
+        purge_edge(eid, reason="dev")
+
+        assert not BatchEvent.objects.filter(entity_id=eid).exists()
+
+    def test_reason_required(self, settings):
+        from tap_grid.services import purge_edge
+
+        settings.DEBUG = True
+        a = create_entity("character", name="A")
+        b = create_entity("location", name="B")
+        edge = create_edge(a, b, "LOCATED_IN")
+        with pytest.raises(ServiceValidationError):
+            purge_edge(edge.entity_id, reason="")
+        with pytest.raises(ServiceValidationError):
+            purge_edge(edge.entity_id, reason="   ")
+
+    def test_missing_entity_raises_not_found(self, settings):
+        from tap_grid.services import purge_edge
+
+        settings.DEBUG = True
+        random_uuid = uuid.uuid4()
+        with pytest.raises(ServiceNotFoundError):
+            purge_edge(random_uuid, reason="dev")
+
+    def test_bad_uuid_raises_validation_error(self, settings):
+        from tap_grid.services import purge_edge
+
+        settings.DEBUG = True
+        with pytest.raises(ServiceValidationError):
+            purge_edge("not-a-uuid", reason="dev")
+
+    def test_reason_logged(self, settings, caplog):
+        import logging
+
+        from tap_grid.services import purge_edge
+
+        settings.DEBUG = True
+        a = create_entity("character", name="A")
+        b = create_entity("location", name="B")
+        edge = create_edge(a, b, "LOCATED_IN")
+        caplog.set_level(logging.INFO, logger="tap_grid.services")
+        purge_edge(edge.entity_id, reason="manual edge cleanup")
+        assert any("manual edge cleanup" in rec.message for rec in caplog.records)
+
+    def test_cli_routes_edge_purges_to_purge_edge(self, settings):
+        """`manage.py purge_entities --entity-type=edge` routes targets to purge_edge."""
+        settings.DEBUG = True
+        a = create_entity("character", name="A")
+        b = create_entity("location", name="B")
+        edge = create_edge(a, b, "LOCATED_IN")
+        eid = str(edge.entity_id)
+
+        call_command(
+            "purge_entities",
+            "--entity-type=edge",
+            f"--entity-id={eid}",
+            "--reason=cli edge purge",
+        )
+
+        # Edge gone; endpoints survive.
+        assert not Entity.objects.filter(pk=eid).exists()
+        assert Entity.objects.filter(pk=a.pk).exists()
+        assert Entity.objects.filter(pk=b.pk).exists()

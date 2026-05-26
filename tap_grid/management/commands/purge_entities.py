@@ -73,7 +73,7 @@ class Command(BaseCommand):
             ServiceValidationError,
         )
         from tap_grid.models import Entity
-        from tap_grid.services import purge_node
+        from tap_grid.services import purge_edge, purge_node
 
         # Fail fast with an operator-friendly error before any reads.
         if not getattr(settings, "DEBUG", False):
@@ -92,17 +92,9 @@ class Command(BaseCommand):
 
         # Resolve target entity_ids.
         if all_of_type:
-            target_ids = list(
-                Entity.objects.filter(entity_type=entity_type).values_list(
-                    "pk", flat=True
-                )
-            )
+            target_ids = list(Entity.objects.filter(entity_type=entity_type).values_list("pk", flat=True))
             if not target_ids:
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"No entities of type {entity_type!r} found; nothing to purge."
-                    )
-                )
+                self.stdout.write(self.style.WARNING(f"No entities of type {entity_type!r} found; nothing to purge."))
                 return
         else:
             try:
@@ -118,14 +110,8 @@ class Command(BaseCommand):
             }
             missing = [str(tid) for tid in target_ids if str(tid) not in found]
             if missing:
-                raise CommandError(
-                    f"Entities not found: {missing}. Aborting before any writes."
-                )
-            mismatched = [
-                (eid, etype)
-                for eid, etype in found.items()
-                if etype != entity_type
-            ]
+                raise CommandError(f"Entities not found: {missing}. Aborting before any writes.")
+            mismatched = [(eid, etype) for eid, etype in found.items() if etype != entity_type]
             if mismatched:
                 raise CommandError(
                     f"--entity-id / --entity-type mismatch: {mismatched}. "
@@ -133,20 +119,21 @@ class Command(BaseCommand):
                 )
 
         # Drive the purge per-entity. Each call is its own transaction inside
-        # purge_node; one failure does not undo earlier purges in this run,
-        # but it does abort the run.
+        # the verb; one failure does not undo earlier purges in this run, but
+        # it does abort the run. Edge targets route to purge_edge; everything
+        # else routes to purge_node, per req-grid-service-purge-edge-7.
+        purge_fn = purge_edge if entity_type == "edge" else purge_node
         successes = 0
         for tid in target_ids:
             try:
-                result = purge_node(tid, reason=reason)
+                result = purge_fn(tid, reason=reason)
             except (ServiceNotFoundError, ServiceValidationError, ServiceConflictError) as exc:
                 raise CommandError(
-                    f"purge_node failed for {tid}: {type(exc).__name__}: {exc}. "
+                    f"{purge_fn.__name__} failed for {tid}: {type(exc).__name__}: {exc}. "
                     f"Stopped after {successes} successful purge(s)."
                 ) from exc
             self.stdout.write(
-                f"purged: {result.purged_entity_type} {result.purged_entity_id} "
-                f"(+{len(result.purged_edges)} edges)"
+                f"purged: {result.purged_entity_type} {result.purged_entity_id} " f"(+{len(result.purged_edges)} edges)"
             )
             successes += 1
 
