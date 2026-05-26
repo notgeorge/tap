@@ -26,7 +26,7 @@ class CloudfrontDistribution(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
-            "colors": {"fill": "#CDBCEF", "border": "#8C4FFF", "label": "#3E2A5F"},
+            "colors": {"fill": "#DECDFF", "border": "#8C4FFF", "label": "#271647"},
         }
     }
 

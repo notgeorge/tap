@@ -111,7 +111,71 @@ it; out of scope here).
 - Report: which keys were sourced, from which pack files, which placeholders
   were replaced, and any keys that still need a pack file (missing-pack case).
 
-## Step 5: Leave it discoverable
+## Step 5: Set the node body + border to match the icon's brand color
+
+The icon's first non-white `<rect fill>` is its AWS category color — the
+purple of Networking & Content Delivery, the orange of Compute, the green
+of Storage, the red of Security/IAM, the pink of Management & Governance,
+etc. Every aws_core model's `DEFAULT_DISPLAY.tap_viz.colors` triple must
+track that color so the *whole node cell* — body, border, label — reads
+as the same AWS service from across the canvas, not just the icon glyph.
+Without this the body falls back to indigo or a hand-picked color that
+fights the icon; with it, the eye picks up the service category before
+reading the label. Originating case (2026-05-26): 41 aws_core models all
+rendering with mismatched bodies — `aws_ec2_instance` was blue while its
+icon was Compute-orange, `aws_route53_zone` had purple-but-wrong-shade,
+etc.
+
+The triple is computed deterministically from the brand:
+
+```python
+DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+    "tap_viz": {
+        "shape": "rectangle",   # or "round-rectangle" — preserve whatever the model already declares
+        "colors": {
+            "fill":   "<lightened brand>",   # body  — brand blended ~72% toward white
+            "border": "<brand>",              # border — the icon's category color, verbatim
+            "label":  "<darkened brand>",    # text  — brand blended ~72% toward black
+        },
+    },
+}
+```
+
+Extract the brand and compute the triple:
+
+```python
+import re
+from pathlib import Path
+
+ICON = Path("plugins/aws_core/static/aws_core/icons/<key>.svg")
+fills = re.findall(r'fill="(#[0-9A-Fa-f]{6})"', ICON.read_text())
+brand = next(c for c in fills if c.upper() != "#FFFFFF").upper()
+
+def _rgb(h): h = h.lstrip("#"); return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+def _hex(r, g, b): return f"#{r:02X}{g:02X}{b:02X}"
+def lighten(c, t=0.72):
+    r, g, b = _rgb(c); return _hex(int(r+(255-r)*t), int(g+(255-g)*t), int(b+(255-b)*t))
+def darken(c, t=0.72):
+    r, g, b = _rgb(c); return _hex(int(r*(1-t)), int(g*(1-t)), int(b*(1-t)))
+
+print(f'  brand={brand}  fill={lighten(brand)}  border={brand}  label={darken(brand)}')
+```
+
+Apply to the model's `DEFAULT_DISPLAY.tap_viz.colors`. The shape stays
+whatever the model already declared (`rectangle` for most aws_core models;
+`round-rectangle` for the container-ish ones — `aws_account`, `aws_region`,
+`vpc`, `subnet`).
+
+When this step is part of the new-model flow (right after icon install),
+the model ships with the right colors from day one. To bulk-realign every
+aws_core model's colors against its current icon (e.g. after the pack ships
+new colors, or to fix accumulated drift), the same compute logic loops over
+`plugins/aws_core/models/*.py`, reads each `ENTITY_ICON`, extracts the
+brand from the corresponding icon SVG, and replaces the `"colors": {...}`
+line in the model file. See the originating commit's bulk script for a
+working version.
+
+## Step 6: Leave it discoverable
 
 This skill is referenced from `add-model` Step 7 and the `aws_core` README so
 future AWS-service-model creation picks it up automatically. If you add a new
@@ -128,3 +192,7 @@ discoverability surface, keep those pointers in sync.
   shipped icon; match the 80×80 branded reality (see Step 3 note).
 - **Guessing the pack file on an ambiguous service name.** List candidates and
   reconcile against `ENTITY_NAME`; ask if still unclear.
+- **Stopping at the icon install and skipping the color triple (Step 5).** The
+  body has to match the icon — half the visual story is the cell color, not
+  just the glyph inside it. An icon-only install leaves the model rendering as
+  an indigo box with a branded glyph that doesn't reinforce its AWS service.

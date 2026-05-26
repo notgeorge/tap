@@ -29,7 +29,7 @@ class CloudwatchLogGroup(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
-            "colors": {"fill": "#F4B6D2", "border": "#E7157B", "label": "#5A0A30"},
+            "colors": {"fill": "#F8BDDA", "border": "#E7157B", "label": "#400522"},
         }
     }
 

@@ -18,7 +18,7 @@ class Vpc(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "round-rectangle",
-            "colors": {"fill": "#B5D1A6", "border": "#5A8A4D", "label": "#2E5527"},
+            "colors": {"fill": "#D0DECD", "border": "#5A8A4D", "label": "#192615"},
             "label": {"valign": "top", "halign": "center", "position": "outside"},
         }
     }

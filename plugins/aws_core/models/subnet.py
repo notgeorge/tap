@@ -18,7 +18,7 @@ class Subnet(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "round-rectangle",
-            "colors": {"fill": "#D6E7BD", "border": "#86A868", "label": "#3F5B30"},
+            "colors": {"fill": "#DAE5D3", "border": "#7BA362", "label": "#222D1B"},
             "label": {"valign": "top", "halign": "center", "position": "outside"},
         }
     }

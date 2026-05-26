@@ -19,6 +19,7 @@ class SecurityGroup(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
+            "colors": {"fill": "#C1C4C8", "border": "#242F3E", "label": "#0A0D11"},
         }
     }
 

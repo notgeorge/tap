@@ -18,7 +18,7 @@ class AwsAccount(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "round-rectangle",
-            "colors": {"fill": "#F2E5C4", "border": "#B89669", "label": "#6E5428"},
+            "colors": {"fill": "#EBE1D5", "border": "#B89669", "label": "#332A1D"},
             "label": {"valign": "top", "halign": "center", "position": "outside"},
         }
     }

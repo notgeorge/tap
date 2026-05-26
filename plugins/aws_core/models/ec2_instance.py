@@ -18,7 +18,7 @@ class Ec2Instance(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
-            "colors": {"fill": "#5E89B2", "border": "#2B5783", "label": "#FFFFFF"},
+            "colors": {"fill": "#F9D7B7", "border": "#ED7100", "label": "#421F00"},
         }
     }
 

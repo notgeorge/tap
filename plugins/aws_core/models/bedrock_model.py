@@ -19,6 +19,7 @@ class BedrockModel(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
+            "colors": {"fill": "#B7E6DF", "border": "#01A88D", "label": "#002F27"},
         }
     }
 

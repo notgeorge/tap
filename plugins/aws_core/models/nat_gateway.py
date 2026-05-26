@@ -19,6 +19,7 @@ class NatGateway(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
+            "colors": {"fill": "#DECDFF", "border": "#8C4FFF", "label": "#271647"},
         }
     }
 

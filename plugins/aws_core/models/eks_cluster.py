@@ -19,6 +19,7 @@ class EksCluster(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
+            "colors": {"fill": "#F9D7B7", "border": "#ED7100", "label": "#421F00"},
         }
     }
 

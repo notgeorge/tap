@@ -19,6 +19,7 @@ class S3Bucket(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
+            "colors": {"fill": "#D9E4BD", "border": "#7AA116", "label": "#222D06"},
         }
     }
 

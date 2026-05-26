@@ -19,6 +19,7 @@ class IamPolicy(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
+            "colors": {"fill": "#F5C6CC", "border": "#DD344C", "label": "#3D0E15"},
         }
     }
 

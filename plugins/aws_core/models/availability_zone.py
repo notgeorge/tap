@@ -19,6 +19,7 @@ class AvailabilityZone(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
+            "colors": {"fill": "#B7E5E6", "border": "#00A4A6", "label": "#002D2E"},
         }
     }
 

@@ -19,6 +19,7 @@ class SsmParameter(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
+            "colors": {"fill": "#F8BDDA", "border": "#E7157B", "label": "#400522"},
         }
     }
 
