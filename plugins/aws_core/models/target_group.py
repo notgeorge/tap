@@ -16,6 +16,13 @@ class TargetGroup(BaseModel):
     ENTITY_ICON: ClassVar[str] = "aws-target-group"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.cloud": "aws"}
 
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "colors": {"fill": "#DECDFF", "border": "#8C4FFF", "label": "#271647"},
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string", "minLength": 1},
         "target_group_arn": {"type": "string"},

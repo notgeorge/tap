@@ -1,0 +1,125 @@
+{% load static %}
+<div class="samsite-scoreboard">
+  {% if error_phase %}
+    <section class="samsite-scoreboard-error">
+      <div class="samsite-scoreboard-error-header">
+        <span class="samsite-scoreboard-error-phase">[{{ error_phase }}]</span>
+        <span class="samsite-scoreboard-error-title">Could not render KSI scoreboard</span>
+      </div>
+      <p class="samsite-scoreboard-error-message">{{ error_message }}</p>
+    </section>
+  {% else %}
+
+    <section class="samsite-scoreboard-header">
+      <div class="samsite-scoreboard-headline">
+        <div class="samsite-scoreboard-class">
+          {% if system_class %}
+            FedRAMP 20x Class <strong>{{ system_class|upper }}</strong>
+          {% else %}
+            <em>System class not declared</em>
+          {% endif %}
+        </div>
+        <div class="samsite-scoreboard-count">
+          {{ indicator_count }} KSI{{ indicator_count|pluralize }} scored
+          {% if excluded_class_mismatch %}
+            · {{ excluded_class_mismatch }} not applicable to this class
+          {% endif %}
+        </div>
+      </div>
+      <div class="samsite-scoreboard-totals">
+        {% for entry in totals_strip %}
+          <span class="samsite-scoreboard-pill samsite-scoreboard-pill-{{ entry.status }}">
+            {{ entry.count }} {{ entry.status }}
+          </span>
+        {% endfor %}
+      </div>
+      {% if poam_warning %}
+        <p class="samsite-scoreboard-poam-warning"><strong>Note.</strong> {{ poam_warning }} — scoring proceeded with no POA&amp;M coverage applied.</p>
+      {% endif %}
+      {% if ssp_used_fallback or poam_used_fallback %}
+        <p class="samsite-scoreboard-fallback-note">
+          Showing latest emissions:
+          {% if ssp_used_fallback %}SSP from {{ ssp_provenance.fetched_at|default:"(unknown)" }}{% endif %}
+          {% if ssp_used_fallback and poam_used_fallback %} · {% endif %}
+          {% if poam_used_fallback %}POA&amp;M from {{ poam_provenance.fetched_at|default:"(unknown)" }}{% endif %}
+        </p>
+      {% endif %}
+    </section>
+
+    {% for theme in themed %}
+      <section class="samsite-scoreboard-theme">
+        <div class="samsite-scoreboard-theme-header">
+          <h3 class="samsite-scoreboard-theme-name">{{ theme.theme_name }}</h3>
+          <span class="samsite-scoreboard-theme-code">{{ theme.theme_code }}</span>
+          <span class="samsite-scoreboard-theme-count">{{ theme.total_count }} KSI{{ theme.total_count|pluralize }}</span>
+        </div>
+        {% if theme.theme_description %}
+          <p class="samsite-scoreboard-theme-description">{{ theme.theme_description }}</p>
+        {% endif %}
+        <ul class="samsite-scoreboard-indicator-list">
+          {% for ind in theme.indicators %}
+            <li class="samsite-scoreboard-indicator samsite-scoreboard-indicator-{{ ind.status }}">
+              <details>
+                <summary>
+                  <code class="samsite-scoreboard-indicator-code">{{ ind.code }}</code>
+                  <span class="samsite-scoreboard-indicator-name">{{ ind.name }}</span>
+                  <span class="samsite-scoreboard-indicator-badge samsite-scoreboard-badge-{{ ind.status }}">{{ ind.status }}</span>
+                  <span class="samsite-scoreboard-indicator-progress">{{ ind.pass_count }}/{{ ind.total_count }} controls</span>
+                </summary>
+                {% if ind.description %}
+                  <p class="samsite-scoreboard-indicator-description">{{ ind.description }}</p>
+                {% endif %}
+                <table class="samsite-scoreboard-controls">
+                  <thead>
+                    <tr>
+                      <th>Control</th>
+                      <th>Status</th>
+                      <th>SSP status</th>
+                      <th>POA&amp;M references</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for c in ind.controls %}
+                      <tr class="samsite-scoreboard-control samsite-scoreboard-control-{{ c.status }}">
+                        <td><code>{{ c.control_id }}</code></td>
+                        <td><span class="samsite-scoreboard-control-status samsite-scoreboard-badge-{{ c.status }}">{{ c.status }}</span></td>
+                        <td>{{ c.ssp_implementation_status|default:"—" }}</td>
+                        <td>{% if c.poam_item_ids %}{{ c.poam_item_ids|join:", " }}{% else %}—{% endif %}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </details>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% empty %}
+      <section class="samsite-scoreboard-empty">
+        <p>No indicators to score for class <strong>{{ system_class|upper|default:"(any)" }}</strong>.</p>
+      </section>
+    {% endfor %}
+
+    <details class="samsite-scoreboard-provenance">
+      <summary>Source artifacts</summary>
+      <dl>
+        {% if ssp_provenance %}
+          <dt>SSP</dt><dd>
+            {% if ssp_provenance.source_url %}<a href="{{ ssp_provenance.source_url }}">{{ ssp_provenance.source_url }}</a> · {% endif %}
+            fetched {{ ssp_provenance.fetched_at|default:"(unknown)" }} ·
+            signature {% if ssp_provenance.signature_verified is True %}verified{% else %}unverified{% endif %}
+          </dd>
+        {% endif %}
+        {% if poam_provenance %}
+          <dt>POA&amp;M</dt><dd>
+            {% if poam_provenance.source_url %}<a href="{{ poam_provenance.source_url }}">{{ poam_provenance.source_url }}</a> · {% endif %}
+            fetched {{ poam_provenance.fetched_at|default:"(unknown)" }} ·
+            signature {% if poam_provenance.signature_verified is True %}verified{% else %}unverified{% endif %}
+          </dd>
+        {% endif %}
+        <dt>Indicators on grid</dt><dd>{{ raw_indicator_count }} ksi_indicator nodes (before class filter)</dd>
+      </dl>
+    </details>
+
+  {% endif %}
+</div>

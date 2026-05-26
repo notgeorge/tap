@@ -16,6 +16,13 @@ class BedrockModel(BaseModel):
     ENTITY_ICON: ClassVar[str] = "aws-bedrock"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.cloud": "aws"}
 
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "colors": {"fill": "#B7E6DF", "border": "#01A88D", "label": "#002F27"},
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string", "minLength": 1},
         "model_id": {"type": "string"},

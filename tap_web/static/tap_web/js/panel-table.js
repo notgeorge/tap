@@ -91,6 +91,102 @@
     },
   ];
 
+  // ---------------------------------------------------------------------
+  // Preset formatters — referenced by name from a panel's `columns` config
+  // (config.columns[].formatter). String names keep the panel config
+  // declarative (no inline JS in grift); the JS owns the rendering.
+  // ---------------------------------------------------------------------
+  function _safeStr(v) { return v == null ? "" : String(v); }
+
+  var FORMATTERS = {
+    plaintext: function (cell) { return _safeStr(cell.getValue()); },
+    datetime: function (cell) {
+      var v = cell.getValue();
+      if (!v) return "";
+      try {
+        var d = new Date(v);
+        if (isNaN(d)) return _safeStr(v);
+        // Compact local rendering: yyyy-mm-dd hh:mm.
+        var pad = function (n) { return String(n).padStart(2, "0"); };
+        return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+          " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+      } catch (e) { return _safeStr(v); }
+    },
+    tickCross: function (cell) {
+      var v = cell.getValue();
+      if (v === true || v === "true") return '<span style="color:#16a34a;font-weight:600">✓</span>';
+      if (v === false || v === "false") return '<span style="color:#dc2626;font-weight:600">✕</span>';
+      return '<span style="color:#9ca3af">–</span>';
+    },
+    ellipsisSuffix: function (cell) {
+      var v = _safeStr(cell.getValue());
+      return v.length > 8 ? "…" + v.slice(-8) : v;
+    },
+    json: function (cell) {
+      var v = cell.getValue();
+      if (v == null) return "";
+      if (typeof v === "object") {
+        var s = JSON.stringify(v);
+        return s.length > 60 ? s.slice(0, 60) + "…" : s;
+      }
+      return _safeStr(v);
+    },
+    passFailBadge: function (cell) {
+      var v = _safeStr(cell.getValue()).toLowerCase();
+      if (v === "pass") return '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px">PASS</span>';
+      if (v === "fail") return '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px">FAIL</span>';
+      return _safeStr(cell.getValue());
+    },
+    painBadge: function (cell) {
+      var v = _safeStr(cell.getValue());
+      var colors = {
+        N1: ["#dbeafe", "#1e40af"], N2: ["#dcfce7", "#166534"],
+        N3: ["#fef3c7", "#92400e"], N4: ["#fed7aa", "#9a3412"],
+        N5: ["#fecaca", "#991b1b"],
+      };
+      var pair = colors[v];
+      if (!pair) return v;
+      return '<span style="background:' + pair[0] + ';color:' + pair[1] +
+        ';padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px">' + v + '</span>';
+    },
+    arrayCount: function (cell) {
+      var v = cell.getValue();
+      if (!Array.isArray(v) || v.length === 0) return '<span style="color:#9ca3af">—</span>';
+      return String(v.length);
+    },
+  };
+
+  // Per-entity-type detail URLs override the generic /object/<type>/.../ route
+  // when a custom page exists (Path B parameterized pages). Coupling lives in
+  // the URL map for now; a per-plugin registration mechanism would lift this.
+  var PER_TYPE_DETAIL_URL = {
+    vdr_finding:         function (id) { return "/samsite/finding/"   + id; },
+    ksi_indicator:       function (id) { return "/samsite/indicator/" + id; },
+    ksi_component:       function (id) { return "/samsite/component/" + id; },
+    ksi_signal:          function (id) { return "/samsite/signal/"    + id; },
+    compliance_artifact: function (id) { return "/samsite/artifact/"  + id; },
+  };
+
+  function buildCustomColumns(specs) {
+    return specs.map(function (spec) {
+      var col = {
+        field: spec.field,
+        title: spec.title,
+        headerSort: spec.headerSort !== false,
+      };
+      if (spec.width != null) col.width = spec.width;
+      if (spec.widthGrow != null) col.widthGrow = spec.widthGrow;
+      var fmt = FORMATTERS[spec.formatter || "plaintext"];
+      if (fmt) {
+        col.formatter = fmt;
+      }
+      if (spec.tooltip === "full_value") {
+        col.tooltip = function (e, cell) { return _safeStr(cell.getValue()); };
+      }
+      return col;
+    });
+  }
+
   // Columns for edge mode — endpoint labels resolved into display.tap_viz.
   // Edge envelopes follow the same shape as node envelopes; edge_type and
   // properties live in `data`, from/to labels in `display.tap_viz.{from,to}_label`.
@@ -148,8 +244,25 @@
       return;
     }
 
+    // Per-panel custom column spec (from panel.config.columns); when present,
+    // overrides the default common_metadata / edge column sets.
+    var customColumns = null;
+    var customColumnsScript = document.getElementById("tap-table-columns-" + panelId);
+    if (customColumnsScript) {
+      try {
+        customColumns = JSON.parse(customColumnsScript.textContent);
+      } catch (e) {
+        console.warn("TAP table panel: failed to parse columns spec for panel", panelId, e);
+      }
+    }
+
     var mode = mountEl.getAttribute("data-tap-table-mode") || "node";
-    var columns = mode === "edge" ? EDGE_COLUMNS : COMMON_METADATA_COLUMNS;
+    var columns;
+    if (customColumns && customColumns.length > 0) {
+      columns = buildCustomColumns(customColumns);
+    } else {
+      columns = mode === "edge" ? EDGE_COLUMNS : COMMON_METADATA_COLUMNS;
+    }
 
     var tableOptions = {
       data: rows,
@@ -169,8 +282,16 @@
         el.addEventListener("click", function () {
           var data = row.getData();
           var entityType = data.entity_type || "";
+          var entityId = data.entity_id || "";
           var urlId = ((data.display || {}).tap_viz || {}).url_id || "";
-          if (urlId && entityType) {
+          if (!entityType) return;
+          // Save scroll position so the back-button restoration can return
+          // the user to where they were on this page.
+          saveScrollForReturn();
+          var perType = PER_TYPE_DETAIL_URL[entityType];
+          if (perType && entityId) {
+            window.location.href = perType(entityId);
+          } else if (urlId) {
             window.location.href = "/object/" + entityType + "/" + urlId + "/";
           }
         });
@@ -303,4 +424,62 @@
   } else {
     mountPageSizeSelectors(document);
   }
+
+  // ---------------------------------------------------------------------
+  // Scroll restoration.
+  //
+  // Pages with table panels lazy-load their content via HTMX after initial
+  // page render. Browsers' default scroll restoration fires BEFORE the
+  // panels expand the document height, so back-navigation lands at the top
+  // even though the browser "tried" to restore. Workaround: take over the
+  // restoration ourselves — save scrollY when navigating away via a row
+  // click, restore once the document is tall enough to accommodate it
+  // (after htmx:afterSettle fires for the lazy panels).
+  // ---------------------------------------------------------------------
+  var SCROLL_KEY_PREFIX = "tap-return-scroll:";
+
+  function saveScrollForReturn() {
+    try {
+      sessionStorage.setItem(SCROLL_KEY_PREFIX + window.location.pathname, String(window.scrollY));
+    } catch (e) {
+      // sessionStorage can fail in private mode; silently ignore.
+    }
+  }
+
+  function _scrollKey() { return SCROLL_KEY_PREFIX + window.location.pathname; }
+
+  var _scrollRestoreDone = false;
+  function tryRestoreScroll() {
+    if (_scrollRestoreDone) return;
+    var savedY;
+    try { savedY = sessionStorage.getItem(_scrollKey()); } catch (e) { return; }
+    if (!savedY) return;
+    var targetY = parseInt(savedY, 10);
+    if (isNaN(targetY) || targetY <= 0) {
+      try { sessionStorage.removeItem(_scrollKey()); } catch (e) { /* ignore */ }
+      _scrollRestoreDone = true;
+      return;
+    }
+    // Only scroll once the document is tall enough for the saved Y to be valid.
+    if (document.documentElement.scrollHeight >= targetY + window.innerHeight - 50) {
+      window.scrollTo(0, targetY);
+      try { sessionStorage.removeItem(_scrollKey()); } catch (e) { /* ignore */ }
+      _scrollRestoreDone = true;
+    }
+  }
+
+  // Take manual control so the browser doesn't auto-restore to the wrong
+  // (pre-lazy-load) position.
+  if ("scrollRestoration" in history) {
+    history.scrollRestoration = "manual";
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", tryRestoreScroll);
+  } else {
+    tryRestoreScroll();
+  }
+  // Each HTMX settle expands the page; retry restoration in case the
+  // document just grew tall enough.
+  document.addEventListener("htmx:afterSettle", tryRestoreScroll);
 })();

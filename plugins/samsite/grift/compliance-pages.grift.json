@@ -1,0 +1,230 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e6505-7081-7358-a3bc-4ac447224740",
+        "entity_type": "batch",
+        "name": "Samsite Compliance pages v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite.grift.compliance-pages",
+        "name": "Samsite Compliance pages v0.1.0",
+        "description": "Seeds two sibling Samsite compliance pages hosting the ROSCALE OSCAL workbench panels: /samsite/compliance/oscal renders the on-grid OSCAL SSP via roscale-oscal-workbench; /samsite/compliance/poam renders the OSCAL POA&M via roscale-oscal-poam-workbench. Each page takes a URL-backed artifact entity id (oscal_ssp_artifact_entity_id / oscal_poam_artifact_entity_id) consumed by the panel's config. See plugins/samsite/specs/spec-samsite-compliance-pages-v0.md."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e6505-7081-7358-a3bc-4ac58251ba53",
+            "entity_type": "page",
+            "name": "Samsite — OSCAL SSP Workbench",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Samsite — OSCAL SSP Workbench",
+            "slug": "/samsite/compliance/oscal",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-workbench": {"panel-id": "workbench", "height": "1fr"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6505-7081-7358-a3bc-4ac656f47390",
+            "entity_type": "panel",
+            "name": "Samsite OSCAL SSP Workbench",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "roscale-oscal-workbench",
+            "name": "Samsite OSCAL SSP Workbench",
+            "description": "ROSCALE SSP workbench panel instance for Samsite's compliance/oscal page. Reads the artifact entity id from the URL-backed page variable oscal_ssp_artifact_entity_id; falls back to the most-recently-fetched compliance_artifact of kind 'oscal_ssp' when no entity id is supplied.",
+            "view": "roscale/panels/oscal_workbench.html",
+            "config": {
+              "artifact_entity_id_var": "oscal_ssp_artifact_entity_id",
+              "fallback": {
+                "kind": "oscal_ssp"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6505-7081-7358-a3bc-4ac800a2e1cc",
+            "entity_type": "page",
+            "name": "Samsite — OSCAL POA&M Workbench",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Samsite — OSCAL POA&M Workbench",
+            "slug": "/samsite/compliance/poam",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-workbench": {"panel-id": "workbench", "height": "1fr"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6505-7081-7358-a3bc-4ac9b955c104",
+            "entity_type": "panel",
+            "name": "Samsite OSCAL POA&M Workbench",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "roscale-oscal-poam-workbench",
+            "name": "Samsite OSCAL POA&M Workbench",
+            "description": "ROSCALE POA&M workbench panel instance for Samsite's compliance/poam page. Reads the artifact entity id from the URL-backed page variable oscal_poam_artifact_entity_id; falls back to the most-recently-fetched compliance_artifact of kind 'oscal_poam' when no entity id is supplied.",
+            "view": "roscale/panels/oscal_poam_workbench.html",
+            "config": {
+              "artifact_entity_id_var": "oscal_poam_artifact_entity_id",
+              "fallback": {
+                "kind": "oscal_poam"
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e6505-7081-7358-a3bc-4ac774e2d488",
+            "entity_type": "edge",
+            "name": "Samsite OSCAL Page USES_PANEL SSP Workbench",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e6505-7081-7358-a3bc-4ac58251ba53",
+            "to_entity_id": "019e6505-7081-7358-a3bc-4ac656f47390",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "workbench"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6505-7081-7358-a3bc-4aca70d3c3f7",
+            "entity_type": "edge",
+            "name": "Samsite POA&M Page USES_PANEL POA&M Workbench",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e6505-7081-7358-a3bc-4ac800a2e1cc",
+            "to_entity_id": "019e6505-7081-7358-a3bc-4ac9b955c104",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "workbench"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "batch_entity": {
+        "entity_id": "019e65d6-8754-7b35-a46d-fc45757ef64a",
+        "entity_type": "batch",
+        "name": "Samsite KSI Scoreboard page v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite.grift.compliance-pages",
+        "name": "Samsite KSI Scoreboard page v0.1.0",
+        "description": "Seeds /samsite/compliance/scoreboard hosting the samsite-ksi-scoreboard panel — a synthesized roll-up that joins the on-grid FedRAMP 20x KSI catalog (ksi_indicator + ksi_theme) against the latest OSCAL SSP and POA&M emissions to compute per-indicator passing/in-progress/accepted/gap status. Panel falls back to the latest emission of each kind when no URL var is supplied; deep links with explicit entity_ids still work."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e65d6-8754-7fc1-b65e-63d41b5d8750",
+            "entity_type": "page",
+            "name": "Samsite — KSI Scoreboard",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Samsite — KSI Scoreboard",
+            "slug": "/samsite/compliance/scoreboard",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-scoreboard": {"panel-id": "scoreboard", "height": "1fr"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e65d6-8754-7380-bc82-38de9eae421b",
+            "entity_type": "panel",
+            "name": "Samsite KSI Scoreboard",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-ksi-scoreboard",
+            "name": "Samsite KSI Scoreboard",
+            "description": "Synthesized 20x KSI scoreboard. Resolves the latest oscal_ssp + oscal_poam compliance_artifacts (via panel-level fallback) and joins them against ksi_indicator nodes on the grid. URL deep links: ?oscal_ssp_artifact_entity_id=<id>&oscal_poam_artifact_entity_id=<id>.",
+            "view": "samsite/panels/ksi_scoreboard.html",
+            "config": {
+              "ssp_artifact_entity_id_var": "oscal_ssp_artifact_entity_id",
+              "poam_artifact_entity_id_var": "oscal_poam_artifact_entity_id",
+              "fallback": {
+                "ssp_kind": "oscal_ssp",
+                "poam_kind": "oscal_poam"
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e65d6-8754-7ed1-8eaf-9f8b7efa4d20",
+            "entity_type": "edge",
+            "name": "Samsite Scoreboard Page USES_PANEL Scoreboard",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e65d6-8754-7fc1-b65e-63d41b5d8750",
+            "to_entity_id": "019e65d6-8754-7380-bc82-38de9eae421b",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "scoreboard"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

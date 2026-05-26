@@ -54,6 +54,39 @@ TABLE_CONFIG_SCHEMA: dict[str, Any] = {
             "minimum": 1,
             "maximum": 500,
         },
+        # Optional custom column specs — overrides column_mode in the JS.
+        # Each spec maps to a Tabulator column; `formatter` selects one of the
+        # JS preset formatters (panel-table.js) so column logic is declarable.
+        "columns": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["field", "title"],
+                "properties": {
+                    "field": {"type": "string", "minLength": 1},
+                    "title": {"type": "string"},
+                    "width": {"type": "integer", "minimum": 20, "maximum": 800},
+                    "widthGrow": {"type": "integer", "minimum": 1, "maximum": 5},
+                    "formatter": {
+                        "type": "string",
+                        "enum": [
+                            "plaintext",
+                            "datetime",
+                            "tickCross",
+                            "ellipsisSuffix",
+                            "json",
+                            "passFailBadge",
+                            "painBadge",
+                            "arrayCount",
+                        ],
+                    },
+                    "tooltip": {"type": "string", "enum": ["full_value"]},
+                    "headerSort": {"type": "boolean"},
+                },
+            },
+        },
     },
 }
 
@@ -207,11 +240,13 @@ class TablePanelType:
             "next_offset": offset + (effective_limit or 0),
         }
 
+        custom_columns = config.get("columns")
         return {
             "table_nodes": nodes,
             "table_meta": meta,
             "table_search": search,
             "table_nodes_json": safe_json(nodes),
+            "table_columns_json": safe_json(custom_columns) if custom_columns else "",
             "table_error": None,
         }
 
@@ -255,6 +290,7 @@ class TablePanelType:
         panel.description = cleaned.get("description", "")
 
         new_config: dict[str, Any] = {
+            **(panel.config or {}),  # preserve grift-seeded extras (e.g. columns) the form does not edit
             "column_mode": cleaned.get("column_mode") or _DEFAULT_COLUMN_MODE,
             "default_page_size": cleaned.get("default_page_size") or _DEFAULT_PAGE_SIZE,
         }

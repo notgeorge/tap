@@ -6,3 +6,6 @@ description = "Projection plugin for George's live reproduction of Sam Aydlette'
 
 [grift]
 landing = "grift/landing.grift.json"
+compliance-landing = "grift/compliance-landing.grift.json"
+compliance-pages = "grift/compliance-pages.grift.json"
+per-type-viewers = "grift/per-type-viewers.grift.json"

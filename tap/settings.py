@@ -122,6 +122,11 @@ INSTALLED_APPS = [
     # plugins/genericom/ but NOT loaded — real-account work (samsite)
     # supersedes it. Re-add this line to revive.
     # "plugins.genericom.apps.GenericomConfig",
+    # ROSCALE plugin — OSCAL Read/Edit presentation layer. Registers the
+    # roscale-oscal-workbench and roscale-oscal-poam-workbench panel types
+    # that samsite's compliance-pages GRIFT consumes. Loads before samsite
+    # so the panel-type registry is populated when samsite renders.
+    "plugins.roscale.apps.RoscaleConfig",
     # Samsite plugin — projection of the live AWS cross-deployment of
     # samaydlette.com (target of the Sam demo, 2026-06-01). Owns the
     # landing page + first cytoscape graph panel against real boto3 data.

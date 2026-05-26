@@ -1,0 +1,14 @@
+/*
+ * Tailwind input source. Compiled to ./tailwind.css via
+ *   npx @tailwindcss/cli@3 -c tailwind.config.js \
+ *     -i tap_web/static/tap_web/css/tailwind-input.css \
+ *     -o tap_web/static/tap_web/css/tailwind.css \
+ *     --minify
+ *
+ * See docs/misc/doc-dev-tailwind-rebuild.md for the procedure and the
+ * BACKLOG spec tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md for
+ * the long-term automation plan.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

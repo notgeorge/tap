@@ -1,0 +1,10 @@
+{
+  "slug": "DECLARES_VALIDATION",
+  "name": "Declares Validation",
+  "description": "A KSI signal carries a validation result. One edge per validations[] entry.",
+  "sources": ["ksi_signal"],
+  "targets": ["ksi_validation"],
+  "default_dimensions": {
+    "compliance": "ksi-signal"
+  }
+}

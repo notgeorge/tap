@@ -1,0 +1,227 @@
+{% load static %}
+<div class="roscale-workbench roscale-ssp">
+  {% if error_phase %}
+    <section class="roscale-error-state">
+      <div class="roscale-error-header">
+        <span class="roscale-error-phase">[{{ error_phase }}]</span>
+        <span class="roscale-error-title">Could not render OSCAL SSP workbench</span>
+      </div>
+      <p class="roscale-error-message">{{ error_message }}</p>
+      {% if entity_id %}
+        <p class="roscale-error-detail">Requested entity_id: <code>{{ entity_id }}</code> (page variable: <code>{{ var_name }}</code>)</p>
+      {% else %}
+        <p class="roscale-error-detail">No entity_id was supplied. Append <code>?{{ var_name }}=&lt;entity_id&gt;</code> to the URL.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if used_fallback %}
+    <section class="roscale-fallback-banner">
+      <strong>Showing latest emission.</strong>
+      No <code>{{ var_name }}</code> in the URL, so the panel resolved the most recently fetched <code>compliance_artifact</code>{% if fallback_kind %} where <code>kind = "{{ fallback_kind }}"</code>{% endif %}.
+      {% if entity_id %}<span class="roscale-meta">Entity id: <code>{{ entity_id }}</code></span>{% endif %}
+    </section>
+  {% endif %}
+
+  {% if validation %}
+    <section class="roscale-validation-strip roscale-validation-{% if validation.schema_ok and not validation.semantic_warnings %}clean{% elif validation.schema_ok %}warn{% else %}error{% endif %}">
+      <div class="roscale-validation-summary">
+        <strong>Validation:</strong>
+        {% if validation.schema_ok %}
+          schema OK
+        {% else %}
+          {{ validation.schema_errors_total }} schema error{{ validation.schema_errors_total|pluralize }}
+        {% endif %}
+        {% if validation.semantic_warnings %}
+          · {{ validation.semantic_warnings|length }} semantic warning{{ validation.semantic_warnings|length|pluralize }}
+        {% endif %}
+        {% if validation.unsupported_keywords %}
+          · skipped keywords: {{ validation.unsupported_keywords|join:", " }}
+        {% endif %}
+      </div>
+      {% if validation.schema_errors or validation.semantic_warnings %}
+        <details class="roscale-validation-detail">
+          <summary>Show details</summary>
+          {% if validation.schema_errors %}
+            <h4>Schema errors</h4>
+            <ul class="roscale-issue-list">
+              {% for err in validation.schema_errors %}
+                <li><code>{{ err.path }}</code> — {{ err.message }}</li>
+              {% endfor %}
+              {% if validation.schema_errors_total > validation.schema_errors|length %}
+                <li><em>... {{ validation.schema_errors_total|add:"-50"|stringformat:"d" }} more not shown</em></li>
+              {% endif %}
+            </ul>
+          {% endif %}
+          {% if validation.semantic_warnings %}
+            <h4>Semantic warnings</h4>
+            <ul class="roscale-issue-list">
+              {% for w in validation.semantic_warnings %}
+                <li><strong>{{ w.check }}</strong> — {{ w.message }}{% if w.path %} <code>{{ w.path }}</code>{% endif %}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </details>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if self_attestation.indicators %}
+    <section class="roscale-attestation-banner">
+      <strong>Self-attestation / authorization signal:</strong>
+      {{ self_attestation.indicators|join:", " }}
+      <details>
+        <summary>Matches</summary>
+        <ul>
+          {% for m in self_attestation.matches %}<li><code>{{ m }}</code></li>{% endfor %}
+        </ul>
+      </details>
+    </section>
+  {% endif %}
+
+  {% if provenance %}
+    <section class="roscale-card roscale-provenance">
+      <h3>Artifact provenance</h3>
+      <dl class="roscale-kv">
+        <dt>Source URL</dt><dd>{% if provenance.source_url %}<a href="{{ provenance.source_url }}">{{ provenance.source_url }}</a>{% else %}(unknown){% endif %}</dd>
+        <dt>Fetched at</dt><dd>{{ provenance.fetched_at|default:"(unknown)" }}</dd>
+        <dt>Content type</dt><dd>{{ provenance.content_type|default:"(unknown)" }}</dd>
+        <dt>Size</dt><dd>{% if provenance.size_bytes %}{{ provenance.size_bytes }} bytes{% else %}(unknown){% endif %}</dd>
+        <dt>Signature verified</dt><dd>{% if provenance.signature_verified is True %}yes{% elif provenance.signature_verified is False %}no{% else %}(unknown){% endif %}</dd>
+        <dt>Signed by</dt><dd>{{ provenance.signed_by|default:"(unknown)" }}</dd>
+        <dt>Rekor log index</dt><dd>{{ provenance.rekor_log_index|default:"(unknown)" }}</dd>
+        <dt>Verified at</dt><dd>{{ provenance.verified_at|default:"(unknown)" }}</dd>
+      </dl>
+    </section>
+  {% endif %}
+
+  {% if metadata %}
+    <section class="roscale-card roscale-doc-metadata">
+      <h3>OSCAL document metadata</h3>
+      <dl class="roscale-kv">
+        <dt>Title</dt><dd>{{ metadata.title|default:"(none)" }}</dd>
+        <dt>OSCAL version</dt><dd>{{ metadata.oscal_version|default:"(none)" }}</dd>
+        <dt>Document version</dt><dd>{{ metadata.document_version|default:"(none)" }}</dd>
+        <dt>Published</dt><dd>{{ metadata.published|default:"(none)" }}</dd>
+        <dt>Last modified</dt><dd>{{ metadata.last_modified|default:"(none)" }}</dd>
+        {% if metadata.remarks %}<dt>Remarks</dt><dd>{{ metadata.remarks }}</dd>{% endif %}
+      </dl>
+    </section>
+  {% endif %}
+
+  {% if headline_stats %}
+    <section class="roscale-card roscale-headline-stats">
+      <h3>Headline stats</h3>
+      <div class="roscale-stat-grid">
+        <div class="roscale-stat"><span class="roscale-stat-num">{{ headline_stats.total_controls }}</span><span class="roscale-stat-label">implemented controls</span></div>
+        <div class="roscale-stat"><span class="roscale-stat-num">{{ headline_stats.component_count }}</span><span class="roscale-stat-label">components</span></div>
+        <div class="roscale-stat"><span class="roscale-stat-num">{{ headline_stats.back_matter_count }}</span><span class="roscale-stat-label">back-matter resources</span></div>
+        <div class="roscale-stat"><span class="roscale-stat-num">{{ headline_stats.party_count }}</span><span class="roscale-stat-label">parties</span></div>
+      </div>
+      <details class="roscale-stat-breakdown">
+        <summary>Breakdown by family / status / origination</summary>
+        {% if headline_stats.family_counts %}
+          <h4>Controls by family</h4>
+          <ul>{% for k, v in headline_stats.family_counts.items %}<li>{{ k }} — {{ v }}</li>{% endfor %}</ul>
+        {% endif %}
+        {% if headline_stats.implementation_status_counts %}
+          <h4>Implementation status</h4>
+          <ul>{% for k, v in headline_stats.implementation_status_counts.items %}<li>{{ k }} — {{ v }}</li>{% endfor %}</ul>
+        {% endif %}
+        {% if headline_stats.origination_counts %}
+          <h4>Control origination</h4>
+          <ul>{% for k, v in headline_stats.origination_counts.items %}<li>{{ k }} — {{ v }}</li>{% endfor %}</ul>
+        {% endif %}
+      </details>
+    </section>
+  {% endif %}
+
+  {% if system_overview %}
+    <section class="roscale-card roscale-system-overview">
+      <h3>System overview</h3>
+      <dl class="roscale-kv">
+        <dt>System name</dt><dd>{{ system_overview.system_name|default:"(none)" }}</dd>
+        <dt>Short name</dt><dd>{{ system_overview.system_name_short|default:"(none)" }}</dd>
+        <dt>System ID</dt><dd>{{ system_overview.system_id|default:"(none)" }}</dd>
+        <dt>Status</dt><dd>{{ system_overview.status|default:"(none)" }}</dd>
+        <dt>Sensitivity level</dt><dd>{{ system_overview.security_sensitivity_level|default:"(none)" }}</dd>
+        <dt>Confidentiality / Integrity / Availability</dt><dd>{{ system_overview.confidentiality|default:"-" }} / {{ system_overview.integrity|default:"-" }} / {{ system_overview.availability|default:"-" }}</dd>
+        {% if system_overview.description %}<dt>Description</dt><dd>{{ system_overview.description }}</dd>{% endif %}
+        {% if system_overview.authorization_boundary %}<dt>Authorization boundary</dt><dd>{{ system_overview.authorization_boundary }}</dd>{% endif %}
+      </dl>
+    </section>
+  {% endif %}
+
+  {% if components or users %}
+    <section class="roscale-card roscale-implementation">
+      <h3>System implementation</h3>
+      {% if components %}
+        <details open>
+          <summary>Components ({{ components|length }})</summary>
+          <ul class="roscale-component-list">
+            {% for c in components %}
+              <li>
+                <strong>{{ c.title|default:"(untitled)" }}</strong>
+                <span class="roscale-meta">type={{ c.type|default:"-" }} · status={{ c.status|default:"-" }}</span>
+                {% if c.description %}<p>{{ c.description }}</p>{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </details>
+      {% endif %}
+      {% if users %}
+        <details>
+          <summary>Users ({{ users|length }})</summary>
+          <ul>{% for u in users %}<li>{{ u.title|default:"(untitled)" }} {% if u.role_ids %}<span class="roscale-meta">roles: {{ u.role_ids|join:", " }}</span>{% endif %}</li>{% endfor %}</ul>
+        </details>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if requirements_by_family %}
+    <section class="roscale-card roscale-controls">
+      <h3>Control implementation</h3>
+      {% for fam in requirements_by_family %}
+        <details open class="roscale-family">
+          <summary><strong>{{ fam.family }}</strong> <span class="roscale-meta">{{ fam.count }} control{{ fam.count|pluralize }}</span></summary>
+          <ul class="roscale-req-list">
+            {% for req in fam.requirements %}
+              <li>
+                <div class="roscale-req-header"><code>{{ req.control_id }}</code>
+                  {% if req.implementation_status %}<span class="roscale-impl-status roscale-impl-{{ req.implementation_status }}">{{ req.implementation_status }}</span>{% endif %}
+                  {% if req.origination_kinds %}<span class="roscale-origination">{{ req.origination_kinds|join:", " }}</span>{% endif %}
+                </div>
+                {% if req.statement_summary %}<p class="roscale-req-statement">{{ req.statement_summary }}</p>{% endif %}
+                {% if req.remarks %}<p class="roscale-req-remarks"><em>{{ req.remarks }}</em></p>{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </details>
+      {% endfor %}
+    </section>
+  {% endif %}
+
+  {% if back_matter %}
+    <section class="roscale-card roscale-back-matter">
+      <h3>Back matter</h3>
+      <ul>
+        {% for r in back_matter %}
+          <li>
+            <strong>{{ r.title|default:"(untitled)" }}</strong>
+            {% if r.description %} — {{ r.description }}{% endif %}
+            {% if r.links %}
+              <ul class="roscale-rlinks">{% for href in r.links %}<li><a href="{{ href }}">{{ href }}</a></li>{% endfor %}</ul>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if raw_json %}
+    <details class="roscale-card roscale-raw-json">
+      <summary>Raw OSCAL JSON</summary>
+      <pre class="roscale-json">{{ raw_json }}</pre>
+    </details>
+  {% endif %}
+</div>

@@ -54,6 +54,57 @@ class ViewerPanelType:
         return _get_viewer_context(entity_id, entity_type)
 
 
+def _format_value(value: Any) -> tuple[str, bool]:
+    """Format a model field value for display.
+
+    Returns: (display_text, is_block) — is_block is True for multi-line
+    values (e.g. pretty-printed JSON) the template should render in a
+    code block.
+    """
+    import json
+    from datetime import date, datetime
+
+    if value is None:
+        return ("", False)
+    if isinstance(value, bool):
+        return ("true" if value else "false", False)
+    if isinstance(value, (dict, list)):
+        if not value:
+            return ("", False)
+        rendered = json.dumps(value, indent=2, sort_keys=True, default=str)
+        return (rendered, "\n" in rendered)
+    if isinstance(value, (datetime, date)):
+        return (value.isoformat(), False)
+    text = str(value)
+    return (text, "\n" in text)
+
+
+def _model_field_pairs(obj: Any) -> list[tuple[str, str, bool]]:
+    """Walk obj's declared Django fields → display tuples.
+
+    The fallback used when no editor descriptor is registered for the
+    entity type. Skips the entity FK chain, primary keys, and the spine's
+    own bookkeeping; keeps the model's own declared fields in declaration
+    order.
+    """
+    # batch_id + flip_map are BaseModel spine fields surfaced separately by
+    # the FLIP panel below; suppressing them here keeps Details focused on
+    # the model's own typed fields (per the entity-page story: identity →
+    # context → facts → provenance, with each beat in one place).
+    SKIP = {"id", "entity_id", "batch_id", "flip_map"}
+    pairs: list[tuple[str, str, bool]] = []
+    seen: set[str] = set()
+    for field in obj._meta.get_fields():
+        if field.is_relation or field.name in SKIP or field.name in seen:
+            continue
+        seen.add(field.name)
+        value = getattr(obj, field.name, None)
+        text, is_block = _format_value(value)
+        label = str(field.verbose_name or field.name).replace("_", " ").title()
+        pairs.append((label, text, is_block))
+    return pairs
+
+
 def _get_viewer_context(entity_id: str, entity_type: str) -> dict[str, Any]:
     """Build viewer context for a single entity."""
     from tap_grid.registry import get_model_class
@@ -71,7 +122,7 @@ def _get_viewer_context(entity_id: str, entity_type: str) -> dict[str, Any]:
 
     descriptor = get_editor(entity_type)
 
-    field_pairs: list[tuple[str, Any]] = []
+    field_pairs: list[tuple[str, str, bool]] = []
     if descriptor is not None:
         initial = descriptor.get_editor_initial(obj)
         form_class = descriptor.get_form_class(obj)
@@ -80,7 +131,14 @@ def _get_viewer_context(entity_id: str, entity_type: str) -> dict[str, Any]:
             for name, field in form.fields.items():
                 label = str(field.label or name.replace("_", " ").title())
                 value = initial.get(name, "")
-                field_pairs.append((label, value))
+                text, is_block = _format_value(value)
+                field_pairs.append((label, text, is_block))
+
+    # Universal fallback: when no editor (or no form) gave us a field list,
+    # walk the model's own declared fields. Gives every TAP-managed entity
+    # type a baseline drill-down without requiring an editor first.
+    if not field_pairs:
+        field_pairs = _model_field_pairs(obj)
 
     extra = descriptor.get_extra_context(obj) if descriptor else {}
 
@@ -95,10 +153,25 @@ def _get_viewer_context(entity_id: str, entity_type: str) -> dict[str, Any]:
         panel_slug = getattr(obj, "slug", "") or ""
         panel_render_url = f"/panel/{panel_slug}--{entity_id}/"
 
+    # Resolve type icon URL once server-side so the template renders a plain
+    # <img>. The icon lookup needs the EntityType row (a string slug isn't
+    # enough); skip silently if either the lookup or icon-file misses.
+    icon_url = ""
+    try:
+        from tap_grid.icon import resolve_icon_url
+        from tap_grid.models import EntityType
+
+        et_row = EntityType.objects.filter(slug=entity_type).first()
+        if et_row is not None:
+            icon_url = resolve_icon_url(et_row) or ""
+    except Exception:  # noqa: BLE001 — icon resolution is best-effort visual chrome
+        icon_url = ""
+
     return {
         "viewer_obj": obj,
         "viewer_obj_name": str(obj),
         "viewer_entity_type": entity_type,
+        "viewer_icon_url": icon_url,
         "viewer_field_pairs": field_pairs,
         "viewer_edit_url": edit_url,
         "viewer_panel_render_url": panel_render_url,

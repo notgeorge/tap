@@ -1,0 +1,10 @@
+{
+  "slug": "REPORTS_VIOLATION",
+  "name": "Reports Violation",
+  "description": "A failed KSI validation reports a specific policy violation. One edge per violations[] entry.",
+  "sources": ["ksi_validation"],
+  "targets": ["ksi_violation"],
+  "default_dimensions": {
+    "compliance": "ksi-signal"
+  }
+}

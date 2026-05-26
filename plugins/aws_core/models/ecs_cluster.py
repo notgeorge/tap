@@ -16,6 +16,13 @@ class EcsCluster(BaseModel):
     ENTITY_ICON: ClassVar[str] = "aws-ecs"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.cloud": "aws"}
 
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "colors": {"fill": "#F9D7B7", "border": "#ED7100", "label": "#421F00"},
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string", "minLength": 1},
         "cluster_arn": {"type": "string"},

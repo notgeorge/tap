@@ -16,6 +16,13 @@ class SsmParameter(BaseModel):
     ENTITY_ICON: ClassVar[str] = "aws-ssm"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.cloud": "aws"}
 
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "colors": {"fill": "#F8BDDA", "border": "#E7157B", "label": "#400522"},
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string", "minLength": 1},
         "parameter_arn": {"type": "string"},

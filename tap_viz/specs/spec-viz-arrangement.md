@@ -32,6 +32,7 @@ Arrangements are TAP-managed entities stored as their own model and connected to
 | req-viz-arrangement-members | [Member Resolution](#member-resolution) | Implemented | Member nodes identified by gryphon queries against cy |
 | req-viz-arrangement-positioning | [Positioning](#positioning) | Implemented | Horizontal or vertical axis positioning relative to anchor |
 | req-viz-arrangement-distribution | [Distribution](#distribution) | Implemented | Even distribution of members across the positioned axis |
+| req-viz-arrangement-span | [Anchor-Relative Span](#anchor-relative-span) | Implemented | Optional `span_px` + `anchor_offset_px` override the dynamic min..max span with an explicit pixel budget anchored to the anchor's axis value |
 | req-viz-arrangement-execution | [Execution Model](#execution-model) | Implemented | Client-side serial execution after layout completes |
 | req-viz-arrangement-layout-hotlink | [Layout Hotlink Integration](#layout-hotlink-integration) | Implemented | Layouts reference arrangements via `USES_ARRANGEMENT` hotlink; canonical host path per `spec-viz-layouts.md` |
 | req-viz-arrangement-tagging | [Arrangement Tagging](#arrangement-tagging) | Backlog | Tag cy elements with arrangement membership for downstream logic |
@@ -225,8 +226,48 @@ Deriving span from member positions rather than imposing a fixed size keeps arra
 #### Future
 
 - `"packed"`: members are placed with a fixed gap between them (specified in pixels), centered on the midpoint of the current span.
-- `"anchored"`: distribution starts from the anchor position rather than from the member span.
 - Custom gap sizes.
+
+
+### Anchor-Relative Span
+----
+RID: `req-viz-arrangement-span`
+Status: `Implemented`
+
+Two optional definition fields — `span_px` and `anchor_offset_px` — let an arrangement pin its members to a specific pixel budget along the positioning axis, measured from the anchor.
+
+#### Implementation
+
+```json
+{
+  "anchor": {...},
+  "members": {...},
+  "positioning": "vertical",
+  "distribution": "even",
+  "anchor_offset_px": 110,
+  "span_px": 240
+}
+```
+
+When `span_px` is present, even-distribution lays members out across exactly that many pixels along the positioning axis, starting at `anchor_axis + anchor_offset_px` (default `0`). Both fields are optional; when neither is present, the legacy behavior derives the span from members' current min..max position range.
+
+Semantics by member count, when `span_px` is set:
+
+- **1 member**: placed at `anchor + anchor_offset_px`. `span_px` is ignored.
+- **N ≥ 2 members**: placed at `anchor + offset + k * span_px / (N - 1)` for `k ∈ [0, N - 1]`.
+
+Setting `anchor_offset_px > 0` keeps all members on one side of the anchor — the typical "story reads below the anchor" case for vertical positioning, or "members trail to the right" for horizontal. A negative offset places members on the opposite side; an offset of zero co-locates the first member with the anchor (rarely useful).
+
+#### Development
+
+The legacy member-range span was sensitive to the layout pass's initial scatter — a wide initial scatter produced a wide arrangement column, even when the layout module's intent was a compact cluster. Explicit `span_px` gives the arrangement author direct control of the visual scale per-system, which is the natural tweaking surface when arrangements are per-system entities (the samsite landing's four `Component`-driven arrangements were the originating case).
+
+`anchor_offset_px` exists separately from `span_px` because "where do members start relative to the anchor" is a different decision than "how spread out are they." The two compose: an arrangement can set the offset alone (single-member case, member at fixed distance below anchor) or both (multi-member compact column).
+
+#### Future
+
+- A `"justified"` mode that adapts `span_px` to viewport size at runtime, for layouts that should expand on wide screens.
+- A per-member `weight` field for non-uniform spacing.
 
 
 ### Execution Model

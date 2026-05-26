@@ -99,14 +99,16 @@ export function applyBadgeNodes(cy, opts = {}) {
         // Mark host so the _badge_active style selector applies.
         host.data("_badge_active", true);
 
-        const pos = host.position();
-        const w = host.width();
-        const h = host.height();
-
-        // Upper-left corner: badge center sits at the host's top-left corner
-        // so it protrudes equally inside and outside.
-        const bx = pos.x - w / 2;
-        const by = pos.y - h / 2;
+        // Upper-left corner: badge center sits at the host's visible
+        // top-left corner (half inside, half outside). Use the rendered
+        // bbox directly so the anchor works uniformly for leaf cells (small
+        // rect with border) and for compound parents (large bbox wrapping
+        // padding + nested children + border). Anything derived from
+        // width/outerWidth has been observed to drift out of sync with
+        // bbox during cascade reveal animations on compound parents.
+        const bb = host.boundingBox({includeLabels: false});
+        const bx = bb.x1;
+        const by = bb.y1;
 
         badgeElements.push({
             group: "nodes",
@@ -130,24 +132,44 @@ export function applyBadgeNodes(cy, opts = {}) {
         badge.style({width: uniformBadgeSize, height: uniformBadgeSize});
     });
 
-    // Position listener: when a host node moves, reposition its badge.
+    // Final position pass against the now-stable bbox. For compound parents
+    // the bbox read during the creation loop can be transient (children's
+    // bboxes settle out of order while badges are being added), leaving the
+    // initial position 10–30px off the visible corner. Sample bbox once
+    // more after all badges are in cy and the parent's bbox has fully
+    // reconciled to its children. Without this pass the badge listener
+    // never fires for compound parents whose position/bounds don't change
+    // after creation, so the stale initial position sticks.
+    hosts.forEach((host) => {
+        const badge = cy.getElementById(BADGE_ID_PREFIX + host.id());
+        if (badge.length === 0) return;
+        const bb = host.boundingBox({includeLabels: false});
+        badge.unlock();
+        badge.position({x: bb.x1, y: bb.y1});
+        badge.lock();
+    });
+
+    // Position listener: when a host node moves OR its bounds change (key
+    // for compound parents — children shift, the parent's bbox grows or
+    // shrinks while its center stays put, which fires `bounds` but not
+    // `position`), reposition the badge to the host's visible top-left
+    // corner using outer dims so leaves and compounds both anchor to the
+    // same visible edge.
     function onHostPosition(evt) {
         const host = evt.target;
         if (host.data("_is_badge")) return;
         const badge = cy.getElementById(BADGE_ID_PREFIX + host.id());
         if (badge.length === 0) return;
-        const pos = host.position();
-        const w = host.width();
-        const h = host.height();
+        const bb = host.boundingBox({includeLabels: false});
         badge.unlock();
-        badge.position({x: pos.x - w / 2, y: pos.y - h / 2});
+        badge.position({x: bb.x1, y: bb.y1});
         badge.lock();
     }
-    cy.on("position", "node[_badge_active]", onHostPosition);
+    cy.on("position bounds", "node[_badge_active]", onHostPosition);
 
     return {
         destroy: () => {
-            cy.off("position", "node[_badge_active]", onHostPosition);
+            cy.off("position bounds", "node[_badge_active]", onHostPosition);
             _removeBadges(cy);
         },
         uniformBadgeSize,

@@ -297,6 +297,14 @@ A page reachable only by direct URL or drill-down click handler doesn't need any
 
 Check the consuming plugin's templates for an existing navigation partial before adding a new one. Authoring a new top-level navigation surface is a design decision worth raising with the user — most TAP pages so far have been reached via drill-down, not menu.
 
+### If you edit a template
+
+Most page work is JSON layout assembly and doesn't touch templates. If this step (or an earlier step) had you adding Tailwind utility classes to a navigation partial, base template, or any other HTML, the compiled stylesheet at `tap_web/static/tap_web/css/tailwind.css` does not auto-rebuild. New classes silently no-op in the browser — `class=` attribute set, computed style ignores it — until you rerun the manual rebuild.
+
+Procedure: [`docs/misc/doc-dev-tailwind-rebuild.md`](../../../docs/misc/doc-dev-tailwind-rebuild.md). One `npx @tailwindcss/cli@3` invocation; ~500ms.
+
+**Coverage gap (BACKLOG):** the Tailwind config currently scans only `tap_web/templates` and `tap_viz/templates`. Plugin templates under `plugins/*/templates` are NOT scanned. Utilities used only inside a plugin template won't end up in the compiled output regardless of how many rebuilds. Tracked in [`tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md`](../../specs/spec-web-tailwind-pipeline-BACKLOG.md) (`req-web-tailwind-pipeline-content-paths`); workarounds enumerated in the [add-panel skill](../add-panel/SKILL.md#tailwind-rebuild-the-compiled-stylesheet).
+
 ## Step 8: Verify End-To-End
 
 Re-import GRIFT:

@@ -46,25 +46,53 @@ function parsePattern(gryphon) {
 // ---- Nesting resolver (stamps data, no compounds) ----
 
 /**
- * Resolve parent-child assignments from edges and relationship declarations.
+ * Resolve parent-child assignments from relationship declarations.
+ *
+ * Two relationship shapes are supported (req-viz-nested-projection-dimension-match):
+ *
+ *   1. Edge-walking:        {name, gryphon: "(parent:T1)-[:EDGE]->(child:T2)"}
+ *      Pairs are read from cy.edges() matching the parsed pattern.
+ *
+ *   2. Dimension-equality:  {name, dimension_match: {parent_type, dimension}}
+ *      Pairs are read from cy.nodes(): every node whose
+ *      `dimensions[<dimension>]` equals a parent_type node's
+ *      `dimensions[<dimension>]` becomes that parent's child. No edge
+ *      required — the containment relationship is encoded in the shared
+ *      dimension value. Originating case: AWS resources nesting under
+ *      their aws_account via the `aws_account` spine dimension.
+ *
  * Does NOT mutate cy. Returns assignment maps.
  */
 export function resolveNesting(cy, relationships) {
     const warnings = [];
-    const rules = [];
+    const edgeRules = [];
+    const dimensionRules = [];
 
     relationships.forEach((rel) => {
+        if (rel.dimension_match) {
+            const dm = rel.dimension_match;
+            if (!dm.parent_type || !dm.dimension) {
+                warnings.push({
+                    category: "malformed_dimension_match",
+                    message: `dimension_match requires parent_type and dimension; got ${JSON.stringify(dm)}`,
+                });
+                return;
+            }
+            dimensionRules.push({parentType: dm.parent_type, dimension: dm.dimension});
+            return;
+        }
         const parsed = parsePattern(rel.gryphon || "");
         if (!parsed) {
             warnings.push({category: "unsupported_matcher_syntax", message: `Cannot parse gryphon: ${rel.gryphon}`});
             return;
         }
-        rules.push(parsed);
+        edgeRules.push(parsed);
     });
 
     const candidates = {};
     const consumedEdges = {};
 
+    // Edge-walking rules.
     cy.edges().forEach((edge) => {
         if (edge.hasClass(ELEVATION_HIDDEN_CLASS)) return;
         const edgeType = edge.data("edge_type") || edge.data("label") || "";
@@ -73,7 +101,7 @@ export function resolveNesting(cy, relationships) {
         const sourceType = edge.source().data("entity_type") || "";
         const targetType = edge.target().data("entity_type") || "";
 
-        rules.forEach((rule) => {
+        edgeRules.forEach((rule) => {
             if (edgeType !== rule.edgeType) return;
             let parentId = null;
             let childId = null;
@@ -95,6 +123,26 @@ export function resolveNesting(cy, relationships) {
                 candidates[childId][parentId] = true;
                 consumedEdges[edge.id()] = [parentId, childId];
             }
+        });
+    });
+
+    // Dimension-equality rules. For each rule, find every node of parent_type
+    // and pair it with all other nodes whose <dimension> value matches.
+    dimensionRules.forEach((rule) => {
+        const parents = cy.nodes(`[entity_type="${rule.parentType}"]`)
+            .filter((n) => !n.hasClass(ELEVATION_HIDDEN_CLASS));
+        parents.forEach((parent) => {
+            const parentDims = parent.data("dimensions") || {};
+            const parentValue = parentDims[rule.dimension];
+            if (parentValue == null || parentValue === "") return;
+            cy.nodes().forEach((child) => {
+                if (child.id() === parent.id()) return;
+                if (child.hasClass(ELEVATION_HIDDEN_CLASS)) return;
+                const childDims = child.data("dimensions") || {};
+                if (childDims[rule.dimension] !== parentValue) return;
+                if (!candidates[child.id()]) candidates[child.id()] = {};
+                candidates[child.id()][parent.id()] = true;
+            });
         });
     });
 

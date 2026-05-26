@@ -18,7 +18,7 @@ class AwsRegion(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
-            "colors": {"fill": "#DDE4B2", "border": "#8B9D58", "label": "#4F5A2E"},
+            "colors": {"fill": "#B7E5E6", "border": "#00A4A6", "label": "#002D2E"},
         }
     }
 

@@ -16,6 +16,13 @@ class SecretsManagerSecret(BaseModel):
     ENTITY_ICON: ClassVar[str] = "aws-secrets-manager"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.cloud": "aws"}
 
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "colors": {"fill": "#F5C6CC", "border": "#DD344C", "label": "#3D0E15"},
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string", "minLength": 1},
         "secret_arn": {"type": "string"},

@@ -27,7 +27,7 @@ class EventbridgeRule(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
-            "colors": {"fill": "#EFB8F0", "border": "#C925D1", "label": "#4A0E4E"},
+            "colors": {"fill": "#EFC1F2", "border": "#C925D1", "label": "#380A3A"},
         }
     }
 

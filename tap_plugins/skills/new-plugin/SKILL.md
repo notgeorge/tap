@@ -1,14 +1,34 @@
 ---
 name: new-plugin
-description: Scaffold a new TAP plugin with manifest, models, edges, tests, specs, icons, and docs. Use when creating a new plugin from scratch.
+description: Scaffold a new TAP plugin with manifest, models, edges, tests, specs, icons, and docs. Supports both from-scratch authoring and spec-first graduation from a pre-authored planning doc.
 disable-model-invocation: true
-allowed-tools: Read Write Edit Bash(git *) Bash(gh *) Bash(mkdir *) Bash(ls *) Glob Grep
-argument-hint: <slug> <display-name>
+allowed-tools: Read Write Edit Bash(git *) Bash(gh *) Bash(mkdir *) Bash(mv *) Bash(ls *) Glob Grep
+argument-hint: <slug> <display-name>  |  --from-spec <path>
 ---
 
 # Scaffold a New TAP Plugin
 
+> **Skill source-of-truth.** This SKILL.md's canonical location is `tap_plugins/skills/new-plugin/SKILL.md`. The `.claude/skills/new-plugin/` path is a directory-level symlink — edit the canonical, the symlink follows. Same pattern holds for the other plugin-tooling skills (`add-model`, `add-edge`, `add-page`, `add-panel`): canonical lives under the owning package's `skills/` directory.
+
 You are creating a new TAP plugin. TAP plugins may be developed as standalone git repositories and later integrated into TAP as submodules, but the plugin's TAP contract should stay valid regardless of when that publishing shape is used.
+
+## Operating Modes
+
+This skill supports two entry modes; the work in Steps 1 and 3 differs based on which one applies. Every other step is identical.
+
+**From-scratch mode.** No pre-authored spec exists. The skill collaborates with the user to draft the spec from zero (the original path).
+
+**Spec-first mode.** A planning doc has already been authored — typically in another LLM session — at `docs/misc/preplugin-<slug>-v?.md`, or at a path the user passes via `--from-spec`. The skill reviews the doc, asks bounded clarifying questions, normalizes it into canonical spec shape, and graduates it (via `mv`) into `plugins/<slug>/specs/spec-<slug>-v0.md`.
+
+### Detect the mode
+
+Resolution order:
+
+1. If `$ARGUMENTS` includes `--from-spec <path>`, that's spec-first mode with the named path.
+2. Otherwise, once a slug is known (from `$ARGUMENTS` or just-asked), check `docs/misc/preplugin-<slug>-v?.md`. If exactly one match exists, that's spec-first mode. If multiple, ask which.
+3. Otherwise, from-scratch mode.
+
+Confirm the detected mode with the user in one sentence before proceeding.
 
 ## How TAP Specifications Work
 
@@ -47,7 +67,9 @@ Gather from the user:
 5. **Naming strategy** — proposed model/type slugs, edge slugs, icon keys, and GRIFT bundle names
 6. **GitHub repo name and org** — where the repo will be created, if the standalone-repo/submodule shape will be used
 
-Default dimensions are required for new plugin work unless the user explicitly changes that requirement. In general, dimension-less TAP-managed types should be treated as a design bug to justify rather than a default to accept silently.
+Default dimensions are required **when the plugin contributes TAP-managed entities** (models or edges). If the plugin's Plugin Scope explicitly excludes TAP-managed entities — e.g., a panel-only, presentation-only, or pure-helper plugin — default dimensions are N/A; note the carve-out once and do not require a value. Otherwise, dimension-less TAP-managed types should be treated as a design bug to justify rather than a default to accept silently.
+
+**In spec-first mode**, slug + display name come from the spec's `## Plugin Identity` section (see Step 3). Default dimensions, naming strategy, and GitHub repo metadata may or may not be answered in the spec — the Step 3 review pass identifies the gaps and asks for them in one bounded batch rather than re-eliciting answers the spec already contains.
 
 ## Step 2: Create GitHub Repo Early
 
@@ -66,32 +88,90 @@ If the plugin directory does not exist yet, create it first with the minimal pac
 
 Do not wait for the full plugin scaffold to exist before creating the remote. Early publication of partial spec work is an intended workflow.
 
-## Step 3: Write the Specification
+## Step 3: Write or Graduate the Specification
 
-Before writing any code, collaborate with the user to write the plugin specification. This is the most important step — the spec drives everything that follows.
+Before writing any code, ensure a settled plugin specification exists at `plugins/<slug>/specs/spec-<slug>-v0.md`. The spec drives everything that follows — this is the most important step.
 
-Gather from the user:
+### Canonical Spec Shape
+
+The required sections of a graduated TAP plugin spec:
+
+- `## Plugin Identity` — slug, display name, and key initial entry points (e.g. initial page route, initial panel type slug, initial page variables). This is the "what is this plugin called and where does it land" header that anyone graduating the spec wants to read first. Required on every plugin spec; do not invent ad-hoc top metadata blocks in lieu of this section.
+- `## Philosophy` — why this plugin exists, what domain it models, what's deliberately in vs. out of scope
+- `## Goals` — numbered table: `| # | Name | Description |`
+- `## Requirements` — top-level table: `| RID | Name | Status | Notes |`
+- Per-requirement section: `### <Name>` heading, `----` divider, `RID: \`req-<slug>-<noun>\``, `Status: \`<Proposed|Implemented|Backlog>\``, descriptive body, optional `#### Implementation` body, and an `#### Acceptance Criteria` table (`| ACID | Title | Status | Description | Notes |`)
+- Model catalog (if applicable) — what models, organized by category, with rationale
+- Edge types (if applicable) — what relationships, organized by category
+- Reference data (if applicable) — what GRIFT seed data
+- Icons (if applicable) — what the icon approach will be
+- Non-goals — encoded either as a tail `### v0 Non-Goals` requirement (e.g. `req-<slug>-nongoals`) or as `Backlog`-status requirements; pick one and apply consistently within the spec
+
+Read existing graduated specs for format/tone — strong references: `plugins/aws_core/specs/spec-aws-core-v0.md`, `plugins/samsite/specs/spec-samsite-compliance-collector-v0.md`, `plugins/gryphon_playground/specs/spec-gridkin-v0.md`.
+
+### From-Scratch Variant
+
+Collaborate with the user to draft the spec from zero. Gather:
 
 1. **Domain** — what resource types, relationships, and reference data does this plugin model?
-2. **Default dimensions** — confirm the convention from step 1
-3. **Naming strategy** — confirm the naming set from step 1 before drafting the final spec
+2. **Default dimensions** — confirm the convention from Step 1 (skip if the plugin contributes no TAP-managed entities)
+3. **Naming strategy** — confirm the naming set from Step 1 before drafting
 4. **GitHub repo name and org** — confirm whether the standalone-repo/submodule shape will be used now or later
-
-Write `specs/spec-<slug>-v0.md` following TAP's spec format. Read existing specs in `tap_grid/specs/` and `tap_plugins/specs/` for the format, tone, and structure. The spec should cover:
-
-- Philosophy — why this plugin exists, what domain it models
-- Goals
-- Requirements table with RIDs and statuses (initially Proposed)
-- Model catalog — what models, organized by category, with rationale
-- Edge types — what relationships, organized by category
-- Reference data — what GRIFT seed data, if any
-- Icons — what the icon approach will be
-- Non-goals — what's explicitly deferred
-- Future work
 
 Bias toward durable primitives. If a proposed model or edge feels speculative, unstable, or too domain-specific for the plugin's stated scope, flag it and move it to non-goals or future work instead of forcing it into v0.
 
-Go back and forth with the user until the spec is agreed. Update requirement statuses to Implemented as you build each piece.
+Go back and forth with the user until the spec is agreed.
+
+### Spec-First Variant
+
+A pre-authored planning doc exists at `docs/misc/preplugin-<slug>-v?.md` (or the `--from-spec` path). Treat it as the source of truth and do not re-draft from scratch. The work here is **review → clarify → normalize → graduate**, in that order.
+
+#### Review Checklist
+
+Run every item; report findings in one summary before asking anything.
+
+| # | Check | What "fail" looks like |
+| :---: | --- | --- |
+| a | **Required sections present.** All sections in the Canonical Spec Shape above. Specifically check whether a `## Plugin Identity` section exists, or whether the doc has an ad-hoc top metadata block to convert. | Missing Philosophy, Goals, Requirements table, or per-req sections; ad-hoc top metadata block in lieu of `## Plugin Identity` |
+| b | **RIDs well-formed.** Unique within the spec, kebab-case, prefixed `req-<slug>-`. | Duplicates, missing prefix, non-kebab-case |
+| c | **ACIDs well-formed.** Unique under each RID, kebab-case, prefixed with the RID (e.g. `req-roscale-v0-scope-1`). | Duplicates within a requirement, missing or wrong prefix |
+| d | **Statuses valid.** Every Status ∈ `{Proposed, Implemented, Backlog}`. | Non-canonical statuses like `Pre-Plugin Planning`, `Draft`, etc. |
+| e | **Step 1 + Step 3 questions answered.** Slug, display name, description, scope, naming strategy, default dimensions (only if Step 1's conditional applies), GitHub repo metadata. | Any of these missing or vague enough to need user input |
+| f | **Known Codex-shaped artifacts flagged for normalization.** | See list below |
+| g | **Spec quality smell-tests.** Are requirements concrete? ACs testable? Contradictions, undefined terms, ambiguous scope language? | Any "we'll figure it out" hand-waving in normative sections |
+
+Known Codex-shaped artifacts (item f) and their normalizations:
+
+- `# <Name> v0 Pre-Plugin Plan`-style title → rename to `# <Name> Plugin Specification` (or domain-appropriate canonical title)
+- Top-level `Status: Pre-Plugin Planning` line under the title → drop. Status lives per-requirement, not at the document level.
+- Top metadata block (slug / display name / initial page / initial panel / initial variable laid out as key/value pairs at the top) → convert to a proper `## Plugin Identity` section.
+- `## Strategic Check` section (path alignment, scope risk, defer list, recommendation) → drop. Pure planning artifact; not part of a settled spec. Optionally archive separately under `docs/misc/decision-*.md` if the rationale is worth keeping.
+- `## Initial Implementation Outline` section (numbered list of "first slice" steps) → drop. This skill IS the implementation outline; Steps 4–13 below cover it.
+- `## Open Questions For Implementation` tail bucket → fold each open question into the relevant requirement's `Notes` column on the Requirements table, or into a per-requirement note inside the requirement body. Open questions belong adjacent to the requirement they affect, not in a tail bucket.
+- `## Prior Art And Source Boundaries` as a top-level section → consider folding into the most-relevant requirement (e.g., a Vendored Assets requirement). Keep the substance; lose the top-level slot if the content only justifies a single requirement.
+
+#### Clarifying-Question Protocol
+
+Where the checklist finds genuine gaps, ask in **one bounded batch** via `AskUserQuestion` — at most 4 questions per batch. Only open a second batch if the first batch's answers reveal new gaps that weren't visible before. Avoid 20-question chains; if many gaps exist, surface that as "this spec needs more work before graduation" and stop, rather than power through with a long elicitation.
+
+#### Normalize
+
+Apply the checklist findings to the doc in place. Then show the normalized result to the user and get one round of approval before graduation. Do not graduate on assumed approval.
+
+#### Graduate
+
+```bash
+mkdir -p plugins/<slug>/specs
+mv docs/misc/preplugin-<slug>-v0.md plugins/<slug>/specs/spec-<slug>-v0.md
+```
+
+`mv` clean — the planning doc is replaced; history lives in git. Do not leave a redirect stub at the old path; stubs rot.
+
+Confirm the file is in its new location before proceeding to Step 4.
+
+---
+
+After either variant, update requirement statuses to `Implemented` as you build each piece. Spec drift is a bug — keep statuses in sync with code as the work proceeds.
 
 ## Step 4: Create Plugin Directory and Core Files
 
@@ -130,6 +210,13 @@ Create root `README.md` as soon as the plugin directory exists. This file is not
 Keep it short at scaffold time, then maintain it as decisions accumulate. Do not leave it as a stale placeholder once the plugin has real behavior.
 
 Periodically revisit root `README.md` and any plugin-local docs during plugin work, especially after adding models, edges, collectors, GRIFT seed data, validation behavior, or operational assumptions. Treat stale plugin documentation as spec drift: update it in the same change set when the implementation or architecture moves. Use `docs/` for setup guides, operator runbooks, inventories, and longer design notes that would make the root README hard to scan.
+
+## If Your Plugin Ships Templates
+
+If the plugin will render its own panels or pages, those land under `plugins/<slug>/templates/<slug>/...` and the actual authoring follows the [`add-panel`](../../../tap_web/skills/add-panel/SKILL.md) and [`add-page`](../../../tap_web/skills/add-page/SKILL.md) skills. Two scaffold-time things worth knowing up front:
+
+- **Tailwind utilities require a manual stylesheet rebuild.** The compiled `tap_web/static/tap_web/css/tailwind.css` does not auto-rebuild when you add new utility classes. Procedure documented in [`docs/misc/doc-dev-tailwind-rebuild.md`](../../../docs/misc/doc-dev-tailwind-rebuild.md). The symptom of forgetting: the `class=` attribute is set, the computed style ignores it.
+- **Plugin templates aren't yet scanned by the Tailwind config.** Until the BACKLOG fix lands (see [`tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md`](../../../tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md) — `req-web-tailwind-pipeline-content-paths`), utilities used only inside `plugins/<slug>/templates/` won't end up in the compiled output no matter how many times you rebuild. The add-panel skill enumerates workarounds.
 
 ## Plugin Configuration And Dependencies (hard rules)
 

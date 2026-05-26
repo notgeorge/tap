@@ -16,6 +16,13 @@ class NetworkAcl(BaseModel):
     ENTITY_ICON: ClassVar[str] = "aws-network-acl"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.cloud": "aws"}
 
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "colors": {"fill": "#DECDFF", "border": "#8C4FFF", "label": "#271647"},
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string"},
         "network_acl_id": {"type": "string"},

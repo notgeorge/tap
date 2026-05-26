@@ -16,6 +16,13 @@ class DynamoDbTable(BaseModel):
     ENTITY_ICON: ClassVar[str] = "aws-dynamodb"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.cloud": "aws"}
 
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "colors": {"fill": "#EFC1F2", "border": "#C925D1", "label": "#380A3A"},
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string", "minLength": 1},
         "table_arn": {"type": "string"},

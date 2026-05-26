@@ -250,10 +250,16 @@ TapParentLabelOverlay.prototype._ensureWrapper = function (node) {
     if (node.hasClass("tap-dim-anchor")) return null;
 
     // Prefer prebuilt label data; fall back to the node's own data so the
-    // overlay works without server-side metadata.
+    // overlay works without server-side metadata. When a type-icon badge is
+    // active for the host (_badge_active), the badge is already rendering
+    // the icon as a separate corner node — repeating it inside the label
+    // overlay would be visual duplication, so the overlay label is
+    // text-only in that case.
     var pl = this._data[id] || {
         label: node.data("label") || node.data("entity_type") || id,
-        icon_url: node.data("icon_url") || "",
+        icon_url: node.data("_badge_active")
+            ? ""
+            : (node.data("icon_url") || node.data("_original_icon_url") || ""),
     };
 
     var wrapper = document.createElement("div");
@@ -304,15 +310,21 @@ TapParentLabelOverlay.prototype._syncPosition = function (node) {
     if (!wrapper) return;
 
     var pos = node.position();
-    var w = node.width();
-    var h = node.height();
 
     // Guard against pre-layout NaN dimensions.
-    if (isNaN(pos.x) || isNaN(pos.y) || isNaN(w) || isNaN(h)) return;
+    if (isNaN(pos.x) || isNaN(pos.y)) return;
 
-    // Position at horizontal center, vertical top of compound node.
+    // Anchor the wrapper's bottom-center to the host's visible top edge:
+    // pos.x is the horizontal center, bb.y1 is the rendered top of the
+    // bbox (including the compound's padding + border). Using bbox.y1
+    // rather than pos.y - h/2 places the label outside-center above the
+    // visible compound border — `h` here is the model-rect height, which
+    // for a compound parent excludes ~32 px of padding + border, so a
+    // h-based anchor falls inside the visible compound by that margin.
+    var bb = node.boundingBox({includeLabels: false});
+    if (isNaN(bb.x1) || isNaN(bb.y1)) return;
     var x = pos.x;
-    var y = pos.y - h / 2;
+    var y = bb.y1;
 
     var t = "translate(-50%, -100%) translate(" + x.toFixed(2) + "px," + y.toFixed(2) + "px)";
     var s = wrapper.style;
@@ -399,6 +411,19 @@ function initGraph(panelId) {
             icon_url: tapViz.icon_url || "",
             shape: tapViz.shape || "ellipse",
             url_id: tapViz.url_id || "",
+            // Spine dimensions — needed client-side for dimension-equality
+            // nesting (spec-viz-nested-projection § dimension_match). Carried
+            // shallow on the data dict so cytoscape selectors / runtime code
+            // can read `n.data("dimensions").<key>` without re-fetching from
+            // the server. Always an object; never null.
+            dimensions: n.dimensions || {},
+            // Per-model tags (e.g. AWS resource tags: Project, Component,
+            // Environment). Lifted onto the cy data dict so client-side
+            // runtimes — layout-scope-boxes, ad-hoc filters — can select by
+            // tag without re-fetching. Sourced from the envelope's per-model
+            // `data.tags` field; nodes whose model doesn't carry tags get
+            // an empty object so selectors don't NPE.
+            tags: ((n.data || {}).tags) || {},
         };
         if (colors.fill) data.fill_color = colors.fill;
         if (colors.border) data.border_color = colors.border;
@@ -749,26 +774,12 @@ function initGraph(panelId) {
         boxSelectionEnabled: true,
     });
 
-    // Light background grid via cytoscape-grid-guide extension.
-    if (cy.gridGuide) {
-        cy.gridGuide({
-            drawGrid: true,
-            gridSpacing: 40,
-            gridColor: "#cbd5e1",
-            lineWidth: 1.0,
-            gridStackOrder: -1,
-            snapToGridOnRelease: false,
-            snapToGridDuringDrag: false,
-            snapToAlignmentLocationOnRelease: false,
-            snapToAlignmentLocationDuringDrag: false,
-            distributionGuidelines: false,
-            geometricGuideline: false,
-            resize: false,
-            parentPadding: false,
-            zoomDash: true,
-            panGrid: true,
-        });
-    }
+    // Background grid is drawn by CSS on the container (see panel-graph.css
+    // `.tap-cy-static-grid`). The cytoscape-grid-guide extension was
+    // previously used for its drawn-grid feature but lagged pan/zoom by a
+    // frame, and its other features (snap-to-grid, alignment guidelines,
+    // resize handles) were never enabled. Removed in a06d6f0; re-add if
+    // those features become useful.
 
     if (projection) {
         // Hide the graph element immediately so the raw graph never flashes
@@ -781,6 +792,17 @@ function initGraph(panelId) {
         import("/static/tap_viz/js/runtime/projection.js")
             .then(function (mod) {
                 return mod.initProjection(cy, projection, {inputs: panelInputs});
+            })
+            .then(function () {
+                // After the projection runtime settles, init the parent-label
+                // HTML overlay if any Cytoscape compound parents exist (e.g.,
+                // projections that nest via resolveNesting + cy.move). The
+                // overlay falls back to node.data() when parentLabelData has
+                // no entry for an id, so projection-created parents render.
+                if (cy.nodes(":parent").length > 0) {
+                    var overlay = new TapParentLabelOverlay(cy, parentLabelData);
+                    overlay.init();
+                }
             })
             .catch(function (err) {
                 console.error("[TAP projection] init failed", err);

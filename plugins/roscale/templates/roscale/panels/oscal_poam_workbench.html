@@ -1,0 +1,160 @@
+{% load static %}
+<div class="roscale-workbench roscale-poam">
+  {% if error_phase %}
+    <section class="roscale-error-state">
+      <div class="roscale-error-header">
+        <span class="roscale-error-phase">[{{ error_phase }}]</span>
+        <span class="roscale-error-title">Could not render OSCAL POA&amp;M workbench</span>
+      </div>
+      <p class="roscale-error-message">{{ error_message }}</p>
+      {% if entity_id %}
+        <p class="roscale-error-detail">Requested entity_id: <code>{{ entity_id }}</code> (page variable: <code>{{ var_name }}</code>)</p>
+      {% else %}
+        <p class="roscale-error-detail">No entity_id was supplied. Append <code>?{{ var_name }}=&lt;entity_id&gt;</code> to the URL.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if used_fallback %}
+    <section class="roscale-fallback-banner">
+      <strong>Showing latest emission.</strong>
+      No <code>{{ var_name }}</code> in the URL, so the panel resolved the most recently fetched <code>compliance_artifact</code>{% if fallback_kind %} where <code>kind = "{{ fallback_kind }}"</code>{% endif %}.
+      {% if entity_id %}<span class="roscale-meta">Entity id: <code>{{ entity_id }}</code></span>{% endif %}
+    </section>
+  {% endif %}
+
+  {% if validation %}
+    <section class="roscale-validation-strip roscale-validation-{% if validation.schema_ok and not validation.semantic_warnings %}clean{% elif validation.schema_ok %}warn{% else %}error{% endif %}">
+      <div class="roscale-validation-summary">
+        <strong>Validation:</strong>
+        {% if validation.schema_ok %}
+          schema OK
+        {% else %}
+          {{ validation.schema_errors_total }} schema error{{ validation.schema_errors_total|pluralize }}
+        {% endif %}
+        {% if validation.semantic_warnings %}
+          · {{ validation.semantic_warnings|length }} semantic warning{{ validation.semantic_warnings|length|pluralize }}
+        {% endif %}
+        {% if validation.unsupported_keywords %}
+          · skipped keywords: {{ validation.unsupported_keywords|join:", " }}
+        {% endif %}
+      </div>
+      {% if validation.schema_errors or validation.semantic_warnings %}
+        <details class="roscale-validation-detail">
+          <summary>Show details</summary>
+          {% if validation.schema_errors %}
+            <h4>Schema errors</h4>
+            <ul class="roscale-issue-list">
+              {% for err in validation.schema_errors %}<li><code>{{ err.path }}</code> — {{ err.message }}</li>{% endfor %}
+              {% if validation.schema_errors_total > validation.schema_errors|length %}
+                <li><em>... {{ validation.schema_errors_total|add:"-50"|stringformat:"d" }} more not shown</em></li>
+              {% endif %}
+            </ul>
+          {% endif %}
+          {% if validation.semantic_warnings %}
+            <h4>Semantic warnings</h4>
+            <ul class="roscale-issue-list">
+              {% for w in validation.semantic_warnings %}<li><strong>{{ w.check }}</strong> — {{ w.message }}{% if w.path %} <code>{{ w.path }}</code>{% endif %}</li>{% endfor %}
+            </ul>
+          {% endif %}
+        </details>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if provenance %}
+    <section class="roscale-card roscale-provenance">
+      <h3>Artifact provenance</h3>
+      <dl class="roscale-kv">
+        <dt>Source URL</dt><dd>{% if provenance.source_url %}<a href="{{ provenance.source_url }}">{{ provenance.source_url }}</a>{% else %}(unknown){% endif %}</dd>
+        <dt>Fetched at</dt><dd>{{ provenance.fetched_at|default:"(unknown)" }}</dd>
+        <dt>Signature verified</dt><dd>{% if provenance.signature_verified is True %}yes{% elif provenance.signature_verified is False %}no{% else %}(unknown){% endif %}</dd>
+        <dt>Signed by</dt><dd>{{ provenance.signed_by|default:"(unknown)" }}</dd>
+        <dt>Rekor log index</dt><dd>{{ provenance.rekor_log_index|default:"(unknown)" }}</dd>
+      </dl>
+    </section>
+  {% endif %}
+
+  {% if metadata %}
+    <section class="roscale-card roscale-doc-metadata">
+      <h3>OSCAL POA&amp;M metadata</h3>
+      <dl class="roscale-kv">
+        <dt>Title</dt><dd>{{ metadata.title|default:"(none)" }}</dd>
+        <dt>OSCAL version</dt><dd>{{ metadata.oscal_version|default:"(none)" }}</dd>
+        <dt>Document version</dt><dd>{{ metadata.document_version|default:"(none)" }}</dd>
+        <dt>Published</dt><dd>{{ metadata.published|default:"(none)" }}</dd>
+        <dt>Last modified</dt><dd>{{ metadata.last_modified|default:"(none)" }}</dd>
+      </dl>
+    </section>
+  {% endif %}
+
+  {% if headline_stats %}
+    <section class="roscale-card roscale-headline-stats">
+      <h3>Headline stats</h3>
+      <div class="roscale-stat-grid">
+        <div class="roscale-stat"><span class="roscale-stat-num">{{ headline_stats.total }}</span><span class="roscale-stat-label">POA&amp;M items</span></div>
+        <div class="roscale-stat"><span class="roscale-stat-num">{{ headline_stats.open_count }}</span><span class="roscale-stat-label">open</span></div>
+        <div class="roscale-stat"><span class="roscale-stat-num">{{ headline_stats.risk_accepted_count }}</span><span class="roscale-stat-label">risk-accepted</span></div>
+      </div>
+      <details class="roscale-stat-breakdown">
+        <summary>Breakdown by status / risk / category / detector / family</summary>
+        {% if headline_stats.status_counts %}<h4>Status</h4><ul>{% for k, v in headline_stats.status_counts.items %}<li>{{ k }} — {{ v }}</li>{% endfor %}</ul>{% endif %}
+        {% if headline_stats.risk_counts %}<h4>Risk (adjusted/original)</h4><ul>{% for k, v in headline_stats.risk_counts.items %}<li>{{ k }} — {{ v }}</li>{% endfor %}</ul>{% endif %}
+        {% if headline_stats.category_counts %}<h4>Category</h4><ul>{% for k, v in headline_stats.category_counts.items %}<li>{{ k }} — {{ v }}</li>{% endfor %}</ul>{% endif %}
+        {% if headline_stats.detector_counts %}<h4>Detector source</h4><ul>{% for k, v in headline_stats.detector_counts.items %}<li>{{ k }} — {{ v }}</li>{% endfor %}</ul>{% endif %}
+        {% if headline_stats.family_counts %}<h4>Affected control families</h4><ul>{% for k, v in headline_stats.family_counts.items %}<li>{{ k }} — {{ v }}</li>{% endfor %}</ul>{% endif %}
+      </details>
+    </section>
+  {% endif %}
+
+  {% if items %}
+    <section class="roscale-card roscale-poam-register">
+      <h3>POA&amp;M register</h3>
+      <table class="roscale-poam-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Category</th>
+            <th>Risk</th>
+            <th>Controls</th>
+            <th>Asset</th>
+            <th>Detector</th>
+            <th>Scheduled completion</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in items %}
+            <tr>
+              <td><code>{{ it.poam_id|default:it.uuid }}</code></td>
+              <td>{{ it.title|default:"(untitled)" }}</td>
+              <td class="roscale-poam-status roscale-poam-status-{{ it.status|default:'unset' }}">{{ it.status|default:"-" }}</td>
+              <td>{{ it.category|default:"-" }}</td>
+              <td>{% if it.adjusted_risk %}{{ it.adjusted_risk }}{% if it.original_risk and it.adjusted_risk != it.original_risk %} <span class="roscale-meta">(was {{ it.original_risk }})</span>{% endif %}{% else %}{{ it.original_risk|default:"-" }}{% endif %}</td>
+              <td>{% if it.controls %}<code>{{ it.controls|join:", " }}</code>{% else %}-{% endif %}</td>
+              <td>{{ it.asset_identifier|default:"-" }}</td>
+              <td>{{ it.weakness_detector_source|default:"-" }}</td>
+              <td>{{ it.scheduled_completion_date|default:"-" }}</td>
+            </tr>
+            {% if it.description or it.remediation_plan_summary %}
+              <tr class="roscale-poam-detail-row">
+                <td colspan="9">
+                  {% if it.description %}<p><strong>Description.</strong> {{ it.description }}</p>{% endif %}
+                  {% if it.remediation_plan_summary %}<p><strong>Remediation.</strong> {{ it.remediation_plan_summary }}</p>{% endif %}
+                </td>
+              </tr>
+            {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% endif %}
+
+  {% if raw_json %}
+    <details class="roscale-card roscale-raw-json">
+      <summary>Raw OSCAL JSON</summary>
+      <pre class="roscale-json">{{ raw_json }}</pre>
+    </details>
+  {% endif %}
+</div>

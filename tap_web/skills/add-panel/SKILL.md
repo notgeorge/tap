@@ -173,6 +173,20 @@ Create `<panel-type-plugin>/templates/<plugin>/panels/<slug>.html`:
 - **Empty state** must render even when the data list is empty — never produce an empty container.
 - **Error rendering** — when a tile / row / section has an `error` field set by the resolver, render an inline error indicator with the message in the `title` attribute for hover.
 
+### Tailwind: rebuild the compiled stylesheet
+
+Templates use Tailwind utility classes (e.g. `flex`, `w-full`, `text-slate-500`, `sm:grid-cols-3`). The compiled stylesheet at `tap_web/static/tap_web/css/tailwind.css` is a hand-built artifact — there is no automated rebuild on template change. Any class you add that isn't already used elsewhere will silently no-op in the browser: the `class=` attribute is set, the rule simply doesn't exist.
+
+Procedure when you add new utility classes:
+
+1. Run the manual rebuild per [`docs/misc/doc-dev-tailwind-rebuild.md`](../../../docs/misc/doc-dev-tailwind-rebuild.md). One `npx @tailwindcss/cli@3` invocation; ~500ms.
+2. Verify the new class is in the compiled CSS: `grep "<class-with-escaped-colons>" tap_web/static/tap_web/css/tailwind.css`.
+3. Commit `tailwind.css` alongside the template change so reviewers see them together.
+
+**Coverage gap (BACKLOG):** the Tailwind config currently scans only `tap_web/templates` and `tap_viz/templates`. Plugin templates under `plugins/*/templates` are NOT scanned, so utilities used only inside a plugin template won't end up in the compiled output regardless of how many times you rebuild. Tracked in [`tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md`](../../specs/spec-web-tailwind-pipeline-BACKLOG.md) (`req-web-tailwind-pipeline-content-paths`). Workarounds until the spec lands: (a) make sure a `tap_web` or `tap_viz` template uses the same utility somewhere so the scanner picks it up, (b) temp-edit `tailwind.config.js` locally to add your plugin's path before rebuilding (don't commit the temp config), or (c) drop the utility and use inline styles for the layout-critical bit.
+
+The "class present on element, computed style ignores it" symptom is the signature — recognize it on sight rather than chasing CSS specificity.
+
 ## Step 5: Author The CSS
 
 Create `<panel-type-plugin>/static/<plugin>/css/<slug>.css`:

@@ -1,0 +1,10 @@
+{
+  "slug": "EVALUATES_COMPONENT",
+  "name": "Evaluates Component",
+  "description": "A KSI validation evaluated a component — the materialization of the signal schema's validations[].component_refs join. 'Which validations covered component X' is a one-hop traversal over this edge.",
+  "sources": ["ksi_validation"],
+  "targets": ["ksi_component"],
+  "default_dimensions": {
+    "compliance": "ksi-signal"
+  }
+}

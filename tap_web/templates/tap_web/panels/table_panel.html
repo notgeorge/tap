@@ -19,6 +19,11 @@
     {# Embedded search result payload (req-web-stdpanel-table-render-3). #}
     <script type="application/json" id="tap-table-data-{{ panel.entity_id }}">{{ table_nodes_json|safe }}</script>
 
+    {# Optional custom column spec — JS uses this when present, else falls back to common_metadata / edge defaults. #}
+    {% if table_columns_json %}
+    <script type="application/json" id="tap-table-columns-{{ panel.entity_id }}">{{ table_columns_json|safe }}</script>
+    {% endif %}
+
     {# Nav bar below table — right-aligned #}
     <div class="mt-2">{% include "tap_web/panels/_table_nav_bar.html" with nav_align="right" %}</div>
 

@@ -18,7 +18,7 @@ class Alb(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
-            "colors": {"fill": "#D1BBE6", "border": "#8761AD", "label": "#3E2A5F"},
+            "colors": {"fill": "#DAD1E6", "border": "#7B5EA7", "label": "#221A2E"},
         }
     }
 

@@ -16,6 +16,13 @@ class SecurityGroup(BaseModel):
     ENTITY_ICON: ClassVar[str] = "aws-security-group"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.cloud": "aws"}
 
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "colors": {"fill": "#C1C4C8", "border": "#242F3E", "label": "#0A0D11"},
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string"},
         "group_id": {"type": "string"},
