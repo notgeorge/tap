@@ -62,7 +62,6 @@ class GraphPanelType:
     view = "tap_viz/panels/graph_panel.html"
     js: list[str] = [
         "tap_viz/js/lib/cytoscape.min.js",
-        "tap_viz/js/lib/cytoscape-grid-guide.js",
         "tap_viz/js/panel-graph.js",
     ]
     css: list[str] = ["tap_viz/css/panel-graph.css"]

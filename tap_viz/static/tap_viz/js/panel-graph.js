@@ -774,26 +774,12 @@ function initGraph(panelId) {
         boxSelectionEnabled: true,
     });
 
-    // Light background grid via cytoscape-grid-guide extension.
-    if (cy.gridGuide) {
-        cy.gridGuide({
-            drawGrid: true,
-            gridSpacing: 40,
-            gridColor: "#cbd5e1",
-            lineWidth: 1.0,
-            gridStackOrder: -1,
-            snapToGridOnRelease: false,
-            snapToGridDuringDrag: false,
-            snapToAlignmentLocationOnRelease: false,
-            snapToAlignmentLocationDuringDrag: false,
-            distributionGuidelines: false,
-            geometricGuideline: false,
-            resize: false,
-            parentPadding: false,
-            zoomDash: true,
-            panGrid: true,
-        });
-    }
+    // Background grid is drawn by CSS on the container (see panel-graph.css
+    // `.tap-cy-static-grid`). The cytoscape-grid-guide extension was
+    // previously used for its drawn-grid feature but lagged pan/zoom by a
+    // frame, and its other features (snap-to-grid, alignment guidelines,
+    // resize handles) were never enabled. Removed in a06d6f0; re-add if
+    // those features become useful.
 
     if (projection) {
         // Hide the graph element immediately so the raw graph never flashes
