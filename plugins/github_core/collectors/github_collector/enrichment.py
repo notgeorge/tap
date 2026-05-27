@@ -41,9 +41,24 @@ class LinkResolution:
 
 
 @dataclass
+class NearMatch:
+    """A target row that matched a rule's `near_match_pattern` but not its exact value.
+
+    Surfaces "looks like what you meant but isn't quite it" cases so the operator
+    can investigate instead of silently missing the link.
+    """
+
+    rule_name: str
+    target_entity_type: str
+    target_value: str
+    expected_value: str
+
+
+@dataclass
 class EnrichmentResult:
     edge_envelopes: list[dict[str, Any]] = field(default_factory=list)
     resolutions: list[LinkResolution] = field(default_factory=list)
+    near_matches: list[NearMatch] = field(default_factory=list)
 
 
 def resolve_links(
@@ -66,8 +81,9 @@ def resolve_links(
             continue
 
         source_qs = _source_queryset_for_repos(source_model, repos)
+        near_match_pattern = rule.get("near_match_pattern")
         for source_node in source_qs:
-            values = _extract_values(source_node, rule["source_field_path"])
+            values = _values_for_source(source_node, rule)
             for value in values:
                 candidates = list(
                     target_model.objects.filter(**{rule["target_field"]: value})
@@ -108,7 +124,38 @@ def resolve_links(
                             emitted_edge=False,
                         )
                     )
+                    # Near-match surfacing: when there are zero exact matches but the
+                    # target field contains a near-match pattern hit, the operator
+                    # almost certainly meant *something* but our exact rule won't catch
+                    # it. Warn loudly per row rather than silently miss the link.
+                    if len(candidates) == 0 and near_match_pattern:
+                        near_qs = target_model.objects.filter(
+                            **{f"{rule['target_field']}__iregex": near_match_pattern}
+                        ).exclude(**{rule["target_field"]: value})
+                        for near in near_qs:
+                            result.near_matches.append(
+                                NearMatch(
+                                    rule_name=rule["name"],
+                                    target_entity_type=rule["target_entity_type"],
+                                    target_value=getattr(near, rule["target_field"], ""),
+                                    expected_value=value,
+                                )
+                            )
     return result
+
+
+def _values_for_source(source_node: Any, rule: dict[str, Any]) -> list[str]:
+    """Return the source-side match values for one rule + one source node.
+
+    Two flavors per `req-github-core-grid-links`-aligned manifest shape:
+      - `source_field_path` — extract from the node's nested attribute/JSON.
+      - `source_constant`   — literal value applied to every source node
+                              (used for structural rules like 'every repo
+                              federates with this canonical URL').
+    """
+    if "source_constant" in rule:
+        return [rule["source_constant"]]
+    return _extract_values(source_node, rule["source_field_path"])
 
 
 def _model_for(entity_type: str) -> type[BaseModel]:

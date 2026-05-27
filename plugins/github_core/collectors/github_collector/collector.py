@@ -393,11 +393,13 @@ class GithubCollector(CollectorBase):
         emitted = sum(1 for r in enrichment.resolutions if r.emitted_edge)
         zero = sum(1 for r in enrichment.resolutions if r.candidate_count == 0)
         multi = sum(1 for r in enrichment.resolutions if r.candidate_count > 1)
+        near = len(enrichment.near_matches)
         self.record_info(
             _SITE_ENRICHMENT_SUMMARY,
             "ENRICHMENT_SUMMARY",
             f"Link resolution: {emitted} edge(s) emitted, "
-            f"{zero} zero-candidate, {multi} multi-candidate.",
+            f"{zero} zero-candidate, {multi} multi-candidate, "
+            f"{near} near-match warning(s).",
         )
         # Multi-candidate failures are warnings per req-github-core-grid-links-3.
         for res in enrichment.resolutions:
@@ -408,3 +410,15 @@ class GithubCollector(CollectorBase):
                     f"Rule {res.rule_name} on {res.source_entity_type}: value "
                     f"{res.source_value!r} matched {res.candidate_count} candidates; no edge emitted.",
                 )
+        # Near-match warnings surface "almost looks right but not quite" rows
+        # (GHES tenant URLs, typos, alternate audiences) so the operator can
+        # investigate instead of silently missing the link.
+        for nm in enrichment.near_matches:
+            self.record_warn(
+                "db00",
+                "LINK_NEAR_MATCH",
+                f"Rule {nm.rule_name}: no exact match for {nm.expected_value!r} on "
+                f"{nm.target_entity_type}.{nm.expected_value}, but a near-match exists: "
+                f"{nm.target_value!r}. Not linking — investigate whether the rule should "
+                f"be extended or the target is misconfigured.",
+            )

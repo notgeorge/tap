@@ -51,6 +51,44 @@ class TestManifests:
         edge_types = {r["edge_type"] for r in manifest["rules"]}
         assert edge_types == {"REFERENCES_RESOURCE"}
 
+    def test_link_manifest_oneof_source_enforced(self) -> None:
+        """Schema must reject rules with both source_field_path and source_constant."""
+        import jsonschema
+
+        from plugins.github_core.collectors.github_collector.manifest import (
+            LINK_MANIFEST_SCHEMA_PATH,
+        )
+
+        schema = __import__("json").loads(LINK_MANIFEST_SCHEMA_PATH.read_text())
+        bad = {
+            "manifest_version": "0",
+            "rules": [
+                {
+                    "name": "bad",
+                    "source_entity_type": "github_repository",
+                    "source_field_path": "x.y",
+                    "source_constant": "z",
+                    "target_entity_type": "aws_iam_oidc_provider",
+                    "target_field": "url",
+                    "edge_type": "REFERENCES_RESOURCE",
+                    "match_mode": "exact",
+                }
+            ],
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(bad, schema)
+
+    def test_link_manifest_includes_oidc_rule(self) -> None:
+        manifest = load_link_manifest()
+        oidc = [
+            r for r in manifest["rules"]
+            if r.get("target_entity_type") == "aws_iam_oidc_provider"
+        ]
+        assert len(oidc) == 1
+        rule = oidc[0]
+        assert rule["source_constant"] == "token.actions.githubusercontent.com"
+        assert rule["near_match_pattern"] == r"githubusercontent\.com"
+
 
 class TestPATSchema:
     def test_minimal_valid_pat(self) -> None:

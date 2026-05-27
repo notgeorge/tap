@@ -37,6 +37,19 @@
       "zero_candidates": "warn",
       "multiple_candidates": "warn_no_edge",
       "description": "CloudFront distribution IDs visible in workflow YAML that match an aws_cloudfront_distribution node."
+    },
+    {
+      "name": "repo_federates_with_github_oidc_provider",
+      "source_entity_type": "github_repository",
+      "source_constant": "token.actions.githubusercontent.com",
+      "target_entity_type": "aws_iam_oidc_provider",
+      "target_field": "url",
+      "edge_type": "REFERENCES_RESOURCE",
+      "match_mode": "exact",
+      "zero_candidates": "info",
+      "multiple_candidates": "warn_no_edge",
+      "near_match_pattern": "githubusercontent\\.com",
+      "description": "Structural link: every collected GitHub repository points at the AWS IAM OIDC provider whose URL is the canonical github.com Actions issuer. Refuses to link if (a) AWS has multiple OIDC providers with that exact URL (IAM enforces uniqueness so this is defensive), or (b) AWS has an OIDC provider whose URL contains 'githubusercontent.com' but isn't an exact match for the canonical value (GHES tenants, alternate audiences, typos — warns rather than guesses)."
     }
   ]
 }
