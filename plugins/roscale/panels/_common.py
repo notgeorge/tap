@@ -288,14 +288,77 @@ def ssp_implemented_requirements(doc: dict[str, Any]) -> list[dict[str, Any]]:
                 impl_status = value
             elif name == "control-origination":
                 origination_kinds.append(value)
+        # OSCAL allows the implementation narrative in several places:
+        # statements[*].description, statements[*].remarks, or
+        # statements[*].by-components[*].description. Walk all three in
+        # priority order; Sam's SSP puts the narrative in statements[*].remarks
+        # which the prior single-source-of-truth lookup missed entirely.
         statements = req.get("statements") or []
         statement_summary = ""
-        if statements and isinstance(statements[0], dict):
-            statement_summary = statements[0].get("description") or ""
-            if not statement_summary:
-                bys = statements[0].get("by-components") or []
-                if bys and isinstance(bys[0], dict):
-                    statement_summary = bys[0].get("description") or ""
+        for stmt in statements:
+            if not isinstance(stmt, dict):
+                continue
+            text = (stmt.get("description") or "").strip() or (stmt.get("remarks") or "").strip()
+            if not text:
+                for by in stmt.get("by-components") or []:
+                    if isinstance(by, dict):
+                        text = (by.get("description") or "").strip()
+                        if text:
+                            break
+            if text:
+                statement_summary = text
+                break
+
+        # Evidence and reference URLs grouped by `rel`. OSCAL convention:
+        # rel="evidence" is a machine-verifiable artifact (live signal,
+        # signed bundle); rel="reference" is human-readable supporting
+        # material (architecture decisions, Terraform source). Anything
+        # else is bucketed as "other" so a future renderer can decide.
+        evidence_links: list[dict[str, str]] = []
+        reference_links: list[dict[str, str]] = []
+        other_links: list[dict[str, str]] = []
+        for link in req.get("links") or []:
+            if not isinstance(link, dict):
+                continue
+            href = (link.get("href") or "").strip()
+            if not href:
+                continue
+            entry = {
+                "href": href,
+                "text": (link.get("text") or "").strip(),
+                "rel": (link.get("rel") or "").strip(),
+                "media_type": (link.get("media-type") or "").strip(),
+            }
+            if entry["rel"] == "evidence":
+                evidence_links.append(entry)
+            elif entry["rel"] == "reference":
+                reference_links.append(entry)
+            else:
+                other_links.append(entry)
+
+        # Short preview for the collapsed-control summary line. Strip
+        # newlines (the narrative may span paragraphs) and truncate to a
+        # readable one-line slice. Full text still lives in
+        # statement_summary for the expanded view.
+        preview = " ".join((statement_summary or "").split())
+        if len(preview) > 110:
+            preview = preview[:107].rstrip() + "…"
+
+        # Search-text blob for the client-side type-to-filter. Includes
+        # everything a user might plausibly grep for: control id, family
+        # label, status, narrative, link text/URLs. Lowercased once
+        # server-side so the client filter is a cheap substring check.
+        search_parts = [
+            control_id,
+            control_family_label(control_id),
+            impl_status,
+            " ".join(origination_kinds),
+            statement_summary or "",
+            req.get("remarks") or "",
+            " ".join(f"{lk['text']} {lk['href']}" for lk in evidence_links + reference_links + other_links),
+        ]
+        search_text = " ".join(part for part in search_parts if part).lower()
+
         out.append(
             {
                 "control_id": control_id,
@@ -303,7 +366,14 @@ def ssp_implemented_requirements(doc: dict[str, Any]) -> list[dict[str, Any]]:
                 "implementation_status": impl_status,
                 "origination_kinds": origination_kinds,
                 "statement_summary": statement_summary,
+                "statement_preview": preview,
                 "remarks": req.get("remarks") or "",
+                "evidence_links": evidence_links,
+                "reference_links": reference_links,
+                "other_links": other_links,
+                "evidence_count": len(evidence_links),
+                "reference_count": len(reference_links),
+                "search_text": search_text,
             }
         )
     out.sort(key=lambda r: r["control_id"])
@@ -314,10 +384,22 @@ def ssp_implemented_requirements_by_family(impl_reqs: list[dict[str, Any]]) -> l
     families: dict[str, list[dict[str, Any]]] = {}
     for r in impl_reqs:
         families.setdefault(r["family_label"], []).append(r)
-    return [
-        {"family": fam, "count": len(reqs), "requirements": reqs}
-        for fam, reqs in sorted(families.items())
-    ]
+    out: list[dict[str, Any]] = []
+    for fam, reqs in sorted(families.items()):
+        # Per-family aggregate of how many controls reached each
+        # implementation status. Drives the family-header pill
+        # ("X of Y implemented") so the user can see at a glance which
+        # families have gaps without expanding every family.
+        implemented = sum(1 for r in reqs if r["implementation_status"] == "implemented")
+        out.append(
+            {
+                "family": fam,
+                "count": len(reqs),
+                "implemented_count": implemented,
+                "requirements": reqs,
+            }
+        )
+    return out
 
 
 def ssp_components(doc: dict[str, Any]) -> list[dict[str, Any]]:
@@ -474,23 +556,118 @@ def poam_items(doc: dict[str, Any]) -> list[dict[str, Any]]:
         controls_prop = _prop_value(props, "controls") or _prop_value(props, "control")
         controls = [c.strip() for c in controls_prop.split(",")] if controls_prop else []
         controls = [c for c in controls if c]
+        title = it.get("title") or ""
+        description = it.get("description") or ""
+        status = _prop_value(props, "status")
+        category = _prop_value(props, "category")
+        original_risk = _prop_value(props, "original-risk-rating")
+        adjusted_risk = _prop_value(props, "adjusted-risk-rating")
+        asset_identifier = _prop_value(props, "asset-identifier")
+        detector = _prop_value(props, "weakness-detector-source")
+        scheduled_completion = _prop_value(props, "scheduled-completion-date")
+        status_date = _prop_value(props, "status-date")
+        original_detection = _prop_value(props, "original-detection-date")
+        remediation = _prop_value(props, "remediation-plan-summary")
+        poam_id = _prop_value(props, "poam-id")
+
+        # One-line preview of the title for the collapsed-card summary;
+        # description provides the body when the user expands.
+        title_preview = " ".join((title or "").split())
+        if len(title_preview) > 110:
+            title_preview = title_preview[:107].rstrip() + "…"
+
+        # Highest of (adjusted, original) drives the risk pill — the
+        # "what's still on the table" reading. Stash both so the
+        # expanded body can show the original-vs-adjusted comparison.
+        effective_risk = adjusted_risk or original_risk
+
+        # Search-text blob for the client-side type-to-filter. Lowercased
+        # once server-side so the client just runs a cheap substring
+        # check. Includes id, title, description, status/category/risk,
+        # controls list, asset id, detector, remediation, dates.
+        search_parts = [
+            poam_id,
+            it.get("uuid") or "",
+            title,
+            description,
+            status,
+            category,
+            original_risk,
+            adjusted_risk,
+            " ".join(controls),
+            asset_identifier,
+            detector,
+            remediation,
+            scheduled_completion,
+            status_date,
+            original_detection,
+        ]
+        search_text = " ".join(part for part in search_parts if part).lower()
+
         out.append(
             {
                 "uuid": it.get("uuid") or "",
-                "title": it.get("title") or "",
-                "description": it.get("description") or "",
-                "poam_id": _prop_value(props, "poam-id"),
-                "status": _prop_value(props, "status"),
-                "category": _prop_value(props, "category"),
+                "title": title,
+                "title_preview": title_preview,
+                "description": description,
+                "poam_id": poam_id,
+                "status": status,
+                "category": category,
                 "controls": controls,
-                "original_risk": _prop_value(props, "original-risk-rating"),
-                "adjusted_risk": _prop_value(props, "adjusted-risk-rating"),
-                "asset_identifier": _prop_value(props, "asset-identifier"),
-                "weakness_detector_source": _prop_value(props, "weakness-detector-source"),
-                "scheduled_completion_date": _prop_value(props, "scheduled-completion-date"),
-                "status_date": _prop_value(props, "status-date"),
-                "original_detection_date": _prop_value(props, "original-detection-date"),
-                "remediation_plan_summary": _prop_value(props, "remediation-plan-summary"),
+                "controls_count": len(controls),
+                "original_risk": original_risk,
+                "adjusted_risk": adjusted_risk,
+                "effective_risk": effective_risk,
+                "asset_identifier": asset_identifier,
+                "weakness_detector_source": detector,
+                "scheduled_completion_date": scheduled_completion,
+                "status_date": status_date,
+                "original_detection_date": original_detection,
+                "remediation_plan_summary": remediation,
+                "search_text": search_text,
+            }
+        )
+    return out
+
+
+def poam_items_by_status(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group POA&M items by status for progressive-disclosure rendering.
+
+    Status is the question a POA&M-reader asks first: "what's still
+    outstanding?" Open items lead, then risk-accepted (documented
+    deferrals), then closed/anything else. Empty groups are dropped so
+    the page doesn't show "Closed (0)" for a POA&M with nothing closed.
+    """
+    # Canonical status order for display. Anything outside this list
+    # gets bucketed into "other" at the end with its original label.
+    order = ["open", "risk-accepted", "ongoing", "closed", ""]
+    label_overrides = {"": "(no status)"}
+
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for it in items:
+        s = (it.get("status") or "").strip().lower()
+        buckets.setdefault(s, []).append(it)
+
+    out: list[dict[str, Any]] = []
+    for s in order:
+        if s in buckets:
+            out.append(
+                {
+                    "status": s,
+                    "label": label_overrides.get(s, s).replace("-", " ").title() or "(no status)",
+                    "count": len(buckets[s]),
+                    "items": buckets[s],
+                }
+            )
+            del buckets[s]
+    # Leftover statuses we didn't anticipate.
+    for s in sorted(buckets):
+        out.append(
+            {
+                "status": s,
+                "label": s.replace("-", " ").title() or "(no status)",
+                "count": len(buckets[s]),
+                "items": buckets[s],
             }
         )
     return out

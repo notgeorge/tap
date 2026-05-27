@@ -179,25 +179,162 @@
   {% endif %}
 
   {% if requirements_by_family %}
-    <section class="roscale-card roscale-controls">
-      <h3>Control implementation</h3>
+    <section class="roscale-card roscale-controls" data-roscale-controls>
+      <div class="roscale-controls-header">
+        <h3>Control implementation</h3>
+        <div class="roscale-controls-toolbar">
+          <input type="search"
+                 class="roscale-controls-search"
+                 placeholder="Filter controls… (id, status, narrative, links)"
+                 aria-label="Filter controls"
+                 data-roscale-search>
+          <span class="roscale-controls-match-count" data-roscale-match-count></span>
+        </div>
+      </div>
       {% for fam in requirements_by_family %}
-        <details open class="roscale-family">
-          <summary><strong>{{ fam.family }}</strong> <span class="roscale-meta">{{ fam.count }} control{{ fam.count|pluralize }}</span></summary>
+        <details class="roscale-family" data-roscale-family>
+          <summary>
+            <span class="roscale-family-name">{{ fam.family }}</span>
+            <span class="roscale-family-count">{{ fam.implemented_count }} of {{ fam.count }} implemented</span>
+          </summary>
           <ul class="roscale-req-list">
             {% for req in fam.requirements %}
-              <li>
-                <div class="roscale-req-header"><code>{{ req.control_id }}</code>
-                  {% if req.implementation_status %}<span class="roscale-impl-status roscale-impl-{{ req.implementation_status }}">{{ req.implementation_status }}</span>{% endif %}
-                  {% if req.origination_kinds %}<span class="roscale-origination">{{ req.origination_kinds|join:", " }}</span>{% endif %}
-                </div>
-                {% if req.statement_summary %}<p class="roscale-req-statement">{{ req.statement_summary }}</p>{% endif %}
-                {% if req.remarks %}<p class="roscale-req-remarks"><em>{{ req.remarks }}</em></p>{% endif %}
+              <li data-roscale-req data-roscale-search-text="{{ req.search_text }}">
+                <details class="roscale-req-card">
+                  <summary class="roscale-req-summary">
+                    <code class="roscale-req-id">{{ req.control_id }}</code>
+                    {% if req.implementation_status %}<span class="roscale-impl-status roscale-impl-{{ req.implementation_status }}">{{ req.implementation_status }}</span>{% endif %}
+                    {% if req.statement_preview %}<span class="roscale-req-preview">{{ req.statement_preview }}</span>{% endif %}
+                    <span class="roscale-req-meta">
+                      {% if req.evidence_count %}<span class="roscale-req-meta-evidence">{{ req.evidence_count }} evidence</span>{% endif %}
+                      {% if req.reference_count %}<span class="roscale-req-meta-ref">{{ req.reference_count }} ref{{ req.reference_count|pluralize }}</span>{% endif %}
+                    </span>
+                  </summary>
+                  <div class="roscale-req-body">
+                    {% if req.origination_kinds %}<div class="roscale-req-origination">Origination: {{ req.origination_kinds|join:", " }}</div>{% endif %}
+                    {% if req.statement_summary %}<p class="roscale-req-statement">{{ req.statement_summary|linebreaksbr }}</p>{% endif %}
+                    {% if req.remarks %}<p class="roscale-req-remarks"><em>{{ req.remarks|linebreaksbr }}</em></p>{% endif %}
+                    {% if req.evidence_links %}
+                    <div class="roscale-req-links roscale-req-evidence">
+                      <span class="roscale-req-links-label">Evidence</span>
+                      <ul>
+                        {% for lk in req.evidence_links %}
+                          <li><a href="{{ lk.href }}" target="_blank" rel="noopener">{{ lk.text|default:lk.href }}</a>{% if lk.media_type %} <span class="roscale-meta">{{ lk.media_type }}</span>{% endif %}</li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                    {% endif %}
+                    {% if req.reference_links %}
+                    <div class="roscale-req-links roscale-req-references">
+                      <span class="roscale-req-links-label">References</span>
+                      <ul>
+                        {% for lk in req.reference_links %}
+                          <li><a href="{{ lk.href }}" target="_blank" rel="noopener">{{ lk.text|default:lk.href }}</a></li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                    {% endif %}
+                  </div>
+                </details>
               </li>
             {% endfor %}
           </ul>
         </details>
       {% endfor %}
+      <script>
+      (function () {
+        // Self-contained client-side type-to-filter for the OSCAL controls
+        // section. No server roundtrip — search_text is pre-computed
+        // server-side (lowercase) on every <li data-roscale-req>, and we
+        // just toggle display: none based on substring match.
+        //
+        // When a query is non-empty, also auto-open every family that has
+        // at least one matching control AND auto-open every matching
+        // control card. Clear the input → restore the default closed
+        // state so the page re-collapses cleanly.
+        const root = document.currentScript.closest("[data-roscale-controls]");
+        if (!root) return;
+        const input = root.querySelector("[data-roscale-search]");
+        const matchCount = root.querySelector("[data-roscale-match-count]");
+        const families = root.querySelectorAll("[data-roscale-family]");
+        const reqs = root.querySelectorAll("[data-roscale-req]");
+        const totalReqs = reqs.length;
+
+        // Cache the original (un-highlighted) preview text on each row the
+        // first time we see it so the highlight-wrap pass can restore it
+        // cleanly when the query is cleared or changes.
+        reqs.forEach((li) => {
+          const prev = li.querySelector(".roscale-req-preview");
+          if (prev && !prev.hasAttribute("data-roscale-preview-orig")) {
+            prev.setAttribute("data-roscale-preview-orig", prev.textContent || "");
+          }
+        });
+
+        function escapeHtml(s) {
+          return s.replace(/[&<>"']/g, (c) => (
+            {"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"}[c]
+          ));
+        }
+
+        function escapeRegex(s) {
+          return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        }
+
+        function highlightPreview(prev, q) {
+          const orig = prev.getAttribute("data-roscale-preview-orig") || "";
+          if (q === "") {
+            prev.textContent = orig;
+            return;
+          }
+          const re = new RegExp("(" + escapeRegex(q) + ")", "gi");
+          // Build the highlighted HTML safely: escape the full string,
+          // then re-find matches in the escaped form (escapes preserve
+          // letter/digit chars so case-insensitive substring matches
+          // still resolve) and wrap with <mark>.
+          const escaped = escapeHtml(orig);
+          prev.innerHTML = escaped.replace(re, "<mark>$1</mark>");
+        }
+
+        function applyFilter() {
+          const q = (input.value || "").trim().toLowerCase();
+          let visibleCount = 0;
+          const familyMatch = new Map();
+          reqs.forEach((li) => {
+            const hay = li.getAttribute("data-roscale-search-text") || "";
+            const matches = q === "" || hay.indexOf(q) !== -1;
+            li.style.display = matches ? "" : "none";
+            if (matches) {
+              visibleCount += 1;
+              const fam = li.closest("[data-roscale-family]");
+              if (fam) familyMatch.set(fam, (familyMatch.get(fam) || 0) + 1);
+            }
+            // Auto-expand matching control cards while filtering;
+            // collapse them again when the query is cleared.
+            const card = li.querySelector(".roscale-req-card");
+            if (card) card.open = q !== "" && matches;
+            // Highlight the matched substring inside the preview so the
+            // eye finds the hit immediately without re-scanning. Cleared
+            // queries restore the plain preview text.
+            const prev = li.querySelector(".roscale-req-preview");
+            if (prev) highlightPreview(prev, matches ? q : "");
+          });
+          families.forEach((fam) => {
+            const hits = familyMatch.get(fam) || 0;
+            // Hide families with no matches; auto-expand families with
+            // matches while filtering; restore closed on empty query.
+            fam.style.display = q === "" || hits > 0 ? "" : "none";
+            fam.open = q !== "" && hits > 0;
+          });
+          if (q === "") {
+            matchCount.textContent = "";
+          } else {
+            matchCount.textContent = visibleCount + " of " + totalReqs;
+          }
+        }
+
+        input.addEventListener("input", applyFilter);
+      })();
+      </script>
     </section>
   {% endif %}
 

@@ -330,3 +330,314 @@
   line-height: 1.4;
   max-height: 60vh;
 }
+
+/* Per-control evidence + reference link blocks. Mounted under each
+   implemented-requirement; renders the OSCAL links[] array grouped by
+   rel ("evidence" → live signals / signed bundles, "reference" →
+   architecture docs + source). Stacked vertically with subtle
+   indent and a small uppercase label so the eye picks them up as
+   structured metadata, not body prose. */
+.roscale-req-links {
+  margin: 0.4rem 0 0 0.25rem;
+  padding: 0.25rem 0 0;
+}
+.roscale-req-links-label {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-right: 0.5rem;
+}
+.roscale-req-links ul {
+  display: inline;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.roscale-req-links li {
+  display: inline-block;
+  margin: 0 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+.roscale-req-links a {
+  color: #2563eb;
+  text-decoration: none;
+}
+.roscale-req-links a:hover {
+  text-decoration: underline;
+}
+.roscale-req-evidence a {
+  color: #047857;
+}
+
+/* =========================================================================
+ * Control Implementation — three-level progressive disclosure
+ *
+ * Section header + search toolbar
+ * Family <details> (closed by default; click to expand to control list)
+ *   └─ Control <details> (closed by default; one-line summary; click to
+ *      expand to narrative + evidence + references)
+ *
+ * The page opens with N family rows visible, scannable. Click a family to
+ * see ~10–30 one-line control summaries. Click a control to see its full
+ * implementation narrative + evidence URLs + reference URLs. The
+ * type-to-filter at the top auto-expands matching families + controls so
+ * a query lights up the relevant content without manual clicking.
+ * ========================================================================= */
+
+.roscale-controls-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.roscale-controls-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.roscale-controls-search {
+  width: 320px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.roscale-controls-search:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.roscale-controls-match-count {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 6rem;
+  text-align: right;
+}
+
+/* Family — outer <details> */
+.roscale-family {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+  background: #fff;
+}
+.roscale-family > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.6rem 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  border-radius: 8px;
+  user-select: none;
+}
+/* family-name groups with the marker on the left edge; the
+   implementation-count pill is pushed to the far right via
+   margin-left:auto so the row reads "▸ Family name … X of Y" */
+.roscale-family-name { margin-right: auto; }
+.roscale-family > summary::-webkit-details-marker { display: none; }
+.roscale-family > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.5rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  transition: transform 0.15s;
+}
+.roscale-family[open] > summary::before { transform: rotate(90deg); }
+.roscale-family > summary:hover { background: #f8fafc; }
+.roscale-family-name { font-weight: 600; color: #1e293b; }
+.roscale-family-count {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Control list inside a family */
+.roscale-req-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.5rem 0.5rem;
+}
+.roscale-req-list > li {
+  margin: 0.25rem 0;
+  padding: 0;
+  border-top: 1px solid #f1f5f9;
+}
+.roscale-req-list > li:first-child { border-top: 0; }
+
+/* Control card — inner <details> */
+.roscale-req-card { padding: 0.3rem 0.4rem; }
+.roscale-req-card > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0.25rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  user-select: none;
+}
+.roscale-req-card > summary::-webkit-details-marker { display: none; }
+.roscale-req-card > summary:hover { background: #f8fafc; }
+.roscale-req-id {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: #334155;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.roscale-req-preview {
+  flex: 1 1 auto;
+  color: #475569;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.roscale-req-meta {
+  flex-shrink: 0;
+  display: inline-flex;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+.roscale-req-meta-evidence { color: #047857; }
+.roscale-req-meta-ref { color: #2563eb; }
+
+/* Status pills — colored by status enum */
+.roscale-impl-status {
+  flex-shrink: 0;
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  background: #f1f5f9;
+  color: #64748b;
+  white-space: nowrap;
+}
+.roscale-impl-implemented {
+  background: #d1fae5;
+  color: #065f46;
+}
+.roscale-impl-partial {
+  background: #fef3c7;
+  color: #92400e;
+}
+.roscale-impl-planned {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.roscale-impl-not-implemented,
+.roscale-impl-alternative {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.roscale-impl-not-applicable,
+.roscale-impl-na {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+/* Expanded control body */
+.roscale-req-body {
+  padding: 0.5rem 0.5rem 0.75rem 1.6rem;
+  border-left: 2px solid #e2e8f0;
+  margin: 0.25rem 0 0.5rem 0.25rem;
+}
+.roscale-req-origination {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 0.35rem;
+}
+
+/* Inline match highlight for the search-filtered preview text. Subtle
+   yellow so it pops without screaming. Inherits the preview's normal
+   color so the rest of the line stays calm. */
+.roscale-req-preview mark {
+  background: #fef08a;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+
+/* POA&M status pills — overlay the .roscale-impl-status base color
+   scheme with status-specific palettes. "open" reads as outstanding
+   work (warm red), "risk-accepted" is a documented deferral (warm
+   amber), "closed" is muted neutral. */
+.roscale-poam-status-open {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.roscale-poam-status-risk-accepted {
+  background: #fef3c7;
+  color: #92400e;
+}
+.roscale-poam-status-ongoing {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.roscale-poam-status-closed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* POA&M risk pills — same shape as status pills, colored by severity. */
+.roscale-poam-risk-critical, .roscale-poam-risk-high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.roscale-poam-risk-moderate, .roscale-poam-risk-medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+.roscale-poam-risk-low {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.roscale-poam-risk-informational, .roscale-poam-risk-info {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+/* POA&M expanded-body field grid — slightly tighter than the page-top
+   metadata kv lists since each item carries 6–9 fields. */
+.roscale-poam-fields {
+  margin-top: 0.5rem;
+  grid-template-columns: minmax(7rem, max-content) 1fr;
+  gap: 0.15rem 0.6rem;
+  font-size: 0.85rem;
+}
+.roscale-poam-fields dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  align-self: start;
+}
+.roscale-poam-fields dd { margin: 0; }

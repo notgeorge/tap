@@ -19,6 +19,7 @@ from plugins.roscale.panels._common import (
     parse_and_validate,
     poam_headline_stats,
     poam_items,
+    poam_items_by_status,
     poam_metadata,
     pretty_json,
     resolve_artifact,
@@ -49,6 +50,7 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         "validation": None,
         "headline_stats": None,
         "items": [],
+        "items_by_status": [],
         "raw_json": None,
     }
     if not resolution.ok:
@@ -86,6 +88,7 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
     base["metadata"] = poam_metadata(doc)
     base["headline_stats"] = poam_headline_stats(items)
     base["items"] = items
+    base["items_by_status"] = poam_items_by_status(items)
     base["validation"] = {
         "schema_ok": result.schema_ok,
         "schema_errors": [{"path": e.path, "message": e.message} for e in result.schema_errors[:50]],
