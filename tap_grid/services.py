@@ -170,8 +170,8 @@ def _load_entity_or_raise(entity_id: uuid.UUID) -> Entity:
     """Load an Entity by PK or raise ServiceNotFoundError."""
     try:
         return Entity.objects.get(pk=entity_id)
-    except Entity.DoesNotExist:
-        raise ServiceNotFoundError(f"Entity {entity_id} not found.")
+    except Entity.DoesNotExist as exc:
+        raise ServiceNotFoundError(f"Entity {entity_id} not found.") from exc
 
 
 def _build_object_summary(instance: Any) -> dict[str, Any]:
@@ -262,7 +262,6 @@ def _execute_write_pipeline(
         # Step 3: Object load and resolution.
         from tap_grid.registry import get_model_class
 
-        is_edge_verb = op.verb in ("create_edge", "patch_edge", "replace_edge", "delete_edge")
         is_create = op.verb in ("create_node", "create_edge")
         is_delete = op.verb in ("delete_node", "delete_edge")
 
@@ -296,8 +295,8 @@ def _execute_write_pipeline(
                 raise ServiceValidationError("type_slug is required for create_node.")
             try:
                 model_cls = get_model_class(op.type_slug)
-            except KeyError:
-                raise ServiceNotFoundError(f"Unknown entity type: '{op.type_slug}'.")
+            except KeyError as exc:
+                raise ServiceNotFoundError(f"Unknown entity type: '{op.type_slug}'.") from exc
             if getattr(model_cls, "INTERNAL_ONLY", False) and not internal_only_bypass:
                 raise ServiceUnsupportedOperationError(
                     f"'{op.type_slug}' is an internal-only type and cannot be created through the generic service layer."
@@ -357,8 +356,8 @@ def _execute_write_pipeline(
 
             try:
                 model_cls = get_model_class(target_entity.entity_type)
-            except KeyError:
-                raise ServiceNotFoundError(f"Unknown entity type: '{target_entity.entity_type}'.")
+            except KeyError as exc:
+                raise ServiceNotFoundError(f"Unknown entity type: '{target_entity.entity_type}'.") from exc
             if getattr(model_cls, "INTERNAL_ONLY", False) and not internal_only_bypass:
                 raise ServiceUnsupportedOperationError(
                     f"'{target_entity.entity_type}' is an internal-only type and cannot be modified through the generic service layer."
@@ -461,7 +460,6 @@ def _execute_write_pipeline(
             # See req-grid-service-batch (single-bump invariant).
             spine_just_created = True
 
-        snapshot_entity: Entity | None = None
         if is_delete:
             entity_id_out = target_uuid
             if hasattr(instance, "entity"):
@@ -490,7 +488,6 @@ def _execute_write_pipeline(
         else:
             instance.save(skip_validation=True, _spine_just_created=spine_just_created)
             entity_id_out = instance.entity_id
-            snapshot_entity = instance.entity
             # Record provenance for non-delete writes too so the BatchEvent log
             # is a complete history of batch-scoped activity. Without this,
             # batch-scoped sweeps (req-grid-import-grift-batch-scoped-sweep)
@@ -1535,12 +1532,12 @@ def get_node(target: str | uuid.UUID) -> Any:
         raise ServiceConstraintError(f"Entity {entity_id} is an edge, not a node.")
     try:
         model_cls = get_model_class(entity.entity_type)
-    except KeyError:
-        raise ServiceNotFoundError(f"Unknown entity type: '{entity.entity_type}'.")
+    except KeyError as exc:
+        raise ServiceNotFoundError(f"Unknown entity type: '{entity.entity_type}'.") from exc
     try:
         return model_cls.objects.select_related("entity").get(entity_id=entity_id)
-    except model_cls.DoesNotExist:
-        raise ServiceNotFoundError(f"Node {entity_id} not found.")
+    except model_cls.DoesNotExist as exc:
+        raise ServiceNotFoundError(f"Node {entity_id} not found.") from exc
 
 
 def get_edge(target: str | uuid.UUID) -> Edge:
@@ -1561,8 +1558,8 @@ def get_edge(target: str | uuid.UUID) -> Edge:
         raise ServiceValidationError("target must be a valid UUID.")
     try:
         return Edge.objects.select_related("entity").get(entity_id=entity_id)
-    except Edge.DoesNotExist:
-        raise ServiceNotFoundError(f"Edge {entity_id} not found.")
+    except Edge.DoesNotExist as exc:
+        raise ServiceNotFoundError(f"Edge {entity_id} not found.") from exc
 
 
 def get_object(target: str | uuid.UUID) -> Any:
@@ -1618,8 +1615,8 @@ def describe_node_type(type_slug: str) -> NodeTypeDescription:
 
     try:
         model_cls = get_model_class(type_slug)
-    except KeyError:
-        raise ServiceNotFoundError(f"Unknown entity type: '{type_slug}'.")
+    except KeyError as exc:
+        raise ServiceNotFoundError(f"Unknown entity type: '{type_slug}'.") from exc
 
     schemas: dict[str, Any] = dict(getattr(model_cls, "SERVICE_CRUD_SCHEMA", {}))
     hotlinks: list[dict[str, Any]] = list(getattr(model_cls, "HOTLINKS", []))
@@ -1744,8 +1741,8 @@ def update_entity(entity: Entity, *, caller_context: CallerContext | None = None
     .. deprecated::
         Prefer the typed write pipeline (``patch_node``) for domain objects.
     """
-    for field, value in kwargs.items():
-        setattr(entity, field, value)
+    for field_name, value in kwargs.items():
+        setattr(entity, field_name, value)
     entity.save(update_fields=list(kwargs.keys()) + ["updated_at"])
     return entity
 
