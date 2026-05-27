@@ -10,7 +10,7 @@
       "created_at": "<volatile>",
       "updated_at": "<volatile>",
       "deleted_at": null,
-      "version": 2,
+      "version": 1,
       "originating_grid_id": "<volatile>",
       "data": {
         "entity_id": "019e4b02-f37b-72df-a3e5-bafb10535646",
@@ -43,7 +43,7 @@
       "created_at": "<volatile>",
       "updated_at": "<volatile>",
       "deleted_at": null,
-      "version": 2,
+      "version": 1,
       "originating_grid_id": "<volatile>",
       "data": {
         "entity_id": "019e4b02-f37b-72df-a3e5-bafc00e2b0af",

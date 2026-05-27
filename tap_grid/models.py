@@ -613,11 +613,21 @@ class BaseModel(models.Model):
         - No entity set: creates Entity atomically with this save (transaction.atomic).
         - Entity already set: confirms it exists and has the correct entity_type.
         - skip_validation=True: bypasses full_validate() (for migrations / fixtures).
+        - _spine_just_created=True: signal from `_execute_write_pipeline` that
+          the Entity row was JUST created in the prespecified-id create branch
+          (see services.py). When set, the existing-entity save path skips its
+          spine_updates step because spine fields (name, dimensions, version=1,
+          updated_at) were correctly set during the immediately-preceding
+          `Entity.objects.create(...)`. This makes the prespecified-id create
+          path land at version=1, matching the auto-create branch. Internal
+          control-flow signal only — not derived from any input. See
+          req-grid-service-batch single-bump invariant.
 
         FLIP: update_flip_map() is called before the DB write so flip_map changes
         are always atomic with the field changes that triggered them.
         """
         skip_validation: bool = kwargs.pop("skip_validation", False)
+        spine_just_created: bool = kwargs.pop("_spine_just_created", False)
         if not skip_validation:
             self.full_validate()
 
@@ -657,6 +667,17 @@ class BaseModel(models.Model):
         else:
             self._confirm_entity()
             super().save(*args, **kwargs)
+
+            if spine_just_created:
+                # The pipeline pre-created the Entity moments ago (services.py
+                # prespecified-id branch). Spine fields are already correct:
+                # name from instance.get_name(), dimensions from caller-merged,
+                # version=1, updated_at from the create. This save is the SAME
+                # logical create operation, so skip spine_updates to preserve
+                # the single-bump invariant — exactly one version increment
+                # per logical mutation.
+                return
+
             # Spine sync. BaseModel is the source of truth for `name` (via
             # get_name()); Entity.name is a subordinate materialized
             # projection that the framework keeps current. Folded into the

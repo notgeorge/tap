@@ -135,3 +135,60 @@ Each GRIFT batch is declared in the samsite plugin manifest (`tap-plugin.toml` `
 | req-samsite-pages-grift-1 | Under grift/ | Implemented | GRIFT files live under `plugins/samsite/grift/`. | `grift/compliance-pages.grift.json` |
 | req-samsite-pages-grift-2 | Declared In Manifest | Implemented | GRIFT batches are listed in `plugins/samsite/tap-plugin.toml` `[grift]`. | Entry `compliance-pages = "grift/compliance-pages.grift.json"` |
 | req-samsite-pages-grift-3 | Schema-Valid | Implemented | GRIFT batches validate against `tap_grid/schemas/grift-document.schema.json`. | Verified: `jsonschema.validate(doc, schema)` passes |
+
+## Known Issues
+
+### KI-1: `compliance-landing.grift.json` fails on fresh-DB spawn (batch-ordering bug)
+
+Status: **Open** — flagged 2026-05-27. Fix deferred pending the in-progress panel/page latest-entity-by-path resolution spec; revisit once that spec lands.
+
+#### Symptom
+
+On a freshly-spawned session (empty DB), `import_plugin_grift` reports:
+
+```
+[samsite/compliance-landing] FAILED:
+  [execution] execution_failed at $.batches[0].edges[7]: not_found: Entity 019e5502-cee6-744a-93b2-9599032cb55d not found.
+  [execution] execution_failed at $.batches[1].edges[0]: not_found: Entity 019e5502-cee6-744a-93b2-9599032cb55d not found.
+  [execution] execution_failed at $.batches[2].nodes[0]: hotlink_validation_failed: Hotlink 'page-panels' (exact): missing edges for: ['artifacts', 'components', 'findings', 'indicators', 'ksi-signal', 'nav', 'themes', 'validations', 'vdr-report', 'violations'].
+```
+
+The rest of the spawn import succeeds (22 of 23 bundles green); only `/samsite/compliance` renders broken (missing panel rows).
+
+#### Root cause
+
+`plugins/samsite/grift/compliance-landing.grift.json` has a 3-batch design that creates the page entity (`019e5502-cee6-744a-93b2-9599032cb55d`) in batch 2, but batch 0 and batch 1 contain USES_PANEL edges that reference it as `from_entity_id`. The edge insertion path requires both endpoints to exist at insert time, so batch 0's edges fail immediately on a fresh DB; batch 2's hotlink validation then fails because none of the expected USES_PANEL edges exist.
+
+The bundle's own marker-node description (`_compliance_landing_batch1_marker` in batch 0) self-documents the author's flawed mental model:
+
+> *"The page node moved to batch 2 to defer its hotlink validation until after batch 1's USES_PANEL edges land."*
+
+That sequencing isn't supported — edges can't land before their endpoints exist, regardless of which batch they're in.
+
+#### History
+
+| Commit | Date | Change | Bundle shape |
+| --- | --- | --- | --- |
+| `78de9c6` | 2026-05-23 | Original landing page | 1 batch: page + panels + edges (works on any DB) |
+| `37aab54` | 2026-05-23 | Path B per-type viewer + KSI Framework rows | 2 batches: page moved into batch 1 ("add themes/indicators rows"); marker placeholder added to batch 0 to satisfy `nodes[]` requirement (broken on fresh DB) |
+| `08881c4` | 2026-05-26 | OSCAL pages + nav-links | 3 batches: page now in batch 2; nav panel + nav edge in batch 1 (still broken on fresh DB; broken in same way) |
+
+The bug has been latent on `origin/main` since `37aab54`. It only surfaces on fresh spawns because long-lived DBs retain the page entity from the original `78de9c6` single-batch import. Every spawn since `37aab54` has hit this, but the noise was attributed to other causes until the 2026-05-27 spawn investigation.
+
+#### Dependency
+
+This bug is structurally tied to the bundle's reliance on hardcoded USES_PANEL edges with explicit `from_entity_id`/`to_entity_id` UUIDs. The user is drafting a panel/page latest-entity-by-path resolution spec that would let page layouts reference panels by slug at render time (similar to ROSCALE's `req-roscale-input-5` latest-emission fallback pattern, generalized). If that spec eliminates the need for USES_PANEL edges entirely — or relaxes them to permissive runtime resolution — the bundle's batch structure can be simplified or collapsed back to the working single-batch shape, and this bug goes away by elimination rather than by patch.
+
+#### Fix paths
+
+**Preferred (post-spec):** Rework `compliance-landing.grift.json` to match whatever shape the new panel/page resolution spec dictates. If that means single-batch with slug-resolved panels, collapse accordingly.
+
+**Interim (if pressure mounts before the spec lands):** Move the page entity from batch 2 into batch 0, with a 9-row layout (no nav). Drop the `_compliance_landing_batch1_marker` placeholder (no longer needed). Keep batch 1 (nav-panel addition) and batch 2 (re-upsert page with 10-row layout including nav) as they are. The deferred-hotlink-and-drain mechanism (req-grid-hotlink-deferred, landed 2026-05-26) makes this safe — hotlink validation runs at end-of-batch after all USES_PANEL edges have landed.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| KI-1-1 | Spec Resolution | Open | The new panel/page latest-entity-by-path resolution spec is finalized. | Tracked outside this spec; this issue is gated on its landing |
+| KI-1-2 | Fresh-Spawn Green | Open | `import_plugin_grift --all` on a fresh DB completes with `samsite/compliance-landing` reporting OK. | Verifiable via `scripts/spawn-session.sh` against a new worktree |
+| KI-1-3 | Live-DB Idempotent | Open | Re-importing the bundle against an already-seeded DB does not re-trigger the failure or produce drift. | Important because most existing sessions already have the page entity from the `78de9c6` original import |
