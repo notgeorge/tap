@@ -30,7 +30,7 @@
             "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "query": "MATCH (s)-[h:HAS_FINDING]->(f:finding) WHERE f.status = \"open\"\nMATCH (f:finding)-[r:RELATED_INDICATOR]->(i:ksi_indicator) WHERE f.status = \"open\""
+              "query": "MATCH (s)-[h:HAS_FINDING]->(f:finding)\nMATCH (f:finding)-[r:RELATED_INDICATOR]->(i:ksi_indicator)\nWHERE f.status = \"open\""
             },
             "default_limit": 200,
             "max_limit": 500
