@@ -1,0 +1,1 @@
+"""GitHub Core collectors package."""

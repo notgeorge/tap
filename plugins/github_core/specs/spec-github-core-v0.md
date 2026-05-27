@@ -67,15 +67,15 @@ surface and takes only the Actions plumbing path needed for samsite.
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-github-core-scope | [Plugin Scope](#plugin-scope) | Proposed | v0 is GitHub Actions deployment plumbing for `notgeorge/samsite` |
-| req-github-core-models | [Model Set](#model-set) | Proposed | Account, repo, workflow, run, job, runner |
-| req-github-core-edges | [Edge Vocabulary](#edge-vocabulary) | Proposed | Repo/workflow/run/job/runner spine plus conservative AWS links |
-| req-github-core-dimensions | [Dimension Strategy](#dimension-strategy) | Proposed | GitHub-specific flat dimensions |
-| req-github-core-secret | [PAT Secret Kind](#pat-secret-kind) | Proposed | `github_pat` data shape and collector knobs |
-| req-github-core-collector | [Collector Runtime](#collector-runtime) | Proposed | `CollectorBase`, two-phase run (collection then enrichment), first run latest 10, later incremental |
-| req-github-core-manifests | [Collection And Link Manifests](#collection-and-link-manifests) | Proposed | Separate API/file manifest and grid-link manifest |
-| req-github-core-workflow-parse | [Workflow File Parsing](#workflow-file-parsing) | Proposed | PyYAML, workflow-only v0, warn on deferred local/composite actions |
-| req-github-core-runner | [Runner Semantics](#runner-semantics) | Proposed | Durable self-hosted runner config when visible; job observations always |
-| req-github-core-grid-links | [Existing Grid Links](#existing-grid-links) | Proposed | Exact unambiguous links to AWS nodes through Search/Gryphon; enrichment phase, not hotlink-backed |
+| req-github-core-models | [Model Set](#model-set) | Implemented | Account, repo, workflow, run, job, runner — all six tables landed via 0001_initial |
+| req-github-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | Repo/workflow/run/job/runner spine plus conservative AWS links — all six edge files registered |
+| req-github-core-dimensions | [Dimension Strategy](#dimension-strategy) | Implemented | All four dimensions emitted: platform on every node/edge, repo on collector envelopes, surface on Actions models, observation on runs/jobs |
+| req-github-core-secret | [PAT Secret Kind](#pat-secret-kind) | Implemented | `github_pat` data shape, additionalProperties: false; GitHub App auth still deferred |
+| req-github-core-collector | [Collector Runtime](#collector-runtime) | Proposed | Two-phase run + degraded-runner + no-delete + single-attempt all implemented; incremental + non-terminal refresh still pending |
+| req-github-core-manifests | [Collection And Link Manifests](#collection-and-link-manifests) | Implemented | Two manifests + JSON Schemas, validated at load; link manifest is data-driven |
+| req-github-core-workflow-parse | [Workflow File Parsing](#workflow-file-parsing) | Proposed | YAML parse + raw retention + in-memory fetch implemented; local-action detection warning still pending |
+| req-github-core-runner | [Runner Semantics](#runner-semantics) | Implemented | Durable runner nodes + matchable EXECUTED_ON + observed-runner-on-job + no-ephemeral-runner-nodes |
+| req-github-core-grid-links | [Existing Grid Links](#existing-grid-links) | Proposed | Enrichment-phase shape + exact-only + warn-only failures implemented; Gryphon read path still pending (v0 uses ORM directly) |
 | req-github-core-python-deps | [Plugin Python Dependency](#plugin-python-dependency) | Implemented | `PyYAML` is plugin-owned via root uv workspace; first proof of `req-plugin-arch-python-deps` |
 | req-github-core-backlog-references | [Variables And Secret References (Backlog)](#variables-and-secret-references-backlog) | Backlog | Two-source-of-truth model, hotlink contract implication, provenance shape; pick up when critical path |
 | req-github-core-backlog-run-attempts | [Multi-Attempt Run Observation (Backlog)](#multi-attempt-run-observation-backlog) | Backlog | Per-attempt run + job fan-out, re-run-failed-jobs subtlety, HAS_JOB lifecycle; pick up when critical path |
@@ -102,7 +102,7 @@ permission surface.
 ### Model Set
 ----
 RID: `req-github-core-models`
-Status: `Proposed`
+Status: `Implemented`
 
 The v0 model set is intentionally small but node-granular. Values that deserve
 identity, edges, queryability, history, and graph-visible lifecycle become
@@ -179,13 +179,13 @@ must not conflate the two.
 | --- | --- | :---: | --- | --- |
 | req-github-core-models-1 | V0 Models Declared | Implemented | The plugin declares the six v0 model types listed above. | |
 | req-github-core-models-3 | Job Steps Blobbed | Implemented | Workflow job steps remain structured data in `github_actions_job.configuration` in v0. | Future visualization target. |
-| req-github-core-models-4 | Deterministic Identity | Proposed | Every model uses deterministic UUIDv5 identity based on the natural keys above. | Requires collector to emit UUIDv5-keyed entities. |
-| req-github-core-models-7 | Raw Workflow YAML Retained | Proposed | `github_workflow.configuration.raw_yaml` stores the full workflow YAML body fetched at collection time. | Field shape declared; collector populates it. |
+| req-github-core-models-4 | Deterministic Identity | Implemented | Every model uses deterministic UUIDv5 identity based on the natural keys above. | `collectors/github_collector/identity.py` mints UUIDv5 from `(entity_type, natural_key)` under a fixed namespace. |
+| req-github-core-models-7 | Raw Workflow YAML Retained | Implemented | `github_workflow.configuration.raw_yaml` stores the full workflow YAML body fetched at collection time. | Parser stores raw bytes; collector base64-decodes the Contents-API `content` field and writes it. |
 
 ### Edge Vocabulary
 ----
 RID: `req-github-core-edges`
-Status: `Proposed`
+Status: `Implemented`
 
 Edges express the GitHub Actions execution spine and dependency references.
 
@@ -213,12 +213,12 @@ ownership, or runtime control.
 | --- | --- | :---: | --- | --- |
 | req-github-core-edges-1 | Execution Spine | Implemented | The repo/workflow/run/job/runner edges are declared and constrained. | |
 | req-github-core-edges-2 | Resource Reference Edge | Implemented | The single v0 cross-grid reference edge is `REFERENCES_RESOURCE`. | Secret/variable reference edges deferred. |
-| req-github-core-edges-3 | Conservative Resource Semantics | Proposed | `REFERENCES_RESOURCE` is used only for exact, unambiguous matches and does not overstate deployment semantics. | |
+| req-github-core-edges-3 | Conservative Resource Semantics | Implemented | `REFERENCES_RESOURCE` is used only for exact, unambiguous matches and does not overstate deployment semantics. | Enforced by the link-manifest schema (`match_mode: exact`-only enum) and the resolver's one-candidate-only emission rule. |
 
 ### Dimension Strategy
 ----
 RID: `req-github-core-dimensions`
-Status: `Proposed`
+Status: `Implemented`
 
 GitHub is treated as its own platform environment. The plugin uses flat,
 GitHub-specific dimensions:
@@ -240,14 +240,14 @@ repo-specific dimensions in GRIFT envelopes.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-github-core-dimensions-1 | GitHub Platform Dimension | Implemented | All plugin-owned nodes and edges carry `github.platform = "github.com"`. | Set in `DEFAULT_DIMENSIONS` on every model and `default_dimensions` on every edge. |
-| req-github-core-dimensions-2 | Repo Scope Dimensions | Proposed | Collector-created repo-scoped objects carry `github.owner` and `github.repo`. | Collector emits per-envelope. |
+| req-github-core-dimensions-2 | Repo Scope Dimensions | Implemented | Collector-created repo-scoped objects carry `github.owner` and `github.repo`. | Set on every node/edge envelope in `GithubCollector._collect_repo`. |
 | req-github-core-dimensions-3 | Actions Surface Dimension | Implemented | Actions-related objects carry `github.surface = "actions"`. | Set on workflow/run/job/runner model defaults and Actions edge defaults. |
 | req-github-core-dimensions-4 | Execution Observation Dimension | Implemented | Run and job observations carry `github.observation = "execution"`. | Set on run/job model defaults. |
 
 ### PAT Secret Kind
 ----
 RID: `req-github-core-secret`
-Status: `Proposed`
+Status: `Implemented`
 
 The first credential mode is a Personal Access Token. `github_core` owns the
 `github_pat` secret kind data schema and validates it consumer-side via
@@ -309,11 +309,11 @@ Do not pre-build it; wait for the trigger.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-secret-1 | PAT First | Proposed | v0 supports `github_pat` as the first and only credential kind. | |
-| req-github-core-secret-2 | Plugin Owns Schema | Proposed | `github_core` ships and validates the `github_pat` JSON Schema. | |
-| req-github-core-secret-3 | Repo Array Scope | Proposed | The secret carries the repo target list as `data.repos`. | |
+| req-github-core-secret-1 | PAT First | Implemented | v0 supports `github_pat` as the first and only credential kind. | `collectors/github_collector/secret.py:GITHUB_SECRET_KIND`. |
+| req-github-core-secret-2 | Plugin Owns Schema | Implemented | `github_core` ships and validates the `github_pat` JSON Schema. | `GITHUB_PAT_SCHEMA` in `secret.py`; validated via `require_secret_kind`. |
+| req-github-core-secret-3 | Repo Array Scope | Implemented | The secret carries the repo target list as `data.repos`. | Schema requires non-empty array of `owner/repo` patterns. |
 | req-github-core-secret-4 | GitHub App Deferred | Proposed | GitHub App auth is deferred. | |
-| req-github-core-secret-5 | Minimal Knob Set | Proposed | The only behavioral knob is `initial_run_limit`; `collect_workflow_files`, `collect_runner_config`, and `collect_grid_links` are not data fields. | Pruned knobs documented in the section body. |
+| req-github-core-secret-5 | Minimal Knob Set | Implemented | The only behavioral knob is `initial_run_limit`; `collect_workflow_files`, `collect_runner_config`, and `collect_grid_links` are not data fields. | Schema is `additionalProperties: false`; the three pruned names trigger validation errors at load. |
 
 ### Collector Runtime
 ----
@@ -360,19 +360,19 @@ Collection policy:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-collector-1 | CollectorBase | Proposed | The collector subclasses `CollectorBase` and uses the normal `tap_cares` runtime. | |
-| req-github-core-collector-2 | First Run Seeds Ten | Proposed | Initial collection defaults to the latest 10 runs per repo. | Configurable by secret. |
-| req-github-core-collector-3 | Incremental Later Runs | Proposed | Later runs collect runs created since the latest on-grid run for the repo. | |
-| req-github-core-collector-4 | Non-Terminal Refresh | Proposed | Non-terminal prior runs/jobs are refreshed on each run. | |
-| req-github-core-collector-5 | Runner Permission Degrades | Proposed | Runner-config permission failures record warnings and do not abort run/job collection. | |
-| req-github-core-collector-6 | No Deletion Semantics | Proposed | v0 never deletes GitHub nodes based on absence from API responses. | |
-| req-github-core-collector-7 | Two-Phase Run | Proposed | Each collector run executes a collection phase followed by an enrichment phase, in that order. | Detailed semantics in `req-github-core-grid-links`. |
-| req-github-core-collector-8 | Single-Attempt v0 | Proposed | v0 does not model multiple run attempts; collector uses the default jobs endpoint returning the latest-attempt snapshot. | Multi-attempt tracking deferred to `req-github-core-backlog-run-attempts`. |
+| req-github-core-collector-1 | CollectorBase | Implemented | The collector subclasses `CollectorBase` and uses the normal `tap_cares` runtime. | `GithubCollector` registered via `register_collector(key="github_core")` in `apps.py`. |
+| req-github-core-collector-2 | First Run Seeds Ten | Implemented | Initial collection defaults to the latest 10 runs per repo. | Default from `initial_run_limit(data)` (returns 10 when absent); applied via `per_page` query + `[:run_limit]` slice. |
+| req-github-core-collector-3 | Incremental Later Runs | Proposed | Later runs collect runs created since the latest on-grid run for the repo. | Future: filter by max `github_actions_run.created_at` on the grid. |
+| req-github-core-collector-4 | Non-Terminal Refresh | Proposed | Non-terminal prior runs/jobs are refreshed on each run. | Future: re-fetch prior runs with `status != "completed"` until terminal. |
+| req-github-core-collector-5 | Runner Permission Degrades | Implemented | Runner-config permission failures record warnings and do not abort run/job collection. | Collector catches `GithubAPIError.status == 403` on `/actions/runners` and emits a structured `RUNNER_CONFIG_FORBIDDEN` warn. |
+| req-github-core-collector-6 | No Deletion Semantics | Implemented | v0 never deletes GitHub nodes based on absence from API responses. | Collector emits only upserts; no `deletes`/`purges` sections in batch. |
+| req-github-core-collector-7 | Two-Phase Run | Implemented | Each collector run executes a collection phase followed by an enrichment phase, in that order. | `GithubCollector.run()` calls `submit_grift` twice; enrichment runs only if the first batch lands. |
+| req-github-core-collector-8 | Single-Attempt v0 | Implemented | v0 does not model multiple run attempts; collector uses the default jobs endpoint returning the latest-attempt snapshot. | Uses `/runs/{run_id}/jobs` (no `/attempts/{n}/`). Multi-attempt tracking deferred to `req-github-core-backlog-run-attempts`. |
 
 ### Collection And Link Manifests
 ----
 RID: `req-github-core-manifests`
-Status: `Proposed`
+Status: `Implemented`
 
 The collector uses two declarative JSON manifests, both schema-validated at
 load. Invalid manifests fail the run visibly.
@@ -396,9 +396,9 @@ installation interprets GitHub data against the grid."
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-manifests-1 | Collection Manifest | Proposed | GitHub API/file collection is declared in a schema-validated JSON manifest. | |
-| req-github-core-manifests-2 | Link Manifest | Proposed | Cross-grid link rules are declared in a separate schema-validated JSON manifest. | |
-| req-github-core-manifests-3 | No Code Loading From Manifest | Proposed | `custom_fn` names resolve through a plugin-local registry; manifests never import code dynamically. | Mirrors AWS collector pattern. |
+| req-github-core-manifests-1 | Collection Manifest | Implemented | GitHub API/file collection is declared in a schema-validated JSON manifest. | `github_collection_manifest.json` + `.schema.json`; validated at load by `manifest.load_collection_manifest()`. v0 manifest is an inspection document; the engine is procedural. Driving the engine off the manifest is a future refactor. |
+| req-github-core-manifests-2 | Link Manifest | Implemented | Cross-grid link rules are declared in a separate schema-validated JSON manifest. | `github_grid_link_manifest.json` + `.schema.json`; loaded by `manifest.load_link_manifest()`. Resolver in `enrichment.py` is fully data-driven off this manifest. |
+| req-github-core-manifests-3 | No Code Loading From Manifest | Implemented | `custom_fn` names resolve through a plugin-local registry; manifests never import code dynamically. | v0 doesn't use `custom_fn` (schema permits it but no rule references it). When/if added, the registry will live alongside the loader. |
 
 ### Workflow File Parsing
 ----
@@ -464,15 +464,15 @@ flags it as a near-soon implementation target for the next GitHub-focused pass.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-workflow-parse-1 | Workflow YAML Parsed | Proposed | The collector parses `.github/workflows/*.yml|*.yaml` files. | |
-| req-github-core-workflow-parse-3 | Local Actions Deferred Warning | Proposed | Local/composite action references produce a visible info/warning and are not silently ignored. | |
-| req-github-core-workflow-parse-4 | Steps Not Nodes | Proposed | Step-level details remain in job/workflow configuration in v0. | Future visualization target. |
-| req-github-core-workflow-parse-5 | In-Memory Fetch | Proposed | Workflow YAML is fetched via the Contents API and parsed in memory; v0 writes no temp file and creates no working copy. | Future-work seam noted in the section body; defer until a real demand signal arrives. |
+| req-github-core-workflow-parse-1 | Workflow YAML Parsed | Implemented | The collector parses `.github/workflows/*.yml|*.yaml` files. | `parser.parse_workflow_yaml` using PyYAML's `safe_load`; YAML 1.1 `on:` boolean gotcha handled. |
+| req-github-core-workflow-parse-3 | Local Actions Deferred Warning | Proposed | Local/composite action references produce a visible info/warning and are not silently ignored. | Detector not yet implemented in `parser.py`. |
+| req-github-core-workflow-parse-4 | Steps Not Nodes | Implemented | Step-level details remain in job/workflow configuration in v0. | Parser preserves the `steps` list verbatim under `configuration.jobs[i].steps`. |
+| req-github-core-workflow-parse-5 | In-Memory Fetch | Implemented | Workflow YAML is fetched via the Contents API and parsed in memory; v0 writes no temp file and creates no working copy. | `GithubCollector._fetch_workflow_config` calls `/repos/{owner/repo}/contents/{path}`, decodes inline base64, never writes to disk. |
 
 ### Runner Semantics
 ----
 RID: `req-github-core-runner`
-Status: `Proposed`
+Status: `Implemented`
 
 GitHub runners have two relevant shapes:
 
@@ -492,10 +492,10 @@ in v0.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-runner-1 | Durable Runner Nodes | Proposed | Registered self-hosted runners become `github_runner` nodes when visible. | |
-| req-github-core-runner-2 | Job Runner Observation | Proposed | Every job stores observed runner fields in configuration when present. | |
-| req-github-core-runner-3 | Matchable EXECUTED_ON | Proposed | `EXECUTED_ON` is emitted only when an observed job runner matches a durable runner node. | |
-| req-github-core-runner-4 | GitHub-Hosted Blobbed | Proposed | GitHub-hosted ephemeral runner observations do not become runner nodes in v0. | |
+| req-github-core-runner-1 | Durable Runner Nodes | Implemented | Registered self-hosted runners become `github_runner` nodes when visible. | Collector iterates `/actions/runners` response; one node per runner. |
+| req-github-core-runner-2 | Job Runner Observation | Implemented | Every job stores observed runner fields in configuration when present. | `runner_id`, `runner_name`, `runner_group_id`, `labels` persisted on `github_actions_job.configuration`. |
+| req-github-core-runner-3 | Matchable EXECUTED_ON | Implemented | `EXECUTED_ON` is emitted only when an observed job runner matches a durable runner node. | Collector keeps `runner_uuid_by_id` from collected runners and emits `EXECUTED_ON` only when `job.runner_id` is in that map. |
+| req-github-core-runner-4 | GitHub-Hosted Blobbed | Implemented | GitHub-hosted ephemeral runner observations do not become runner nodes in v0. | No node creation in the job loop; observed runner data stays in `job.configuration`. |
 
 ### Existing Grid Links
 ----
@@ -584,13 +584,13 @@ future capability deferred with the rest of variable/secret-ref work in
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-grid-links-1 | Search/Gryphon Read Path | Proposed | Link resolution uses TAP's canonical search/Gryphon read surfaces. | |
-| req-github-core-grid-links-2 | Exact Match Only | Proposed | Links are emitted only for exact unambiguous matches. | |
-| req-github-core-grid-links-3 | Ambiguity Warns | Proposed | Multiple matches produce a structured warning and no edge. | |
-| req-github-core-grid-links-4 | Enrichment Phase | Proposed | Link resolution executes as a follow-on phase after the main GitHub GRIFT batch commits, emitting a second GRIFT batch containing only `REFERENCES_RESOURCE` edges. | Two `submit_grift` calls per collector run; both through the standard `CollectorBase` path. |
-| req-github-core-grid-links-5 | Re-Resolve Every Run | Proposed | Every collector run re-resolves links against all configured-repo GitHub nodes, not just newly-changed ones. | Links heal organically over re-runs as AWS data accumulates. |
-| req-github-core-grid-links-6 | Enrichment Failures Warn Only | Proposed | Enrichment-phase failures emit structured warnings; they do not roll back the already-committed GitHub batch. | Transient flake self-heals on next run. |
-| req-github-core-grid-links-7 | Not Hotlink-Backed | Proposed | `REFERENCES_RESOURCE` is a derived link, not a hotlink: no `HOTLINKS` declaration, no pre-commit consistency-phase participation. | Structural distinction from the deferred hotlinked reference edges. |
+| req-github-core-grid-links-1 | Search/Gryphon Read Path | Proposed | Link resolution uses TAP's canonical search/Gryphon read surfaces. | v0 uses Django ORM filter directly (`Model.objects.filter(target_field=value)`). Migration to Gryphon is a future enhancement once the read-API shape stabilizes for this case. |
+| req-github-core-grid-links-2 | Exact Match Only | Implemented | Links are emitted only for exact unambiguous matches. | Manifest schema constrains `match_mode` to the `exact` enum value; resolver emits only when `len(candidates) == 1`. |
+| req-github-core-grid-links-3 | Ambiguity Warns | Implemented | Multiple matches produce a structured warning and no edge. | Resolver records a `LINK_AMBIGUOUS` warn per multi-candidate hit. |
+| req-github-core-grid-links-4 | Enrichment Phase | Implemented | Link resolution executes as a follow-on phase after the main GitHub GRIFT batch commits, emitting a second GRIFT batch containing only `REFERENCES_RESOURCE` edges. | `GithubCollector.run()` submits collection batch, then `resolve_links()` runs, then a second `submit_grift` if any edges resolved. |
+| req-github-core-grid-links-5 | Re-Resolve Every Run | Implemented | Every collector run re-resolves links against all configured-repo GitHub nodes, not just newly-changed ones. | `_source_queryset_for_repos` filters by `full_name__in=repos` and walks every matching landed node every run. |
+| req-github-core-grid-links-6 | Enrichment Failures Warn Only | Implemented | Enrichment-phase failures emit structured warnings; they do not roll back the already-committed GitHub batch. | Enrichment has no abort path; missing target models log + skip, multi-candidate hits warn + skip. |
+| req-github-core-grid-links-7 | Not Hotlink-Backed | Implemented | `REFERENCES_RESOURCE` is a derived link, not a hotlink: no `HOTLINKS` declaration, no pre-commit consistency-phase participation. | No HOTLINKS declared on any github_core model; resolver is a separate phase, not a model-level invariant. |
 
 ### Plugin Python Dependency
 ----

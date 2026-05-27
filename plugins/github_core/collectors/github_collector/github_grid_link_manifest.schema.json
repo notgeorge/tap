@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "github_core Grid Link Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "rules"],
+  "properties": {
+    "manifest_version": {"type": "string", "enum": ["0"]},
+    "description": {"type": "string"},
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "source_entity_type",
+          "source_field_path",
+          "target_entity_type",
+          "target_field",
+          "edge_type",
+          "match_mode"
+        ],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "source_entity_type": {"type": "string"},
+          "source_field_path": {"type": "string"},
+          "target_entity_type": {"type": "string"},
+          "target_field": {"type": "string"},
+          "edge_type": {"type": "string", "pattern": "^[A-Z][A-Z_]+$"},
+          "match_mode": {"enum": ["exact"]},
+          "zero_candidates": {"enum": ["silent", "info", "warn"]},
+          "multiple_candidates": {"enum": ["silent", "warn_no_edge"]},
+          "description": {"type": "string"}
+        }
+      }
+    }
+  }
+}
