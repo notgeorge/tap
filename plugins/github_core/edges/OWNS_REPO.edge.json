@@ -1,0 +1,10 @@
+{
+  "slug": "OWNS_REPO",
+  "name": "Owns Repo",
+  "description": "GitHub account owns a repository.",
+  "sources": ["github_account"],
+  "targets": ["github_repository"],
+  "default_dimensions": {
+    "github.platform": "github.com"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "slug": "DEFINES_WORKFLOW",
+  "name": "Defines Workflow",
+  "description": "Repository contains a workflow definition (.github/workflows/*.yml).",
+  "sources": ["github_repository"],
+  "targets": ["github_workflow"],
+  "default_dimensions": {
+    "github.platform": "github.com",
+    "github.surface": "actions"
+  }
+}

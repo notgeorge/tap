@@ -1,8 +1,22 @@
-# GitHub Core Pre-Plugin Specification
+# GitHub Core Plugin Specification
+
+## Plugin Identity
+
+- **Slug:** `github_core`
+- **Display name:** TAP GitHub Core
+- **Collector:** `GitHubCollector` — `CollectorBase` subclass; two-phase run (collection + enrichment). See `req-github-core-collector` and `req-github-core-grid-links`.
+- **Secret kind:** `github_pat` — Personal Access Token. See `req-github-core-secret`.
+- **v0 target:** `notgeorge/samsite` (configured via the secret's `repos` array).
+- **Repo shape:** In-tree under `plugins/github_core/` for v0. No standalone git repo or submodule; may be split later if external consumers appear.
+- **Default dimensions** (see `req-github-core-dimensions`):
+  - `github.platform = "github.com"` on all plugin-owned nodes and edges
+  - `github.owner` + `github.repo` on repo-scoped objects (set by the collector per envelope)
+  - `github.surface = "actions"` on Actions-related objects
+  - `github.observation = "execution"` on runs and jobs
 
 ## Philosophy
 
-`github_core` will model the GitHub side of the samsite deployment on the TAP
+`github_core` models the GitHub side of the samsite deployment on the TAP
 grid. The v0 target is deliberately narrow: make the plumbing from repository
 content to live site visible for `notgeorge/samsite`, especially GitHub Actions
 workflows, workflow runs, jobs, and runners. Variables and secret references
@@ -13,11 +27,6 @@ organization-wide governance, issue/PR modeling, permissions audits, Sigstore,
 and Rekor all remain future work. v0 exists because the Sam demo needs to show
 how the static site and compliance machinery move through GitHub Actions into
 the running AWS-backed site.
-
-This is a **pre-plugin** spec. It lives at the root while the plugin is still
-being designed. When `github_core` is scaffolded, this content should move to
-`plugins/github_core/specs/spec-github-core-v0.md` and the root pre-plugin file
-should be removed or reduced to a pointer.
 
 ## Roadmap Alignment
 
@@ -67,7 +76,7 @@ surface and takes only the Actions plumbing path needed for samsite.
 | req-github-core-workflow-parse | [Workflow File Parsing](#workflow-file-parsing) | Proposed | PyYAML, workflow-only v0, warn on deferred local/composite actions |
 | req-github-core-runner | [Runner Semantics](#runner-semantics) | Proposed | Durable self-hosted runner config when visible; job observations always |
 | req-github-core-grid-links | [Existing Grid Links](#existing-grid-links) | Proposed | Exact unambiguous links to AWS nodes through Search/Gryphon; enrichment phase, not hotlink-backed |
-| req-github-core-python-deps | [Plugin Python Dependency](#plugin-python-dependency) | Proposed | `PyYAML` is plugin-owned; activates plugin-local dependency shape |
+| req-github-core-python-deps | [Plugin Python Dependency](#plugin-python-dependency) | Implemented | `PyYAML` is plugin-owned via root uv workspace; first proof of `req-plugin-arch-python-deps` |
 | req-github-core-backlog-references | [Variables And Secret References (Backlog)](#variables-and-secret-references-backlog) | Backlog | Two-source-of-truth model, hotlink contract implication, provenance shape; pick up when critical path |
 | req-github-core-backlog-run-attempts | [Multi-Attempt Run Observation (Backlog)](#multi-attempt-run-observation-backlog) | Backlog | Per-attempt run + job fan-out, re-run-failed-jobs subtlety, HAS_JOB lifecycle; pick up when critical path |
 | req-github-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Full GitHub inventory, Sigstore/Rekor, deletion/reaping, schedules, references, multi-attempt runs |
@@ -168,10 +177,10 @@ must not conflate the two.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-models-1 | V0 Models Declared | Proposed | The plugin declares the six v0 model types listed above. | |
-| req-github-core-models-3 | Job Steps Blobbed | Proposed | Workflow job steps remain structured data in `github_actions_job.configuration` in v0. | Future visualization target. |
-| req-github-core-models-4 | Deterministic Identity | Proposed | Every model uses deterministic UUIDv5 identity based on the natural keys above. | |
-| req-github-core-models-7 | Raw Workflow YAML Retained | Proposed | `github_workflow.configuration.raw_yaml` stores the full workflow YAML body fetched at collection time. | Current-definition snapshot, not per-run head_sha snapshot. |
+| req-github-core-models-1 | V0 Models Declared | Implemented | The plugin declares the six v0 model types listed above. | |
+| req-github-core-models-3 | Job Steps Blobbed | Implemented | Workflow job steps remain structured data in `github_actions_job.configuration` in v0. | Future visualization target. |
+| req-github-core-models-4 | Deterministic Identity | Proposed | Every model uses deterministic UUIDv5 identity based on the natural keys above. | Requires collector to emit UUIDv5-keyed entities. |
+| req-github-core-models-7 | Raw Workflow YAML Retained | Proposed | `github_workflow.configuration.raw_yaml` stores the full workflow YAML body fetched at collection time. | Field shape declared; collector populates it. |
 
 ### Edge Vocabulary
 ----
@@ -202,8 +211,8 @@ ownership, or runtime control.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-edges-1 | Execution Spine | Proposed | The repo/workflow/run/job/runner edges are declared and constrained. | |
-| req-github-core-edges-2 | Resource Reference Edge | Proposed | The single v0 cross-grid reference edge is `REFERENCES_RESOURCE`. | Secret/variable reference edges deferred. |
+| req-github-core-edges-1 | Execution Spine | Implemented | The repo/workflow/run/job/runner edges are declared and constrained. | |
+| req-github-core-edges-2 | Resource Reference Edge | Implemented | The single v0 cross-grid reference edge is `REFERENCES_RESOURCE`. | Secret/variable reference edges deferred. |
 | req-github-core-edges-3 | Conservative Resource Semantics | Proposed | `REFERENCES_RESOURCE` is used only for exact, unambiguous matches and does not overstate deployment semantics. | |
 
 ### Dimension Strategy
@@ -230,10 +239,10 @@ repo-specific dimensions in GRIFT envelopes.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-dimensions-1 | GitHub Platform Dimension | Proposed | All plugin-owned nodes and edges carry `github.platform = "github.com"`. | |
-| req-github-core-dimensions-2 | Repo Scope Dimensions | Proposed | Collector-created repo-scoped objects carry `github.owner` and `github.repo`. | |
-| req-github-core-dimensions-3 | Actions Surface Dimension | Proposed | Actions-related objects carry `github.surface = "actions"`. | |
-| req-github-core-dimensions-4 | Execution Observation Dimension | Proposed | Run and job observations carry `github.observation = "execution"`. | |
+| req-github-core-dimensions-1 | GitHub Platform Dimension | Implemented | All plugin-owned nodes and edges carry `github.platform = "github.com"`. | Set in `DEFAULT_DIMENSIONS` on every model and `default_dimensions` on every edge. |
+| req-github-core-dimensions-2 | Repo Scope Dimensions | Proposed | Collector-created repo-scoped objects carry `github.owner` and `github.repo`. | Collector emits per-envelope. |
+| req-github-core-dimensions-3 | Actions Surface Dimension | Implemented | Actions-related objects carry `github.surface = "actions"`. | Set on workflow/run/job/runner model defaults and Actions edge defaults. |
+| req-github-core-dimensions-4 | Execution Observation Dimension | Implemented | Run and job observations carry `github.observation = "execution"`. | Set on run/job model defaults. |
 
 ### PAT Secret Kind
 ----
@@ -254,7 +263,7 @@ Data fields:
 | Field | Required | Default | Meaning |
 | --- | :---: | --- | --- |
 | `token` | Yes |  | GitHub PAT. Secret material; never logged or stored on grid. |
-| `api_base_url` | No | `https://api.github.com` | GitHub API base URL. Rides with the credential because GHES tenants have different base URLs and different PATs. |
+| `api_base_url` | No | `https://api.github.com` | GitHub API base URL. Rides with the credential because GitHub Enterprise Server (GHES) tenants have different base URLs and different PATs. |
 | `repos` | Yes |  | Array of `owner/repo` targets; v0 example is `["notgeorge/samsite"]`. |
 | `initial_run_limit` | No | `10` | Number of latest workflow runs to seed on first collection. |
 
@@ -586,7 +595,7 @@ future capability deferred with the rest of variable/secret-ref work in
 ### Plugin Python Dependency
 ----
 RID: `req-github-core-python-deps`
-Status: `Proposed`
+Status: `Implemented`
 
 `PyYAML` is approved for this plugin's workflow-file parser and should be
 declared as a plugin-owned dependency. `github_core` is the first proof of the
@@ -602,9 +611,9 @@ justified by and documented with `github_core`.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-python-deps-1 | PyYAML Approved | Proposed | `PyYAML` is approved specifically for `github_core` workflow parsing. | |
-| req-github-core-python-deps-2 | Plugin-Owned Declaration | Proposed | The dependency is declared in plugin-local Python dependency metadata, not `tap-plugin.toml`. | Uses `req-plugin-arch-python-deps` (In Development); github_core is its first proof. |
-| req-github-core-python-deps-3 | No Isolation Claim | Proposed | The spec does not claim runtime isolation from other installed Python packages. | |
+| req-github-core-python-deps-1 | PyYAML Approved | Implemented | `PyYAML` is approved specifically for `github_core` workflow parsing. | Declared in `plugins/github_core/pyproject.toml`. |
+| req-github-core-python-deps-2 | Plugin-Owned Declaration | Implemented | The dependency is declared in plugin-local Python dependency metadata, not `tap-plugin.toml`. | First proof of `req-plugin-arch-python-deps`; landed via root `[tool.uv.workspace]`. |
+| req-github-core-python-deps-3 | No Isolation Claim | Implemented | The spec does not claim runtime isolation from other installed Python packages. | |
 
 ### Variables And Secret References (Backlog)
 ----

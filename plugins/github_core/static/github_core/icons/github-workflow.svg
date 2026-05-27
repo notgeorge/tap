@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+  <title>GitHub Workflow</title>
+  <g fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="10" cy="10" r="4"/>
+    <circle cx="30" cy="10" r="4"/>
+    <circle cx="20" cy="30" r="4"/>
+    <line x1="10" y1="14" x2="20" y2="26"/>
+    <line x1="30" y1="14" x2="20" y2="26"/>
+  </g>
+</svg>

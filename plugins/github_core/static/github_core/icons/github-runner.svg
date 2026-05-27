@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+  <title>GitHub Runner</title>
+  <g fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="6" y="10" width="28" height="18" rx="2"/>
+    <circle cx="12" cy="19" r="1.5" fill="currentColor"/>
+    <line x1="18" y1="19" x2="30" y2="19"/>
+    <line x1="14" y1="32" x2="26" y2="32"/>
+  </g>
+</svg>
