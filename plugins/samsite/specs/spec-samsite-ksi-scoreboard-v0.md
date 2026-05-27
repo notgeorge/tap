@@ -279,3 +279,59 @@ Per [[panel-latest-emission-fallback-pattern]] and [[future-seam-discipline]], *
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-samsite-scoreboard-lift-1 | Document the Lift | Backlog | When a second consumer appears, the lift is captured in a new `spec-fedramp-20x-ksi-scoreboard-v0.md` (in the fedramp_20x_ksi plugin) and the samsite spec marks its scoping section to point there. | |
+
+### Future Migration: tap_web Entity Resolution
+----
+RID: `req-samsite-scoreboard-entity-resolution-migration`
+Status: `Backlog`
+
+The KSI scoreboard is a multi-entity panel (SSP + POA&M roles) that currently resolves its target `compliance_artifact` entities via the locally-defined helpers in `plugins/roscale/panels/_common.py`. When `tap_web/specs/spec-web-panel-entity-resolution-v0.md` lands and the canonical `tap_web/panels/entity_resolution.py` module exists, the scoreboard migrates to import from there.
+
+#### Implementation
+
+- Update `plugins/samsite/panels/ksi_scoreboard/__init__.py` to import `resolve_entity` and `EntityResolution` from `tap_web.panels.entity_resolution` instead of the roscale-local helpers.
+- Rewrite the scoreboard panel config in grift from the legacy multi-role shape:
+
+  ```json
+  {
+    "ssp_artifact_entity_id_var":  "oscal_ssp_artifact_entity_id",
+    "poam_artifact_entity_id_var": "oscal_poam_artifact_entity_id",
+    "fallback": {
+      "ssp_kind":  "oscal_ssp",
+      "poam_kind": "oscal_poam"
+    }
+  }
+  ```
+
+  to the canonical multi-role shape required by the platform spec:
+
+  ```json
+  {
+    "ssp_entity_id_var":  "oscal_ssp_artifact_entity_id",
+    "poam_entity_id_var": "oscal_poam_artifact_entity_id",
+    "fallback": {
+      "ssp":  {
+        "entity_type": "compliance_artifact",
+        "field":       "kind",
+        "value":       "oscal_ssp",
+        "sort_field":  "fetched_at"
+      },
+      "poam": {
+        "entity_type": "compliance_artifact",
+        "field":       "kind",
+        "value":       "oscal_poam",
+        "sort_field":  "fetched_at"
+      }
+    }
+  }
+  ```
+
+- Update tests in `plugins/samsite/tests/test_ksi_scoreboard.py` to mock the helpers at the new module path under the new names.
+- The required/degraded role behavior (SSP required, POA&M degraded) stays as-is — that's a scoreboard concern, not a platform concern.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-samsite-scoreboard-entity-resolution-migration-1 | Canonical Module Imported | Backlog | The scoreboard panel imports `resolve_entity` / `EntityResolution` from `tap_web.panels.entity_resolution`. | |
+| req-samsite-scoreboard-entity-resolution-migration-2 | Multi-Role Config Rewritten | Backlog | The scoreboard panel config in grift uses the new per-role sub-block shape; the legacy `<role>_artifact_entity_id_var` and `fallback.<role>_kind` keys are removed. | |

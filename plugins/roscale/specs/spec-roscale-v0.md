@@ -530,3 +530,50 @@ When editing becomes real, the likely path is:
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-roscale-edit-1 | Deferred | Backlog | v0 does not include OSCAL editing. | |
+
+### Future Migration: tap_web Entity Resolution
+----
+RID: `req-roscale-entity-resolution-migration`
+Status: `Backlog`
+
+The roscale OSCAL SSP and POA&M workbench panels resolve their target `compliance_artifact` via local helpers in `plugins/roscale/panels/_common.py` (`resolve_artifact`, `_lookup_by_entity_id`, `_lookup_latest_by_kind`, `ArtifactResolution`). When `tap_web/specs/spec-web-panel-entity-resolution-v0.md` lands and the canonical `tap_web/panels/entity_resolution.py` module exists, roscale migrates to import from there.
+
+#### Implementation
+
+- Drop the local helper definitions from `plugins/roscale/panels/_common.py`.
+- Replace with imports from `tap_web.panels.entity_resolution` (renamed symbols: `resolve_entity`, `_lookup_latest_by_field`, `EntityResolution` — the canonical module has no domain defaults).
+- Rewrite the SSP and POA&M workbench panel configs in grift (`plugins/samsite/grift/compliance-pages.grift.json`) from the legacy shape:
+
+  ```json
+  {
+    "artifact_entity_id_var": "oscal_ssp_artifact_entity_id",
+    "fallback": { "kind": "oscal_ssp" }
+  }
+  ```
+
+  to the canonical shape required by the platform spec:
+
+  ```json
+  {
+    "entity_id_var": "oscal_ssp_artifact_entity_id",
+    "fallback": {
+      "entity_type": "compliance_artifact",
+      "field":       "kind",
+      "value":       "oscal_ssp",
+      "sort_field":  "fetched_at"
+    }
+  }
+  ```
+
+  (And the POA&M panel's parallel config.)
+
+- Update roscale panel context-builders to pass the explicit kwargs the platform helpers require (no domain defaults to lean on).
+- Update tests in `plugins/roscale/tests/test_roscale_panels.py` to mock the helpers at the importing module's path under the new names.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-roscale-entity-resolution-migration-1 | Local Helpers Removed | Backlog | `plugins/roscale/panels/_common.py` no longer defines the resolution helpers locally. | |
+| req-roscale-entity-resolution-migration-2 | Canonical Module Imported | Backlog | The roscale panels import `resolve_entity`, `_lookup_*`, `EntityResolution` from `tap_web.panels.entity_resolution`. | |
+| req-roscale-entity-resolution-migration-3 | Configs Rewritten | Backlog | The OSCAL SSP and POA&M panel configs in the grift use the new four-field `fallback` block; the legacy `artifact_entity_id_var` / `fallback.kind` keys are removed. | |
