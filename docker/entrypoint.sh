@@ -15,8 +15,13 @@
 # Exit immediately if any command fails
 set -e
 
-echo "==> Syncing Python dependencies (uv sync)..."
-uv sync
+echo "==> Syncing Python dependencies (uv sync --all-packages)..."
+# --all-packages installs every workspace member and its deps into the venv,
+# so plugin-local third-party requirements (declared in
+# plugins/<slug>/pyproject.toml under req-plugin-arch-python-deps) land in
+# the runtime env. Without this flag, members' deps stay in uv.lock but never
+# get installed.
+uv sync --all-packages
 
 echo "==> Running database migrations..."
 uv run python manage.py migrate --noinput

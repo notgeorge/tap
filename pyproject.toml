@@ -74,6 +74,19 @@ dev = [
 ]
 
 # -----------------------------------------------------------------------------
+# uv Workspace
+# -----------------------------------------------------------------------------
+# Plugins that need plugin-local third-party Python dependencies declare them
+# in their own plugins/<slug>/pyproject.toml and join the workspace via an
+# explicit `members` entry below. All members resolve into the single root
+# uv.lock; plugins without local deps stay out of the list and remain
+# unaffected. See tap_plugins/specs/spec-plugin-architecture.md
+# req-plugin-arch-python-deps.
+
+[tool.uv.workspace]
+members = ["plugins/github_core"]
+
+# -----------------------------------------------------------------------------
 # Tool Configuration
 # -----------------------------------------------------------------------------
 

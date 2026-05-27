@@ -1,0 +1,15 @@
+[project]
+name = "tap-plugin-github-core"
+version = "0.1.0"
+description = "TAP GitHub Core plugin — GitHub Actions deployment plumbing for samsite."
+requires-python = ">=3.14"
+dependencies = [
+    "PyYAML>=6.0.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
