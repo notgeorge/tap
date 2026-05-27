@@ -117,6 +117,11 @@ INSTALLED_APPS = [
     "plugins.computing_core.apps.ComputingCoreConfig",
     # AWS Core plugin — resource-type models for AWS cloud infrastructure
     "plugins.aws_core.apps.AwsCoreConfig",
+    # GitHub Core plugin — GitHub Actions deployment plumbing for the Sam
+    # demo path (notgeorge/samsite). Models account/repo/workflow/run/job/
+    # runner; collector lands the REFERENCES_RESOURCE links against aws_core
+    # nodes during the enrichment phase.
+    "plugins.github_core.apps.GithubCoreConfig",
     # Genericom plugin — DEPRECATED 2026-05-19: 100% hand-built mock AWS
     # dataset (lotr-lineage scaffolding) built on aws_core. Code retained in
     # plugins/genericom/ but NOT loaded — real-account work (samsite)

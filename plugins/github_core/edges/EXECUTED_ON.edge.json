@@ -1,7 +1,7 @@
 {
-  "slug": "RUNS_ON",
-  "name": "Runs On",
-  "description": "Job ran on a durable registered self-hosted runner. Emitted only when an observed job runner_id matches a github_runner node.",
+  "slug": "EXECUTED_ON",
+  "name": "Executed On",
+  "description": "Job executed on a durable registered self-hosted runner. Emitted only when an observed job runner_id matches a github_runner node.",
   "sources": ["github_actions_job"],
   "targets": ["github_runner"],
   "default_dimensions": {

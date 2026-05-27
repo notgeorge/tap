@@ -1,4 +1,4 @@
-"""Structural validation tests for the github_core plugin."""
+"""Structural + loads validation tests for the github_core plugin."""
 
 from pathlib import Path
 
@@ -14,4 +14,10 @@ class TestStructure:
 
     def test_strict_passes(self) -> None:
         result = validate_plugin(PLUGIN_ROOT, level="structure", strict=True)
+        assert result.ok, result.to_human()
+
+
+class TestLoads:
+    def test_loads_passes(self) -> None:
+        result = validate_plugin(PLUGIN_ROOT, level="loads", strict=True)
         assert result.ok, result.to_human()

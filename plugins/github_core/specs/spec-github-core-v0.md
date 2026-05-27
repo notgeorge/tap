@@ -197,7 +197,7 @@ V0 edge types:
 | `DEFINES_WORKFLOW` | `github_repository` -> `github_workflow` | Repo contains workflow definition. |
 | `EXECUTES_WORKFLOW` | `github_actions_run` -> `github_workflow` | Run executes workflow. |
 | `HAS_JOB` | `github_actions_run` -> `github_actions_job` | Run contains job. v0 reflects the latest-attempt job set; multi-attempt tracking deferred. |
-| `RUNS_ON` | `github_actions_job` -> `github_runner` | Job ran on a durable runner node when matchable. |
+| `EXECUTED_ON` | `github_actions_job` -> `github_runner` | Job executed on a durable runner node when matchable. (Distinct from `computing_core.RUNS_ON`, which models program-on-compute-environment.) |
 | `REFERENCES_RESOURCE` | GitHub node -> external grid node | Conservative exact-match link to existing AWS nodes. |
 
 Secret and variable reference edges (`REFERENCES_SECRET`, `REFERENCES_VARIABLE`)
@@ -483,7 +483,7 @@ GitHub runners have two relevant shapes:
 v0 creates `github_runner` nodes only for durable registered runner
 configuration. Workflow jobs always retain observed runner fields in
 `configuration`. If a job's observed runner id matches a durable runner node,
-the collector emits `RUNS_ON`; otherwise the job remains self-contained.
+the collector emits `EXECUTED_ON`; otherwise the job remains self-contained.
 
 GitHub-hosted ephemeral runner observations do not become durable runner nodes
 in v0.
@@ -494,7 +494,7 @@ in v0.
 | --- | --- | :---: | --- | --- |
 | req-github-core-runner-1 | Durable Runner Nodes | Proposed | Registered self-hosted runners become `github_runner` nodes when visible. | |
 | req-github-core-runner-2 | Job Runner Observation | Proposed | Every job stores observed runner fields in configuration when present. | |
-| req-github-core-runner-3 | Matchable RUNS_ON | Proposed | `RUNS_ON` is emitted only when an observed job runner matches a durable runner node. | |
+| req-github-core-runner-3 | Matchable EXECUTED_ON | Proposed | `EXECUTED_ON` is emitted only when an observed job runner matches a durable runner node. | |
 | req-github-core-runner-4 | GitHub-Hosted Blobbed | Proposed | GitHub-hosted ephemeral runner observations do not become runner nodes in v0. | |
 
 ### Existing Grid Links
