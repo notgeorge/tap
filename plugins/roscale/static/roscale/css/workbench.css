@@ -585,3 +585,59 @@
   padding: 0 1px;
   border-radius: 2px;
 }
+
+/* POA&M status pills — overlay the .roscale-impl-status base color
+   scheme with status-specific palettes. "open" reads as outstanding
+   work (warm red), "risk-accepted" is a documented deferral (warm
+   amber), "closed" is muted neutral. */
+.roscale-poam-status-open {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.roscale-poam-status-risk-accepted {
+  background: #fef3c7;
+  color: #92400e;
+}
+.roscale-poam-status-ongoing {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.roscale-poam-status-closed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* POA&M risk pills — same shape as status pills, colored by severity. */
+.roscale-poam-risk-critical, .roscale-poam-risk-high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.roscale-poam-risk-moderate, .roscale-poam-risk-medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+.roscale-poam-risk-low {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.roscale-poam-risk-informational, .roscale-poam-risk-info {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+/* POA&M expanded-body field grid — slightly tighter than the page-top
+   metadata kv lists since each item carries 6–9 fields. */
+.roscale-poam-fields {
+  margin-top: 0.5rem;
+  grid-template-columns: minmax(7rem, max-content) 1fr;
+  gap: 0.15rem 0.6rem;
+  font-size: 0.85rem;
+}
+.roscale-poam-fields dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  align-self: start;
+}
+.roscale-poam-fields dd { margin: 0; }

@@ -556,23 +556,118 @@ def poam_items(doc: dict[str, Any]) -> list[dict[str, Any]]:
         controls_prop = _prop_value(props, "controls") or _prop_value(props, "control")
         controls = [c.strip() for c in controls_prop.split(",")] if controls_prop else []
         controls = [c for c in controls if c]
+        title = it.get("title") or ""
+        description = it.get("description") or ""
+        status = _prop_value(props, "status")
+        category = _prop_value(props, "category")
+        original_risk = _prop_value(props, "original-risk-rating")
+        adjusted_risk = _prop_value(props, "adjusted-risk-rating")
+        asset_identifier = _prop_value(props, "asset-identifier")
+        detector = _prop_value(props, "weakness-detector-source")
+        scheduled_completion = _prop_value(props, "scheduled-completion-date")
+        status_date = _prop_value(props, "status-date")
+        original_detection = _prop_value(props, "original-detection-date")
+        remediation = _prop_value(props, "remediation-plan-summary")
+        poam_id = _prop_value(props, "poam-id")
+
+        # One-line preview of the title for the collapsed-card summary;
+        # description provides the body when the user expands.
+        title_preview = " ".join((title or "").split())
+        if len(title_preview) > 110:
+            title_preview = title_preview[:107].rstrip() + "…"
+
+        # Highest of (adjusted, original) drives the risk pill — the
+        # "what's still on the table" reading. Stash both so the
+        # expanded body can show the original-vs-adjusted comparison.
+        effective_risk = adjusted_risk or original_risk
+
+        # Search-text blob for the client-side type-to-filter. Lowercased
+        # once server-side so the client just runs a cheap substring
+        # check. Includes id, title, description, status/category/risk,
+        # controls list, asset id, detector, remediation, dates.
+        search_parts = [
+            poam_id,
+            it.get("uuid") or "",
+            title,
+            description,
+            status,
+            category,
+            original_risk,
+            adjusted_risk,
+            " ".join(controls),
+            asset_identifier,
+            detector,
+            remediation,
+            scheduled_completion,
+            status_date,
+            original_detection,
+        ]
+        search_text = " ".join(part for part in search_parts if part).lower()
+
         out.append(
             {
                 "uuid": it.get("uuid") or "",
-                "title": it.get("title") or "",
-                "description": it.get("description") or "",
-                "poam_id": _prop_value(props, "poam-id"),
-                "status": _prop_value(props, "status"),
-                "category": _prop_value(props, "category"),
+                "title": title,
+                "title_preview": title_preview,
+                "description": description,
+                "poam_id": poam_id,
+                "status": status,
+                "category": category,
                 "controls": controls,
-                "original_risk": _prop_value(props, "original-risk-rating"),
-                "adjusted_risk": _prop_value(props, "adjusted-risk-rating"),
-                "asset_identifier": _prop_value(props, "asset-identifier"),
-                "weakness_detector_source": _prop_value(props, "weakness-detector-source"),
-                "scheduled_completion_date": _prop_value(props, "scheduled-completion-date"),
-                "status_date": _prop_value(props, "status-date"),
-                "original_detection_date": _prop_value(props, "original-detection-date"),
-                "remediation_plan_summary": _prop_value(props, "remediation-plan-summary"),
+                "controls_count": len(controls),
+                "original_risk": original_risk,
+                "adjusted_risk": adjusted_risk,
+                "effective_risk": effective_risk,
+                "asset_identifier": asset_identifier,
+                "weakness_detector_source": detector,
+                "scheduled_completion_date": scheduled_completion,
+                "status_date": status_date,
+                "original_detection_date": original_detection,
+                "remediation_plan_summary": remediation,
+                "search_text": search_text,
+            }
+        )
+    return out
+
+
+def poam_items_by_status(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group POA&M items by status for progressive-disclosure rendering.
+
+    Status is the question a POA&M-reader asks first: "what's still
+    outstanding?" Open items lead, then risk-accepted (documented
+    deferrals), then closed/anything else. Empty groups are dropped so
+    the page doesn't show "Closed (0)" for a POA&M with nothing closed.
+    """
+    # Canonical status order for display. Anything outside this list
+    # gets bucketed into "other" at the end with its original label.
+    order = ["open", "risk-accepted", "ongoing", "closed", ""]
+    label_overrides = {"": "(no status)"}
+
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for it in items:
+        s = (it.get("status") or "").strip().lower()
+        buckets.setdefault(s, []).append(it)
+
+    out: list[dict[str, Any]] = []
+    for s in order:
+        if s in buckets:
+            out.append(
+                {
+                    "status": s,
+                    "label": label_overrides.get(s, s).replace("-", " ").title() or "(no status)",
+                    "count": len(buckets[s]),
+                    "items": buckets[s],
+                }
+            )
+            del buckets[s]
+    # Leftover statuses we didn't anticipate.
+    for s in sorted(buckets):
+        out.append(
+            {
+                "status": s,
+                "label": s.replace("-", " ").title() or "(no status)",
+                "count": len(buckets[s]),
+                "items": buckets[s],
             }
         )
     return out
