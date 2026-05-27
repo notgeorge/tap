@@ -191,8 +191,28 @@
                   {% if req.implementation_status %}<span class="roscale-impl-status roscale-impl-{{ req.implementation_status }}">{{ req.implementation_status }}</span>{% endif %}
                   {% if req.origination_kinds %}<span class="roscale-origination">{{ req.origination_kinds|join:", " }}</span>{% endif %}
                 </div>
-                {% if req.statement_summary %}<p class="roscale-req-statement">{{ req.statement_summary }}</p>{% endif %}
-                {% if req.remarks %}<p class="roscale-req-remarks"><em>{{ req.remarks }}</em></p>{% endif %}
+                {% if req.statement_summary %}<p class="roscale-req-statement">{{ req.statement_summary|linebreaksbr }}</p>{% endif %}
+                {% if req.remarks %}<p class="roscale-req-remarks"><em>{{ req.remarks|linebreaksbr }}</em></p>{% endif %}
+                {% if req.evidence_links %}
+                <div class="roscale-req-links roscale-req-evidence">
+                  <span class="roscale-req-links-label">Evidence</span>
+                  <ul>
+                    {% for lk in req.evidence_links %}
+                      <li><a href="{{ lk.href }}" target="_blank" rel="noopener">{{ lk.text|default:lk.href }}</a>{% if lk.media_type %} <span class="roscale-meta">{{ lk.media_type }}</span>{% endif %}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                {% endif %}
+                {% if req.reference_links %}
+                <div class="roscale-req-links roscale-req-references">
+                  <span class="roscale-req-links-label">References</span>
+                  <ul>
+                    {% for lk in req.reference_links %}
+                      <li><a href="{{ lk.href }}" target="_blank" rel="noopener">{{ lk.text|default:lk.href }}</a></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                {% endif %}
               </li>
             {% endfor %}
           </ul>

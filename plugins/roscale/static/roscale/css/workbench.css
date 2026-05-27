@@ -330,3 +330,44 @@
   line-height: 1.4;
   max-height: 60vh;
 }
+
+/* Per-control evidence + reference link blocks. Mounted under each
+   implemented-requirement; renders the OSCAL links[] array grouped by
+   rel ("evidence" → live signals / signed bundles, "reference" →
+   architecture docs + source). Stacked vertically with subtle
+   indent and a small uppercase label so the eye picks them up as
+   structured metadata, not body prose. */
+.roscale-req-links {
+  margin: 0.4rem 0 0 0.25rem;
+  padding: 0.25rem 0 0;
+}
+.roscale-req-links-label {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-right: 0.5rem;
+}
+.roscale-req-links ul {
+  display: inline;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.roscale-req-links li {
+  display: inline-block;
+  margin: 0 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+.roscale-req-links a {
+  color: #2563eb;
+  text-decoration: none;
+}
+.roscale-req-links a:hover {
+  text-decoration: underline;
+}
+.roscale-req-evidence a {
+  color: #047857;
+}

@@ -288,14 +288,54 @@ def ssp_implemented_requirements(doc: dict[str, Any]) -> list[dict[str, Any]]:
                 impl_status = value
             elif name == "control-origination":
                 origination_kinds.append(value)
+        # OSCAL allows the implementation narrative in several places:
+        # statements[*].description, statements[*].remarks, or
+        # statements[*].by-components[*].description. Walk all three in
+        # priority order; Sam's SSP puts the narrative in statements[*].remarks
+        # which the prior single-source-of-truth lookup missed entirely.
         statements = req.get("statements") or []
         statement_summary = ""
-        if statements and isinstance(statements[0], dict):
-            statement_summary = statements[0].get("description") or ""
-            if not statement_summary:
-                bys = statements[0].get("by-components") or []
-                if bys and isinstance(bys[0], dict):
-                    statement_summary = bys[0].get("description") or ""
+        for stmt in statements:
+            if not isinstance(stmt, dict):
+                continue
+            text = (stmt.get("description") or "").strip() or (stmt.get("remarks") or "").strip()
+            if not text:
+                for by in stmt.get("by-components") or []:
+                    if isinstance(by, dict):
+                        text = (by.get("description") or "").strip()
+                        if text:
+                            break
+            if text:
+                statement_summary = text
+                break
+
+        # Evidence and reference URLs grouped by `rel`. OSCAL convention:
+        # rel="evidence" is a machine-verifiable artifact (live signal,
+        # signed bundle); rel="reference" is human-readable supporting
+        # material (architecture decisions, Terraform source). Anything
+        # else is bucketed as "other" so a future renderer can decide.
+        evidence_links: list[dict[str, str]] = []
+        reference_links: list[dict[str, str]] = []
+        other_links: list[dict[str, str]] = []
+        for link in req.get("links") or []:
+            if not isinstance(link, dict):
+                continue
+            href = (link.get("href") or "").strip()
+            if not href:
+                continue
+            entry = {
+                "href": href,
+                "text": (link.get("text") or "").strip(),
+                "rel": (link.get("rel") or "").strip(),
+                "media_type": (link.get("media-type") or "").strip(),
+            }
+            if entry["rel"] == "evidence":
+                evidence_links.append(entry)
+            elif entry["rel"] == "reference":
+                reference_links.append(entry)
+            else:
+                other_links.append(entry)
+
         out.append(
             {
                 "control_id": control_id,
@@ -304,6 +344,9 @@ def ssp_implemented_requirements(doc: dict[str, Any]) -> list[dict[str, Any]]:
                 "origination_kinds": origination_kinds,
                 "statement_summary": statement_summary,
                 "remarks": req.get("remarks") or "",
+                "evidence_links": evidence_links,
+                "reference_links": reference_links,
+                "other_links": other_links,
             }
         )
     out.sort(key=lambda r: r["control_id"])
