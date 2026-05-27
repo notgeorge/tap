@@ -551,7 +551,7 @@ The roscale OSCAL SSP and POA&M workbench panels resolve their target `complianc
   }
   ```
 
-  to the canonical shape required by the platform spec:
+  to the canonical shape required by the platform spec, naming the `latest_by` selection strategy explicitly because the roscale workbenches want the most-recent emission of a given kind:
 
   ```json
   {
@@ -560,6 +560,7 @@ The roscale OSCAL SSP and POA&M workbench panels resolve their target `complianc
       "entity_type": "compliance_artifact",
       "field":       "kind",
       "value":       "oscal_ssp",
+      "selection":   "latest_by",
       "sort_field":  "fetched_at"
     }
   }

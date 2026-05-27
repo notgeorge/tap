@@ -303,7 +303,7 @@ The KSI scoreboard is a multi-entity panel (SSP + POA&M roles) that currently re
   }
   ```
 
-  to the canonical multi-role shape required by the platform spec:
+  to the canonical multi-role shape required by the platform spec, naming the `latest_by` selection strategy explicitly on each role because the scoreboard wants the most-recent emission of each kind:
 
   ```json
   {
@@ -314,12 +314,14 @@ The KSI scoreboard is a multi-entity panel (SSP + POA&M roles) that currently re
         "entity_type": "compliance_artifact",
         "field":       "kind",
         "value":       "oscal_ssp",
+        "selection":   "latest_by",
         "sort_field":  "fetched_at"
       },
       "poam": {
         "entity_type": "compliance_artifact",
         "field":       "kind",
         "value":       "oscal_poam",
+        "selection":   "latest_by",
         "sort_field":  "fetched_at"
       }
     }
