@@ -336,6 +336,29 @@ def ssp_implemented_requirements(doc: dict[str, Any]) -> list[dict[str, Any]]:
             else:
                 other_links.append(entry)
 
+        # Short preview for the collapsed-control summary line. Strip
+        # newlines (the narrative may span paragraphs) and truncate to a
+        # readable one-line slice. Full text still lives in
+        # statement_summary for the expanded view.
+        preview = " ".join((statement_summary or "").split())
+        if len(preview) > 110:
+            preview = preview[:107].rstrip() + "…"
+
+        # Search-text blob for the client-side type-to-filter. Includes
+        # everything a user might plausibly grep for: control id, family
+        # label, status, narrative, link text/URLs. Lowercased once
+        # server-side so the client filter is a cheap substring check.
+        search_parts = [
+            control_id,
+            control_family_label(control_id),
+            impl_status,
+            " ".join(origination_kinds),
+            statement_summary or "",
+            req.get("remarks") or "",
+            " ".join(f"{lk['text']} {lk['href']}" for lk in evidence_links + reference_links + other_links),
+        ]
+        search_text = " ".join(part for part in search_parts if part).lower()
+
         out.append(
             {
                 "control_id": control_id,
@@ -343,10 +366,14 @@ def ssp_implemented_requirements(doc: dict[str, Any]) -> list[dict[str, Any]]:
                 "implementation_status": impl_status,
                 "origination_kinds": origination_kinds,
                 "statement_summary": statement_summary,
+                "statement_preview": preview,
                 "remarks": req.get("remarks") or "",
                 "evidence_links": evidence_links,
                 "reference_links": reference_links,
                 "other_links": other_links,
+                "evidence_count": len(evidence_links),
+                "reference_count": len(reference_links),
+                "search_text": search_text,
             }
         )
     out.sort(key=lambda r: r["control_id"])
@@ -357,10 +384,22 @@ def ssp_implemented_requirements_by_family(impl_reqs: list[dict[str, Any]]) -> l
     families: dict[str, list[dict[str, Any]]] = {}
     for r in impl_reqs:
         families.setdefault(r["family_label"], []).append(r)
-    return [
-        {"family": fam, "count": len(reqs), "requirements": reqs}
-        for fam, reqs in sorted(families.items())
-    ]
+    out: list[dict[str, Any]] = []
+    for fam, reqs in sorted(families.items()):
+        # Per-family aggregate of how many controls reached each
+        # implementation status. Drives the family-header pill
+        # ("X of Y implemented") so the user can see at a glance which
+        # families have gaps without expanding every family.
+        implemented = sum(1 for r in reqs if r["implementation_status"] == "implemented")
+        out.append(
+            {
+                "family": fam,
+                "count": len(reqs),
+                "implemented_count": implemented,
+                "requirements": reqs,
+            }
+        )
+    return out
 
 
 def ssp_components(doc: dict[str, Any]) -> list[dict[str, Any]]:
