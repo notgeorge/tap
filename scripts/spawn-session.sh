@@ -33,6 +33,34 @@ warn()  { printf "\033[33m    %s\033[0m\n" "$1"; }
 fail()  { printf "\033[31m    ERROR: %s\033[0m\n" "$1" >&2; exit 1; }
 prompt(){ printf "    \033[36m%s\033[0m " "$1"; }
 
+# Run a command with a wall-clock timeout. Pure bash so we don't depend on
+# coreutils' `timeout`(1) (not present on stock macOS). Forwards the command's
+# stdout to ours; stderr inherits from the caller (so `with_timeout N cmd 2>/dev/null`
+# still suppresses the inner command's stderr). Returns the command's exit code,
+# or 124 if it was killed for running past the deadline (matching GNU timeout).
+with_timeout() {
+  local timeout_secs="$1"; shift
+  local tmpfile; tmpfile="$(mktemp)"
+  "$@" >"$tmpfile" &
+  local pid=$!
+  local elapsed=0
+  while (( elapsed < timeout_secs )); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      wait "$pid"; local rc=$?
+      cat "$tmpfile"; rm -f "$tmpfile"
+      return $rc
+    fi
+    sleep 1
+    elapsed=$(( elapsed + 1 ))
+  done
+  kill -TERM "$pid" 2>/dev/null
+  sleep 1
+  kill -KILL "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
+  cat "$tmpfile"; rm -f "$tmpfile"
+  return 124
+}
+
 # Trap to give the user a one-line recovery command if anything goes sideways.
 SESSION_NAME=""
 on_failure() {
@@ -224,13 +252,27 @@ WORKTREE="$HOME/tap-sessions/$SESSION_NAME"
 # missing at cleanup time). Leftover volumes survive `git worktree remove`
 # and would silently inherit database, container venv, or uv cache state into
 # the new session.
-STALE_VOLUMES="$(docker volume ls --filter "name=tap_${SESSION_NAME}_" --format '{{.Name}}' 2>/dev/null || true)"
+# Time-box the Docker probes — a wedged Docker Desktop will otherwise hang
+# this script silently for as long as the operator is willing to wait.
+# 8s is generous: a healthy daemon answers these queries in <100ms.
+DOCKER_PROBE_TIMEOUT=8
+STALE_VOLUMES_RC=0
+STALE_VOLUMES="$(with_timeout "$DOCKER_PROBE_TIMEOUT" docker volume ls --filter "name=tap_${SESSION_NAME}_" --format '{{.Name}}' 2>/dev/null)" || STALE_VOLUMES_RC=$?
+if [[ $STALE_VOLUMES_RC -eq 124 ]]; then
+  fail "'docker volume ls' timed out after ${DOCKER_PROBE_TIMEOUT}s — the Docker daemon is unresponsive.
+    Restart Docker Desktop (or your Docker engine) and re-run this script."
+fi
 if [[ -n "$STALE_VOLUMES" ]]; then
   fail "Stale Docker volumes exist for project 'tap_${SESSION_NAME}':
     $STALE_VOLUMES
     Remove them first: scripts/despawn-session.sh $SESSION_NAME --yes"
 fi
-STALE_CONTAINERS="$(docker ps -a --filter "label=com.docker.compose.project=tap_${SESSION_NAME}" --format '{{.Names}}' 2>/dev/null || true)"
+STALE_CONTAINERS_RC=0
+STALE_CONTAINERS="$(with_timeout "$DOCKER_PROBE_TIMEOUT" docker ps -a --filter "label=com.docker.compose.project=tap_${SESSION_NAME}" --format '{{.Names}}' 2>/dev/null)" || STALE_CONTAINERS_RC=$?
+if [[ $STALE_CONTAINERS_RC -eq 124 ]]; then
+  fail "'docker ps -a' timed out after ${DOCKER_PROBE_TIMEOUT}s — the Docker daemon is unresponsive.
+    Restart Docker Desktop (or your Docker engine) and re-run this script."
+fi
 if [[ -n "$STALE_CONTAINERS" ]]; then
   fail "Stale Docker containers exist for project 'tap_${SESSION_NAME}': $STALE_CONTAINERS
     Remove them first: docker compose -p tap_${SESSION_NAME} down -v --remove-orphans"
