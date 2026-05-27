@@ -42,14 +42,14 @@ from .secret import (
 logger = logging.getLogger(__name__)
 
 # Log site tokens for the recorder. Minted via scripts/log-site-id.
-_SITE_RUN_STARTED = "RUN_STARTED"
-_SITE_ABORT_SECRET = "ABORT_SECRET"
-_SITE_ABORT_API = "ABORT_API"
-_SITE_REPO_DONE = "REPO_DONE"
-_SITE_RUNNER_DEGRADED = "RUNNER_DEGRADED"
-_SITE_WORKFLOW_YAML_MISSING = "WORKFLOW_YAML_MISSING"
-_SITE_BATCH_SUBMITTED = "BATCH_SUBMITTED"
-_SITE_ENRICHMENT_SUMMARY = "ENRICHMENT_SUMMARY"
+_SITE_RUN_STARTED = "8fb5"
+_SITE_ABORT_SECRET = "64be"
+_SITE_ABORT_API = "54ce"
+_SITE_REPO_DONE = "d98c"
+_SITE_RUNNER_DEGRADED = "b969"
+_SITE_WORKFLOW_YAML_MISSING = "9573"
+_SITE_BATCH_SUBMITTED = "d66b"
+_SITE_ENRICHMENT_SUMMARY = "fd9e"
 
 
 class GithubCollectorError(Exception):
@@ -168,7 +168,7 @@ class GithubCollector(CollectorBase):
             )
         )
 
-        # repository
+        # repository (envelope name == payload name == full_name for display)
         repo_payload = client.get(f"/repos/{full_name}")
         repo_uuid = repository_id(full_name)
         nodes.append(
@@ -180,7 +180,7 @@ class GithubCollector(CollectorBase):
                 fields={
                     "full_name": full_name,
                     "owner_login": owner,
-                    "name": repo,
+                    "name": full_name,
                     "github_id": repo_payload.get("id"),
                     "default_branch": repo_payload.get("default_branch", ""),
                     "visibility": repo_payload.get("visibility", ""),
@@ -199,17 +199,18 @@ class GithubCollector(CollectorBase):
         for wf in workflows:
             wf_uuid = workflow_id(full_name, wf["id"])
             raw_yaml, parsed_config = self._fetch_workflow_config(client, full_name, wf.get("path", ""))
+            wf_display_name = wf.get("name") or wf.get("path") or str(wf["id"])
             nodes.append(
                 node_envelope(
                     entity_id=wf_uuid,
                     entity_type="github_workflow",
-                    name=wf.get("name") or wf.get("path") or str(wf["id"]),
+                    name=wf_display_name,
                     dimensions=actions_dims,
                     fields={
                         "full_name": full_name,
                         "workflow_id": wf["id"],
                         "path": wf.get("path", ""),
-                        "name": wf.get("name", ""),
+                        "name": wf_display_name,
                         "state": wf.get("state", ""),
                         "html_url": wf.get("html_url", ""),
                         "configuration": parsed_config,
@@ -261,16 +262,17 @@ class GithubCollector(CollectorBase):
             )
             for j in jobs:
                 j_uuid = job_id(full_name, j["id"])
+                j_display_name = j.get("name") or str(j["id"])
                 nodes.append(
                     node_envelope(
                         entity_id=j_uuid,
                         entity_type="github_actions_job",
-                        name=j.get("name", str(j["id"])),
+                        name=j_display_name,
                         dimensions=observation_dims,
                         fields={
                             "full_name": full_name,
                             "job_id": j["id"],
-                            "name": j.get("name", ""),
+                            "name": j_display_name,
                             "status": j.get("status", ""),
                             "conclusion": j.get("conclusion") or "",
                             "started_at": j.get("started_at"),
@@ -308,16 +310,17 @@ class GithubCollector(CollectorBase):
         for rn in runners:
             rn_uuid = runner_id(full_name, rn["id"])
             runner_uuid_by_id[rn["id"]] = rn_uuid
+            rn_display_name = rn.get("name") or str(rn["id"])
             nodes.append(
                 node_envelope(
                     entity_id=rn_uuid,
                     entity_type="github_runner",
-                    name=rn.get("name", str(rn["id"])),
+                    name=rn_display_name,
                     dimensions=actions_dims,
                     fields={
                         "full_name": full_name,
                         "runner_id": rn["id"],
-                        "name": rn.get("name", ""),
+                        "name": rn_display_name,
                         "os": rn.get("os", ""),
                         "status": rn.get("status", ""),
                         "busy": bool(rn.get("busy", False)),
@@ -400,7 +403,7 @@ class GithubCollector(CollectorBase):
         for res in enrichment.resolutions:
             if res.candidate_count > 1:
                 self.record_warn(
-                    "LINK_AMBIGUOUS",
+                    "3812",
                     "LINK_AMBIGUOUS",
                     f"Rule {res.rule_name} on {res.source_entity_type}: value "
                     f"{res.source_value!r} matched {res.candidate_count} candidates; no edge emitted.",

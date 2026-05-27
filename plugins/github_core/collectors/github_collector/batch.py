@@ -1,10 +1,11 @@
 """GRIFT envelope + batch assembly for the github_core collector.
 
 Spec: plugins/github_core/specs/spec-github-core-v0.md
-(req-github-core-collector, req-github-core-dimensions-2 / repo scope
-dimensions emitted per envelope). Two batches per run: the GitHub batch
-(nodes + spine edges) and the enrichment batch (REFERENCES_RESOURCE edges
-only).
+(req-github-core-collector). Two batches per run: the GitHub batch (nodes +
+spine edges) and the enrichment batch (REFERENCES_RESOURCE edges only).
+
+Document shape per `tap_grid/schemas/grift-document.schema.json`:
+  {metadata: {grift_version}, _reserved: {}, batches: [GriftBatchContainer]}
 """
 
 from __future__ import annotations
@@ -48,13 +49,14 @@ def edge_envelope(
     return {
         "entity": {
             "entity_id": str(entity_id),
-            "entity_type": edge_type,
+            "entity_type": "edge",
             "name": edge_type,
             "dimensions": dimensions,
         },
         "edge": {
-            "source_id": str(source_id),
-            "target_id": str(target_id),
+            "from_entity_id": str(source_id),
+            "to_entity_id": str(target_id),
+            "edge_type": edge_type,
             "properties": properties or {},
         },
     }
@@ -68,23 +70,30 @@ def assemble_batch(
     edges: list[dict[str, Any]],
     batch_dimensions: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Build a single GRIFT document for one phase of one collection run."""
-    now = datetime.now(UTC).isoformat()
-    return {
-        "grift_version": _GRIFT_VERSION,
+    """Wrap nodes + edges into a single-batch GRIFT v0 document."""
+    moment = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    batch = {
         "batch_entity": {
             "entity_id": str(uuid7()),
-            "entity_type": "grift_batch",
+            "entity_type": "batch",
             "name": batch_name,
             "dimensions": batch_dimensions or {"github.platform": "github.com"},
+        },
+        "batch_node": {
+            "source": "github_core",
+            "name": batch_name,
+            "description": description,
             "description_json": {
                 "format": COLLECTION_FORMAT,
-                "description": description,
-                "collected_at": now,
-                "node_count": len(nodes),
-                "edge_count": len(edges),
+                "collected_at": moment,
+                "counts": {"nodes": len(nodes), "edges": len(edges)},
             },
         },
         "nodes": nodes,
         "edges": edges,
+    }
+    return {
+        "metadata": {"grift_version": _GRIFT_VERSION},
+        "_reserved": {},
+        "batches": [batch],
     }
