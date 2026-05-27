@@ -11,7 +11,7 @@
       },
       "batch_node": {
         "name": "Gridkin fixture — OCC update",
-        "description": "Replaces the OCC Demo Node with envelope-declared entity_expected_version=2. The seed fixture's create lands the entity at version=2 (GRIFT's prespecified-id create path: Entity.objects.create produces version=1, then BaseModel.save's spine sync bumps to 2). This fixture's replace must observe version=2 and bump to 3. If the OCC machinery regresses (version check skipped, declared-on-missing rule broken, etc.) this fixture fails to import and the scenario fails before the query runs.",
+        "description": "Replaces the OCC Demo Node with envelope-declared entity_expected_version=1. The seed fixture's create lands the entity at version=1 (a single logical create operation produces one version state). This fixture's replace must observe version=1 and bump to 2. If the OCC machinery regresses (version check skipped, declared-on-missing rule broken, etc.) this fixture fails to import and the scenario fails before the query runs.",
         "source": "plugin:gryphon_playground"
       },
       "nodes": [
@@ -21,7 +21,7 @@
             "entity_type": "pg_node",
             "name": "OCC Demo Node",
             "dimensions": { "tap.playground": "gridkin" },
-            "entity_expected_version": 2
+            "entity_expected_version": 1
           },
           "node": {
             "name": "OCC Demo Node",

@@ -10,7 +10,7 @@
       "created_at": "<volatile>",
       "updated_at": "<volatile>",
       "deleted_at": null,
-      "version": 2,
+      "version": 1,
       "originating_grid_id": "<volatile>"
     },
     {
@@ -23,7 +23,7 @@
       "created_at": "<volatile>",
       "updated_at": "<volatile>",
       "deleted_at": null,
-      "version": 2,
+      "version": 1,
       "originating_grid_id": "<volatile>"
     },
     {
@@ -36,7 +36,7 @@
       "created_at": "<volatile>",
       "updated_at": "<volatile>",
       "deleted_at": null,
-      "version": 2,
+      "version": 1,
       "originating_grid_id": "<volatile>"
     },
     {
@@ -49,7 +49,7 @@
       "created_at": "<volatile>",
       "updated_at": "<volatile>",
       "deleted_at": null,
-      "version": 2,
+      "version": 1,
       "originating_grid_id": "<volatile>"
     },
     {
@@ -62,7 +62,7 @@
       "created_at": "<volatile>",
       "updated_at": "<volatile>",
       "deleted_at": null,
-      "version": 2,
+      "version": 1,
       "originating_grid_id": "<volatile>"
     },
     {
@@ -75,7 +75,7 @@
       "created_at": "<volatile>",
       "updated_at": "<volatile>",
       "deleted_at": null,
-      "version": 2,
+      "version": 1,
       "originating_grid_id": "<volatile>"
     },
     {
@@ -88,7 +88,7 @@
       "created_at": "<volatile>",
       "updated_at": "<volatile>",
       "deleted_at": null,
-      "version": 2,
+      "version": 1,
       "originating_grid_id": "<volatile>"
     }
   ],

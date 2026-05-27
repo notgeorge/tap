@@ -10,7 +10,7 @@
       "created_at": "<volatile>",
       "updated_at": "<volatile>",
       "deleted_at": null,
-      "version": 3,
+      "version": 2,
       "originating_grid_id": "<volatile>"
     }
   ],
