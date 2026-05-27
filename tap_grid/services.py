@@ -433,6 +433,7 @@ def _execute_write_pipeline(
         # (e.g. GRIFT upsert where identity must be preserved across grids).
         # This must happen after field-setting so get_name() returns the right value,
         # and before save() so save() takes the explicit-entity path.
+        spine_just_created = False
         if is_create and op.entity_id is not None and instance.entity_id is None:
             prespecified_id = _coerce_uuid(op.entity_id)
             if op.verb == "create_edge":
@@ -449,6 +450,16 @@ def _execute_write_pipeline(
                 name=instance.get_name(),
                 dimensions=merged_dims,
             )
+            # Signal BaseModel.save() to skip its spine_updates branch on the
+            # subsequent save: this Entity row was created moments ago at
+            # version=1 with the correct name/dimensions/updated_at, and the
+            # forthcoming save is the SAME logical create operation — not a
+            # follow-up mutation. Without this signal, save() would land
+            # spine_updates that bump version to 2, producing a single
+            # create op that mysteriously lands at version=2 while the
+            # auto-create branch (entity_id None) correctly lands at 1.
+            # See req-grid-service-batch (single-bump invariant).
+            spine_just_created = True
 
         snapshot_entity: Entity | None = None
         if is_delete:
@@ -477,7 +488,7 @@ def _execute_write_pipeline(
                 version=F("version") + 1,
             )
         else:
-            instance.save(skip_validation=True)
+            instance.save(skip_validation=True, _spine_just_created=spine_just_created)
             entity_id_out = instance.entity_id
             snapshot_entity = instance.entity
             # Record provenance for non-delete writes too so the BatchEvent log
