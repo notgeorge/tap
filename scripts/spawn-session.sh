@@ -397,6 +397,22 @@ else
 fi
 
 # ============================================================================
+# Step 3.6: Wire project-internal skills into .claude/skills/
+#
+# Each <app>/skills/<skill-name>/SKILL.md becomes a harness-invocable slash
+# command by being symlinked into <worktree>/.claude/skills/. Without this
+# step the in-tree skills (build-gryphon-capability, add-page, etc.) are
+# just markdown discipline docs the agent has to read and follow manually.
+#
+# The symlink farm is per-worktree and gitignored; never pollutes the user's
+# global ~/.claude/skills/ namespace. Regenerator is idempotent and can be
+# re-run anywhere by hand (`scripts/wire-skills.sh`) — useful after adding a
+# new skill mid-session.
+# ============================================================================
+bold "Step 3.6: Wiring project-internal skills into .claude/skills/"
+"$WORKTREE/scripts/wire-skills.sh"
+
+# ============================================================================
 # Step 4: Build & start the Docker stack
 #
 # Spec: req-dev-multisession-env-cascade — must invoke compose via scripts/dc
