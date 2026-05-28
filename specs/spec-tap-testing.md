@@ -57,12 +57,14 @@ addopts = "-v --tb=short"
 
 | Scope | Command |
 | --- | --- |
-| Full suite | `docker compose exec web uv run pytest` |
-| Single app | `docker compose exec web uv run pytest tap_grid/` |
-| Single plugin | `docker compose exec web uv run pytest plugins/lotr/` |
-| Single file | `docker compose exec web uv run pytest tap_grid/tests/test_services.py` |
-| Single test | `docker compose exec web uv run pytest tap_grid/tests/test_services.py::test_name` |
-| By marker | `docker compose exec web uv run pytest -m "spec"` |
+| Full suite | `scripts/dc exec web uv run pytest` |
+| Single app | `scripts/dc exec web uv run pytest tap_grid/` |
+| Single plugin | `scripts/dc exec web uv run pytest plugins/lotr/` |
+| Single file | `scripts/dc exec web uv run pytest tap_grid/tests/test_services.py` |
+| Single test | `scripts/dc exec web uv run pytest tap_grid/tests/test_services.py::test_name` |
+| By marker | `scripts/dc exec web uv run pytest -m "spec"` |
+
+Use **`scripts/dc`**, not bare `docker compose`. Bare `docker compose` from a worktree only auto-loads `.env`, so it silently lands on the primary checkout's `tap` project on port 8000 even when the worktree's `.env.local` overrides `COMPOSE_PROJECT_NAME` and ports. Test runs would target the wrong project's Postgres — passing or failing against state the worktree's developer can't see in the browser. `scripts/dc` cascades `.env.local` on top of `.env` via `--env-file .env --env-file .env.local`, hitting the worktree's actual project. See `spec-dev-multisession.md` `req-dev-multisession-env-cascade-1`.
 
 The `testpaths` list is ordered to match the application scaffolding priority. New applications should be added here when they gain tests.
 

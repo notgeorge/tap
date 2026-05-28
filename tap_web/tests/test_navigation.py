@@ -87,6 +87,38 @@ class TestBuildBreadcrumb:
         segments = build_breadcrumb("/my_cool_page")
         assert segments[1].label == "My Cool Page"
 
+    def test_home_marked_is_home_regardless_of_registration(self):
+        """req-web-nav-auto-parent-4: the home segment is always rendered as
+        the product mark linking to `/`, whether or not a Page is registered
+        there. The helper carries `is_home=True`; the template special-cases
+        it. We verify the marker is set; the rendering check is in
+        TestBreadcrumbRendering.test_tap_renders_at_home_even_without_root_page.
+        """
+        segments = build_breadcrumb("/samsite/compliance")
+        assert segments[0].is_home is True
+        assert segments[0].url == "/"
+
+
+@pytest.mark.django_db
+class TestBreadcrumbRendering:
+    """Template-level assertions on the chrome's home-segment special case."""
+
+    def test_tap_renders_at_home_even_without_root_page(self):
+        """req-web-nav-auto-parent-4 in template form: TAP renders + links to /
+        on every deep page, even when no Page is registered at slug `/`.
+        Regression for the bug where unregistered home fell through to an
+        empty-label `<span>`.
+        """
+        # Create a deep page with NO Page at `/` registered.
+        _create_page("Samsite", "/samsite")
+        _create_page("Samsite Compliance", "/samsite/compliance")
+        body = Client().get("/samsite/compliance").content.decode()
+        # The home `<a>` is present, links to /, carries the product mark.
+        assert 'href="/"' in body
+        assert ">TAP<" in body  # default product name from settings
+        # The home segment is NOT the empty-label unregistered fallback.
+        assert '<span class="text-slate-400"></span>' not in body
+
     def test_lookup_is_batched_in_one_query(self, django_assert_num_queries):
         """All Page lookups happen in a single batched query."""
         _create_page("A", "/a")
