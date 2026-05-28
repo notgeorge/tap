@@ -57,9 +57,19 @@
       return treePages();
     }
     const q = query.toLowerCase();
+    // Ranked search: fuzzy score dominates; nav_weight acts as a tiebreaker
+    // boost (~5pts per weight unit) per req-web-nav-page-weight — high
+    // priority edges out equal-score items but doesn't override a clearly
+    // better fuzzy match. Cap the boost contribution so a +999 admin page
+    // can't beat a tight fuzzy hit on an unweighted page.
     const scored = navIndex.pages
-      .map((page) => ({ score: scorePage(page, q), page }))
-      .filter((entry) => entry.score > 0)
+      .map((page) => {
+        const base = scorePage(page, q);
+        if (base === 0) return null;
+        const boost = Math.max(-100, Math.min(100, (page.nav_weight || 0) * 5));
+        return { score: base + boost, page };
+      })
+      .filter((entry) => entry !== null)
       .sort((a, b) => b.score - a.score);
     return scored.slice(0, 10).map((entry) => entry.page);
   }
@@ -79,11 +89,17 @@
       if (!byParent.has(parent)) byParent.set(parent, []);
       byParent.get(parent).push(p);
     });
+    // Within each parent's children: sort by `nav_weight DESC, name ASC` per
+    // req-web-nav-page-weight. Higher weight floats up; ties alphabetical.
     const out = [];
     const walk = (parentUrl, depth) => {
       const children = (byParent.get(parentUrl) || [])
         .slice()
-        .sort((a, b) => a.url.localeCompare(b.url));
+        .sort(
+          (a, b) =>
+            (b.nav_weight || 0) - (a.nav_weight || 0) ||
+            (a.name || a.url).localeCompare(b.name || b.url)
+        );
       children.forEach((c) => {
         out.push({ ...c, _depth: depth });
         walk(c.url, depth + 1);

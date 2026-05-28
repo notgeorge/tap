@@ -22,14 +22,18 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e76b76b2983b",
             "entity_type": "panel",
             "name": "Welcome to Middle-earth",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "middle-earth-welcome",
             "name": "Welcome to Middle-earth",
             "view": "tap_web/panels/text_panel.html",
             "editor_view": "tap_web/panels/text_panel_editor.html",
-            "config": {"text": "hello middle earth"}
+            "config": {
+              "text": "hello middle earth"
+            }
           }
         },
         {
@@ -37,16 +41,26 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e76c10ba73ae",
             "entity_type": "page",
             "name": "Middle-earth",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "Middle-earth",
             "slug": "/middle-earth",
             "layout": {
               "columns": {
-                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "main"}}}
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {
+                      "panel-id": "main"
+                    }
+                  }
+                }
               }
-            }
+            },
+            "nav_weight": -100
           }
         },
         {
@@ -54,14 +68,19 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e76ec09f2163",
             "entity_type": "panel",
             "name": "LOTR Characters",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "lotr-characters-table",
             "name": "LOTR Characters",
             "view": "tap_web/panels/table_panel.html",
             "editor_view": "tap_web/panels/table_panel_editor.html",
-            "config": {"column_mode": "common_metadata", "default_page_size": 100}
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 100
+            }
           }
         },
         {
@@ -69,16 +88,26 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7709ba2f8e8",
             "entity_type": "page",
             "name": "Middle-earth Characters",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "Middle-earth Characters",
             "slug": "/middle-earth/characters",
             "layout": {
               "columns": {
-                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "characters"}}}
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {
+                      "panel-id": "characters"
+                    }
+                  }
+                }
               }
-            }
+            },
+            "nav_weight": -100
           }
         },
         {
@@ -86,7 +115,9 @@
             "entity_id": "fa7c2017-a654-45dc-a057-702e1f91431a",
             "entity_type": "projection",
             "name": "LOTR Saga Projection",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "LOTR Saga Projection",
@@ -105,7 +136,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7720f3e8160",
             "entity_type": "elevation",
             "name": "lotr-saga-level",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "lotr-saga-level",
@@ -113,9 +146,14 @@
             "definition": {
               "zoom": 0.6,
               "description": "All realms, locations, characters, and artifacts arranged in nested compound nodes.",
-              "layouts": ["019dd143-3e8f-73e4-b0fa-e774e45b8865"],
+              "layouts": [
+                "019dd143-3e8f-73e4-b0fa-e774e45b8865"
+              ],
               "double_tap_targets": [
-                {"entity_type": "character", "target_elevation_id": "019dd143-3e8f-73e4-b0fa-e77343265a16"}
+                {
+                  "entity_type": "character",
+                  "target_elevation_id": "019dd143-3e8f-73e4-b0fa-e77343265a16"
+                }
               ]
             }
           }
@@ -125,7 +163,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e77343265a16",
             "entity_type": "elevation",
             "name": "lotr-character-view",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "lotr-character-view",
@@ -133,7 +173,9 @@
             "definition": {
               "zoom": 0.9,
               "description": "Zoomed view on a single character showing their wielded artifacts.",
-              "layouts": ["019dd143-3e8f-73e4-b0fa-e7751603210b"],
+              "layouts": [
+                "019dd143-3e8f-73e4-b0fa-e7751603210b"
+              ],
               "double_tap_targets": []
             }
           }
@@ -143,7 +185,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e774e45b8865",
             "entity_type": "layout",
             "name": "lotr-saga-stage",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "lotr-saga-stage",
@@ -158,7 +202,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7751603210b",
             "entity_type": "layout",
             "name": "lotr-character-view-layout",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "lotr-character-view-layout",
@@ -173,7 +219,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7942c5fbeb0",
             "entity_type": "panel",
             "name": "LOTR Saga Graph",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "lotr-saga-graph",
@@ -188,16 +236,26 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e795637e01d5",
             "entity_type": "page",
             "name": "Middle-earth Saga",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "Middle-earth Saga",
             "slug": "/middle-earth/saga",
             "layout": {
               "columns": {
-                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "saga"}}}
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {
+                      "panel-id": "saga"
+                    }
+                  }
+                }
               }
-            }
+            },
+            "nav_weight": -100
           }
         }
       ],
@@ -213,7 +271,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e76c10ba73ae",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e76b76b2983b",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "main"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "main"
+              }
+            }
           }
         },
         {
@@ -241,7 +305,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7709ba2f8e8",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e76ec09f2163",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "characters"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "characters"
+              }
+            }
           }
         },
         {
@@ -255,7 +325,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e795637e01d5",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7942c5fbeb0",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "saga"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "saga"
+              }
+            }
           }
         },
         {
@@ -283,7 +359,13 @@
             "from_entity_id": "fa7c2017-a654-45dc-a057-702e1f91431a",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7720f3e8160",
             "edge_type": "USES_ELEVATION",
-            "properties": {"hotlink": {"model": "projection", "spec": "projection-elevations", "value": "019dd143-3e8f-73e4-b0fa-e7720f3e8160"}}
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-elevations",
+                "value": "019dd143-3e8f-73e4-b0fa-e7720f3e8160"
+              }
+            }
           }
         },
         {
@@ -297,7 +379,13 @@
             "from_entity_id": "fa7c2017-a654-45dc-a057-702e1f91431a",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e77343265a16",
             "edge_type": "USES_ELEVATION",
-            "properties": {"hotlink": {"model": "projection", "spec": "projection-elevations", "value": "019dd143-3e8f-73e4-b0fa-e77343265a16"}}
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-elevations",
+                "value": "019dd143-3e8f-73e4-b0fa-e77343265a16"
+              }
+            }
           }
         },
         {
@@ -311,7 +399,13 @@
             "from_entity_id": "fa7c2017-a654-45dc-a057-702e1f91431a",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7720f3e8160",
             "edge_type": "USES_DEFAULT_ELEVATION",
-            "properties": {"hotlink": {"model": "projection", "spec": "projection-default-elevation", "value": "019dd143-3e8f-73e4-b0fa-e7720f3e8160"}}
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-default-elevation",
+                "value": "019dd143-3e8f-73e4-b0fa-e7720f3e8160"
+              }
+            }
           }
         },
         {
@@ -325,7 +419,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7720f3e8160",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e774e45b8865",
             "edge_type": "USES_LAYOUT",
-            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-layouts", "value": "019dd143-3e8f-73e4-b0fa-e774e45b8865"}}
+            "properties": {
+              "hotlink": {
+                "model": "elevation",
+                "spec": "elevation-layouts",
+                "value": "019dd143-3e8f-73e4-b0fa-e774e45b8865"
+              }
+            }
           }
         },
         {
@@ -339,7 +439,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e77343265a16",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7751603210b",
             "edge_type": "USES_LAYOUT",
-            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-layouts", "value": "019dd143-3e8f-73e4-b0fa-e7751603210b"}}
+            "properties": {
+              "hotlink": {
+                "model": "elevation",
+                "spec": "elevation-layouts",
+                "value": "019dd143-3e8f-73e4-b0fa-e7751603210b"
+              }
+            }
           }
         },
         {
@@ -353,7 +459,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7720f3e8160",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e77343265a16",
             "edge_type": "NAVIGATES_TO",
-            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-navigates-to", "value": "019dd143-3e8f-73e4-b0fa-e77343265a16"}}
+            "properties": {
+              "hotlink": {
+                "model": "elevation",
+                "spec": "elevation-navigates-to",
+                "value": "019dd143-3e8f-73e4-b0fa-e77343265a16"
+              }
+            }
           }
         },
         {

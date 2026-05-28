@@ -37,6 +37,7 @@ The chrome budget is fixed: product mark, breadcrumb, session tag, command-palet
 | req-web-nav-chrome-budget | [Chrome Budget](#chrome-budget) | Implemented | Header contents enumerated and capped at five elements |
 | req-web-nav-index-endpoint | [Machine-Readable Nav Index](#machine-readable-nav-index) | Implemented | `/__nav-index.json` enumerates reachable pages + canonical breadcrumb paths |
 | req-web-nav-page-discoverable | [Page Discoverability Gate](#page-discoverability-gate) | Implemented | Pages requiring URL parameters opt out of all browse-discovery surfaces via a `discoverable=False` flag |
+| req-web-nav-page-weight | [Page Sort Weight](#page-sort-weight) | Implemented | `Page.nav_weight` integer floats pages up (+) or sinks down (−) in discovery surfaces; default 0 = alphabetical |
 
 ## Requirements
 
@@ -404,6 +405,50 @@ A future iteration may add **partial discoverability** — surfacing parameteriz
 #### Future
 
 Partial discoverability: surface parameterized Pages in the palette as `<Page Name> → pick entity` flows once the palette indexes entities (req-web-nav-command-palette-3). At that point the flag's semantic shifts from "this Page is not discoverable" to "this Page is only discoverable through an entity-picker affordance" — same default, expanded behavior on the opt-out side.
+
+
+### Page Sort Weight
+----
+RID: `req-web-nav-page-weight`
+Status: `Implemented`
+
+A signed `nav_weight: IntegerField(default=0)` on the `Page` model biases sort order in every browse-discovery surface — palette tree mode, palette ranked search (as a small tiebreaker), chevron sibling popovers, column-view explorer, and `/__nav-index.json`. Higher floats up; negative sinks down; zero is the default and resolves alphabetically with other zero-weight pages.
+
+#### Status Details
+
+The complaint that produced this requirement: pages like `/administrivia` (operator-facing internal navigation) sorted alphabetically above primary user destinations like `/samsite/compliance` simply because `a` < `s`. Behavioral solutions (frecency, recency) were considered and deferred: they don't help on fresh deployments where everything ties at zero usage. A static weight gives the initial bias for free.
+
+#### Implementation
+
+- `nav_weight` is a signed integer with default `0`. Most Pages don't set it; alphabetical-within-tier is the natural behavior.
+- The nav-index endpoint (`nav_index_view`) orders the queryset by `(-nav_weight, slug)` so the returned JSON is already in priority order. Consumers read top-to-bottom and inherit the sort without re-sorting client-side, except where they need to.
+- Palette **tree mode** (empty query) re-sorts children of each parent by `(-nav_weight, name)` because tree-building groups siblings by parent before flattening.
+- Palette **ranked search** (typed query) adds `nav_weight * 5` to the fuzzy score, **clamped to [-100, +100]**, so high-weight items edge out same-score siblings but a clearly better fuzzy match can't be drowned by an aggressive weight. A `+999` page can't beat a tight fuzzy hit on a `0`-weight page; that's the failure mode the clamp prevents.
+- Chevron **sibling popover** and **column view** both sort siblings by `(-nav_weight, label)` per level. The nav-index entry's `nav_weight` is the source of truth.
+
+#### Tier Convention
+
+| Tier | Range | Use |
+|---|---|---|
+| Primary | `+100 … +999` | Pages the user came here to use. The "home" of a workflow. |
+| Routine | `0` | Default. Alphabetical within the tier. |
+| Operator / internal | `-100 … -999` | Administrative pages — visible because operators need them, but not aggressive about it. |
+
+Authors can target any integer, but the tiers give a clean starting frame so weights don't drift into arbitrary 47-vs-53 micromanagement.
+
+#### Why Not Frecency Or Pinning Yet
+
+- **Frecency** (Firefox URL bar, Linear, Slack) auto-tunes based on visit history but starts cold on fresh deployments. Static weight gives the seed; frecency could layer on later as a multiplicative boost.
+- **Pinned-as-a-separate-flag** (boolean) is just a degenerate case of large positive `nav_weight`. Keeping a single mechanism avoids the "is this pinned or weighted?" confusion.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-nav-page-weight-1 | Default Zero | Implemented | `Page.nav_weight` defaults to `0`; existing pages preserve their alphabetical-within-tier behavior. | Migration `0011_historicalpage_nav_weight_page_nav_weight`. |
+| req-web-nav-page-weight-2 | Higher Floats Up | Implemented | Sort order is `nav_weight DESC, name ASC`. Positive weights surface above zero; negative weights sink below. | Verified by nav-index endpoint order + palette tree mode + chevron popovers. |
+| req-web-nav-page-weight-3 | Ranked Tiebreaker, Not Override | Implemented | In the palette's typed-query mode, `nav_weight` contributes a clamped boost to fuzzy score (`±100` max) so it acts as a tiebreaker — not a way to drown out a stronger fuzzy match on an unweighted page. | Clamp lives in `palette.js`. |
+| req-web-nav-page-weight-4 | All Discovery Surfaces Honor The Sort | Implemented | Palette (tree + ranked), chevron popovers, column view, and the nav-index endpoint all sort by `(-nav_weight, name|slug)`. | Same source of truth as `req-web-nav-page-discoverable-4`. |
 
 
 ## Future Seams

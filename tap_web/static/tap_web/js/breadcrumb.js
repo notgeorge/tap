@@ -38,20 +38,36 @@
     return navIndex;
   }
 
-  /** Return pages at `depth` whose breadcrumb[depth-1].url === parentUrl. */
+  /** Return pages at `depth` whose breadcrumb[depth-1].url === parentUrl.
+   *
+   *  Sort by `nav_weight DESC, label ASC` per req-web-nav-page-weight. The
+   *  weight is looked up from each contributing page; siblings are
+   *  deduplicated by URL since multiple deeper pages may share an
+   *  intermediate breadcrumb segment.
+   */
   function pagesAtDepth(parentUrl, depth) {
     if (!navIndex) return [];
-    const seen = new Set();
-    const out = [];
+    // Map from sibling-URL → { label, url, nav_weight }. The weight is the
+    // nav_weight of the Page registered at that URL (if any).
+    const byUrl = new Map();
     navIndex.pages.forEach((p) => {
       if (p.breadcrumb.length <= depth) return;
       if (p.breadcrumb[depth - 1].url !== parentUrl) return;
       const seg = p.breadcrumb[depth];
-      if (seen.has(seg.url)) return;
-      seen.add(seg.url);
-      out.push(seg);
+      if (byUrl.has(seg.url)) return;
+      // Look up the Page registered at this URL prefix to get its nav_weight.
+      const exactPage = navIndex.pages.find((pp) => pp.url === seg.url);
+      byUrl.set(seg.url, {
+        label: seg.label,
+        url: seg.url,
+        nav_weight: exactPage ? exactPage.nav_weight || 0 : 0,
+      });
     });
-    return out.sort((a, b) => (a.label || a.url).localeCompare(b.label || b.url));
+    return Array.from(byUrl.values()).sort(
+      (a, b) =>
+        (b.nav_weight || 0) - (a.nav_weight || 0) ||
+        (a.label || a.url).localeCompare(b.label || b.url)
+    );
   }
 
   /** For URL X, return X's siblings — pages at X's depth with same parent. */
