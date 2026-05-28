@@ -307,12 +307,16 @@ scripts/dc exec web uv run python manage.py fire_boot_collectors
 The session's profile is carried by `TAP_BOOT_PROFILE` in its `.env.local`
 (`req-dev-multisession-env-cascade`), surfaced into the web container via the
 `TAP_BOOT_PROFILE` entry in `docker-compose.yml`'s `web` environment (empty
-default, like `TAP_SESSION_LABEL`). spawn writes `TAP_BOOT_PROFILE` into
-`.env.local`, defaulting to `samsite` (the current demo) so a fresh session comes
-up fully populated; exporting `TAP_BOOT_PROFILE` before spawning overrides it,
-and an empty value makes the step a clean no-op (seeded but not collector-
-populated). The primary stack sets nothing, so a plain `docker compose up` fires
-nothing.
+default, like `TAP_SESSION_LABEL`). The profile is chosen **explicitly per
+spawn** as spawn's positional boot-profile argument
+(`spawn-session.sh <name> [cli|codex|vscode] [<boot-profile>]`, e.g.
+`spawn-session.sh samsite-boot cli samsite`), or via the equivalent `--boot
+<profile>` flag; spawn writes the value into `.env.local`. **There is no
+default** — omitting it writes an empty value, so the step is a clean no-op and
+the session boots plain (seeded but not collector-populated). The deliberate
+choice is that the developer names the profile each spawn rather than silently
+inheriting one. The primary stack sets nothing, so a plain `docker compose up`
+fires nothing either.
 
 Because the command exits non-zero on a failed collector (under `abort`) or an
 invalid/missing selected profile, the spawn aborts and fires its failure trap

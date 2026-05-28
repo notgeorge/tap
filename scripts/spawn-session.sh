@@ -86,17 +86,25 @@ trap on_failure EXIT
 # new worktree.
 # ---------------------------------------------------------------------------
 LAUNCH_TARGET=""
+BOOT_PROFILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
       cat <<EOF
-Usage: $0 [<name>] [cli|codex|vscode]
+Usage: $0 [<name>] [cli|codex|vscode] [<boot-profile>]
 
-Spawn a new isolated TAP dev session. <name> is the session label
-(lowercase, e.g. cli, vscode, fix-arrangements). If omitted, the script
-prompts for it interactively.
+Spawn a new isolated TAP dev session. The positional args, in order, are:
+  <name>          session label (lowercase, e.g. cli, fix-arrangements).
+                  If omitted, the script prompts for it interactively.
+  <boot-profile>  which boot/<profile>.json the post-seed fire step runs to
+                  populate the session from collectors (e.g. \`samsite\`).
+                  Optional — omit it and the session boots plain (seed only,
+                  no collectors fired). There is no default.
+The launch target (cli|codex|vscode) is recognized by value, so it may sit
+anywhere among the positionals; the two free-form words are <name> then
+<boot-profile>.
 
-Optional second arg auto-attaches an editor after spawn completes:
+The launch target auto-attaches an editor after spawn completes:
   cli     — cd into the worktree and exec \`claude\` (this script's process
             becomes the claude REPL)
   codex   — open the worktree in the Codex desktop app via
@@ -104,16 +112,31 @@ Optional second arg auto-attaches an editor after spawn completes:
   vscode  — open the worktree in VS Code via \`open -a "Visual Studio Code"\`
             (non-blocking — VS Code launches as a separate app)
 
+\`--boot <profile>\` is an explicit alternative to the positional boot-profile
+(handy in scripts / to avoid positional ambiguity). See
+specs/spec-dev-boot-collectors.md.
+
 Examples:
-  $0                         # interactive, no auto-launch
-  $0 fix-arrangements        # named, no auto-launch
-  $0 fix-arrangements cli    # named + attach Claude in the worktree
-  $0 fix-arrangements codex  # named + attach Codex in the worktree
-  $0 fix-arrangements vscode
+  $0                              # interactive, plain boot, no auto-launch
+  $0 fix-arrangements             # named, plain boot
+  $0 fix-arrangements cli         # named + attach Claude, plain boot
+  $0 samsite-boot cli samsite     # named + Claude + fire the samsite collectors
+  $0 samsite-boot samsite         # named + fire the samsite collectors (no editor)
+  $0 demo cli --boot samsite      # same, explicit-flag form
 
 Spec: req-dev-multisession-spawn-script in specs/spec-dev-multisession.md
 EOF
       exit 0
+      ;;
+    --boot)
+      shift
+      [[ $# -gt 0 ]] || fail "--boot requires a profile name (a boot/<profile>.json id)."
+      BOOT_PROFILE="$1"
+      shift
+      ;;
+    --boot=*)
+      BOOT_PROFILE="${1#--boot=}"
+      shift
       ;;
     -*) fail "Unknown flag: $1" ;;
     cli|codex|vscode)
@@ -122,8 +145,15 @@ EOF
       shift
       ;;
     *)
-      [[ -z "$SESSION_NAME" ]] || fail "Multiple session names given: '$SESSION_NAME' and '$1'."
-      SESSION_NAME="$1"
+      # Free-form positionals, in order: <name> then <boot-profile>.
+      # (cli|codex|vscode are matched above, so they may appear anywhere.)
+      if [[ -z "$SESSION_NAME" ]]; then
+        SESSION_NAME="$1"
+      elif [[ -z "$BOOT_PROFILE" ]]; then
+        BOOT_PROFILE="$1"
+      else
+        fail "Unexpected extra argument: '$1' (usage: <name> [cli|codex|vscode] [boot-profile])."
+      fi
       shift
       ;;
   esac
@@ -363,10 +393,9 @@ except AttributeError:
 PY
 )"
 # TAP_BOOT_PROFILE names which boot/<id>.json the post-seed fire step (Step 6.5)
-# runs. Defaults to "samsite" so a fresh session comes up fully populated; export
-# TAP_BOOT_PROFILE before spawning to override (empty string = seed only, no
-# collector firing). See specs/spec-dev-boot-collectors.md.
-BOOT_PROFILE="${TAP_BOOT_PROFILE-samsite}"
+# runs. It is chosen explicitly per spawn via `--boot <profile>`; there is no
+# default — an empty value means a plain boot (seed only, no collectors fired).
+# See specs/spec-dev-boot-collectors.md.
 cat > .env.local <<EOF
 COMPOSE_PROJECT_NAME=tap_$SESSION_NAME
 WEB_PORT=$WEB_PORT

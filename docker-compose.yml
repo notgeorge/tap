@@ -140,9 +140,10 @@ services:
       TAP_SECRETS_ROOT: /run/tap-secrets
 
       # Dev boot profile: which boot/<id>.json the `fire_boot_collectors`
-      # command fires after seeding. Empty for the primary stack (no-op — boot
-      # collection is never implicit); set per-session in .env.local (spawn
-      # defaults it to "samsite"). See specs/spec-dev-boot-collectors.md.
+      # command fires after seeding. Empty by default (no-op — boot collection
+      # is never implicit); chosen explicitly per session via spawn's positional
+      # boot-profile arg (or --boot <profile>), which writes it into .env.local.
+      # See specs/spec-dev-boot-collectors.md.
       TAP_BOOT_PROFILE: "${TAP_BOOT_PROFILE:-}"
 
     # Wait for the database to be healthy before starting Django
