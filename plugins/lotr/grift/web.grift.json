@@ -60,7 +60,8 @@
                 }
               }
             },
-            "nav_weight": -100
+            "nav_weight": -100,
+            "discoverable": false
           }
         },
         {
@@ -107,7 +108,8 @@
                 }
               }
             },
-            "nav_weight": -100
+            "nav_weight": -100,
+            "discoverable": false
           }
         },
         {
@@ -255,7 +257,8 @@
                 }
               }
             },
-            "nav_weight": -100
+            "nav_weight": -100,
+            "discoverable": false
           }
         }
       ],
