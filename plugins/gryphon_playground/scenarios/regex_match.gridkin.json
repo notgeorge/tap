@@ -1,0 +1,127 @@
+{
+  "feature": "Regex match operator =~ — search semantics (substring; anchor with ^...$), Postgres ARE/POSIX-family",
+  "background": {
+    "grift_fixture": "fixtures/regex_urls.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "default search semantics — case-sensitive substring on spine name",
+      "tags": ["regex", "search", "case-sensitive", "spine"],
+      "covers": [
+        "req-grid-traversal-lang-regex",
+        "req-grid-traversal-lang-regex-1",
+        "req-grid-traversal-lang-regex-2",
+        "req-grid-traversal-lang-regex-5",
+        "req-grid-traversal-lang-regex-10"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name =~ \"githubusercontent\" RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__default_search.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__default_search.sql.txt"
+    },
+    {
+      "name": "case-insensitive search via inline (?i) flag",
+      "tags": ["regex", "case-insensitive", "inline-flag"],
+      "covers": [
+        "req-grid-traversal-lang-regex-4",
+        "req-grid-traversal-lang-regex-5"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name =~ \"(?i)githubusercontent\" RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__case_insensitive.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__case_insensitive.sql.txt"
+    },
+    {
+      "name": "explicit ^...$ anchors — full-string match",
+      "tags": ["regex", "anchors", "full-string"],
+      "covers": [
+        "req-grid-traversal-lang-regex-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name =~ \"^https://token\\\\.actions\\\\.githubusercontent\\\\.com$\" RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__explicit_anchors.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__explicit_anchors.sql.txt"
+    },
+    {
+      "name": "escaped dot — \\. matches literal '.', so 'Xcom' does not match",
+      "tags": ["regex", "escape", "needle-is-regex-text"],
+      "covers": [
+        "req-grid-traversal-lang-regex-7"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name =~ \"githubusercontent\\\\.com\" RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__escaped_dot.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__escaped_dot.sql.txt"
+    },
+    {
+      "name": "parameterized pattern — $pattern resolves to a regex string at execution",
+      "tags": ["regex", "param", "case-insensitive"],
+      "covers": [
+        "req-grid-traversal-lang-regex-8"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name =~ $pattern RETURN n.name AS name ORDER BY name",
+      "params": { "pattern": "(?i)token" },
+      "expected_envelope": "expected/regex_match__param_pattern.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__param_pattern.sql.txt"
+    },
+    {
+      "name": "data-lane path — JSON key tags.url; missing key is NULL and drops the row",
+      "tags": ["regex", "data-lane", "json-path", "null-field"],
+      "covers": [
+        "req-grid-traversal-lang-regex-6",
+        "req-grid-traversal-lang-regex-10"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.tags.url =~ \"github\" RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__data_lane_json.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__data_lane_json.sql.txt"
+    },
+    {
+      "name": "NULL pattern — $pattern resolves to null; row set is empty, no crash",
+      "tags": ["regex", "param", "null-pattern"],
+      "covers": [
+        "req-grid-traversal-lang-regex-6",
+        "req-grid-traversal-lang-regex-8"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name =~ $pattern RETURN n.name AS name ORDER BY name",
+      "params": { "pattern": null },
+      "expected_envelope": "expected/regex_match__null_pattern.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__null_pattern.sql.txt"
+    },
+    {
+      "name": "AND composition — regex on spine name AND scalar = on data.kind",
+      "tags": ["regex", "and", "combinators"],
+      "covers": [
+        "req-grid-traversal-lang-regex-9"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name =~ \"(?i)github\" AND n.data.kind = \"identity_provider\" RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__and_composition.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__and_composition.sql.txt"
+    },
+    {
+      "name": "NOT composition — NOT (name =~ '(?i)token') excludes the token-bearing rows",
+      "tags": ["regex", "not", "combinators"],
+      "covers": [
+        "req-grid-traversal-lang-regex-9"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE NOT (n.name =~ \"(?i)token\") RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__not_composition.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__not_composition.sql.txt"
+    },
+    {
+      "name": "spine entity_type path — regex on the registered-type column",
+      "tags": ["regex", "spine", "entity-type"],
+      "covers": [
+        "req-grid-traversal-lang-regex-10"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.entity_type =~ \"^pg_\" RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__spine_entity_type.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__spine_entity_type.sql.txt"
+    }
+  ]
+}

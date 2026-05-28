@@ -73,6 +73,7 @@ predicate: predicate _OR_KW predicate    -> or_pred
 
 comparison: field_path COMPARE_OP value
           | field_path STRING_OP value
+          | field_path "=~" value                  -> regex_comparison
           | field_path _IN_KW value_list           -> in_comparison
           | field_path _IS_KW _NULL_KW             -> is_null
           | field_path _IS_KW _NOT_KW _NULL_KW     -> is_not_null

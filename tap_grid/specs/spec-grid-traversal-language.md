@@ -29,6 +29,7 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-combinators | [Predicate Combinators](#predicate-combinators) | Implemented | AND/OR/NOT in WHERE predicates |
 | req-grid-traversal-lang-in | [IN-List Membership](#in-list-membership) | Implemented | `WHERE` membership test against a list of values |
 | req-grid-traversal-lang-string-match | [String Match Predicates](#string-match-predicates) | Implemented | `WHERE` substring predicates: `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` |
+| req-grid-traversal-lang-regex | [Regex Match Operator](#regex-match-operator) | Implemented | `WHERE field =~ pattern` — PostgreSQL ARE/POSIX-family regex, search semantics (substring match; anchor with `^...$`) |
 | req-grid-traversal-lang-is-null | [Null-Existence Predicate](#null-existence-predicate) | Implemented | `WHERE field IS NULL` / `IS NOT NULL` — defensive filter for ORDER BY DESC envelope queries |
 | req-grid-traversal-lang-bare-match | [Bare Labelless MATCH](#bare-labelless-match) | Implemented | Labelless `MATCH (n)` scans every registered node type and unions the results |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
@@ -610,8 +611,101 @@ MATCH (n:host) WHERE n.name ENDS_WITH $suffix RETURN n
 
 #### Future
 
-- Case-insensitive variants of the three operators.
-- Wildcard / regex-like pattern matching — a single `LIKE`- or `MATCHES`-style operator generalizing these three. Deliberately deferred: the three explicit operators cover the detected demand and avoid the needle-escaping and case-sensitivity surface a pattern language drags in. Promote when a real query needs a shape the three fixed operators cannot express.
+- Case-insensitive variants of the three operators — today expressible as `=~ "(?i)...$"` via `req-grid-traversal-lang-regex`; promote a dedicated `_CI` surface only if a real query needs the shorter spelling.
+- Wildcard / regex-like pattern matching — discharged by `req-grid-traversal-lang-regex` (`=~`), which generalizes these three when query authors opt into regex syntax.
+
+
+### Regex Match Operator
+----
+RID: `req-grid-traversal-lang-regex`
+Status: `Implemented`
+
+A `WHERE` predicate may test a string field against a regex pattern with `=~`. Semantics are search/substring (the pattern matches *anywhere* in the value); explicit anchors `^...$` express full-string match.
+
+#### Background
+
+`STARTS_WITH` / `ENDS_WITH` / `CONTAINS` (`req-grid-traversal-lang-string-match`) cover the three fixed substring shapes; that requirement's Future bullet flagged "promote when a real query needs a shape the three fixed operators cannot express." That promotion moment is here: `github_core`'s link-manifest resolver carries a `near_match_pattern` per link rule that needs case-insensitive partial-match diagnostics on identity-provider URLs (`https://Token.Actions.GitHubUserContent.com`, GHES tenants, mixed case) — a shape no fixed substring operator expresses. The resolver currently reaches for Django's `__iregex` directly, which is the Gryphon-over-ORM rule firing (Gryphon wishlist) and the demand signal for promoting regex into the language.
+
+The symbol is borrowed from Cypher (Neo4j / openCypher / Apache AGE all use `=~`) because it is recognizable to anyone arriving from those systems. **Gryphon deliberately diverges from Cypher on semantics**, though: Cypher's `=~` is full-string anchored (implicit `^...$`); Gryphon's `=~` is search-style (substring match) — the same shape as Postgres `~` / `~*` and the same shape as `grep`. The divergence is deliberate because (a) search semantics is what the demand-shape — diagnostic partial matching on URL fields — actually wants, (b) explicit `^...$` is the obvious, LLM-readable way to say "full string," and (c) hidden anchoring is the kind of magic that surprises authors and inflates the cost of every query review. One spelling (`=~`), one set of semantics (search), explicit anchoring on request.
+
+#### Implementation
+
+- Grammar: a new alternative on the `comparison` rule — `field_path "=~" value`. Carries its own rule label (`regex_comparison`) so the transformer can normalize the operator string without re-tokenizing — the `=~` literal does not pass through `.lower()`-friendly word normalization.
+
+  ```
+  comparison: field_path COMPARE_OP value
+            | field_path STRING_OP value
+            | field_path "=~" value                   -> regex_comparison
+            | field_path _IN_KW value_list            -> in_comparison
+            | field_path _IS_KW _NULL_KW              -> is_null
+            | field_path _IS_KW _NOT_KW _NULL_KW     -> is_not_null
+  ```
+
+- AST: the `Comparison.op` `Literal` is extended with `"regex"` — `=~` is an operator extension, not a new predicate leaf. `Comparison` is already handled by every predicate walker, so the only touch-points are the parser's `regex_comparison` transformer (which emits `op="regex"`) and the executor's op→lookup map. No walker audit is required.
+- Executor: lowers to rung 1 (ORM `QuerySet` composition). `_comparison_to_q` always compiles a `"regex"` op to Django's `__regex` lookup (Postgres `~`). Inline flags `(?i)`, `(?s)`, `(?m)`, `(?x)` are passed through verbatim — Postgres consumes them. The executor does NOT detect, strip, or rewrite any flag: simpler, less magic, fewer edge cases. The `__iregex` lookup (Postgres `~*`) is deliberately not used as a dispatch target — `(?i)` inside the pattern reaches the same engine.
+- **Search semantics.** The pattern matches anywhere in the field value. Full-string matching is the explicit shape `=~ "^...$"`. Prefix-only is `=~ "^needle"`; suffix-only is `=~ "needle$"`. There is no implicit anchoring at either end.
+- **Regex flavor.** PostgreSQL ARE/POSIX-family regex (the `~` / `~*` engine, surfaced via Django's `__regex` lookup). The `(?i)` flag is the supported case-insensitive shape (the demand) and is exercised in tests. Other inline flags (`(?s)`, `(?m)`, `(?x)`) reach Postgres unaltered and behave per its engine; v0 does not promise broad Java/Cypher flag parity. PCRE-specific features (variable-width lookbehinds, named groups beyond the POSIX form, etc.) hit a known boundary.
+- **Needle is regex text, always.** Unlike `STARTS_WITH` / `CONTAINS` (which escape `%` and `_` literally), `=~` does NOT escape metacharacters in the needle — query authors writing `=~` are opting into regex syntax. The same applies to `$param` substitution: `$param = "."` is "any character," not the literal dot. **This is the explicit deal of `=~` and is loud here so it is visible in spec review.**
+- **NULL behavior.** A NULL field value does not match — the row is dropped from the WHERE (Postgres `~` on a NULL operand is NULL; NULL is not truthy). A NULL pattern value does not crash and does not match — the predicate compiles to a tautologically-false `Q` so the row is dropped. Behavior of NULL operands *under* `NOT` / `OR` is not specified beyond "the row is dropped from the positive filter" — Gryphon does not claim full Cypher three-valued logic across combinators, only that NULL inputs neither crash nor silently match.
+- **Composes with combinators.** A `Comparison` with `op="regex"` joins `AND` / `OR` / `NOT` like any other comparison and scopes per bound variable through the same `_filter_predicate_for_bindings` walker as every other operator.
+- **Needle may be a `$param`.** `WHERE n.url =~ $pattern` resolves `$pattern` at execution time. Pattern values are scalar strings, not pre-compiled regex objects.
+- **Works anywhere `Comparison` works.** Spine paths (`n.entity_type =~ "^aws_"`, `n.name =~ "(?i)token"`) and data-lane paths (`n.data.url =~ "(?i)githubusercontent\\.com"`) both flow through the same `_comparison_to_q` compiler — the regex operator is not a special case in any walker or path.
+
+#### Security / DoS surface
+
+- **Catastrophic backtracking.** Postgres' ARE/POSIX engine is less prone to catastrophic backtracking than PCRE on common shapes, but pathological patterns (nested quantifiers like `(a+)+`, deeply alternated unions) can still drive CPU exhaustion. v0 does not analyze patterns for known-bad shapes; operator beware.
+- **Statement timeout is the defense — when configured.** Postgres `statement_timeout` caps any single query, including a runaway regex. TAP does not currently set a non-zero default at the database layer, so the defense is effective only where the operator (or the deploying environment) has configured one. Future operational hardening (`tap_grid` settings honoring a default statement_timeout, or a Gryphon-layer regex-pattern budget) is tracked under Future below.
+- **Needle escaping is the operator's contract.** A regex operator with non-literal needles is the inverse of the substring operators by design — promoting `=~` into the language *is* surfacing this trade-off into the WHERE surface where it is reviewable, instead of leaving it buried in plugin ORM calls.
+
+#### Examples
+
+```text
+# github_core's near-match query — case-insensitive search; no implicit anchoring,
+# so .* wrappers are not needed.
+MATCH (n:aws_iam_oidc_provider)
+WHERE n.data.url =~ "(?i)githubusercontent\\.com"
+  AND NOT n.data.url = $exact
+RETURN n
+
+# Substring search (case-sensitive):
+MATCH (n:finding) WHERE n.data.title =~ "timeout" RETURN n
+
+# Full-string match (explicit anchors):
+MATCH (n:host) WHERE n.name =~ "^web-[0-9]+\\.prod$" RETURN n
+
+# Anchored prefix (the search-form long-form of STARTS_WITH):
+MATCH (n) WHERE n.entity_type =~ "^aws_" RETURN n
+
+# Parameterized needle:
+MATCH (n:host) WHERE n.name =~ $pattern RETURN n
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-regex-1 | Operator Accepted | Implemented | The parser accepts `field_path =~ value` as a `WHERE` `Comparison`, with `Comparison.op == "regex"`. | |
+| req-grid-traversal-lang-regex-2 | Search Semantics | Implemented | `=~` matches the pattern anywhere in the field value (substring/search). Full-string match is the explicit shape `=~ "^...$"`. | Deliberate Cypher divergence — see Background |
+| req-grid-traversal-lang-regex-3 | Regex Flavor | Implemented | The flavor is PostgreSQL ARE/POSIX-family regex (the `~` engine, via Django `__regex`). PCRE-specific features hit a known boundary. | |
+| req-grid-traversal-lang-regex-4 | Case-Insensitive Via `(?i)` | Implemented | A leading or embedded `(?i)` flag is passed through to Postgres unaltered and produces case-insensitive matching. Other inline flags (`(?s)`, `(?m)`, `(?x)`) reach Postgres unaltered; broader Java/Cypher flag parity is not promised. | |
+| req-grid-traversal-lang-regex-5 | Compiles To Django `__regex` | Implemented | Always compiles to `__regex` (Postgres `~`). The executor never strips or rewrites flags; Postgres consumes them. | Simpler, less magic |
+| req-grid-traversal-lang-regex-6 | NULL Behavior | Implemented | A NULL field value does not match. A NULL pattern value does not crash and does not match (the row is dropped). Behavior under `NOT` / `OR` is not claimed beyond "NULL inputs neither crash nor silently match." | |
+| req-grid-traversal-lang-regex-7 | Needle Is Regex Text | Implemented | Metacharacters in the needle carry regex meaning; the needle is NOT escaped (unlike `CONTAINS`). | Security-relevant; the explicit deal of `=~` |
+| req-grid-traversal-lang-regex-8 | Needle May Be A Param | Implemented | The needle may be a `$param` reference resolved at execution time. | |
+| req-grid-traversal-lang-regex-9 | Composes With Combinators | Implemented | A regex `Comparison` combines with `AND` / `OR` / `NOT` like any comparison. | |
+| req-grid-traversal-lang-regex-10 | Spine And Data-Lane Paths | Implemented | The operator works on spine fields (`n.entity_type`, `n.name`) and data-lane fields (`n.data.url`, JSON-key paths like `n.data.tags.url`); no walker treats regex as a special case. | |
+| req-grid-traversal-lang-regex-11 | Gridkin Scenario | Implemented | A Gridkin scenario exercises: case-sensitive search, `(?i)` case-insensitive search, explicit `^...$` full-match, escaped dot, parameterized pattern, NULL field, NULL pattern, data-lane path, spine path, and AND + NOT composition. | `plugins/gryphon_playground/scenarios/regex_match.gridkin.json` |
+| req-grid-traversal-lang-regex-12 | Documented DoS Surface | Implemented | The spec documents catastrophic-backtracking risk and notes Postgres `statement_timeout` as the defense *when configured* — TAP does not set a non-zero default at the database layer in v0. | |
+
+#### Future
+
+- **Configured statement-timeout default.** TAP currently does not set a non-zero `statement_timeout` at the database layer, so the DoS defense for `=~` (and every other ORM call) depends on the deploying environment. Promote when a real incident motivates a TAP-level default or when multi-tenant deployment requires per-query budgets.
+- **Catastrophic-pattern detection.** A pattern validator that rejects known-bad shapes (nested quantifiers like `(a+)+`) before execution. Operational hardening; not built in v0.
+- **Pattern compilation caching at the Gryphon layer.** Postgres caches its own regex compilation per backend session; layering additional caching at the Gryphon level is deliberately not built — promote on a measured hot-path miss.
+- **`=~i` short-form for case-insensitivity** or `MATCHES` keyword alternative spelling. Not built: `=~` plus inline `(?i)` covers the case-insensitive surface; one spelling.
+- **`pg_trgm` integration / index-use guidance.** Postgres can use trigram indexes for some regex patterns (anchored prefix). Future performance tuning, not part of this feature.
+- **PCRE features.** Postgres ARE/POSIX is the documented flavor. A future move to PCRE (via `pg_pcre` extension or similar) is a separate spec change — promote when a real query needs PCRE-only features.
+- **`github_core` consumer migration.** The `__iregex` ORM call in `plugins/github_core/collectors/github_collector/enrichment.py::resolve_links()` should migrate to a Gryphon Search using `=~` (`(?i)`-prefixed pattern), closing the motivating break-glass path. Tracked as a follow-up commit by the `github_core` session.
 
 
 ### Null-Existence Predicate

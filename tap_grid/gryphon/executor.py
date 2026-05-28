@@ -2540,7 +2540,7 @@ def _comparison_to_q(
        :affordance: querying
        :implements: req-grid-traversal-lang-string-match
        :covered-by: gridkin:string_match-starts-with-matches-a-name-prefix
-       :limitations: Case-sensitive; no wildcard / regex operator; the three fixed operators only.
+       :limitations: Case-sensitive; needle is escaped (LIKE metacharacters are literal). For regex syntax or case-insensitive matching, use ``=~`` (cap-grid-gryphon-regex).
 
        ``STARTS_WITH`` / ``ENDS_WITH`` / ``CONTAINS`` test a string field against
        a prefix / suffix / substring. The needle is escaped, so ``LIKE``
@@ -2550,6 +2550,29 @@ def _comparison_to_q(
        Example::
 
           MATCH (n:pg_node) WHERE n.name STARTS_WITH "Neighbor"
+          RETURN n.entity_id AS id ORDER BY id
+
+    .. tap:capability:: Gryphon regex match operator
+       :id: cap-grid-gryphon-regex
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-regex
+       :covered-by: gridkin:regex_match-case-insensitive-search-via-inline-i-flag
+       :limitations: Search semantics (substring; anchor with ``^...$``). PostgreSQL ARE/POSIX-family regex; no PCRE-only features; no catastrophic-pattern detection in v0; no statement_timeout default.
+
+       ``field =~ pattern`` matches the pattern *anywhere* in the field value
+       (search semantics, the same shape as Postgres ``~`` and ``grep``). Full-
+       string matching is the explicit shape ``=~ "^...$"``. The pattern is
+       passed through to Postgres unaltered — inline flags ``(?i)``, ``(?s)``,
+       ``(?m)``, ``(?x)`` reach the regex engine verbatim. The needle is NOT
+       escaped — metacharacters carry regex meaning, the explicit deal of
+       ``=~``. Gryphon deliberately diverges from Cypher's anchored ``=~``
+       semantics; see req-grid-traversal-lang-regex Background.
+
+       Example::
+
+          MATCH (n:pg_node) WHERE n.name =~ "(?i)neighbor"
           RETURN n.entity_id AS id ORDER BY id
     """
     from django.db.models import Q
@@ -2564,6 +2587,17 @@ def _comparison_to_q(
     value = _resolve_value(comp.value, inputs)
     if comp.op == "!=":
         return ~Q(**{orm_path: value})
+    # The regex operator (req-grid-traversal-lang-regex) always lowers to
+    # Django's `__regex` lookup (Postgres `~`). Inline flags `(?i)`, `(?s)`,
+    # `(?m)`, `(?x)` are passed through verbatim — the executor does NOT
+    # detect, strip, or rewrite any flag. A NULL pattern short-circuits to a
+    # tautologically-false `Q` so the row is dropped (no crash, no surprise
+    # match). A NULL column value falls out of the `__regex` filter naturally
+    # because Postgres regex on a NULL operand is NULL (not truthy).
+    if comp.op == "regex":
+        if value is None:
+            return ~Q(pk__isnull=True) & Q(pk__isnull=True)
+        return Q(**{f"{orm_path}__regex": value})
     # The scalar comparison operators plus the substring operators
     # (req-grid-traversal-lang-string-match) -- all positive, single-value
     # lookups on `orm_path`.
