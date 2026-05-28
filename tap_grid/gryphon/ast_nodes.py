@@ -264,12 +264,36 @@ class ReturnClause:
 class OrderByItem:
     """A single ORDER BY term.
 
-    `key` names a RETURN output: an explicit `AS` alias, or — for an unaliased
-    field projection — its last dot-step name. `descending` is True for `DESC`.
+    `path` carries the parsed term as a `FieldPath`. In row-projection mode it
+    degenerates to a bare variable name (zero steps) that the executor looks up
+    against the RETURN aliases — preserving the original `ORDER BY <alias>`
+    surface. In envelope mode it carries a full field path
+    (`ORDER BY n.data.fetched_at DESC`) that the executor resolves through the
+    same type-scan ORM-path machinery used for WHERE comparisons
+    (`req-grid-gryphon-order-by-envelope`).
     """
 
-    key: str
+    path: FieldPath
     descending: bool = False
+
+    @property
+    def key(self) -> str:
+        """The key for row-projection-mode RETURN-alias lookup.
+
+        For a bare-name term (`ORDER BY label`) this is the variable name
+        (`label`) — the original surface. For a field-path term
+        (`ORDER BY n.data.fetched_at`) this is the last dot-step name
+        (`fetched_at`), matching the `_return_item_key` convention used to
+        derive default aliases for unaliased RETURN items. The aggregation and
+        type-scan projection paths use this; the envelope path uses `path`.
+        """
+        steps = self.path.steps
+        if not steps:
+            return self.path.variable
+        last = steps[-1]
+        if isinstance(last, DotStep):
+            return last.name
+        return self.path.variable
 
 
 @dataclass(frozen=True)

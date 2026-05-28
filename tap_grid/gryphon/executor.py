@@ -141,14 +141,26 @@ def execute_gryphon_raw(
     if missing:
         raise SearchExecutionError(f"Gryphon query requires inputs {sorted(missing)} but they were not provided.")
 
-    # ORDER BY / LIMIT operate on row-projection results only. A graph-envelope
-    # result has no defined row order (its node/edge lists are sets), so
-    # ordering or limiting it is rejected here rather than silently ignored.
-    if (ast.order_by is not None or ast.limit is not None) and _is_graph_envelope_return(ast.return_clause):
+    # ORDER BY / LIMIT operate on row-projection results in general; the one
+    # envelope-mode carve-out is a single labelled type-scan, where ORDER BY
+    # by field path returns the ordered node envelope (the "latest emission of
+    # kind X" panel shape, per req-grid-gryphon-order-by-envelope). Every other
+    # envelope dispatch (hub-and-spoke, edge-type scan, multi-hop, bare
+    # MATCH (n), multi-clause unions, queries carrying NOT EXISTS / OPTIONAL
+    # MATCH) still rejects rather than silently ignore.
+    if (
+        (ast.order_by is not None or ast.limit is not None)
+        and _is_graph_envelope_return(ast.return_clause)
+        and not _is_typescan_envelope_query(ast)
+    ):
         raise SearchExecutionError(
             "ORDER BY / LIMIT require a row-projection RETURN that names field paths or "
-            "aggregates; they do not apply to graph-envelope results (RETURN omitted or "
-            "naming only bare variables). Graph-envelope ordering is future work."
+            "aggregates. The only envelope-mode carve-out is a single labelled type-scan — "
+            "e.g. MATCH (n:type) ORDER BY n.data.<field> [LIMIT n] — per "
+            "req-grid-gryphon-order-by-envelope. Hub-and-spoke, edge-type scans, multi-hop, "
+            "bare MATCH (n), multi-clause unions, and queries carrying NOT EXISTS or "
+            "OPTIONAL MATCH each have a different 'what does row order mean here' answer "
+            "and remain row-projection-only."
         )
 
     if ast.optional_match_clauses:
@@ -519,6 +531,7 @@ def _execute_type_scan(
     # field paths. This mirrors the advanced executor's _is_graph_envelope_return
     # — without it, `MATCH (n:type) RETURN n` returned a list of empty dicts.
     if _is_graph_envelope_return(return_clause):
+        qs = _apply_order_limit_typescan_envelope(qs, order_by, limit, var)
         domain_objects = list(qs)
         nodes = _serialize_typed_nodes(domain_objects, layer, db_alias)
         return {"nodes": nodes, "edges": []}
@@ -563,6 +576,12 @@ def _apply_order_limit_typescan(
     lookup path of the projecting RETURN item. `entity_id` (the per-model PK
     column) is appended as a unique tiebreaker so the surviving rows under a
     LIMIT — and the captured SQL — are deterministic across runs.
+
+    In projection mode, ORDER BY terms must be bare names (FieldPath with no
+    steps) that match a RETURN alias. A multi-step field-path term is the
+    envelope-mode surface (per req-grid-gryphon-order-by-envelope) and is
+    rejected here with a pointer to envelope mode rather than silently
+    coerced — projection-mode field-path ORDER BY is future work.
     """
     if order_by is not None:
         key_to_path: dict[str, str] = {}
@@ -572,6 +591,13 @@ def _apply_order_limit_typescan(
             key_to_path[_return_item_key(item)] = _typescan_orm_path(item.path)
         order_cols: list[str] = []
         for ob in order_by.items:
+            if ob.path.steps:
+                raise SearchExecutionError(
+                    f"ORDER BY field-path form '{_format_field_path(ob.path)}' is "
+                    f"supported in envelope-mode RETURN only in v0 (per "
+                    f"req-grid-gryphon-order-by-envelope). In projection mode, ORDER "
+                    f"BY names a RETURN output by alias — e.g. ORDER BY {ob.key}."
+                )
             if ob.key not in key_to_path:
                 raise SearchExecutionError(
                     f"ORDER BY references '{ob.key}', which is not a RETURN output of this query."
@@ -588,6 +614,85 @@ def _apply_order_limit_typescan(
     if limit is not None:
         qs = qs[: limit.count]
     return qs
+
+
+def _apply_order_limit_typescan_envelope(
+    qs,
+    order_by: Any,
+    limit: Any,
+    var: str,
+):
+    """Apply ORDER BY / LIMIT to a type-scan queryset in graph-envelope mode.
+
+    Envelope mode has no RETURN aliases, so ORDER BY terms must carry a full
+    field path rooted at the bound variable (e.g. `n.data.fetched_at`). Each
+    is resolved through the same `_typescan_orm_path` machinery that backs the
+    WHERE compiler, so spine fields, the `data` lane, and `dimensions.<key>`
+    all reach the right ORM column. `entity_id` is appended ascending as a
+    deterministic tiebreaker so the surviving rows under a LIMIT — and the
+    captured SQL — are stable across runs.
+
+    A bare-name ORDER BY in envelope mode (`ORDER BY label`) is ambiguous —
+    there are no aliases — and is rejected with a clear error pointing at the
+    field-path form. Per req-grid-gryphon-order-by-envelope.
+
+    .. tap:capability:: Gryphon envelope-mode ORDER BY / LIMIT
+       :id: cap-grid-gryphon-order-by-envelope
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-gryphon-order-by-envelope
+       :covered-by: gridkin:order_by_limit_envelope-latest-emission-by-data-field-limit-1
+       :limitations: Single labelled type-scan only — hub-and-spoke, edge-type scan, multi-hop, bare MATCH (n), multi-clause unions, and queries carrying NOT EXISTS / OPTIONAL MATCH keep the rejection.
+
+       A labelled type-scan returning a graph envelope accepts
+       ``ORDER BY <var>.<field-path>`` and ``LIMIT n`` so the
+       "latest emission of kind X" panel shape becomes a single Gryphon query.
+
+       Example::
+
+          MATCH (n:compliance_artifact) WHERE n.data.kind = $kind
+          ORDER BY n.data.fetched_at DESC LIMIT 1
+    """
+    if order_by is not None:
+        order_cols: list[str] = []
+        for ob in order_by.items:
+            if not ob.path.steps:
+                raise SearchExecutionError(
+                    f"Envelope-mode ORDER BY must name a field path "
+                    f"(e.g. ORDER BY {var}.data.<field>). A bare name "
+                    f"'{ob.path.variable}' has no defined meaning in envelope "
+                    f"mode — there are no RETURN aliases to look up against."
+                )
+            if ob.path.variable != var:
+                raise SearchExecutionError(
+                    f"ORDER BY references variable '{ob.path.variable}', which is "
+                    f"not bound by this MATCH pattern (the bound variable is "
+                    f"'{var}')."
+                )
+            col = _typescan_orm_path(ob.path)
+            order_cols.append(f"-{col}" if ob.descending else col)
+        order_cols.append("entity_id")
+        qs = qs.order_by(*order_cols)
+    elif limit is not None:
+        # LIMIT with no ORDER BY: keep the spine-name default, with the
+        # entity_id tiebreaker so which rows survive the cap is deterministic.
+        qs = qs.order_by("entity__name", "entity_id")
+
+    if limit is not None:
+        qs = qs[: limit.count]
+    return qs
+
+
+def _format_field_path(path: FieldPath) -> str:
+    """Render a FieldPath as Gryphon source text for error messages."""
+    out = path.variable
+    for step in path.steps:
+        if isinstance(step, DotStep):
+            out += f".{step.name}"
+        elif isinstance(step, KeyStep):
+            out += f'["{step.key}"]'
+    return out
 
 
 def _apply_typescan_predicate(
@@ -1839,6 +1944,33 @@ def _apply_not_exists(
     return outer_qs.filter(~Exists(inner_qs))
 
 
+def _is_typescan_envelope_query(ast: GryphonAST) -> bool:
+    """True when the AST is a single labelled type-scan with envelope RETURN.
+
+    The narrow shape that `req-grid-gryphon-order-by-envelope` extends ORDER BY
+    / LIMIT to in v0: exactly one MATCH clause, exactly one pattern, node-only
+    (no edges) with a label, no NOT EXISTS / OPTIONAL MATCH, and a graph-
+    envelope RETURN. Anything else is rejected by the top-level guard so the
+    v0 boundary is legible to readers and future authors.
+    """
+    if not _is_graph_envelope_return(ast.return_clause):
+        return False
+    if len(ast.match_clauses) != 1:
+        return False
+    if ast.not_exists_clauses or ast.optional_match_clauses:
+        return False
+    mc = ast.match_clauses[0]
+    if len(mc.patterns) != 1:
+        return False
+    pattern = mc.patterns[0]
+    if pattern.edges:
+        return False
+    if not pattern.nodes:
+        return False
+    node = pattern.nodes[0]
+    return bool(node.label)
+
+
 def _is_graph_envelope_return(return_clause: ReturnClause) -> bool:
     """True when the RETURN clause requests a graph envelope rather than row projection.
 
@@ -2160,12 +2292,16 @@ def _resolve_order_cols(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-gryphon-order-by; req-grid-gryphon-limit
+       :implements: req-grid-gryphon-order-by; req-grid-gryphon-limit; req-grid-gryphon-order-by-envelope
        :covered-by: gridkin:order_by_limit-count-scoreboard-capped-with-limit-highest-degree-hub-only
-       :limitations: Row-projection RETURN only; ORDER BY / LIMIT paired with a graph-envelope return is rejected.
+       :limitations: Envelope ORDER BY / LIMIT is supported for a single labelled type-scan only; other envelope dispatches keep the rejection.
 
        ORDER BY orders row-projection results by RETURN outputs (ascending or
        ``DESC``, multi-key, deterministic tiebreak); LIMIT caps the row count.
+       A labelled type-scan returning a graph envelope additionally accepts
+       ``ORDER BY <var>.<field-path>`` and ``LIMIT n`` — the "latest emission
+       of kind X" panel shape compiles to a single ``SELECT ... ORDER BY ...
+       LIMIT 1`` rather than a Python-side sort.
 
        Example::
 
@@ -2178,6 +2314,17 @@ def _resolve_order_cols(
     cols: list[str] = []
     used: set[str] = set()
     for ob in order_by.items:
+        # Multi-step paths are the envelope-mode surface
+        # (req-grid-gryphon-order-by-envelope); aggregation queries are
+        # row-projection and continue to require a RETURN-alias key.
+        if ob.path.steps:
+            raise SearchExecutionError(
+                f"ORDER BY field-path form '{_format_field_path(ob.path)}' is "
+                f"supported in envelope-mode RETURN only in v0 (per "
+                f"req-grid-gryphon-order-by-envelope). Aggregation queries are "
+                f"row-projection; name a RETURN alias instead — e.g. ORDER BY "
+                f"{ob.key}."
+            )
         if ob.key not in key_to_internal:
             raise SearchExecutionError(f"ORDER BY references '{ob.key}', which is not a RETURN output of this query.")
         internal = key_to_internal[ob.key]
