@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tap.dev/schemas/boot-profile.schema.json",
+  "title": "TAP Boot Profile",
+  "description": "A dev/debug boot profile: an ordered list of collectors to fire after seeding so a freshly-spawned stack comes up populated. Profile data files live in the top-level boot/ directory (filename is the profile id); this schema and its loader (the fire_boot_collectors management command) live in tap_cares. Spec: specs/spec-dev-boot-collectors.md (req-dev-boot-collectors-profiles).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "on_failure", "collectors"],
+  "properties": {
+    "version": {
+      "description": "Profile schema version. 0 for v0.",
+      "type": "integer",
+      "const": 0
+    },
+    "description": {
+      "description": "Human label shown by `fire_boot_collectors --list` and in review.",
+      "type": "string"
+    },
+    "on_failure": {
+      "description": "Behavior when a collector's job terminates FAILED. 'abort': stop, skip the rest, exit non-zero. 'continue': log and proceed; exit code still signals the failure.",
+      "type": "string",
+      "enum": ["abort", "continue"]
+    },
+    "collectors": {
+      "description": "Ordered list of collectors to fire. Fired sequentially in array order; each job is awaited to a terminal state before the next is fired.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "enabled"],
+        "properties": {
+          "key": {
+            "description": "The collector's qualified registry key (scope:key) exactly as stored in Collector.collector_registry, e.g. 'plugins.aws_core.collectors.boto3_collector.collector:boto3'. Resolved against the collector registry; an unknown key aborts the run before any collector fires.",
+            "type": "string",
+            "minLength": 1
+          },
+          "enabled": {
+            "description": "false skips the entry without removing it (the 'comment it out' affordance).",
+            "type": "boolean"
+          },
+          "run_mode": {
+            "description": "'full' (default) runs self-test then collect; 'self_test_only' runs only the readiness probe.",
+            "type": "string",
+            "enum": ["full", "self_test_only"]
+          },
+          "note": {
+            "description": "Free-text annotation for the human reader (e.g. why an entry is ordered where it is).",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -362,12 +362,18 @@ except AttributeError:
     print(uuid.UUID(int=val))
 PY
 )"
+# TAP_BOOT_PROFILE names which boot/<id>.json the post-seed fire step (Step 6.5)
+# runs. Defaults to "samsite" so a fresh session comes up fully populated; export
+# TAP_BOOT_PROFILE before spawning to override (empty string = seed only, no
+# collector firing). See specs/spec-dev-boot-collectors.md.
+BOOT_PROFILE="${TAP_BOOT_PROFILE-samsite}"
 cat > .env.local <<EOF
 COMPOSE_PROJECT_NAME=tap_$SESSION_NAME
 WEB_PORT=$WEB_PORT
 POSTGRES_PORT=$POSTGRES_PORT
 TAP_GRID_ID=$TAP_GRID_ID
 TAP_SESSION_LABEL=$SESSION_NAME
+TAP_BOOT_PROFILE=$BOOT_PROFILE
 EOF
 info "Wrote $WORKTREE/.env.local (gitignored)."
 
@@ -478,6 +484,22 @@ echo
 # ============================================================================
 bold "Step 6: Seeding plugin data"
 scripts/dc exec web uv run python manage.py import_plugin_grift --all
+
+# ============================================================================
+# Step 6.5: Fire boot collectors
+#
+# Populate the freshly-seeded grid from the outside world (AWS, GitHub,
+# compliance artifacts) so the session comes up with real collected data, not
+# just the hand-authored seed. The profile fired is $TAP_BOOT_PROFILE (written
+# into .env.local above, default "samsite"); an empty profile makes this a
+# clean no-op. Collectors are awaited to terminal state in order, and the
+# profile's on_failure=abort makes a failed collector exit non-zero — which,
+# like the strict seed import, aborts the spawn rather than leaving a
+# half-populated session.
+# Spec: req-dev-boot-collectors-spawn-integration in specs/spec-dev-boot-collectors.md.
+# ============================================================================
+bold "Step 6.5: Firing boot collectors"
+scripts/dc exec web uv run python manage.py fire_boot_collectors
 
 # ============================================================================
 # Step 7: Create the Django admin superuser
