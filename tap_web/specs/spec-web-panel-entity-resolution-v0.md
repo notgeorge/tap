@@ -43,7 +43,7 @@ A single-entity panel declares two config fields:
 
 - `entity_id_var` — the **name** of the URL query parameter the panel reads. The panel does not hardcode the URL parameter name; consumers pick whatever fits the host page's naming.
 - `fallback` — an optional block describing the Gryphon query that picks the entity when the URL var is empty. When present, the block carries two fields:
-  - `query` — a Gryphon query string. The panel author writes the query; the helper executes it verbatim. The query's `ORDER BY` / `LIMIT` shape determines the resolution semantics: `ORDER BY ... DESC LIMIT 1` for "latest"; `LIMIT 2` for "single match expected, surface ambiguity"; `ORDER BY name ASC LIMIT 1` for "first by name"; whatever the panel's intent calls for.
+  - `query` — a Gryphon query string. The panel author writes the query; the helper executes it verbatim. The query's `ORDER BY` / `LIMIT` shape determines the resolution semantics: `ORDER BY ... DESC LIMIT 1` for "latest"; `LIMIT 2` for "single match expected, surface ambiguity"; `ORDER BY name ASC LIMIT 1` for "first by name"; whatever the panel's intent calls for. For sort-by-timestamp queries the panel author SHOULD include `AND <sort_field> IS NOT NULL` in the WHERE clause for defense in depth — PostgreSQL's native DESC ordering puts NULLs first, so a NULL sort field would otherwise win silently. Gryphon string literals use double quotes per its grammar; in JSON config that's `\"oscal_ssp\"`, not `'oscal_ssp'`.
   - `description` — a human-readable rationale for the query (e.g., "Latest oscal_ssp compliance artifact by fetched_at — the most recent SSP emission on the grid"). Shown in the fallback banner and in error messages so users and operators can immediately understand what the fallback resolves to and why.
 
 If the `fallback` block is absent, the panel returns its "no entity specified" error when the URL var is empty.
@@ -54,7 +54,7 @@ Single-entity shape:
 {
   "entity_id_var": "<page-variable-name>",
   "fallback": {
-    "query": "MATCH (n:<entity_type>) WHERE n.data.<field> = '<value>' ORDER BY n.data.<sort_field> DESC LIMIT 1",
+    "query": "MATCH (n:<entity_type>) WHERE n.data.<field> = \"<value>\" AND n.data.<sort_field> IS NOT NULL ORDER BY n.data.<sort_field> DESC LIMIT 1",
     "description": "<human-readable rationale for the query>"
   }
 }
@@ -66,7 +66,7 @@ Concrete example (ROSCALE OSCAL SSP workbench):
 {
   "entity_id_var": "oscal_ssp_artifact_entity_id",
   "fallback": {
-    "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = 'oscal_ssp' ORDER BY a.data.fetched_at DESC LIMIT 1",
+    "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_ssp\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
     "description": "Latest oscal_ssp compliance artifact by fetched_at — the most recent SSP emission on the grid."
   }
 }
