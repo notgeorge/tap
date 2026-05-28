@@ -1,0 +1,117 @@
+/* Command palette per req-web-nav-command-palette. */
+
+.tap-palette-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 1000;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.tap-palette-overlay.is-open {
+  display: flex;
+}
+
+.tap-palette-box {
+  width: 100%;
+  max-width: 640px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.tap-palette-input {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border: 0;
+  font-size: 1rem;
+  background: transparent;
+  border-bottom: 1px solid #e2e8f0;
+  color: #0f172a;
+  box-sizing: border-box;
+}
+
+.tap-palette-input::placeholder { color: #94a3b8; }
+
+.tap-palette-input:focus { outline: none; }
+
+.tap-palette-results {
+  list-style: none;
+  margin: 0;
+  padding: 0.375rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.tap-palette-result {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  gap: 0.125rem;
+}
+
+.tap-palette-result.is-selected {
+  background: #f1f5f9;
+}
+
+.tap-palette-result-name {
+  font-weight: 500;
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.tap-palette-result-url {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.tap-palette-empty {
+  padding: 1.25rem 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+/* Chrome affordance button (lives next to the session tag). */
+.tap-palette-affordance {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  background: transparent;
+  border: 0;
+  color: rgb(203, 213, 225); /* slate-300 */
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.tap-palette-affordance:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tap-palette-affordance svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tap-palette-affordance-kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}

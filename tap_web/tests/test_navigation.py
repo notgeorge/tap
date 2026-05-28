@@ -103,6 +103,24 @@ class TestBuildBreadcrumb:
 class TestBreadcrumbRendering:
     """Template-level assertions on the chrome's home-segment special case."""
 
+    def test_chrome_has_palette_affordance(self):
+        """req-web-nav-command-palette-2: the chrome carries a visible
+        affordance for opening the palette. Click handler + Cmd-K binding
+        are JS-side; we only verify the markup is present here.
+        """
+        body = Client().get("/").content.decode()
+        assert "data-tap-palette-affordance" in body
+        assert 'aria-label="Open command palette"' in body
+        # Keyboard shortcut hint surfaces in the title attribute and the
+        # visible kbd chip.
+        assert "⌘K" in body
+
+    def test_chrome_loads_palette_assets(self):
+        """Palette JS + CSS are linked in the base template head."""
+        body = Client().get("/").content.decode()
+        assert "tap_web/js/palette.js" in body
+        assert "tap_web/css/palette.css" in body
+
     def test_tap_renders_at_home_even_without_root_page(self):
         """req-web-nav-auto-parent-4 in template form: TAP renders + links to /
         on every deep page, even when no Page is registered at slug `/`.

@@ -8,7 +8,9 @@
     <link rel="icon" type="image/x-icon" href="{% static 'tap_web/favicon.ico' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/tailwind.css' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/panels.css' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/palette.css' %}">
     <script src="{% static 'tap_web/js/lib/htmx.min.js' %}" defer></script>
+    <script src="{% static 'tap_web/js/palette.js' %}" defer></script>
     {% block head_extras %}{% endblock %}
 </head>
 <body class="h-full flex flex-col">
@@ -49,7 +51,18 @@
                 </ol>
                 <div class="flex items-center" style="gap: 0.75rem;">
                     {% if session_label %}<span class="text-xs font-mono text-amber-300" title="Multi-session dev label — see spec-dev-multisession.md">[ {{ session_label }} ]</span>{% endif %}
-                    {# Palette affordance (req-web-nav-command-palette-2) — Phase 4. #}
+                    {# Palette affordance (req-web-nav-command-palette-2). Cmd-K or click. #}
+                    <button type="button"
+                            data-tap-palette-affordance
+                            class="tap-palette-affordance"
+                            title="Search pages (⌘K)"
+                            aria-label="Open command palette">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="11" cy="11" r="7"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <span class="tap-palette-affordance-kbd">⌘K</span>
+                    </button>
                     {# Mini-graph slot (req-web-nav-mini-graph) — reserved, backlog. #}
                 </div>
             </div>
