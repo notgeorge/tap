@@ -260,7 +260,7 @@
           },
           "node": {
             "name": "Samsite Authorization Boundary",
-            "description": "The FedRAMP authorization boundary for the samsite deployment \u2014 the perimeter of components in scope for samaydlette.com's ATO. Initial pass: pinned to the aws_account via SCOPED_TO_BOUNDARY; per-resource membership edges follow."
+            "description": "The FedRAMP authorization boundary for the samsite deployment \u2014 the perimeter of components in scope for samaydlette.com's ATO. Currently a standalone node: the prior SCOPED_TO_BOUNDARY edge to the aws_account was removed because the account is now collector-owned (aws_account_singleton, synthesized after seed) and so does not exist at GRIFT-seed time \u2014 a hardcoded edge to it dangles on a clean boot. Future seam: a membership mechanism that declares which account(s)/resources sit inside the boundary, established once the collector has populated them rather than hardcoded in the seed."
           }
         },
         {
@@ -490,22 +490,6 @@
         }
       ],
       "edges": [
-        {
-          "entity": {
-            "entity_id": "019e4afc-3e9f-76c9-8771-73eb05e0cc4b",
-            "entity_type": "edge",
-            "name": "AWS account SCOPED_TO_BOUNDARY Samsite Authorization Boundary",
-            "dimensions": {
-              "compliance": "boundary"
-            }
-          },
-          "edge": {
-            "from_entity_id": "6d305295-e1cf-5029-8b56-521376625d34",
-            "to_entity_id": "019e4afc-3e9f-76c9-8771-73ea77b8ff13",
-            "edge_type": "SCOPED_TO_BOUNDARY",
-            "properties": {}
-          }
-        },
         {
           "entity": {
             "entity_id": "314de02d-0e22-5411-a1a3-b34d3e63a243",
