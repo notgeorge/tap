@@ -57,6 +57,7 @@ from tap_grid.gryphon.ast_nodes import (
     FieldPath,
     GryphonAST,
     InComparison,
+    IsNullComparison,
     KeyStep,
     MatchClause,
     NodePattern,
@@ -883,7 +884,7 @@ def _predicate_field_paths(predicate: Any) -> list[FieldPath]:
     """Collect every `FieldPath` referenced anywhere in a predicate tree."""
     if predicate is None:
         return []
-    if isinstance(predicate, (Comparison, InComparison)):
+    if isinstance(predicate, (Comparison, InComparison, IsNullComparison)):
         return [predicate.field_path]
     if isinstance(predicate, (AndPred, OrPred)):
         return _predicate_field_paths(predicate.left) + _predicate_field_paths(predicate.right)
@@ -896,7 +897,7 @@ def _is_pure_conjunction(predicate: Any) -> bool:
     """True if the predicate tree is only comparison leaves joined by AND."""
     if predicate is None:
         return True
-    if isinstance(predicate, (Comparison, InComparison)):
+    if isinstance(predicate, (Comparison, InComparison, IsNullComparison)):
         return True
     if isinstance(predicate, AndPred):
         return _is_pure_conjunction(predicate.left) and _is_pure_conjunction(predicate.right)
@@ -1830,15 +1831,16 @@ def _apply_predicate_to_qs(
     return qs.filter(_predicate_to_q(predicate, inputs, _resolve))
 
 
-def _flatten_conjunction(predicate: Predicate) -> list[Comparison | InComparison]:
+def _flatten_conjunction(predicate: Predicate) -> list[Comparison | InComparison | IsNullComparison]:
     """Flatten an AND tree into a list of comparison leaves.
 
-    A leaf is a `Comparison` or an `InComparison`. OR / NOT are rejected. Only
-    the OPTIONAL MATCH executor uses this now — it keeps an AND-only WHERE so
-    the mandatory/optional-variable split stays well-defined; the type-scan and
-    multi-hop WHERE paths compile the full tree via :func:`_predicate_to_q`.
+    A leaf is a `Comparison`, `InComparison`, or `IsNullComparison`. OR / NOT
+    are rejected. Only the OPTIONAL MATCH executor uses this now — it keeps an
+    AND-only WHERE so the mandatory/optional-variable split stays well-defined;
+    the type-scan and multi-hop WHERE paths compile the full tree via
+    :func:`_predicate_to_q`.
     """
-    if isinstance(predicate, (Comparison, InComparison)):
+    if isinstance(predicate, (Comparison, InComparison, IsNullComparison)):
         return [predicate]
     if isinstance(predicate, AndPred):
         return _flatten_conjunction(predicate.left) + _flatten_conjunction(predicate.right)
@@ -1853,12 +1855,19 @@ def _predicate_to_q(predicate: Predicate, inputs: dict[str, Any], resolve: Any):
 
     ``AND`` / ``OR`` / ``NOT`` and parenthesized grouping lower to ``Q`` ``&`` /
     ``|`` / ``~``; a ``Comparison`` / ``InComparison`` leaf lowers via
-    :func:`_comparison_to_q`. ``resolve`` maps a leaf's ``FieldPath`` to its ORM
-    lookup path — the type-scan and chain executors pass different resolvers
-    because their querysets are rooted differently.
+    :func:`_comparison_to_q`; an ``IsNullComparison`` leaf lowers directly to
+    a ``__isnull`` lookup (``Q(path__isnull=True/False)``). ``resolve`` maps a
+    leaf's ``FieldPath`` to its ORM lookup path — the type-scan and chain
+    executors pass different resolvers because their querysets are rooted
+    differently.
     """
+    from django.db.models import Q
+
     if isinstance(predicate, (Comparison, InComparison)):
         return _comparison_to_q(predicate, resolve(predicate.field_path), inputs)
+    if isinstance(predicate, IsNullComparison):
+        path = resolve(predicate.field_path)
+        return Q(**{f"{path}__isnull": not predicate.negated})
     if isinstance(predicate, AndPred):
         return _predicate_to_q(predicate.left, inputs, resolve) & _predicate_to_q(predicate.right, inputs, resolve)
     if isinstance(predicate, OrPred):
@@ -2118,7 +2127,7 @@ def _filter_predicate_for_bindings(
     """
     if predicate is None:
         return None
-    if isinstance(predicate, (Comparison, InComparison)):
+    if isinstance(predicate, (Comparison, InComparison, IsNullComparison)):
         if predicate.field_path.variable in bindings:
             return predicate
         return None
@@ -2509,13 +2518,20 @@ def _serialize_edge_list(
 # ---------------------------------------------------------------------------
 
 
-def _comparison_to_q(comp: Comparison | InComparison, orm_path: str, inputs: dict[str, Any]):
+def _comparison_to_q(
+    comp: Comparison | InComparison | IsNullComparison,
+    orm_path: str,
+    inputs: dict[str, Any],
+):
     """Translate a single comparison leaf into a Django ``Q`` over ``orm_path``.
 
     The shared leaf compiler for every WHERE path: :func:`_predicate_to_q` calls
     it for each `Comparison` / `InComparison`, and ``_execute_optional_match``
     folds WHERE predicates on the optional variables into the
-    ``Count(filter=...)`` clause through it.
+    ``Count(filter=...)`` clause through it. `IsNullComparison` lowers to
+    Django's ``__isnull`` lookup so the OPTIONAL MATCH leaf path handles it
+    too — without this branch, an ``IS [NOT] NULL`` predicate on an optional
+    variable would crash the leaf-by-leaf walk.
 
     .. tap:capability:: Gryphon string-match predicates
        :id: cap-grid-gryphon-string-match
@@ -2541,6 +2557,9 @@ def _comparison_to_q(comp: Comparison | InComparison, orm_path: str, inputs: dic
     if isinstance(comp, InComparison):
         members = [_resolve_value(v, inputs) for v in comp.values]
         return Q(**{f"{orm_path}__in": members})
+
+    if isinstance(comp, IsNullComparison):
+        return Q(**{f"{orm_path}__isnull": not comp.negated})
 
     value = _resolve_value(comp.value, inputs)
     if comp.op == "!=":

@@ -73,7 +73,9 @@ predicate: predicate _OR_KW predicate    -> or_pred
 
 comparison: field_path COMPARE_OP value
           | field_path STRING_OP value
-          | field_path _IN_KW value_list  -> in_comparison
+          | field_path _IN_KW value_list           -> in_comparison
+          | field_path _IS_KW _NULL_KW             -> is_null
+          | field_path _IS_KW _NOT_KW _NULL_KW     -> is_not_null
 
 // Membership test: the field value must equal one of the listed values.
 // List elements may be literals or $param references; an empty list matches
@@ -130,7 +132,7 @@ value: ESCAPED_STRING  -> string_val
      | param_ref
      | /true/i         -> true_val
      | /false/i        -> false_val
-     | /null/i         -> null_val
+     | _NULL_KW        -> null_val
 
 param_ref: "$" NAME
 
@@ -149,6 +151,8 @@ _AS_KW:     /AS/i
 _IN_KW:     /IN/i
 _EXISTS_KW: /EXISTS/i
 _COUNT_KW:  /COUNT/i
+_IS_KW:     /IS/i
+_NULL_KW:   /NULL/i
 _ORDER_KW:  /ORDER/i
 _BY_KW:     /BY/i
 _ASC_KW:    /ASC/i
