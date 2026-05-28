@@ -45,3 +45,17 @@ class SamsiteConfig(TapPluginConfig):
         from plugins.samsite.panels.ksi_scoreboard import KsiScoreboardPanelType
 
         panel_type_registry.register("samsite-ksi-scoreboard", KsiScoreboardPanelType)
+
+        # VDR Ingestion Health — consumer-side complement to the upstream
+        # disclose-shortcut flags (kev_catalog_loaded, dependabot_alerts_loaded).
+        # Surfaces the latest vdr_report.summary's evaluation-actually-ran flags
+        # as a pill row on the compliance landing, so a silent upstream
+        # regression of either ingestion path is visible in the UI rather than
+        # buried in JSON.
+        from plugins.samsite.panels.vdr_ingestion_health import (
+            VdrIngestionHealthPanelType,
+        )
+
+        panel_type_registry.register(
+            "samsite-vdr-ingestion-health", VdrIngestionHealthPanelType
+        )

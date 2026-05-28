@@ -32,6 +32,7 @@ The extension is scoped tight on purpose. `COUNT` is the only aggregate; `SUM`/`
 | req-grid-gryphon-order-by | [ORDER BY Row Ordering](#order-by-row-ordering) | Implemented | `ORDER BY` over row-projection outputs; ascending default, `DESC` explicit, multi-key, deterministic tiebreak |
 | req-grid-gryphon-limit | [LIMIT Row Capping](#limit-row-capping) | Implemented | `LIMIT n` caps row-projection output; compiles to SQL `LIMIT` |
 | req-grid-gryphon-optional-match | [OPTIONAL MATCH Left-Outer Join](#optional-match-left-outer-join) | Implemented | `OPTIONAL MATCH` keeps mandatory rows that have no optional match; `COUNT` of the optional variable is 0, not absent |
+| req-grid-gryphon-order-by-envelope | [ORDER BY / LIMIT On A Type-Scan Graph Envelope](#order-by--limit-on-a-type-scan-graph-envelope) | Implemented | A labelled type-scan with envelope `RETURN` accepts `ORDER BY <var>.<field-path>` and `LIMIT`; compiles to SQL `ORDER BY` / `LIMIT` |
 | req-grid-gryphon-compat | [Backward Compatibility](#backward-compatibility) | Implemented | Existing queries parse, execute, and return identical results |
 
 ---
@@ -297,7 +298,7 @@ Gryphon gains an `ORDER BY` clause that imposes a defined order on row-projectio
 - Multiple `order_item`s order left-to-right: the first is primary, each subsequent one breaks ties of the prior.
 - **Deterministic tiebreak.** After the user's terms, the executor appends the query's group-by / identity columns (the GROUP BY keys for aggregating queries; the per-model `entity_id` for type-scan projections) as ascending tiebreakers. Output row order — and therefore the captured SQL and any `LIMIT` result — is fully determined even when the named keys have ties. "Stable ordering with ties" is a guarantee, not an accident.
 - ORDER BY compiles to SQL `ORDER BY` via Django `.order_by(...)`: for the aggregation path, by annotation alias; for the type-scan projection path, by the ORM lookup of the projecting RETURN item. NULL ordering is therefore PostgreSQL's (`NULLS LAST` for ascending).
-- `ORDER BY` applies to **row-projection** queries only — an explicit `RETURN` naming field paths and/or aggregates. A query that pairs `ORDER BY` with a graph-envelope `RETURN` (omitted, or naming only bare variables) is rejected: a graph envelope's node/edge lists are sets with no defined row order. Graph-envelope ordering is future work.
+- `ORDER BY` applies to **row-projection** queries; the one envelope-mode carve-out is a labelled type-scan whose envelope `RETURN` accepts `ORDER BY <var>.<field-path>` (see `req-grid-gryphon-order-by-envelope`). All other envelope shapes (hub-and-spoke, edge-type scan, multi-hop envelope, bare `MATCH (n)`, multi-clause unions, queries carrying `NOT EXISTS` or `OPTIONAL MATCH`) continue to reject `ORDER BY` — those have no canonical row order.
 
 #### Development
 
@@ -313,12 +314,12 @@ Gryphon gains an `ORDER BY` clause that imposes a defined order on row-projectio
 | req-grid-gryphon-order-by-4 | Multi-Key Ordering | Implemented | Multiple terms order left-to-right, each breaking ties of the prior. | |
 | req-grid-gryphon-order-by-5 | Deterministic Tiebreak | Implemented | The executor appends group-by / identity columns as tiebreakers so row order is fully deterministic across runs. | |
 | req-grid-gryphon-order-by-6 | Orders Aggregated Columns | Implemented | An `ORDER BY` term may name an aggregate RETURN alias (e.g. a `COUNT` result). | The "top-N" dashboard verb |
-| req-grid-gryphon-order-by-7 | Row-Projection Only | Implemented | `ORDER BY` paired with a graph-envelope RETURN is rejected with a clear error. | |
+| req-grid-gryphon-order-by-7 | Row-Projection Or Type-Scan Envelope | Implemented | `ORDER BY` paired with a graph-envelope RETURN is rejected unless the query is a single labelled type-scan, per `req-grid-gryphon-order-by-envelope`. Hub-and-spoke, edge-type-scan, multi-hop, bare `MATCH (n)`, multi-clause union envelopes, and queries carrying `NOT EXISTS` or `OPTIONAL MATCH` are still rejected. | |
 
 #### Future
 
-- `ORDER BY` over an expression that is not a RETURN output.
-- Graph-envelope ordering (a defined node order in `{nodes, edges}` results).
+- `ORDER BY` over an expression that is not a RETURN output (projection mode).
+- Graph-envelope ordering for non-type-scan dispatches — hub-and-spoke, edge-type scan, multi-hop, bare `MATCH (n)`, multi-clause unions. Each needs its own "what does row order mean here" answer before it can be supported.
 - `NULLS FIRST` / `NULLS LAST` control per term.
 
 ---
@@ -343,7 +344,7 @@ Gryphon gains a `LIMIT n` clause that caps the number of rows a row-projection q
 - `LIMIT` composes with `ORDER BY`: ordering is applied first, then the cap. The combination is the "top-N" query shape.
 - `LIMIT` **without** `ORDER BY` is legal. Because the executor always appends deterministic tiebreak columns (per `req-grid-gryphon-order-by-5`), the rows that survive the cap are still deterministic — they are the first `n` in the executor's default order (group-by / entity-name order), not an arbitrary subset.
 - `LIMIT n` with `n` larger than the result set returns the whole result set, unchanged.
-- Like `ORDER BY`, `LIMIT` applies to row-projection queries only; pairing it with a graph-envelope `RETURN` is rejected.
+- Like `ORDER BY`, `LIMIT` applies to row-projection queries; the one envelope-mode carve-out is a labelled type-scan (see `req-grid-gryphon-order-by-envelope`). All other envelope shapes continue to reject `LIMIT`.
 - At most one `ORDER BY` and one `LIMIT` clause per query; a duplicate is a parse error (not a silent drop).
 
 #### Acceptance Criteria
@@ -355,12 +356,12 @@ Gryphon gains a `LIMIT n` clause that caps the number of rows a row-projection q
 | req-grid-gryphon-limit-3 | LIMIT Zero Is Empty | Implemented | `LIMIT 0` returns no rows. | |
 | req-grid-gryphon-limit-4 | Oversize LIMIT Returns All | Implemented | `LIMIT n` with `n` past the result-set size returns every row. | |
 | req-grid-gryphon-limit-5 | LIMIT Without ORDER BY Deterministic | Implemented | `LIMIT` with no `ORDER BY` caps in the executor's deterministic default order, not an arbitrary subset. | |
-| req-grid-gryphon-limit-6 | Row-Projection Only | Implemented | `LIMIT` paired with a graph-envelope RETURN is rejected with a clear error. | |
+| req-grid-gryphon-limit-6 | Row-Projection Or Type-Scan Envelope | Implemented | `LIMIT` paired with a graph-envelope RETURN is rejected unless the query is a single labelled type-scan, per `req-grid-gryphon-order-by-envelope`. Hub-and-spoke, edge-type-scan, multi-hop, bare `MATCH (n)`, multi-clause union envelopes, and queries carrying `NOT EXISTS` or `OPTIONAL MATCH` are still rejected. | |
 
 #### Future
 
 - `SKIP` / `OFFSET` for query-level pagination (Gryphon wishlist A3).
-- Graph-envelope `LIMIT` (capping `{nodes, edges}` results).
+- Graph-envelope `LIMIT` for non-type-scan dispatches (covered alongside the corresponding envelope-ordering Future bullet in `req-grid-gryphon-order-by`).
 
 ---
 
@@ -429,6 +430,50 @@ The v0 scope is the per-entity-scoreboard shape and nothing wider, because that 
 - More than one `OPTIONAL MATCH` clause; chained optionals where a later one depends on an earlier.
 - Graph-envelope `OPTIONAL MATCH` (`{nodes, edges}` of the mandatory scan plus the matched optional subgraph).
 - Positive `EXISTS { ... }` — the presence-test cousin (Gryphon wishlist D2).
+
+---
+
+### ORDER BY / LIMIT On A Type-Scan Graph Envelope
+----
+RID: `req-grid-gryphon-order-by-envelope`
+Status: `Implemented`
+
+A labelled type-scan (`MATCH (n:type)`) returning a graph envelope (`RETURN` omitted, or `RETURN n`) accepts `ORDER BY <var>.<field-path>` and `LIMIT n`. The one-node "latest emission of kind X" lookup the panel layer hits today becomes a single Gryphon query — `ORDER BY n.data.fetched_at DESC LIMIT 1` returns a one-node envelope — rather than a Python helper that fetches every matching node and sorts in memory.
+
+#### Implementation
+
+- **Grammar.** `order_item` is extended from `NAME order_dir?` to `field_path order_dir?`. A bare name still parses (a `field_path` with no steps is the original surface) so existing row-projection ORDER BY queries continue to work unchanged.
+- **AST.** `OrderByItem.key: str` is replaced by `OrderByItem.path: FieldPath`. A `.key` derived property reproduces the previous surface for projection-mode callers — `path.variable` when steps are empty, the last dot-step name otherwise — so existing executor branches that look up RETURN aliases continue to work.
+- **Executor.** Lowers to rung 1 (ORM `QuerySet` composition) — the same machinery already used by row-projection `ORDER BY`/`LIMIT`. The envelope branch in `_execute_type_scan` calls a new envelope-mode helper that resolves each `OrderByItem.path` through the existing `_typescan_orm_path` (so spine fields, the `data` lane, and `dimensions.<key>` all reach the right ORM column) and appends `entity_id` as the deterministic tiebreaker before applying any `LIMIT`. `LIMIT` compiles via Django queryset slicing (`qs[:n]`), so the DB short-circuits.
+- **Dispatch guard.** `execute_gryphon_raw`'s top-level rejection of `ORDER BY` / `LIMIT` on graph-envelope returns is narrowed: a single-clause, single-pattern, labelled type-scan with envelope `RETURN`, no `NOT EXISTS`, and no `OPTIONAL MATCH` is now allowed. Every other envelope shape (hub-and-spoke, edge-type scan, multi-hop chain, bare `MATCH (n)`, multi-clause unions, queries carrying `NOT EXISTS` or `OPTIONAL MATCH`) keeps the existing rejection — each has a different "what does row order mean here" answer.
+- **Ordering semantics.** Same as the row-projection path: ascending by default, `DESC` explicit; PostgreSQL's `NULLS LAST` for ascending, `NULLS FIRST` for descending. A data-lane field that is `NULL` on some rows is ordered per that default (no `NULLS FIRST`/`NULLS LAST` control yet — tracked under `req-grid-gryphon-order-by` Future). The `entity_id` tiebreaker is always appended in ascending order so the surviving rows under `LIMIT` and the captured SQL are deterministic across runs.
+- **Form constraint.** Envelope-mode `ORDER BY` must name a field path (e.g. `ORDER BY n.data.fetched_at DESC`). A bare name (`ORDER BY observed_at`) is ambiguous in envelope mode — there are no RETURN aliases — and is rejected with a clear executor error directing the author to the field-path form. In projection mode, the bare-name surface continues to mean "the RETURN alias" exactly as before.
+
+#### Development
+
+The v0 scope is deliberately one dispatch path (the type-scan) because that path has an unambiguous answer to "what column is the row ordering on" — the typed model's row. The other envelope dispatches each carry an open design question (hub-and-spoke: do you order the hub, the neighbors, or the edges? edge-type scan: which endpoint's column? multi-hop: which hop?), and the demand signal calls for the type-scan shape only — three samsite panels (`vdr_ingestion_health`, `ksi_scoreboard`'s two OSCAL artifact lookups, `oscal_workbench` + `oscal_poam_workbench`) all need "latest artifact of kind X" or "artifact by pinned entity_id else latest of kind X." Today they ride on a Python helper in `plugins/roscale/panels/_common.py` (`_lookup_latest_by_kind`) that fetches every matching node and sorts in Python — exactly the demand-extension pattern that `req-grid-gryphon-order-by` and `req-grid-gryphon-limit` were landed under (sibling A1 / A2 in the wishlist), now needed for graph-envelope returns instead of row projections. The other-envelope dispatches stay rejected with a clear error so the v0 boundary is legible — each is a named Future bullet.
+
+The grammar change to accept a `field_path` in an `order_item` is the smallest possible parser surface change: a bare `NAME` (the original surface) is already a degenerate `field_path` with zero steps, so the existing row-projection ORDER BY tests are unchanged. The executor splits on `len(path.steps)`: zero steps stays the projection-mode "name a RETURN alias" lookup; one-or-more steps takes the envelope-mode resolution through `_typescan_orm_path`. Projection-mode queries that try the new field-path form get a clear error pointing at envelope mode — that broader surface waits for a real query.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-gryphon-order-by-envelope-1 | Envelope ORDER BY Field Path Accepted | Implemented | `MATCH (n:type) RETURN n ORDER BY n.data.<field>` parses and executes, ordering the returned node envelope by the data-lane field. | RETURN omitted is equivalent to bare-variable RETURN here. |
+| req-grid-gryphon-order-by-envelope-2 | Envelope LIMIT Caps Node Count | Implemented | `LIMIT n` on a type-scan envelope returns at most `n` nodes; `LIMIT 0` is empty, oversize `LIMIT` returns every node. | Compiles to SQL `LIMIT`. |
+| req-grid-gryphon-order-by-envelope-3 | Spine And Data-Lane Field Paths | Implemented | An envelope `ORDER BY` may name a spine field (`n.name`, `n.created_at`) or a data-lane field (`n.data.<x>`). | Reuses `_typescan_orm_path`. |
+| req-grid-gryphon-order-by-envelope-4 | Deterministic Tiebreak | Implemented | `entity_id` is appended ascending as the tiebreaker so rows under `LIMIT` and the captured SQL are deterministic. | Same discipline as the projection path. |
+| req-grid-gryphon-order-by-envelope-5 | NULL Rows Ordered Per Postgres Default | Implemented | A row whose data-lane field is `NULL` sorts after non-null rows under ascending order, before them under descending. | Postgres native `NULLS LAST` (ASC) / `NULLS FIRST` (DESC); per-term control is future work. |
+| req-grid-gryphon-order-by-envelope-6 | WHERE Composes Before ORDER BY | Implemented | A type-scan WHERE filters first; ORDER BY and LIMIT apply to the filtered envelope. | Reuses `_apply_typescan_predicate`. |
+| req-grid-gryphon-order-by-envelope-7 | RETURN Omitted Equivalent To RETURN var | Implemented | Both `MATCH (n:type) ORDER BY n.name LIMIT 1` and `MATCH (n:type) RETURN n ORDER BY n.name LIMIT 1` produce the same one-node envelope. | Both are graph-envelope per `_is_graph_envelope_return`. |
+| req-grid-gryphon-order-by-envelope-8 | Bare-Name ORDER BY Rejected In Envelope Mode | Implemented | `MATCH (n:type) ORDER BY name` is rejected with a clear executor error pointing at the field-path form. | Bare names are ambiguous in envelope mode. |
+| req-grid-gryphon-order-by-envelope-9 | Other Envelope Dispatches Still Rejected | Implemented | Hub-and-spoke, edge-type scan, multi-hop envelope, bare `MATCH (n)`, multi-clause union envelopes, and queries carrying `NOT EXISTS` or `OPTIONAL MATCH` keep their `ORDER BY` / `LIMIT` rejection. | Each is a named Future bullet. |
+
+#### Future
+
+- Envelope `ORDER BY` / `LIMIT` for the other dispatches (hub-and-spoke, edge-type scan, multi-hop, bare `MATCH (n)`, multi-clause unions). Each needs its own "what does row order mean here" answer.
+- Field-path ORDER BY in projection mode (`RETURN n.entity_id AS id ORDER BY n.data.kind`). Today projection mode requires a RETURN-output alias; the field-path form is envelope-only in v0.
+- `NULLS FIRST` / `NULLS LAST` per-term control (shared Future bullet with `req-grid-gryphon-order-by`).
 
 ---
 

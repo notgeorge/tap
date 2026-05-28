@@ -73,7 +73,9 @@ predicate: predicate _OR_KW predicate    -> or_pred
 
 comparison: field_path COMPARE_OP value
           | field_path STRING_OP value
-          | field_path _IN_KW value_list  -> in_comparison
+          | field_path _IN_KW value_list           -> in_comparison
+          | field_path _IS_KW _NULL_KW             -> is_null
+          | field_path _IS_KW _NOT_KW _NULL_KW     -> is_not_null
 
 // Membership test: the field value must equal one of the listed values.
 // List elements may be literals or $param references; an empty list matches
@@ -107,12 +109,15 @@ aggregate_call: _COUNT_KW "(" field_path ")"
 // ORDER BY / LIMIT
 // ---------------------------------------------------------------------------
 //
-// Both operate on row-projection results only (an explicit RETURN that names
-// field paths and/or aggregates). An order_item names a RETURN output by its
-// alias (or, for an unaliased field projection, its last dot-step name).
+// Row-projection mode: an order_item names a RETURN output by its alias (or,
+// for an unaliased field projection, its last dot-step name) — a bare NAME is
+// the original surface and still parses as a degenerate field_path.
+// Envelope mode (req-grid-gryphon-order-by-envelope): an order_item carries a
+// full field_path (e.g. ORDER BY n.data.fetched_at DESC) that the executor
+// resolves through the same machinery as a WHERE field path.
 
 order_by_clause: _ORDER_KW _BY_KW order_item ("," order_item)*
-order_item: NAME order_dir?
+order_item: field_path order_dir?
 order_dir: _ASC_KW  -> asc
          | _DESC_KW -> desc
 
@@ -127,7 +132,7 @@ value: ESCAPED_STRING  -> string_val
      | param_ref
      | /true/i         -> true_val
      | /false/i        -> false_val
-     | /null/i         -> null_val
+     | _NULL_KW        -> null_val
 
 param_ref: "$" NAME
 
@@ -146,6 +151,8 @@ _AS_KW:     /AS/i
 _IN_KW:     /IN/i
 _EXISTS_KW: /EXISTS/i
 _COUNT_KW:  /COUNT/i
+_IS_KW:     /IS/i
+_NULL_KW:   /NULL/i
 _ORDER_KW:  /ORDER/i
 _BY_KW:     /BY/i
 _ASC_KW:    /ASC/i

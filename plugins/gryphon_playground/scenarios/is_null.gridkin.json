@@ -1,0 +1,54 @@
+{
+  "feature": "IS NULL / IS NOT NULL predicate — the defensive filter for envelope ORDER BY DESC queries",
+  "background": {
+    "grift_fixture": "fixtures/emissions.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "IS NULL filter returns only the null-observed_at row",
+      "tags": ["is-null", "data-lane", "type-scan"],
+      "covers": [
+        "req-grid-traversal-lang-is-null",
+        "req-grid-traversal-lang-is-null-1"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS NULL",
+      "expected_envelope": "expected/is_null__filter_null.expected.json",
+      "expected_sql_snapshot": "expected/is_null__filter_null.sql.txt"
+    },
+    {
+      "name": "IS NOT NULL filter excludes the null-observed_at row",
+      "tags": ["is-null", "is-not-null", "data-lane", "type-scan"],
+      "covers": [
+        "req-grid-traversal-lang-is-null-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS NOT NULL",
+      "expected_envelope": "expected/is_null__filter_not_null.expected.json",
+      "expected_sql_snapshot": "expected/is_null__filter_not_null.sql.txt"
+    },
+    {
+      "name": "defensive latest-emission — IS NOT NULL filter before ORDER BY DESC LIMIT 1",
+      "tags": ["is-null", "is-not-null", "envelope", "order-by", "limit", "demand-shape"],
+      "covers": [
+        "req-grid-traversal-lang-is-null-6",
+        "req-grid-gryphon-order-by-envelope-1"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS NOT NULL ORDER BY n.data.observed_at DESC LIMIT 1",
+      "expected_envelope": "expected/is_null__defensive_latest_emission.expected.json",
+      "expected_sql_snapshot": "expected/is_null__defensive_latest_emission.sql.txt"
+    },
+    {
+      "name": "IS NULL composes with AND on a second comparison",
+      "tags": ["is-null", "combinators", "and"],
+      "covers": [
+        "req-grid-traversal-lang-is-null-3"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS NULL AND n.data.severity_score = 0",
+      "expected_envelope": "expected/is_null__and_combination.expected.json",
+      "expected_sql_snapshot": "expected/is_null__and_combination.sql.txt"
+    }
+  ]
+}

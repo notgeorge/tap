@@ -162,6 +162,38 @@ class InComparison:
 
 
 @dataclass(frozen=True)
+class IsNullComparison:
+    """A null-existence predicate: `field IS NULL` or `field IS NOT NULL`.
+
+    True when the field value is NULL (`negated=False`) or non-NULL
+    (`negated=True`). Lowers to Django's ``__isnull=True``/``=False`` lookup
+    (SQL `IS NULL` / `IS NOT NULL`). Defends envelope ORDER BY DESC queries
+    from a NULL sort-field row silently winning the cap.
+
+    .. tap:capability:: Gryphon IS NULL / IS NOT NULL
+       :id: cap-grid-gryphon-is-null
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-is-null
+       :covered-by: gridkin:is_null-defensive-latest-emission-filters-null-sort-field-before-order-by-desc
+
+       ``WHERE field IS NULL`` and ``WHERE field IS NOT NULL`` test a field
+       for null-existence. The defensive shape for envelope ORDER BY DESC
+       queries that must not pick up a NULL-sort-field row.
+
+       Example::
+
+          MATCH (a:compliance_artifact)
+          WHERE a.data.kind = $kind AND a.data.fetched_at IS NOT NULL
+          ORDER BY a.data.fetched_at DESC LIMIT 1
+    """
+
+    field_path: FieldPath
+    negated: bool
+
+
+@dataclass(frozen=True)
 class AndPred:
     """Conjunction: both operands must be true."""
 
@@ -184,7 +216,7 @@ class NotPred:
     operand: Predicate
 
 
-Predicate = Comparison | InComparison | AndPred | OrPred | NotPred
+Predicate = Comparison | InComparison | IsNullComparison | AndPred | OrPred | NotPred
 
 
 # ---------------------------------------------------------------------------
@@ -264,12 +296,36 @@ class ReturnClause:
 class OrderByItem:
     """A single ORDER BY term.
 
-    `key` names a RETURN output: an explicit `AS` alias, or — for an unaliased
-    field projection — its last dot-step name. `descending` is True for `DESC`.
+    `path` carries the parsed term as a `FieldPath`. In row-projection mode it
+    degenerates to a bare variable name (zero steps) that the executor looks up
+    against the RETURN aliases — preserving the original `ORDER BY <alias>`
+    surface. In envelope mode it carries a full field path
+    (`ORDER BY n.data.fetched_at DESC`) that the executor resolves through the
+    same type-scan ORM-path machinery used for WHERE comparisons
+    (`req-grid-gryphon-order-by-envelope`).
     """
 
-    key: str
+    path: FieldPath
     descending: bool = False
+
+    @property
+    def key(self) -> str:
+        """The key for row-projection-mode RETURN-alias lookup.
+
+        For a bare-name term (`ORDER BY label`) this is the variable name
+        (`label`) — the original surface. For a field-path term
+        (`ORDER BY n.data.fetched_at`) this is the last dot-step name
+        (`fetched_at`), matching the `_return_item_key` convention used to
+        derive default aliases for unaliased RETURN items. The aggregation and
+        type-scan projection paths use this; the envelope path uses `path`.
+        """
+        steps = self.path.steps
+        if not steps:
+            return self.path.variable
+        last = steps[-1]
+        if isinstance(last, DotStep):
+            return last.name
+        return self.path.variable
 
 
 @dataclass(frozen=True)
@@ -373,6 +429,13 @@ def _collect_params_from_predicate(pred: Predicate | None, out: set[str]) -> Non
         for v in pred.values:
             if isinstance(v, ParamRef):
                 out.add(v.name)
+    elif isinstance(pred, IsNullComparison):
+        # No ParamRef can appear in an IS [NOT] NULL predicate — the leaf
+        # is field_path-only — but the walker must still recognize the leaf
+        # so its presence in a WHERE tree doesn't escape required-param
+        # collection (silent-drop footgun for any predicate walker that
+        # doesn't know about a new leaf).
+        pass
     elif isinstance(pred, (AndPred, OrPred)):
         _collect_params_from_predicate(pred.left, out)
         _collect_params_from_predicate(pred.right, out)

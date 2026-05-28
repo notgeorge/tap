@@ -1,0 +1,140 @@
+{
+  "feature": "ORDER BY / LIMIT on a labelled type-scan graph envelope (the 'latest emission of kind X' panel shape)",
+  "background": {
+    "grift_fixture": "fixtures/emissions.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "latest emission by data field — LIMIT 1",
+      "tags": ["order-by", "limit", "envelope", "type-scan", "latest-emission"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope",
+        "req-grid-gryphon-order-by-envelope-1",
+        "req-grid-gryphon-order-by-envelope-2",
+        "req-grid-gryphon-order-by-envelope-3",
+        "req-grid-gryphon-order-by-envelope-6"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC LIMIT 1",
+      "expected_envelope": "expected/order_by_limit_envelope__latest_limit_1.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__latest_limit_1.sql.txt"
+    },
+    {
+      "name": "top-N DESC envelope returns the N highest by data field",
+      "tags": ["order-by", "limit", "envelope", "type-scan", "top-n"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-1",
+        "req-grid-gryphon-order-by-envelope-2"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC LIMIT 3",
+      "expected_envelope": "expected/order_by_limit_envelope__top3_desc.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__top3_desc.sql.txt"
+    },
+    {
+      "name": "tied ORDER BY keys broken by entity_id ascending — LIMIT 1 picks the lower id",
+      "tags": ["order-by", "limit", "envelope", "tiebreak", "determinism"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-4"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score = 30 ORDER BY n.data.observed_at DESC LIMIT 1",
+      "expected_envelope": "expected/order_by_limit_envelope__tiebreak_lowest_id.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__tiebreak_lowest_id.sql.txt"
+    },
+    {
+      "name": "NULL data-lane field sorts last under ASC (Postgres native NULLS LAST)",
+      "tags": ["order-by", "limit", "envelope", "null-handling"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-5"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) ORDER BY n.data.observed_at ASC LIMIT 1",
+      "expected_envelope": "expected/order_by_limit_envelope__nulls_last_asc.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__nulls_last_asc.sql.txt"
+    },
+    {
+      "name": "NULL data-lane field sorts first under DESC (Postgres native NULLS FIRST)",
+      "tags": ["order-by", "limit", "envelope", "null-handling"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-5"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) ORDER BY n.data.observed_at DESC LIMIT 1",
+      "expected_envelope": "expected/order_by_limit_envelope__nulls_first_desc.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__nulls_first_desc.sql.txt"
+    },
+    {
+      "name": "ORDER BY a spine field (n.name) descending",
+      "tags": ["order-by", "limit", "envelope", "spine-field"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-3"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) ORDER BY n.name DESC LIMIT 1",
+      "expected_envelope": "expected/order_by_limit_envelope__spine_name_desc.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__spine_name_desc.sql.txt"
+    },
+    {
+      "name": "RETURN omitted form equivalent to RETURN n — both accept envelope ORDER BY",
+      "tags": ["order-by", "limit", "envelope", "return-shape"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-7"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 0 RETURN n ORDER BY n.data.observed_at DESC LIMIT 1",
+      "expected_envelope": "expected/order_by_limit_envelope__return_n_explicit.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__return_n_explicit.sql.txt"
+    },
+    {
+      "name": "LIMIT zero returns an empty envelope",
+      "tags": ["limit", "envelope", "empty-result", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-2"
+      ],
+      "inspired_by": "tck/features/clauses/limit/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) ORDER BY n.name LIMIT 0",
+      "expected_envelope": "expected/order_by_limit_envelope__limit_zero.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__limit_zero.sql.txt"
+    },
+    {
+      "name": "oversize LIMIT returns every matching node",
+      "tags": ["limit", "envelope", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-2"
+      ],
+      "inspired_by": "tck/features/clauses/limit/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) ORDER BY n.name LIMIT 999",
+      "expected_envelope": "expected/order_by_limit_envelope__limit_oversize.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__limit_oversize.sql.txt"
+    },
+    {
+      "name": "ORDER BY with no LIMIT compiles correctly (witness via SQL)",
+      "tags": ["order-by", "envelope", "no-limit", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-1",
+        "req-grid-gryphon-order-by-envelope-6"
+      ],
+      "inspired_by": "tck/features/clauses/orderBy/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC",
+      "expected_envelope": "expected/order_by_limit_envelope__order_no_limit.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__order_no_limit.sql.txt"
+    },
+    {
+      "name": "multi-key envelope ORDER BY orders left-to-right with mixed directions",
+      "tags": ["order-by", "envelope", "multi-key", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-1",
+        "req-grid-gryphon-order-by-envelope-4"
+      ],
+      "inspired_by": "tck/features/clauses/orderBy/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) ORDER BY n.data.severity_score ASC, n.data.observed_at DESC LIMIT 3",
+      "expected_envelope": "expected/order_by_limit_envelope__multi_key_mixed_dir.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__multi_key_mixed_dir.sql.txt"
+    }
+  ]
+}
