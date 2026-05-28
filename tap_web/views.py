@@ -531,6 +531,10 @@ def _render_page(
         "css_assets": list(css),
         "js_assets": list(js),
         "query_params": query_params,
+        # Declarative per-page opt-in (layout.full_bleed): drop the centered
+        # max-width container so the page fills the viewport width. base.html
+        # honors this; non-page views leave it unset and stay centered.
+        "full_bleed": bool(layout.get("full_bleed", False)),
     }
     return render(request, "tap_web/page.html", context)
 

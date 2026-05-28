@@ -44,7 +44,7 @@
       "source_constant": "token.actions.githubusercontent.com",
       "target_entity_type": "aws_iam_oidc_provider",
       "target_field": "url",
-      "edge_type": "REFERENCES_RESOURCE",
+      "edge_type": "FEDERATES_VIA",
       "match_mode": "exact",
       "zero_candidates": "info",
       "multiple_candidates": "warn_no_edge",

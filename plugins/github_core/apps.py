@@ -23,9 +23,10 @@ class GithubCoreConfig(TapPluginConfig):
             description=(
                 "Collects GitHub Actions deployment plumbing for the "
                 "configured repos via a PAT (github_pat secret). Two-phase "
-                "run: collection (account/repo/workflows/runs/jobs/runners + "
-                "workflow YAML) followed by enrichment (REFERENCES_RESOURCE "
-                "edges from the grid-link manifest)."
+                "run: collection (platform/account/repo/workflows/runs/jobs/"
+                "runners + workflow YAML) followed by enrichment "
+                "(REFERENCES_RESOURCE + FEDERATES_VIA edges from the "
+                "grid-link manifest)."
             ),
         )
 

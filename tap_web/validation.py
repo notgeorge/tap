@@ -72,6 +72,14 @@ _LAYOUT_SCHEMA: dict = {
     "additionalProperties": False,
     "required": ["columns"],
     "properties": {
+        "full_bleed": {
+            "type": "boolean",
+            "description": (
+                "When true, the page renders full viewport width (no centered "
+                "max-width container). For dashboard/graph pages that want the "
+                "canvas edge-to-edge; text/form pages omit it and stay centered."
+            ),
+        },
         "columns": {
             "type": "object",
             "minProperties": 1,

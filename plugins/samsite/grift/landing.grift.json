@@ -26,13 +26,17 @@
           },
           "node": {
             "name": "Samsite \u2014 Project=samsite nodes",
-            "description": "Gryphon: aws_account + boundary (both unfiltered \u2014 they bind variables other than `n`, so the tag WHERE doesn't apply) plus a bare `MATCH (n)` typeless scan filtered to Project=samsite via the per-model tags JSONField. The bare-MATCH support landed alongside this query's amendment \u2014 collapsed eleven `MATCH (n:aws_*)` clauses into one. Per spec-grid-traversal-language \u00a7 Envelope-Aware Field Paths, `data.tags.Project` walks the per-model tags JSONField via Django nested lookup; nodes without `data.tags` (compliance models, etc.) gracefully don't match.",
+            "description": "Gryphon: aws_account + boundary + the GitHub lane (github_platform / github_account / github_repository / github_workflow, all unfiltered \u2014 they bind variables other than `n`, so the tag WHERE doesn't apply) plus a bare `MATCH (n)` typeless scan filtered to Project=samsite via the per-model tags JSONField. The GitHub source/deploy subtree carries no AWS `tags.Project`, so it's seeded by explicit per-label MATCHes rather than the tag scan. Per spec-grid-traversal-language \u00a7 Envelope-Aware Field Paths, `data.tags.Project` walks the per-model tags JSONField via Django nested lookup; nodes without `data.tags` (compliance + GitHub models) gracefully don't match.",
             "search_type": "gryphon",
             "root": "node",
             "definition": {
               "query": [
                 "MATCH (account:aws_account)",
                 "MATCH (b:boundary)",
+                "MATCH (gp:github_platform)",
+                "MATCH (ga:github_account)",
+                "MATCH (gr:github_repository)",
+                "MATCH (gw:github_workflow)",
                 "MATCH (n)",
                 "WHERE n.data.tags.Project = \"samsite\""
               ]
@@ -220,6 +224,7 @@
             "name": "Samsite",
             "slug": "/samsite",
             "layout": {
+              "full_bleed": true,
               "columns": {
                 "col-1": {
                   "width": "1fr",

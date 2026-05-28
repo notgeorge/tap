@@ -36,6 +36,7 @@ from .identity import (
     account_id,
     edge_id,
     job_id,
+    platform_id,
     repository_id,
     run_id,
     runner_id,
@@ -83,6 +84,11 @@ _DOCS = (
 # states (`waiting`, `pending`, `requested`, `action_required`, etc.) and
 # anything we don't recognize is safer treated as "keep watching."
 _TERMINAL_RUN_STATUSES: frozenset[str] = frozenset({"completed"})
+
+# The platform instance every collected account/repo/workflow hangs under.
+# v0 is github.com only; a GHES host would key on its own hostname.
+_PLATFORM_HOST = "github.com"
+_PLATFORM_DIMENSIONS = {"github.platform": "github.com"}
 
 
 class GithubCollectorError(Exception):
@@ -251,10 +257,30 @@ class GithubCollector(CollectorBase):
         nodes: list[dict[str, Any]] = []
         edges: list[dict[str, Any]] = []
 
+        # --- platform singleton: one github.com node per run, the top of the
+        # account → repo → workflow tree. Synthesized (no API enumerates "the
+        # platform"); deterministic id so re-runs upsert in place and a
+        # hand-written GRIFT node with the same host upserts cleanly onto it.
+        platform_uuid = platform_id(_PLATFORM_HOST)
+        nodes.append(
+            node_envelope(
+                entity_id=platform_uuid,
+                entity_type="github_platform",
+                name=_PLATFORM_HOST,
+                dimensions=dict(_PLATFORM_DIMENSIONS),
+                fields={
+                    "host": _PLATFORM_HOST,
+                    "html_url": f"https://{_PLATFORM_HOST}",
+                    "configuration": {},
+                    "tags": {},
+                },
+            )
+        )
+
         # --- collection phase: per-repo walk ---
         for full_name in repos:
             try:
-                self._collect_repo(client, full_name, run_limit, nodes, edges)
+                self._collect_repo(client, full_name, run_limit, nodes, edges, platform_uuid)
             except GithubAPIError as exc:
                 self._abort(_SITE_ABORT_API, f"GITHUB_API_{exc.status}", str(exc))
             self.record_info(_SITE_REPO_DONE, "REPO_DONE", f"Collected {full_name}")
@@ -283,7 +309,7 @@ class GithubCollector(CollectorBase):
         if enrichment.edge_envelopes:
             enrichment_batch = assemble_batch(
                 batch_name=f"github_core enrichment: {', '.join(repos)}",
-                description="REFERENCES_RESOURCE edges resolved from the grid-link manifest.",
+                description="Cross-grid link edges (REFERENCES_RESOURCE, FEDERATES_VIA) resolved from the grid-link manifest.",
                 nodes=[],
                 edges=enrichment.edge_envelopes,
             )
@@ -305,6 +331,7 @@ class GithubCollector(CollectorBase):
         run_limit: int,
         nodes: list[dict[str, Any]],
         edges: list[dict[str, Any]],
+        platform_uuid: Any,
     ) -> None:
         owner, _, repo = full_name.partition("/")
         repo_dims = {
@@ -333,6 +360,11 @@ class GithubCollector(CollectorBase):
                     "tags": {},
                 },
             )
+        )
+        # platform hosts this account — top-of-tree containment. Deterministic
+        # edge id dedupes across repos that share an owner.
+        edges.append(
+            self._edge("HOSTS_ACCOUNT", platform_uuid, account_uuid, dict(_PLATFORM_DIMENSIONS))
         )
 
         # repository (envelope name == payload name == full_name for display)

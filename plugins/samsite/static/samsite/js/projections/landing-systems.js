@@ -63,6 +63,14 @@ const CLUSTER_ROOTS = [
     {root_entity_type: "aws_eventbridge_rule",  x:  250, y:  200, cluster: "compliance"},
     {root_entity_type: "aws_route53_zone",      x:  250, y:  450, cluster: "website"},
     {root_entity_type: "aws_iam_oidc_provider", x:  250, y:  700, cluster: "bootstrap"},
+    // GitHub source/deploy stack — the deepest leaf (workflow) is positioned
+    // to the LEFT of the boundary so the github.com > account > repo > workflow
+    // compounds nest around it OUTSIDE the FedRAMP boundary, and the workflow's
+    // REFERENCES_RESOURCE edges (→ CloudFront/Route53) + the repo's
+    // FEDERATES_VIA edge (→ the AWS OIDC provider) read as lines crossing
+    // rightward into the boundary. (Sam draws github.com inside the boundary;
+    // we render it outside — argue later.)
+    {root_entity_type: "github_workflow",       x: -380, y:  575, cluster: "github"},
 ];
 
 // aws_account and boundary become compound parents around the three cluster
@@ -79,9 +87,20 @@ const CLUSTER_ROOTS = [
 //      and the aws_account singleton itself carries the same value. The
 //      shared dimension *is* the containment relationship; we don't
 //      materialize edges for it.
+// GitHub side is nested by EDGES, not dimension equality: every github_* node
+// shares `github.platform=github.com`, so a dimension_match would collapse the
+// whole subtree flat under github.com AND collide with the per-level edges
+// (producing "multiple parents" → dropped). Walking one containment edge per
+// level keeps each node's parent unambiguous:
+//   github.com ─HOSTS_ACCOUNT→   account
+//   account    ─OWNS_REPO→       repo
+//   repo       ─DEFINES_WORKFLOW→ workflow (leaf)
 const NESTING_RELATIONSHIPS = [
     {name: "boundary-contains-account", gryphon: "(parent:boundary)<-[:SCOPED_TO_BOUNDARY]-(child:aws_account)"},
     {name: "account-owns-resource",     dimension_match: {parent_type: "aws_account", dimension: "aws_account"}},
+    {name: "platform-hosts-account",    gryphon: "(parent:github_platform)-[:HOSTS_ACCOUNT]->(child:github_account)"},
+    {name: "account-owns-repo",         gryphon: "(parent:github_account)-[:OWNS_REPO]->(child:github_repository)"},
+    {name: "repo-defines-workflow",     gryphon: "(parent:github_repository)-[:DEFINES_WORKFLOW]->(child:github_workflow)"},
 ];
 
 export async function execute(context) {
@@ -95,6 +114,19 @@ export async function execute(context) {
     for (const r of CLUSTER_ROOTS) {
         cy.nodes(`[entity_type="${r.root_entity_type}"]`)
             .forEach((n) => n.position({x: r.x, y: r.y}));
+    }
+
+    // The github cluster root is the workflow leaf, but a repo defines several
+    // workflows — the loop above stacked them all on one point. Spread them
+    // into a vertical column centered on the root y so they don't overlap;
+    // the repo / account / github.com compounds auto-size around the column.
+    const ghRoot = CLUSTER_ROOTS.find((r) => r.cluster === "github");
+    if (ghRoot) {
+        const workflows = cy.nodes('[entity_type="github_workflow"]')
+            .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
+        const gap = 72;
+        const top = ghRoot.y - ((workflows.length - 1) * gap) / 2;
+        workflows.forEach((n, i) => n.position({x: ghRoot.x, y: top + i * gap}));
     }
 
     // Apply compound-parent nesting: every aws_* under aws_account, aws_account

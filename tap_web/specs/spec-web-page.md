@@ -209,6 +209,7 @@ Layout validation and output-safety requirements extracted from `req-web-page-ob
   - `<kebab-name>` means only string characters, numbers and a - allowed
 - Layout structure constraints:
   - Top-level `layout` is an object with required `columns`.
+  - `full_bleed` (optional boolean, top-level) — when true, the page renders at full viewport width (the centered max-width container is dropped; padding gutters are retained). For dashboard/graph pages whose canvas wants the full width; text/form pages omit it and stay centered. Defaults to false.
   - `columns` is an object keyed by:
     - `col-<n>`
     - `col-<n>-<kebab-name>`
