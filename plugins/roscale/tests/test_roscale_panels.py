@@ -14,14 +14,11 @@ from unittest.mock import patch
 
 import pytest
 
-from plugins.roscale.panels import _common
 from plugins.roscale.panels._common import (
-    ArtifactResolution,
     build_provenance,
     poam_headline_stats,
     poam_items,
     poam_metadata,
-    resolve_artifact,
     ssp_components,
     ssp_headline_stats,
     ssp_implemented_requirements,
@@ -30,6 +27,7 @@ from plugins.roscale.panels._common import (
     ssp_self_attestation_signal,
     ssp_system_overview,
 )
+from tap_web.panels.entity_resolution import EntityResolution
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -175,7 +173,7 @@ class TestPoamExtractors:
 
 
 # ---------------------------------------------------------------------------
-# build_context — happy path + error states (mock resolve_artifact)
+# build_context — happy path + error states (mock resolve_entity)
 # ---------------------------------------------------------------------------
 
 
@@ -183,8 +181,8 @@ class TestSspBuildContext:
     def test_happy_path_against_samsite_ssp(self):
         from plugins.roscale.panels import oscal_workbench
 
-        with patch("plugins.roscale.panels.oscal_workbench.resolve_artifact") as mock_resolve:
-            mock_resolve.return_value = ArtifactResolution(
+        with patch("plugins.roscale.panels.oscal_workbench.resolve_entity") as mock_resolve:
+            mock_resolve.return_value = EntityResolution(
                 entity_id="ent-xyz",
                 var_name="oscal_ssp_artifact_entity_id",
                 node=_fake_node(content=_load("samsite_oscal_ssp.json")),
@@ -210,8 +208,8 @@ class TestSspBuildContext:
     def test_wrong_root_returns_root_detect_error(self):
         from plugins.roscale.panels import oscal_workbench
 
-        with patch("plugins.roscale.panels.oscal_workbench.resolve_artifact") as mock_resolve:
-            mock_resolve.return_value = ArtifactResolution(
+        with patch("plugins.roscale.panels.oscal_workbench.resolve_entity") as mock_resolve:
+            mock_resolve.return_value = EntityResolution(
                 entity_id="ent-xyz",
                 var_name="oscal_ssp_artifact_entity_id",
                 node=_fake_node(content=_load("samsite_oscal_poam.json")),
@@ -228,8 +226,8 @@ class TestPoamBuildContext:
     def test_happy_path_against_samsite_poam(self):
         from plugins.roscale.panels import oscal_poam_workbench
 
-        with patch("plugins.roscale.panels.oscal_poam_workbench.resolve_artifact") as mock_resolve:
-            mock_resolve.return_value = ArtifactResolution(
+        with patch("plugins.roscale.panels.oscal_poam_workbench.resolve_entity") as mock_resolve:
+            mock_resolve.return_value = EntityResolution(
                 entity_id="ent-xyz",
                 var_name="oscal_poam_artifact_entity_id",
                 node=_fake_node(content=_load("samsite_oscal_poam.json"), kind="oscal_poam"),
@@ -251,115 +249,56 @@ class TestPoamBuildContext:
 
 
 # ---------------------------------------------------------------------------
-# resolve_artifact — fallback path (no URL var, config.fallback.kind set)
+# build_context — fallback path (no URL var, fallback configured)
 # ---------------------------------------------------------------------------
-
-
-class TestResolveArtifactFallback:
-    def test_explicit_entity_id_wins_over_fallback(self):
-        """When both URL var and fallback are present, URL wins; fallback unused."""
-        panel = _FakePanel({"artifact_entity_id_var": "var", "fallback": {"kind": "oscal_ssp"}})
-        node = _fake_node(content={"system-security-plan": {}})
-
-        with patch("plugins.roscale.panels._common._lookup_by_entity_id", return_value=node) as by_id, \
-             patch("plugins.roscale.panels._common._lookup_latest_by_kind") as by_kind:
-            result = resolve_artifact(panel, _FakeRequest({"var": "ent-xyz"}), "default-var")
-
-        assert result.ok
-        assert result.used_fallback is False
-        assert by_id.called
-        assert not by_kind.called
-
-    def test_fallback_used_when_url_var_empty(self):
-        panel = _FakePanel({"artifact_entity_id_var": "var", "fallback": {"kind": "oscal_ssp"}})
-        node = _fake_node(content={"system-security-plan": {}})
-
-        with patch("plugins.roscale.panels._common._lookup_latest_by_kind", return_value=node) as by_kind:
-            result = resolve_artifact(panel, _FakeRequest({}), "default-var")
-
-        assert result.ok
-        assert result.used_fallback is True
-        assert result.fallback_kind == "oscal_ssp"
-        by_kind.assert_called_once_with("oscal_ssp")
-
-    def test_no_fallback_no_url_var_returns_no_artifact_error(self):
-        panel = _FakePanel({"artifact_entity_id_var": "var"})
-
-        with patch("plugins.roscale.panels._common._lookup_by_entity_id") as by_id, \
-             patch("plugins.roscale.panels._common._lookup_latest_by_kind") as by_kind:
-            result = resolve_artifact(panel, _FakeRequest({}), "default-var")
-
-        assert not result.ok
-        assert result.used_fallback is False
-        assert "No artifact specified" in result.error
-        assert not by_id.called
-        assert not by_kind.called
-
-    def test_fallback_kind_with_no_matches_returns_polished_error(self):
-        panel = _FakePanel({"artifact_entity_id_var": "var", "fallback": {"kind": "oscal_ssp"}})
-
-        with patch("plugins.roscale.panels._common._lookup_latest_by_kind", return_value=None):
-            result = resolve_artifact(panel, _FakeRequest({}), "default-var")
-
-        assert not result.ok
-        assert result.fallback_kind == "oscal_ssp"
-        assert "kind 'oscal_ssp'" in result.error
-
-    def test_lookup_latest_by_kind_sorts_by_fetched_at_desc(self):
-        """The latest-by-kind helper picks the highest fetched_at value."""
-        # Flat envelope: spine fields at top, per-model fields under `data`.
-        nodes = [
-            {"entity_id": "a", "data": {"fetched_at": "2026-05-24T10:00:00Z"}},
-            {"entity_id": "b", "data": {"fetched_at": "2026-05-26T10:00:00Z"}},
-            {"entity_id": "c", "data": {"fetched_at": "2026-05-25T10:00:00Z"}},
-            {"entity_id": "d", "data": {"fetched_at": ""}},  # empty sorts last
-        ]
-        fake_result = {"results": {"nodes": nodes}}
-
-        # `_lookup_latest_by_kind` imports Search + execute_search inside the
-        # function body, so patches target the source modules.
-        with patch("tap_grid.search.execute_search", return_value=fake_result), \
-             patch("tap_grid.models.Search"):
-            latest = _common._lookup_latest_by_kind("oscal_ssp")
-
-        assert latest["entity_id"] == "b"
+#
+# Direct tests of the canonical resolver live in
+# tap_web/tests/test_panel_entity_resolution.py — those tests cover URL-wins /
+# fallback-fires / no-URL-no-fallback / empty / ambiguous / transient paths
+# against EntityResolution. The tests below verify that the panel's
+# build_context correctly propagates resolution outcome into template context.
 
 
 class TestPanelBuildContextWithFallback:
+    SSP_FALLBACK_DESCRIPTION = "Latest oscal_ssp compliance artifact by fetched_at."
+    POAM_FALLBACK_DESCRIPTION = "Latest oscal_poam compliance artifact by fetched_at."
+
     def test_ssp_build_context_propagates_fallback_flag(self):
         from plugins.roscale.panels import oscal_workbench
 
-        with patch("plugins.roscale.panels.oscal_workbench.resolve_artifact") as mock_resolve:
-            mock_resolve.return_value = ArtifactResolution(
+        with patch("plugins.roscale.panels.oscal_workbench.resolve_entity") as mock_resolve:
+            mock_resolve.return_value = EntityResolution(
                 entity_id="ent-latest",
                 var_name="oscal_ssp_artifact_entity_id",
                 node=_fake_node(content=_load("samsite_oscal_ssp.json")),
                 error=None,
                 used_fallback=True,
-                fallback_kind="oscal_ssp",
+                fallback_description=self.SSP_FALLBACK_DESCRIPTION,
+                fallback_count=1,
             )
             ctx = oscal_workbench.build_context(_FakePanel(), _FakeRequest({}))
 
         assert ctx["used_fallback"] is True
-        assert ctx["fallback_kind"] == "oscal_ssp"
+        assert ctx["fallback_description"] == self.SSP_FALLBACK_DESCRIPTION
         assert ctx["error_phase"] is None
         assert ctx["metadata"]["title"]
 
     def test_poam_build_context_propagates_fallback_flag(self):
         from plugins.roscale.panels import oscal_poam_workbench
 
-        with patch("plugins.roscale.panels.oscal_poam_workbench.resolve_artifact") as mock_resolve:
-            mock_resolve.return_value = ArtifactResolution(
+        with patch("plugins.roscale.panels.oscal_poam_workbench.resolve_entity") as mock_resolve:
+            mock_resolve.return_value = EntityResolution(
                 entity_id="ent-latest",
                 var_name="oscal_poam_artifact_entity_id",
                 node=_fake_node(content=_load("samsite_oscal_poam.json"), kind="oscal_poam"),
                 error=None,
                 used_fallback=True,
-                fallback_kind="oscal_poam",
+                fallback_description=self.POAM_FALLBACK_DESCRIPTION,
+                fallback_count=1,
             )
             ctx = oscal_poam_workbench.build_context(_FakePanel(), _FakeRequest({}))
 
         assert ctx["used_fallback"] is True
-        assert ctx["fallback_kind"] == "oscal_poam"
+        assert ctx["fallback_description"] == self.POAM_FALLBACK_DESCRIPTION
         assert ctx["error_phase"] is None
         assert ctx["items"]
