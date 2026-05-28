@@ -20,9 +20,9 @@ _MINIMAL_LAYOUT = {
 }
 
 
-def _create_page(name: str, slug: str, description: str = "") -> Page:
+def _create_page(name: str, slug: str, description: str = "", discoverable: bool = True) -> Page:
     return Page.objects.create(
-        name=name, slug=slug, description=description, layout=_MINIMAL_LAYOUT
+        name=name, slug=slug, description=description, layout=_MINIMAL_LAYOUT, discoverable=discoverable
     )
 
 
@@ -225,3 +225,36 @@ class TestNavIndexEndpoint:
         entry = next(p for p in payload["pages"] if p["url"] == "/a")
         assert set(entry.keys()) == {"url", "name", "description", "breadcrumb"}
         assert entry["description"] == "d"
+
+    def test_excludes_non_discoverable_pages(self):
+        """req-web-nav-page-discoverable: Pages with discoverable=False are
+        omitted from the nav-index so the palette / chevron popovers /
+        column view don't surface parameterized pages.
+        """
+        _create_page("Visible", "/visible")
+        _create_page("Hidden", "/hidden", discoverable=False)
+        urls = {p["url"] for p in Client().get("/__nav-index.json").json()["pages"]}
+        assert "/visible" in urls
+        assert "/hidden" not in urls
+
+
+@pytest.mark.django_db
+class TestDiscoverableGateInBreadcrumb:
+    """Non-discoverable Pages render as plain text in breadcrumbs."""
+
+    def test_non_discoverable_intermediate_renders_unregistered(self):
+        """When a URL prefix matches a Page with discoverable=False, the
+        breadcrumb segment for that prefix renders as plain text (the
+        unregistered-prefix branch) — not as a clickable link to a page
+        that would render broken without a URL parameter.
+        """
+        _create_page("Samsite", "/samsite")
+        _create_page("Findings (parameterized)", "/samsite/finding", discoverable=False)
+        segments = build_breadcrumb("/samsite/finding/abc-123")
+        # Home + samsite (registered) + finding (NOT registered per discoverable=False) + abc-123 (raw)
+        assert segments[1].is_registered is True
+        assert segments[1].label == "Samsite"
+        assert segments[2].is_registered is False  # discoverable=False → treated as unregistered
+        assert segments[2].label == "Finding"  # title-cased slug, not the Page's name
+        assert segments[3].is_registered is False
+        assert segments[3].is_current is True

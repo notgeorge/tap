@@ -8,13 +8,13 @@
       "batch_entity": {
         "entity_id": "019dfa48-c5ed-7184-ae89-6d5428162468",
         "entity_type": "batch",
-        "name": "Genericom EC2 instance page v0.3.0 — panels",
+        "name": "Genericom EC2 instance page v0.3.0 \u2014 panels",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.genericom",
-        "name": "Genericom EC2 instance page v0.3.0 — panels",
-        "description": "Adds the new search, hero panel, findings panel, and the USES_PANEL + USES_SEARCH edges that connect them to the existing EC2 instance page. Page layout is bumped in batch 2 (Genericom EC2 instance page v0.3.0 — layout) so the hotlink-exact validator sees the new edges before the layout references them. See spec-genericom-ec2-projection.md req-genericom-ec2-page-layout."
+        "name": "Genericom EC2 instance page v0.3.0 \u2014 panels",
+        "description": "Adds the new search, hero panel, findings panel, and the USES_PANEL + USES_SEARCH edges that connect them to the existing EC2 instance page. Page layout is bumped in batch 2 (Genericom EC2 instance page v0.3.0 \u2014 layout) so the hotlink-exact validator sees the new edges before the layout references them. See spec-genericom-ec2-projection.md req-genericom-ec2-page-layout."
       },
       "nodes": [
         {
@@ -22,7 +22,9 @@
             "entity_id": "019dfa48-c5ed-7184-ae89-6d581907e5ad",
             "entity_type": "search",
             "name": "EC2 Instance Findings",
-            "dimensions": {"compliance": "fedramp-20x"}
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
           },
           "node": {
             "name": "EC2 Instance Findings",
@@ -31,8 +33,15 @@
             "root": "node",
             "input_schema": {
               "type": "object",
-              "properties": {"entity_id": {"type": "string", "format": "uuid"}},
-              "required": ["entity_id"]
+              "properties": {
+                "entity_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "entity_id"
+              ]
             },
             "definition": {
               "query": [
@@ -50,7 +59,9 @@
             "entity_id": "019dfa48-c5ed-7184-ae89-6d55814f168a",
             "entity_type": "panel",
             "name": "EC2 Instance Hero",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "genericom-ec2-instance-hero",
@@ -65,7 +76,9 @@
             "entity_id": "019dfa48-c5ed-7184-ae89-6d56dde97158",
             "entity_type": "panel",
             "name": "EC2 Instance Findings",
-            "dimensions": {"compliance": "fedramp-20x"}
+            "dimensions": {
+              "compliance": "fedramp-20x"
+            }
           },
           "node": {
             "slug": "fedramp-20x-ksi-instance-findings",
@@ -102,7 +115,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e71243cc117c",
             "to_entity_id": "019dfa48-c5ed-7184-ae89-6d55814f168a",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "hero"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "hero"
+              }
+            }
           }
         },
         {
@@ -116,7 +135,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e71243cc117c",
             "to_entity_id": "019dfa48-c5ed-7184-ae89-6d56dde97158",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "findings"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "findings"
+              }
+            }
           }
         }
       ]
@@ -125,12 +150,12 @@
       "batch_entity": {
         "entity_id": "019dfa6b-83c5-768c-b972-5e6b98ad9eab",
         "entity_type": "batch",
-        "name": "Genericom EC2 instance page v0.3.1 — search expansion",
+        "name": "Genericom EC2 instance page v0.3.1 \u2014 search expansion",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.genericom",
-        "name": "Genericom EC2 instance page v0.3.1 — search expansion",
+        "name": "Genericom EC2 instance page v0.3.1 \u2014 search expansion",
         "description": "Re-publishes the EC2 Instance Internal Slice search to additionally fetch the focused EC2's VPC + account + sibling EC2 instances inside the same VPC. The projection JS uses these to render the EC2 inside an account/VPC nested layout (no subnets shown). Same Search.entity_id; only the query definition is updated."
       },
       "nodes": [
@@ -148,8 +173,15 @@
             "root": "node",
             "input_schema": {
               "type": "object",
-              "properties": {"entity_id": {"type": "string", "format": "uuid"}},
-              "required": ["entity_id"]
+              "properties": {
+                "entity_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "entity_id"
+              ]
             },
             "definition": {
               "query": [
@@ -176,12 +208,12 @@
       "batch_entity": {
         "entity_id": "019dfa54-c5c2-75d3-a050-3e7cdd39ff03",
         "entity_type": "batch",
-        "name": "Genericom EC2 instance page v0.3.0 — layout",
+        "name": "Genericom EC2 instance page v0.3.0 \u2014 layout",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.genericom",
-        "name": "Genericom EC2 instance page v0.3.0 — layout",
+        "name": "Genericom EC2 instance page v0.3.0 \u2014 layout",
         "description": "Re-publishes the EC2 instance page entity with the v0.3.0 three-row layout (hero / main / findings). Must land after batch 1 so the hotlink-exact validator finds matching USES_PANEL edges for the hero and findings slots."
       },
       "nodes": [
@@ -190,7 +222,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e71243cc117c",
             "entity_type": "page",
             "name": "EC2 Instance",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "EC2 Instance",
@@ -200,13 +234,23 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1": {"panel-id": "hero", "height": "auto"},
-                    "row-2": {"panel-id": "main", "height": "2fr"},
-                    "row-3": {"panel-id": "findings", "height": "1fr"}
+                    "row-1": {
+                      "panel-id": "hero",
+                      "height": "auto"
+                    },
+                    "row-2": {
+                      "panel-id": "main",
+                      "height": "2fr"
+                    },
+                    "row-3": {
+                      "panel-id": "findings",
+                      "height": "1fr"
+                    }
                   }
                 }
               }
-            }
+            },
+            "discoverable": false
           }
         }
       ],

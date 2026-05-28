@@ -36,6 +36,7 @@ The chrome budget is fixed: product mark, breadcrumb, session tag, command-palet
 | req-web-nav-no-hamburger | [No Hamburger Menu](#no-hamburger-menu) | Proposed | Hard prohibition; defends the design against drift |
 | req-web-nav-chrome-budget | [Chrome Budget](#chrome-budget) | Proposed | Header contents enumerated and capped at five elements |
 | req-web-nav-index-endpoint | [Machine-Readable Nav Index](#machine-readable-nav-index) | Proposed | `/__nav-index.json` enumerates reachable pages + canonical breadcrumb paths |
+| req-web-nav-page-discoverable | [Page Discoverability Gate](#page-discoverability-gate) | Proposed | Pages requiring URL parameters opt out of all browse-discovery surfaces via a `discoverable=False` flag |
 
 ## Requirements
 
@@ -358,6 +359,45 @@ The endpoint name uses the `__` prefix (e.g., `/__nav-index.json`) to follow the
 #### Future
 
 Per-entity nav-index entries (a deeper index that includes drillable entities, not just registered Pages). Authentication / authorization filtering once a permission model exists. WebSocket / SSE push of index updates for long-lived agent sessions.
+
+
+### Page Discoverability Gate
+----
+RID: `req-web-nav-page-discoverable`
+Status: `Proposed`
+
+A `discoverable` BooleanField on the `Page` model (default `True`) gates whether a Page appears in **any** of the browse-discovery surfaces — the palette, chevron popovers, column-view explorer, and the `/__nav-index.json` index. Non-discoverable Pages still resolve on direct visit and remain valid breadcrumb destinations *when the user is actually on a URL that nests under them*; only browse-style discovery is gated.
+
+#### Status Details
+
+The complaint that produced this requirement: pages registered at slugs like `/samsite/finding` (whose actual route is `/samsite/finding/<uuid:entity_id>`) appeared in the palette but rendered broken when clicked — they need a URL parameter the palette can't supply. Heuristic detection (introspecting panel configs for an `entity_id_var`-style declaration) was considered and rejected as brittle: pages can have arbitrary parameter mechanisms, and the discoverability metadata belongs on the Page entity, not cross-referenced from URL config.
+
+#### Implementation
+
+- The `Page.discoverable` field defaults to `True`. Most Pages are loadable as-is; the common case is automatic discoverability.
+- Pages whose URL requires a parameter (typically `<entity_id>`) set `discoverable=False` in their GRIFT bundle.
+- The nav-index endpoint filters `Page.objects.filter(discoverable=True)`.
+- The breadcrumb helper (`build_breadcrumb`) also filters `discoverable=True` when resolving registered Pages, so an ancestor Page whose URL requires a parameter renders as plain text in the breadcrumb of a deeper-URL page rather than as a clickable link to a broken-render URL. Direct visit to the parameterized URL with a valid parameter still renders normally.
+- The chevron popover, column-view, and palette tree all read from `/__nav-index.json`, so the single filter at the endpoint cascades to all four surfaces.
+
+#### Development
+
+This is the cheapest sustainable answer to "what pages are *actually* navigable from a discovery surface without me typing a UUID into the URL bar." The explicit flag costs one line per parameterized GRIFT batch; the gain is that every discovery surface auto-respects the same rule.
+
+A future iteration may add **partial discoverability** — surfacing parameterized pages in the palette with a sub-picker for the entity (e.g., "Samsite Finding" → list of recent findings). That's the eventual UX once the palette indexes entities per `req-web-nav-command-palette-3`; until then, the all-or-nothing flag is the simplest contract that matches v0 reality.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-nav-page-discoverable-1 | Default Discoverable | Proposed | `Page.discoverable` defaults to `True`; new Pages are surfaced unless they explicitly opt out. | |
+| req-web-nav-page-discoverable-2 | Nav-Index Filters | Proposed | `/__nav-index.json` returns only Pages with `discoverable=True`. | |
+| req-web-nav-page-discoverable-3 | Breadcrumb Treats Non-Discoverable As Unregistered | Proposed | When `build_breadcrumb` resolves an ancestor URL prefix to a Page with `discoverable=False`, the segment renders as plain text (the unregistered-prefix branch), not as a clickable link. | The Page still loads on direct visit; only the breadcrumb link is suppressed. |
+| req-web-nav-page-discoverable-4 | All Discovery Surfaces Honor The Gate | Proposed | Palette, chevron popovers, column view, and nav-index all respect `discoverable=False` because they share the nav-index data plane. | A future palette upgrade for partial discoverability (per `req-web-nav-command-palette-3`) may relax this for entities specifically. |
+
+#### Future
+
+Partial discoverability: surface parameterized Pages in the palette as `<Page Name> → pick entity` flows once the palette indexes entities (req-web-nav-command-palette-3). At that point the flag's semantic shifts from "this Page is not discoverable" to "this Page is only discoverable through an entity-picker affordance" — same default, expanded behavior on the opt-out side.
 
 
 ## Future Seams

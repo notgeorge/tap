@@ -1,5 +1,7 @@
 {
-  "metadata": {"grift_version": "0"},
+  "metadata": {
+    "grift_version": "0"
+  },
   "_reserved": {},
   "batches": [
     {
@@ -20,7 +22,9 @@
             "entity_id": "019e22ea-19b6-7019-9477-7d81485511ff",
             "entity_type": "panel",
             "name": "CARES Collectors",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "administrivia-cares-collector-table",
@@ -35,7 +39,9 @@
             "entity_id": "019e22ea-1b80-7255-b28b-b1af795ffef2",
             "entity_type": "panel",
             "name": "CARES Collector Detail",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "administrivia-cares-collector-detail",
@@ -50,7 +56,9 @@
             "entity_id": "019e22ea-15f6-70db-97d3-a47238f50704",
             "entity_type": "page",
             "name": "CARES",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "CARES",
@@ -60,7 +68,10 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1": {"panel-id": "collectors", "height": "1fr"}
+                    "row-1": {
+                      "panel-id": "collectors",
+                      "height": "1fr"
+                    }
                   }
                 }
               }
@@ -72,7 +83,9 @@
             "entity_id": "019e22ea-17bc-7188-95b1-a9030c1dee39",
             "entity_type": "page",
             "name": "CARES Collector Detail",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "CARES Collector Detail",
@@ -82,11 +95,15 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1": {"panel-id": "detail", "height": "1fr"}
+                    "row-1": {
+                      "panel-id": "detail",
+                      "height": "1fr"
+                    }
                   }
                 }
               }
-            }
+            },
+            "discoverable": false
           }
         },
         {
@@ -94,7 +111,9 @@
             "entity_id": "019e2307-acac-706f-a575-4acd5a1a46e8",
             "entity_type": "panel",
             "name": "CARES Run Detail",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "administrivia-cares-run-detail",
@@ -109,7 +128,9 @@
             "entity_id": "019e2307-b24a-7100-a214-ee81efb13dc0",
             "entity_type": "page",
             "name": "CARES Run Detail",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "CARES Run Detail",
@@ -119,11 +140,15 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1": {"panel-id": "run-detail", "height": "1fr"}
+                    "row-1": {
+                      "panel-id": "run-detail",
+                      "height": "1fr"
+                    }
                   }
                 }
               }
-            }
+            },
+            "discoverable": false
           }
         }
       ],
@@ -139,7 +164,13 @@
             "from_entity_id": "019e22ea-15f6-70db-97d3-a47238f50704",
             "to_entity_id": "019e22ea-19b6-7019-9477-7d81485511ff",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "collectors"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "collectors"
+              }
+            }
           }
         },
         {
@@ -153,7 +184,13 @@
             "from_entity_id": "019e22ea-17bc-7188-95b1-a9030c1dee39",
             "to_entity_id": "019e22ea-1b80-7255-b28b-b1af795ffef2",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "detail"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "detail"
+              }
+            }
           }
         },
         {
@@ -167,7 +204,13 @@
             "from_entity_id": "019e2307-b24a-7100-a214-ee81efb13dc0",
             "to_entity_id": "019e2307-acac-706f-a575-4acd5a1a46e8",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "run-detail"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "run-detail"
+              }
+            }
           }
         }
       ]

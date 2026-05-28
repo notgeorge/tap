@@ -1,5 +1,7 @@
 {
-  "metadata": {"grift_version": "0"},
+  "metadata": {
+    "grift_version": "0"
+  },
   "_reserved": {},
   "batches": [
     {
@@ -20,7 +22,9 @@
             "entity_id": "019e26d4-7817-7159-9591-8584f74f39a8",
             "entity_type": "panel",
             "name": "CARES Schedules",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "administrivia-cares-schedule-table",
@@ -35,7 +39,9 @@
             "entity_id": "019e26d4-7817-7159-9591-85851ada99d4",
             "entity_type": "panel",
             "name": "CARES Schedule Detail",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "administrivia-cares-schedule-detail",
@@ -50,7 +56,9 @@
             "entity_id": "019e26d4-7817-7159-9591-858654974cb1",
             "entity_type": "page",
             "name": "CARES Schedule Detail",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "CARES Schedule Detail",
@@ -60,11 +68,15 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1": {"panel-id": "detail", "height": "1fr"}
+                    "row-1": {
+                      "panel-id": "detail",
+                      "height": "1fr"
+                    }
                   }
                 }
               }
-            }
+            },
+            "discoverable": false
           }
         }
       ],
@@ -80,7 +92,13 @@
             "from_entity_id": "019e22ea-15f6-70db-97d3-a47238f50704",
             "to_entity_id": "019e26d4-7817-7159-9591-8584f74f39a8",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "schedules"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "schedules"
+              }
+            }
           }
         },
         {
@@ -94,7 +112,13 @@
             "from_entity_id": "019e26d4-7817-7159-9591-858654974cb1",
             "to_entity_id": "019e26d4-7817-7159-9591-85851ada99d4",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "detail"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "detail"
+              }
+            }
           }
         }
       ]
@@ -109,7 +133,7 @@
       "batch_node": {
         "source": "plugins.administrivia",
         "name": "Administrivia CARES Administrivia v0.4.0b (homepage layout)",
-        "description": "Second half of the v0.4.0 scheduler-administrivia rollout: re-publishes the CARES homepage layout to add a second `schedules` slot below the existing `collectors` slot. Depends on the USES_PANEL `schedules` edge from batch v0.4.0a — splitting the page update out of the entity-creation batch keeps the homepage's hotlink validation passing because the edge it expects already exists when the new layout is saved."
+        "description": "Second half of the v0.4.0 scheduler-administrivia rollout: re-publishes the CARES homepage layout to add a second `schedules` slot below the existing `collectors` slot. Depends on the USES_PANEL `schedules` edge from batch v0.4.0a \u2014 splitting the page update out of the entity-creation batch keeps the homepage's hotlink validation passing because the edge it expects already exists when the new layout is saved."
       },
       "nodes": [
         {
@@ -117,7 +141,9 @@
             "entity_id": "019e22ea-15f6-70db-97d3-a47238f50704",
             "entity_type": "page",
             "name": "CARES",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "CARES",
@@ -127,8 +153,14 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1": {"panel-id": "collectors", "height": "auto"},
-                    "row-2": {"panel-id": "schedules", "height": "auto"}
+                    "row-1": {
+                      "panel-id": "collectors",
+                      "height": "auto"
+                    },
+                    "row-2": {
+                      "panel-id": "schedules",
+                      "height": "auto"
+                    }
                   }
                 }
               }

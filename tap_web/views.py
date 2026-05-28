@@ -692,7 +692,11 @@ def nav_index_view(request: HttpRequest) -> JsonResponse:
     Unauthenticated for v0; the index reveals only what's already discoverable
     by walking links.
     """
-    pages_qs = Page.objects.all().order_by("slug")
+    # Filter `discoverable=True` per req-web-nav-page-discoverable — parameterized
+    # pages (e.g. /samsite/finding/<entity_id>) opt out of discovery surfaces
+    # because clicking them without a parameter produces a broken render. They
+    # still resolve on direct visit; only browse-style discovery is gated.
+    pages_qs = Page.objects.filter(discoverable=True).order_by("slug")
     entries: list[dict[str, Any]] = []
     for page in pages_qs:
         breadcrumb = build_breadcrumb(page.slug)

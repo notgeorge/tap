@@ -51,11 +51,14 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1": {"panel-id": "profile"}
+                    "row-1": {
+                      "panel-id": "profile"
+                    }
                   }
                 }
               }
-            }
+            },
+            "discoverable": false
           }
         }
       ],
@@ -65,7 +68,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e69d4d679e93",
             "entity_type": "edge",
             "name": "USES_PANEL",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e69c61d75d0a",
