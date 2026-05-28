@@ -1,0 +1,32 @@
+{% load static %}
+<div class="ghc-panel ghc-hero">
+  {% if repo %}
+    <div class="ghc-hero-main">
+      <h2 class="ghc-hero-title">{{ repo.full_name }}</h2>
+      <div class="ghc-hero-meta">
+        <span class="ghc-chip">default: <strong>{{ repo.default_branch|default:"—" }}</strong></span>
+        <span class="ghc-chip">{{ repo.visibility|default:"—" }}</span>
+        <span class="ghc-chip">owner: <strong>{{ repo.owner_login }}</strong></span>
+        {% if repo.html_url %}
+          <a class="ghc-hero-link" href="{{ repo.html_url }}" target="_blank" rel="noopener">open on github ↗</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="ghc-hero-side">
+      <div class="ghc-hero-age">last collected {{ last_collected_age }}</div>
+      {% if resolution.source == "fallback" %}
+        <div class="ghc-hint">fallback: latest collected repo</div>
+      {% endif %}
+    </div>
+  {% elif resolution.source == "not_found" %}
+    <div class="ghc-empty">
+      <strong>Repository not found.</strong>
+      <div class="ghc-empty-detail">No <code>github_repository</code> node with entity_id <code>{{ resolution.requested_entity_id }}</code> exists on the grid.</div>
+    </div>
+  {% else %}
+    <div class="ghc-empty">
+      <strong>No repositories collected yet.</strong>
+      <div class="ghc-empty-detail">Run the <code>github_core</code> collector against a <code>github_pat</code> secret to populate.</div>
+    </div>
+  {% endif %}
+</div>

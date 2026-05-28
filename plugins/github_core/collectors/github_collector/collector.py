@@ -248,7 +248,10 @@ class GithubCollector(CollectorBase):
                         "run_started_at": r.get("run_started_at"),
                         "completed_at": r.get("updated_at"),
                         "html_url": r.get("html_url", ""),
-                        "configuration": {"raw_payload_keys": sorted(r.keys())},
+                        "configuration": {
+                            "workflow_id": r.get("workflow_id"),
+                            "raw_payload_keys": sorted(r.keys()),
+                        },
                         "tags": {},
                     },
                 )

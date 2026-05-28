@@ -19,3 +19,6 @@ EXECUTES_WORKFLOW = "edges/EXECUTES_WORKFLOW.edge.json"
 HAS_JOB = "edges/HAS_JOB.edge.json"
 EXECUTED_ON = "edges/EXECUTED_ON.edge.json"
 REFERENCES_RESOURCE = "edges/REFERENCES_RESOURCE.edge.json"
+
+[grift]
+repo-landing-page = "grift/repo-landing-page.grift.json"

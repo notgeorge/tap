@@ -1,0 +1,27 @@
+{% load static %}
+<div class="ghc-panel">
+  <h3 class="ghc-panel-title">Deploy Health <span class="ghc-panel-subtitle">last {{ window }} runs per workflow</span></h3>
+  {% if rows %}
+    <table class="ghc-health-table">
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td class="ghc-health-name">{{ row.workflow.name|default:row.workflow.path }}</td>
+            <td class="ghc-health-boxes">
+              {% if row.boxes %}
+                {% for box in row.boxes %}<span class="ghc-box ghc-box-{{ box.tone }}" title="{{ box.label }}"></span>{% endfor %}
+              {% else %}
+                <span class="ghc-empty-inline">no runs</span>
+              {% endif %}
+            </td>
+            <td class="ghc-health-summary">{{ row.success_count }}/{{ row.total }} success</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% elif resolution.repo %}
+    <div class="ghc-empty">No workflows defined on this repository yet.</div>
+  {% else %}
+    <div class="ghc-empty">No repository resolved.</div>
+  {% endif %}
+</div>
