@@ -1,0 +1,35 @@
+{% load static %}
+<div class="samsite-vdr-health{% if any_false %} samsite-vdr-health-degraded{% endif %}">
+  {% if error_message %}
+    <div class="samsite-vdr-health-error">
+      <strong>VDR ingestion health unavailable.</strong> {{ error_message }}
+    </div>
+  {% else %}
+    <div class="samsite-vdr-health-row">
+      <div class="samsite-vdr-health-title">
+        VDR ingestion health
+        <span class="samsite-vdr-health-meta">
+          latest report emitted {{ report_emitted_at|default:"(unknown)" }}
+        </span>
+      </div>
+      <ul class="samsite-vdr-health-pills">
+        {% for flag in flags %}
+          <li class="samsite-vdr-health-pill samsite-vdr-health-pill-{{ flag.state }}" title="{{ flag.help_text }}">
+            <span class="samsite-vdr-health-glyph">
+              {% if flag.state == "ok" %}✓{% elif flag.state == "missing" %}✗{% else %}?{% endif %}
+            </span>
+            <span class="samsite-vdr-health-label">{{ flag.label }}</span>
+            <span class="samsite-vdr-health-state">{{ flag.state }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+      {% if any_false %}
+        <p class="samsite-vdr-health-warning">
+          One or more upstream ingestions did not run in the latest VDR build.
+          Findings derived from the corresponding source are absent by omission,
+          not by clean signal — interpret "no findings" of that source with care.
+        </p>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>

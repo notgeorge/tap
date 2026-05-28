@@ -1071,7 +1071,7 @@
                 {
                   "label": "KSI Scoreboard",
                   "href": "/samsite/compliance/scoreboard",
-                  "description": "Synthesized FedRAMP 20x KSI status — joins the indicator catalog against the latest SSP + POA&M for passing/in-progress/accepted/gap per KSI."
+                  "description": "Synthesized FedRAMP 20x KSI status \u2014 joins the indicator catalog against the latest SSP + POA&M for passing/in-progress/accepted/gap per KSI."
                 }
               ]
             }
@@ -1105,15 +1105,71 @@
     },
     {
       "batch_entity": {
-        "entity_id": "019e6531-ef00-7715-8624-8d5871fcd1b6",
+        "entity_id": "019e66c8-2fdf-7e20-bd0c-ee30fd4bf068",
         "entity_type": "batch",
-        "name": "Samsite Compliance landing v0.2.0 \u2014 page layout w/ nav row",
+        "name": "Samsite Compliance landing \u2014 add vdr-ingestion-health panel",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-landing",
-        "name": "Samsite Compliance landing v0.2.0 \u2014 page layout w/ nav row",
-        "description": "Re-upserts the /samsite/compliance page with a 10-row layout: the new row-0-nav at the top references the samsite-nav-links panel (added in the sibling 'add nav-links panel' batch above), followed by the existing 9 table rows."
+        "name": "Samsite Compliance landing \u2014 add vdr-ingestion-health panel",
+        "description": "Adds the samsite-vdr-ingestion-health panel instance + USES_PANEL edge hotlinked as 'vdr-health' on the /samsite/compliance page. Imported BEFORE the page-layout-bump batch so the page's row-1-vdr-health hotlink resolves at validate_hotlinks time."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e66c8-2fe0-7a6e-a7ef-6021f1046438",
+            "entity_type": "panel",
+            "name": "Samsite VDR Ingestion Health",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "slug": "samsite-vdr-ingestion-health",
+            "name": "Samsite VDR Ingestion Health",
+            "description": "Consumer-side complement to the upstream VDR aggregator's kev_catalog_loaded + dependabot_alerts_loaded disclosure flags. Renders \u2713/\u2717 pills from the latest vdr_report.summary; if either flips false, the panel turns red and warns the user.",
+            "view": "samsite/panels/vdr_ingestion_health.html",
+            "config": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e66c8-2fe0-78e0-9f40-bd18a6fa5592",
+            "entity_type": "edge",
+            "name": "Compliance Page USES_PANEL VDR Health",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "edge": {
+            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "to_entity_id": "019e66c8-2fe0-7a6e-a7ef-6021f1046438",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "vdr-health"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "batch_entity": {
+        "entity_id": "019e66c8-2fe0-7411-a088-17331a4e1054",
+        "entity_type": "batch",
+        "name": "Samsite Compliance landing v0.3.0 \u2014 page layout w/ vdr-health row",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite.grift.compliance-landing",
+        "name": "Samsite Compliance landing v0.3.0 \u2014 page layout w/ vdr-health row",
+        "description": "Re-upserts the /samsite/compliance page with an 11-row layout. The new row-1-vdr-health at the top references the samsite-vdr-ingestion-health panel (added in the sibling 'add vdr-ingestion-health panel' batch above), followed by row-2-nav (the nav-links cards) and the existing 9 table rows."
       },
       "nodes": [
         {
@@ -1133,35 +1189,39 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1-nav": {
+                    "row-1-vdr-health": {
+                      "panel-id": "vdr-health",
+                      "height": "auto"
+                    },
+                    "row-2-nav": {
                       "panel-id": "nav",
                       "height": "auto"
                     },
-                    "row-2-signal": {
+                    "row-3-signal": {
                       "panel-id": "ksi-signal"
                     },
-                    "row-3-components": {
+                    "row-4-components": {
                       "panel-id": "components"
                     },
-                    "row-4-validations": {
+                    "row-5-validations": {
                       "panel-id": "validations"
                     },
-                    "row-5-violations": {
+                    "row-6-violations": {
                       "panel-id": "violations"
                     },
-                    "row-6-vdr-report": {
+                    "row-7-vdr-report": {
                       "panel-id": "vdr-report"
                     },
-                    "row-7-findings": {
+                    "row-8-findings": {
                       "panel-id": "findings"
                     },
-                    "row-8-artifacts": {
+                    "row-9-artifacts": {
                       "panel-id": "artifacts"
                     },
-                    "row-9-themes": {
+                    "row-10-themes": {
                       "panel-id": "themes"
                     },
-                    "row-10-indicators": {
+                    "row-11-indicators": {
                       "panel-id": "indicators"
                     }
                   }
