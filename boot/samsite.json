@@ -1,0 +1,27 @@
+{
+  "version": 0,
+  "description": "Samsite demo — populate a fresh session end-to-end: AWS resource graph, GitHub repo data, the FedRAMP 20x KSI catalog, then samsite's signed compliance artifacts (which also synthesize authorization-boundary membership). Order matters: samsite-compliance reads aws_account nodes, so boto3 must run first.",
+  "on_failure": "abort",
+  "collectors": [
+    {
+      "key": "plugins.aws_core.collectors.boto3_collector.collector:boto3",
+      "enabled": true,
+      "note": "AWS resource graph (Route53/CloudFront/S3/Lambda/IAM/...) + the aws_account node the boundary membership depends on."
+    },
+    {
+      "key": "plugins.github_core.collectors.github_collector.collector:github_core",
+      "enabled": true,
+      "note": "GitHub repository / Actions data behind the repo landing page."
+    },
+    {
+      "key": "plugins.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog",
+      "enabled": true,
+      "note": "Refresh the FedRAMP 20x KSI catalog (HTTPS, no credentials)."
+    },
+    {
+      "key": "plugins.samsite.collectors.compliance_collector.collector:samsite-compliance",
+      "enabled": true,
+      "note": "Signed /.well-known/ compliance artifacts (OSCAL SSP/POA&M, KSI signal, VDR). MUST run after boto3 — synthesizes SCOPED_TO_BOUNDARY membership from the aws_account nodes."
+    }
+  ]
+}

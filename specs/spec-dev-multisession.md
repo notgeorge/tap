@@ -35,7 +35,7 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-list-script | [List Script](#list-script) | Proposed | Phase 3 |
 | req-dev-multisession-named-routing | [Name-Based Routing via Reverse Proxy](#name-based-routing-via-reverse-proxy) | Backlog | Phase 3 polish |
 
-Teardown is tracked separately in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md). Smoke tests live in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md).
+Teardown is tracked separately in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md). Smoke tests live in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md). First-boot collector firing — the spawn step that fires collectors to populate collected data after seeding — is specified in [spec-dev-boot-collectors.md](spec-dev-boot-collectors.md) (`req-dev-boot-collectors-spawn-integration`).
 
 ### Parameterized Compose Stack
 ----

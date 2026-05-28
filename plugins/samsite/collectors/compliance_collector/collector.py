@@ -23,6 +23,10 @@ from tap_cares.collectors.base import CollectorBase
 
 from . import sigstore_link
 from .batch import assemble_batch
+from .boundary_membership import (
+    fetch_aws_account_entity_ids,
+    synthesize_boundary_membership_edges,
+)
 from .decompose import (
     decompose_compliance_artifact,
     decompose_ksi_signal,
@@ -44,6 +48,7 @@ _SITE_VERIFY_PASSED = "8acc"
 _SITE_VERIFY_FAILED = "9394"
 _SITE_SIGNATURE_GRAPH = "f587"
 _SITE_SIGNATURE_NO_WORKFLOW = "ce2f"
+_SITE_BOUNDARY_MEMBERSHIP = "b967"
 
 _FETCH_TIMEOUT_SECONDS = 30
 _USER_AGENT = "tap-samsite-compliance-collector"
@@ -316,9 +321,27 @@ class SamsiteComplianceCollector(CollectorBase):
                 fetched_item, decomp.anchor_entity_id, policy, all_nodes, all_edges, sig_seen_node_ids
             )
 
+        # ---- Phase 2.5: authorization-boundary membership (MAJOR KLUDGE) ----
+        # Blanket-scope every aws_account on the grid into the samsite FedRAMP
+        # boundary. See boundary_membership.py for the full rationale and the
+        # future seam (curated membership). Grid-derived, not artifact-derived:
+        # runs regardless of whether any artifact was fetched/decomposed, and
+        # no-ops cleanly when no account exists yet (fresh boot before the
+        # boto3 collector has run). req-samsite-collector-boundary-membership.
+        boundary_edges = synthesize_boundary_membership_edges(fetch_aws_account_entity_ids())
+        if boundary_edges:
+            all_edges.extend(boundary_edges)
+            self.record_info(
+                _SITE_BOUNDARY_MEMBERSHIP,
+                "BOUNDARY_MEMBERSHIP_KLUDGE",
+                f"KLUDGE: scoped {len(boundary_edges)} aws_account(s) into the samsite "
+                f"authorization boundary (blanket all-accounts membership).",
+                message_data={"account_count": len(boundary_edges)},
+            )
+
         # ---- Phase 3: assemble + submit -------------------------------------
-        if not all_nodes:
-            self.summary = "No artifacts decomposed; nothing to submit."
+        if not all_nodes and not all_edges:
+            self.summary = "No artifacts decomposed and no boundary membership; nothing to submit."
             self.record_warn(
                 _SITE_NOTHING_TO_SUBMIT,
                 "NOTHING_TO_SUBMIT",

@@ -21,7 +21,7 @@
           "entity": {
             "entity_id": "019e6505-7081-7358-a3bc-4ac58251ba53",
             "entity_type": "page",
-            "name": "Samsite \u2014 OSCAL SSP Workbench",
+            "name": "SSP",
             "dimensions": {
               "tap.graph": "web"
             }
@@ -71,7 +71,7 @@
           "entity": {
             "entity_id": "019e6505-7081-7358-a3bc-4ac800a2e1cc",
             "entity_type": "page",
-            "name": "Samsite \u2014 OSCAL POA&M Workbench",
+            "name": "POA&M",
             "dimensions": {
               "tap.graph": "web"
             }
@@ -182,7 +182,7 @@
           "entity": {
             "entity_id": "019e65d6-8754-7fc1-b65e-63d41b5d8750",
             "entity_type": "page",
-            "name": "Samsite \u2014 KSI Scoreboard",
+            "name": "KSI Scoreboard",
             "dimensions": {
               "tap.graph": "web"
             }
