@@ -21,6 +21,7 @@ from tap_grid.gryphon.ast_nodes import (
     GryphonAST,
     InComparison,
     IndexStep,
+    IsNullComparison,
     KeyStep,
     LimitClause,
     MatchClause,
@@ -292,6 +293,19 @@ class _ASTTransformer(Transformer):
     def in_comparison(self, fp: FieldPath, values: tuple[Any, ...]) -> InComparison:
         return InComparison(field_path=fp, values=values)
 
+    def is_null(self, fp: FieldPath) -> IsNullComparison:
+        # Both `_IS_KW` and `_NULL_KW` are underscore-prefixed and so are
+        # discarded by lark — only the field_path child reaches the transformer.
+        return IsNullComparison(field_path=fp, negated=False)
+
+    def is_not_null(self, fp: FieldPath) -> IsNullComparison:
+        # `_IS_KW`, `_NOT_KW`, and `_NULL_KW` are all underscore-prefixed and
+        # discarded — only the field_path child reaches the transformer. A
+        # separate rule label (vs. an optional `_NOT_KW`) is what lets the
+        # transformer recover the negated flag at all (a discarded optional
+        # gives the method no signal that NOT was present).
+        return IsNullComparison(field_path=fp, negated=True)
+
     def value_list(self, *values: Any) -> tuple[Any, ...]:
         return values
 
@@ -389,9 +403,11 @@ class _ASTTransformer(Transformer):
     def false_val(self, _token: Token) -> bool:
         return False
 
-    def null_val(self, _token: Token) -> None:
-        # @v_args(inline=True) passes the matched `/null/i` token as a child —
-        # the method must accept it, exactly as true_val / false_val do.
+    def null_val(self) -> None:
+        # `_NULL_KW` is underscore-prefixed and so discarded by lark — the
+        # method takes no token child. The terminal is shared with
+        # `is_null` / `is_not_null` so the lexer doesn't see two different
+        # rules matching `null` (req-grid-traversal-lang-is-null).
         return None
 
     def value(self, inner: Any) -> Any:

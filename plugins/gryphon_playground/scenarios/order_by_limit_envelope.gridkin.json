@@ -109,6 +109,32 @@
       "query": "MATCH (n:pg_node) ORDER BY n.name LIMIT 999",
       "expected_envelope": "expected/order_by_limit_envelope__limit_oversize.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__limit_oversize.sql.txt"
+    },
+    {
+      "name": "ORDER BY with no LIMIT compiles correctly (witness via SQL)",
+      "tags": ["order-by", "envelope", "no-limit", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-1",
+        "req-grid-gryphon-order-by-envelope-6"
+      ],
+      "inspired_by": "tck/features/clauses/orderBy/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC",
+      "expected_envelope": "expected/order_by_limit_envelope__order_no_limit.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__order_no_limit.sql.txt"
+    },
+    {
+      "name": "multi-key envelope ORDER BY orders left-to-right with mixed directions",
+      "tags": ["order-by", "envelope", "multi-key", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-1",
+        "req-grid-gryphon-order-by-envelope-4"
+      ],
+      "inspired_by": "tck/features/clauses/orderBy/",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) ORDER BY n.data.severity_score ASC, n.data.observed_at DESC LIMIT 3",
+      "expected_envelope": "expected/order_by_limit_envelope__multi_key_mixed_dir.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__multi_key_mixed_dir.sql.txt"
     }
   ]
 }

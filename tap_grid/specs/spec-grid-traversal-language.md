@@ -29,6 +29,7 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-combinators | [Predicate Combinators](#predicate-combinators) | Implemented | AND/OR/NOT in WHERE predicates |
 | req-grid-traversal-lang-in | [IN-List Membership](#in-list-membership) | Implemented | `WHERE` membership test against a list of values |
 | req-grid-traversal-lang-string-match | [String Match Predicates](#string-match-predicates) | Implemented | `WHERE` substring predicates: `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` |
+| req-grid-traversal-lang-is-null | [Null-Existence Predicate](#null-existence-predicate) | Implemented | `WHERE field IS NULL` / `IS NOT NULL` — defensive filter for ORDER BY DESC envelope queries |
 | req-grid-traversal-lang-bare-match | [Bare Labelless MATCH](#bare-labelless-match) | Implemented | Labelless `MATCH (n)` scans every registered node type and unions the results |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
 | req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
@@ -611,6 +612,75 @@ MATCH (n:host) WHERE n.name ENDS_WITH $suffix RETURN n
 
 - Case-insensitive variants of the three operators.
 - Wildcard / regex-like pattern matching — a single `LIKE`- or `MATCHES`-style operator generalizing these three. Deliberately deferred: the three explicit operators cover the detected demand and avoid the needle-escaping and case-sensitivity surface a pattern language drags in. Promote when a real query needs a shape the three fixed operators cannot express.
+
+
+### Null-Existence Predicate
+----
+RID: `req-grid-traversal-lang-is-null`
+Status: `Implemented`
+
+A `WHERE` predicate may test whether a field is null with `IS NULL` or `IS NOT NULL`.
+
+#### Background
+
+PostgreSQL's native sort places `NULL` values **first** under `DESC` and **last** under `ASC` — surprising for "latest emission" envelope queries, where a row with a `NULL` sort field would silently win `ORDER BY ... DESC LIMIT 1` and the panel would render the wrong artifact. The defensive shape is a query-side filter:
+
+```text
+MATCH (a:compliance_artifact)
+WHERE a.data.kind = $kind AND a.data.fetched_at IS NOT NULL
+ORDER BY a.data.fetched_at DESC LIMIT 1
+```
+
+Without this predicate, panel authors must trust the collector to populate the sort field at emission time — a discipline that lives outside Gryphon and that nothing enforces. With it, panel authors defend in the query itself (the "trust the query" contract). This is the specific hardening `req-grid-gryphon-order-by-envelope` anticipated in its Future bullets, promoted on demand from three samsite panels that ride on the new envelope ORDER BY / LIMIT (Gryphon wishlist B3).
+
+#### Implementation
+
+- Grammar: two new alternatives on the `comparison` rule — `field_path IS NULL` and `field_path IS NOT NULL`. They are separate alternatives (not a single rule with an optional `NOT`) because the `_NOT_KW` terminal is underscore-discarded by lark, so the transformer needs distinct rule labels (`is_null` / `is_not_null`) to recover the negated flag.
+
+  ```
+  comparison: field_path COMPARE_OP value
+            | field_path STRING_OP value
+            | field_path _IN_KW value_list  -> in_comparison
+            | field_path _IS_KW _NULL_KW              -> is_null
+            | field_path _IS_KW _NOT_KW _NULL_KW      -> is_not_null
+  ```
+
+- AST: a new predicate leaf `IsNullComparison(field_path, negated: bool)`. Added to the `Predicate` union; `_collect_params_from_predicate` recognizes it (no `$param` refs to collect).
+- Executor: lowers to rung 1 (ORM `QuerySet` composition). `_predicate_to_q` adds a branch returning `Q(**{f"{path}__isnull": not negated})` — SQL `IS NULL` / `IS NOT NULL`. Every predicate walker (`_flatten_conjunction`, `_filter_predicate_for_bindings`, `_predicate_field_paths`, `_is_pure_conjunction`, `_find_entity_id_in_predicate`) is updated to recognize the new leaf — a new `Predicate` variant that any walker silently drops would be the well-known "new leaf misses a walker" footgun.
+- The new leaf composes with `AND` / `OR` / `NOT` like any comparison and is scoped per bound variable by `_filter_predicate_for_bindings`. It works in every WHERE-bearing executor path — type-scan, hub-and-spoke, edge-type scan, multi-hop / aggregation, OPTIONAL MATCH, and `NOT EXISTS`.
+- Parse rejection: bare `IS` without a `NULL` (e.g. `WHERE a.data.x IS`) does not match the new alternatives and fails parse with `GryphonParseError`.
+- Field-path surface: the same field-path machinery as every other predicate — spine fields, the `data` lane (`n.data.fetched_at IS NULL`), and `dimensions.<key>` all work. A missing data-lane field on a model row is `NULL` at the column level, so `IS NULL` matches it. A missing JSON key inside a JSONField is also `NULL` under Django's JSON lookup semantics.
+
+#### Examples
+
+```text
+# The demand-shape: defend a latest-emission envelope query against NULL sort fields.
+MATCH (a:compliance_artifact)
+WHERE a.data.kind = $kind AND a.data.fetched_at IS NOT NULL
+ORDER BY a.data.fetched_at DESC LIMIT 1
+
+# Find rows that have never had a value set.
+MATCH (n:pg_node) WHERE n.data.observed_at IS NULL
+
+# Compose with NOT for the long-form (equivalent to IS NOT NULL).
+MATCH (n:pg_node) WHERE NOT (n.data.observed_at IS NULL)
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-is-null-1 | IS NULL Accepted | Implemented | The parser accepts `field IS NULL` as a `WHERE` comparison leaf, lowering to Django `__isnull=True`. | |
+| req-grid-traversal-lang-is-null-2 | IS NOT NULL Accepted | Implemented | The parser accepts `field IS NOT NULL` as a `WHERE` comparison leaf, lowering to Django `__isnull=False`. | |
+| req-grid-traversal-lang-is-null-3 | Composes With Combinators | Implemented | An `IS [NOT] NULL` leaf combines with `AND` / `OR` / `NOT` like any comparison. | |
+| req-grid-traversal-lang-is-null-4 | Works In Every WHERE-Bearing Path | Implemented | The leaf works in type-scan, hub-and-spoke, edge-type scan, multi-hop / aggregation, OPTIONAL MATCH, and `NOT EXISTS`. | Every predicate walker recognizes it. |
+| req-grid-traversal-lang-is-null-5 | Bare IS Rejected | Implemented | `WHERE field IS` (no `NULL`) fails parse with a `GryphonParseError`. | |
+| req-grid-traversal-lang-is-null-6 | Defends Envelope ORDER BY DESC | Implemented | `IS NOT NULL` filters out NULL-sort-field rows from a labelled type-scan envelope before `ORDER BY ... DESC LIMIT 1`, so a missing collector field cannot silently win the cap. | The originating demand. |
+
+#### Future
+
+- Per-term `NULLS FIRST` / `NULLS LAST` syntax on `ORDER BY` — the alternative shape for the same defensive concern. Not promoted: the `IS NOT NULL` filter is the cleaner contract because it makes the intent explicit at the WHERE layer (where authors already think about row filters) rather than overloading the ORDER BY semantics.
+- A dedicated `NOT IN` surface, mirroring the way `IS NOT NULL` is its own alternative rather than `NOT (... IS NULL)` (today expressible as the latter where the executor path supports `NOT`).
 
 
 ### Bare Labelless MATCH

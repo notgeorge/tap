@@ -162,6 +162,38 @@ class InComparison:
 
 
 @dataclass(frozen=True)
+class IsNullComparison:
+    """A null-existence predicate: `field IS NULL` or `field IS NOT NULL`.
+
+    True when the field value is NULL (`negated=False`) or non-NULL
+    (`negated=True`). Lowers to Django's ``__isnull=True``/``=False`` lookup
+    (SQL `IS NULL` / `IS NOT NULL`). Defends envelope ORDER BY DESC queries
+    from a NULL sort-field row silently winning the cap.
+
+    .. tap:capability:: Gryphon IS NULL / IS NOT NULL
+       :id: cap-grid-gryphon-is-null
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-is-null
+       :covered-by: gridkin:is_null-defensive-latest-emission-filters-null-sort-field-before-order-by-desc
+
+       ``WHERE field IS NULL`` and ``WHERE field IS NOT NULL`` test a field
+       for null-existence. The defensive shape for envelope ORDER BY DESC
+       queries that must not pick up a NULL-sort-field row.
+
+       Example::
+
+          MATCH (a:compliance_artifact)
+          WHERE a.data.kind = $kind AND a.data.fetched_at IS NOT NULL
+          ORDER BY a.data.fetched_at DESC LIMIT 1
+    """
+
+    field_path: FieldPath
+    negated: bool
+
+
+@dataclass(frozen=True)
 class AndPred:
     """Conjunction: both operands must be true."""
 
@@ -184,7 +216,7 @@ class NotPred:
     operand: Predicate
 
 
-Predicate = Comparison | InComparison | AndPred | OrPred | NotPred
+Predicate = Comparison | InComparison | IsNullComparison | AndPred | OrPred | NotPred
 
 
 # ---------------------------------------------------------------------------
@@ -397,6 +429,13 @@ def _collect_params_from_predicate(pred: Predicate | None, out: set[str]) -> Non
         for v in pred.values:
             if isinstance(v, ParamRef):
                 out.add(v.name)
+    elif isinstance(pred, IsNullComparison):
+        # No ParamRef can appear in an IS [NOT] NULL predicate — the leaf
+        # is field_path-only — but the walker must still recognize the leaf
+        # so its presence in a WHERE tree doesn't escape required-param
+        # collection (silent-drop footgun for any predicate walker that
+        # doesn't know about a new leaf).
+        pass
     elif isinstance(pred, (AndPred, OrPred)):
         _collect_params_from_predicate(pred.left, out)
         _collect_params_from_predicate(pred.right, out)
