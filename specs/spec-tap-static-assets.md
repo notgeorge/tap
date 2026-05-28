@@ -72,6 +72,8 @@ Within each app's namespaced static directory, TAP-authored and third-party file
 
 The split is **per-app**, never shared across apps. If two apps need the same library, each vendors its own copy. This makes provenance obvious from the file path and avoids hidden coupling through a shared pool.
 
+**Generated artifacts** are a third category, narrower in scope than vendored or hand-authored. `tap_web/static/tap_web/css/tailwind.css` is the only current instance: it is produced from `tap_web/static/tap_web/css/tailwind-input.css` and the scanned templates by the pinned `tailwindcss` binary at image build time and at dev container start (see [`tap_web/specs/spec-web-tailwind-pipeline.md`](../tap_web/specs/spec-web-tailwind-pipeline.md)). Generated artifacts live in the TAP-authored CSS root rather than under `lib/` because they are not an upstream distribution, are gitignored because the build is the source of truth, and are documented as generated in their owning app's `third_party_manifest.toml` (the tool that produced them, not the file itself, is the third-party dependency).
+
 Files in any `lib/` directory:
 
 - MUST preserve the upstream filename where practical (e.g. `cytoscape.min.js`, not `cyto.js`)
@@ -105,7 +107,6 @@ If an asset needs to be shared across apps, the sharing is made deliberate: the 
 
 Remaining deviations from this spec:
 
-- `tap_web/static/tap_web/css/tailwind.css` is listed as a vendored component in `tap_web/third_party_manifest.toml` but is actually a build artifact generated from `tailwind.config.js` against TAP templates. Its classification and on-disk location should be revisited — if it is a build artifact, it is TAP-owned output and its manifest entry is misclassified; if it is a vendored distribution, it should move into `css/lib/`. Defer until this is decided.
 - `tap_web/templates/tap_web/viewer.html` and `tap_web/templates/tap_web/editor.html` reference `tap_viz/js/lib/...` assets from tap_web templates, violating req-tap-static-assets-no-cross-app. Resolving this is a larger refactor (likely moving those template blocks into `tap_viz`) and is out of scope for the initial layout migration.
 - The two soft mentions in [tap_web/specs/spec-web-panel.md](../tap_web/specs/spec-web-panel.md) and [tap_web/specs/spec-web-panels-standard-table.md](../tap_web/specs/spec-web-panels-standard-table.md) should be tightened to point at this canonical spec rather than restating the convention loosely.
 

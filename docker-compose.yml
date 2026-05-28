@@ -82,6 +82,16 @@ services:
       # populated by the repo or by tests. Loader no-ops cleanly when the
       # directory is empty or missing. See tap_cares/specs/spec-tap-cares-secrets.md.
       - ./tap_secrets:/run/tap-secrets:ro
+      # tailwindcss binary cache — populated by docker/install-tailwindcss.sh
+      # on first invocation of the /tailwind-rebuild skill, reused thereafter.
+      # Named volume rather than bind mount so the binary lives in Docker's
+      # internal storage and never touches the host filesystem (deliberate —
+      # host stays free of downloaded third-party executables). `dc down -v`
+      # wipes the volume; next skill invocation re-downloads + re-verifies
+      # against the manifest-pinned checksum. See
+      # tap_web/specs/spec-web-tailwind-pipeline.md and
+      # tap_grid/specs/spec-grid-security.md req-grid-thirdparty-manifest.sec-9/-10.
+      - tailwind_bin:/opt/tailwind
 
     # Use the bind-mounted entrypoint so dev-time changes to startup plumbing
     # (including background workers) do not require rebuilding the image.
@@ -150,3 +160,4 @@ volumes:
   postgres_data:  # Stores PostgreSQL data files
   venv:           # Stores the container-owned Python virtualenv at /app/.venv.
   uv_cache:       # Stores uv's downloaded wheels + extracted archives. Per-project.
+  tailwind_bin:   # Stores the on-demand tailwindcss CLI binary at /opt/tailwind. Per-project.

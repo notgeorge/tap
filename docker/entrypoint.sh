@@ -26,6 +26,14 @@ uv sync --all-packages
 echo "==> Running database migrations..."
 uv run python manage.py migrate --noinput
 
+# Note: tailwindcss is NOT rebuilt at container start. The committed
+# tap_web/static/tap_web/css/tailwind.css is served as-is. Dev work that
+# touches Tailwind utility classes is expected to invoke the
+# /tailwind-rebuild skill (tap_web/skills/tailwind-rebuild/SKILL.md), which
+# orchestrates an on-demand install + build inside this container and
+# commits the regenerated file alongside the template change. See
+# tap_web/specs/spec-web-tailwind-pipeline.md.
+
 # Start the Steady Queue supervisor as a background process. It runs both
 # the once-per-minute scheduler tick (declared as a @recurring task in
 # tap_cares/task_backend.py) and the collector execution tasks. The

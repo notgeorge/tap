@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Rebuild tap_web/static/tap_web/css/tailwind.css from templates.
+#
+# Runs INSIDE the web container, invoked by the `/tailwind-rebuild` skill on
+# demand. The tailwindcss binary is expected to already exist at
+# /opt/tailwind/tailwindcss (the skill runs docker/install-tailwindcss.sh
+# first to ensure that; it's a no-op if already cached in the
+# `tailwind_bin` named volume).
+#
+# Spec: tap_web/specs/spec-web-tailwind-pipeline.md
+# Skill: tap_web/skills/tailwind-rebuild/SKILL.md
+#
+# Content paths come from tailwind.config.js (tap_web/templates,
+# tap_viz/templates, and plugins/**/templates).
+
+set -euo pipefail
+
+INPUT=tap_web/static/tap_web/css/tailwind-input.css
+OUTPUT=tap_web/static/tap_web/css/tailwind.css
+CONFIG=tailwind.config.js
+BINARY=/opt/tailwind/tailwindcss
+
+if [ ! -x "${BINARY}" ]; then
+    echo "tailwind-build: ${BINARY} not found or not executable." >&2
+    echo "  Run docker/install-tailwindcss.sh first, or invoke the /tailwind-rebuild" >&2
+    echo "  skill, which orchestrates install + build." >&2
+    exit 1
+fi
+
+exec "${BINARY}" -c "${CONFIG}" -i "${INPUT}" -o "${OUTPUT}" --minify "$@"

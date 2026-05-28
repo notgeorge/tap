@@ -28,10 +28,13 @@ WORKDIR /app
 
 # Install system-level dependencies
 # - postgresql-client: needed for Django to talk to PostgreSQL (pg_isready, psql)
+# - curl: used by the tailwindcss binary install below; also handy for shell
+#   debugging from inside the container
 # - --no-install-recommends: skip optional packages to keep image small
 # - rm -rf /var/lib/apt/lists/*: clean up apt cache to reduce image size
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================================
@@ -72,6 +75,15 @@ COPY pyproject.toml uv.lock* ./
 # Copy the rest of the application code into the container
 # This layer changes frequently, so it comes after dependencies
 COPY . .
+
+# Note on tailwindcss:
+# The image does NOT carry the tailwindcss binary. It's installed on demand
+# by the /tailwind-rebuild skill (tap_web/skills/tailwind-rebuild/SKILL.md)
+# into the `tailwind_bin` named volume mounted at /opt/tailwind. The
+# compiled stylesheet at tap_web/static/tap_web/css/tailwind.css is
+# committed to source — production serves the committed artifact; dev
+# regenerates it via the skill before committing template changes that
+# touch utility classes. See tap_web/specs/spec-web-tailwind-pipeline.md.
 
 # ============================================================================
 # Runtime Configuration

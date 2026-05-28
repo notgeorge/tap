@@ -9,10 +9,28 @@ checksum_sha256 = "e209dda5c8235479f3166defc7750e1dbcd5a5c1808b7792fc2e6733768fb
 [[component]]
 name = "tailwindcss"
 version = "3.4.17"
-files = ["tap_web/static/tap_web/css/tailwind.css"]
+# Build-time-downloaded CLI binary — req-grid-thirdparty-manifest.sec-9/-10.
+# `docker/install-tailwindcss.sh` (invoked by the /tailwind-rebuild skill,
+# NOT the Dockerfile) downloads the per-arch release from `source_url`,
+# verifies its SHA-256 against the matching `checksum_sha256_<os>_<arch>`
+# below, and installs to /opt/tailwind/tailwindcss inside the running web
+# container. /opt/tailwind is backed by the `tailwind_bin` named Docker
+# volume so the install persists across container restarts but lives only
+# in Docker's internal storage — nothing executes on the host filesystem.
+# A checksum mismatch aborts the install. Nothing is committed to source.
+#
+# Used to generate tap_web/static/tap_web/css/tailwind.css from
+# tap_web/static/tap_web/css/tailwind-input.css + scanned templates,
+# on demand via the /tailwind-rebuild skill (see
+# tap_web/skills/tailwind-rebuild/SKILL.md,
+# tap_web/specs/spec-web-tailwind-pipeline.md). The output IS committed to
+# git — it's the source of truth for production serving, and the skill +
+# auto-memory keep it fresh during dev.
+files = []
 source_url = "https://github.com/tailwindlabs/tailwindcss/releases/tag/v3.4.17"
 license = "MIT"
-checksum_sha256 = "6359e5515570b51e0b8e8005bb5c9985891dc9cf7dc7360c8720ddd6ab55cbab"
+checksum_sha256_linux_x64 = "7d24f7fa191d2193b78cd5f5a42a6093e14409521908529f42d80b11fde1f1d4"
+checksum_sha256_linux_arm64 = "69b1378b8133192d7d2feb12a116fa12d035594f58db3eff215879e4ad8cf39b"
 
 [[component]]
 name = "tabulator-js"

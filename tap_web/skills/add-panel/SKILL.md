@@ -173,19 +173,15 @@ Create `<panel-type-plugin>/templates/<plugin>/panels/<slug>.html`:
 - **Empty state** must render even when the data list is empty — never produce an empty container.
 - **Error rendering** — when a tile / row / section has an `error` field set by the resolver, render an inline error indicator with the message in the `title` attribute for hover.
 
-### Tailwind: rebuild the compiled stylesheet
+### Tailwind: invoke /tailwind-rebuild after a class change
 
-Templates use Tailwind utility classes (e.g. `flex`, `w-full`, `text-slate-500`, `sm:grid-cols-3`). The compiled stylesheet at `tap_web/static/tap_web/css/tailwind.css` is a hand-built artifact — there is no automated rebuild on template change. Any class you add that isn't already used elsewhere will silently no-op in the browser: the `class=` attribute is set, the rule simply doesn't exist.
+Templates use Tailwind utility classes (e.g. `flex`, `w-full`, `text-slate-500`, `sm:grid-cols-3`). The compiled stylesheet at `tap_web/static/tap_web/css/tailwind.css` is committed to git and regenerated **on demand** by the `/tailwind-rebuild` skill — there is NO container watcher, by design ([`tap_web/specs/spec-web-tailwind-pipeline.md`](../../specs/spec-web-tailwind-pipeline.md) explains the rationale).
 
-Procedure when you add new utility classes:
+If your panel template adds or removes Tailwind utility class strings (anything in a `class="..."` attribute — `flex`, `gap-4`, `text-amber-300`, responsive variants like `sm:grid-cols-3`, arbitrary values like `max-w-[90rem]`), invoke `/tailwind-rebuild` before declaring the panel done. The skill installs the pinned binary (cached after first use), rebuilds the CSS, and you commit the regenerated `tap_web/static/tap_web/css/tailwind.css` alongside the template change.
 
-1. Run the manual rebuild per [`docs/misc/doc-dev-tailwind-rebuild.md`](../../../docs/misc/doc-dev-tailwind-rebuild.md). One `npx @tailwindcss/cli@3` invocation; ~500ms.
-2. Verify the new class is in the compiled CSS: `grep "<class-with-escaped-colons>" tap_web/static/tap_web/css/tailwind.css`.
-3. Commit `tailwind.css` alongside the template change so reviewers see them together.
+Scanned content paths: `tap_web/templates`, `tap_viz/templates`, and `plugins/**/templates`. Plugin templates are covered — utilities used only inside a plugin template will be in the compiled output after the skill runs (`req-web-tailwind-pipeline-content-paths`).
 
-**Coverage gap (BACKLOG):** the Tailwind config currently scans only `tap_web/templates` and `tap_viz/templates`. Plugin templates under `plugins/*/templates` are NOT scanned, so utilities used only inside a plugin template won't end up in the compiled output regardless of how many times you rebuild. Tracked in [`tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md`](../../specs/spec-web-tailwind-pipeline-BACKLOG.md) (`req-web-tailwind-pipeline-content-paths`). Workarounds until the spec lands: (a) make sure a `tap_web` or `tap_viz` template uses the same utility somewhere so the scanner picks it up, (b) temp-edit `tailwind.config.js` locally to add your plugin's path before rebuilding (don't commit the temp config), or (c) drop the utility and use inline styles for the layout-critical bit.
-
-The "class present on element, computed style ignores it" symptom is the signature — recognize it on sight rather than chasing CSS specificity.
+If you skip the skill after adding a new class, the symptom is "class attribute set on the element, computed style ignores it." This is NOT a CSS-specificity bug — the rule simply doesn't exist in the compiled CSS. Recognize on sight, invoke the skill, retry. Recovery procedure if the skill itself fails: [`docs/misc/doc-dev-tailwind-rebuild.md`](../../../docs/misc/doc-dev-tailwind-rebuild.md).
 
 ## Step 5: Author The CSS
 

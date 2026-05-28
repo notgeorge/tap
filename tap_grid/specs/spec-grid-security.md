@@ -20,58 +20,67 @@ The first requirement in this specification addresses third-party vendored compo
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-grid-thirdparty-manifest.sec | [Third-Party Vendored Component Manifest](#third-party-vendored-component-manifest) | Proposed | Platform-level contract for tracking vendored third-party code and assets included in TAP source |
+| req-grid-thirdparty-manifest.sec | [Third-Party Component Manifest](#third-party-component-manifest) | Proposed | Platform-level contract for tracking third-party code and assets — both vendored in TAP source AND downloaded by the build process |
 | req-grid-icon-static-svg.sec | [Static Svg Icon Security](#static-svg-icon-security) | Proposed | Security contract for shipped app/plugin SVG icons |
 | req-grid-icon-upload-svg.sec | [Uploaded Svg Icon Security](#uploaded-svg-icon-security) | Backlog | Future security contract for user-uploaded SVG icons |
 | req-grid-flip-write-batch.sec | [Domain Writes Must Use Batch Context](#domain-writes-must-use-batch-context) | Backlog | All domain object mutations must occur within an active batch context for auditability |
 
 ---
 
-### Third-Party Vendored Component Manifest
+### Third-Party Component Manifest
 ----
 RID: `req-grid-thirdparty-manifest.sec`
 Status: `Proposed`
 Tags: `Security`
 
-Third-party code or assets vendored into TAP source control must be tracked in a machine-readable manifest. This is a platform-level supply-chain security requirement: once code is copied into the repository and shipped by TAP, its provenance, version, and license must not rely on memory, commit archaeology, or informal comments.
+Third-party code or assets shipped as part of a TAP runtime image must be tracked in a machine-readable manifest. This is a platform-level supply-chain security requirement: once a component is part of what TAP runs, its provenance, version, and license must not rely on memory, commit archaeology, or informal comments.
+
+The contract covers two artifact-delivery modes:
+
+- **Source-vendored components** — files committed under the owning app's static / vendor tree (browser libraries, CSS, copied Python code, etc.). Integrity is verified against the committed file at audit time.
+- **Build-time-downloaded components** — artifacts pulled by the build process (a Dockerfile `RUN`, an installer script) that land inside the runtime image without entering source control (build tools, runtime binaries that are too large to vendor sensibly). Integrity is enforced at build time by verifying the downloaded artifact against a manifest-pinned checksum before installing.
+
+Both modes use the same `third_party_manifest.toml` at the owning app's root, with `[[component]]` entries that share most of the same fields and diverge only on how the integrity hash is named and where the artifact lives.
 
 #### Status Details
-New cross-cutting security requirement proposed so subsystems such as `tap_web` can vendor browser libraries while still adhering to one TAP-wide manifest contract.
+New cross-cutting security requirement proposed so subsystems such as `tap_web` can vendor browser libraries AND pin build-time-downloaded binaries (e.g. the `tailwindcss` CLI) under one TAP-wide manifest contract.
 
 #### Implementation
-- This requirement applies to vendored third-party components stored in TAP source control, including:
+- This requirement applies to third-party components shipped as part of a TAP runtime image, including:
   - JavaScript libraries
   - CSS libraries
   - front-end assets
   - copied Python code from external projects
   - other shipped third-party source artifacts
-- Each vendored third-party component must have an entry in a machine-readable manifest maintained in the repository.
-- The manifest is the canonical TAP record for vendored component provenance.
-- Each TAP app or plugin that vendors third-party components maintains its own manifest file at the app root named `third_party_manifest.toml`.
+  - build-time-downloaded binaries (CLIs, tools) installed into the image at build time
+- Each third-party component must have an entry in a machine-readable manifest maintained in the repository.
+- The manifest is the canonical TAP record for component provenance.
+- Each TAP app or plugin that ships third-party components maintains its own manifest file at the app root named `third_party_manifest.toml`.
 - The canonical authoring format is TOML.
 - The manifest must record, at minimum:
   - component name
   - version
-  - local file path or file set
+  - local file path or file set (empty when the component is build-time-downloaded and not in source)
   - upstream source location
   - license identifier or license reference
-  - integrity data such as checksum for the vendored file set
-- The manifest uses one `[[component]]` entry per vendored third-party component.
+  - integrity data — either a single `checksum_sha256` for source-vendored files OR per-platform `checksum_sha256_<os>_<arch>` keys for build-time-downloaded binaries
+- The manifest uses one `[[component]]` entry per third-party component.
 - Each `[[component]]` entry must define:
   - `name`
   - `version`
   - `files`
   - `source_url`
   - `license`
-  - `checksum_sha256`
-- `files` is an array of repository-relative file paths.
+  - one of: `checksum_sha256` (source-vendored) OR one-or-more `checksum_sha256_<os>_<arch>` (build-time-downloaded)
+- `files` is an array of repository-relative file paths. For build-time-downloaded components it is `[]`.
 - `license` should use an SPDX license identifier when one exists; otherwise it must use a clear license reference string.
-- `checksum_sha256` represents the integrity value recorded for the vendored component as defined by implementation guidance.
+- `checksum_sha256` represents the integrity value of the committed file set.
+- `checksum_sha256_<os>_<arch>` keys (one per supported platform variant) capture the integrity hash of the corresponding upstream release artifact. The build step that downloads each variant MUST compute its SHA-256 and compare against the manifest-pinned value before installing; mismatch MUST abort the build (`req-grid-thirdparty-manifest.sec-10`). Platform suffixes use the convention `<os>_<arch>` with underscores (e.g. `linux_x64`, `linux_arm64`, `macos_arm64`) so the key is a valid bare TOML identifier and grep-friendly.
 - `version` should record the upstream component version. If a legacy vendored artifact does not expose a determinable version, `version = "unknown"` may be used temporarily until provenance is cleaned up.
 - SPDX or CycloneDX may be generated from the canonical manifest later, but they are not required as the hand-authored source format in v1.
-- Higher-level TAP subsystems that vendor third-party components must comply with this requirement rather than define incompatible local tracking formats.
+- Higher-level TAP subsystems that ship third-party components must comply with this requirement rather than define incompatible local tracking formats.
 
-Canonical TOML shape:
+Canonical TOML shape — **source-vendored** variant (committed files):
 
 ```toml
 [[component]]
@@ -86,6 +95,23 @@ license = "MIT"
 checksum_sha256 = "..."
 ```
 
+Canonical TOML shape — **build-time-downloaded** variant (binary installed into the image by the Dockerfile):
+
+```toml
+[[component]]
+name = "tailwindcss"
+version = "3.4.17"
+# Build-time CLI binary. The Dockerfile downloads the per-arch release
+# from source_url at image build, verifies its SHA-256 against the
+# matching checksum_sha256_<os>_<arch> below, and installs to
+# /usr/local/bin/tailwindcss. Nothing is committed to source.
+files = []
+source_url = "https://github.com/tailwindlabs/tailwindcss/releases/tag/v3.4.17"
+license = "MIT"
+checksum_sha256_linux_x64 = "..."
+checksum_sha256_linux_arm64 = "..."
+```
+
 #### Development
 Keep the first requirement focused on provenance and auditability, not full vulnerability management. The immediate problem is knowing what third-party code is present in the repo, where it came from, and what version and license it carries.
 
@@ -97,14 +123,16 @@ Keep the manifest intentionally small and hand-maintainable. It should be realis
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-thirdparty-manifest.sec-1 | Machine-Readable Manifest Required | Proposed | Vendored third-party components checked into TAP source control must be represented in a machine-readable manifest. | |
-| req-grid-thirdparty-manifest.sec-2 | Canonical Location And Format | Proposed | Each app or plugin that vendors third-party components keeps a `third_party_manifest.toml` file at its own root and uses TOML as the authoring format. | |
-| req-grid-thirdparty-manifest.sec-3 | Minimum Provenance Fields | Proposed | Manifest entries record name, version, repository-relative files, upstream source, license, and integrity data. | |
-| req-grid-thirdparty-manifest.sec-4 | Fixed Component Entry Shape | Proposed | Each vendored component is represented by one `[[component]]` TOML entry using the required canonical keys. | |
+| req-grid-thirdparty-manifest.sec-1 | Machine-Readable Manifest Required | Proposed | Third-party components shipped in a TAP runtime image must be represented in a machine-readable manifest, regardless of whether they are vendored in source or downloaded at build time. | |
+| req-grid-thirdparty-manifest.sec-2 | Canonical Location And Format | Proposed | Each app or plugin that ships third-party components keeps a `third_party_manifest.toml` file at its own root and uses TOML as the authoring format. | |
+| req-grid-thirdparty-manifest.sec-3 | Minimum Provenance Fields | Proposed | Manifest entries record name, version, repository-relative files (empty for build-time-downloaded), upstream source, license, and integrity data. | |
+| req-grid-thirdparty-manifest.sec-4 | Fixed Component Entry Shape | Proposed | Each component is represented by one `[[component]]` TOML entry using the required canonical keys for the appropriate delivery mode. | |
 | req-grid-thirdparty-manifest.sec-5 | Temporary Unknown Version Escape Hatch | Proposed | Legacy vendored artifacts may use `version = "unknown"` only when a concrete upstream version cannot currently be determined. | |
-| req-grid-thirdparty-manifest.sec-6 | Platform-Level Contract | Proposed | Higher-level TAP subsystems that vendor third-party components adhere to this grid-level requirement instead of inventing incompatible local rules. | |
-| req-grid-thirdparty-manifest.sec-7 | Not Limited To JavaScript | Proposed | The requirement applies to all vendored third-party components shipped in TAP source, not only browser libraries. | |
+| req-grid-thirdparty-manifest.sec-6 | Platform-Level Contract | Proposed | Higher-level TAP subsystems that ship third-party components adhere to this grid-level requirement instead of inventing incompatible local rules. | |
+| req-grid-thirdparty-manifest.sec-7 | Not Limited To JavaScript | Proposed | The requirement applies to all third-party components shipped in TAP runtime images, not only browser libraries. | |
 | req-grid-thirdparty-manifest.sec-8 | SPDX Or CycloneDX Compatible Future | Proposed | TAP may later generate SPDX or CycloneDX artifacts from the canonical manifest without changing the core requirement. | |
+| req-grid-thirdparty-manifest.sec-9 | Build-Time-Downloaded Components Recorded | Proposed | Components downloaded by the build process (not committed to source) MUST still appear in the manifest with `files = []`, per-platform `checksum_sha256_<os>_<arch>` keys for each supported variant, and the same name/version/source_url/license fields as source-vendored entries. | |
+| req-grid-thirdparty-manifest.sec-10 | Build-Time Integrity Verification | Proposed | The build step that installs a build-time-downloaded component MUST compute the SHA-256 of the downloaded artifact and compare against the manifest-pinned `checksum_sha256_<os>_<arch>` for the platform it is installing, aborting the build on mismatch. | The manifest is the single source of truth for the expected hash; build scripts read from it rather than carrying duplicate hardcoded values. |
 
 #### Future
 - Add tooling to validate that vendored files and manifest entries stay in sync.

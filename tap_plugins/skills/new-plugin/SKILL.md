@@ -213,10 +213,9 @@ Periodically revisit root `README.md` and any plugin-local docs during plugin wo
 
 ## If Your Plugin Ships Templates
 
-If the plugin will render its own panels or pages, those land under `plugins/<slug>/templates/<slug>/...` and the actual authoring follows the [`add-panel`](../../../tap_web/skills/add-panel/SKILL.md) and [`add-page`](../../../tap_web/skills/add-page/SKILL.md) skills. Two scaffold-time things worth knowing up front:
+If the plugin will render its own panels or pages, those land under `plugins/<slug>/templates/<slug>/...` and the actual authoring follows the [`add-panel`](../../../tap_web/skills/add-panel/SKILL.md) and [`add-page`](../../../tap_web/skills/add-page/SKILL.md) skills. One scaffold-time thing worth knowing up front:
 
-- **Tailwind utilities require a manual stylesheet rebuild.** The compiled `tap_web/static/tap_web/css/tailwind.css` does not auto-rebuild when you add new utility classes. Procedure documented in [`docs/misc/doc-dev-tailwind-rebuild.md`](../../../docs/misc/doc-dev-tailwind-rebuild.md). The symptom of forgetting: the `class=` attribute is set, the computed style ignores it.
-- **Plugin templates aren't yet scanned by the Tailwind config.** Until the BACKLOG fix lands (see [`tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md`](../../../tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md) — `req-web-tailwind-pipeline-content-paths`), utilities used only inside `plugins/<slug>/templates/` won't end up in the compiled output no matter how many times you rebuild. The add-panel skill enumerates workarounds.
+- **Tailwind utilities require invoking `/tailwind-rebuild` after class changes.** There's no container watcher (by design — [`tap_web/specs/spec-web-tailwind-pipeline.md`](../../../tap_web/specs/spec-web-tailwind-pipeline.md) explains why). The compiled `tap_web/static/tap_web/css/tailwind.css` is committed to git. After editing a template that adds or removes a Tailwind utility class string, invoke `/tailwind-rebuild` and commit the regenerated CSS alongside the template change. Scanned paths include `plugins/**/templates` so plugin templates are covered. Skill docs: [`tap_web/skills/tailwind-rebuild/SKILL.md`](../../../tap_web/skills/tailwind-rebuild/SKILL.md). Recovery if the skill fails: [`docs/misc/doc-dev-tailwind-rebuild.md`](../../../docs/misc/doc-dev-tailwind-rebuild.md).
 
 ## Plugin Configuration And Dependencies (hard rules)
 

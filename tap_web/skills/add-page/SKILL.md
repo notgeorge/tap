@@ -299,11 +299,9 @@ Check the consuming plugin's templates for an existing navigation partial before
 
 ### If you edit a template
 
-Most page work is JSON layout assembly and doesn't touch templates. If this step (or an earlier step) had you adding Tailwind utility classes to a navigation partial, base template, or any other HTML, the compiled stylesheet at `tap_web/static/tap_web/css/tailwind.css` does not auto-rebuild. New classes silently no-op in the browser — `class=` attribute set, computed style ignores it — until you rerun the manual rebuild.
+Most page work is JSON layout assembly and doesn't touch templates. If this step (or an earlier step) had you adding Tailwind utility classes to a navigation partial, base template, or any other HTML, invoke `/tailwind-rebuild` before declaring the page done and commit the regenerated `tap_web/static/tap_web/css/tailwind.css` alongside the template change. The compiled CSS is committed in git — no container watcher, by design ([`tap_web/specs/spec-web-tailwind-pipeline.md`](../../specs/spec-web-tailwind-pipeline.md)). Scanned paths include `tap_web/templates`, `tap_viz/templates`, and `plugins/**/templates`.
 
-Procedure: [`docs/misc/doc-dev-tailwind-rebuild.md`](../../../docs/misc/doc-dev-tailwind-rebuild.md). One `npx @tailwindcss/cli@3` invocation; ~500ms.
-
-**Coverage gap (BACKLOG):** the Tailwind config currently scans only `tap_web/templates` and `tap_viz/templates`. Plugin templates under `plugins/*/templates` are NOT scanned. Utilities used only inside a plugin template won't end up in the compiled output regardless of how many rebuilds. Tracked in [`tap_web/specs/spec-web-tailwind-pipeline-BACKLOG.md`](../../specs/spec-web-tailwind-pipeline-BACKLOG.md) (`req-web-tailwind-pipeline-content-paths`); workarounds enumerated in the [add-panel skill](../add-panel/SKILL.md#tailwind-rebuild-the-compiled-stylesheet).
+If the skill itself fails, recovery procedure is in [`docs/misc/doc-dev-tailwind-rebuild.md`](../../../docs/misc/doc-dev-tailwind-rebuild.md).
 
 ## Step 8: Verify End-To-End
 
