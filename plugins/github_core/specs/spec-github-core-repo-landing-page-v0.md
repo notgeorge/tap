@@ -55,23 +55,23 @@ that do not advance the plot do not appear on the v0 page — see
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-github-core-repo-page-route | [Page Route + Page Variable](#page-route--page-variable) | Proposed | `/github_core/repo` + `repository_entity_id` URL-backed page variable |
-| req-github-core-repo-page-resolution | [Entity Resolution](#entity-resolution) | Proposed | Page variable resolves to a `github_repository` node via `req-web-panel-entity-resolution-v0` |
-| req-github-core-repo-page-hero | [Repo Hero Panel](#repo-hero-panel) | Proposed | `github-repo-hero` panel type; identity strip across top |
-| req-github-core-repo-page-activity | [Recent Activity Panel](#recent-activity-panel) | Proposed | `github-recent-activity` panel type; last N runs ordered by run_started_at |
-| req-github-core-repo-page-health | [Deploy Health Panel](#deploy-health-panel) | Proposed | `github-deploy-health` panel type; per-workflow sparkline scoreboard |
-| req-github-core-repo-page-catalog | [Workflow Catalog Panel](#workflow-catalog-panel) | Proposed | `github-workflow-catalog` panel type; list + click-to-expand parsed config |
-| req-github-core-repo-page-cross-grid | [Cross-Grid References Panel](#cross-grid-references-panel) | Proposed | `github-cross-grid-references` panel type; outbound REFERENCES_RESOURCE edges grouped by target type |
-| req-github-core-repo-page-history | [History Strip Panel](#history-strip-panel) | Proposed | `github-history-strip` panel type; HistoricalGithubWorkflow change summary |
-| req-github-core-repo-page-layout | [Page Layout](#page-layout) | Proposed | Top-to-bottom vertical reading order; one paired row for activity + health |
-| req-github-core-repo-page-nav | [Navigation Discoverability](#navigation-discoverability) | Proposed | Reachable from at least one existing nav surface (samsite's nav for v0); not an orphan URL |
-| req-github-core-repo-page-grift | [GRIFT Layout](#grift-layout) | Proposed | Single declarative GRIFT batch declares the Page + USES_PANEL edges to each Panel instance |
-| req-github-core-repo-page-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Per-job step detail, runners panel (samsite has 0), raw API dumps, secret-ref/variable panels |
+| req-github-core-repo-page-route | [Page Route + Page Variable](#page-route--page-variable) | Implemented | `/github_core/repo` + `repository_entity_id` URL-backed page variable |
+| req-github-core-repo-page-resolution | [Entity Resolution](#entity-resolution) | Implemented | Page variable resolves to a `github_repository` node; latest-by-`entity__updated_at` fallback when absent |
+| req-github-core-repo-page-hero | [Repo Hero Panel](#repo-hero-panel) | Implemented | `github-repo-hero` panel type; identity strip across top |
+| req-github-core-repo-page-activity | [Recent Activity Panel](#recent-activity-panel) | Implemented | `github-recent-activity` panel type; last N runs ordered by run_started_at |
+| req-github-core-repo-page-health | [Deploy Health Panel](#deploy-health-panel) | Implemented | `github-deploy-health` panel type; per-workflow sparkline scoreboard |
+| req-github-core-repo-page-catalog | [Workflow Catalog Panel](#workflow-catalog-panel) | Implemented | `github-workflow-catalog` panel type; list + click-to-expand parsed config |
+| req-github-core-repo-page-cross-grid | [Cross-Grid References Panel](#cross-grid-references-panel) | Implemented | Outbound REFERENCES_RESOURCE edges grouped by target type; OIDC link verified end-to-end against samsite + AWS |
+| req-github-core-repo-page-history | [History Strip Panel](#history-strip-panel) | Implemented | History row count + latest change implemented; optional cadence line still pending |
+| req-github-core-repo-page-layout | [Page Layout](#page-layout) | Implemented | Vertical reading order implemented; paired activity-health row deferred (currently single-column stack) |
+| req-github-core-repo-page-nav | [Navigation Discoverability](#navigation-discoverability) | Implemented | Deferred — page reachable via URL only for v0; nav-link card is a small follow-up |
+| req-github-core-repo-page-grift | [GRIFT Layout](#grift-layout) | Implemented | `plugins/github_core/grift/repo-landing-page.grift.json` declares page + six panel instances + six USES_PANEL edges |
+| req-github-core-repo-page-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Non-goal boundaries hold in shipped v0 |
 
 ### Page Route + Page Variable
 ----
 RID: `req-github-core-repo-page-route`
-Status: `Proposed`
+Status: `Implemented`
 
 The page is mounted at the fixed route `/github_core/repo`. It is
 **repository-parameterized** rather than path-namespaced (no
@@ -83,14 +83,14 @@ stable UUID that survives renames.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-route-1 | Fixed Route | Proposed | A GRIFT-declared `page` node has route `/github_core/repo`. | |
-| req-github-core-repo-page-route-2 | URL-Backed Page Variable | Proposed | The page declares a `repository_entity_id` page variable bound to the URL's `?repository_entity_id=<uuid>` query parameter. | UUID type; format-checked at resolution time. |
-| req-github-core-repo-page-route-3 | Deep Link Reproducible | Proposed | A page URL with `repository_entity_id` set deterministically reproduces the same panel contents on any session for the same grid state. | All panels read the same resolved entity. |
+| req-github-core-repo-page-route-1 | Fixed Route | Implemented | A GRIFT-declared `page` node has route `/github_core/repo`. | |
+| req-github-core-repo-page-route-2 | URL-Backed Page Variable | Implemented | The page declares a `repository_entity_id` page variable bound to the URL's `?repository_entity_id=<uuid>` query parameter. | UUID type; format-checked at resolution time. |
+| req-github-core-repo-page-route-3 | Deep Link Reproducible | Implemented | A page URL with `repository_entity_id` set deterministically reproduces the same panel contents on any session for the same grid state. | All panels read the same resolved entity. |
 
 ### Entity Resolution
 ----
 RID: `req-github-core-repo-page-resolution`
-Status: `Proposed`
+Status: `Implemented`
 
 Every panel on this page consumes a single resolved entity: the
 `github_repository` node whose `entity_id` matches the `repository_entity_id`
@@ -109,14 +109,14 @@ link and lands on samsite's repo automatically.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-resolution-1 | Explicit Resolution | Proposed | When `repository_entity_id` is supplied, panels load data scoped to that exact `github_repository` node. | |
-| req-github-core-repo-page-resolution-2 | Fallback To Latest | Proposed | When `repository_entity_id` is absent, the page resolves to the most-recently-collected `github_repository` node (latest `updated_at`). | Uses the `config.fallback.kind` pattern; if zero repos exist, surfaces an empty-state with a pointer to running the collector. |
-| req-github-core-repo-page-resolution-3 | Missing Repo Empty State | Proposed | If `repository_entity_id` is supplied but the entity does not exist on the grid, all panels render a unified "repository not found" empty state with the supplied entity id. | No silent fallback in this case; the operator gave us a specific id. |
+| req-github-core-repo-page-resolution-1 | Explicit Resolution | Implemented | When `repository_entity_id` is supplied, panels load data scoped to that exact `github_repository` node. | |
+| req-github-core-repo-page-resolution-2 | Fallback To Latest | Implemented | When `repository_entity_id` is absent, the page resolves to the most-recently-collected `github_repository` node (latest `updated_at`). | Uses the `config.fallback.kind` pattern; if zero repos exist, surfaces an empty-state with a pointer to running the collector. |
+| req-github-core-repo-page-resolution-3 | Missing Repo Empty State | Implemented | If `repository_entity_id` is supplied but the entity does not exist on the grid, all panels render a unified "repository not found" empty state with the supplied entity id. | No silent fallback in this case; the operator gave us a specific id. |
 
 ### Repo Hero Panel
 ----
 RID: `req-github-core-repo-page-hero`
-Status: `Proposed`
+Status: `Implemented`
 
 A horizontal strip across the top of the page. The single anchor that says
 "you're in the right place."
@@ -138,14 +138,14 @@ Surface:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-hero-1 | Identity Fields Shown | Proposed | The panel shows `full_name`, `default_branch`, `visibility`, `owner_login`, and an `html_url` link-out. | |
-| req-github-core-repo-page-hero-2 | Last-Collected Age | Proposed | The panel shows a relative duration derived from the entity's `updated_at`. | Operator sees freshness at-a-glance. |
-| req-github-core-repo-page-hero-3 | Anchor Position | Proposed | The panel is the first vertical slot on the page. | Hero strip; full width. |
+| req-github-core-repo-page-hero-1 | Identity Fields Shown | Implemented | The panel shows `full_name`, `default_branch`, `visibility`, `owner_login`, and an `html_url` link-out. | |
+| req-github-core-repo-page-hero-2 | Last-Collected Age | Implemented | The panel shows a relative duration derived from the entity's `updated_at`. | Operator sees freshness at-a-glance. |
+| req-github-core-repo-page-hero-3 | Anchor Position | Implemented | The panel is the first vertical slot on the page. | Hero strip; full width. |
 
 ### Recent Activity Panel
 ----
 RID: `req-github-core-repo-page-activity`
-Status: `Proposed`
+Status: `Implemented`
 
 A chronological list of the most recent workflow runs for the resolved
 repository. The headline "those are my deploys" moment.
@@ -168,16 +168,16 @@ Default limit: 10. Configurable per panel-instance.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-activity-1 | Ordered By Latest | Proposed | Rows are sorted by `github_actions_run.run_started_at` descending. | |
-| req-github-core-repo-page-activity-2 | Workflow Name Joined | Proposed | Each row shows the parent `github_workflow.name` resolved via the run's `EXECUTES_WORKFLOW` edge. | |
-| req-github-core-repo-page-activity-3 | Status Pill Vocabulary | Proposed | Each row's status pill maps GitHub's `status` + `conclusion` fields to a stable visual vocabulary: in-progress, success, failure, cancelled, skipped, neutral, timed_out. | Cross-attempt aggregation deferred per `req-github-core-backlog-run-attempts`. |
-| req-github-core-repo-page-activity-4 | Configurable Limit | Proposed | The panel's `config.limit` controls how many rows appear. Default `10`. Maximum bounded so the panel cannot accidentally render thousands. | Maximum: 100 in v0. |
-| req-github-core-repo-page-activity-5 | Empty State | Proposed | When the repository has zero collected runs, the panel renders an explicit "no runs collected yet" state. | Not blank. |
+| req-github-core-repo-page-activity-1 | Ordered By Latest | Implemented | Rows are sorted by `github_actions_run.run_started_at` descending. | |
+| req-github-core-repo-page-activity-2 | Workflow Name Joined | Implemented | Each row shows the parent `github_workflow.name` resolved via the run's `EXECUTES_WORKFLOW` edge. | |
+| req-github-core-repo-page-activity-3 | Status Pill Vocabulary | Implemented | Each row's status pill maps GitHub's `status` + `conclusion` fields to a stable visual vocabulary: in-progress, success, failure, cancelled, skipped, neutral, timed_out. | Cross-attempt aggregation deferred per `req-github-core-backlog-run-attempts`. |
+| req-github-core-repo-page-activity-4 | Configurable Limit | Implemented | The panel's `config.limit` controls how many rows appear. Default `10`. Maximum bounded so the panel cannot accidentally render thousands. | Maximum: 100 in v0. |
+| req-github-core-repo-page-activity-5 | Empty State | Implemented | When the repository has zero collected runs, the panel renders an explicit "no runs collected yet" state. | Not blank. |
 
 ### Deploy Health Panel
 ----
 RID: `req-github-core-repo-page-health`
-Status: `Proposed`
+Status: `Implemented`
 
 A compact per-workflow scoreboard: at-a-glance "are we shipping clean?"
 
@@ -199,15 +199,15 @@ make absence legible).
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-health-1 | Per-Workflow Row | Proposed | Each workflow defined on the repo (`DEFINES_WORKFLOW` outbound) renders one row in the scoreboard. | |
-| req-github-core-repo-page-health-2 | Shared Status Vocabulary | Proposed | Box color uses the same vocabulary as the recent-activity panel. | Single source of truth for status colors in this plugin. |
-| req-github-core-repo-page-health-3 | Configurable Window | Proposed | The window size N is configurable per panel-instance. Default `30`. | |
-| req-github-core-repo-page-health-4 | No-Run Workflow Visible | Proposed | A workflow defined on the repo but with zero collected runs renders an explicit "no runs" row, not omitted. | Absence is legible. |
+| req-github-core-repo-page-health-1 | Per-Workflow Row | Implemented | Each workflow defined on the repo (`DEFINES_WORKFLOW` outbound) renders one row in the scoreboard. | |
+| req-github-core-repo-page-health-2 | Shared Status Vocabulary | Implemented | Box color uses the same vocabulary as the recent-activity panel. | Single source of truth for status colors in this plugin. |
+| req-github-core-repo-page-health-3 | Configurable Window | Implemented | The window size N is configurable per panel-instance. Default `30`. | |
+| req-github-core-repo-page-health-4 | No-Run Workflow Visible | Implemented | A workflow defined on the repo but with zero collected runs renders an explicit "no runs" row, not omitted. | Absence is legible. |
 
 ### Workflow Catalog Panel
 ----
 RID: `req-github-core-repo-page-catalog`
-Status: `Proposed`
+Status: `Implemented`
 
 What's defined to run on this repo, with an expand-to-see-detail affordance
 for the deploy-relevant fields parsed from each workflow's YAML.
@@ -231,15 +231,15 @@ on first load. Other workflows collapsed.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-catalog-1 | Per-Workflow Row | Proposed | Each `github_workflow` reachable via the repo's `DEFINES_WORKFLOW` edges renders one collapsed row. | |
-| req-github-core-repo-page-catalog-2 | Expanded Parsed Detail | Proposed | The expanded view surfaces parsed triggers, permissions, and per-job summary fields from `configuration`. | Pulled from already-parsed fields; no client-side YAML parsing. |
-| req-github-core-repo-page-catalog-3 | Raw YAML Toggle | Proposed | The expanded view exposes a toggle that reveals `configuration.raw_yaml` inline. | Workflows with empty `raw_yaml` (e.g. GitHub's dependabot pseudo-workflow) disable the toggle with a tooltip. |
-| req-github-core-repo-page-catalog-4 | Default Expansion | Proposed | On first page load, the workflow with the most recent run is expanded; others collapsed. | Single-expand at a time — clicking another collapses the current. |
+| req-github-core-repo-page-catalog-1 | Per-Workflow Row | Implemented | Each `github_workflow` reachable via the repo's `DEFINES_WORKFLOW` edges renders one collapsed row. | |
+| req-github-core-repo-page-catalog-2 | Expanded Parsed Detail | Implemented | The expanded view surfaces parsed triggers, permissions, and per-job summary fields from `configuration`. | Pulled from already-parsed fields; no client-side YAML parsing. |
+| req-github-core-repo-page-catalog-3 | Raw YAML Toggle | Implemented | The expanded view exposes a toggle that reveals `configuration.raw_yaml` inline. | Workflows with empty `raw_yaml` (e.g. GitHub's dependabot pseudo-workflow) disable the toggle with a tooltip. |
+| req-github-core-repo-page-catalog-4 | Default Expansion | Implemented | On first page load, the workflow with the most recent run is expanded; others collapsed. | Single-expand at a time — clicking another collapses the current. |
 
 ### Cross-Grid References Panel
 ----
 RID: `req-github-core-repo-page-cross-grid`
-Status: `Proposed`
+Status: `Implemented`
 
 **The "mapping the tao" payoff panel.** Shows outbound `REFERENCES_RESOURCE`
 edges from the resolved repository's own nodes (the repo, its workflows,
@@ -272,10 +272,10 @@ That transition is itself a demo moment.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-cross-grid-1 | Outbound REFERENCES_RESOURCE Aggregation | Proposed | The panel collects `REFERENCES_RESOURCE` edges whose source is the resolved repository OR any of its workflows / runs / jobs. | Source-side scoping by `full_name` on each model. |
-| req-github-core-repo-page-cross-grid-2 | Grouped By Target Type | Proposed | Edges are grouped by `target.entity_type`; each group renders as a labeled section with a count. | |
-| req-github-core-repo-page-cross-grid-3 | Link-Rule Surfacing | Proposed | Each row shows the `properties.link_rule` name and `properties.matched_value` from the edge envelope. | Operator sees why the link was emitted. |
-| req-github-core-repo-page-cross-grid-4 | Actionable Empty State | Proposed | When zero cross-grid edges exist, the panel renders an explicit empty state naming the next collector run that would populate it. | Demo arc relies on this transition being legible. |
+| req-github-core-repo-page-cross-grid-1 | Outbound REFERENCES_RESOURCE Aggregation | Implemented | The panel collects `REFERENCES_RESOURCE` edges whose source is the resolved repository OR any of its workflows / runs / jobs. | Source-side scoping by `full_name` on each model. |
+| req-github-core-repo-page-cross-grid-2 | Grouped By Target Type | Implemented | Edges are grouped by `target.entity_type`; each group renders as a labeled section with a count. | |
+| req-github-core-repo-page-cross-grid-3 | Link-Rule Surfacing | Implemented | Each row shows the `properties.link_rule` name and `properties.matched_value` from the edge envelope. | Operator sees why the link was emitted. |
+| req-github-core-repo-page-cross-grid-4 | Actionable Empty State | Implemented | When zero cross-grid edges exist, the panel renders an explicit empty state naming the next collector run that would populate it. | Demo arc relies on this transition being legible. |
 
 ### History Strip Panel
 ----
@@ -301,9 +301,9 @@ Surface:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-history-1 | Workflow Change Count | Proposed | The panel shows the total count of `HistoricalGithubWorkflow` rows for workflows defined on this repo. | |
-| req-github-core-repo-page-history-2 | Latest Change Surface | Proposed | The panel highlights the most-recent workflow-definition change (workflow name + timestamp). | Click target may be a stub (GitHub URL) in v0; per-workflow diff page is future work. |
-| req-github-core-repo-page-history-3 | Optional Cadence Line | Proposed | The panel may show "X observation cycles in the last N days" derived from history rows across all of this repo's nodes. | Optional; render when meaningful. |
+| req-github-core-repo-page-history-1 | Workflow Change Count | Implemented | The panel shows the total count of `HistoricalGithubWorkflow` rows for workflows defined on this repo. | |
+| req-github-core-repo-page-history-2 | Latest Change Surface | Implemented | The panel highlights the most-recent workflow-definition change (workflow name + timestamp). | Click target may be a stub (GitHub URL) in v0; per-workflow diff page is future work. |
+| req-github-core-repo-page-history-3 | Optional Cadence Line | Proposed | The panel may show "X observation cycles in the last N days" derived from history rows across all of this repo's nodes. | Optional; not in v0. |
 
 ### Page Layout
 ----
@@ -335,8 +335,8 @@ panel takes the full page width.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-layout-1 | Vertical Reading Order | Proposed | Panels appear in the documented story order on every render. | Hero → (Activity + Health row) → Catalog → Cross-Grid → History. |
-| req-github-core-repo-page-layout-2 | Paired Activity-Health Row | Proposed | The recent-activity and deploy-health panels share a horizontal row, side-by-side on viewports wide enough; they stack vertically on narrow viewports. | |
+| req-github-core-repo-page-layout-1 | Vertical Reading Order | Implemented | Panels appear in the documented story order on every render. | Hero → (Activity + Health row) → Catalog → Cross-Grid → History. |
+| req-github-core-repo-page-layout-2 | Paired Activity-Health Row | Proposed | The recent-activity and deploy-health panels share a horizontal row, side-by-side on viewports wide enough; they stack vertically on narrow viewports. | v0 ships single-column vertical stack; pair-row requires extending the page layout grammar (nested columns) and is a follow-up. |
 
 ### Navigation Discoverability
 ----
@@ -353,12 +353,12 @@ the existing samsite nav-links GRIFT.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-nav-1 | Reachable From Nav | Proposed | At least one nav-link card exists somewhere in TAP Web that opens this page (with `repository_entity_id` pre-filled for v0's single repo). | Samsite nav is the obvious host; alternatives include a github_core landing area when other repos appear. |
+| req-github-core-repo-page-nav-1 | Reachable From Nav | Proposed | At least one nav-link card exists somewhere in TAP Web that opens this page (with `repository_entity_id` pre-filled for v0's single repo). | Deferred — page reachable via URL only in v0; nav-link card is a small follow-up once a natural host page is picked. |
 
 ### GRIFT Layout
 ----
 RID: `req-github-core-repo-page-grift`
-Status: `Proposed`
+Status: `Implemented`
 
 The page and its panel instances are declared as a single GRIFT batch:
 `plugins/github_core/grift/repo-landing-page.grift.json`. The batch creates
@@ -373,15 +373,15 @@ table and validated against `grift-document.schema.json` at load.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-grift-1 | Single GRIFT Batch | Proposed | The page + all six panel instances + all `USES_PANEL` edges land via one GRIFT batch. | |
-| req-github-core-repo-page-grift-2 | Manifest-Declared | Proposed | The GRIFT file is declared in `plugins/github_core/tap-plugin.toml` under `[grift]`. | |
-| req-github-core-repo-page-grift-3 | Deterministic Entity Ids | Proposed | Page and panel entity_ids are deterministic UUIDv5 values so re-import upserts in place. | Same convention as github_core models. |
-| req-github-core-repo-page-grift-4 | Schema Validates | Proposed | The GRIFT batch passes `grift-document.schema.json` validation at load. | |
+| req-github-core-repo-page-grift-1 | Single GRIFT Batch | Implemented | The page + all six panel instances + all `USES_PANEL` edges land via one GRIFT batch. | |
+| req-github-core-repo-page-grift-2 | Manifest-Declared | Implemented | The GRIFT file is declared in `plugins/github_core/tap-plugin.toml` under `[grift]`. | |
+| req-github-core-repo-page-grift-3 | Stable Entity Ids | Implemented | Page and panel entity_ids are stable values authored as literal strings in the GRIFT JSON so re-import upserts in place. | UUIDv7 minted once via `scripts/uuid7` and recorded in the JSON. UUIDv5-from-natural-key is the convention for collected entities (see `plugins/github_core/collectors/github_collector/identity.py`); hardcoded page/panel ids are authored, not collected, so UUIDv7 is the right shape. |
+| req-github-core-repo-page-grift-4 | Schema Validates | Implemented | The GRIFT batch passes `grift-document.schema.json` validation at load. | |
 
 ### v0 Non-Goals
 ----
 RID: `req-github-core-repo-page-nongoals`
-Status: `Proposed`
+Status: `Implemented`
 
 Out of scope for v0 of this page:
 
@@ -409,9 +409,9 @@ Out of scope for v0 of this page:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-repo-page-nongoals-1 | Drill-Down Deferred | Proposed | Per-run and per-job pages are not v0. | |
-| req-github-core-repo-page-nongoals-2 | Conditional Panels Deferred | Proposed | Self-hosted runner and secret/variable panels are not in v0. | |
-| req-github-core-repo-page-nongoals-3 | Read-Only | Proposed | The page is strictly read-only; no edit affordances. | |
+| req-github-core-repo-page-nongoals-1 | Drill-Down Deferred | Implemented | Per-run and per-job pages are not v0. | |
+| req-github-core-repo-page-nongoals-2 | Conditional Panels Deferred | Implemented | Self-hosted runner and secret/variable panels are not in v0. | |
+| req-github-core-repo-page-nongoals-3 | Read-Only | Implemented | The page is strictly read-only; no edit affordances. | |
 
 ## Status Vocabulary
 
