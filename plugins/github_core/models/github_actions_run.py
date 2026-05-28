@@ -42,6 +42,11 @@ class GithubActionsRun(BaseModel):
         "tags": {"type": "object"},
     }
 
+    # FIELD_VALIDATION_SCHEMA runs on save with the post-parse Python value.
+    # Datetime fields are typed Django DateTimeFields — their own validation
+    # is the right layer. Including a JSON-Schema entry for them would assert
+    # against a `datetime` object that the API-input shape "string | null"
+    # describes only the inbound JSON shape, not the at-rest Python value.
     FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, Any]] = {
         "full_name": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}},
         "run_id": {"validation": "jsonschema", "schema": {"type": ["integer", "null"]}},
@@ -51,8 +56,6 @@ class GithubActionsRun(BaseModel):
         "conclusion": {"validation": "jsonschema", "schema": {"type": "string"}},
         "head_sha": {"validation": "jsonschema", "schema": {"type": "string"}},
         "head_branch": {"validation": "jsonschema", "schema": {"type": "string"}},
-        "run_started_at": {"validation": "jsonschema", "schema": {"type": ["string", "null"]}},
-        "completed_at": {"validation": "jsonschema", "schema": {"type": ["string", "null"]}},
         "html_url": {"validation": "jsonschema", "schema": {"type": "string"}},
         "configuration": {"validation": "jsonschema", "schema": {"type": "object"}},
         "tags": {"validation": "jsonschema", "schema": {"type": "object"}},

@@ -26,17 +26,28 @@ def parse_workflow_yaml(raw_yaml: str) -> dict[str, Any]:
     """Parse workflow YAML into the configuration shape declared in the spec.
 
     Returns a dict suitable for assignment to `github_workflow.configuration`.
-    Keys: triggers, permissions, jobs (list), refs (categorized), raw_yaml.
+    Keys: triggers, permissions, jobs (list), refs (categorized), raw_yaml,
+    local_action_refs (list — `uses:` refs that point at local composite
+    actions whose action.yml bodies v0 does not parse; see
+    `req-github-core-workflow-parse-3`).
     """
     parsed = yaml.safe_load(raw_yaml) or {}
     if not isinstance(parsed, dict):
-        return {"raw_yaml": raw_yaml, "triggers": [], "permissions": {}, "jobs": [], "refs": _empty_refs()}
+        return {
+            "raw_yaml": raw_yaml,
+            "triggers": [],
+            "permissions": {},
+            "jobs": [],
+            "refs": _empty_refs(),
+            "local_action_refs": [],
+        }
 
     # YAML 1.1 gotcha: `on:` parses as boolean `True`. Check both keys.
     triggers = _extract_triggers(parsed.get("on", parsed.get(True)))
     permissions = _normalize_permissions(parsed.get("permissions"))
     jobs = [_extract_job(job_id, job_def) for job_id, job_def in (parsed.get("jobs") or {}).items()]
     refs = _categorize_refs(parsed)
+    local_action_refs = _detect_local_action_refs(jobs)
 
     return {
         "raw_yaml": raw_yaml,
@@ -44,6 +55,7 @@ def parse_workflow_yaml(raw_yaml: str) -> dict[str, Any]:
         "permissions": permissions,
         "jobs": jobs,
         "refs": refs,
+        "local_action_refs": local_action_refs,
     }
 
 
@@ -85,6 +97,45 @@ def _extract_job(job_id: str, job_def: Any) -> dict[str, Any]:
         "uses": str(job_def.get("uses") or ""),
         "steps": job_def.get("steps") or [],
     }
+
+
+def _detect_local_action_refs(jobs: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Find `uses:` references that point at local composite actions.
+
+    Local-action convention: `uses: ./path/to/action` (or `./.github/actions/foo`).
+    v0 does not parse these action.yml bodies; the collector surfaces a
+    structured warning per detected reference so an operator sees the
+    deferred shape rather than silently missing it
+    (`req-github-core-workflow-parse-3`).
+
+    Reusable workflow calls — `uses: ./.github/workflows/x.yml` — are a
+    different category and explicitly NOT flagged here: they end in `.yml` or
+    `.yaml`, point at a workflow file (not an action directory), and have
+    different runtime semantics.
+    """
+    refs: list[dict[str, str]] = []
+    for job in jobs:
+        job_id = job.get("id", "")
+        for path, value in _walk_uses_paths(job):
+            if not isinstance(value, str) or not value.startswith("./"):
+                continue
+            if value.endswith((".yml", ".yaml")):
+                # Reusable workflow call — different category.
+                continue
+            refs.append({"job_id": job_id, "path": path, "uses": value})
+    return refs
+
+
+def _walk_uses_paths(job: dict[str, Any]) -> list[tuple[str, Any]]:
+    """Yield (location, value) for every `uses:` field reachable inside a job."""
+    out: list[tuple[str, Any]] = []
+    if job.get("uses"):
+        out.append(("job.uses", job["uses"]))
+    steps = job.get("steps") or []
+    for i, step in enumerate(steps):
+        if isinstance(step, dict) and step.get("uses"):
+            out.append((f"steps[{i}].uses", step["uses"]))
+    return out
 
 
 def _categorize_refs(parsed: dict[str, Any]) -> dict[str, list[str]]:

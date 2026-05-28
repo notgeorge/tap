@@ -206,6 +206,46 @@ jobs:
         assert config["triggers"] == []
         assert config["jobs"] == []
         assert config["refs"] == {"domain_names": [], "aws_regions": [], "cloudfront_distribution_ids": []}
+        assert config["local_action_refs"] == []
+
+    def test_local_action_refs_detected(self) -> None:
+        """Local composite-action `uses: ./...` references are flagged for the
+        collector to warn on (req-github-core-workflow-parse-3)."""
+        yaml_text = """\
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-foo
+      - uses: ./local-helper
+      - run: echo "hello"
+  release:
+    uses: ./.github/workflows/release.yml
+"""
+        config = parse_workflow_yaml(yaml_text)
+        refs = config["local_action_refs"]
+        # Two local-action refs in the `build` job; the `release` job's
+        # `./.github/workflows/release.yml` is a reusable workflow call,
+        # NOT a local action — must NOT be flagged.
+        uses_strings = sorted(r["uses"] for r in refs)
+        assert uses_strings == sorted(["./.github/actions/setup-foo", "./local-helper"])
+        job_ids = {r["job_id"] for r in refs}
+        assert job_ids == {"build"}
+
+    def test_reusable_workflow_call_not_flagged_as_local_action(self) -> None:
+        """`uses: ./.github/workflows/x.yml` is a reusable workflow call, not
+        a local action — explicitly NOT flagged so an operator isn't told to
+        investigate something that's a different category entirely."""
+        yaml_text = """\
+on: push
+jobs:
+  call:
+    uses: ./.github/workflows/build.yaml
+"""
+        config = parse_workflow_yaml(yaml_text)
+        assert config["local_action_refs"] == []
 
 
 class TestCollectorRegistration:
