@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019df97b-2c80-706a-bf44-4ce5cb9b8789",
+        "entity_id": "019e6fbe-affa-7540-8d00-a8e12b1a7e7a",
         "entity_type": "batch",
-        "name": "fedramp_20x_ksi findings page v0.1.1",
+        "name": "fedramp_20x_ksi findings page v0.1.1 \u2014 single global WHERE fix",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.fedramp_20x_ksi",
-        "name": "fedramp_20x_ksi findings page v0.1.1",
-        "description": "Seeds the Findings index page with two panels (findings_by_system, findings_by_ksi). v0.1.1 surfaces panel headers — panel names changed to 'By System' / 'By KSI' (the page-level title 'Findings' provides the outer context, so the panels read as 'Findings: By System' / 'Findings: By KSI' visually). hide_header dropped on both instances so the standard tap_web panel header renders."
+        "name": "fedramp_20x_ksi findings page v0.1.1 \u2014 single global WHERE fix",
+        "description": "Seeds the Findings index page with two panels (findings_by_system, findings_by_ksi). v0.1.1 surfaces panel headers \u2014 panel names changed to 'By System' / 'By KSI' (the page-level title 'Findings' provides the outer context, so the panels read as 'Findings: By System' / 'Findings: By KSI' visually). hide_header dropped on both instances so the standard tap_web panel header renders."
       },
       "nodes": [
         {
@@ -22,7 +22,9 @@
             "entity_id": "019df978-4b6f-75cd-ac14-cf662904da16",
             "entity_type": "search",
             "name": "All Open Findings With KSI Linkage",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "All Open Findings With KSI Linkage",
@@ -41,7 +43,9 @@
             "entity_id": "019df978-4b6f-75cd-ac14-cf68b44fdedb",
             "entity_type": "panel",
             "name": "By System",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "fedramp-ksi-findings-by-system",
@@ -56,7 +60,9 @@
             "entity_id": "019df978-4b6f-75cd-ac14-cf69e5920815",
             "entity_type": "panel",
             "name": "By KSI",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "fedramp-ksi-findings-by-ksi",
@@ -71,7 +77,9 @@
             "entity_id": "019df978-4b6f-75cd-ac14-cf67f84b660f",
             "entity_type": "page",
             "name": "Findings",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "Findings",
@@ -81,8 +89,14 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1": {"panel-id": "findings-by-system", "height": "auto"},
-                    "row-2": {"panel-id": "findings-by-ksi", "height": "auto"}
+                    "row-1": {
+                      "panel-id": "findings-by-system",
+                      "height": "auto"
+                    },
+                    "row-2": {
+                      "panel-id": "findings-by-ksi",
+                      "height": "auto"
+                    }
                   }
                 }
               }
@@ -96,7 +110,9 @@
             "entity_id": "019df978-4b6f-75cd-ac14-cf6c46b03d39",
             "entity_type": "edge",
             "name": "Findings By System Panel USES_SEARCH",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "edge": {
             "from_entity_id": "019df978-4b6f-75cd-ac14-cf68b44fdedb",
@@ -110,7 +126,9 @@
             "entity_id": "019df978-4b6f-75cd-ac14-cf6d2a484fd2",
             "entity_type": "edge",
             "name": "Findings By KSI Panel USES_SEARCH",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "edge": {
             "from_entity_id": "019df978-4b6f-75cd-ac14-cf69e5920815",
@@ -124,13 +142,21 @@
             "entity_id": "019df978-4b6f-75cd-ac14-cf6a5c41e36b",
             "entity_type": "edge",
             "name": "Findings Page USES_PANEL findings-by-system",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "edge": {
             "from_entity_id": "019df978-4b6f-75cd-ac14-cf67f84b660f",
             "to_entity_id": "019df978-4b6f-75cd-ac14-cf68b44fdedb",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "findings-by-system"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "findings-by-system"
+              }
+            }
           }
         },
         {
@@ -138,13 +164,21 @@
             "entity_id": "019df978-4b6f-75cd-ac14-cf6b3c8cfc9c",
             "entity_type": "edge",
             "name": "Findings Page USES_PANEL findings-by-ksi",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "edge": {
             "from_entity_id": "019df978-4b6f-75cd-ac14-cf67f84b660f",
             "to_entity_id": "019df978-4b6f-75cd-ac14-cf69e5920815",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "findings-by-ksi"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "findings-by-ksi"
+              }
+            }
           }
         }
       ]
