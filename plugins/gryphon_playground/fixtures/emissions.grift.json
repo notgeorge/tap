@@ -1,0 +1,117 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e6eab-d14d-7144-845c-2d470c272e8e",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — emissions",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — emissions",
+        "description": "Five same-kind pg_nodes carrying timestamps in observed_at — three distinct, two tied on the newest timestamp, and one null. Built for req-grid-gryphon-order-by-envelope: the 'latest emission of kind X' panel shape (LIMIT 1 envelope), the tiebreaker discipline (entity_id ASC), and the v0 NULL-ordering surface (Postgres native NULLS LAST for ASC, NULLS FIRST for DESC).",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e6eab-d14d-7144-845c-2d48d4cc2edb",
+            "entity_type": "pg_node",
+            "name": "Reading One",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-28T08:00:00Z",
+            "updated_at": "2026-05-28T08:00:00Z"
+          },
+          "node": {
+            "name": "Reading One",
+            "description": "Oldest non-null emission.",
+            "kind": "reading",
+            "severity_score": 10,
+            "is_open": true,
+            "observed_at": "2026-05-21T08:00:00Z",
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6eab-d14d-7144-845c-2d49aac6c4f4",
+            "entity_type": "pg_node",
+            "name": "Reading Two",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-28T08:00:01Z",
+            "updated_at": "2026-05-28T08:00:01Z"
+          },
+          "node": {
+            "name": "Reading Two",
+            "description": "Middle non-null emission.",
+            "kind": "reading",
+            "severity_score": 20,
+            "is_open": true,
+            "observed_at": "2026-05-22T09:00:00Z",
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6eab-d14d-7144-845c-2d4af229bba6",
+            "entity_type": "pg_node",
+            "name": "Reading Three",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-28T08:00:02Z",
+            "updated_at": "2026-05-28T08:00:02Z"
+          },
+          "node": {
+            "name": "Reading Three",
+            "description": "Newest emission — tied with Reading Three-Tied on observed_at and severity_score. Lower entity_id, so wins the deterministic tiebreak.",
+            "kind": "reading",
+            "severity_score": 30,
+            "is_open": true,
+            "observed_at": "2026-05-23T10:00:00Z",
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6eab-d14d-7144-845c-2d4be9843ce6",
+            "entity_type": "pg_node",
+            "name": "Reading Three-Tied",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-28T08:00:03Z",
+            "updated_at": "2026-05-28T08:00:03Z"
+          },
+          "node": {
+            "name": "Reading Three-Tied",
+            "description": "Newest emission — tied with Reading Three. Higher entity_id, so loses LIMIT 1 under the tiebreak.",
+            "kind": "reading",
+            "severity_score": 30,
+            "is_open": true,
+            "observed_at": "2026-05-23T10:00:00Z",
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6eab-d14d-7144-845c-2d4c0112d84e",
+            "entity_type": "pg_node",
+            "name": "Reading Null",
+            "dimensions": { "tap.playground": "gridkin" },
+            "created_at": "2026-05-28T08:00:04Z",
+            "updated_at": "2026-05-28T08:00:04Z"
+          },
+          "node": {
+            "name": "Reading Null",
+            "description": "Emission whose observed_at is unset — exercises the v0 NULL-ordering surface.",
+            "kind": "reading",
+            "severity_score": 0,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

@@ -1643,8 +1643,14 @@ class TestGryphonOrderByLimitParser:
         ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label ORDER BY label")
         assert isinstance(ast.order_by, OrderByClause)
         assert len(ast.order_by.items) == 1
-        assert ast.order_by.items[0].key == "label"
-        assert ast.order_by.items[0].descending is False
+        item = ast.order_by.items[0]
+        # Bare-name term parses as a FieldPath with the name as variable and no
+        # steps (the back-compatible projection-mode surface). `.key` reproduces
+        # the original string-keyed behavior.
+        assert item.path.variable == "label"
+        assert item.path.steps == ()
+        assert item.key == "label"
+        assert item.descending is False
 
     def test_order_by_desc(self):
         """req-grid-gryphon-order-by-3: DESC marks a term descending."""
@@ -1656,6 +1662,26 @@ class TestGryphonOrderByLimitParser:
         ast = parse_gryphon("MATCH (n:pg_node) RETURN n.kind AS k, n.name AS label ORDER BY k, label DESC")
         keys = [(i.key, i.descending) for i in ast.order_by.items]
         assert keys == [("k", False), ("label", True)]
+
+    def test_order_by_field_path_parses_envelope_form(self):
+        """req-grid-gryphon-order-by-envelope-1: ORDER BY <var>.<data-lane field> parses to a FieldPath."""
+        ast = parse_gryphon("MATCH (n:pg_node) ORDER BY n.data.observed_at DESC LIMIT 1")
+        item = ast.order_by.items[0]
+        assert item.path.variable == "n"
+        assert [s.name for s in item.path.steps if isinstance(s, DotStep)] == ["data", "observed_at"]
+        assert item.descending is True
+        # The `.key` derived property is the last dot-step name — matches
+        # `_return_item_key`'s default-alias convention for unaliased RETURN
+        # items, so projection-mode lookups stay consistent.
+        assert item.key == "observed_at"
+
+    def test_order_by_spine_field_path_parses(self):
+        """req-grid-gryphon-order-by-envelope-3: ORDER BY <var>.<spine field> parses."""
+        ast = parse_gryphon("MATCH (n:pg_node) ORDER BY n.name LIMIT 5")
+        item = ast.order_by.items[0]
+        assert item.path.variable == "n"
+        assert [s.name for s in item.path.steps if isinstance(s, DotStep)] == ["name"]
+        assert item.descending is False
 
     def test_limit_parses(self):
         """req-grid-gryphon-limit-1: LIMIT captures a non-negative integer count."""
@@ -1748,26 +1774,169 @@ class TestGryphonOrderByLimitExecutor:
         rows = execute_search(search, inputs={})["rows"]
         assert [r["name"] for r in rows] == ["Aragorn", "Boromir", "Celeborn"]
 
-    def test_order_by_on_graph_envelope_rejected(self):
-        """req-grid-gryphon-order-by-7: ORDER BY with a graph-envelope RETURN is rejected."""
+    def test_order_by_envelope_on_typescan_returns_ordered_node(self):
+        """req-grid-gryphon-order-by-envelope-1: a labelled type-scan envelope
+        with ORDER BY by field path returns the right node — the panel-shape
+        positive path that the helper used to do in Python."""
+        self._setup_characters()
+        # Order by spine `name` DESC, take 1 → "Eowyn" (lexically last).
         search = Search(
             search_type="gryphon",
             root="node",
-            name="bad",
+            name="latest-character",
+            definition={"query": "MATCH (c:character) ORDER BY c.name DESC LIMIT 1"},
+        )
+        envelope = execute_search(search, inputs={})
+        assert envelope["edges"] == []
+        # Envelope output is a list of one node (Eowyn). Layer defaults vary; the
+        # spine `name` is canonical across layers.
+        nodes = envelope["nodes"]
+        assert len(nodes) == 1
+        assert nodes[0]["name"] == "Eowyn"
+
+    def test_order_by_envelope_on_data_lane_field_resolves(self):
+        """req-grid-gryphon-order-by-envelope-3: ORDER BY <var>.data.<field>
+        resolves through the same type-scan ORM-path machinery as WHERE."""
+        self._setup_characters()
+        # `bio` is a per-model field on Character; addressing it as `c.data.bio`
+        # routes through `_typescan_orm_path`. Bios sort lexically by name
+        # ("Aragorn bio" < "Boromir bio" < ...); ASC LIMIT 1 → "Aragorn".
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="lowest-bio",
+            definition={"query": "MATCH (c:character) ORDER BY c.data.bio ASC LIMIT 1"},
+        )
+        envelope = execute_search(search, inputs={})
+        assert len(envelope["nodes"]) == 1
+        assert envelope["nodes"][0]["name"] == "Aragorn"
+
+    def test_order_by_envelope_no_order_clause_still_caps(self):
+        """req-grid-gryphon-order-by-envelope-2: LIMIT alone on a type-scan
+        envelope caps the node list deterministically (spine-name default)."""
+        self._setup_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="cap-two",
+            definition={"query": "MATCH (c:character) LIMIT 2"},
+        )
+        envelope = execute_search(search, inputs={})
+        nodes = envelope["nodes"]
+        assert len(nodes) == 2
+        # Default order is spine `name` ascending with entity_id tiebreak.
+        assert [n["name"] for n in nodes] == ["Aragorn", "Boromir"]
+
+    def test_order_by_envelope_bare_name_rejected(self):
+        """req-grid-gryphon-order-by-envelope-8: ORDER BY <bare-name> in envelope
+        mode has no defined meaning (no RETURN aliases) and is rejected."""
+        self._setup_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad-bare",
             definition={"query": "MATCH (c:character) ORDER BY name"},
         )
-        with pytest.raises(SearchExecutionError, match="row-projection"):
+        with pytest.raises(SearchExecutionError, match="Envelope-mode ORDER BY must name a field path"):
             execute_search(search, inputs={})
 
-    def test_limit_on_graph_envelope_rejected(self):
-        """req-grid-gryphon-limit-6: LIMIT with a graph-envelope RETURN is rejected."""
+    def test_order_by_envelope_unknown_variable_rejected(self):
+        """An ORDER BY field path rooted at an unbound variable raises a clear
+        error pointing at the bound variable."""
+        self._setup_characters()
         search = Search(
             search_type="gryphon",
             root="node",
-            name="bad",
-            definition={"query": "MATCH (c:character) LIMIT 5"},
+            name="bad-var",
+            definition={"query": "MATCH (c:character) ORDER BY x.name LIMIT 1"},
         )
-        with pytest.raises(SearchExecutionError, match="row-projection"):
+        with pytest.raises(SearchExecutionError, match="not bound by this MATCH pattern"):
+            execute_search(search, inputs={})
+
+    def test_order_by_projection_mode_field_path_rejected(self):
+        """The new envelope-mode field-path surface is rejected in projection
+        mode in v0 — pointed at envelope mode rather than silently coerced."""
+        self._setup_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad-projection-path",
+            definition={"query": "MATCH (c:character) RETURN c.name AS name ORDER BY c.data.bio"},
+        )
+        with pytest.raises(SearchExecutionError, match="envelope-mode RETURN only"):
+            execute_search(search, inputs={})
+
+    def test_order_by_on_hub_and_spoke_envelope_still_rejected(self):
+        """req-grid-gryphon-order-by-envelope-9: hub-and-spoke envelope still
+        rejects ORDER BY / LIMIT — order semantics undefined across hub/neighbors."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad-hub-and-spoke",
+            definition={"query": "MATCH (h)-[e]-(n) WHERE h.entity_id = $hub ORDER BY h.name"},
+        )
+        with pytest.raises(SearchExecutionError, match="single labelled type-scan"):
+            execute_search(search, inputs={"hub": "00000000-0000-0000-0000-000000000000"})
+
+    def test_limit_on_hub_and_spoke_envelope_still_rejected(self):
+        """req-grid-gryphon-order-by-envelope-9: LIMIT on hub-and-spoke envelope rejected."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad-hub-limit",
+            definition={"query": "MATCH (h)-[e]-(n) WHERE h.entity_id = $hub LIMIT 5"},
+        )
+        with pytest.raises(SearchExecutionError, match="single labelled type-scan"):
+            execute_search(search, inputs={"hub": "00000000-0000-0000-0000-000000000000"})
+
+    def test_order_by_on_edge_type_scan_envelope_still_rejected(self):
+        """req-grid-gryphon-order-by-envelope-9: edge-type scan envelope rejected."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad-edge-scan",
+            definition={"query": "MATCH (a:character)-[e:WIELDS]->(b:artifact) ORDER BY a.name"},
+        )
+        with pytest.raises(SearchExecutionError, match="single labelled type-scan"):
+            execute_search(search, inputs={})
+
+    def test_order_by_on_bare_match_envelope_still_rejected(self):
+        """req-grid-gryphon-order-by-envelope-9: labelless MATCH (n) envelope rejected."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad-bare-match",
+            definition={"query": "MATCH (n) ORDER BY n.name"},
+        )
+        with pytest.raises(SearchExecutionError, match="single labelled type-scan"):
+            execute_search(search, inputs={})
+
+    def test_order_by_on_multihop_envelope_still_rejected(self):
+        """req-grid-gryphon-order-by-envelope-9: multi-hop envelope rejected."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad-multihop",
+            definition={
+                "query": (
+                    "MATCH (a:character)-[:WIELDS]->(b:artifact)-[:FOUND_IN]->(c:location) "
+                    "WHERE a.entity_id = $root ORDER BY c.name"
+                )
+            },
+        )
+        with pytest.raises(SearchExecutionError, match="single labelled type-scan"):
+            execute_search(search, inputs={"root": "00000000-0000-0000-0000-000000000000"})
+
+    def test_order_by_on_multi_clause_union_envelope_still_rejected(self):
+        """req-grid-gryphon-order-by-envelope-9: multi-clause union envelope rejected
+        (no canonical ordering across heterogeneous types)."""
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="bad-union",
+            definition={"query": "MATCH (c:character) MATCH (a:artifact) ORDER BY c.name"},
+        )
+        with pytest.raises(SearchExecutionError, match="single labelled type-scan"):
             execute_search(search, inputs={})
 
     def test_order_by_unknown_key_rejected(self):
@@ -1783,7 +1952,7 @@ class TestGryphonOrderByLimitExecutor:
             execute_search(search, inputs={})
 
     def test_order_by_on_single_hop_traversal_rejected(self):
-        """ORDER BY on a single-hop graph traversal (hub-and-spoke) is rejected."""
+        """ORDER BY on a single-hop graph traversal (hub-and-spoke) in projection mode is rejected."""
         search = Search(
             search_type="gryphon",
             root="node",

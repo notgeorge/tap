@@ -329,11 +329,15 @@ class _ASTTransformer(Transformer):
     def order_by_clause(self, *items: Any) -> OrderByClause:
         return OrderByClause(items=tuple(items))
 
-    def order_item(self, name: Token, *direction: Any) -> OrderByItem:
+    def order_item(self, path: Any, *direction: Any) -> OrderByItem:
         # `direction` is the optional order_dir child: () for the default
         # ascending case, or ("asc",) / ("desc",) when written explicitly.
+        # `path` is a FieldPath produced by the field_path transformer —
+        # bare-name terms (`ORDER BY label`) come through as FieldPath with
+        # zero steps, full-path terms (`ORDER BY n.data.fetched_at`) carry
+        # the dot-steps. Per req-grid-gryphon-order-by-envelope.
         descending = bool(direction) and direction[0] == "desc"
-        return OrderByItem(key=str(name), descending=descending)
+        return OrderByItem(path=path, descending=descending)
 
     def asc(self) -> str:
         # The _ASC_KW / _DESC_KW terminals are underscore-prefixed and so are
