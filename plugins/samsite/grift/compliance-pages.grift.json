@@ -188,7 +188,7 @@
             }
           },
           "node": {
-            "name": "Samsite \u2014 KSI Scoreboard",
+            "name": "KSI Scoreboard",
             "slug": "/samsite/compliance/scoreboard",
             "layout": {
               "columns": {
@@ -202,7 +202,8 @@
                   }
                 }
               }
-            }
+            },
+            "nav_weight": 100
           }
         },
         {
