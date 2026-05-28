@@ -8,6 +8,8 @@ A *configured shape* is the combination of three things: which entity type to lo
 
 This spec governs **panel-side resolution**. Per-emission identity semantics for the *entities themselves* (why nodes accumulate over time rather than upserting in place, when and why a discriminator field carries a particular value) live with the relevant collector spec. This spec does not govern those decisions; it governs what panels do once those nodes exist.
 
+**Dependency on Gryphon.** This spec presumes Gryphon supports `ORDER BY` + `LIMIT` on graph-envelope returns for type-scans — the `latest_by` selection strategy is the demand-shape behind that ask. The wishlist entry sits in Bucket A of [`docs/misc/doc-dev-gryphon-wishlist.md`](../../docs/misc/doc-dev-gryphon-wishlist.md). The helper module is built against that surface; the resolution path runs entirely inside Gryphon with no Python-side sort and no candidate-set materialization.
+
 ## Goals
 
 |   |   |   |
@@ -27,7 +29,7 @@ This spec governs **panel-side resolution**. Per-emission identity semantics for
 | req-web-panel-entity-resolution-config | [Panel Config Contract](#panel-config-contract) | Proposed | `entity_id_var` + optional `fallback` block; fallback names entity_type, filter, and selection strategy |
 | req-web-panel-entity-resolution-order | [Resolution Order](#resolution-order) | Proposed | URL deep link wins; fallback runs only when URL var is empty |
 | req-web-panel-entity-resolution-helper | [Shared Helper Module](#shared-helper-module) | Proposed | `tap_web.panels.entity_resolution` — `_lookup_by_entity_id`, `_lookup_single_by_field`, `_lookup_latest_by_field`, `EntityResolution`, `resolve_entity` |
-| req-web-panel-entity-resolution-selection | [Selection Strategies](#selection-strategies) | Proposed | v0 strategies: `single` (one match expected) and `latest_by` (sort + first). Strategy is named in the config, never assumed. |
+| req-web-panel-entity-resolution-selection | [Selection Strategies](#selection-strategies) | Proposed | v0 strategies: `single` (one match, ambiguity surfaced via `LIMIT 2`) and `latest_by` (Gryphon `ORDER BY <sort_field> DESC LIMIT 1`). Strategy is named in the config, never assumed. |
 | req-web-panel-entity-resolution-result-shape | [EntityResolution Dataclass](#entityresolution-dataclass) | Proposed | Fields: `entity_id`, `var_name`, `node`, `error`, `used_fallback`, `fallback_value`, `ok` (derived) |
 | req-web-panel-entity-resolution-template | [Template Surface Conventions](#template-surface-conventions) | Proposed | `used_fallback` propagates to context; "Showing fallback selection" banner when true |
 | req-web-panel-entity-resolution-errors | [Polished Error States](#polished-error-states) | Proposed | Distinct messages per failure phase including ambiguous-match for `selection=single`; entity_id and var_name echoed |
@@ -154,8 +156,8 @@ The canonical helpers live at **`tap_web/panels/entity_resolution.py`** and cons
 
 - `EntityResolution` (dataclass) — result shape (see `req-web-panel-entity-resolution-result-shape`).
 - `_lookup_by_entity_id(entity_id, *, entity_type) -> dict | None` — Gryphon `MATCH (n:<entity_type>) WHERE n.entity_id = $entity_id`, returns the envelope node or `None`. `entity_type` is required; the helper has no platform default.
-- `_lookup_single_by_field(value, *, entity_type, field) -> dict | tuple[None, int]` — Gryphon `MATCH (n:<entity_type>) WHERE n.data.<field> = $value`, expects exactly one match. Returns the matched node, or a sentinel (`None, count`) when zero or multiple matched so the caller can distinguish "no entity found" from "ambiguous filter."
-- `_lookup_latest_by_field(value, *, entity_type, field, sort_field) -> dict | None` — Gryphon `MATCH (n:<entity_type>) WHERE n.data.<field> = $value`, sort-by-`data.<sort_field>` desc in Python, returns the top node or `None`. All three kwargs are required.
+- `_lookup_single_by_field(value, *, entity_type, field) -> dict | tuple[None, int]` — Gryphon `MATCH (n:<entity_type>) WHERE n.data.<field> = $value LIMIT 2`. Returns the matched node when exactly one row comes back, or a sentinel (`None, count`) when `count` is `0` (no match) or `2` (ambiguous — two-or-more entities satisfy the filter, and the caller only needs the distinction, not the exact count). The `LIMIT 2` short-circuits at the database; the helper never materializes more than two rows regardless of how many actually match.
+- `_lookup_latest_by_field(value, *, entity_type, field, sort_field) -> dict | None` — Gryphon `MATCH (n:<entity_type>) WHERE n.data.<field> = $value ORDER BY n.data.<sort_field> DESC LIMIT 1`. Returns the matched node or `None`. SQL `LIMIT 1` short-circuits at the database — no candidate-set materialization. All three kwargs are required.
 - `resolve_entity(panel, request, *, role=None, default_var_name) -> EntityResolution` — the orchestrator panels call. Reads config, walks the resolution order from `req-web-panel-entity-resolution-order`, dispatches on `selection` to pick the right lookup helper, returns the result.
 
 No consumer plugin re-implements these helpers. Consumer plugins migrate any local equivalents to import from this canonical module; the per-plugin migration steps live in each consumer plugin's spec.
@@ -181,11 +183,13 @@ When the URL var is empty and the fallback filter narrows the entity_type to a c
 | Strategy | Required strategy-specific fields | Behavior |
 | --- | --- | --- |
 | `single` | (none) | The filter is expected to identify exactly one entity. Zero matches → "no entity matching <field>=<value>" error. Multiple matches → "ambiguous: <N> entities match <field>=<value> with selection=single" error (with a hint to refine the filter or pick a different strategy). |
-| `latest_by` | `sort_field` (string — the field on `data` to sort by) | Sort the filter's candidate set by `data.<sort_field>` descending in Python, take the first. Empties sort to the bottom (lexically lowest), so they never win when any non-empty value exists. Suitable for ISO 8601 timestamps where lexical and chronological order agree. |
+| `latest_by` | `sort_field` (string — the field on `data` to sort by) | Gryphon `ORDER BY n.data.<sort_field> DESC LIMIT 1` picks the winner. SQL `LIMIT 1` short-circuits at the database; no candidate-set materialization. Suitable for ISO 8601 timestamps where lexical and chronological order agree. Sort fields are expected to be set on every candidate (see ACID `req-web-panel-entity-resolution-selection-5`). |
 
-#### Why `latest_by` sorts in Python, not Gryphon
+#### Why `latest_by` sorts in Gryphon
 
-Doing the sort in Gryphon would require dialect-specific `ORDER BY ... LIMIT 1` support and a more complex query shape. Python sort is simple, the row counts in v0 use cases are small (low hundreds at most), and it keeps the helper general — no sort semantics baked into the Gryphon query that can't be re-used. Future work may push the sort into Gryphon if row counts grow; this is a hot-path optimization, not a correctness change. The Gryphon query is bounded by `default_limit=500`, `max_limit=2000`.
+The sort runs inside Gryphon (`ORDER BY n.data.<sort_field> DESC LIMIT 1`), not in Python. SQL `LIMIT 1` short-circuits at the database layer — the candidate set is never materialized in Python, regardless of how many entities share the discriminator value. No `default_limit` / `max_limit` machinery is needed because the query intrinsically returns at most one row.
+
+This requires Gryphon graph-envelope `ORDER BY` + `LIMIT` for type-scans — Bucket A of [`docs/misc/doc-dev-gryphon-wishlist.md`](../../docs/misc/doc-dev-gryphon-wishlist.md). The same surface backs `_lookup_single_by_field`'s `LIMIT 2` for ambiguity detection. Empties on the sort field interact with the underlying engine's NULL-ordering semantics; v0 expects sort fields to be populated on every candidate (collectors set them at emission time — see ACID `req-web-panel-entity-resolution-selection-5`). When Gryphon adds `IS NOT NULL` (wishlist Bucket B3), `latest_by` can append `AND n.data.<sort_field> IS NOT NULL` to its WHERE clause for explicit empties-out filtering.
 
 #### Adding a new strategy (future)
 
@@ -204,9 +208,9 @@ The orchestrator signature does not change. The `EntityResolution` dataclass doe
 | req-web-panel-entity-resolution-selection-1 | Strategy Named | Proposed | `fallback.selection` is required when `fallback` is present; the platform does not default it. | |
 | req-web-panel-entity-resolution-selection-2 | v0 Strategies Available | Proposed | `single` and `latest_by` are implemented and documented. | |
 | req-web-panel-entity-resolution-selection-3 | Single Surfaces Ambiguity | Proposed | When `selection=single` matches multiple entities, the resolver produces an ambiguity error distinct from "no match." | |
-| req-web-panel-entity-resolution-selection-4 | Python Sort For latest_by | Proposed | The `latest_by` strategy sorts in Python after Gryphon returns the candidate set; the Gryphon query has no ORDER BY. | |
-| req-web-panel-entity-resolution-selection-5 | latest_by Empties Last | Proposed | Rows with empty `<sort_field>` sort to the bottom under `latest_by`; they never win when any non-empty value exists. | |
-| req-web-panel-entity-resolution-selection-6 | Limits Documented | Proposed | The `default_limit=500` / `max_limit=2000` Gryphon limits are documented in the helper module; consumers needing higher limits raise a follow-up issue rather than overriding silently. | |
+| req-web-panel-entity-resolution-selection-4 | Gryphon Sort For latest_by | Proposed | The `latest_by` strategy sorts via Gryphon `ORDER BY n.data.<sort_field> DESC LIMIT 1`; SQL short-circuits at one row and Python does no sort. | Depends on graph-envelope ORDER BY + LIMIT (wishlist Bucket A). |
+| req-web-panel-entity-resolution-selection-5 | latest_by Sort Field Populated | Proposed | Sort fields are expected to be populated on every candidate; the collectors that emit the entities are responsible for setting them at emission time. v0 does not defend against missing values; the engine's default NULL-ordering applies. | A future Gryphon `IS NOT NULL` (wishlist Bucket B3) lets the helper add explicit empties-out filtering. |
+| req-web-panel-entity-resolution-selection-6 | Strategy-Bounded Queries | Proposed | Each strategy's Gryphon query carries the smallest LIMIT that lets the strategy decide: `LIMIT 1` for `latest_by`, `LIMIT 2` for `single`. No `default_limit` / `max_limit` machinery — the strategy's intrinsic bound is the bound. | |
 | req-web-panel-entity-resolution-selection-7 | Strategy Dispatch Open To Extension | Proposed | New strategies are added by extending the dispatch in `resolve_entity` + adding a sibling helper, without changing the orchestrator signature or the `EntityResolution` dataclass. | |
 
 ### EntityResolution Dataclass
@@ -327,7 +331,7 @@ Each consumer panel MUST have unit tests (no Django/DB setup required) covering:
 - **No URL var, no fallback** — polished "no entity specified" error.
 - **Fallback configured but no matches** — polished "no <entity_type> matching <field>=<value> yet" error.
 - **Fallback ambiguous (when `selection=single`)** — filter matches multiple entities; polished "ambiguous: N matches with selection=single" error. Skip this test for consumers that don't use `selection=single`.
-- **Strategy-specific correctness** — for `selection=latest_by`, `_lookup_latest_by_field` picks the highest sort-field value from a shuffled set. For `selection=single`, `_lookup_single_by_field` returns the single match and surfaces ambiguity. One sort + one single-match correctness test in `tap_web/tests/` suffices since the helpers are shared.
+- **Strategy-specific correctness** — for `selection=latest_by`, `_lookup_latest_by_field` constructs the right Gryphon query (`ORDER BY n.data.<sort_field> DESC LIMIT 1` shape) and unpacks the returned node. For `selection=single`, `_lookup_single_by_field` constructs the right Gryphon query (`LIMIT 2`) and surfaces ambiguity from a two-row response. One query-construction test per strategy in `tap_web/tests/` suffices since the helpers are shared; the engine's actual sort correctness is exercised by the Gryphon Gridkin suite, not by these tests.
 
 Tests mock the two helper functions at the importing module's path (not at `tap_web.panels.entity_resolution`).
 
@@ -336,12 +340,12 @@ Tests mock the two helper functions at the importing module's path (not at `tap_
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-web-panel-entity-resolution-tests-1 | Per-Consumer Coverage | Proposed | Each consumer panel has the four resolution-path tests listed above. | |
-| req-web-panel-entity-resolution-tests-2 | Sort Test In Helper Home | Proposed | One sort-correctness test lives with the helper at `tap_web/tests/test_panel_entity_resolution.py`. | |
+| req-web-panel-entity-resolution-tests-2 | Strategy Query Test In Helper Home | Proposed | Helper tests live with the helper at `tap_web/tests/test_panel_entity_resolution.py`. They verify each strategy builds the right Gryphon query string (correct `ORDER BY` field and `LIMIT`) and unpacks the result correctly — not the engine's sort itself, which is exercised by the Gryphon Gridkin suite. | |
 
 ## Future Work
 
 Not in v0 scope but worth naming as future seams:
 
-- **Gryphon-side sort.** If row counts grow (10K+ entities of a type), push the sort into Gryphon via an explicit ORDER BY when the dialect supports it. Until then, Python sort is fine.
+- **Gryphon `IS NOT NULL` for empties-out filtering.** When Gryphon adds `IS NOT NULL` (wishlist Bucket B3), the `latest_by` strategy can append `AND n.data.<sort_field> IS NOT NULL` to its WHERE clause so missing sort-field values are explicitly excluded from the candidate set. Until then, the contract relies on collectors populating sort fields at emission time (see ACID `req-web-panel-entity-resolution-selection-5`).
 - **Edit-mode resolution.** The current resolution is read-only. If a panel ever needs to *write* to the resolved entity, the helper grows a `for_edit=True` mode that locks or branches per the data model's edit semantics. Out of scope.
 - **History timeline panel.** A panel that resolves *N* versions rather than just the latest, for drift / regression visualization. Same `_lookup_latest_by_field` becomes `_lookup_recent_n_by_field`. Worth doing once a real use case appears.
