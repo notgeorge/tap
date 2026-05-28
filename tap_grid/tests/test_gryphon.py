@@ -2639,3 +2639,180 @@ class TestGryphonIsNullExecutor:
         )
         envelope = execute_search(search, inputs={})
         assert len(envelope["nodes"]) == 5
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonRegexParser — req-grid-traversal-lang-regex
+# ---------------------------------------------------------------------------
+
+
+class TestGryphonRegexParser:
+    """Parser coverage for the `=~` regex match operator."""
+
+    def test_regex_parses_to_comparison_with_op_regex(self):
+        """req-grid-traversal-lang-regex-1: `=~` parses to a Comparison with op=='regex'."""
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name =~ "github" RETURN n.entity_id AS id')
+        pred = ast.where_clause.predicate
+        assert isinstance(pred, Comparison)
+        assert pred.op == "regex"
+        assert pred.value == "github"
+
+    def test_regex_needle_may_be_param(self):
+        """req-grid-traversal-lang-regex-8: the needle may be a $param."""
+        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.name =~ $pattern RETURN n.entity_id AS id")
+        assert "pattern" in ast.required_params()
+
+    def test_regex_composes_with_and_or_not(self):
+        """req-grid-traversal-lang-regex-9: regex composes inside AND / OR / NOT trees."""
+        ast = parse_gryphon(
+            'MATCH (n:pg_node) WHERE n.name =~ "(?i)token" AND NOT (n.name =~ "imposter") ' "RETURN n.entity_id AS id"
+        )
+        pred = ast.where_clause.predicate
+        assert isinstance(pred, AndPred)
+        # Left side is the positive regex comparison; right side is NOT(regex).
+        # Locate them by shape (Earley associativity may flip them).
+        leaves = [pred.left, pred.right]
+        positive = next((leaf for leaf in leaves if isinstance(leaf, Comparison) and leaf.op == "regex"), None)
+        assert positive is not None and positive.value == "(?i)token"
+        negated = next((leaf for leaf in leaves if isinstance(leaf, NotPred)), None)
+        assert negated is not None and isinstance(negated.operand, Comparison)
+        assert negated.operand.op == "regex" and negated.operand.value == "imposter"
+
+    def test_regex_on_data_lane_path(self):
+        """req-grid-traversal-lang-regex-10: regex on a multi-step data-lane path parses cleanly."""
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.data.tags.url =~ "(?i)github" RETURN n.entity_id AS id')
+        pred = ast.where_clause.predicate
+        assert isinstance(pred, Comparison)
+        assert pred.op == "regex"
+        assert pred.field_path.variable == "n"
+        # Three dot steps: data, tags, url.
+        assert [s.name for s in pred.field_path.steps if isinstance(s, DotStep)] == ["data", "tags", "url"]
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonRegexExecutor — req-grid-traversal-lang-regex
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonRegexExecutor:
+    """Executor coverage for `=~` — crafted corners that Gridkin's shared fixture
+    does not (and should not) carry: a column-NULL row (Character.bio is a
+    non-nullable TextField but the JSON-key NULL case is the Gridkin witness;
+    here we exercise the executor's NULL-pattern short-circuit and the
+    metacharacter-in-needle path on crafted Character rows)."""
+
+    def _make(self, *specs):
+        """Create characters from (name, bio) tuples."""
+        import uuid
+
+        from plugins.lotr.models import Character
+        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.models import Entity
+
+        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        set_caller_context(ctx)
+        for name, bio in specs:
+            entity = Entity.objects.create(entity_type="character", name=name)
+            Character.objects.create(entity=entity, name=name, bio=bio)
+
+    def _search(self, query, **kwargs):
+        return Search(search_type="gryphon", root="node", name="re", definition={"query": query, **kwargs})
+
+    def test_regex_search_semantics_substring_match(self):
+        """req-grid-traversal-lang-regex-2: `=~` matches the pattern anywhere in
+        the value — no implicit anchoring. The pattern `"token"` matches a name
+        that has `token` in the middle, not just at the start."""
+        self._make(("alpha-token-1", "x"), ("just-text", "x"))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.name =~ "token" RETURN c.name AS name ORDER BY name'),
+            inputs={},
+        )["rows"]
+        assert [r["name"] for r in rows] == ["alpha-token-1"]
+
+    def test_regex_explicit_anchors_force_full_match(self):
+        """req-grid-traversal-lang-regex-2: `^...$` forces a full-string match;
+        only the exactly-equal row matches."""
+        self._make(("exact", "x"), ("exact-suffix", "x"), ("prefix-exact", "x"))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.name =~ "^exact$" RETURN c.name AS name ORDER BY name'),
+            inputs={},
+        )["rows"]
+        assert [r["name"] for r in rows] == ["exact"]
+
+    def test_regex_case_insensitive_inline_flag(self):
+        """req-grid-traversal-lang-regex-4: `(?i)` makes the search case-
+        insensitive — Postgres consumes the inline flag unaltered (no executor-
+        side rewriting)."""
+        self._make(("MixedCase", "x"), ("MIXEDCASE", "x"), ("other", "x"))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.name =~ "(?i)mixedcase" RETURN c.name AS name ORDER BY name'),
+            inputs={},
+        )["rows"]
+        # Case-sensitive `=~ "mixedcase"` (no flag) matches neither; with
+        # `(?i)` both spellings match. The set is the assertion — sort order
+        # between the two equal-modulo-case names is the collation's tiebreaker
+        # and not the behavior under test.
+        assert sorted(r["name"] for r in rows) == ["MIXEDCASE", "MixedCase"]
+
+    def test_regex_needle_is_regex_text_not_escaped(self):
+        """req-grid-traversal-lang-regex-7: `.` is a regex metacharacter (any
+        character), not a literal dot — opposite of `CONTAINS`. The pattern
+        `"a.b"` matches `aXb` because `.` is "any char." This is the explicit
+        deal of `=~` and must be loud."""
+        self._make(("aXb", "x"), ("a.b", "x"), ("axxb", "x"))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.name =~ "a.b" RETURN c.name AS name ORDER BY name'),
+            inputs={},
+        )["rows"]
+        # All three names have `a` + single char + `b` somewhere — `aXb`, `a.b`,
+        # `axxb` (the substring `axb`? no — axxb has `a`, `x`, `x`, `b`, so the
+        # window `a.b` does NOT match `axx`; `a` then any char then `b` requires
+        # exactly one char between). So axxb does NOT match. Result: aXb, a.b.
+        assert [r["name"] for r in rows] == ["a.b", "aXb"]
+
+    def test_regex_escaped_dot_forces_literal(self):
+        """req-grid-traversal-lang-regex-7: `\\.` in the needle forces a literal
+        dot — the same fixture row from above shows the inverse: `aXb` does not
+        match `"a\\.b"`, only the literal-dot row does."""
+        self._make(("aXb", "x"), ("a.b", "x"))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.name =~ "a\\.b" RETURN c.name AS name ORDER BY name'),
+            inputs={},
+        )["rows"]
+        assert [r["name"] for r in rows] == ["a.b"]
+
+    def test_regex_null_pattern_returns_empty(self):
+        """req-grid-traversal-lang-regex-6: a NULL needle (via `$pattern=None`)
+        compiles to a tautologically-false `Q` — the row set is empty, the
+        executor does not crash. This is the explicit "NULL pattern doesn't
+        crash, doesn't match" contract. The envelope omits the `rows` key
+        entirely when the projected row set is empty — same envelope shape
+        the Gridkin runner exposes for the matching scenario."""
+        self._make(("alpha", "x"), ("beta", "x"))
+        envelope = execute_search(
+            self._search("MATCH (c:character) WHERE c.name =~ $pattern RETURN c.name AS name ORDER BY name"),
+            inputs={"pattern": None},
+        )
+        assert envelope.get("rows", []) == []
+
+    def test_regex_param_pattern_resolves_at_execution(self):
+        """req-grid-traversal-lang-regex-8: $pattern resolves at execution time."""
+        self._make(("alpha", "x"), ("ALPHA", "x"), ("beta", "x"))
+        rows = execute_search(
+            self._search("MATCH (c:character) WHERE c.name =~ $pattern RETURN c.name AS name ORDER BY name"),
+            inputs={"pattern": "(?i)alpha"},
+        )["rows"]
+        assert sorted(r["name"] for r in rows) == ["ALPHA", "alpha"]
+
+    def test_regex_on_spine_entity_type(self):
+        """req-grid-traversal-lang-regex-10: regex works on the spine
+        entity_type field — a bare type-prefix match for `^character` returns
+        every character row regardless of which type-scan executor path the
+        query takes."""
+        self._make(("aragorn", "x"), ("boromir", "x"))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.entity_type =~ "^character" RETURN c.name AS name ORDER BY name'),
+            inputs={},
+        )["rows"]
+        assert sorted(r["name"] for r in rows) == ["aragorn", "boromir"]

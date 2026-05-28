@@ -290,6 +290,15 @@ class _ASTTransformer(Transformer):
         # COMPARE_OP tokens (=, !=, <, ...) are unaffected by .lower().
         return Comparison(field_path=fp, op=str(op).lower(), value=value)
 
+    def regex_comparison(self, fp: FieldPath, value: Any) -> Comparison:
+        # The `=~` literal in the grammar carries no token, so this transformer
+        # receives just the field_path and the value. Op is normalized to the
+        # AST identifier "regex" — chosen over carrying the raw "=~" symbol so
+        # the executor's op→lookup map stays keyed on word-form identifiers
+        # alongside "starts_with" / "ends_with" / "contains". Per
+        # req-grid-traversal-lang-regex.
+        return Comparison(field_path=fp, op="regex", value=value)
+
     def in_comparison(self, fp: FieldPath, values: tuple[Any, ...]) -> InComparison:
         return InComparison(field_path=fp, values=values)
 

@@ -102,6 +102,12 @@ full-cycle commit via the `build-gryphon-capability` skill:
 - **Multiple `WHERE` / `RETURN` silent drop closed** — the parser now rejects a
   duplicate single-clause loudly instead of keeping the first and discarding the
   rest (`req-grid-traversal-lang-shape-6`). See [Known Issues](#known-issues).
+- **Regex match operator `=~`** — Postgres ARE/POSIX-family regex with search
+  (substring) semantics; explicit `^...$` for full-string match; `(?i)` inline
+  flag passes through verbatim; needle is regex text (no escaping)
+  (`req-grid-traversal-lang-regex`). Closed the `github_core` `__iregex`
+  demand signal and discharged the B2 "wildcard / regex-like matching"
+  backlog bullet.
 
 **B4 (label-union `(n:type1|type2)`) is withdrawn**, not deferred: the samsite
 request explicitly killed it — `MATCH (n) WHERE n.entity_type STARTS_WITH "aws_"`
@@ -285,7 +291,7 @@ Today's predicate surface supports `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`, `OR`,
 
 **Validation contract size.** ~4-5 Gridkin scenarios. Corners: case sensitivity, empty needle, special characters in needle (regex-like characters in non-regex predicate).
 
-**Backlog — wildcard / regex-like matching.** B2 ships three fixed, explicit operators (`STARTS_WITH` / `ENDS_WITH` / `CONTAINS`) rather than a single wildcard or pattern operator. A more general predicate — `LIKE`-style wildcards (`aws_%`) or regex-like matching against field values — would be genuinely nice for free-form dashboard search. It is deliberately **not on the critical path**: the three explicit operators cover the detected demand (type-prefix filters, name search), read clearly, and avoid the injection/needle-escaping and case-sensitivity surface a pattern language drags in. Promote when a real query needs matching the three fixed shapes cannot express; until then, named here so we don't reach for it by reflex. (When B2 is built, this note migrates into the new requirement's `Future` list.)
+**Backlog — wildcard / regex-like matching (discharged 2026-05-28).** B2 ships three fixed, explicit operators (`STARTS_WITH` / `ENDS_WITH` / `CONTAINS`); a general pattern operator was deliberately deferred until a real query needed a shape the three fixed operators cannot express. That promotion happened with `req-grid-traversal-lang-regex` (`=~`) — Postgres ARE/POSIX-family regex with search semantics, driven by the `github_core` `__iregex` demand signal. The needle-escaping / case-sensitivity surface that motivated keeping B2 narrow is now the explicit deal of `=~`: query authors writing `=~` opt into regex syntax, and `(?i)` is the case-insensitive shape.
 
 #### B3. `IS NULL` / `IS NOT NULL`
 

@@ -1,0 +1,15 @@
+{
+  "nodes": [],
+  "edges": [],
+  "rows": [
+    {
+      "name": "https://Token.Actions.GitHubUserContent.com"
+    },
+    {
+      "name": "https://my-ghes.example.com/_services/token/actions"
+    },
+    {
+      "name": "https://token.actions.githubusercontent.com"
+    }
+  ]
+}

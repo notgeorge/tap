@@ -120,14 +120,16 @@ class PathPattern:
 class Comparison:
     """A single field-op-value predicate: `hub.entity_id = $entity_id`.
 
-    `op` covers the scalar comparison operators and the substring operators
+    `op` covers the scalar comparison operators, the substring operators
     `starts_with` / `ends_with` / `contains` (parsed from the case-insensitive
-    `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` keywords). All are structurally
-    `field_path op value`; the substring operators expect a string value.
+    `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` keywords), and `regex` (parsed
+    from the `=~` operator — anchored Postgres POSIX regex match, see
+    req-grid-traversal-lang-regex). All are structurally `field_path op value`;
+    the substring and regex operators expect a string value.
     """
 
     field_path: FieldPath
-    op: Literal["=", "!=", "<", ">", "<=", ">=", "starts_with", "ends_with", "contains"]
+    op: Literal["=", "!=", "<", ">", "<=", ">=", "starts_with", "ends_with", "contains", "regex"]
     value: GryphonValue
 
 

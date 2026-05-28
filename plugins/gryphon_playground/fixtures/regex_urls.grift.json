@@ -1,0 +1,102 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e6f53-b116-74a3-8421-3640901e0778",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — regex URLs",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — regex URLs",
+        "description": "Five pg_nodes carrying URL-shaped strings in `name` plus an optional `tags.url` JSON key. Built for req-grid-traversal-lang-regex: anchored full-string match, case-insensitive via `(?i)`, substring via `.*needle.*`, escape-matters via `\\.`, parameterized pattern, NULL three-valued via missing JSON key, and AND composition. One row carries the canonical lowercase URL, one carries the mixed-case variant (case-insensitivity witness), one a GHES tenant (non-match), one a no-dot 'imposter' (escape witness), and one with `kind=other` and `tags={}` (NULL-via-missing-key witness for ACID-6).",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e6f53-b116-74a3-8421-364181806cb4",
+            "entity_type": "pg_node",
+            "name": "https://token.actions.githubusercontent.com",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "https://token.actions.githubusercontent.com",
+            "description": "Canonical lowercase URL — matches the literal anchored pattern.",
+            "kind": "identity_provider",
+            "severity_score": 0,
+            "is_open": true,
+            "tags": { "url": "https://token.actions.githubusercontent.com" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6f53-b116-74a3-8421-36423bb8ecfd",
+            "entity_type": "pg_node",
+            "name": "https://Token.Actions.GitHubUserContent.com",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "https://Token.Actions.GitHubUserContent.com",
+            "description": "Mixed-case variant — matches only via (?i) case-insensitive flag.",
+            "kind": "identity_provider",
+            "severity_score": 0,
+            "is_open": true,
+            "tags": { "url": "https://Token.Actions.GitHubUserContent.com" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6f53-b116-74a3-8421-3643d7e76b07",
+            "entity_type": "pg_node",
+            "name": "https://my-ghes.example.com/_services/token/actions",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "https://my-ghes.example.com/_services/token/actions",
+            "description": "GHES-tenant URL — has 'token' but no 'githubusercontent'.",
+            "kind": "identity_provider",
+            "severity_score": 0,
+            "is_open": true,
+            "tags": { "url": "https://my-ghes.example.com/_services/token/actions" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6f53-b116-74a3-8421-3644c470757a",
+            "entity_type": "pg_node",
+            "name": "https://githubusercontentXcom",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "https://githubusercontentXcom",
+            "description": "Imposter — matches `githubusercontent.com` (no escape) but NOT `githubusercontent\\.com` (escape forces literal dot).",
+            "kind": "imposter",
+            "severity_score": 0,
+            "is_open": false,
+            "tags": { "url": "https://githubusercontentXcom" }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6f53-b116-74a3-8421-3645624610f1",
+            "entity_type": "pg_node",
+            "name": "Plain Reading",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "Plain Reading",
+            "description": "Unrelated row with no `tags.url` key — NULL-via-missing-JSON-key witness.",
+            "kind": "other",
+            "severity_score": 0,
+            "is_open": true,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}
