@@ -32,6 +32,29 @@
    * Transform a raw subgraph envelope into a flat array of indicator row objects,
    * each enriched with parent theme metadata.
    */
+  // Three-lane envelope adapter (spec-grift-envelope). Gryphon's "extended"
+  // layer puts spine fields (entity_id, entity_type, name) at the top level
+  // of each node, per-model fields under `data`, and display hints under
+  // `display`. Earlier callers wrapped these in nested `entity` / `node`
+  // sub-objects. We accept either shape so the JS keeps working if the
+  // serializer reverts or a different layer is ever served.
+  function spine(n) {
+    return {
+      entity_id: n.entity_id || (n.entity && n.entity.entity_id) || "",
+      entity_type: n.entity_type || (n.entity && n.entity.entity_type) || "",
+      name: n.name || (n.entity && n.entity.name) || "",
+      data: n.data || n.node || {},
+      url_id:
+        (n.display && n.display.tap_viz && n.display.tap_viz.url_id) ||
+        n.url_id ||
+        "",
+      icon_url:
+        (n.display && n.display.tap_viz && n.display.tap_viz.icon_url) ||
+        n.icon_url ||
+        "",
+    };
+  }
+
   function buildRows(subgraph) {
     var nodes = subgraph.nodes || [];
     var edges = subgraph.edges || [];
@@ -40,12 +63,11 @@
     var themes = {};
     var indicators = [];
     for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i];
-      var etype = n.entity ? n.entity.entity_type : "";
-      if (etype === "ksi_theme") {
-        themes[n.entity.entity_id] = n;
-      } else if (etype === "ksi_indicator") {
-        indicators.push(n);
+      var s = spine(nodes[i]);
+      if (s.entity_type === "ksi_theme") {
+        themes[s.entity_id] = nodes[i];
+      } else if (s.entity_type === "ksi_indicator") {
+        indicators.push(nodes[i]);
       }
     }
 
@@ -62,32 +84,28 @@
     // Build flat row array.
     var rows = [];
     for (var k = 0; k < indicators.length; k++) {
-      var ind = indicators[k];
-      var indNode = ind.node || {};
-      var indEntity = ind.entity || {};
-      var themeId = indicatorToTheme[indEntity.entity_id] || "";
-      var theme = themes[themeId];
-      var themeNode = theme ? (theme.node || {}) : {};
-      var themeEntity = theme ? (theme.entity || {}) : {};
+      var ind = spine(indicators[k]);
+      var themeId = indicatorToTheme[ind.entity_id] || "";
+      var theme = themes[themeId] ? spine(themes[themeId]) : null;
 
       rows.push({
         // Indicator fields
-        entity_id: indEntity.entity_id || "",
-        code: indNode.code || "",
-        name: indNode.name || "",
-        description: indNode.description || "",
-        classes: indNode.classes || [],
-        class_variants: indNode.class_variants || null,
-        controls: indNode.controls || [],
-        status: indNode.status || "",
-        terms: indNode.terms || [],
-        url_id: ind.url_id || "",
+        entity_id: ind.entity_id,
+        code: ind.data.code || "",
+        name: ind.data.name || ind.name || "",
+        description: ind.data.description || "",
+        classes: ind.data.classes || [],
+        class_variants: ind.data.class_variants || null,
+        controls: ind.data.controls || [],
+        status: ind.data.status || "",
+        terms: ind.data.terms || [],
+        url_id: ind.url_id,
         // Theme fields
-        theme_code: themeNode.code || "",
-        theme_name: themeEntity.name || themeNode.name || "",
-        theme_short_name: themeNode.short_name || "",
-        theme_sort_order: themeNode.sort_order || 0,
-        theme_icon_url: theme ? (theme.icon_url || "") : "",
+        theme_code: theme ? (theme.data.code || "") : "",
+        theme_name: theme ? (theme.name || theme.data.name || "") : "",
+        theme_short_name: theme ? (theme.data.short_name || "") : "",
+        theme_sort_order: theme ? (theme.data.sort_order || 0) : 0,
+        theme_icon_url: theme ? theme.icon_url : "",
       });
     }
 
