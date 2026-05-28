@@ -64,5 +64,16 @@ vendor/
 # In-flight debugging screenshots. Convention: save ad-hoc screenshots to
 # screenshots/ so they don't clutter the repo root. Contents are transient.
 screenshots/
+# Root-level iteration screenshots when sessions don't honor the screenshots/
+# convention. Patterns scoped to repo root via the leading slash.
+/samsite-*.png
+/entity-page-*.png
+/oscal-*.png
+/poam-*.png
 # Playwright MCP cache directory (auto-generated page snapshots).
 .playwright-mcp/
+
+# Codex CLI session artifacts.
+.codex/
+# Runtime debug log written by some session entrypoints.
+console-current.log

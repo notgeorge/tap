@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e6505-7081-7358-a3bc-4ac447224740",
+        "entity_id": "019e6f1f-89cc-753e-af9d-61934345d36e",
         "entity_type": "batch",
-        "name": "Samsite Compliance pages v0.1.0",
+        "name": "Samsite Compliance pages v0.2.1 — canonical entity-resolution configs (Gryphon double-quoted literals)",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-pages",
-        "name": "Samsite Compliance pages v0.1.0",
-        "description": "Seeds two sibling Samsite compliance pages hosting the ROSCALE OSCAL workbench panels: /samsite/compliance/oscal renders the on-grid OSCAL SSP via roscale-oscal-workbench; /samsite/compliance/poam renders the OSCAL POA&M via roscale-oscal-poam-workbench. Each page takes a URL-backed artifact entity id (oscal_ssp_artifact_entity_id / oscal_poam_artifact_entity_id) consumed by the panel's config. See plugins/samsite/specs/spec-samsite-compliance-pages-v0.md."
+        "name": "Samsite Compliance pages v0.2.1 — canonical entity-resolution configs (Gryphon double-quoted literals)",
+        "description": "Seeds two sibling Samsite compliance pages hosting the ROSCALE OSCAL workbench panels: /samsite/compliance/oscal renders the on-grid OSCAL SSP via roscale-oscal-workbench; /samsite/compliance/poam renders the OSCAL POA&M via roscale-oscal-poam-workbench. v0.2.0 migrates the panel configs to the canonical tap_web.panels.entity_resolution contract (spec-web-panel-entity-resolution-v0): `entity_id_var` replaces `artifact_entity_id_var`; `fallback.{query, description}` replaces `fallback.kind`. Fallback queries use Gryphon graph-envelope ORDER BY + LIMIT plus defensive `AND a.data.fetched_at IS NOT NULL` so a null sort field can't silently win."
       },
       "nodes": [
         {
@@ -49,12 +49,13 @@
           "node": {
             "slug": "roscale-oscal-workbench",
             "name": "Samsite OSCAL SSP Workbench",
-            "description": "ROSCALE SSP workbench panel instance for Samsite's compliance/oscal page. Reads the artifact entity id from the URL-backed page variable oscal_ssp_artifact_entity_id; falls back to the most-recently-fetched compliance_artifact of kind 'oscal_ssp' when no entity id is supplied.",
+            "description": "ROSCALE SSP workbench panel instance for Samsite's compliance/oscal page. Resolves via tap_web.panels.entity_resolution: URL deep link via oscal_ssp_artifact_entity_id wins; otherwise the fallback Gryphon query selects the latest oscal_ssp compliance_artifact by fetched_at.",
             "view": "roscale/panels/oscal_workbench.html",
             "config": {
-              "artifact_entity_id_var": "oscal_ssp_artifact_entity_id",
+              "entity_id_var": "oscal_ssp_artifact_entity_id",
               "fallback": {
-                "kind": "oscal_ssp"
+                "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_ssp\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
+                "description": "Latest oscal_ssp compliance artifact by fetched_at."
               }
             }
           }
@@ -91,12 +92,13 @@
           "node": {
             "slug": "roscale-oscal-poam-workbench",
             "name": "Samsite OSCAL POA&M Workbench",
-            "description": "ROSCALE POA&M workbench panel instance for Samsite's compliance/poam page. Reads the artifact entity id from the URL-backed page variable oscal_poam_artifact_entity_id; falls back to the most-recently-fetched compliance_artifact of kind 'oscal_poam' when no entity id is supplied.",
+            "description": "ROSCALE POA&M workbench panel instance for Samsite's compliance/poam page. Resolves via tap_web.panels.entity_resolution: URL deep link via oscal_poam_artifact_entity_id wins; otherwise the fallback Gryphon query selects the latest oscal_poam compliance_artifact by fetched_at.",
             "view": "roscale/panels/oscal_poam_workbench.html",
             "config": {
-              "artifact_entity_id_var": "oscal_poam_artifact_entity_id",
+              "entity_id_var": "oscal_poam_artifact_entity_id",
               "fallback": {
-                "kind": "oscal_poam"
+                "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_poam\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
+                "description": "Latest oscal_poam compliance artifact by fetched_at."
               }
             }
           }
@@ -147,15 +149,15 @@
     },
     {
       "batch_entity": {
-        "entity_id": "019e65d6-8754-7b35-a46d-fc45757ef64a",
+        "entity_id": "019e6f1f-89cc-753e-af9d-6194f481b655",
         "entity_type": "batch",
-        "name": "Samsite KSI Scoreboard page v0.1.0",
+        "name": "Samsite KSI Scoreboard page v0.2.1 — canonical multi-entity resolution (Gryphon double-quoted literals)",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-pages",
-        "name": "Samsite KSI Scoreboard page v0.1.0",
-        "description": "Seeds /samsite/compliance/scoreboard hosting the samsite-ksi-scoreboard panel — a synthesized roll-up that joins the on-grid FedRAMP 20x KSI catalog (ksi_indicator + ksi_theme) against the latest OSCAL SSP and POA&M emissions to compute per-indicator passing/in-progress/accepted/gap status. Panel falls back to the latest emission of each kind when no URL var is supplied; deep links with explicit entity_ids still work."
+        "name": "Samsite KSI Scoreboard page v0.2.1 — canonical multi-entity resolution (Gryphon double-quoted literals)",
+        "description": "Seeds /samsite/compliance/scoreboard hosting the samsite-ksi-scoreboard panel — a synthesized roll-up that joins the on-grid FedRAMP 20x KSI catalog (ksi_indicator + ksi_theme) against the latest OSCAL SSP and POA&M emissions to compute per-indicator passing/in-progress/accepted/gap status. v0.2.0 migrates the panel config to the canonical tap_web.panels.entity_resolution multi-entity contract (req-web-panel-entity-resolution-multi): `<role>_entity_id_var` replaces `<role>_artifact_entity_id_var`; `fallback.<role>.{query, description}` replaces flat `fallback.<role>_kind`. Each per-role fallback uses envelope ORDER BY + LIMIT plus defensive IS NOT NULL."
       },
       "nodes": [
         {
@@ -190,14 +192,20 @@
           "node": {
             "slug": "samsite-ksi-scoreboard",
             "name": "Samsite KSI Scoreboard",
-            "description": "Synthesized 20x KSI scoreboard. Resolves the latest oscal_ssp + oscal_poam compliance_artifacts (via panel-level fallback) and joins them against ksi_indicator nodes on the grid. URL deep links: ?oscal_ssp_artifact_entity_id=<id>&oscal_poam_artifact_entity_id=<id>.",
+            "description": "Synthesized 20x KSI scoreboard. Resolves the latest oscal_ssp + oscal_poam compliance_artifacts via tap_web.panels.entity_resolution (multi-entity, roles `ssp` and `poam`) and joins them against ksi_indicator nodes on the grid. URL deep links: ?oscal_ssp_artifact_entity_id=<id>&oscal_poam_artifact_entity_id=<id>.",
             "view": "samsite/panels/ksi_scoreboard.html",
             "config": {
-              "ssp_artifact_entity_id_var": "oscal_ssp_artifact_entity_id",
-              "poam_artifact_entity_id_var": "oscal_poam_artifact_entity_id",
+              "ssp_entity_id_var": "oscal_ssp_artifact_entity_id",
+              "poam_entity_id_var": "oscal_poam_artifact_entity_id",
               "fallback": {
-                "ssp_kind": "oscal_ssp",
-                "poam_kind": "oscal_poam"
+                "ssp": {
+                  "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_ssp\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
+                  "description": "Latest oscal_ssp compliance artifact by fetched_at."
+                },
+                "poam": {
+                  "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_poam\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
+                  "description": "Latest oscal_poam compliance artifact by fetched_at."
+                }
               }
             }
           }

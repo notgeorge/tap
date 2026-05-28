@@ -3,21 +3,28 @@
 Consumer-side complement to the upstream VDR aggregator's disclose-shortcut
 flags (`summary.kev_catalog_loaded` and `summary.dependabot_alerts_loaded`,
 added in samsite repo commit 436ff9f). Reads the most-recently-emitted
-on-grid `vdr_report` and renders two ✓/✗ pills so a glance at the compliance
-landing tells you whether the latest deploy actually evaluated against the
-CISA KEV catalog and Dependabot alerts — or whether either ingestion silently
-regressed.
+on-grid `vdr_report` and renders two check/cross pills so a glance at the
+compliance landing tells you whether the latest deploy actually evaluated
+against the CISA KEV catalog and Dependabot alerts — or whether either
+ingestion silently regressed.
 
 If the producer's disclosure flag is False, we DON'T silently let the user
 infer "no findings" from absence; the pill flips red and the panel says so.
 
-Spec: plugins/samsite/specs/spec-samsite-vdr-ingestion-health-v0.md (to land).
+Resolution uses the canonical helper at `tap_web.panels.entity_resolution`:
+URL deep link via `entity_id_var`; fallback Gryphon query selects the
+latest emission by `emitted_at` (defensively filtered with `IS NOT NULL`).
+
+Spec: plugins/samsite/specs/spec-samsite-vdr-ingestion-health-v0.md
+Resolution contract: tap_web/specs/spec-web-panel-entity-resolution-v0.md
 """
 
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
+
+from tap_web.panels.entity_resolution import resolve_entity
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -26,6 +33,17 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_VAR_NAME = "vdr_report_entity_id"
+
+_FALLBACK_QUERY = (
+    "MATCH (r:vdr_report) WHERE r.data.emitted_at IS NOT NULL "
+    "ORDER BY r.data.emitted_at DESC LIMIT 1"
+)
+_FALLBACK_DESCRIPTION = (
+    "Latest vdr_report by emitted_at — the most recent VDR aggregator emission on the grid."
+)
 
 
 # Disclosure flag definitions — extend this list when new flags appear on
@@ -48,58 +66,27 @@ DISCLOSURE_FLAGS: list[tuple[str, str, str]] = [
 ]
 
 
-def _load_latest_vdr_report() -> dict | None:
-    """Fetch the most-recently-emitted vdr_report node via Gryphon."""
-    from tap_grid.models import Search
-    from tap_grid.search import execute_search
-
-    search = Search(
-        search_type="gryphon",
-        root="node",
-        name="samsite-vdr-ingestion-health-latest",
-        input_schema={"type": "object", "properties": {}, "required": []},
-        definition={"query": ["MATCH (r:vdr_report)"]},
-        default_limit=500,
-        max_limit=2000,
-    )
-    result = execute_search(search, inputs={}, layer="extended")
-    envelope = result.get("results", result)
-    nodes = envelope.get("nodes", []) or []
-    if not nodes:
-        return None
-    nodes_sorted = sorted(
-        nodes,
-        key=lambda n: (n.get("data") or {}).get("emitted_at") or "",
-        reverse=True,
-    )
-    return nodes_sorted[0]
-
-
 def build_context(panel: Any, request: Any) -> dict[str, Any]:
     """Pure function — build the panel context. Easy to test offline."""
+    resolution = resolve_entity(panel, request, default_var_name=DEFAULT_VAR_NAME)
+
     base: dict[str, Any] = {
         "panel_slug": "samsite-vdr-ingestion-health",
         "error_message": None,
         "report_emitted_at": None,
-        "report_entity_id": None,
+        "report_entity_id": resolution.entity_id,
+        "var_name": resolution.var_name,
+        "used_fallback": resolution.used_fallback,
+        "fallback_description": resolution.fallback_description,
         "flags": [],
         "any_false": False,
     }
 
-    try:
-        node = _load_latest_vdr_report()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("[vdrhealth] vdr_report lookup failed")
-        base["error_message"] = f"Could not load latest vdr_report: {exc}"
+    if not resolution.ok:
+        base["error_message"] = resolution.error
         return base
 
-    if node is None:
-        base["error_message"] = (
-            "No vdr_report on the grid yet. The samsite compliance collector "
-            "lands one per nightly run."
-        )
-        return base
-
+    node = resolution.node
     data = node.get("data") or {}
     summary = data.get("summary") or {}
     base["report_emitted_at"] = data.get("emitted_at") or ""
@@ -139,7 +126,13 @@ class VdrIngestionHealthPanelType:
     view: ClassVar[str] = "samsite/panels/vdr_ingestion_health.html"
     css: ClassVar[list[str]] = ["samsite/css/panel-vdr-ingestion-health.css"]
     js: ClassVar[list[str]] = []
-    config_defaults: ClassVar[dict[str, Any]] = {}
+    config_defaults: ClassVar[dict[str, Any]] = {
+        "entity_id_var": DEFAULT_VAR_NAME,
+        "fallback": {
+            "query": _FALLBACK_QUERY,
+            "description": _FALLBACK_DESCRIPTION,
+        },
+    }
 
     @classmethod
     def get_view_context(cls, panel: Panel, request: HttpRequest) -> dict[str, Any]:

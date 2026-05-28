@@ -123,8 +123,8 @@ A panel does NOT need a dedicated "ingestion health" sub-panel to satisfy this �
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-disclosure-flags-consumer-surface-1 | Visible Without Interaction | Proposed | Flags appear in the rendered HTML with no clicks required. | |
-| req-disclosure-flags-consumer-surface-2 | Latest-Resolved Flags Match Latest Data | Proposed | When a panel uses [latest-emission fallback](../../tap_web/specs/spec-web-panel-artifact-resolution-v0.md), the flags shown are from the same emission whose data is rendered. | |
+| req-disclosure-flags-consumer-surface-1 | Visible Without Interaction | Implemented | Flags appear in the rendered HTML with no clicks required. | VDR ingestion health panel renders the pill row directly on `/samsite/compliance`. |
+| req-disclosure-flags-consumer-surface-2 | Latest-Resolved Flags Match Latest Data | Implemented | When a panel uses the [canonical entity-resolution fallback](../../tap_web/specs/spec-web-panel-entity-resolution-v0.md), the flags shown are from the same emission whose data is rendered. | The VDR panel's fallback query selects the latest `vdr_report`; the same node provides the flags shown. |
 
 ### Three-State Rendering
 ----
@@ -147,8 +147,8 @@ Consumers are NOT free to collapse the three states into two for visual simplici
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-disclosure-flags-three-states-1 | Three Distinct Visuals | Proposed | ok, missing, and unknown each have a unique color and glyph. | |
-| req-disclosure-flags-three-states-2 | No Two-State Collapse | Proposed | UI must not collapse unknown into either ok or missing. | |
+| req-disclosure-flags-three-states-1 | Three Distinct Visuals | Implemented | ok, missing, and unknown each have a unique color and glyph. | VDR panel: green check / red cross / gray `?`. |
+| req-disclosure-flags-three-states-2 | No Two-State Collapse | Implemented | UI must not collapse unknown into either ok or missing. | VDR panel computes `state` as one of three explicit branches; older reports rendering `unknown` was the originating test case. |
 
 ### Degraded Render Discipline
 ----
@@ -169,9 +169,9 @@ This is the rule that closes the original VDR loop: if the producer says "KEV ca
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-disclosure-flags-degraded-render-1 | No Clean "Zero" Render | Proposed | Derived "no findings" counts from a degraded source are visually qualified, not shown as a clean zero. | |
-| req-disclosure-flags-degraded-render-2 | Container-Level Visual Cue | Proposed | The panel container surfaces a visual cue (red background, "unverified" badge) when any of its flags is `missing`. | |
-| req-disclosure-flags-degraded-render-3 | Explicit Caveat Text | Proposed | The panel renders a caveat sentence naming the consequence; the user does not have to infer it. | |
+| req-disclosure-flags-degraded-render-1 | No Clean "Zero" Render | Proposed | Derived "no findings" counts from a degraded source are visually qualified, not shown as a clean zero. | Not yet implemented by any panel — VDR ingestion health is a meta-panel that doesn't show counts. The first count-bearing consumer of a flagged artifact lands this. |
+| req-disclosure-flags-degraded-render-2 | Container-Level Visual Cue | Implemented | The panel container surfaces a visual cue (red background, "unverified" badge) when any of its flags is `missing`. | VDR panel: `samsite-vdr-health-degraded` class flips on when `any_false` is true. |
+| req-disclosure-flags-degraded-render-3 | Explicit Caveat Text | Implemented | The panel renders a caveat sentence naming the consequence; the user does not have to infer it. | VDR panel emits a caveat paragraph when any flag is `missing` — "absent by omission, not by clean signal". |
 
 ### Unknown is Not Missing
 ----
@@ -191,7 +191,7 @@ A consumer treating these the same way will produce false-positive regression al
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-disclosure-flags-unknown-not-missing-1 | Distinct Treatment | Proposed | Code paths that check for "missing" use `summary.get(key) is False` (or equivalent), not `not summary.get(key)`. | The Python idiom matters: `not summary.get("x")` collapses unknown into missing |
+| req-disclosure-flags-unknown-not-missing-1 | Distinct Treatment | Implemented | Code paths that check for "missing" use `summary.get(key) is False` (or equivalent), not `not summary.get(key)`. | VDR panel: explicit `if not present: state = "unknown"; elif loaded: state = "ok"; else: state = "missing"`. |
 | req-disclosure-flags-unknown-not-missing-2 | No False Regression Alerts | Proposed | Alerting / monitoring on disclosure flags doesn't fire on absent keys. | |
 
 ## Future Work

@@ -17,8 +17,8 @@
 
   {% if used_fallback %}
     <section class="roscale-fallback-banner">
-      <strong>Showing latest emission.</strong>
-      No <code>{{ var_name }}</code> in the URL, so the panel resolved the most recently fetched <code>compliance_artifact</code>{% if fallback_kind %} where <code>kind = "{{ fallback_kind }}"</code>{% endif %}.
+      <strong>Showing fallback selection.</strong>
+      No <code>{{ var_name }}</code> in the URL{% if fallback_description %} — {{ fallback_description }}{% endif %}.
       {% if entity_id %}<span class="roscale-meta">Entity id: <code>{{ entity_id }}</code></span>{% endif %}
     </section>
   {% endif %}

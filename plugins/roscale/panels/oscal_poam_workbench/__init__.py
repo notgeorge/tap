@@ -1,13 +1,15 @@
 """OSCAL POA&M Workbench Panel Type — `roscale-oscal-poam-workbench`.
 
 Renders a plan-of-action-and-milestones OSCAL document as a readable
-action/risk register. Same input contract and resolution path as the
-SSP workbench, including the optional latest-emission fallback via
-`config.fallback.kind` — different default page variable.
+action/risk register. Same resolution path as the SSP workbench — URL
+deep link via `entity_id_var` wins; otherwise the panel's
+`fallback.query` Gryphon query picks the latest emission — different
+default page variable.
 
 Spec: plugins/roscale/specs/spec-roscale-v0.md
       (req-roscale-poam-panel, req-roscale-input, req-roscale-poam-rendering,
        req-roscale-errors)
+Resolution contract: tap_web/specs/spec-web-panel-entity-resolution-v0.md
 """
 
 from __future__ import annotations
@@ -22,8 +24,8 @@ from plugins.roscale.panels._common import (
     poam_items_by_status,
     poam_metadata,
     pretty_json,
-    resolve_artifact,
 )
+from tap_web.panels.entity_resolution import resolve_entity
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -36,13 +38,13 @@ DEFAULT_VAR_NAME = "oscal_poam_artifact_entity_id"
 
 def build_context(panel: Any, request: Any) -> dict[str, Any]:
     """Pure function — separated from the classmethod so tests can call it directly."""
-    resolution = resolve_artifact(panel, request, DEFAULT_VAR_NAME)
+    resolution = resolve_entity(panel, request, default_var_name=DEFAULT_VAR_NAME)
     base: dict[str, Any] = {
         "panel_slug": "roscale-oscal-poam-workbench",
         "entity_id": resolution.entity_id,
         "var_name": resolution.var_name,
         "used_fallback": resolution.used_fallback,
-        "fallback_kind": resolution.fallback_kind,
+        "fallback_description": resolution.fallback_description,
         "error_phase": None,
         "error_message": None,
         "provenance": None,
@@ -112,7 +114,7 @@ class OscalPoamWorkbenchPanelType:
     css: ClassVar[list[str]] = ["roscale/css/workbench.css"]
     js: ClassVar[list[str]] = []
     config_defaults: ClassVar[dict[str, Any]] = {
-        "artifact_entity_id_var": DEFAULT_VAR_NAME,
+        "entity_id_var": DEFAULT_VAR_NAME,
     }
 
     @classmethod

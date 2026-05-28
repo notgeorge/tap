@@ -8,7 +8,13 @@ This is a Samsite-specific synthesis — it computes a roll-up that neither
 the upstream KSI signal nor the SSP carry as a primitive. The math lives in
 `plugins.samsite.scoring`; this panel is just resolution + presentation.
 
-Spec: plugins/samsite/specs/spec-samsite-ksi-scoreboard-v0.md (to land).
+Resolution uses the canonical multi-entity surface at
+`tap_web.panels.entity_resolution` with roles `ssp` and `poam`; the panel
+config carries `<role>_entity_id_var` keys at the top and a `fallback`
+block with per-role `{query, description}` sub-blocks.
+
+Spec: plugins/samsite/specs/spec-samsite-ksi-scoreboard-v0.md
+Resolution contract: tap_web/specs/spec-web-panel-entity-resolution-v0.md
 """
 
 from __future__ import annotations
@@ -16,13 +22,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from plugins.roscale.panels._common import (
-    _lookup_by_entity_id,
-    _lookup_latest_by_kind,
-    build_provenance,
-    parse,
-    pretty_json,
-)
+from plugins.roscale.panels._common import build_provenance, parse, pretty_json
 from plugins.samsite.scoring import (
     INDICATOR_ACCEPTED,
     INDICATOR_GAP,
@@ -31,6 +31,7 @@ from plugins.samsite.scoring import (
     group_by_theme,
     score,
 )
+from tap_web.panels.entity_resolution import resolve_entity
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -43,36 +44,19 @@ logger = logging.getLogger(__name__)
 DEFAULT_SSP_VAR = "oscal_ssp_artifact_entity_id"
 DEFAULT_POAM_VAR = "oscal_poam_artifact_entity_id"
 
+_SSP_FALLBACK_QUERY = (
+    'MATCH (a:compliance_artifact) '
+    'WHERE a.data.kind = "oscal_ssp" AND a.data.fetched_at IS NOT NULL '
+    'ORDER BY a.data.fetched_at DESC LIMIT 1'
+)
+_SSP_FALLBACK_DESCRIPTION = "Latest oscal_ssp compliance artifact by fetched_at."
 
-def _resolve_one(
-    *,
-    var_name: str,
-    request: Any,
-    fallback_kind: str | None,
-) -> tuple[dict | None, bool, str | None]:
-    """Return (artifact_node, used_fallback, error)."""
-    entity_id = (request.GET.get(var_name) or "").strip()
-    if entity_id:
-        try:
-            node = _lookup_by_entity_id(entity_id)
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("[scb1] artifact lookup failed for %s", entity_id)
-            return None, False, f"Artifact lookup failed: {exc}"
-        if node is None:
-            return None, False, f"No compliance_artifact with entity_id '{entity_id}'."
-        return node, False, None
-
-    if fallback_kind:
-        try:
-            node = _lookup_latest_by_kind(fallback_kind)
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("[scb2] artifact fallback lookup failed for kind=%s", fallback_kind)
-            return None, True, f"Artifact fallback lookup failed: {exc}"
-        if node is None:
-            return None, True, f"No compliance_artifact of kind '{fallback_kind}' yet."
-        return node, True, None
-
-    return None, False, f"No artifact specified. Expected '{var_name}' in the URL."
+_POAM_FALLBACK_QUERY = (
+    'MATCH (a:compliance_artifact) '
+    'WHERE a.data.kind = "oscal_poam" AND a.data.fetched_at IS NOT NULL '
+    'ORDER BY a.data.fetched_at DESC LIMIT 1'
+)
+_POAM_FALLBACK_DESCRIPTION = "Latest oscal_poam compliance artifact by fetched_at."
 
 
 def _load_indicators() -> list[dict]:
@@ -147,19 +131,17 @@ _STATUS_DISPLAY_ORDER = [
 
 def build_context(panel: Any, request: Any) -> dict[str, Any]:
     """Pure function — separated from the classmethod so tests can call it directly."""
-    config = getattr(panel, "config", None) or {}
-    ssp_var = config.get("ssp_artifact_entity_id_var", DEFAULT_SSP_VAR)
-    poam_var = config.get("poam_artifact_entity_id_var", DEFAULT_POAM_VAR)
-    fb = config.get("fallback") or {}
-    ssp_fallback_kind = fb.get("ssp_kind") if isinstance(fb, dict) else None
-    poam_fallback_kind = fb.get("poam_kind") if isinstance(fb, dict) else None
+    ssp_res = resolve_entity(panel, request, role="ssp", default_var_name=DEFAULT_SSP_VAR)
+    poam_res = resolve_entity(panel, request, role="poam", default_var_name=DEFAULT_POAM_VAR)
 
     base: dict[str, Any] = {
         "panel_slug": "samsite-ksi-scoreboard",
-        "ssp_var_name": ssp_var,
-        "poam_var_name": poam_var,
-        "ssp_used_fallback": False,
-        "poam_used_fallback": False,
+        "ssp_var_name": ssp_res.var_name,
+        "poam_var_name": poam_res.var_name,
+        "ssp_used_fallback": ssp_res.used_fallback,
+        "poam_used_fallback": poam_res.used_fallback,
+        "ssp_fallback_description": ssp_res.fallback_description,
+        "poam_fallback_description": poam_res.fallback_description,
         "ssp_provenance": None,
         "poam_provenance": None,
         "error_phase": None,
@@ -174,27 +156,20 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         "raw_indicator_count": 0,
     }
 
-    ssp_node, ssp_used_fb, ssp_err = _resolve_one(
-        var_name=ssp_var, request=request, fallback_kind=ssp_fallback_kind
-    )
-    poam_node, poam_used_fb, poam_err = _resolve_one(
-        var_name=poam_var, request=request, fallback_kind=poam_fallback_kind
-    )
-    base["ssp_used_fallback"] = ssp_used_fb
-    base["poam_used_fallback"] = poam_used_fb
-
-    if ssp_err and poam_err:
+    if not ssp_res.ok and not poam_res.ok:
         base["error_phase"] = "load"
-        base["error_message"] = f"SSP: {ssp_err}  ·  POA&M: {poam_err}"
+        base["error_message"] = f"SSP: {ssp_res.error}  ·  POA&M: {poam_res.error}"
         return base
-    if ssp_err:
+    if not ssp_res.ok:
         # Hard fail — without the SSP there's no scoring possible.
         base["error_phase"] = "load"
-        base["error_message"] = f"SSP not available: {ssp_err}"
+        base["error_message"] = f"SSP not available: {ssp_res.error}"
         return base
     # POA&M missing is recoverable — we can score against the SSP alone (all
     # controls treated as not-in-POA&M). Continue but flag it.
-    poam_warning = poam_err
+    poam_warning = poam_res.error if not poam_res.ok else None
+    ssp_node = ssp_res.node
+    poam_node = poam_res.node
 
     if ssp_node:
         base["ssp_provenance"] = build_provenance(ssp_node)
@@ -253,9 +228,18 @@ class KsiScoreboardPanelType:
     css: ClassVar[list[str]] = ["samsite/css/panel-ksi-scoreboard.css"]
     js: ClassVar[list[str]] = []
     config_defaults: ClassVar[dict[str, Any]] = {
-        "ssp_artifact_entity_id_var": DEFAULT_SSP_VAR,
-        "poam_artifact_entity_id_var": DEFAULT_POAM_VAR,
-        "fallback": {"ssp_kind": "oscal_ssp", "poam_kind": "oscal_poam"},
+        "ssp_entity_id_var": DEFAULT_SSP_VAR,
+        "poam_entity_id_var": DEFAULT_POAM_VAR,
+        "fallback": {
+            "ssp": {
+                "query": _SSP_FALLBACK_QUERY,
+                "description": _SSP_FALLBACK_DESCRIPTION,
+            },
+            "poam": {
+                "query": _POAM_FALLBACK_QUERY,
+                "description": _POAM_FALLBACK_DESCRIPTION,
+            },
+        },
     }
 
     @classmethod

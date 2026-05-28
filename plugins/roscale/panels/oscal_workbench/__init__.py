@@ -1,16 +1,15 @@
 """OSCAL SSP Workbench Panel Type — `roscale-oscal-workbench`.
 
 Renders a system-security-plan OSCAL document as a single-page compliance
-workbench. Reads the artifact entity id through a panel-config-named page
-variable (default: `oscal_ssp_artifact_entity_id`), looks up the
-compliance_artifact node, parses + validates the OSCAL content, and emits
-a structured template context. When the URL var is empty and the panel
-config sets `fallback.kind`, falls back to the most-recently-fetched
-compliance_artifact of that kind (see `_common.resolve_artifact`).
+workbench. Resolves the underlying `compliance_artifact` via the canonical
+entity-resolution helper at `tap_web.panels.entity_resolution`: URL deep
+link wins via `entity_id_var`; otherwise the panel's `fallback.query`
+Gryphon query picks the latest emission.
 
 Spec: plugins/roscale/specs/spec-roscale-v0.md
       (req-roscale-panel, req-roscale-input, req-roscale-rendering,
        req-roscale-errors)
+Resolution contract: tap_web/specs/spec-web-panel-entity-resolution-v0.md
 """
 
 from __future__ import annotations
@@ -21,7 +20,6 @@ from plugins.roscale.panels._common import (
     build_provenance,
     parse_and_validate,
     pretty_json,
-    resolve_artifact,
     ssp_back_matter,
     ssp_components,
     ssp_headline_stats,
@@ -32,6 +30,7 @@ from plugins.roscale.panels._common import (
     ssp_system_overview,
     ssp_users,
 )
+from tap_web.panels.entity_resolution import resolve_entity
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -44,13 +43,13 @@ DEFAULT_VAR_NAME = "oscal_ssp_artifact_entity_id"
 
 def build_context(panel: Any, request: Any) -> dict[str, Any]:
     """Pure function — separated from the classmethod so tests can call it directly."""
-    resolution = resolve_artifact(panel, request, DEFAULT_VAR_NAME)
+    resolution = resolve_entity(panel, request, default_var_name=DEFAULT_VAR_NAME)
     base: dict[str, Any] = {
         "panel_slug": "roscale-oscal-workbench",
         "entity_id": resolution.entity_id,
         "var_name": resolution.var_name,
         "used_fallback": resolution.used_fallback,
-        "fallback_kind": resolution.fallback_kind,
+        "fallback_description": resolution.fallback_description,
         "error_phase": None,
         "error_message": None,
         "provenance": None,
@@ -128,7 +127,7 @@ class OscalWorkbenchPanelType:
     css: ClassVar[list[str]] = ["roscale/css/workbench.css"]
     js: ClassVar[list[str]] = []
     config_defaults: ClassVar[dict[str, Any]] = {
-        "artifact_entity_id_var": DEFAULT_VAR_NAME,
+        "entity_id_var": DEFAULT_VAR_NAME,
     }
 
     @classmethod
