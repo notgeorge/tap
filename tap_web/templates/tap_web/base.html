@@ -12,34 +12,35 @@
     {% block head_extras %}{% endblock %}
 </head>
 <body class="h-full flex flex-col">
-    <nav class="bg-slate-800 text-white">
+    {# Chrome per spec-web-navigation: product mark + breadcrumb + session tag #}
+    {# + (palette affordance, Phase 4) + (mini-graph slot, backlog). The         #}
+    {# `block header_title` injection is gone — the breadcrumb auto-derives.    #}
+    <nav class="bg-slate-800 text-white" aria-label="Breadcrumb">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-10">
-                <div class="flex items-center space-x-2">
-                    <a href="/" class="text-sm font-bold">{{ product_name }}</a>
-                    {% block header_title %}{% endblock %}
-                </div>
+                <ol class="flex items-center text-sm" style="gap: 0.5rem;">
+                    {% for seg in breadcrumb %}
+                        {% if not forloop.first %}
+                            <li aria-hidden="true" class="text-slate-500 select-none">›</li>
+                        {% endif %}
+                        <li>
+                            {% if seg.is_current %}
+                                {# Current page — non-link, aria-current="page", slightly bolder #}
+                                <span class="text-white font-medium" aria-current="page">{% if seg.is_home %}{{ product_name }}{% else %}{{ seg.label }}{% endif %}</span>
+                            {% elif seg.is_registered %}
+                                {# Registered Page parent — clickable link in the dim color #}
+                                <a href="{{ seg.url }}" class="text-slate-300 hover:text-white transition-colors{% if seg.is_home %} font-bold{% endif %}">{% if seg.is_home %}{{ product_name }}{% else %}{{ seg.label }}{% endif %}</a>
+                            {% else %}
+                                {# Unregistered URL prefix — plain text, unclickable #}
+                                <span class="text-slate-400">{{ seg.label }}</span>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ol>
                 <div class="flex items-center" style="gap: 0.75rem;">
                     {% if session_label %}<span class="text-xs font-mono text-amber-300" title="Multi-session dev label — see spec-dev-multisession.md">[ {{ session_label }} ]</span>{% endif %}
-                    <a href="#" class="text-gray-300 hover:text-white" title="History">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"/>
-                            <polyline points="12 6 12 12 16 14"/>
-                        </svg>
-                    </a>
-                    <a href="#" class="text-gray-300 hover:text-white" title="Layers">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-                            <polyline points="2 17 12 22 22 17"/>
-                            <polyline points="2 12 12 17 22 12"/>
-                        </svg>
-                    </a>
-                    <a href="/admin/" class="text-gray-300 hover:text-white" title="Admin">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="8" r="4"/>
-                            <path d="M20 21a8 8 0 1 0-16 0"/>
-                        </svg>
-                    </a>
+                    {# Palette affordance (req-web-nav-command-palette-2) — Phase 4. #}
+                    {# Mini-graph slot (req-web-nav-mini-graph) — reserved, backlog. #}
                 </div>
             </div>
         </div>

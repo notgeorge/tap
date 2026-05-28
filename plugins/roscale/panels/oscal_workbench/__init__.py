@@ -50,6 +50,7 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         "var_name": resolution.var_name,
         "used_fallback": resolution.used_fallback,
         "fallback_description": resolution.fallback_description,
+        "fallback_count": resolution.fallback_count,
         "error_phase": None,
         "error_message": None,
         "provenance": None,

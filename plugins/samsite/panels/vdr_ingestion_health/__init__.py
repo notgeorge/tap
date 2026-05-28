@@ -78,6 +78,11 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         "var_name": resolution.var_name,
         "used_fallback": resolution.used_fallback,
         "fallback_description": resolution.fallback_description,
+        "fallback_count": resolution.fallback_count,
+        # req-web-panel-entity-resolution-empty-state: render the empty-grid
+        # case as informational, not as a red error block — a freshly-stood-up
+        # environment with no vdr_report yet is expected, not broken.
+        "is_empty_state": (not resolution.ok) and resolution.fallback_count == 0,
         "flags": [],
         "any_false": False,
     }

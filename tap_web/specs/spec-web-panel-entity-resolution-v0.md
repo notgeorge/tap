@@ -258,10 +258,10 @@ For multi-entity panels, the empty-state distinction interacts with [Required vs
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-entity-resolution-empty-state-1 | fallback_count Distinguishes Cases | Proposed | Panels checking `resolution.error` MUST also inspect `resolution.fallback_count` before deciding whether to render error vs informational empty state. | |
-| req-web-panel-entity-resolution-empty-state-2 | Empty Is Informational | Proposed | `fallback_count == 0` renders in an informational tone, not red/error styling. | The resolver's default message is acceptable; panel-specific actionable guidance is encouraged. |
-| req-web-panel-entity-resolution-empty-state-3 | Ambiguous Stays Error | Proposed | `fallback_count >= 2` renders as an error — it's a config bug, not an expected state. | |
-| req-web-panel-entity-resolution-empty-state-4 | fallback_description Preserved | Proposed | Even when the panel overrides the resolver's message, `fallback_description` MUST remain visible so users know what the panel was looking for. | |
+| req-web-panel-entity-resolution-empty-state-1 | fallback_count Distinguishes Cases | Implemented | Panels checking `resolution.error` MUST also inspect `resolution.fallback_count` before deciding whether to render error vs informational empty state. | All four consumer panels (ROSCALE SSP, ROSCALE POA&M, KSI scoreboard, VDR ingestion health) thread `fallback_count` from the resolution into template context; templates branch on it. |
+| req-web-panel-entity-resolution-empty-state-2 | Empty Is Informational | Implemented | `fallback_count == 0` renders in an informational tone, not red/error styling. | All four panels render slate-blue `*-empty-state` blocks with a `📭` icon and panel-specific actionable guidance — distinct from the red `*-error-state` block used for URL miss / ambiguous / transient. |
+| req-web-panel-entity-resolution-empty-state-3 | Ambiguous Stays Error | Implemented | `fallback_count >= 2` renders as an error — it's a config bug, not an expected state. | Templates check `fallback_count == 0` for the informational branch; everything else (URL miss, ambiguous, transient) falls through to the error styling. |
+| req-web-panel-entity-resolution-empty-state-4 | fallback_description Preserved | Implemented | Even when the panel overrides the resolver's message, `fallback_description` MUST remain visible so users know what the panel was looking for. | Each panel's empty-state block surfaces `{{ fallback_description }}` inline alongside the panel-specific actionable guidance. |
 
 ### Multi-Entity Panels
 ----

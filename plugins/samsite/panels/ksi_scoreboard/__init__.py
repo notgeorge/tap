@@ -142,6 +142,13 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         "poam_used_fallback": poam_res.used_fallback,
         "ssp_fallback_description": ssp_res.fallback_description,
         "poam_fallback_description": poam_res.fallback_description,
+        "ssp_fallback_count": ssp_res.fallback_count,
+        "poam_fallback_count": poam_res.fallback_count,
+        # req-web-panel-entity-resolution-empty-state: hard-stop scoring requires
+        # the SSP. Distinguish "no SSP on grid yet" (informational) from
+        # "SSP lookup broken" (error). POA&M missing is recoverable either way
+        # (handled below via poam_warning).
+        "is_empty_state": (not ssp_res.ok) and ssp_res.fallback_count == 0,
         "ssp_provenance": None,
         "poam_provenance": None,
         "error_phase": None,

@@ -1,9 +1,20 @@
 {% load static %}
 <div class="samsite-vdr-health{% if any_false %} samsite-vdr-health-degraded{% endif %}">
   {% if error_message %}
-    <div class="samsite-vdr-health-error">
-      <strong>VDR ingestion health unavailable.</strong> {{ error_message }}
-    </div>
+    {% if is_empty_state %}
+      <div class="samsite-vdr-health-empty">
+        <div class="samsite-vdr-health-empty-header">
+          <span class="samsite-vdr-health-empty-icon" aria-hidden="true">📭</span>
+          <span class="samsite-vdr-health-empty-title">Waiting for a VDR report</span>
+        </div>
+        <p class="samsite-vdr-health-empty-message">No <code>vdr_report</code> is on the grid yet — {{ fallback_description }} hasn't produced a hit. The samsite VDR aggregator emits one per build and the collector lands it on the grid; the first emission will appear here automatically.</p>
+        <p class="samsite-vdr-health-empty-deeplink">To pin a specific report, append <code>?{{ var_name }}=&lt;entity_id&gt;</code> to the URL.</p>
+      </div>
+    {% else %}
+      <div class="samsite-vdr-health-error">
+        <strong>VDR ingestion health unavailable.</strong> {{ error_message }}
+      </div>
+    {% endif %}
   {% else %}
     <div class="samsite-vdr-health-row">
       <div class="samsite-vdr-health-title">

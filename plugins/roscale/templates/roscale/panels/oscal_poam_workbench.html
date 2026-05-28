@@ -1,6 +1,16 @@
 {% load static %}
 <div class="roscale-workbench roscale-poam">
   {% if error_phase %}
+    {% if fallback_count == 0 %}
+      <section class="roscale-empty-state">
+        <div class="roscale-empty-header">
+          <span class="roscale-empty-icon" aria-hidden="true">📭</span>
+          <span class="roscale-empty-title">Waiting for an OSCAL POA&amp;M</span>
+        </div>
+        <p class="roscale-empty-message">No <code>compliance_artifact</code> of kind <code>oscal_poam</code> is on the grid yet — {{ fallback_description }} hasn't produced a hit. The samsite collector lands one per nightly run; the first emission will appear here automatically.</p>
+        <p class="roscale-empty-deeplink">To pin a specific POA&amp;M, append <code>?{{ var_name }}=&lt;entity_id&gt;</code> to the URL.</p>
+      </section>
+    {% else %}
     <section class="roscale-error-state">
       <div class="roscale-error-header">
         <span class="roscale-error-phase">[{{ error_phase }}]</span>
@@ -13,6 +23,7 @@
         <p class="roscale-error-detail">No entity_id was supplied. Append <code>?{{ var_name }}=&lt;entity_id&gt;</code> to the URL.</p>
       {% endif %}
     </section>
+    {% endif %}
   {% endif %}
 
   {% if used_fallback %}

@@ -1,18 +1,29 @@
 {% load static %}
 <div class="roscale-workbench roscale-ssp">
   {% if error_phase %}
-    <section class="roscale-error-state">
-      <div class="roscale-error-header">
-        <span class="roscale-error-phase">[{{ error_phase }}]</span>
-        <span class="roscale-error-title">Could not render OSCAL SSP workbench</span>
-      </div>
-      <p class="roscale-error-message">{{ error_message }}</p>
-      {% if entity_id %}
-        <p class="roscale-error-detail">Requested entity_id: <code>{{ entity_id }}</code> (page variable: <code>{{ var_name }}</code>)</p>
-      {% else %}
-        <p class="roscale-error-detail">No entity_id was supplied. Append <code>?{{ var_name }}=&lt;entity_id&gt;</code> to the URL.</p>
-      {% endif %}
-    </section>
+    {% if fallback_count == 0 %}
+      <section class="roscale-empty-state">
+        <div class="roscale-empty-header">
+          <span class="roscale-empty-icon" aria-hidden="true">📭</span>
+          <span class="roscale-empty-title">Waiting for an OSCAL SSP</span>
+        </div>
+        <p class="roscale-empty-message">No <code>compliance_artifact</code> of kind <code>oscal_ssp</code> is on the grid yet — {{ fallback_description }} hasn't produced a hit. The samsite collector lands one per nightly run; the first emission will appear here automatically.</p>
+        <p class="roscale-empty-deeplink">To pin a specific SSP, append <code>?{{ var_name }}=&lt;entity_id&gt;</code> to the URL.</p>
+      </section>
+    {% else %}
+      <section class="roscale-error-state">
+        <div class="roscale-error-header">
+          <span class="roscale-error-phase">[{{ error_phase }}]</span>
+          <span class="roscale-error-title">Could not render OSCAL SSP workbench</span>
+        </div>
+        <p class="roscale-error-message">{{ error_message }}</p>
+        {% if entity_id %}
+          <p class="roscale-error-detail">Requested entity_id: <code>{{ entity_id }}</code> (page variable: <code>{{ var_name }}</code>)</p>
+        {% else %}
+          <p class="roscale-error-detail">No entity_id was supplied. Append <code>?{{ var_name }}=&lt;entity_id&gt;</code> to the URL.</p>
+        {% endif %}
+      </section>
+    {% endif %}
   {% endif %}
 
   {% if used_fallback %}

@@ -238,12 +238,32 @@
 }
 
 .samsite-scoreboard-empty {
-  background: #f9fafb;
-  border: 1px dashed #d1d5db;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
   border-radius: 6px;
-  padding: 1rem;
-  color: #6b7280;
-  text-align: center;
+  padding: 1rem 1.25rem;
+  margin: 0 0 1rem;
+}
+
+.samsite-scoreboard-empty-header {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.samsite-scoreboard-empty-icon { font-size: 1.25em; }
+
+.samsite-scoreboard-empty-message {
+  margin: 0.5rem 0;
+}
+
+.samsite-scoreboard-empty-deeplink {
+  margin: 0.25rem 0 0;
+  color: #475569;
+  font-size: 0.95em;
 }
 
 .samsite-scoreboard-provenance {

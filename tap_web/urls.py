@@ -22,6 +22,7 @@ urlpatterns = [
     path("panel/<str:panel_url_id>/", views.panel_view, name="panel"),
     path("object/<str:entity_type>/<str:object_url_id>/edit/", views.object_edit_view, name="object-edit"),
     path("object/<str:entity_type>/<str:object_url_id>/", views.object_view, name="object-view"),
+    path("__nav-index.json", views.nav_index_view, name="nav-index"),
     path("", views.landing_view, name="landing"),
     # Parameterized pages — path segments become search inputs.
     path(

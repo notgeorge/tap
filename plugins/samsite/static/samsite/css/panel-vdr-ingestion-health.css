@@ -94,3 +94,35 @@
   color: #6b7280;
   font-style: italic;
 }
+
+/* req-web-panel-entity-resolution-empty-state-2: fallback_count == 0
+   renders informationally, not as an error. Slate-blue chrome distinct
+   from the inline error styling. */
+
+.samsite-vdr-health-empty {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+}
+
+.samsite-vdr-health-empty-header {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.samsite-vdr-health-empty-icon { font-size: 1.25em; }
+
+.samsite-vdr-health-empty-message {
+  margin: 0.5rem 0;
+}
+
+.samsite-vdr-health-empty-deeplink {
+  margin: 0.25rem 0 0;
+  color: #475569;
+  font-size: 0.95em;
+}

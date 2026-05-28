@@ -191,6 +191,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "tap_web.context_processors.branding",
+                "tap_web.navigation.breadcrumb",
             ],
         },
     },

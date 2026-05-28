@@ -3,15 +3,18 @@
 import json
 import logging
 import re
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from tap_grid.caller_context import CallerContext
 
-from django.http import Http404, HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
+from tap_web.models import Page
+from tap_web.navigation import build_breadcrumb
 from tap_web.page import get_landing_page, get_page_by_slug, get_page_panels, parse_panel_url_id
 
 logger = logging.getLogger(__name__)
@@ -669,4 +672,45 @@ def _render_grid_placeholder(request: HttpRequest) -> HttpResponse:
             "edges_meta": edges_meta,
             "table_error": None,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Navigation index
+# ---------------------------------------------------------------------------
+
+
+def nav_index_view(request: HttpRequest) -> JsonResponse:
+    """Return the machine-readable nav index per req-web-nav-index-endpoint.
+
+    Enumerates every registered Page with its canonical breadcrumb path so
+    AI agents, automation, and tooling can reason about the platform's
+    navigation surface without scraping HTML.
+
+    Schema is documented in spec-web-navigation §Machine-Readable Nav Index.
+    Computed on request (no caching) for v0 per `req-web-nav-index-endpoint`.
+    Unauthenticated for v0; the index reveals only what's already discoverable
+    by walking links.
+    """
+    pages_qs = Page.objects.all().order_by("slug")
+    entries: list[dict[str, Any]] = []
+    for page in pages_qs:
+        breadcrumb = build_breadcrumb(page.slug)
+        entries.append(
+            {
+                "url": page.slug,
+                "name": page.name,
+                "description": page.description or "",
+                "breadcrumb": [
+                    {"label": seg.label, "url": seg.url} for seg in breadcrumb
+                ],
+            }
+        )
+    return JsonResponse(
+        {
+            "version": "0",
+            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "pages": entries,
+        },
+        json_dumps_params={"indent": 2},
     )
