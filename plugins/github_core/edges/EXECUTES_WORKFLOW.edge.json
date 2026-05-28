@@ -1,0 +1,12 @@
+{
+  "slug": "EXECUTES_WORKFLOW",
+  "name": "Executes Workflow",
+  "description": "Run is an execution of a workflow.",
+  "sources": ["github_actions_run"],
+  "targets": ["github_workflow"],
+  "default_dimensions": {
+    "github.platform": "github.com",
+    "github.surface": "actions",
+    "github.observation": "execution"
+  }
+}

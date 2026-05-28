@@ -1,0 +1,55 @@
+{
+  "manifest_version": "0",
+  "description": "v0 link rules from GitHub-collected fields to existing TAP grid entities. Engine reads this manifest; rules are evaluated during the enrichment phase. Adds REFERENCES_RESOURCE edges only — no nodes created or modified.",
+  "rules": [
+    {
+      "name": "workflow_yaml_domain_name_to_route53_zone",
+      "source_entity_type": "github_workflow",
+      "source_field_path": "configuration.refs.domain_names[*]",
+      "target_entity_type": "aws_route53_zone",
+      "target_field": "name",
+      "edge_type": "REFERENCES_RESOURCE",
+      "match_mode": "exact",
+      "zero_candidates": "warn",
+      "multiple_candidates": "warn_no_edge",
+      "description": "Domain names mentioned in workflow YAML (env vars, parameters) that match a Route 53 hosted zone's name."
+    },
+    {
+      "name": "workflow_yaml_aws_region_to_region",
+      "source_entity_type": "github_workflow",
+      "source_field_path": "configuration.refs.aws_regions[*]",
+      "target_entity_type": "aws_region",
+      "target_field": "region_code",
+      "edge_type": "REFERENCES_RESOURCE",
+      "match_mode": "exact",
+      "zero_candidates": "info",
+      "multiple_candidates": "warn_no_edge",
+      "description": "AWS region codes (us-east-1, etc.) mentioned in workflow YAML that match an aws_region node."
+    },
+    {
+      "name": "workflow_yaml_cloudfront_distribution_id",
+      "source_entity_type": "github_workflow",
+      "source_field_path": "configuration.refs.cloudfront_distribution_ids[*]",
+      "target_entity_type": "aws_cloudfront_distribution",
+      "target_field": "distribution_id",
+      "edge_type": "REFERENCES_RESOURCE",
+      "match_mode": "exact",
+      "zero_candidates": "warn",
+      "multiple_candidates": "warn_no_edge",
+      "description": "CloudFront distribution IDs visible in workflow YAML that match an aws_cloudfront_distribution node."
+    },
+    {
+      "name": "repo_federates_with_github_oidc_provider",
+      "source_entity_type": "github_repository",
+      "source_constant": "token.actions.githubusercontent.com",
+      "target_entity_type": "aws_iam_oidc_provider",
+      "target_field": "url",
+      "edge_type": "REFERENCES_RESOURCE",
+      "match_mode": "exact",
+      "zero_candidates": "info",
+      "multiple_candidates": "warn_no_edge",
+      "near_match_pattern": "githubusercontent\\.com",
+      "description": "Structural link: every collected GitHub repository points at the AWS IAM OIDC provider whose URL is the canonical github.com Actions issuer. Refuses to link if (a) AWS has multiple OIDC providers with that exact URL (IAM enforces uniqueness so this is defensive), or (b) AWS has an OIDC provider whose URL contains 'githubusercontent.com' but isn't an exact match for the canonical value (GHES tenants, alternate audiences, typos — warns rather than guesses)."
+    }
+  ]
+}

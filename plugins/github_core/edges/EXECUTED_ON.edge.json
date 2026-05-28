@@ -1,0 +1,12 @@
+{
+  "slug": "EXECUTED_ON",
+  "name": "Executed On",
+  "description": "Job executed on a durable registered self-hosted runner. Emitted only when an observed job runner_id matches a github_runner node.",
+  "sources": ["github_actions_job"],
+  "targets": ["github_runner"],
+  "default_dimensions": {
+    "github.platform": "github.com",
+    "github.surface": "actions",
+    "github.observation": "execution"
+  }
+}
