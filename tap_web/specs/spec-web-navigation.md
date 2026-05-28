@@ -2,7 +2,7 @@
 
 ## Philosophy
 
-TAP is a graph platform with multiple windows onto a single graph. Every entity has a position in the graph; every page has a URL path. The hierarchy a user navigates — *"TAP > samsite > compliance > OSCAL SSP"* — isn't an arbitrary tree the designer invented; it's the graph projected as a path. The navigation system should expose that path as the chrome, instead of inventing a separate "menu structure" alongside it.
+TAP is a graph platform with multiple windows onto a single graph. Every entity has a position in the graph; every page has a URL path. The hierarchy a user navigates — *"TAP > samsite > compliance > SSP"* — isn't an arbitrary tree the designer invented; it's the graph projected as a path. The navigation system should expose that path as the chrome, instead of inventing a separate "menu structure" alongside it.
 
 The chrome is therefore a **breadcrumb header**, always. The header bar is not "where the menu lives." It *is* the menu, in the form of a path-with-options at each segment. Where you are AND what's adjacent to you are the same surface.
 
@@ -56,7 +56,7 @@ Supersedes the prior revision of this spec, which proposed a classic web-based h
 
 - The header bar contains, in left-to-right order: the product mark (e.g., `TAP`), the breadcrumb segments, the session tag, the command-palette affordance, and the mini-graph slot.
 - The breadcrumb begins with the root segment (the home page, `/`) and extends through each URL path slice.
-  - Example: URL `/samsite/compliance/oscal` produces breadcrumb `[home] › samsite › compliance › OSCAL SSP`.
+  - Example: URL `/samsite/compliance/ssp` produces breadcrumb `[home] › samsite › compliance › SSP`.
 - Each segment renders as a clickable link to its corresponding URL prefix.
 - The last segment (the current page) is rendered with active styling to communicate position.
 - The breadcrumb truncates from the middle when the path is too long for the header width (collapse to `[home] › … › grandparent › parent › current`); the collapsed segments remain accessible through the chevron popover on the ellipsis.
@@ -332,14 +332,14 @@ v0 schema (illustrative):
   "generated_at": "2026-05-27T00:00:00Z",
   "pages": [
     {
-      "url": "/samsite/compliance/oscal",
-      "name": "Samsite — OSCAL SSP Workbench",
+      "url": "/samsite/compliance/ssp",
+      "name": "SSP",
       "description": "...",
       "breadcrumb": [
         {"label": "TAP",        "url": "/"},
         {"label": "samsite",    "url": "/samsite"},
         {"label": "compliance", "url": "/samsite/compliance"},
-        {"label": "OSCAL SSP",  "url": "/samsite/compliance/oscal"}
+        {"label": "SSP",        "url": "/samsite/compliance/ssp"}
       ]
     }
   ]

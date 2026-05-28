@@ -14,7 +14,7 @@
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-pages",
         "name": "Samsite Compliance pages v0.2.1 \u2014 canonical entity-resolution configs (Gryphon double-quoted literals)",
-        "description": "Seeds two sibling Samsite compliance pages hosting the ROSCALE OSCAL workbench panels: /samsite/compliance/oscal renders the on-grid OSCAL SSP via roscale-oscal-workbench; /samsite/compliance/poam renders the OSCAL POA&M via roscale-oscal-poam-workbench. v0.2.0 migrates the panel configs to the canonical tap_web.panels.entity_resolution contract (spec-web-panel-entity-resolution-v0): `entity_id_var` replaces `artifact_entity_id_var`; `fallback.{query, description}` replaces `fallback.kind`. Fallback queries use Gryphon graph-envelope ORDER BY + LIMIT plus defensive `AND a.data.fetched_at IS NOT NULL` so a null sort field can't silently win."
+        "description": "Seeds two sibling Samsite compliance pages hosting the ROSCALE OSCAL workbench panels: /samsite/compliance/ssp renders the on-grid OSCAL SSP via roscale-oscal-workbench; /samsite/compliance/poam renders the OSCAL POA&M via roscale-oscal-poam-workbench. v0.2.0 migrates the panel configs to the canonical tap_web.panels.entity_resolution contract (spec-web-panel-entity-resolution-v0): `entity_id_var` replaces `artifact_entity_id_var`; `fallback.{query, description}` replaces `fallback.kind`. Fallback queries use Gryphon graph-envelope ORDER BY + LIMIT plus defensive `AND a.data.fetched_at IS NOT NULL` so a null sort field can't silently win."
       },
       "nodes": [
         {
@@ -28,7 +28,7 @@
           },
           "node": {
             "name": "SSP",
-            "slug": "/samsite/compliance/oscal",
+            "slug": "/samsite/compliance/ssp",
             "layout": {
               "columns": {
                 "col-1": {
@@ -77,7 +77,7 @@
             }
           },
           "node": {
-            "name": "Samsite \u2014 OSCAL POA&M Workbench",
+            "name": "POA&M",
             "slug": "/samsite/compliance/poam",
             "layout": {
               "columns": {
