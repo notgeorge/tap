@@ -1,197 +1,23 @@
 """Helpers shared by ROSCALE's panel types.
 
-Resolves a compliance_artifact node from a panel's page variable, builds
-the provenance block, and extracts sections + headline stats from parsed
-OSCAL documents. Pure-Python — no Django/template imports — so each helper
-is testable against a fixture dict without DB setup.
+Builds the provenance block and extracts sections + headline stats from
+parsed OSCAL documents. Pure-Python — no Django/template imports — so
+each helper is testable against a fixture dict without DB setup.
+
+Entity resolution (URL deep link + fallback Gryphon query) is handled by
+the canonical helper at `tap_web.panels.entity_resolution`; per-plugin
+artifact-specific helpers no longer live here.
 """
 
 from __future__ import annotations
 
 import json
-import logging
 from collections import Counter
-from dataclasses import dataclass
 from typing import Any
 
 from plugins.roscale.constants import control_family_label
 from plugins.roscale.parser import ParseResult, parse
 from plugins.roscale.validator import ValidationResult, validate
-
-logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ArtifactResolution:
-    """Outcome of resolving a compliance_artifact entity from a page variable."""
-
-    entity_id: str
-    var_name: str
-    node: dict[str, Any] | None
-    error: str | None
-    used_fallback: bool = False
-    fallback_kind: str | None = None
-
-    @property
-    def ok(self) -> bool:
-        return self.node is not None and self.error is None
-
-
-def _lookup_by_entity_id(entity_id: str) -> dict[str, Any] | None:
-    """Run the Gryphon search for a compliance_artifact with the given entity_id."""
-    from tap_grid.models import Search
-    from tap_grid.search import execute_search
-
-    search = Search(
-        search_type="gryphon",
-        root="node",
-        name="roscale-oscal-artifact-lookup",
-        input_schema={
-            "type": "object",
-            "properties": {"entity_id": {"type": "string", "format": "uuid"}},
-            "required": ["entity_id"],
-        },
-        definition={
-            "query": [
-                "MATCH (a:compliance_artifact) WHERE a.entity_id = $entity_id",
-            ],
-        },
-        default_limit=1,
-        max_limit=1,
-    )
-    result = execute_search(search, inputs={"entity_id": entity_id}, layer="extended")
-    envelope = result.get("results", result)
-    for n in envelope.get("nodes", []) or []:
-        # Gryphon's "extended" envelope returns flat dicts: spine fields
-        # (entity_id, entity_type, name, dimensions, created_at, ...) at the
-        # top level, and per-model fields nested under `data`.
-        if n.get("entity_id") == entity_id:
-            return n
-    return None
-
-
-def _lookup_latest_by_kind(kind: str) -> dict[str, Any] | None:
-    """Return the compliance_artifact node with the given kind whose `fetched_at` is highest.
-
-    Pulls all matching nodes via Gryphon then sorts in Python by `fetched_at`
-    (ISO 8601 string, lexically equivalent to chronological order when the
-    format is consistent). Used by the panel-config-driven fallback path
-    (`config.fallback.kind`) when no explicit entity_id is supplied in the URL.
-    """
-    from tap_grid.models import Search
-    from tap_grid.search import execute_search
-
-    search = Search(
-        search_type="gryphon",
-        root="node",
-        name="roscale-oscal-latest-by-kind",
-        input_schema={
-            "type": "object",
-            "properties": {"kind": {"type": "string"}},
-            "required": ["kind"],
-        },
-        definition={
-            # `kind` is a model-specific field on compliance_artifact (not a
-            # spine field like entity_id), so Gryphon requires the `.data.` prefix
-            # per spec-grift-envelope.
-            "query": ["MATCH (a:compliance_artifact) WHERE a.data.kind = $kind"],
-        },
-        default_limit=500,
-        max_limit=2000,
-    )
-    result = execute_search(search, inputs={"kind": kind}, layer="extended")
-    envelope = result.get("results", result)
-    nodes = envelope.get("nodes", []) or []
-    if not nodes:
-        return None
-    # ISO 8601 `fetched_at` sorts lexically as chronological order; empties last.
-    # Per-model fields (including `fetched_at`) live under the envelope's `data`.
-    nodes_sorted = sorted(
-        nodes,
-        key=lambda n: (n.get("data") or {}).get("fetched_at") or "",
-        reverse=True,
-    )
-    return nodes_sorted[0]
-
-
-def resolve_artifact(panel: Any, request: Any, default_var_name: str) -> ArtifactResolution:
-    """Look up the compliance_artifact node named by the panel's page variable.
-
-    The panel config may set `artifact_entity_id_var` to override the default
-    variable name; the variable's value comes from `request.GET[<var_name>]`
-    per `req-roscale-input-3` (URL-backed).
-
-    When `request.GET[var_name]` is empty and the panel config supplies a
-    `fallback.kind`, the resolver falls back to the most-recently-fetched
-    `compliance_artifact` matching that kind. The result's `used_fallback`
-    flag is set so consumers can surface the carve-out (e.g. a banner like
-    "showing latest emission"). Explicit URL entity_id always wins.
-
-    Returns an ArtifactResolution with the node on success or a populated
-    `error` on failure.
-    """
-    config = getattr(panel, "config", None) or {}
-    var_name = config.get("artifact_entity_id_var", default_var_name)
-    fallback = config.get("fallback") or {}
-    fallback_kind = fallback.get("kind") if isinstance(fallback, dict) else None
-    entity_id = (request.GET.get(var_name) or "").strip()
-
-    if entity_id:
-        try:
-            node = _lookup_by_entity_id(entity_id)
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("[ros1] Compliance artifact lookup failed for %s", entity_id)
-            return ArtifactResolution(
-                entity_id=entity_id,
-                var_name=var_name,
-                node=None,
-                error=f"Artifact lookup failed: {exc}",
-            )
-        if node is not None:
-            return ArtifactResolution(entity_id=entity_id, var_name=var_name, node=node, error=None)
-        return ArtifactResolution(
-            entity_id=entity_id,
-            var_name=var_name,
-            node=None,
-            error=f"Compliance artifact not found for entity_id '{entity_id}'.",
-        )
-
-    if fallback_kind:
-        try:
-            node = _lookup_latest_by_kind(fallback_kind)
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("[ros2] Compliance artifact fallback lookup failed for kind=%s", fallback_kind)
-            return ArtifactResolution(
-                entity_id="",
-                var_name=var_name,
-                node=None,
-                error=f"Artifact fallback lookup failed: {exc}",
-                fallback_kind=fallback_kind,
-            )
-        if node is not None:
-            resolved_id = node.get("entity_id") or ""
-            return ArtifactResolution(
-                entity_id=resolved_id,
-                var_name=var_name,
-                node=node,
-                error=None,
-                used_fallback=True,
-                fallback_kind=fallback_kind,
-            )
-        return ArtifactResolution(
-            entity_id="",
-            var_name=var_name,
-            node=None,
-            error=f"No compliance_artifact of kind '{fallback_kind}' found on the grid yet. Run the collector at least once, then reload.",
-            fallback_kind=fallback_kind,
-        )
-
-    return ArtifactResolution(
-        entity_id="",
-        var_name=var_name,
-        node=None,
-        error=f"No artifact specified. Expected page variable '{var_name}' in the URL.",
-    )
 
 
 def build_provenance(node: dict[str, Any]) -> dict[str, Any]:
