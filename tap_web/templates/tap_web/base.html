@@ -8,7 +8,9 @@
     <link rel="icon" type="image/x-icon" href="{% static 'tap_web/favicon.ico' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/tailwind.css' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/panels.css' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/palette.css' %}">
     <script src="{% static 'tap_web/js/lib/htmx.min.js' %}" defer></script>
+    <script src="{% static 'tap_web/js/palette.js' %}" defer></script>
     {% block head_extras %}{% endblock %}
 </head>
 <body class="h-full flex flex-col">
@@ -24,12 +26,22 @@
                             <li aria-hidden="true" class="text-slate-500 select-none">›</li>
                         {% endif %}
                         <li>
-                            {% if seg.is_current %}
+                            {% if seg.is_home %}
+                                {# Per req-web-nav-auto-parent-4 the home segment is always the    #}
+                                {# product mark and always links to `/`, regardless of whether    #}
+                                {# a `Page` is registered at `/`. Only its current-vs-link state  #}
+                                {# varies based on whether it IS the current page (URL == `/`).   #}
+                                {% if seg.is_current %}
+                                    <span class="text-white font-bold" aria-current="page">{{ product_name }}</span>
+                                {% else %}
+                                    <a href="/" class="text-slate-300 hover:text-white transition-colors font-bold">{{ product_name }}</a>
+                                {% endif %}
+                            {% elif seg.is_current %}
                                 {# Current page — non-link, aria-current="page", slightly bolder #}
-                                <span class="text-white font-medium" aria-current="page">{% if seg.is_home %}{{ product_name }}{% else %}{{ seg.label }}{% endif %}</span>
+                                <span class="text-white font-medium" aria-current="page">{{ seg.label }}</span>
                             {% elif seg.is_registered %}
                                 {# Registered Page parent — clickable link in the dim color #}
-                                <a href="{{ seg.url }}" class="text-slate-300 hover:text-white transition-colors{% if seg.is_home %} font-bold{% endif %}">{% if seg.is_home %}{{ product_name }}{% else %}{{ seg.label }}{% endif %}</a>
+                                <a href="{{ seg.url }}" class="text-slate-300 hover:text-white transition-colors">{{ seg.label }}</a>
                             {% else %}
                                 {# Unregistered URL prefix — plain text, unclickable #}
                                 <span class="text-slate-400">{{ seg.label }}</span>
@@ -39,7 +51,18 @@
                 </ol>
                 <div class="flex items-center" style="gap: 0.75rem;">
                     {% if session_label %}<span class="text-xs font-mono text-amber-300" title="Multi-session dev label — see spec-dev-multisession.md">[ {{ session_label }} ]</span>{% endif %}
-                    {# Palette affordance (req-web-nav-command-palette-2) — Phase 4. #}
+                    {# Palette affordance (req-web-nav-command-palette-2). Cmd-K or click. #}
+                    <button type="button"
+                            data-tap-palette-affordance
+                            class="tap-palette-affordance"
+                            title="Search pages (⌘K)"
+                            aria-label="Open command palette">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="11" cy="11" r="7"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <span class="tap-palette-affordance-kbd">⌘K</span>
+                    </button>
                     {# Mini-graph slot (req-web-nav-mini-graph) — reserved, backlog. #}
                 </div>
             </div>
