@@ -1105,15 +1105,15 @@
     },
     {
       "batch_entity": {
-        "entity_id": "019e66c8-2fdf-7e20-bd0c-ee30fd4bf068",
+        "entity_id": "019e6f15-9e5a-7011-b0d2-426679cefee0",
         "entity_type": "batch",
-        "name": "Samsite Compliance landing \u2014 add vdr-ingestion-health panel",
+        "name": "Samsite Compliance landing \u2014 vdr-ingestion-health panel (canonical entity-resolution)",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-landing",
-        "name": "Samsite Compliance landing \u2014 add vdr-ingestion-health panel",
-        "description": "Adds the samsite-vdr-ingestion-health panel instance + USES_PANEL edge hotlinked as 'vdr-health' on the /samsite/compliance page. Imported BEFORE the page-layout-bump batch so the page's row-1-vdr-health hotlink resolves at validate_hotlinks time."
+        "name": "Samsite Compliance landing \u2014 vdr-ingestion-health panel (canonical entity-resolution)",
+        "description": "Adds the samsite-vdr-ingestion-health panel instance + USES_PANEL edge hotlinked as 'vdr-health' on the /samsite/compliance page. Panel config follows the canonical tap_web.panels.entity_resolution contract (spec-web-panel-entity-resolution-v0): URL deep link via vdr_report_entity_id wins; fallback Gryphon query picks the latest vdr_report by emitted_at using envelope ORDER BY + LIMIT with defensive IS NOT NULL. Imported BEFORE the page-layout-bump batch so the page's row-1-vdr-health hotlink resolves at validate_hotlinks time."
       },
       "nodes": [
         {
@@ -1128,9 +1128,15 @@
           "node": {
             "slug": "samsite-vdr-ingestion-health",
             "name": "Samsite VDR Ingestion Health",
-            "description": "Consumer-side complement to the upstream VDR aggregator's kev_catalog_loaded + dependabot_alerts_loaded disclosure flags. Renders \u2713/\u2717 pills from the latest vdr_report.summary; if either flips false, the panel turns red and warns the user.",
+            "description": "Consumer-side complement to the upstream VDR aggregator's kev_catalog_loaded + dependabot_alerts_loaded disclosure flags. Renders check/cross pills from the latest vdr_report.summary; if either flips false, the panel turns red and warns the user. Resolves via tap_web.panels.entity_resolution: URL deep link via vdr_report_entity_id wins; otherwise the fallback Gryphon query picks the latest emission by emitted_at.",
             "view": "samsite/panels/vdr_ingestion_health.html",
-            "config": {}
+            "config": {
+              "entity_id_var": "vdr_report_entity_id",
+              "fallback": {
+                "query": "MATCH (r:vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 1",
+                "description": "Latest vdr_report by emitted_at \u2014 the most recent VDR aggregator emission on the grid."
+              }
+            }
           }
         }
       ],
