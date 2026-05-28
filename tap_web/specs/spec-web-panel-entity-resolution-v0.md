@@ -31,6 +31,7 @@ This spec governs **panel-side resolution**. Per-emission identity semantics for
 | req-web-panel-entity-resolution-result-shape | [EntityResolution Dataclass](#entityresolution-dataclass) | Proposed | Fields: `entity_id`, `var_name`, `node`, `error`, `used_fallback`, `fallback_description`, `fallback_count`, `ok` (derived) |
 | req-web-panel-entity-resolution-template | [Template Surface Conventions](#template-surface-conventions) | Proposed | `used_fallback` and `fallback_description` propagate to context; banner shows description when fallback fired |
 | req-web-panel-entity-resolution-errors | [Polished Error States](#polished-error-states) | Proposed | Distinct messages per failure phase; entity_id, var_name, and fallback_description echoed as relevant |
+| req-web-panel-entity-resolution-empty-state | [Empty-State Distinction](#empty-state-distinction) | Proposed | Single-entity panels SHOULD render `fallback_count == 0` as an informational empty state, not a red error block |
 | req-web-panel-entity-resolution-multi | [Multi-Entity Panels](#multi-entity-panels) | Proposed | Per-role resolution + per-role fallback sub-block when a panel needs more than one entity |
 | req-web-panel-entity-resolution-tests | [Test Coverage Requirements](#test-coverage-requirements) | Proposed | Each consumer mocks the helpers and exercises URL-wins / fallback-fires / no-URL-no-fallback / fallback-empty / fallback-ambiguous paths |
 
@@ -232,6 +233,36 @@ Templates SHOULD show the error phase as a small `[load]` tag adjacent to the er
 | req-web-panel-entity-resolution-errors-2 | Echo The Inputs | Proposed | The error string includes the entity_id, var_name, or fallback_description that was attempted, so users can fix the URL or config. | |
 | req-web-panel-entity-resolution-errors-3 | Short-Id Logging | Proposed | Transient (exception) failures log with a stable short-id so they're greppable in container logs. | |
 
+### Empty-State Distinction
+----
+RID: `req-web-panel-entity-resolution-empty-state`
+Status: `Proposed`
+
+The resolver returns a polished error for three structurally different cases — empty grid (`fallback_count == 0`), ambiguous fallback (`fallback_count >= 2`), and broken/missing inputs (`fallback_count is None` — URL miss, no var configured, or transient Gryphon exception). The `EntityResolution` dataclass exposes `fallback_count` precisely so consumer panels can tell these apart and render them differently.
+
+Single-entity panels SHOULD render the empty case as **informational**, not as an error, because an empty grid on a freshly-stood-up environment is an expected starting condition — not a failure. The other two cases stay as error renderings: ambiguity is a config bug the author needs to fix; broken inputs are something genuinely wrong.
+
+A reasonable mapping:
+
+| `resolution.error is not None` AND … | UI tone |
+| --- | --- |
+| `fallback_count == 0` | Informational empty state — gray/blue panel, an icon like `📭`, a guidance message that names how to populate the source (e.g., "Run the samsite collector to land the first OSCAL SSP"). The resolver's default `error` text can be displayed verbatim or overridden by panel-specific guidance. |
+| `fallback_count >= 2` | Error panel — red, "Refine the fallback query in panel config" guidance. This is a config bug; surface it loudly. |
+| `fallback_count is None` (URL miss / no fallback configured / transient exception) | Error panel — red. The phase distinction is already in `resolution.error`. |
+
+Panels MAY override the resolver's default empty-state message with panel-specific actionable guidance (e.g., "No OSCAL SSP on the grid yet — once the samsite collector runs nightly, the latest SSP will appear here"). The resolver's `fallback_description` remains visible so the user still sees what was searched for.
+
+For multi-entity panels, the empty-state distinction interacts with [Required vs Degraded](#multi-entity-panels): a `degraded` role with `fallback_count == 0` likely renders as an informational note inline with the rest of the panel; a `required` role with `fallback_count == 0` blocks the panel rendering entirely and surfaces as the panel-level empty state.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-panel-entity-resolution-empty-state-1 | fallback_count Distinguishes Cases | Proposed | Panels checking `resolution.error` MUST also inspect `resolution.fallback_count` before deciding whether to render error vs informational empty state. | |
+| req-web-panel-entity-resolution-empty-state-2 | Empty Is Informational | Proposed | `fallback_count == 0` renders in an informational tone, not red/error styling. | The resolver's default message is acceptable; panel-specific actionable guidance is encouraged. |
+| req-web-panel-entity-resolution-empty-state-3 | Ambiguous Stays Error | Proposed | `fallback_count >= 2` renders as an error — it's a config bug, not an expected state. | |
+| req-web-panel-entity-resolution-empty-state-4 | fallback_description Preserved | Proposed | Even when the panel overrides the resolver's message, `fallback_description` MUST remain visible so users know what the panel was looking for. | |
+
 ### Multi-Entity Panels
 ----
 RID: `req-web-panel-entity-resolution-multi`
@@ -279,5 +310,6 @@ Tests mock the two lookup helpers (`_lookup_by_entity_id`, `_run_fallback_query`
 Not in v0 scope but worth naming as future seams:
 
 - **Fallback query config-time validation.** Today the helper only discovers a malformed Gryphon query at request time. A registration-time check (parse the query when the panel registers; surface parse errors at boot) catches typos and field-name drift earlier. Worth adding once Gryphon's parser exposes a "parse-only" surface.
+- **Multi-step / chained fallback (A → B → C).** v0 supports exactly one fallback query. A panel wanting "try the latest SSP from this collector; if that's empty fall back to a generic placeholder; if THAT's empty render a setup-guidance state" needs three queries chained with priority. The contract would be a `fallback` *list* instead of a single block, evaluated top-to-bottom until one returns ≥1 row. Not on the critical path — once Gryphon adds `UNION` (wishlist F2), panel authors can express priority-cascading in a single query; that's the cheaper unlock to wait for. Promote this seam if a real consumer hits the "I need different fallbacks per condition" shape that `UNION` can't express.
 - **Edit-mode resolution.** The current resolution is read-only. If a panel ever needs to *write* to the resolved entity, the helper grows a `for_edit=True` mode that locks or branches per the data model's edit semantics. Out of scope.
 - **History timeline panel.** A panel that resolves *N* versions rather than just the latest, for drift / regression visualization. Expressed as a fallback query without `LIMIT 1` — e.g., `ORDER BY n.data.fetched_at DESC LIMIT 50` — but the consumer panel needs a list-shaped result, not a single node. Either a new `_lookup_all_by_query` helper or panel-side iteration over `_run_fallback_query`'s `nodes`. Worth doing once a real use case appears.
