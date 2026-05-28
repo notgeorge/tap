@@ -26,11 +26,17 @@ logger = logging.getLogger(__name__)
 
 
 def landing_view(request: HttpRequest) -> HttpResponse:
-    """Serve the root URL via LandingPage indirection."""
+    """Serve the root URL by redirecting to the configured LandingPage's slug.
+
+    Redirect (not in-place render) so there is exactly one canonical URL per
+    conceptual page. Otherwise `/` and the target slug both serve the same
+    content with different breadcrumbs ("TAP" vs "TAP > <Name>"), since the
+    breadcrumb builder keys off the request path, not the rendered Page.
+    """
     page = get_landing_page()
     if page is None:
         return _render_grid_placeholder(request)
-    return _render_page(request, page)
+    return redirect(page.slug)
 
 
 def page_view(request: HttpRequest, page_slug: str) -> HttpResponse:
