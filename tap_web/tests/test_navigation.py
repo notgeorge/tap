@@ -121,6 +121,37 @@ class TestBreadcrumbRendering:
         assert "tap_web/js/palette.js" in body
         assert "tap_web/css/palette.css" in body
 
+    def test_chrome_loads_breadcrumb_assets(self):
+        """Breadcrumb interaction JS + CSS are linked (Phases 6 + 7)."""
+        body = Client().get("/").content.decode()
+        assert "tap_web/js/breadcrumb.js" in body
+        assert "tap_web/css/breadcrumb.css" in body
+
+    def test_chevrons_are_interactive_buttons(self):
+        """req-web-nav-segment-interactions-2: separator chevrons are buttons
+        with `data-tap-chevron` + `data-tap-sibling-url`, ready for the JS
+        click handler to open the sibling popover.
+        """
+        _create_page("Samsite", "/samsite")
+        _create_page("Samsite Compliance", "/samsite/compliance")
+        body = Client().get("/samsite/compliance").content.decode()
+        assert "data-tap-chevron" in body
+        # The chevron preceding "samsite" targets /samsite for sibling lookup.
+        assert 'data-tap-sibling-url="/samsite"' in body
+        # The chevron preceding "Samsite Compliance" targets /samsite/compliance.
+        assert 'data-tap-sibling-url="/samsite/compliance"' in body
+
+    def test_segments_carry_url_for_alt_click_column_view(self):
+        """req-web-nav-segment-interactions-3: every segment carries
+        `data-tap-segment-url` so the alt-click handler can open column view.
+        """
+        _create_page("Samsite", "/samsite")
+        _create_page("Samsite Compliance", "/samsite/compliance")
+        body = Client().get("/samsite/compliance").content.decode()
+        assert 'data-tap-segment-url="/"' in body
+        assert 'data-tap-segment-url="/samsite"' in body
+        assert 'data-tap-segment-url="/samsite/compliance"' in body
+
     def test_tap_renders_at_home_even_without_root_page(self):
         """req-web-nav-auto-parent-4 in template form: TAP renders + links to /
         on every deep page, even when no Page is registered at slug `/`.

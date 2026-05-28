@@ -9,8 +9,10 @@
     <link rel="stylesheet" href="{% static 'tap_web/css/tailwind.css' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/panels.css' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/palette.css' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/breadcrumb.css' %}">
     <script src="{% static 'tap_web/js/lib/htmx.min.js' %}" defer></script>
     <script src="{% static 'tap_web/js/palette.js' %}" defer></script>
+    <script src="{% static 'tap_web/js/breadcrumb.js' %}" defer></script>
     {% block head_extras %}{% endblock %}
 </head>
 <body class="h-full flex flex-col">
@@ -23,7 +25,14 @@
                 <ol class="flex items-center text-sm" style="gap: 0.5rem;">
                     {% for seg in breadcrumb %}
                         {% if not forloop.first %}
-                            <li aria-hidden="true" class="text-slate-500 select-none">›</li>
+                            {# Separator chevron is interactive: click → sibling popover for `seg`. #}
+                            <li>
+                                <button type="button"
+                                        class="tap-bc-chevron"
+                                        data-tap-chevron
+                                        data-tap-sibling-url="{{ seg.url }}"
+                                        aria-label="Show pages at {% if seg.is_home %}{{ product_name }}{% else %}{{ seg.label }}{% endif %} level">›</button>
+                            </li>
                         {% endif %}
                         <li>
                             {% if seg.is_home %}
@@ -32,19 +41,19 @@
                                 {# a `Page` is registered at `/`. Only its current-vs-link state  #}
                                 {# varies based on whether it IS the current page (URL == `/`).   #}
                                 {% if seg.is_current %}
-                                    <span class="text-white font-bold" aria-current="page">{{ product_name }}</span>
+                                    <span class="text-white font-bold" aria-current="page" data-tap-segment-url="/">{{ product_name }}</span>
                                 {% else %}
-                                    <a href="/" class="text-slate-300 hover:text-white transition-colors font-bold">{{ product_name }}</a>
+                                    <a href="/" class="text-slate-300 hover:text-white transition-colors font-bold" data-tap-segment-url="/">{{ product_name }}</a>
                                 {% endif %}
                             {% elif seg.is_current %}
                                 {# Current page — non-link, aria-current="page", slightly bolder #}
-                                <span class="text-white font-medium" aria-current="page">{{ seg.label }}</span>
+                                <span class="text-white font-medium" aria-current="page" data-tap-segment-url="{{ seg.url }}">{{ seg.label }}</span>
                             {% elif seg.is_registered %}
                                 {# Registered Page parent — clickable link in the dim color #}
-                                <a href="{{ seg.url }}" class="text-slate-300 hover:text-white transition-colors">{{ seg.label }}</a>
+                                <a href="{{ seg.url }}" class="text-slate-300 hover:text-white transition-colors" data-tap-segment-url="{{ seg.url }}">{{ seg.label }}</a>
                             {% else %}
                                 {# Unregistered URL prefix — plain text, unclickable #}
-                                <span class="text-slate-400">{{ seg.label }}</span>
+                                <span class="text-slate-400" data-tap-segment-url="{{ seg.url }}">{{ seg.label }}</span>
                             {% endif %}
                         </li>
                     {% endfor %}

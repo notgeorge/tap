@@ -52,10 +52,9 @@
   function rankPages(query) {
     if (!navIndex) return [];
     if (!query) {
-      // Empty query — show every page, alphabetically by URL.
-      return navIndex.pages
-        .slice()
-        .sort((a, b) => a.url.localeCompare(b.url));
+      // Empty query — return the tree form. Each entry carries a `_depth`
+      // marker the renderer uses to indent under the parent.
+      return treePages();
     }
     const q = query.toLowerCase();
     const scored = navIndex.pages
@@ -63,6 +62,35 @@
       .filter((entry) => entry.score > 0)
       .sort((a, b) => b.score - a.score);
     return scored.slice(0, 10).map((entry) => entry.page);
+  }
+
+  /** Empty-query mode: list every page in document-order, nested under its parent.
+   *
+   *  Each page's parent is its breadcrumb's second-to-last segment URL.
+   *  Children are rendered immediately after their parent and indented by
+   *  their depth. The renderer uses the `_depth` marker to decide indent.
+   */
+  function treePages() {
+    if (!navIndex) return [];
+    const byParent = new Map();
+    navIndex.pages.forEach((p) => {
+      if (p.breadcrumb.length < 2) return; // skip a page registered at "/"
+      const parent = p.breadcrumb[p.breadcrumb.length - 2].url;
+      if (!byParent.has(parent)) byParent.set(parent, []);
+      byParent.get(parent).push(p);
+    });
+    const out = [];
+    const walk = (parentUrl, depth) => {
+      const children = (byParent.get(parentUrl) || [])
+        .slice()
+        .sort((a, b) => a.url.localeCompare(b.url));
+      children.forEach((c) => {
+        out.push({ ...c, _depth: depth });
+        walk(c.url, depth + 1);
+      });
+    };
+    walk("/", 0);
+    return out;
   }
 
   // -------------------------------------------------------------------------
@@ -127,6 +155,12 @@
       li.className = "tap-palette-result" + (i === 0 ? " is-selected" : "");
       li.setAttribute("role", "option");
       li.setAttribute("data-url", page.url);
+      // Tree-mode indent: empty-query results carry `_depth` so the renderer
+      // can offset them under their parent. Typed-query results don't carry
+      // depth — they render flat.
+      if (typeof page._depth === "number") {
+        li.style.paddingLeft = `${0.5 + page._depth * 1.25}rem`;
+      }
 
       const name = document.createElement("span");
       name.className = "tap-palette-result-name";
