@@ -25,20 +25,20 @@ This spec governs **panel-side resolution**. Per-emission identity semantics for
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-web-panel-entity-resolution-config | [Panel Config Contract](#panel-config-contract) | Proposed | `entity_id_var` + optional `fallback.{query, description}`; multi-entity panels use `<role>_entity_id_var` + `fallback.<role>.{query, description}` |
-| req-web-panel-entity-resolution-order | [Resolution Order](#resolution-order) | Proposed | URL deep link wins; fallback Gryphon query runs only when URL var is empty |
-| req-web-panel-entity-resolution-helper | [Shared Helper Module](#shared-helper-module) | Proposed | `tap_web.panels.entity_resolution` — `_lookup_by_entity_id`, `_run_fallback_query`, `EntityResolution`, `resolve_entity` |
-| req-web-panel-entity-resolution-result-shape | [EntityResolution Dataclass](#entityresolution-dataclass) | Proposed | Fields: `entity_id`, `var_name`, `node`, `error`, `used_fallback`, `fallback_description`, `fallback_count`, `ok` (derived) |
-| req-web-panel-entity-resolution-template | [Template Surface Conventions](#template-surface-conventions) | Proposed | `used_fallback` and `fallback_description` propagate to context; banner shows description when fallback fired |
-| req-web-panel-entity-resolution-errors | [Polished Error States](#polished-error-states) | Proposed | Distinct messages per failure phase; entity_id, var_name, and fallback_description echoed as relevant |
-| req-web-panel-entity-resolution-empty-state | [Empty-State Distinction](#empty-state-distinction) | Proposed | Single-entity panels SHOULD render `fallback_count == 0` as an informational empty state, not a red error block |
-| req-web-panel-entity-resolution-multi | [Multi-Entity Panels](#multi-entity-panels) | Proposed | Per-role resolution + per-role fallback sub-block when a panel needs more than one entity |
-| req-web-panel-entity-resolution-tests | [Test Coverage Requirements](#test-coverage-requirements) | Proposed | Each consumer mocks the helpers and exercises URL-wins / fallback-fires / no-URL-no-fallback / fallback-empty / fallback-ambiguous paths |
+| req-web-panel-entity-resolution-config | [Panel Config Contract](#panel-config-contract) | Implemented | `entity_id_var` + optional `fallback.{query, description}`; multi-entity panels use `<role>_entity_id_var` + `fallback.<role>.{query, description}` |
+| req-web-panel-entity-resolution-order | [Resolution Order](#resolution-order) | Implemented | URL deep link wins; fallback Gryphon query runs only when URL var is empty |
+| req-web-panel-entity-resolution-helper | [Shared Helper Module](#shared-helper-module) | Implemented | `tap_web.panels.entity_resolution` — `_lookup_by_entity_id`, `_run_fallback_query`, `EntityResolution`, `resolve_entity` |
+| req-web-panel-entity-resolution-result-shape | [EntityResolution Dataclass](#entityresolution-dataclass) | Implemented | Fields: `entity_id`, `var_name`, `node`, `error`, `used_fallback`, `fallback_description`, `fallback_count`, `ok` (derived) |
+| req-web-panel-entity-resolution-template | [Template Surface Conventions](#template-surface-conventions) | Implemented | `used_fallback` and `fallback_description` propagate to context; banner shows description when fallback fired |
+| req-web-panel-entity-resolution-errors | [Polished Error States](#polished-error-states) | Implemented | Distinct messages per failure phase; entity_id, var_name, and fallback_description echoed as relevant |
+| req-web-panel-entity-resolution-empty-state | [Empty-State Distinction](#empty-state-distinction) | Implemented | Single-entity panels SHOULD render `fallback_count == 0` as an informational empty state, not a red error block |
+| req-web-panel-entity-resolution-multi | [Multi-Entity Panels](#multi-entity-panels) | Implemented | Per-role resolution + per-role fallback sub-block when a panel needs more than one entity |
+| req-web-panel-entity-resolution-tests | [Test Coverage Requirements](#test-coverage-requirements) | Implemented | Each consumer mocks the helpers and exercises URL-wins / fallback-fires / no-URL-no-fallback / fallback-empty / fallback-ambiguous paths |
 
 ### Panel Config Contract
 ----
 RID: `req-web-panel-entity-resolution-config`
-Status: `Proposed`
+Status: `Implemented`
 
 A single-entity panel declares two config fields:
 
@@ -98,15 +98,15 @@ Both `query` and `description` are required when a `fallback` block is present �
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-entity-resolution-config-1 | URL Var Name In Config | Proposed | The panel reads `panel.config["entity_id_var"]` for single-entity panels, or `panel.config["<role>_entity_id_var"]` for multi-entity panels, and uses that string as the key into `request.GET`. | |
-| req-web-panel-entity-resolution-config-2 | Fallback Optional | Proposed | A panel config without a `fallback` block is valid; the resolver returns its "no entity specified" error if the URL var is empty. | |
-| req-web-panel-entity-resolution-config-3 | Fallback Fields Required | Proposed | When `fallback` is present, both `query` (Gryphon string) and `description` (human-readable rationale) MUST be set. A partially-specified fallback is a config error. | |
-| req-web-panel-entity-resolution-config-4 | Author Owns Query Semantics | Proposed | The query's `LIMIT` and `ORDER BY` shape determine resolution semantics; the helper does not modify, wrap, or interpret the query. A `LIMIT 1` query returns 0 or 1 rows; a `LIMIT 2` query returns 0, 1, or 2 rows; the helper treats counts the same way regardless of how the LIMIT was set. | |
+| req-web-panel-entity-resolution-config-1 | URL Var Name In Config | Implemented | The panel reads `panel.config["entity_id_var"]` for single-entity panels, or `panel.config["<role>_entity_id_var"]` for multi-entity panels, and uses that string as the key into `request.GET`. | |
+| req-web-panel-entity-resolution-config-2 | Fallback Optional | Implemented | A panel config without a `fallback` block is valid; the resolver returns its "no entity specified" error if the URL var is empty. | |
+| req-web-panel-entity-resolution-config-3 | Fallback Fields Required | Implemented | When `fallback` is present, both `query` (Gryphon string) and `description` (human-readable rationale) MUST be set. A partially-specified fallback is a config error. | |
+| req-web-panel-entity-resolution-config-4 | Author Owns Query Semantics | Implemented | The query's `LIMIT` and `ORDER BY` shape determine resolution semantics; the helper does not modify, wrap, or interpret the query. A `LIMIT 1` query returns 0 or 1 rows; a `LIMIT 2` query returns 0, 1, or 2 rows; the helper treats counts the same way regardless of how the LIMIT was set. | |
 
 ### Resolution Order
 ----
 RID: `req-web-panel-entity-resolution-order`
-Status: `Proposed`
+Status: `Implemented`
 
 Per role / per entity:
 
@@ -120,14 +120,14 @@ Explicit URL deep link MUST win even when fallback is configured. This is the bo
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-entity-resolution-order-1 | URL Wins | Proposed | When both URL var has a value AND `fallback` is configured, the resolver uses the URL value and never runs the fallback query. | |
-| req-web-panel-entity-resolution-order-2 | Fallback Marks Itself | Proposed | When the fallback query fires, the result's `used_fallback` is True and `fallback_description` is populated from config. | |
-| req-web-panel-entity-resolution-order-3 | Explicit URL Miss Is Distinct | Proposed | URL var supplied but entity_id not on the grid produces a different error message than "no entity specified." | |
+| req-web-panel-entity-resolution-order-1 | URL Wins | Implemented | When both URL var has a value AND `fallback` is configured, the resolver uses the URL value and never runs the fallback query. | |
+| req-web-panel-entity-resolution-order-2 | Fallback Marks Itself | Implemented | When the fallback query fires, the result's `used_fallback` is True and `fallback_description` is populated from config. | |
+| req-web-panel-entity-resolution-order-3 | Explicit URL Miss Is Distinct | Implemented | URL var supplied but entity_id not on the grid produces a different error message than "no entity specified." | |
 
 ### Shared Helper Module
 ----
 RID: `req-web-panel-entity-resolution-helper`
-Status: `Proposed`
+Status: `Implemented`
 
 The canonical helpers live at **`tap_web/panels/entity_resolution.py`** and consist of:
 
@@ -142,15 +142,15 @@ No consumer plugin re-implements these helpers. Consumer plugins migrate any loc
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-entity-resolution-helper-1 | Canonical Module | Proposed | The helpers live at `tap_web/panels/entity_resolution.py`; no consumer plugin re-implements them. | |
-| req-web-panel-entity-resolution-helper-2 | Helper Is Narrow | Proposed | The helper executes Gryphon queries; it does not construct them from disassembled config fields, parse them, or wrap them. The panel author owns the query and its semantics. | |
-| req-web-panel-entity-resolution-helper-3 | Stable Return Shape | Proposed | `_lookup_by_entity_id` returns an envelope node dict or `None`; `_run_fallback_query` returns `(nodes, count)`; neither raises on "not found." Transient Gryphon errors raise. | |
-| req-web-panel-entity-resolution-helper-4 | Orchestrator Path Dispatch | Proposed | `resolve_entity` reads the URL var first and runs the configured fallback query only when the URL var is empty. The orchestrator signature does not change as new fallback shapes appear — because the fallback shape IS a Gryphon query, Gryphon's evolution covers it. | |
+| req-web-panel-entity-resolution-helper-1 | Canonical Module | Implemented | The helpers live at `tap_web/panels/entity_resolution.py`; no consumer plugin re-implements them. | |
+| req-web-panel-entity-resolution-helper-2 | Helper Is Narrow | Implemented | The helper executes Gryphon queries; it does not construct them from disassembled config fields, parse them, or wrap them. The panel author owns the query and its semantics. | |
+| req-web-panel-entity-resolution-helper-3 | Stable Return Shape | Implemented | `_lookup_by_entity_id` returns an envelope node dict or `None`; `_run_fallback_query` returns `(nodes, count)`; neither raises on "not found." Transient Gryphon errors raise. | |
+| req-web-panel-entity-resolution-helper-4 | Orchestrator Path Dispatch | Implemented | `resolve_entity` reads the URL var first and runs the configured fallback query only when the URL var is empty. The orchestrator signature does not change as new fallback shapes appear — because the fallback shape IS a Gryphon query, Gryphon's evolution covers it. | |
 
 ### EntityResolution Dataclass
 ----
 RID: `req-web-panel-entity-resolution-result-shape`
-Status: `Proposed`
+Status: `Implemented`
 
 The result shape:
 
@@ -176,13 +176,13 @@ The dataclass MUST NOT grow consumer-specific fields. Consumer-specific derived 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-entity-resolution-result-shape-1 | Stable Fields | Proposed | The seven fields + `ok` property listed above are the entire public surface; new fields require this spec to bump. | |
-| req-web-panel-entity-resolution-result-shape-2 | No Consumer Coupling | Proposed | The dataclass does not carry consumer-specific derived state. Consumers derive that downstream from `node`. | |
+| req-web-panel-entity-resolution-result-shape-1 | Stable Fields | Implemented | The seven fields + `ok` property listed above are the entire public surface; new fields require this spec to bump. | |
+| req-web-panel-entity-resolution-result-shape-2 | No Consumer Coupling | Implemented | The dataclass does not carry consumer-specific derived state. Consumers derive that downstream from `node`. | |
 
 ### Template Surface Conventions
 ----
 RID: `req-web-panel-entity-resolution-template`
-Status: `Proposed`
+Status: `Implemented`
 
 Consumer panels MUST propagate at minimum these fields from their `EntityResolution` to template context:
 
@@ -204,14 +204,14 @@ Multi-entity panels render one banner row per role that fell back, or a combined
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-entity-resolution-template-1 | used_fallback Propagated | Proposed | The bool reaches the template context unchanged. | |
-| req-web-panel-entity-resolution-template-2 | Banner When True | Proposed | The template includes a visible banner with the fallback `description` when `used_fallback` is True. | |
-| req-web-panel-entity-resolution-template-3 | Banner Identifies Override Path | Proposed | The banner tells the user which URL var to use to deep-link to a specific entity. | |
+| req-web-panel-entity-resolution-template-1 | used_fallback Propagated | Implemented | The bool reaches the template context unchanged. | |
+| req-web-panel-entity-resolution-template-2 | Banner When True | Implemented | The template includes a visible banner with the fallback `description` when `used_fallback` is True. | |
+| req-web-panel-entity-resolution-template-3 | Banner Identifies Override Path | Implemented | The banner tells the user which URL var to use to deep-link to a specific entity. | |
 
 ### Polished Error States
 ----
 RID: `req-web-panel-entity-resolution-errors`
-Status: `Proposed`
+Status: `Implemented`
 
 Five failure phases, each with a distinct `error` message on the `EntityResolution`:
 
@@ -229,14 +229,14 @@ Templates SHOULD show the error phase as a small `[load]` tag adjacent to the er
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-entity-resolution-errors-1 | Distinct Per Phase | Proposed | Each failure phase produces a distinguishable error string; templates can pattern-match. | |
-| req-web-panel-entity-resolution-errors-2 | Echo The Inputs | Proposed | The error string includes the entity_id, var_name, or fallback_description that was attempted, so users can fix the URL or config. | |
-| req-web-panel-entity-resolution-errors-3 | Short-Id Logging | Proposed | Transient (exception) failures log with a stable short-id so they're greppable in container logs. | |
+| req-web-panel-entity-resolution-errors-1 | Distinct Per Phase | Implemented | Each failure phase produces a distinguishable error string; templates can pattern-match. | |
+| req-web-panel-entity-resolution-errors-2 | Echo The Inputs | Implemented | The error string includes the entity_id, var_name, or fallback_description that was attempted, so users can fix the URL or config. | |
+| req-web-panel-entity-resolution-errors-3 | Short-Id Logging | Implemented | Transient (exception) failures log with a stable short-id so they're greppable in container logs. | |
 
 ### Empty-State Distinction
 ----
 RID: `req-web-panel-entity-resolution-empty-state`
-Status: `Proposed`
+Status: `Implemented`
 
 The resolver returns a polished error for three structurally different cases — empty grid (`fallback_count == 0`), ambiguous fallback (`fallback_count >= 2`), and broken/missing inputs (`fallback_count is None` — URL miss, no var configured, or transient Gryphon exception). The `EntityResolution` dataclass exposes `fallback_count` precisely so consumer panels can tell these apart and render them differently.
 
@@ -266,7 +266,7 @@ For multi-entity panels, the empty-state distinction interacts with [Required vs
 ### Multi-Entity Panels
 ----
 RID: `req-web-panel-entity-resolution-multi`
-Status: `Proposed`
+Status: `Implemented`
 
 Some panels need more than one entity to render (e.g., the FedRAMP 20x KSI scoreboard joins the latest SSP and the latest POA&M). For these:
 
@@ -279,14 +279,14 @@ Some panels need more than one entity to render (e.g., the FedRAMP 20x KSI score
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-entity-resolution-multi-1 | Per-Role Config | Proposed | The config carries one `<role>_entity_id_var` per role plus a `fallback` block with per-role sub-blocks each holding `query` + `description`. | |
-| req-web-panel-entity-resolution-multi-2 | Independent Resolution | Proposed | Each role is resolved through `resolve_entity` separately; one role's failure does not short-circuit the other. | |
-| req-web-panel-entity-resolution-multi-3 | Required vs Degraded | Proposed | The panel declares per-role whether absence is a hard fail or a degraded render; both modes are valid. | |
+| req-web-panel-entity-resolution-multi-1 | Per-Role Config | Implemented | The config carries one `<role>_entity_id_var` per role plus a `fallback` block with per-role sub-blocks each holding `query` + `description`. | |
+| req-web-panel-entity-resolution-multi-2 | Independent Resolution | Implemented | Each role is resolved through `resolve_entity` separately; one role's failure does not short-circuit the other. | |
+| req-web-panel-entity-resolution-multi-3 | Required vs Degraded | Implemented | The panel declares per-role whether absence is a hard fail or a degraded render; both modes are valid. | |
 
 ### Test Coverage Requirements
 ----
 RID: `req-web-panel-entity-resolution-tests`
-Status: `Proposed`
+Status: `Implemented`
 
 Each consumer panel MUST have unit tests (no Django/DB setup required) covering:
 
@@ -302,8 +302,8 @@ Tests mock the two lookup helpers (`_lookup_by_entity_id`, `_run_fallback_query`
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-panel-entity-resolution-tests-1 | Per-Consumer Coverage | Proposed | Each consumer panel has the resolution-path tests listed above (skipping fallback-ambiguous for panels whose fallback query uses `LIMIT 1`). | |
-| req-web-panel-entity-resolution-tests-2 | Query-Shape Tests In Helper Home | Proposed | Helper-home tests at `tap_web/tests/test_panel_entity_resolution.py` verify the two lookup helpers issue the right Gryphon shapes (labelless `MATCH (n) WHERE n.entity_id = $eid` for the deep-link; panel-supplied query verbatim for the fallback) and unpack envelope vs. `(nodes, count)` results correctly. The engine's actual sort and limit correctness is exercised by the Gryphon Gridkin suite, not by these tests. | |
+| req-web-panel-entity-resolution-tests-1 | Per-Consumer Coverage | Implemented | Each consumer panel has the resolution-path tests listed above (skipping fallback-ambiguous for panels whose fallback query uses `LIMIT 1`). | |
+| req-web-panel-entity-resolution-tests-2 | Query-Shape Tests In Helper Home | Implemented | Helper-home tests at `tap_web/tests/test_panel_entity_resolution.py` verify the two lookup helpers issue the right Gryphon shapes (labelless `MATCH (n) WHERE n.entity_id = $eid` for the deep-link; panel-supplied query verbatim for the fallback) and unpack envelope vs. `(nodes, count)` results correctly. The engine's actual sort and limit correctness is exercised by the Gryphon Gridkin suite, not by these tests. | |
 
 ## Future Work
 

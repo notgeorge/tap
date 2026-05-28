@@ -1,5 +1,7 @@
 {
-  "metadata": {"grift_version": "0"},
+  "metadata": {
+    "grift_version": "0"
+  },
   "_reserved": {},
   "batches": [
     {
@@ -12,7 +14,7 @@
       "batch_node": {
         "source": "plugins.samsite.grift.per-type-viewers",
         "name": "Samsite per-type viewer pages v0.1.0",
-        "description": "Path B per-type detail pages for the samsite compliance subgraph entity types. Each page is a parameterized_page_view at /samsite/<type>/<uuid>; the URL pattern (tap_web/urls.py) pins entity_type so the shared viewer_panel resolves the subject. v0 uses the universal viewer_panel for content — gives every per-type URL a working page today; per-type custom panels (hero cards, related entities, OSCAL structural rendering for compliance_artifact) follow."
+        "description": "Path B per-type detail pages for the samsite compliance subgraph entity types. Each page is a parameterized_page_view at /samsite/<type>/<uuid>; the URL pattern (tap_web/urls.py) pins entity_type so the shared viewer_panel resolves the subject. v0 uses the universal viewer_panel for content \u2014 gives every per-type URL a working page today; per-type custom panels (hero cards, related entities, OSCAL structural rendering for compliance_artifact) follow."
       },
       "nodes": [
         {
@@ -20,35 +22,44 @@
             "entity_id": "019e5530-e02c-734c-82e5-8f6317353c76",
             "entity_type": "panel",
             "name": "VDR Finding Viewer",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-finding-viewer",
             "name": "VDR Finding Viewer",
             "view": "tap_web/panels/viewer_panel.html",
-            "config": {"hide_header": true}
+            "config": {
+              "hide_header": true
+            }
           }
         },
         {
           "entity": {
             "entity_id": "019e5530-e02c-734c-82e5-8f642eeaae4e",
             "entity_type": "page",
-            "name": "Samsite — VDR Finding",
-            "dimensions": {"tap.graph": "web"}
+            "name": "Samsite \u2014 VDR Finding",
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
-            "name": "Samsite — VDR Finding",
+            "name": "Samsite \u2014 VDR Finding",
             "slug": "/samsite/finding",
             "layout": {
               "columns": {
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1-viewer": {"panel-id": "viewer"}
+                    "row-1-viewer": {
+                      "panel-id": "viewer"
+                    }
                   }
                 }
               }
-            }
+            },
+            "discoverable": false
           }
         },
         {
@@ -56,35 +67,44 @@
             "entity_id": "019e5530-e02c-734c-82e5-8f665a63b8a8",
             "entity_type": "panel",
             "name": "KSI Indicator Viewer",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-indicator-viewer",
             "name": "KSI Indicator Viewer",
             "view": "tap_web/panels/viewer_panel.html",
-            "config": {"hide_header": true}
+            "config": {
+              "hide_header": true
+            }
           }
         },
         {
           "entity": {
             "entity_id": "019e5530-e02c-734c-82e5-8f6785fb17b2",
             "entity_type": "page",
-            "name": "Samsite — KSI Indicator",
-            "dimensions": {"tap.graph": "web"}
+            "name": "Samsite \u2014 KSI Indicator",
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
-            "name": "Samsite — KSI Indicator",
+            "name": "Samsite \u2014 KSI Indicator",
             "slug": "/samsite/indicator",
             "layout": {
               "columns": {
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1-viewer": {"panel-id": "viewer"}
+                    "row-1-viewer": {
+                      "panel-id": "viewer"
+                    }
                   }
                 }
               }
-            }
+            },
+            "discoverable": false
           }
         },
         {
@@ -92,35 +112,44 @@
             "entity_id": "019e5530-e02c-734c-82e5-8f69aa8a4af9",
             "entity_type": "panel",
             "name": "KSI Component Viewer",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-component-viewer",
             "name": "KSI Component Viewer",
             "view": "tap_web/panels/viewer_panel.html",
-            "config": {"hide_header": true}
+            "config": {
+              "hide_header": true
+            }
           }
         },
         {
           "entity": {
             "entity_id": "019e5530-e02c-734c-82e5-8f6a10a30384",
             "entity_type": "page",
-            "name": "Samsite — KSI Component",
-            "dimensions": {"tap.graph": "web"}
+            "name": "Samsite \u2014 KSI Component",
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
-            "name": "Samsite — KSI Component",
+            "name": "Samsite \u2014 KSI Component",
             "slug": "/samsite/component",
             "layout": {
               "columns": {
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1-viewer": {"panel-id": "viewer"}
+                    "row-1-viewer": {
+                      "panel-id": "viewer"
+                    }
                   }
                 }
               }
-            }
+            },
+            "discoverable": false
           }
         },
         {
@@ -128,35 +157,44 @@
             "entity_id": "019e5530-e02c-734c-82e5-8f6cabef7a49",
             "entity_type": "panel",
             "name": "KSI Signal Viewer",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-signal-viewer",
             "name": "KSI Signal Viewer",
             "view": "tap_web/panels/viewer_panel.html",
-            "config": {"hide_header": true}
+            "config": {
+              "hide_header": true
+            }
           }
         },
         {
           "entity": {
             "entity_id": "019e5530-e02c-734c-82e5-8f6d31a56bac",
             "entity_type": "page",
-            "name": "Samsite — KSI Signal",
-            "dimensions": {"tap.graph": "web"}
+            "name": "Samsite \u2014 KSI Signal",
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
-            "name": "Samsite — KSI Signal",
+            "name": "Samsite \u2014 KSI Signal",
             "slug": "/samsite/signal",
             "layout": {
               "columns": {
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1-viewer": {"panel-id": "viewer"}
+                    "row-1-viewer": {
+                      "panel-id": "viewer"
+                    }
                   }
                 }
               }
-            }
+            },
+            "discoverable": false
           }
         },
         {
@@ -164,35 +202,44 @@
             "entity_id": "019e5530-e02c-734c-82e5-8f6f9d659170",
             "entity_type": "panel",
             "name": "Compliance Artifact Viewer",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "samsite-artifact-viewer",
             "name": "Compliance Artifact Viewer",
             "view": "tap_web/panels/viewer_panel.html",
-            "config": {"hide_header": true}
+            "config": {
+              "hide_header": true
+            }
           }
         },
         {
           "entity": {
             "entity_id": "019e5530-e02c-734c-82e5-8f70d1713a16",
             "entity_type": "page",
-            "name": "Samsite — Compliance Artifact",
-            "dimensions": {"tap.graph": "web"}
+            "name": "Samsite \u2014 Compliance Artifact",
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
-            "name": "Samsite — Compliance Artifact",
+            "name": "Samsite \u2014 Compliance Artifact",
             "slug": "/samsite/artifact",
             "layout": {
               "columns": {
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1-viewer": {"panel-id": "viewer"}
+                    "row-1-viewer": {
+                      "panel-id": "viewer"
+                    }
                   }
                 }
               }
-            }
+            },
+            "discoverable": false
           }
         }
       ],
@@ -208,7 +255,13 @@
             "from_entity_id": "019e5530-e02c-734c-82e5-8f642eeaae4e",
             "to_entity_id": "019e5530-e02c-734c-82e5-8f6317353c76",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "viewer"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "viewer"
+              }
+            }
           }
         },
         {
@@ -222,7 +275,13 @@
             "from_entity_id": "019e5530-e02c-734c-82e5-8f6785fb17b2",
             "to_entity_id": "019e5530-e02c-734c-82e5-8f665a63b8a8",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "viewer"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "viewer"
+              }
+            }
           }
         },
         {
@@ -236,7 +295,13 @@
             "from_entity_id": "019e5530-e02c-734c-82e5-8f6a10a30384",
             "to_entity_id": "019e5530-e02c-734c-82e5-8f69aa8a4af9",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "viewer"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "viewer"
+              }
+            }
           }
         },
         {
@@ -250,7 +315,13 @@
             "from_entity_id": "019e5530-e02c-734c-82e5-8f6d31a56bac",
             "to_entity_id": "019e5530-e02c-734c-82e5-8f6cabef7a49",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "viewer"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "viewer"
+              }
+            }
           }
         },
         {
@@ -264,7 +335,13 @@
             "from_entity_id": "019e5530-e02c-734c-82e5-8f70d1713a16",
             "to_entity_id": "019e5530-e02c-734c-82e5-8f6f9d659170",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "viewer"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "viewer"
+              }
+            }
           }
         }
       ]

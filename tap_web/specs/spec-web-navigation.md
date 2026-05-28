@@ -28,21 +28,22 @@ The chrome budget is fixed: product mark, breadcrumb, session tag, command-palet
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-web-nav-breadcrumb-header | [Breadcrumb Header](#breadcrumb-header) | Proposed | Header bar IS the breadcrumb of the current page's URL path |
-| req-web-nav-segment-interactions | [Segment Interactions](#segment-interactions) | Proposed | Single-click navigates; chevron-click shows immediate sibling popover; alt-click opens expanded column-view |
-| req-web-nav-auto-parent | [Auto-Derived Parent From URL](#auto-derived-parent-from-url) | Proposed | Each URL segment is a breadcrumb level; v0 has no explicit override |
-| req-web-nav-command-palette | [Command Palette Affordance](#command-palette-affordance) | Proposed | Cmd-K opens fuzzy palette; full spec in `spec-web-command-palette.md` |
+| req-web-nav-breadcrumb-header | [Breadcrumb Header](#breadcrumb-header) | Implemented | Header bar IS the breadcrumb of the current page's URL path |
+| req-web-nav-segment-interactions | [Segment Interactions](#segment-interactions) | Implemented | Single-click navigates; chevron-click shows immediate sibling popover; alt-click opens expanded column-view |
+| req-web-nav-auto-parent | [Auto-Derived Parent From URL](#auto-derived-parent-from-url) | Implemented | Each URL segment is a breadcrumb level; v0 has no explicit override |
+| req-web-nav-command-palette | [Command Palette Affordance](#command-palette-affordance) | In Development | Cmd-K + chrome affordance + Pages index landed; entity / recent-visits / migrated-chrome indexing still Proposed (ACIDs -3 + -4) |
 | req-web-nav-mini-graph | [Mini-Graph Affordance](#mini-graph-affordance) | Backlog | Reserved chrome slot held; mini-graph itself is backlog pending sibling `spec-viz-mini-map.md` |
-| req-web-nav-no-hamburger | [No Hamburger Menu](#no-hamburger-menu) | Proposed | Hard prohibition; defends the design against drift |
-| req-web-nav-chrome-budget | [Chrome Budget](#chrome-budget) | Proposed | Header contents enumerated and capped at five elements |
-| req-web-nav-index-endpoint | [Machine-Readable Nav Index](#machine-readable-nav-index) | Proposed | `/__nav-index.json` enumerates reachable pages + canonical breadcrumb paths |
+| req-web-nav-no-hamburger | [No Hamburger Menu](#no-hamburger-menu) | Implemented | Hard prohibition; defends the design against drift |
+| req-web-nav-chrome-budget | [Chrome Budget](#chrome-budget) | Implemented | Header contents enumerated and capped at five elements |
+| req-web-nav-index-endpoint | [Machine-Readable Nav Index](#machine-readable-nav-index) | Implemented | `/__nav-index.json` enumerates reachable pages + canonical breadcrumb paths |
+| req-web-nav-page-discoverable | [Page Discoverability Gate](#page-discoverability-gate) | Implemented | Pages requiring URL parameters opt out of all browse-discovery surfaces via a `discoverable=False` flag |
 
 ## Requirements
 
 ### Breadcrumb Header
 ----
 RID: `req-web-nav-breadcrumb-header`
-Status: `Proposed`
+Status: `Implemented`
 
 The header bar on every TAP page renders the current page's URL path as a clickable breadcrumb, with each path segment as a separate clickable level. The header bar *is* the breadcrumb — there is no separate breadcrumb line below or above the chrome.
 
@@ -69,10 +70,10 @@ The user's mental model is reinforced: each segment is a place, the path is a st
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-nav-breadcrumb-header-1 | Header Is Breadcrumb | Proposed | The header bar on every page renders the page's URL path as a breadcrumb; no separate breadcrumb line exists elsewhere. | |
-| req-web-nav-breadcrumb-header-2 | Each Segment Clickable | Proposed | Every breadcrumb segment links to its URL-prefix slice. | |
-| req-web-nav-breadcrumb-header-3 | Current Segment Active | Proposed | The last (current) segment uses an active visual style to communicate position. | |
-| req-web-nav-breadcrumb-header-4 | Middle-Collapse On Overflow | Proposed | When the breadcrumb exceeds the header width, the middle of the path collapses to an ellipsis that remains interactively reachable. | |
+| req-web-nav-breadcrumb-header-1 | Header Is Breadcrumb | Implemented | The header bar on every page renders the page's URL path as a breadcrumb; no separate breadcrumb line exists elsewhere. | `tap_web/templates/tap_web/base.html` chrome rewritten in Phase 2. |
+| req-web-nav-breadcrumb-header-2 | Each Segment Clickable | Implemented | Every breadcrumb segment links to its URL-prefix slice. | Parent segments render as `<a>`; current renders as a non-link `<span>` (per ACID-3). |
+| req-web-nav-breadcrumb-header-3 | Current Segment Active | Implemented | The last (current) segment uses an active visual style to communicate position. | `text-white font-medium aria-current="page"`. |
+| req-web-nav-breadcrumb-header-4 | Middle-Collapse On Overflow | Implemented | When the breadcrumb exceeds the header width, the middle of the path collapses to an ellipsis that remains interactively reachable. | `tap_web/static/tap_web/js/breadcrumb.js` `applyOverflowTruncation()` uses ResizeObserver to keep first 1 + last 2 segments; clicking the `…` reveals the hidden segments via the chevron-popover infrastructure. |
 
 #### Future
 
@@ -82,7 +83,7 @@ Multi-perspective breadcrumbs: a future revision may allow the breadcrumb path t
 ### Segment Interactions
 ----
 RID: `req-web-nav-segment-interactions`
-Status: `Proposed`
+Status: `Implemented`
 
 Each breadcrumb segment supports three distinct interactions, optimized for the three different navigation intents users have at any level: go there, see what else is at this level, see the whole tree.
 
@@ -102,10 +103,10 @@ Two interactions, two different scales of "what's nearby." The immediate popover
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-nav-segment-interactions-1 | Click Navigates | Proposed | Single-click on a segment's text navigates to that segment's URL. | |
-| req-web-nav-segment-interactions-2 | Chevron Opens Popover | Proposed | Single-click on the chevron next to a segment opens a sibling popover anchored under that segment. | |
-| req-web-nav-segment-interactions-3 | Alt-Click Opens Column View | Proposed | Alt/option-click on the segment or chevron opens an expanded column-view showing siblings at every breadcrumb level. | |
-| req-web-nav-segment-interactions-4 | Popover Click-Outside Dismisses | Proposed | Both the immediate popover and the column-view dismiss on click-outside. | |
+| req-web-nav-segment-interactions-1 | Click Navigates | Implemented | Single-click on a segment's text navigates to that segment's URL. | Default browser anchor behavior. |
+| req-web-nav-segment-interactions-2 | Chevron Opens Popover | Implemented | Single-click on the chevron next to a segment opens a sibling popover anchored under that segment. | `tap_web/static/tap_web/js/breadcrumb.js` `showSiblingPopover` — chevron is a `<button>` with `data-tap-chevron` + `data-tap-sibling-url`. |
+| req-web-nav-segment-interactions-3 | Alt-Click Opens Column View | Implemented | Alt/option-click on the segment or chevron opens an expanded column-view showing siblings at every breadcrumb level. | `showColumnView` — one column per breadcrumb depth, on-path entries highlighted. |
+| req-web-nav-segment-interactions-4 | Popover Click-Outside Dismisses | Implemented | Both the immediate popover and the column-view dismiss on click-outside. | Esc also dismisses. |
 
 #### Future
 
@@ -115,7 +116,7 @@ Right-click context menu (e.g., "open in new tab", "copy URL", "pin to favorites
 ### Auto-Derived Parent From URL
 ----
 RID: `req-web-nav-auto-parent`
-Status: `Proposed`
+Status: `Implemented`
 
 A page's breadcrumb parent is derived from its URL by removing the trailing path slice. No explicit page-to-parent edge is required in v0. The URL hierarchy is the canonical hierarchy.
 
@@ -137,10 +138,10 @@ If a real need for breadcrumb-different-than-URL emerges, the seam is `Page.pare
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-nav-auto-parent-1 | URL Drives Hierarchy | Proposed | A page's breadcrumb path is the slash-separated decomposition of its URL. | |
-| req-web-nav-auto-parent-2 | Registered Pages Are Clickable | Proposed | Breadcrumb segments whose URL prefix matches a registered Page link to that Page and use its name. | |
-| req-web-nav-auto-parent-3 | Unregistered Segments Render As Text | Proposed | Segments whose URL prefix has no registered Page render as unclickable plain text (raw slug, title-cased). | |
-| req-web-nav-auto-parent-4 | Home Is Stable | Proposed | The home segment `/` always renders as the product mark, always links to `/`, and never collapses under overflow truncation. | |
+| req-web-nav-auto-parent-1 | URL Drives Hierarchy | Implemented | A page's breadcrumb path is the slash-separated decomposition of its URL. | `tap_web/navigation.py` `build_breadcrumb()`. |
+| req-web-nav-auto-parent-2 | Registered Pages Are Clickable | Implemented | Breadcrumb segments whose URL prefix matches a registered Page link to that Page and use its name. | One batched Page query resolves all prefixes. |
+| req-web-nav-auto-parent-3 | Unregistered Segments Render As Text | Implemented | Segments whose URL prefix has no registered Page render as unclickable plain text (raw slug, title-cased). | Also applies to `discoverable=False` Pages — see `req-web-nav-page-discoverable-3`. |
+| req-web-nav-auto-parent-4 | Home Is Stable | Implemented | The home segment `/` always renders as the product mark, always links to `/`, and never collapses under overflow truncation. | Template short-circuits on `is_home` before checking registration; overflow truncation preserves the first segment unconditionally. |
 
 #### Future
 
@@ -150,7 +151,13 @@ If a real need for breadcrumb-different-than-URL emerges, the seam is `Page.pare
 ### Command Palette Affordance
 ----
 RID: `req-web-nav-command-palette`
-Status: `Proposed`
+Status: `In Development`
+
+#### Status Details
+
+MVP scope landed (Phase 4 + palette tree mode in Phase 6): Cmd-K binding, header affordance button, fuzzy-search input, tree-mode rendering of every registered Page on empty query, flat ranked list on typed query, click-or-Enter to navigate, click-outside/Esc to dismiss. Implementation in `tap_web/static/tap_web/js/palette.js` + `tap_web/static/tap_web/css/palette.css`.
+
+ACIDs -1 (Keyboard Summonable) and -2 (Header Affordance) are `Implemented`. ACIDs -3 (Indexes Pages And Entities) and -4 (Subsumes Migrated Chrome) stay `Proposed`: the palette currently indexes Pages only, not entities / recent visits / platform commands, and the three placeholder chrome icons (admin / history / layers) were removed in Phase 2 but not yet re-added as palette commands. Promoting -3 and -4 is the next palette work block.
 
 A keyboard-summonable command palette (Cmd-K on macOS, Ctrl-K elsewhere) is the platform-level reach-anywhere surface. Everything not reachable through the breadcrumb path is reachable through the palette. Detailed behavior of the palette itself lives in a sibling spec (`tap_web/specs/spec-web-command-palette.md`); this requirement enumerates only the palette's *contract with the navigation system*.
 
@@ -172,10 +179,10 @@ For AI consumers, the palette is the primary cross-context action surface: a tex
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-nav-command-palette-1 | Keyboard Summonable | Proposed | The palette opens via Cmd-K (macOS) or Ctrl-K (other platforms) from any TAP page. | |
-| req-web-nav-command-palette-2 | Header Affordance | Proposed | A visible header affordance opens the palette and communicates the keyboard shortcut. | |
-| req-web-nav-command-palette-3 | Indexes Pages And Entities | Proposed | The palette searches across registered Pages, TAP entities, recent visits, and platform commands. | |
-| req-web-nav-command-palette-4 | Subsumes Migrated Chrome | Proposed | The clock/history, layers/dimension, and user/account controls that today live in the header bar move into the palette. | |
+| req-web-nav-command-palette-1 | Keyboard Summonable | Implemented | The palette opens via Cmd-K (macOS) or Ctrl-K (other platforms) from any TAP page. | Vanilla keydown listener in `palette.js`. |
+| req-web-nav-command-palette-2 | Header Affordance | Implemented | A visible header affordance opens the palette and communicates the keyboard shortcut. | 🔍 + `⌘K` chip in the chrome (`tap-palette-affordance` class), `title="Search pages (⌘K)"`. |
+| req-web-nav-command-palette-3 | Indexes Pages And Entities | Proposed | The palette searches across registered Pages, TAP entities, recent visits, and platform commands. | Pages indexing landed; entities + recent + commands are next-iteration work. |
+| req-web-nav-command-palette-4 | Subsumes Migrated Chrome | Proposed | The clock/history, layers/dimension, and user/account controls that today live in the header bar move into the palette. | Migration paused: the three placeholder icons were deleted in Phase 2 without being re-added as palette commands. Requires the platform-commands surface that ACID-3's "commands" portion would bring. |
 
 #### Future
 
@@ -225,7 +232,7 @@ Mini-graph on non-entity pages (Pages, dashboards) — sibling-spec decides what
 ### No Hamburger Menu
 ----
 RID: `req-web-nav-no-hamburger`
-Status: `Proposed`
+Status: `Implemented`
 
 The TAP web platform has no hamburger menu, no overflow menu, no left-rail navigation drawer, and no equivalent collapse-everything-here surface. This is a hard prohibition; it exists to defend the design against the gravitational pull of "just add one more menu item somewhere."
 
@@ -246,9 +253,9 @@ Reviewers can cite `req-web-nav-no-hamburger` when rejecting PRs that try to add
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-nav-no-hamburger-1 | No Hamburger Icon | Proposed | No three-line / hamburger / overflow icon exists in any TAP chrome. | |
-| req-web-nav-no-hamburger-2 | No Menu Drawer | Proposed | No collapsible side-drawer that aggregates navigation items exists in any TAP chrome. | |
-| req-web-nav-no-hamburger-3 | Features Route To Palette | Proposed | New features that need broad reach are implemented as palette entries, not as new chrome elements. | |
+| req-web-nav-no-hamburger-1 | No Hamburger Icon | Implemented | No three-line / hamburger / overflow icon exists in any TAP chrome. | Verified by `tap_web/tests/test_navigation.py` chrome-affordance tests. |
+| req-web-nav-no-hamburger-2 | No Menu Drawer | Implemented | No collapsible side-drawer that aggregates navigation items exists in any TAP chrome. | The samsite-nav-links hero-card panel was dropped in Phase 2 as a concrete enactment of this rule. |
+| req-web-nav-no-hamburger-3 | Features Route To Palette | Implemented | New features that need broad reach are implemented as palette entries, not as new chrome elements. | Standing rule — enforced at review time, defended by this requirement. |
 
 #### Future
 
@@ -258,7 +265,7 @@ If a real, repeated case for menu-like chrome surfaces emerges, the response is 
 ### Chrome Budget
 ----
 RID: `req-web-nav-chrome-budget`
-Status: `Proposed`
+Status: `Implemented`
 
 The header bar is the platform's only permanent chrome surface. Its contents are enumerated and capped. New permanent elements require a spec revision; ad-hoc additions are rejected.
 
@@ -292,9 +299,9 @@ Removing any of these removes a category of question that has no other answer. A
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-nav-chrome-budget-1 | Enumerated List | Proposed | The header contains exactly the five enumerated elements; no others. | |
-| req-web-nav-chrome-budget-2 | Order Stable | Proposed | The five elements appear in the documented left-to-right order. | |
-| req-web-nav-chrome-budget-3 | Additions Require Spec Revision | Proposed | New permanent header elements require a new requirement in this spec; they cannot be added ad hoc. | |
+| req-web-nav-chrome-budget-1 | Enumerated List | Implemented | The header contains exactly the five enumerated elements; no others. | Product mark + breadcrumb + session tag + palette affordance + reserved mini-graph slot. |
+| req-web-nav-chrome-budget-2 | Order Stable | Implemented | The five elements appear in the documented left-to-right order. | `tap_web/templates/tap_web/base.html`. |
+| req-web-nav-chrome-budget-3 | Additions Require Spec Revision | Implemented | New permanent header elements require a new requirement in this spec; they cannot be added ad hoc. | Standing rule. |
 
 #### Future
 
@@ -304,7 +311,7 @@ If a sixth element is genuinely necessary, the spec revision that adds it must e
 ### Machine-Readable Nav Index
 ----
 RID: `req-web-nav-index-endpoint`
-Status: `Proposed`
+Status: `Implemented`
 
 TAP exposes a machine-readable index of every reachable Page, with each page's canonical breadcrumb path. The index is a first-class affordance for AI agents, automation scripts, and any consumer that needs to reason about the platform's navigation surface without scraping HTML.
 
@@ -350,14 +357,53 @@ The endpoint name uses the `__` prefix (e.g., `/__nav-index.json`) to follow the
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-nav-index-endpoint-1 | Endpoint Exists | Proposed | An endpoint (e.g., `/__nav-index.json`) returns the nav index as JSON. | |
-| req-web-nav-index-endpoint-2 | Enumerates All Pages | Proposed | The index contains an entry for every registered Page. | |
-| req-web-nav-index-endpoint-3 | Each Entry Carries Breadcrumb | Proposed | Each page entry includes its full breadcrumb path as an ordered list of `{label, url}` segments. | |
-| req-web-nav-index-endpoint-4 | Schema Documented In Spec | Proposed | The endpoint's response schema is documented in this spec, not in code-only contracts. | |
+| req-web-nav-index-endpoint-1 | Endpoint Exists | Implemented | An endpoint (e.g., `/__nav-index.json`) returns the nav index as JSON. | `tap_web/views.py` `nav_index_view`. |
+| req-web-nav-index-endpoint-2 | Enumerates All Pages | Implemented | The index contains an entry for every registered Page. | Subject to the discoverability gate — see `req-web-nav-page-discoverable`. |
+| req-web-nav-index-endpoint-3 | Each Entry Carries Breadcrumb | Implemented | Each page entry includes its full breadcrumb path as an ordered list of `{label, url}` segments. | Shares `build_breadcrumb()` with the chrome renderer so the chain is identical. |
+| req-web-nav-index-endpoint-4 | Schema Documented In Spec | Implemented | The endpoint's response schema is documented in this spec, not in code-only contracts. | See the v0 schema block above. |
 
 #### Future
 
 Per-entity nav-index entries (a deeper index that includes drillable entities, not just registered Pages). Authentication / authorization filtering once a permission model exists. WebSocket / SSE push of index updates for long-lived agent sessions.
+
+
+### Page Discoverability Gate
+----
+RID: `req-web-nav-page-discoverable`
+Status: `Implemented`
+
+A `discoverable` BooleanField on the `Page` model (default `True`) gates whether a Page appears in **any** of the browse-discovery surfaces — the palette, chevron popovers, column-view explorer, and the `/__nav-index.json` index. Non-discoverable Pages still resolve on direct visit and remain valid breadcrumb destinations *when the user is actually on a URL that nests under them*; only browse-style discovery is gated.
+
+#### Status Details
+
+The complaint that produced this requirement: pages registered at slugs like `/samsite/finding` (whose actual route is `/samsite/finding/<uuid:entity_id>`) appeared in the palette but rendered broken when clicked — they need a URL parameter the palette can't supply. Heuristic detection (introspecting panel configs for an `entity_id_var`-style declaration) was considered and rejected as brittle: pages can have arbitrary parameter mechanisms, and the discoverability metadata belongs on the Page entity, not cross-referenced from URL config.
+
+#### Implementation
+
+- The `Page.discoverable` field defaults to `True`. Most Pages are loadable as-is; the common case is automatic discoverability.
+- Pages whose URL requires a parameter (typically `<entity_id>`) set `discoverable=False` in their GRIFT bundle.
+- The nav-index endpoint filters `Page.objects.filter(discoverable=True)`.
+- The breadcrumb helper (`build_breadcrumb`) also filters `discoverable=True` when resolving registered Pages, so an ancestor Page whose URL requires a parameter renders as plain text in the breadcrumb of a deeper-URL page rather than as a clickable link to a broken-render URL. Direct visit to the parameterized URL with a valid parameter still renders normally.
+- The chevron popover, column-view, and palette tree all read from `/__nav-index.json`, so the single filter at the endpoint cascades to all four surfaces.
+
+#### Development
+
+This is the cheapest sustainable answer to "what pages are *actually* navigable from a discovery surface without me typing a UUID into the URL bar." The explicit flag costs one line per parameterized GRIFT batch; the gain is that every discovery surface auto-respects the same rule.
+
+A future iteration may add **partial discoverability** — surfacing parameterized pages in the palette with a sub-picker for the entity (e.g., "Samsite Finding" → list of recent findings). That's the eventual UX once the palette indexes entities per `req-web-nav-command-palette-3`; until then, the all-or-nothing flag is the simplest contract that matches v0 reality.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-nav-page-discoverable-1 | Default Discoverable | Implemented | `Page.discoverable` defaults to `True`; new Pages are surfaced unless they explicitly opt out. | Migration `0010_historicalpage_discoverable_page_discoverable`. |
+| req-web-nav-page-discoverable-2 | Nav-Index Filters | Implemented | `/__nav-index.json` returns only Pages with `discoverable=True`. | `nav_index_view` queryset filter. |
+| req-web-nav-page-discoverable-3 | Breadcrumb Treats Non-Discoverable As Unregistered | Implemented | When `build_breadcrumb` resolves an ancestor URL prefix to a Page with `discoverable=False`, the segment renders as plain text (the unregistered-prefix branch), not as a clickable link. | The Page still loads on direct visit; only the breadcrumb link is suppressed. |
+| req-web-nav-page-discoverable-4 | All Discovery Surfaces Honor The Gate | Implemented | Palette, chevron popovers, column view, and nav-index all respect `discoverable=False` because they share the nav-index data plane. | A future palette upgrade for partial discoverability (per `req-web-nav-command-palette-3`) may relax this for entities specifically. |
+
+#### Future
+
+Partial discoverability: surface parameterized Pages in the palette as `<Page Name> → pick entity` flows once the palette indexes entities (req-web-nav-command-palette-3). At that point the flag's semantic shifts from "this Page is not discoverable" to "this Page is only discoverable through an entity-picker affordance" — same default, expanded behavior on the opt-out side.
 
 
 ## Future Seams

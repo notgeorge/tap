@@ -1,7 +1,7 @@
 {
   "metadata": {
     "grift_version": "0",
-    "description": "Synthetic entity viewer page — graph context, field viewer, and FLIP inspection."
+    "description": "Synthetic entity viewer page \u2014 graph context, field viewer, and FLIP inspection."
   },
   "nodes": [
     {
@@ -24,9 +24,13 @@
         },
         "input_schema": {
           "type": "object",
-          "required": ["entity_id"],
+          "required": [
+            "entity_id"
+          ],
           "properties": {
-            "entity_id": {"type": "string"}
+            "entity_id": {
+              "type": "string"
+            }
           }
         },
         "default_limit": 200,
@@ -44,8 +48,15 @@
         "description": "Layout for the entity neighborhood graph panel.",
         "definition": {
           "inputs": [],
-          "steps": [{"type": "search", "search-id": "main"}],
-          "presentation": {"placement": "cytoscape:cose"},
+          "steps": [
+            {
+              "type": "search",
+              "search-id": "main"
+            }
+          ],
+          "presentation": {
+            "placement": "cytoscape:cose"
+          },
           "interactions": {}
         }
       }
@@ -110,13 +121,20 @@
             "col-1": {
               "width": "1fr",
               "rows": {
-                "row-1": {"panel-id": "graph"},
-                "row-2": {"panel-id": "viewer"},
-                "row-3": {"panel-id": "flip"}
+                "row-1": {
+                  "panel-id": "graph"
+                },
+                "row-2": {
+                  "panel-id": "viewer"
+                },
+                "row-3": {
+                  "panel-id": "flip"
+                }
               }
             }
           }
-        }
+        },
+        "discoverable": false
       }
     }
   ],
@@ -131,7 +149,9 @@
         "from_entity_id": "synthetic:layout:entity-neighborhood",
         "to_entity_id": "synthetic:search:entity-neighborhood",
         "edge_type": "USES_SEARCH",
-        "properties": {"search-id": "main"}
+        "properties": {
+          "search-id": "main"
+        }
       }
     },
     {
@@ -144,7 +164,9 @@
         "from_entity_id": "synthetic:panel:entity-graph",
         "to_entity_id": "synthetic:layout:entity-neighborhood",
         "edge_type": "USES_LAYOUT",
-        "properties": {"layout-id": "default"}
+        "properties": {
+          "layout-id": "default"
+        }
       }
     },
     {
@@ -157,7 +179,13 @@
         "from_entity_id": "synthetic:page:entity-viewer",
         "to_entity_id": "synthetic:panel:entity-graph",
         "edge_type": "USES_PANEL",
-        "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "graph"}}
+        "properties": {
+          "hotlink": {
+            "model": "page",
+            "spec": "page-panels",
+            "value": "graph"
+          }
+        }
       }
     },
     {
@@ -170,7 +198,13 @@
         "from_entity_id": "synthetic:page:entity-viewer",
         "to_entity_id": "synthetic:panel:entity-viewer",
         "edge_type": "USES_PANEL",
-        "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "viewer"}}
+        "properties": {
+          "hotlink": {
+            "model": "page",
+            "spec": "page-panels",
+            "value": "viewer"
+          }
+        }
       }
     },
     {
@@ -183,7 +217,13 @@
         "from_entity_id": "synthetic:page:entity-viewer",
         "to_entity_id": "synthetic:panel:entity-flip",
         "edge_type": "USES_PANEL",
-        "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "flip"}}
+        "properties": {
+          "hotlink": {
+            "model": "page",
+            "spec": "page-panels",
+            "value": "flip"
+          }
+        }
       }
     }
   ]

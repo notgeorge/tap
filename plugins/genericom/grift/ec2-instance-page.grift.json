@@ -14,7 +14,7 @@
       "batch_node": {
         "source": "plugins.genericom",
         "name": "Genericom EC2 instance page v0.2.2",
-        "description": "EC2 instance detail page with internal computing-core projection. v0.2.2: arrangement_control.mode='none' — arrangement refinements are wired up but disabled at runtime; broad-strokes JS layout only. Flip to 'all' to re-enable. See req-viz-layout-arrangement-control."
+        "description": "EC2 instance detail page with internal computing-core projection. v0.2.2: arrangement_control.mode='none' \u2014 arrangement refinements are wired up but disabled at runtime; broad-strokes JS layout only. Flip to 'all' to re-enable. See req-viz-layout-arrangement-control."
       },
       "nodes": [
         {
@@ -32,9 +32,14 @@
             "input_schema": {
               "type": "object",
               "properties": {
-                "entity_id": {"type": "string", "format": "uuid"}
+                "entity_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
               },
-              "required": ["entity_id"]
+              "required": [
+                "entity_id"
+              ]
             },
             "definition": {
               "query": [
@@ -56,7 +61,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e710e334c9bb",
             "entity_type": "projection",
             "name": "EC2 Instance Internal Projection",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "EC2 Instance Internal Projection",
@@ -64,9 +71,17 @@
             "definition": {
               "node_style": {
                 "mode": "icon-badge",
-                "exclude_types": ["port", "tcp_connection", "ip_address", "public_key", "private_key"]
+                "exclude_types": [
+                  "port",
+                  "tcp_connection",
+                  "ip_address",
+                  "public_key",
+                  "private_key"
+                ]
               },
-              "elevations": ["019dd143-3e8f-73e4-b0fa-e719d6b2b302"],
+              "elevations": [
+                "019dd143-3e8f-73e4-b0fa-e719d6b2b302"
+              ],
               "default_elevation_id": "019dd143-3e8f-73e4-b0fa-e719d6b2b302"
             }
           }
@@ -76,7 +91,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e719d6b2b302",
             "entity_type": "elevation",
             "name": "genericom-ec2-internal-elevation",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "genericom-ec2-internal-elevation",
@@ -84,7 +101,9 @@
             "definition": {
               "zoom": 0.6,
               "description": "Internal view of a single EC2 instance.",
-              "layouts": ["019dd143-3e8f-73e4-b0fa-e71afae2e8bc"],
+              "layouts": [
+                "019dd143-3e8f-73e4-b0fa-e71afae2e8bc"
+              ],
               "double_tap_targets": []
             }
           }
@@ -94,7 +113,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc",
             "entity_type": "layout",
             "name": "genericom-ec2-internal-layout",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "genericom-ec2-internal-layout",
@@ -117,14 +138,19 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e711894696b5",
             "entity_type": "panel",
             "name": "EC2 Instance Graph",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "genericom-ec2-instance-graph",
             "name": "EC2 Instance Graph",
             "view": "tap_viz/panels/graph_panel.html",
             "editor_view": "",
-            "config": {"height": "100%", "hide_header": true}
+            "config": {
+              "height": "100%",
+              "hide_header": true
+            }
           }
         },
         {
@@ -132,16 +158,27 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e71243cc117c",
             "entity_type": "page",
             "name": "EC2 Instance",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "EC2 Instance",
             "slug": "/genericom/instance",
             "layout": {
               "columns": {
-                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "main", "height": "1fr"}}}
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {
+                      "panel-id": "main",
+                      "height": "1fr"
+                    }
+                  }
+                }
               }
-            }
+            },
+            "discoverable": false
           }
         }
       ],
@@ -171,7 +208,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e710e334c9bb",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e719d6b2b302",
             "edge_type": "USES_ELEVATION",
-            "properties": {"hotlink": {"model": "projection", "spec": "projection-elevations", "value": "019dd143-3e8f-73e4-b0fa-e719d6b2b302"}}
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-elevations",
+                "value": "019dd143-3e8f-73e4-b0fa-e719d6b2b302"
+              }
+            }
           }
         },
         {
@@ -185,7 +228,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e710e334c9bb",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e719d6b2b302",
             "edge_type": "USES_DEFAULT_ELEVATION",
-            "properties": {"hotlink": {"model": "projection", "spec": "projection-default-elevation", "value": "019dd143-3e8f-73e4-b0fa-e719d6b2b302"}}
+            "properties": {
+              "hotlink": {
+                "model": "projection",
+                "spec": "projection-default-elevation",
+                "value": "019dd143-3e8f-73e4-b0fa-e719d6b2b302"
+              }
+            }
           }
         },
         {
@@ -199,7 +248,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e719d6b2b302",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc",
             "edge_type": "USES_LAYOUT",
-            "properties": {"hotlink": {"model": "elevation", "spec": "elevation-layouts", "value": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc"}}
+            "properties": {
+              "hotlink": {
+                "model": "elevation",
+                "spec": "elevation-layouts",
+                "value": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc"
+              }
+            }
           }
         },
         {
@@ -213,7 +268,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7165f819246",
             "edge_type": "USES_ARRANGEMENT",
-            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "019dd143-3e8f-73e4-b0fa-e7165f819246"}}
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019dd143-3e8f-73e4-b0fa-e7165f819246"
+              }
+            }
           }
         },
         {
@@ -227,7 +288,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e717272ef359",
             "edge_type": "USES_ARRANGEMENT",
-            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "019dd143-3e8f-73e4-b0fa-e717272ef359"}}
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019dd143-3e8f-73e4-b0fa-e717272ef359"
+              }
+            }
           }
         },
         {
@@ -241,7 +308,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e71afae2e8bc",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7188a4ecee1",
             "edge_type": "USES_ARRANGEMENT",
-            "properties": {"hotlink": {"model": "layout", "spec": "layout-arrangements", "value": "019dd143-3e8f-73e4-b0fa-e7188a4ecee1"}}
+            "properties": {
+              "hotlink": {
+                "model": "layout",
+                "spec": "layout-arrangements",
+                "value": "019dd143-3e8f-73e4-b0fa-e7188a4ecee1"
+              }
+            }
           }
         },
         {
@@ -269,7 +342,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e71243cc117c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e711894696b5",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "main"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "main"
+              }
+            }
           }
         }
       ]

@@ -79,7 +79,14 @@ def build_breadcrumb(url: str) -> list[BreadcrumbSegment]:
     prefixes = ["/" + "/".join(parts[: i + 1]) for i in range(len(parts))]
 
     # One batched query for every prefix, including the home page (slug "/").
-    page_map = {p.slug: p.name for p in Page.objects.filter(slug__in=["/", *prefixes])}
+    # Filter `discoverable=True` so parameterized pages (e.g. /samsite/finding,
+    # which requires an entity_id) render as plain text in the breadcrumb
+    # rather than as broken links — same gate used by nav-index, palette,
+    # chevron popovers, and column-view per req-web-nav-page-discoverable.
+    page_map = {
+        p.slug: p.name
+        for p in Page.objects.filter(slug__in=["/", *prefixes], discoverable=True)
+    }
 
     segments: list[BreadcrumbSegment] = [
         BreadcrumbSegment(

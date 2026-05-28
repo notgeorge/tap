@@ -26,6 +26,7 @@ class Page(BaseModel):
         "slug": {"type": "string", "minLength": 1},
         "description": {"type": "string"},
         "layout": {"type": "object"},
+        "discoverable": {"type": "boolean"},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name", "slug"]
 
@@ -58,6 +59,18 @@ class Page(BaseModel):
         default=dict,
         blank=True,
         help_text="Nested grid layout schema (columns → rows → panel-id slots).",
+    )
+    discoverable = models.BooleanField(
+        default=True,
+        help_text=(
+            "True if this Page appears in nav-discovery surfaces (palette, "
+            "chevron popovers, column view, /__nav-index.json). Pages that "
+            "require URL parameters (e.g. /samsite/finding/<entity_id>) set "
+            "this False so the discovery surfaces don't link to broken-render "
+            "URLs. The Page still resolves on direct visit; only browse-style "
+            "discovery is gated. See spec-web-navigation `req-web-nav-page-"
+            "discoverable`."
+        ),
     )
 
     class Meta(BaseModel.Meta):
