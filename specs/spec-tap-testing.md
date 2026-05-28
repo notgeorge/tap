@@ -28,6 +28,8 @@ In v0 all tests are developer-facing. User-facing verification and self-test cap
 | req-tap-test-conventions | [Test Conventions](#test-conventions) | In Development | Naming, style, and structural conventions |
 | req-tap-test-spec-linkage | [Spec Linkage](#spec-linkage) | In Development | Connecting tests to acceptance criteria |
 | req-tap-test-plugins | [Plugin Test Integration](#plugin-test-integration) | In Development | How plugin tests fit into the overall suite |
+| req-tap-test-hermetic-plugins | [Plugin Tests Are Hermetic](#plugin-tests-are-hermetic) | Proposed | Plugins must be self-contained for testing; cross-plugin dependencies require explicit approval |
+| req-tap-test-live-integration-backlog | [Live-Integration Test Harness (Backlog)](#live-integration-test-harness-backlog) | Backlog | A designed system for exercising live external integrations (GitHub, AWS, Rekor, etc.) on a cadence we control |
 
 ### Test Discovery
 ----
@@ -255,3 +257,85 @@ The plugin system's own machinery tests (manifest loading, registration, validat
 
 #### Future
 User-facing verification testing (running self-tests on a live system) is explicitly deferred. When it is introduced, it will likely be specified as a separate requirement in this spec or in a dedicated product-level testing spec.
+
+### Plugin Tests Are Hermetic
+----
+RID: `req-tap-test-hermetic-plugins`
+Status: `Proposed`
+
+A plugin's tests must exercise the plugin using **only the plugin's own artifacts** plus core TAP types. Reaching across to another plugin's `grift/`, `static/`, `templates/`, or `tests/fixtures/` because those artifacts happen to be sitting in the tree is a **coincidental dependency** that breaks the moment the upstream plugin is renamed, de-registered, or restructured — and the breakage is invisible to whoever is changing the upstream.
+
+The phrasing that matters: **depend-by-approval, not depend-because-it-happens-to-be-there.**
+
+**Why this is here as its own requirement.** The genericom / KSI / lotr fixture coupling caused real pain when genericom was de-registered (2026-05-19): plugins that had been quietly using genericom data as test fixtures — without that dependency being a declared contract — broke for reasons no one could find without spelunking. `lotr` is now load-bearing for seven core test suites by accident and cannot be de-registered without reds on the promote gate. That state should never recur elsewhere.
+
+#### Implementation
+
+**A plugin's `tests/fixtures/`** may contain only:
+
+1. Artifacts the plugin itself generates (synthesized GRIFT, dataclass-built `VerificationResult`s, etc.).
+2. Artifacts the plugin has vendored explicitly from a third party — accompanied by a `LICENSE` / `SOURCE` note in the fixture file or a sibling README explaining where it came from and why.
+3. Artifacts produced by an **approved cross-plugin contract** (see below).
+
+**A plugin's `grift/`** seed files may reference only:
+
+1. Entity types and edge types declared by the plugin's own manifest.
+2. Core TAP types (`Entity`, `Edge`, dimensions).
+3. Types declared by an approved cross-plugin dependency.
+
+**A plugin's `templates/` and `static/`** may reference only:
+
+1. The plugin's own template paths and static URLs.
+2. Core `tap_web` / `tap_viz` template / static paths.
+3. Paths declared by an approved cross-plugin dependency.
+
+**Approved cross-plugin dependencies.** When a plugin genuinely needs another plugin to function (e.g. `sigstore_core`'s `SIGNED_BY_IDENTITY` edge targets `github_workflow`, which is a `github_core` model), the dependency must be:
+
+- **Stated in the dependent plugin's own spec** under a "Plugin Dependencies" section (or equivalent), naming the upstream plugin, the specific symbols / models / edges / fixtures relied upon, and the contract those upstream pieces must keep.
+- **Narrow.** Reach for the minimum surface that satisfies the need. "We use `github_workflow.path` to resolve SAN URIs" is narrow; "we read whatever `github_core` happens to seed" is not.
+- **Acknowledged on the upstream side** at some point in the future via a designed plugin-dependency declaration mechanism (currently does not exist in code; tracked here as a sub-requirement).
+
+**Live-system fixtures.** Reaching out to the real GitHub / AWS / Rekor / etc. at test time is *not* cross-plugin coupling but it is *not* hermetic either. Such tests belong behind `@pytest.mark.live_fetch` (already configured in the root `pyproject.toml` to skip by default), and are subject to `req-tap-test-live-integration-backlog` below.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-test-hermetic-plugins-1 | Fixtures Owned | Proposed | A plugin's `tests/fixtures/` contains only plugin-owned, explicitly-vendored, or approved-cross-plugin artifacts. | |
+| req-tap-test-hermetic-plugins-2 | GRIFT Hermetic | Proposed | A plugin's `grift/` files reference only the plugin's own types, core TAP types, or approved-cross-plugin types. | |
+| req-tap-test-hermetic-plugins-3 | Templates / Static Hermetic | Proposed | A plugin's templates / static assets reference only the plugin's own paths, core paths, or approved-cross-plugin paths. | |
+| req-tap-test-hermetic-plugins-4 | Cross-Plugin Deps Declared | Proposed | A plugin that depends on another plugin states the dependency in its own spec with the narrow contract named. | A first-class plugin-dependency declaration mechanism is future work — see Future below. |
+| req-tap-test-hermetic-plugins-5 | Coincidental Deps Refused | Proposed | A new test or fixture that introduces an undeclared cross-plugin reference must be refused on review and reworked to be hermetic (or to declare the dependency). | This is a review-time rule, not a runtime guard. |
+
+#### Future
+
+A first-class **plugin-dependency declaration mechanism** is open work. The shape it should take: a plugin's `tap-plugin.toml` carries a `[dependencies]` section naming upstream plugins it requires; the plugin validation harness loads that section, fails structural validation if a declared upstream is missing, and the dependency surfaces in plugin listings and during promote-gate evaluation. This lets coincidental dependencies become detectable: if `sigstore_core` tests reach into `samsite/.well-known/`-shaped artifacts but `tap-plugin.toml` doesn't declare a samsite dependency, validation refuses the test. Until that mechanism exists, this requirement is a review-time discipline.
+
+### Live-Integration Test Harness (Backlog)
+----
+RID: `req-tap-test-live-integration-backlog`
+Status: `Backlog`
+
+TAP now has plugins that pull from live external systems on a cadence (`github_core` pulls GitHub; `aws_core` pulls AWS; `sigstore_core`'s verifier will pull TUF trust roots and, in v1, may pull Rekor). The TAP suite has no designed way to exercise those live-pull paths over time. Today the situation is:
+
+- `@pytest.mark.live_fetch` exists at the pytest level and is skipped from `addopts` by default.
+- There is no schedule, no environment matrix, and no result-tracking surface for live tests.
+- There is no contract for what live tests are "supposed" to do — smoke a known query? probe shape stability? assert quotas? verify auth still works? all of the above on different cadences?
+
+A designed live-integration test harness should answer:
+
+- **What gets exercised, on what cadence?** A daily smoke that pulls a tiny known shape from each live integration is different from a weekly full-shape probe that asserts schema stability.
+- **Where do results land?** A per-run record on the grid (a `live_integration_run` node) seems right — durable, queryable, historical, surfaces drift over time.
+- **How are credentials managed?** Live tests need real credentials with read-only scopes. Plugin-owned secret kinds (`github_pat`, AWS profile, etc.) are the existing pattern; live tests would consume the same secrets the live collectors do.
+- **What constitutes failure?** A live integration that returns "schema as expected, zero results" is different from "auth failed" is different from "schema drifted." The harness needs structured pass/warn/fail/skip outcomes per integration.
+- **Where do the test specifications live?** In each plugin's `tests/live/` directory, presumably, with shared harness primitives in `tap_plugins` or a new `tap_cares` surface.
+
+This is genuine v1 design work and is parked as Backlog until either (a) a live integration breaks silently in a way the missing harness would have caught, or (b) the cadence of live-collector usage makes the absence of probing visibly painful. v0 plugins should continue to use `@pytest.mark.live_fetch` for any live-touching tests they add, with a comment noting that such tests will graduate to the harness when it exists.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-test-live-integration-backlog-1 | Harness Designed | Backlog | A designed harness for live-integration exercise lands, with answers to the open questions above. | |
+| req-tap-test-live-integration-backlog-2 | Live Tests Migrated | Backlog | Existing `@pytest.mark.live_fetch` tests across `github_core`, `aws_core`, and `sigstore_core` migrate to the harness. | |
+| req-tap-test-live-integration-backlog-3 | Result Recording | Backlog | Live-integration runs record structured per-integration outcomes on the grid for drift tracking. | |

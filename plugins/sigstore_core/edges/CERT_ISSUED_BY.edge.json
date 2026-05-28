@@ -1,0 +1,10 @@
+{
+  "slug": "CERT_ISSUED_BY",
+  "name": "Cert Issued By",
+  "description": "The signing cert that produced this Rekor entry's Sigstore signature was issued by this CA.",
+  "sources": ["rekor_log_entry"],
+  "targets": ["sigstore_ca"],
+  "default_dimensions": {
+    "sigstore.platform": "public-good"
+  }
+}
