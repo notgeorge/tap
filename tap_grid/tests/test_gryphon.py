@@ -2816,3 +2816,17 @@ class TestGryphonRegexExecutor:
             inputs={},
         )["rows"]
         assert sorted(r["name"] for r in rows) == ["aragorn", "boromir"]
+
+    def test_regex_empty_field_value_vs_non_empty_pattern(self):
+        """req-grid-traversal-lang-regex-11 (TCK-mined corner): an empty field
+        value does not match a non-empty pattern. `'' ~ 'x'` is false in
+        Postgres — the empty-string row is dropped. Crafted in test_gryphon
+        because PgNode fixture rows all carry non-empty names; here we set
+        Character.bio to '' inline to exercise the empty-vs-non-empty corner
+        without forcing a fixture row."""
+        self._make(("with-content", "abc"), ("empty-bio", ""))
+        rows = execute_search(
+            self._search('MATCH (c:character) WHERE c.data.bio =~ "a" RETURN c.name AS name ORDER BY name'),
+            inputs={},
+        )["rows"]
+        assert [r["name"] for r in rows] == ["with-content"]

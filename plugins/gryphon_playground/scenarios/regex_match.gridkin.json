@@ -122,6 +122,43 @@
       "query": "MATCH (n:pg_node) WHERE n.entity_type =~ \"^pg_\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__spine_entity_type.expected.json",
       "expected_sql_snapshot": "expected/regex_match__spine_entity_type.sql.txt"
+    },
+    {
+      "name": "empty pattern — \"\" matches every non-NULL string (search semantics)",
+      "tags": ["regex", "empty-pattern", "tck-mined"],
+      "covers": [
+        "req-grid-traversal-lang-regex-2",
+        "req-grid-traversal-lang-regex-11"
+      ],
+      "inspired_by": "opencypher TCK — expressions/regex corner-cases (empty-pattern intent)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name =~ \"\" RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__empty_pattern.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__empty_pattern.sql.txt"
+    },
+    {
+      "name": "alternation — (token|my-ghes) proves the pattern is parsed as regex, not a literal",
+      "tags": ["regex", "alternation", "tck-mined"],
+      "covers": [
+        "req-grid-traversal-lang-regex-11"
+      ],
+      "inspired_by": "opencypher TCK — expressions/regex corner-cases (alternation intent)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name =~ \"^https://(token|my-ghes)\" RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__alternation.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__alternation.sql.txt"
+    },
+    {
+      "name": "character class — actions\\.[a-z]+\\.com matches only lowercase-letter words",
+      "tags": ["regex", "character-class", "tck-mined"],
+      "covers": [
+        "req-grid-traversal-lang-regex-11"
+      ],
+      "inspired_by": "opencypher TCK — expressions/regex corner-cases (character-class intent)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name =~ \"actions\\\\.[a-z]+\\\\.com\" RETURN n.name AS name ORDER BY name",
+      "expected_envelope": "expected/regex_match__character_class.expected.json",
+      "expected_sql_snapshot": "expected/regex_match__character_class.sql.txt"
     }
   ]
 }
