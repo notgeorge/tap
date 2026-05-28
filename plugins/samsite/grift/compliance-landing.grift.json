@@ -6,17 +6,75 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e5502-cee6-744a-93b2-958a9df9b52d",
+        "entity_id": "019e6f4d-ac7b-7097-ae0b-91148cab7795",
         "entity_type": "batch",
-        "name": "Samsite Compliance landing v0.1.0",
+        "name": "Samsite Compliance landing v1.0 \u2014 consolidated (page + all 11 panels + USES_PANEL edges in one batch)",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-landing",
-        "name": "Samsite Compliance landing v0.1.0",
-        "description": "The basics: one page that exposes every entity the samsite compliance collector lands on the grid \u2014 KSI signal, components, validations, violations, VDR report, findings, compliance artifacts \u2014 each as a node-table panel. No joins yet; this is the see-the-data-first pass. Detail views via click-through on any row."
+        "name": "Samsite Compliance landing v1.0 \u2014 consolidated (page + all 11 panels + USES_PANEL edges in one batch)",
+        "description": "Consolidated landing-page bundle for /samsite/compliance. Carries the page node with its v0.3.0 11-row layout, all 11 panels referenced by that layout (9 data-table panels + samsite-nav-links + samsite-vdr-ingestion-health), and all 11 USES_PANEL edges binding panels to page slots. Single-batch shape is required because precommit-consistency hotlink validation runs per-batch \u2014 the page's layout hotlinks need every referenced panel + its USES_PANEL edge visible in the same atomic transaction. Earlier versions of this file kept these as 4 sequential batches (v0.1.0 \u2192 v0.2.0 \u2192 v0.3.0 plus a vdr-health-add batch), which broke fresh-DB imports: edges in batches 0\u20132 referenced a page only created in batch 3, and batch 3's page hotlinks referenced panels only created in batches 1 and 2. The git history captures the prior incremental evolution; the on-disk shape is now single-batch."
       },
       "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
+            "entity_type": "page",
+            "name": "Samsite Compliance",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "Samsite Compliance",
+            "slug": "/samsite/compliance",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-vdr-health": {
+                      "panel-id": "vdr-health",
+                      "height": "auto"
+                    },
+                    "row-2-nav": {
+                      "panel-id": "nav",
+                      "height": "auto"
+                    },
+                    "row-3-signal": {
+                      "panel-id": "ksi-signal"
+                    },
+                    "row-4-components": {
+                      "panel-id": "components"
+                    },
+                    "row-5-validations": {
+                      "panel-id": "validations"
+                    },
+                    "row-6-violations": {
+                      "panel-id": "violations"
+                    },
+                    "row-7-vdr-report": {
+                      "panel-id": "vdr-report"
+                    },
+                    "row-8-findings": {
+                      "panel-id": "findings"
+                    },
+                    "row-9-artifacts": {
+                      "panel-id": "artifacts"
+                    },
+                    "row-10-themes": {
+                      "panel-id": "themes"
+                    },
+                    "row-11-indicators": {
+                      "panel-id": "indicators"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         {
           "entity": {
             "entity_id": "019e5502-cee6-744a-93b2-958b9a924ac8",
@@ -702,20 +760,59 @@
         },
         {
           "entity": {
-            "entity_id": "019e5530-e02c-734c-82e5-8f754642ed22",
-            "entity_type": "search",
-            "name": "_compliance_landing_batch1_marker",
-            "dimensions": {}
+            "entity_id": "019e651a-900a-7689-b437-ff827b136317",
+            "entity_type": "panel",
+            "name": "Compliance Workbench Shortcuts",
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
-            "name": "_compliance_landing_batch1_marker",
-            "description": "Placeholder marker so batch 1 has at least one node (GRIFT requires nodes[]). The page node moved to batch 2 to defer its hotlink validation until after batch 1's USES_PANEL edges land.",
-            "search_type": "gryphon",
-            "root": "node",
-            "definition": {
-              "query": [
-                "MATCH (n) WHERE n.entity_id = \"00000000-0000-0000-0000-000000000000\""
+            "slug": "samsite-nav-links",
+            "name": "Compliance Workbench Shortcuts",
+            "description": "Nav-link cards on /samsite/compliance pointing to the OSCAL SSP and POA&M workbench pages. Bare URLs resolve to the latest emission via the canonical entity-resolution fallback (tap_web/specs/spec-web-panel-entity-resolution-v0).",
+            "view": "samsite/panels/nav_links.html",
+            "config": {
+              "links": [
+                {
+                  "label": "OSCAL SSP Workbench",
+                  "href": "/samsite/compliance/oscal",
+                  "description": "Render the latest OSCAL System Security Plan as a readable workbench."
+                },
+                {
+                  "label": "OSCAL POA&M Workbench",
+                  "href": "/samsite/compliance/poam",
+                  "description": "Render the latest OSCAL Plan of Action and Milestones as an action register."
+                },
+                {
+                  "label": "KSI Scoreboard",
+                  "href": "/samsite/compliance/scoreboard",
+                  "description": "Synthesized FedRAMP 20x KSI status \u2014 joins the indicator catalog against the latest SSP + POA&M for passing/in-progress/accepted/gap per KSI."
+                }
               ]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e66c8-2fe0-7a6e-a7ef-6021f1046438",
+            "entity_type": "panel",
+            "name": "Samsite VDR Ingestion Health",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "slug": "samsite-vdr-ingestion-health",
+            "name": "Samsite VDR Ingestion Health",
+            "description": "Consumer-side complement to the upstream VDR aggregator's kev_catalog_loaded + dependabot_alerts_loaded disclosure flags. Renders check/cross pills from the latest vdr_report.summary; if either flips false, the panel turns red and warns the user. Resolves via tap_web.panels.entity_resolution: URL deep link via vdr_report_entity_id wins; otherwise the fallback Gryphon query picks the latest emission by emitted_at.",
+            "view": "samsite/panels/vdr_ingestion_health.html",
+            "config": {
+              "entity_id_var": "vdr_report_entity_id",
+              "fallback": {
+                "query": "MATCH (r:vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 1",
+                "description": "Latest vdr_report by emitted_at \u2014 the most recent VDR aggregator emission on the grid."
+              }
             }
           }
         }
@@ -1026,59 +1123,7 @@
               }
             }
           }
-        }
-      ]
-    },
-    {
-      "batch_entity": {
-        "entity_id": "019e6531-ef00-75a7-ad57-e08e31d5e95d",
-        "entity_type": "batch",
-        "name": "Samsite Compliance landing \u2014 add nav-links panel",
-        "dimensions": {}
-      },
-      "batch_node": {
-        "source": "plugins.samsite.grift.compliance-landing",
-        "name": "Samsite Compliance landing \u2014 add nav-links panel",
-        "description": "Adds the samsite-nav-links panel instance + USES_PANEL edge hotlinked as 'nav' on the /samsite/compliance page. Imported BEFORE the page-layout-bump batch so the page's row-0-nav hotlink resolves at validate_hotlinks time."
-      },
-      "nodes": [
-        {
-          "entity": {
-            "entity_id": "019e651a-900a-7689-b437-ff827b136317",
-            "entity_type": "panel",
-            "name": "Compliance Workbench Shortcuts",
-            "dimensions": {
-              "tap.graph": "web"
-            }
-          },
-          "node": {
-            "slug": "samsite-nav-links",
-            "name": "Compliance Workbench Shortcuts",
-            "description": "Nav-link cards on /samsite/compliance pointing to the OSCAL SSP and POA&M workbench pages. Bare URLs resolve to the latest emission via ROSCALE's panel-level fallback (req-roscale-input-5).",
-            "view": "samsite/panels/nav_links.html",
-            "config": {
-              "links": [
-                {
-                  "label": "OSCAL SSP Workbench",
-                  "href": "/samsite/compliance/oscal",
-                  "description": "Render the latest OSCAL System Security Plan as a readable workbench."
-                },
-                {
-                  "label": "OSCAL POA&M Workbench",
-                  "href": "/samsite/compliance/poam",
-                  "description": "Render the latest OSCAL Plan of Action and Milestones as an action register."
-                },
-                {
-                  "label": "KSI Scoreboard",
-                  "href": "/samsite/compliance/scoreboard",
-                  "description": "Synthesized FedRAMP 20x KSI status \u2014 joins the indicator catalog against the latest SSP + POA&M for passing/in-progress/accepted/gap per KSI."
-                }
-              ]
-            }
-          }
-        }
-      ],
-      "edges": [
+        },
         {
           "entity": {
             "entity_id": "019e651a-900a-73cc-a670-8582f67a10cc",
@@ -1100,47 +1145,7 @@
               }
             }
           }
-        }
-      ]
-    },
-    {
-      "batch_entity": {
-        "entity_id": "019e6f15-9e5a-7011-b0d2-426679cefee0",
-        "entity_type": "batch",
-        "name": "Samsite Compliance landing \u2014 vdr-ingestion-health panel (canonical entity-resolution)",
-        "dimensions": {}
-      },
-      "batch_node": {
-        "source": "plugins.samsite.grift.compliance-landing",
-        "name": "Samsite Compliance landing \u2014 vdr-ingestion-health panel (canonical entity-resolution)",
-        "description": "Adds the samsite-vdr-ingestion-health panel instance + USES_PANEL edge hotlinked as 'vdr-health' on the /samsite/compliance page. Panel config follows the canonical tap_web.panels.entity_resolution contract (spec-web-panel-entity-resolution-v0): URL deep link via vdr_report_entity_id wins; fallback Gryphon query picks the latest vdr_report by emitted_at using envelope ORDER BY + LIMIT with defensive IS NOT NULL. Imported BEFORE the page-layout-bump batch so the page's row-1-vdr-health hotlink resolves at validate_hotlinks time."
-      },
-      "nodes": [
-        {
-          "entity": {
-            "entity_id": "019e66c8-2fe0-7a6e-a7ef-6021f1046438",
-            "entity_type": "panel",
-            "name": "Samsite VDR Ingestion Health",
-            "dimensions": {
-              "tap.graph": "web"
-            }
-          },
-          "node": {
-            "slug": "samsite-vdr-ingestion-health",
-            "name": "Samsite VDR Ingestion Health",
-            "description": "Consumer-side complement to the upstream VDR aggregator's kev_catalog_loaded + dependabot_alerts_loaded disclosure flags. Renders check/cross pills from the latest vdr_report.summary; if either flips false, the panel turns red and warns the user. Resolves via tap_web.panels.entity_resolution: URL deep link via vdr_report_entity_id wins; otherwise the fallback Gryphon query picks the latest emission by emitted_at.",
-            "view": "samsite/panels/vdr_ingestion_health.html",
-            "config": {
-              "entity_id_var": "vdr_report_entity_id",
-              "fallback": {
-                "query": "MATCH (r:vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 1",
-                "description": "Latest vdr_report by emitted_at \u2014 the most recent VDR aggregator emission on the grid."
-              }
-            }
-          }
-        }
-      ],
-      "edges": [
+        },
         {
           "entity": {
             "entity_id": "019e66c8-2fe0-78e0-9f40-bd18a6fa5592",
@@ -1164,80 +1169,6 @@
           }
         }
       ]
-    },
-    {
-      "batch_entity": {
-        "entity_id": "019e66c8-2fe0-7411-a088-17331a4e1054",
-        "entity_type": "batch",
-        "name": "Samsite Compliance landing v0.3.0 \u2014 page layout w/ vdr-health row",
-        "dimensions": {}
-      },
-      "batch_node": {
-        "source": "plugins.samsite.grift.compliance-landing",
-        "name": "Samsite Compliance landing v0.3.0 \u2014 page layout w/ vdr-health row",
-        "description": "Re-upserts the /samsite/compliance page with an 11-row layout. The new row-1-vdr-health at the top references the samsite-vdr-ingestion-health panel (added in the sibling 'add vdr-ingestion-health panel' batch above), followed by row-2-nav (the nav-links cards) and the existing 9 table rows."
-      },
-      "nodes": [
-        {
-          "entity": {
-            "entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
-            "entity_type": "page",
-            "name": "Samsite Compliance",
-            "dimensions": {
-              "tap.graph": "web"
-            }
-          },
-          "node": {
-            "name": "Samsite Compliance",
-            "slug": "/samsite/compliance",
-            "layout": {
-              "columns": {
-                "col-1": {
-                  "width": "1fr",
-                  "rows": {
-                    "row-1-vdr-health": {
-                      "panel-id": "vdr-health",
-                      "height": "auto"
-                    },
-                    "row-2-nav": {
-                      "panel-id": "nav",
-                      "height": "auto"
-                    },
-                    "row-3-signal": {
-                      "panel-id": "ksi-signal"
-                    },
-                    "row-4-components": {
-                      "panel-id": "components"
-                    },
-                    "row-5-validations": {
-                      "panel-id": "validations"
-                    },
-                    "row-6-violations": {
-                      "panel-id": "violations"
-                    },
-                    "row-7-vdr-report": {
-                      "panel-id": "vdr-report"
-                    },
-                    "row-8-findings": {
-                      "panel-id": "findings"
-                    },
-                    "row-9-artifacts": {
-                      "panel-id": "artifacts"
-                    },
-                    "row-10-themes": {
-                      "panel-id": "themes"
-                    },
-                    "row-11-indicators": {
-                      "panel-id": "indicators"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      ],
-      "edges": []
     }
   ]
 }
