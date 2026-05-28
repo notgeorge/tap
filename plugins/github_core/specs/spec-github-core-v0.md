@@ -368,6 +368,8 @@ Collection policy:
 | req-github-core-collector-6 | No Deletion Semantics | Implemented | v0 never deletes GitHub nodes based on absence from API responses. | Collector emits only upserts; no `deletes`/`purges` sections in batch. |
 | req-github-core-collector-7 | Two-Phase Run | Implemented | Each collector run executes a collection phase followed by an enrichment phase, in that order. | `GithubCollector.run()` calls `submit_grift` twice; enrichment runs only if the first batch lands. |
 | req-github-core-collector-8 | Single-Attempt v0 | Implemented | v0 does not model multiple run attempts; collector uses the default jobs endpoint returning the latest-attempt snapshot. | Uses `/runs/{run_id}/jobs` (no `/attempts/{n}/`). Multi-attempt tracking deferred to `req-github-core-backlog-run-attempts`. |
+| req-github-core-collector-9 | Empty-Body 404 Retry | Implemented | The HTTP client retries GitHub's intermittent empty-body 404 responses with exponential backoff (0.5s → 8s, up to 5 retries). Real 404s — carrying a JSON `{"message": "..."}` body — propagate immediately. | GitHub docs for `/actions/runs` and `/list-jobs-for-workflow-run` document only `200 - OK`. Secondary rate limits are documented to return 403/429, not 404. Empty-body 404 with valid `X-GitHub-Request-Id` is observed and undocumented; the body presence is the discriminator. See `api_client.py` module docstring for the evidence trail. |
+| req-github-core-collector-10 | Per-Run /jobs Graceful-Degrade | Implemented | When `/runs/{id}/jobs` returns a real (body-bearing) 404 for a specific run, the collector records a structured `RUN_JOBS_MISSING` warn including the response-body excerpt and continues with the next run rather than aborting the whole collection. | Mirrors `req-github-core-collector-5`'s degrade pattern for runner-config 403s. |
 
 ### Collection And Link Manifests
 ----
@@ -508,6 +510,24 @@ ORM graph queries are not the collector's normal path. There is no kill-switch
 knob — when the grid has zero matching candidates (e.g., first install before
 `aws_core` lands its first batch), the resolver emits no edges and the
 zero-candidate rule below provides the "links are off" affordance for free.
+
+The link manifest supports two source-side shapes:
+
+- `source_field_path` — extract from the source node's nested attribute/JSON
+  (the original shape, used by the YAML-ref rules: domain names, AWS regions,
+  CloudFront distribution ids).
+- `source_constant` — literal value applied to every source node, for
+  structural rules where the join key isn't node-specific. First user:
+  `repo_federates_with_github_oidc_provider` matches every collected
+  `github_repository` against the canonical GitHub Actions OIDC issuer URL
+  on `aws_iam_oidc_provider.url`.
+
+Rules may also declare a `near_match_pattern` (case-insensitive regex). When
+exact resolution returns zero candidates AND the target field of any row
+matches the pattern, the resolver records a structured `LINK_NEAR_MATCH`
+warn per row and emits no edge — surfacing "looks like what you meant but
+isn't quite it" rows (URL scheme variants, GHES tenants, typos) so the
+operator can investigate rather than silently miss the link.
 
 #### Timing: Enrichment Phase
 
