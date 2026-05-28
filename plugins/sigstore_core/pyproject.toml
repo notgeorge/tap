@@ -1,0 +1,15 @@
+[project]
+name = "tap-plugin-sigstore-core"
+version = "0.1.0"
+description = "TAP Sigstore Core plugin — Rekor / Fulcio models and Sigstore bundle verify+decompose helpers."
+requires-python = ">=3.14"
+dependencies = [
+    "sigstore>=4.2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
