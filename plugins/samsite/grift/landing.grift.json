@@ -14,19 +14,19 @@
       "batch_node": {
         "source": "plugins.samsite",
         "name": "Samsite landing v0.1.0",
-        "description": "Landing page: cytoscape graph panel projecting the samsite-tagged AWS resources for account 180731181784. The aws_account container node is no longer minted here — the aws_core boto3 collector now synthesizes it (aws_account_singleton custom_fn, deterministic uuid5); the samsite multi-MATCH search's MATCH (account:aws_account) resolves against the collector-owned node."
+        "description": "Landing page: cytoscape graph panel projecting the samsite-tagged AWS resources for account 180731181784. The aws_account container node is no longer minted here \u2014 the aws_core boto3 collector now synthesizes it (aws_account_singleton custom_fn, deterministic uuid5); the samsite multi-MATCH search's MATCH (account:aws_account) resolves against the collector-owned node."
       },
       "nodes": [
         {
           "entity": {
             "entity_id": "eb9fb415-ba8d-57e5-ab3f-1e2411ce0822",
             "entity_type": "search",
-            "name": "Samsite — Project=samsite nodes",
+            "name": "Samsite \u2014 Project=samsite nodes",
             "dimensions": {}
           },
           "node": {
-            "name": "Samsite — Project=samsite nodes",
-            "description": "Gryphon: aws_account + boundary (both unfiltered — they bind variables other than `n`, so the tag WHERE doesn't apply) plus a bare `MATCH (n)` typeless scan filtered to Project=samsite via the per-model tags JSONField. The bare-MATCH support landed alongside this query's amendment — collapsed eleven `MATCH (n:aws_*)` clauses into one. Per spec-grid-traversal-language § Envelope-Aware Field Paths, `data.tags.Project` walks the per-model tags JSONField via Django nested lookup; nodes without `data.tags` (compliance models, etc.) gracefully don't match.",
+            "name": "Samsite \u2014 Project=samsite nodes",
+            "description": "Gryphon: aws_account + boundary (both unfiltered \u2014 they bind variables other than `n`, so the tag WHERE doesn't apply) plus a bare `MATCH (n)` typeless scan filtered to Project=samsite via the per-model tags JSONField. The bare-MATCH support landed alongside this query's amendment \u2014 collapsed eleven `MATCH (n:aws_*)` clauses into one. Per spec-grid-traversal-language \u00a7 Envelope-Aware Field Paths, `data.tags.Project` walks the per-model tags JSONField via Django nested lookup; nodes without `data.tags` (compliance models, etc.) gracefully don't match.",
             "search_type": "gryphon",
             "root": "node",
             "definition": {
@@ -43,11 +43,11 @@
           "entity": {
             "entity_id": "c0a6a6cf-89b3-5b78-8c5e-fb55ad33b85e",
             "entity_type": "search",
-            "name": "Samsite — all edges (graph_panel filters by node-set)",
+            "name": "Samsite \u2014 all edges (graph_panel filters by node-set)",
             "dimensions": {}
           },
           "node": {
-            "name": "Samsite — all edges (graph_panel filters by node-set)",
+            "name": "Samsite \u2014 all edges (graph_panel filters by node-set)",
             "description": "All edges; graph_panel keeps only those whose endpoints are in the matched node-set (tap_viz/static/tap_viz/js/panel-graph.js).",
             "search_type": "orm",
             "root": "edge",
@@ -70,7 +70,7 @@
           },
           "node": {
             "name": "samsite-landing-layout",
-            "description": "Frame Layout — landing-systems.js positions the three cluster roots, nests boundary/account compound parents, hides containment edges, and fits the viewport. Cluster arrangements live on the three sibling Layouts (samsite-compliance-layout, samsite-website-layout, samsite-bootstrap-layout) so each cluster is independently tweakable, per spec-viz-layouts § Philosophy: a Layout owns the scene-construction work for one node group.",
+            "description": "Frame Layout \u2014 landing-systems.js positions the three cluster roots, nests boundary/account compound parents, hides containment edges, and fits the viewport. Cluster arrangements live on the three sibling Layouts (samsite-compliance-layout, samsite-website-layout, samsite-bootstrap-layout) so each cluster is independently tweakable, per spec-viz-layouts \u00a7 Philosophy: a Layout owns the scene-construction work for one node group.",
             "definition": {
               "js_file": "plugins/samsite/static/samsite/js/projections/landing-systems.js",
               "arrangements": []
@@ -88,7 +88,7 @@
           },
           "node": {
             "name": "samsite-compliance-layout",
-            "description": "Compliance cluster — EventBridge → Lambda → CloudWatch log group + IAM role above. Sibling of website + bootstrap cluster Layouts under samsite-landing-elevation; owns its 3 compliance arrangements.",
+            "description": "Compliance cluster \u2014 EventBridge \u2192 Lambda \u2192 CloudWatch log group + IAM role above. Sibling of website + bootstrap cluster Layouts under samsite-landing-elevation; owns its 3 compliance arrangements.",
             "definition": {
               "arrangements": [
                 "019e6497-bd8e-720e-b05f-261ec2f149a3",
@@ -109,7 +109,7 @@
           },
           "node": {
             "name": "samsite-website-layout",
-            "description": "Website cluster — Route53 → ACM cert + CloudFront → S3 origin. Sibling of compliance + bootstrap cluster Layouts under samsite-landing-elevation; owns its 3 website arrangements.",
+            "description": "Website cluster \u2014 Route53 \u2192 ACM cert + CloudFront \u2192 S3 origin. Sibling of compliance + bootstrap cluster Layouts under samsite-landing-elevation; owns its 3 website arrangements.",
             "definition": {
               "arrangements": [
                 "019e6497-bd8e-720e-b05f-261850974c1f",
@@ -130,7 +130,7 @@
           },
           "node": {
             "name": "samsite-bootstrap-layout",
-            "description": "Deploy/bootstrap cluster — GitHub OIDC → deploy IAM role → tfstate S3 + DynamoDB lock. Sibling of compliance + website cluster Layouts under samsite-landing-elevation; owns its 3 bootstrap arrangements.",
+            "description": "Deploy/bootstrap cluster \u2014 GitHub OIDC \u2192 deploy IAM role \u2192 tfstate S3 + DynamoDB lock. Sibling of compliance + website cluster Layouts under samsite-landing-elevation; owns its 3 bootstrap arrangements.",
             "definition": {
               "arrangements": [
                 "019e6497-bd8e-720e-b05f-26243f90f71f",
@@ -151,7 +151,7 @@
           },
           "node": {
             "name": "samsite-landing-elevation",
-            "description": "Single elevation for the samsite landing — top-level three-cluster overview. Composes four sibling Layouts: a frame Layout (positions cluster roots + nests compound parents + fits) and three cluster Layouts (compliance / website / bootstrap), each owning its own arrangements per spec-viz-layouts § Philosophy.",
+            "description": "Single elevation for the samsite landing \u2014 top-level three-cluster overview. Composes four sibling Layouts: a frame Layout (positions cluster roots + nests compound parents + fits) and three cluster Layouts (compliance / website / bootstrap), each owning its own arrangements per spec-viz-layouts \u00a7 Philosophy.",
             "definition": {
               "zoom": 1.0,
               "description": "Three-cluster overview of the samsite AWS deployment.",
@@ -176,7 +176,7 @@
           },
           "node": {
             "name": "samsite-landing-projection",
-            "description": "Samsite landing projection — four side-by-side system columns (dns, site, compliance, bootstrap) so the visitor reads the AWS deployment as four parallel stories rather than a single force-directed blob.",
+            "description": "Samsite landing projection \u2014 four side-by-side system columns (dns, site, compliance, bootstrap) so the visitor reads the AWS deployment as four parallel stories rather than a single force-directed blob.",
             "definition": {
               "node_style": {
                 "mode": "icon-badge"
@@ -231,7 +231,8 @@
                   }
                 }
               }
-            }
+            },
+            "nav_weight": 100
           }
         },
         {
@@ -245,7 +246,7 @@
           },
           "node": {
             "name": "Samsite Landing",
-            "description": "Default site landing page — Samsite AWS overview (account 180731181784)."
+            "description": "Default site landing page \u2014 Samsite AWS overview (account 180731181784)."
           }
         },
         {
@@ -259,7 +260,7 @@
           },
           "node": {
             "name": "Samsite Authorization Boundary",
-            "description": "The FedRAMP authorization boundary for the samsite deployment — the perimeter of components in scope for samaydlette.com's ATO. Initial pass: pinned to the aws_account via SCOPED_TO_BOUNDARY; per-resource membership edges follow."
+            "description": "The FedRAMP authorization boundary for the samsite deployment \u2014 the perimeter of components in scope for samaydlette.com's ATO. Initial pass: pinned to the aws_account via SCOPED_TO_BOUNDARY; per-resource membership edges follow."
           }
         },
         {
@@ -273,7 +274,7 @@
           },
           "node": {
             "name": "samsite-website-route53-routes-to-cdn",
-            "description": "Places the CloudFront distribution directly below the Route53 hosted zone — the ROUTES_TRAFFIC edge runs vertically as the user-traffic path's main spine.",
+            "description": "Places the CloudFront distribution directly below the Route53 hosted zone \u2014 the ROUTES_TRAFFIC edge runs vertically as the user-traffic path's main spine.",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_route53_zone) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
@@ -298,7 +299,7 @@
           },
           "node": {
             "name": "samsite-website-route53-pairs-with-cert",
-            "description": "Places the ACM certificate to the right of Route53 — the RETRIEVES_CERT_FROM edge's lookup, kept on the same row as Route53 so the cert reads as 'paired with the zone'.",
+            "description": "Places the ACM certificate to the right of Route53 \u2014 the RETRIEVES_CERT_FROM edge's lookup, kept on the same row as Route53 so the cert reads as 'paired with the zone'.",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_route53_zone) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
@@ -323,7 +324,7 @@
           },
           "node": {
             "name": "samsite-website-cdn-fetches-from-s3",
-            "description": "Places the S3 origin bucket to the right of CloudFront on the second row — the RETRIEVES_CONTENT_FROM edge's origin lookup.",
+            "description": "Places the S3 origin bucket to the right of CloudFront on the second row \u2014 the RETRIEVES_CONTENT_FROM edge's origin lookup.",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_cloudfront_distribution) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
@@ -348,7 +349,7 @@
           },
           "node": {
             "name": "samsite-compliance-eventbridge-invokes-lambda",
-            "description": "Places the compliance Lambda directly to the right of the EventBridge rule — INVOKES, the scheduled trigger that fires the Lambda. Puts EventBridge, Lambda, and the CloudWatch log group on a single horizontal line so the compliance flow reads left-to-right.",
+            "description": "Places the compliance Lambda directly to the right of the EventBridge rule \u2014 INVOKES, the scheduled trigger that fires the Lambda. Puts EventBridge, Lambda, and the CloudWatch log group on a single horizontal line so the compliance flow reads left-to-right.",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_eventbridge_rule) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
@@ -373,7 +374,7 @@
           },
           "node": {
             "name": "samsite-compliance-lambda-writes-logs",
-            "description": "Places the CloudWatch log group to the right of the Lambda — WRITES_LOGS branch.",
+            "description": "Places the CloudWatch log group to the right of the Lambda \u2014 WRITES_LOGS branch.",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_lambda) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
@@ -398,7 +399,7 @@
           },
           "node": {
             "name": "samsite-compliance-role-above-logs",
-            "description": "Stacks the Lambda's IAM role just above the CloudWatch log group — the ASSUMES_ROLE branch off Lambda, expressed by anchoring on the previously-placed log-group node so the two right-of-Lambda branches don't overlap. Arrangement-stacking pattern per spec-viz-arrangement § Stackable.",
+            "description": "Stacks the Lambda's IAM role just above the CloudWatch log group \u2014 the ASSUMES_ROLE branch off Lambda, expressed by anchoring on the previously-placed log-group node so the two right-of-Lambda branches don't overlap. Arrangement-stacking pattern per spec-viz-arrangement \u00a7 Stackable.",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_cloudwatch_log_group) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
@@ -423,7 +424,7 @@
           },
           "node": {
             "name": "samsite-bootstrap-oidc-federates-to-deploy",
-            "description": "Places the deploy IAM role directly below the GitHub Actions OIDC provider — FEDERATES_INTO, the trust path GitHub uses to assume the deploy role.",
+            "description": "Places the deploy IAM role directly below the GitHub Actions OIDC provider \u2014 FEDERATES_INTO, the trust path GitHub uses to assume the deploy role.",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_iam_oidc_provider) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
@@ -448,7 +449,7 @@
           },
           "node": {
             "name": "samsite-bootstrap-deploy-stores-state",
-            "description": "Places the Terraform state S3 bucket to the right of the deploy IAM role — the state-storage branch.",
+            "description": "Places the Terraform state S3 bucket to the right of the deploy IAM role \u2014 the state-storage branch.",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_iam_role) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
@@ -473,7 +474,7 @@
           },
           "node": {
             "name": "samsite-bootstrap-lock-above-state",
-            "description": "Stacks the DynamoDB state-lock table just above the tfstate S3 bucket — same stacking pattern as the compliance side (anchors on the previously-placed S3 so the two right-of-deploy-IAM branches don't overlap).",
+            "description": "Stacks the DynamoDB state-lock table just above the tfstate S3 bucket \u2014 same stacking pattern as the compliance side (anchors on the previously-placed S3 so the two right-of-deploy-IAM branches don't overlap).",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_s3_bucket) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
@@ -551,7 +552,7 @@
           "entity": {
             "entity_id": "019e647c-aba0-7579-9846-8be7988da761",
             "entity_type": "edge",
-            "name": "Panel USES_PROJECTION (v1 fresh edge — replaces the unconvertible USES_LAYOUT one above)",
+            "name": "Panel USES_PROJECTION (v1 fresh edge \u2014 replaces the unconvertible USES_LAYOUT one above)",
             "dimensions": {}
           },
           "edge": {

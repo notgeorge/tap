@@ -20,9 +20,20 @@ _MINIMAL_LAYOUT = {
 }
 
 
-def _create_page(name: str, slug: str, description: str = "", discoverable: bool = True) -> Page:
+def _create_page(
+    name: str,
+    slug: str,
+    description: str = "",
+    discoverable: bool = True,
+    nav_weight: int = 0,
+) -> Page:
     return Page.objects.create(
-        name=name, slug=slug, description=description, layout=_MINIMAL_LAYOUT, discoverable=discoverable
+        name=name,
+        slug=slug,
+        description=description,
+        layout=_MINIMAL_LAYOUT,
+        discoverable=discoverable,
+        nav_weight=nav_weight,
     )
 
 
@@ -221,9 +232,9 @@ class TestNavIndexEndpoint:
         payload = response.json()
         # Top-level keys per spec-web-navigation §Machine-Readable Nav Index.
         assert payload["version"] == "0"
-        # Each entry has url, name, description, breadcrumb.
+        # Each entry has url, name, description, breadcrumb, nav_weight.
         entry = next(p for p in payload["pages"] if p["url"] == "/a")
-        assert set(entry.keys()) == {"url", "name", "description", "breadcrumb"}
+        assert set(entry.keys()) == {"url", "name", "description", "breadcrumb", "nav_weight"}
         assert entry["description"] == "d"
 
     def test_excludes_non_discoverable_pages(self):
@@ -236,6 +247,53 @@ class TestNavIndexEndpoint:
         urls = {p["url"] for p in Client().get("/__nav-index.json").json()["pages"]}
         assert "/visible" in urls
         assert "/hidden" not in urls
+
+
+@pytest.mark.django_db
+class TestNavWeightOrdering:
+    """req-web-nav-page-weight: nav_weight controls sort order in the nav-index."""
+
+    def test_default_zero_preserves_alphabetical(self):
+        """ACID-1: pages with default weight (0) sort alphabetically by slug."""
+        _create_page("Banana", "/b")
+        _create_page("Apple", "/a")
+        _create_page("Cherry", "/c")
+        urls = [p["url"] for p in Client().get("/__nav-index.json").json()["pages"]]
+        assert urls == ["/a", "/b", "/c"]
+
+    def test_higher_weight_floats_up(self):
+        """ACID-2: nav_weight DESC is the primary sort; positive floats up."""
+        _create_page("Apple", "/a")
+        _create_page("Banana", "/b", nav_weight=100)
+        _create_page("Cherry", "/c", nav_weight=50)
+        urls = [p["url"] for p in Client().get("/__nav-index.json").json()["pages"]]
+        # /b (100) > /c (50) > /a (0)
+        assert urls == ["/b", "/c", "/a"]
+
+    def test_negative_weight_sinks_down(self):
+        """ACID-2: negative nav_weight sinks pages below the zero-weight tier."""
+        _create_page("Operator", "/operator", nav_weight=-100)
+        _create_page("Samsite", "/samsite")
+        _create_page("Routine", "/routine")
+        urls = [p["url"] for p in Client().get("/__nav-index.json").json()["pages"]]
+        # /routine and /samsite (both 0) come first alphabetically; /operator sinks.
+        assert urls == ["/routine", "/samsite", "/operator"]
+
+    def test_nav_index_entries_include_weight(self):
+        """ACID-4: the endpoint surfaces nav_weight so client-side sort can apply."""
+        _create_page("Weighted", "/w", nav_weight=42)
+        _create_page("Default", "/d")
+        entries = {p["url"]: p for p in Client().get("/__nav-index.json").json()["pages"]}
+        assert entries["/w"]["nav_weight"] == 42
+        assert entries["/d"]["nav_weight"] == 0
+
+    def test_tiebreaker_is_alphabetical(self):
+        """Same-weight pages tie-break alphabetically (by slug at the endpoint)."""
+        _create_page("Bravo", "/bravo", nav_weight=10)
+        _create_page("Alpha", "/alpha", nav_weight=10)
+        _create_page("Charlie", "/charlie", nav_weight=10)
+        urls = [p["url"] for p in Client().get("/__nav-index.json").json()["pages"]]
+        assert urls == ["/alpha", "/bravo", "/charlie"]
 
 
 @pytest.mark.django_db

@@ -27,6 +27,7 @@ class Page(BaseModel):
         "description": {"type": "string"},
         "layout": {"type": "object"},
         "discoverable": {"type": "boolean"},
+        "nav_weight": {"type": "integer"},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name", "slug"]
 
@@ -70,6 +71,19 @@ class Page(BaseModel):
             "URLs. The Page still resolves on direct visit; only browse-style "
             "discovery is gated. See spec-web-navigation `req-web-nav-page-"
             "discoverable`."
+        ),
+    )
+    nav_weight = models.IntegerField(
+        default=0,
+        help_text=(
+            "Sort-order bias for nav-discovery surfaces. Higher floats up; "
+            "negative sinks down; 0 means default (alphabetical within tier). "
+            "Convention: +100..+999 for primary user destinations, 0 for "
+            "routine pages, -100..-999 for operator/internal pages. "
+            "Tiebreaker within a tier is alphabetical by name. Applied to the "
+            "palette tree + ranked-search tiebreaker, chevron popovers, "
+            "column-view explorer, and /__nav-index.json. See spec-web-"
+            "navigation `req-web-nav-page-weight`."
         ),
     )
 

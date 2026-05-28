@@ -14,7 +14,7 @@
       "batch_node": {
         "source": "plugins.administrivia",
         "name": "Administrivia page v0.2.0",
-        "description": "Administrivia admin page at /administrivia (renamed from /grid). Surfaces the grid-overview graph and the all-entities table. v0.2.0 drops the landing_page entity + USES_LANDING_PAGE edge — administrivia is no longer the site landing; that role moves to genericom (see plugins/genericom/grift/pages.grift.json batch 'Genericom landing page v0.1.0')."
+        "description": "Administrivia admin page at /administrivia (renamed from /grid). Surfaces the grid-overview graph and the all-entities table. v0.2.0 drops the landing_page entity + USES_LANDING_PAGE edge \u2014 administrivia is no longer the site landing; that role moves to genericom (see plugins/genericom/grift/pages.grift.json batch 'Genericom landing page v0.1.0')."
       },
       "nodes": [
         {
@@ -29,7 +29,12 @@
             "description": "All entity nodes in the grid.",
             "search_type": "orm",
             "root": "node",
-            "definition": {"filters": {}, "order_by": ["name"]}
+            "definition": {
+              "filters": {},
+              "order_by": [
+                "name"
+              ]
+            }
           }
         },
         {
@@ -44,7 +49,12 @@
             "description": "All edges in the grid.",
             "search_type": "orm",
             "root": "edge",
-            "definition": {"filters": {}, "order_by": ["entity_id"]}
+            "definition": {
+              "filters": {},
+              "order_by": [
+                "entity_id"
+              ]
+            }
           }
         },
         {
@@ -59,8 +69,15 @@
             "description": "All entities in the grid shown as a graph.",
             "definition": {
               "inputs": [],
-              "steps": [{"type": "search", "search-id": "main"}],
-              "presentation": {"placement": "cytoscape:grid"},
+              "steps": [
+                {
+                  "type": "search",
+                  "search-id": "main"
+                }
+              ],
+              "presentation": {
+                "placement": "cytoscape:grid"
+              },
               "interactions": {}
             }
           }
@@ -70,7 +87,9 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e77fa29d8d65",
             "entity_type": "panel",
             "name": "Grid Overview",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "grid-overview-graph",
@@ -84,14 +103,19 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7806fa99ee8",
             "entity_type": "panel",
             "name": "All Entities",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "slug": "grid-all-nodes-table",
             "name": "All Entities",
             "view": "tap_web/panels/table_panel.html",
             "editor_view": "tap_web/panels/table_panel_editor.html",
-            "config": {"column_mode": "common_metadata", "default_page_size": 100}
+            "config": {
+              "column_mode": "common_metadata",
+              "default_page_size": 100
+            }
           }
         },
         {
@@ -99,16 +123,29 @@
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7812270b36d",
             "entity_type": "page",
             "name": "Administrivia",
-            "dimensions": {"tap.graph": "web"}
+            "dimensions": {
+              "tap.graph": "web"
+            }
           },
           "node": {
             "name": "Administrivia",
             "slug": "/administrivia",
             "layout": {
               "columns": {
-                "col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "graph"}, "row-2": {"panel-id": "nodes"}}}
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1": {
+                      "panel-id": "graph"
+                    },
+                    "row-2": {
+                      "panel-id": "nodes"
+                    }
+                  }
+                }
               }
-            }
+            },
+            "nav_weight": -100
           }
         }
       ],
@@ -124,7 +161,9 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e77e9fc402ae",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e77c78c39c18",
             "edge_type": "USES_SEARCH",
-            "properties": {"search-id": "main"}
+            "properties": {
+              "search-id": "main"
+            }
           }
         },
         {
@@ -138,7 +177,9 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e77e9fc402ae",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e77d65cd238d",
             "edge_type": "USES_SEARCH",
-            "properties": {"search-id": "edges"}
+            "properties": {
+              "search-id": "edges"
+            }
           }
         },
         {
@@ -152,7 +193,9 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e77fa29d8d65",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e77e9fc402ae",
             "edge_type": "USES_LAYOUT",
-            "properties": {"layout-id": "default"}
+            "properties": {
+              "layout-id": "default"
+            }
           }
         },
         {
@@ -180,7 +223,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7812270b36d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e77fa29d8d65",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "graph"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "graph"
+              }
+            }
           }
         },
         {
@@ -194,7 +243,13 @@
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7812270b36d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7806fa99ee8",
             "edge_type": "USES_PANEL",
-            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "nodes"}}
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "nodes"
+              }
+            }
           }
         }
       ]

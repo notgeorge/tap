@@ -696,7 +696,12 @@ def nav_index_view(request: HttpRequest) -> JsonResponse:
     # pages (e.g. /samsite/finding/<entity_id>) opt out of discovery surfaces
     # because clicking them without a parameter produces a broken render. They
     # still resolve on direct visit; only browse-style discovery is gated.
-    pages_qs = Page.objects.filter(discoverable=True).order_by("slug")
+    #
+    # Sort by (-nav_weight, slug) per req-web-nav-page-weight — higher weight
+    # floats up; ties resolve alphabetically by slug. Consumers (palette tree,
+    # chevron popovers, column view) read the index in document order and
+    # therefore inherit the same sort without re-sorting client-side.
+    pages_qs = Page.objects.filter(discoverable=True).order_by("-nav_weight", "slug")
     entries: list[dict[str, Any]] = []
     for page in pages_qs:
         breadcrumb = build_breadcrumb(page.slug)
@@ -705,6 +710,7 @@ def nav_index_view(request: HttpRequest) -> JsonResponse:
                 "url": page.slug,
                 "name": page.name,
                 "description": page.description or "",
+                "nav_weight": page.nav_weight,
                 "breadcrumb": [
                     {"label": seg.label, "url": seg.url} for seg in breadcrumb
                 ],
