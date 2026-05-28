@@ -138,6 +138,42 @@
   margin-right: 0.5em;
 }
 
+/* --- Empty state --- */
+/* req-web-panel-entity-resolution-empty-state-2: fallback_count == 0 renders
+   in informational tone, not red/error styling. Slate-blue chrome distinct
+   from the red error block; no "phase" tag (this isn't a failure phase). */
+
+.roscale-empty-state {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 0 0 1rem;
+}
+
+.roscale-empty-header {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.roscale-empty-icon {
+  font-size: 1.25em;
+}
+
+.roscale-empty-message {
+  margin: 0.5rem 0;
+}
+
+.roscale-empty-deeplink {
+  margin: 0.25rem 0 0;
+  color: #475569;
+  font-size: 0.95em;
+}
+
 /* --- Key/value blocks --- */
 
 .roscale-kv {

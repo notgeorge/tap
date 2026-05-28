@@ -1,13 +1,24 @@
 {% load static %}
 <div class="samsite-scoreboard">
   {% if error_phase %}
-    <section class="samsite-scoreboard-error">
-      <div class="samsite-scoreboard-error-header">
-        <span class="samsite-scoreboard-error-phase">[{{ error_phase }}]</span>
-        <span class="samsite-scoreboard-error-title">Could not render KSI scoreboard</span>
-      </div>
-      <p class="samsite-scoreboard-error-message">{{ error_message }}</p>
-    </section>
+    {% if is_empty_state %}
+      <section class="samsite-scoreboard-empty">
+        <div class="samsite-scoreboard-empty-header">
+          <span class="samsite-scoreboard-empty-icon" aria-hidden="true">📭</span>
+          <span class="samsite-scoreboard-empty-title">Waiting for an OSCAL SSP</span>
+        </div>
+        <p class="samsite-scoreboard-empty-message">No <code>compliance_artifact</code> of kind <code>oscal_ssp</code> is on the grid yet — {{ ssp_fallback_description }} hasn't produced a hit. The scoreboard joins the KSI catalog against the latest SSP + POA&amp;M; without an SSP there's nothing to score against. The samsite collector lands one per nightly run.</p>
+        <p class="samsite-scoreboard-empty-deeplink">To pin a specific SSP, append <code>?{{ ssp_var_name }}=&lt;entity_id&gt;</code> to the URL.</p>
+      </section>
+    {% else %}
+      <section class="samsite-scoreboard-error">
+        <div class="samsite-scoreboard-error-header">
+          <span class="samsite-scoreboard-error-phase">[{{ error_phase }}]</span>
+          <span class="samsite-scoreboard-error-title">Could not render KSI scoreboard</span>
+        </div>
+        <p class="samsite-scoreboard-error-message">{{ error_message }}</p>
+      </section>
+    {% endif %}
   {% else %}
 
     <section class="samsite-scoreboard-header">
