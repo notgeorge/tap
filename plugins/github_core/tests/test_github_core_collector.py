@@ -87,7 +87,7 @@ class TestManifests:
         assert len(oidc) == 1
         rule = oidc[0]
         assert rule["source_constant"] == "token.actions.githubusercontent.com"
-        assert rule["near_match_pattern"] == r"githubusercontent\.com"
+        assert rule["near_match_pattern"] == r"(?i)githubusercontent\.com"
 
 
 class TestPATSchema:

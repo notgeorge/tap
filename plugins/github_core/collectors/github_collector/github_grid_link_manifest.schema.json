@@ -43,7 +43,7 @@
           "multiple_candidates": {"enum": ["silent", "warn_no_edge"]},
           "near_match_pattern": {
             "type": "string",
-            "description": "Optional case-insensitive regex evaluated against `target_field` when zero exact matches are found. Each row that matches the pattern but NOT the exact value emits a near-match warning and no edge — surfaces 'this looks like what you meant but isn't quite it' situations so the operator can investigate instead of silently missing the link."
+            "description": "Optional Postgres POSIX regex evaluated against `target_field` (via Gryphon `=~`) when zero exact matches are found. Each row that matches the pattern but NOT the exact value emits a near-match warning and no edge — surfaces 'this looks like what you meant but isn't quite it' situations so the operator can investigate instead of silently missing the link. Search semantics (substring match anywhere in the value); explicit `^...$` for full-string anchoring. Use `(?i)` prefix for case-insensitive matching."
           },
           "description": {"type": "string"}
         }
