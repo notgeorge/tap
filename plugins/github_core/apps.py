@@ -28,3 +28,23 @@ class GithubCoreConfig(TapPluginConfig):
                 "edges from the grid-link manifest)."
             ),
         )
+
+        # Landing-page panel types — see spec-github-core-repo-landing-page-v0.md.
+        from plugins.github_core.panels.cross_grid_references import (
+            CrossGridReferencesPanelType,
+        )
+        from plugins.github_core.panels.deploy_health import DeployHealthPanelType
+        from plugins.github_core.panels.history_strip import HistoryStripPanelType
+        from plugins.github_core.panels.recent_activity import RecentActivityPanelType
+        from plugins.github_core.panels.repo_hero import RepoHeroPanelType
+        from plugins.github_core.panels.workflow_catalog import WorkflowCatalogPanelType
+        from tap_web.registry import panel_type_registry
+
+        panel_type_registry.register("github-repo-hero", RepoHeroPanelType)
+        panel_type_registry.register("github-recent-activity", RecentActivityPanelType)
+        panel_type_registry.register("github-deploy-health", DeployHealthPanelType)
+        panel_type_registry.register("github-workflow-catalog", WorkflowCatalogPanelType)
+        panel_type_registry.register(
+            "github-cross-grid-references", CrossGridReferencesPanelType
+        )
+        panel_type_registry.register("github-history-strip", HistoryStripPanelType)

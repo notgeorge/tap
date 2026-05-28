@@ -1,0 +1,238 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e6ea5-a23a-70ea-96b9-821e26fbcc13",
+        "entity_type": "batch",
+        "name": "GitHub Core Repo Landing Page v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.github_core.grift.repo-landing-page",
+        "name": "GitHub Core Repo Landing Page v0.1.0",
+        "description": "Seeds the /github_core/repo page hosting six github_core panel instances: hero, recent activity, deploy health, workflow catalog, cross-grid references, history strip. Page takes a URL-backed repository_entity_id; absent → latest collected repo (req-github-core-repo-page-resolution). See plugins/github_core/specs/spec-github-core-repo-landing-page-v0.md."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23a-70ea-96b9-821f9a1f53ea",
+            "entity_type": "page",
+            "name": "GitHub Core — Repository",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "GitHub Core — Repository",
+            "slug": "/github_core/repo",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-hero": {"panel-id": "hero", "height": "auto"},
+                    "row-2-activity": {"panel-id": "activity", "height": "auto"},
+                    "row-3-health": {"panel-id": "health", "height": "auto"},
+                    "row-4-catalog": {"panel-id": "catalog", "height": "auto"},
+                    "row-5-cross-grid": {"panel-id": "cross-grid", "height": "auto"},
+                    "row-6-history": {"panel-id": "history", "height": "auto"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23a-70ea-96b9-822004672a23",
+            "entity_type": "panel",
+            "name": "GitHub Repo Hero",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "github-repo-hero",
+            "name": "GitHub Repo Hero",
+            "description": "Identity strip across the top of the github_core repo landing page.",
+            "view": "github_core/panels/repo_hero.html",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23a-70ea-96b9-822149b19b59",
+            "entity_type": "panel",
+            "name": "GitHub Recent Activity",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "github-recent-activity",
+            "name": "GitHub Recent Activity",
+            "description": "Latest N workflow runs ordered by run_started_at.",
+            "view": "github_core/panels/recent_activity.html",
+            "config": {"limit": 10}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23a-70ea-96b9-8222e3003a01",
+            "entity_type": "panel",
+            "name": "GitHub Deploy Health",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "github-deploy-health",
+            "name": "GitHub Deploy Health",
+            "description": "Per-workflow sparkline scoreboard.",
+            "view": "github_core/panels/deploy_health.html",
+            "config": {"window": 30}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23a-70ea-96b9-82238c820baf",
+            "entity_type": "panel",
+            "name": "GitHub Workflow Catalog",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "github-workflow-catalog",
+            "name": "GitHub Workflow Catalog",
+            "description": "List of workflows with click-to-expand parsed detail and raw YAML.",
+            "view": "github_core/panels/workflow_catalog.html",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23a-70ea-96b9-8224df077c8d",
+            "entity_type": "panel",
+            "name": "GitHub Cross-Grid References",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "github-cross-grid-references",
+            "name": "GitHub Cross-Grid References",
+            "description": "Outbound REFERENCES_RESOURCE edges from this repo's nodes, grouped by target type. The 'mapping the tao' payoff panel.",
+            "view": "github_core/panels/cross_grid_references.html",
+            "config": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23a-70ea-96b9-822506238a41",
+            "entity_type": "panel",
+            "name": "GitHub History Strip",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "github-history-strip",
+            "name": "GitHub History Strip",
+            "description": "HistoricalGithubWorkflow change summary.",
+            "view": "github_core/panels/history_strip.html",
+            "config": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23a-70ea-96b9-8226b2b00237",
+            "entity_type": "edge",
+            "name": "GitHub Repo Page USES_PANEL Hero",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e6ea5-a23a-70ea-96b9-821f9a1f53ea",
+            "to_entity_id": "019e6ea5-a23a-70ea-96b9-822004672a23",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {"model": "page", "spec": "page-panels", "value": "hero"}
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23a-70ea-96b9-8227ba70997b",
+            "entity_type": "edge",
+            "name": "GitHub Repo Page USES_PANEL Recent Activity",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e6ea5-a23a-70ea-96b9-821f9a1f53ea",
+            "to_entity_id": "019e6ea5-a23a-70ea-96b9-822149b19b59",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {"model": "page", "spec": "page-panels", "value": "activity"}
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23b-765d-8e4e-a6e42a86fbaa",
+            "entity_type": "edge",
+            "name": "GitHub Repo Page USES_PANEL Deploy Health",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e6ea5-a23a-70ea-96b9-821f9a1f53ea",
+            "to_entity_id": "019e6ea5-a23a-70ea-96b9-8222e3003a01",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {"model": "page", "spec": "page-panels", "value": "health"}
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23b-765d-8e4e-a6e5ef06f36d",
+            "entity_type": "edge",
+            "name": "GitHub Repo Page USES_PANEL Workflow Catalog",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e6ea5-a23a-70ea-96b9-821f9a1f53ea",
+            "to_entity_id": "019e6ea5-a23a-70ea-96b9-82238c820baf",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {"model": "page", "spec": "page-panels", "value": "catalog"}
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea5-a23b-765d-8e4e-a6e6bbda01b2",
+            "entity_type": "edge",
+            "name": "GitHub Repo Page USES_PANEL Cross-Grid References",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e6ea5-a23a-70ea-96b9-821f9a1f53ea",
+            "to_entity_id": "019e6ea5-a23a-70ea-96b9-8224df077c8d",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {"model": "page", "spec": "page-panels", "value": "cross-grid"}
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e6ea6-3e18-7253-81b3-d06d71301b77",
+            "entity_type": "edge",
+            "name": "GitHub Repo Page USES_PANEL History Strip",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e6ea5-a23a-70ea-96b9-821f9a1f53ea",
+            "to_entity_id": "019e6ea5-a23a-70ea-96b9-822506238a41",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {"model": "page", "spec": "page-panels", "value": "history"}
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
