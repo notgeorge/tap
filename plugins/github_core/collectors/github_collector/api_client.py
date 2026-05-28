@@ -51,11 +51,25 @@ class GithubAPIError(Exception):
 
 
 class GithubClient:
-    """A thin authenticated HTTP wrapper around GitHub's REST API."""
+    """A thin authenticated HTTP wrapper around GitHub's REST API.
 
-    def __init__(self, *, token: str, api_base_url: str = "https://api.github.com") -> None:
+    `retry_empty_404=True` (default) absorbs GitHub's intermittent empty-body
+    404 quirk on `/actions/*` endpoints (see module docstring). Self-test
+    paths instantiate with `retry_empty_404=False` so a real auth/access
+    failure surfaces immediately as a 404 rather than spending the full
+    backoff budget waiting for retries that won't change the outcome.
+    """
+
+    def __init__(
+        self,
+        *,
+        token: str,
+        api_base_url: str = "https://api.github.com",
+        retry_empty_404: bool = True,
+    ) -> None:
         self._token = token
         self._api_base_url = api_base_url.rstrip("/")
+        self._retry_empty_404 = retry_empty_404
 
     def get(self, path: str, *, params: dict[str, str] | None = None) -> Any:
         """Single GET; returns decoded JSON. Raises GithubAPIError on non-2xx."""
@@ -101,9 +115,15 @@ class GithubClient:
                 return self._request_once(url)
             except GithubAPIError as exc:
                 # Real 404s carry a JSON body explaining the failure. Empty-body
-                # 404 is GitHub's undocumented intermittent quirk — retry it.
+                # 404 is GitHub's undocumented intermittent quirk — retry it
+                # (unless retry_empty_404 was disabled — see self-test path).
                 # See module docstring for evidence + reasoning.
-                if exc.status == 404 and not exc.body and attempt < _EMPTY_404_MAX_RETRIES:
+                if (
+                    self._retry_empty_404
+                    and exc.status == 404
+                    and not exc.body
+                    and attempt < _EMPTY_404_MAX_RETRIES
+                ):
                     logger.warning(
                         "[c1d4] github empty-body 404 on %s (attempt %d/%d); "
                         "retrying after %.2fs",

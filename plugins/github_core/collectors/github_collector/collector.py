@@ -11,8 +11,19 @@ import base64
 import logging
 from typing import Any
 
+from tap_cares.collectors import (
+    CollectorDocRef,
+    CollectorReadinessStatus,
+    CollectorSelfTestResult,
+    check_fail,
+    check_pass,
+)
 from tap_cares.collectors.base import CollectorBase
-from tap_cares.exceptions import SecretError
+from tap_cares.exceptions import (
+    SecretError,
+    SecretNotFoundError,
+    SecretValidationError,
+)
 
 from .api_client import GithubAPIError, GithubClient
 from .batch import (
@@ -56,6 +67,15 @@ _SITE_NON_TERMINAL_REFRESH = "6558"
 _SITE_RUN_NOT_FOUND = "f938"
 _SITE_LOCAL_ACTION_DEFERRED = "b148"
 
+_DOCS = (
+    CollectorDocRef(
+        plugin="github_core",
+        doc="collector",
+        section="self-test",
+        label="GitHub Core collector self-test",
+    ),
+)
+
 # GitHub Actions `status` values that are non-terminal — runs in any of these
 # states are re-fetched on every collection until they reach `completed`
 # (`req-github-core-collector-4`). Enumerating terminal-vs-not is more robust
@@ -71,6 +91,140 @@ class GithubCollectorError(Exception):
 
 class GithubCollector(CollectorBase):
     """GitHub Actions collector — single PAT, configured repos, two-phase run."""
+
+    @classmethod
+    def self_test(cls) -> CollectorSelfTestResult:
+        """Operator-facing readiness check for the github_core collector.
+
+        Four checks in order; each short-circuits the rest on failure with an
+        actionable readiness status:
+          1. GITHUB_SECRET_PRESENT — `github_pat` secret file exists
+          2. GITHUB_SECRET_VALID   — secret schema validates (token, repos, ...)
+          3. GITHUB_API_REACHABLE  — `GET /rate_limit` succeeds within budget
+          4. GITHUB_REPO_ACCESS    — per-configured-repo `GET /repos/{owner}/{repo}`
+                                     succeeds; surfaces which repo(s) fail
+
+        The empty-body-404 retry in `api_client` is deliberately disabled for
+        self-test paths: a real auth/access 404 should surface immediately,
+        not after the full backoff budget (which won't change the outcome).
+        """
+        checks: list = []
+
+        # 1. Secret present.
+        try:
+            secret = resolve_github_secret(GITHUB_SECRET_REF)
+        except SecretNotFoundError as exc:
+            checks.append(
+                check_fail(
+                    "GITHUB_SECRET_PRESENT",
+                    f"github_pat secret is not configured: {exc}",
+                    readiness_status=CollectorReadinessStatus.UNCONFIGURED,
+                    docs=_DOCS,
+                )
+            )
+            return CollectorSelfTestResult.from_checks(
+                checks,
+                summary="github_pat secret is not configured.",
+                docs=_DOCS,
+            )
+        except (SecretValidationError, SecretError) as exc:
+            # 2. Secret malformed (schema failed).
+            checks.append(
+                check_fail(
+                    "GITHUB_SECRET_VALID",
+                    f"github_pat secret is malformed: {exc}",
+                    readiness_status=CollectorReadinessStatus.MISCONFIGURED,
+                    docs=_DOCS,
+                )
+            )
+            return CollectorSelfTestResult.from_checks(
+                checks,
+                summary="github_pat secret is malformed.",
+                docs=_DOCS,
+            )
+        checks.append(
+            check_pass(
+                "GITHUB_SECRET_VALID",
+                "github_pat secret resolves and is the expected kind.",
+                docs=_DOCS,
+            )
+        )
+
+        data = dict(secret.data)
+        repos: list[str] = list(data["repos"])
+
+        # 3. API reachable + PAT authenticates — GET /rate_limit.
+        # No-retry client so a real 401/403 surfaces immediately.
+        client = GithubClient(
+            token=data["token"],
+            api_base_url=api_base_url(data),
+            retry_empty_404=False,
+        )
+        try:
+            rate = client.get("/rate_limit")
+        except GithubAPIError as exc:
+            checks.append(
+                check_fail(
+                    "GITHUB_API_REACHABLE",
+                    f"GitHub /rate_limit failed: status={exc.status} "
+                    f"body={exc.body[:200] or '(empty)'}",
+                    readiness_status=CollectorReadinessStatus.ERROR,
+                    docs=_DOCS,
+                )
+            )
+            return CollectorSelfTestResult.from_checks(
+                checks,
+                summary="GitHub API unreachable or PAT auth failed.",
+                docs=_DOCS,
+            )
+        core = rate.get("rate") or rate.get("resources", {}).get("core", {})
+        checks.append(
+            check_pass(
+                "GITHUB_API_REACHABLE",
+                f"GitHub API reachable; PAT rate-limit "
+                f"{core.get('used', '?')}/{core.get('limit', '?')} used.",
+                context={"rate": core},
+                docs=_DOCS,
+            )
+        )
+
+        # 4. Per-repo access. Each failure is recorded but doesn't short-
+        # circuit the rest — operator wants to see ALL the broken repos in
+        # one run, not just the first.
+        repo_access_ok = True
+        for repo in repos:
+            try:
+                client.get(f"/repos/{repo}")
+            except GithubAPIError as exc:
+                repo_access_ok = False
+                checks.append(
+                    check_fail(
+                        f"GITHUB_REPO_ACCESS:{repo}",
+                        f"PAT cannot access {repo}: status={exc.status} "
+                        f"body={exc.body[:200] or '(empty)'}",
+                        readiness_status=CollectorReadinessStatus.ERROR,
+                        docs=_DOCS,
+                    )
+                )
+            else:
+                checks.append(
+                    check_pass(
+                        f"GITHUB_REPO_ACCESS:{repo}",
+                        f"PAT has access to {repo}.",
+                        context={"repo": repo},
+                        docs=_DOCS,
+                    )
+                )
+
+        return CollectorSelfTestResult.from_checks(
+            checks,
+            summary=(
+                f"GitHub Core collector is ready; {len(repos)} repo(s) accessible."
+                if repo_access_ok
+                else "GitHub Core collector PAT cannot access one or more configured repos."
+            ),
+            docs=_DOCS,
+        )
 
     def _abort(self, site: str, code: str, message: str) -> None:
         self.record_error(site, code, message)
