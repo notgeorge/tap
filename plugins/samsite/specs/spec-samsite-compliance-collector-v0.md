@@ -45,6 +45,7 @@ collector is its first proving instance.
 | req-samsite-collector-decompose | [Decomposition](#decomposition) | Proposed | KSI signal + VDR decomposed into the fedramp models; OSCAL/IIW blobbed |
 | req-samsite-collector-schedule | [Daily Schedule](#daily-schedule) | Proposed | Registered to run daily through the `tap_cares` scheduler |
 | req-samsite-collector-identity | [Identity And Emission History](#identity-and-emission-history) | Proposed | Components dedup across emissions; signals/reports/findings per-emission |
+| req-samsite-collector-boundary-membership | [Authorization Boundary Membership (v0 KLUDGE)](#authorization-boundary-membership-v0-kludge) | Proposed | **KLUDGE** — blanket-scope every `aws_account` into the samsite boundary; replace with curated membership |
 | req-samsite-collector-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Generic web collector archetype, deferred |
 
 ---
@@ -198,6 +199,59 @@ history system when emission volume warrants it.
 | req-samsite-collector-identity-1 | Deterministic Identity | Proposed | Every node has a deterministic id so re-runs upsert rather than duplicate. | |
 | req-samsite-collector-identity-2 | Components Dedup | Proposed | `ksi_component` nodes dedup across emissions by `component_id`. | |
 | req-samsite-collector-identity-3 | Emissions Are Per-Run | Proposed | Signal, validation, violation, report, and finding nodes are per-emission; daily runs accumulate history. | |
+
+### Authorization Boundary Membership (v0 KLUDGE)
+----
+RID: `req-samsite-collector-boundary-membership`
+Status: `Proposed`
+
+> ⚠️ **This requirement is a deliberate, documented KLUDGE for the sam demo.**
+> It is correct *only* for the single-account, everything-is-in-scope demo and
+> must be replaced before any multi-account or partial-scope deployment.
+
+After decomposition, the collector synthesizes one `SCOPED_TO_BOUNDARY` edge
+(`aws_account` → boundary) for **every** `aws_account` node currently on the
+grid, scoping them all into the samsite FedRAMP authorization boundary (the
+boundary instance seeded by `plugins/samsite/grift/landing.grift.json`, owned by
+the `fedramp_20x_ksi` `Boundary` model). The account ids are discovered with a
+Gryphon read (`MATCH (a:aws_account) RETURN a`); edges are emitted in the same
+GRIFT batch the collector already submits.
+
+**Why a kludge.** A real authorization boundary is a *curated subset* — not
+every account in an organization, and within an account not every resource is in
+scope. Blanket all-accounts membership is intentionally over-broad; it buys a
+real, queryable boundary-membership relationship (the `Boundary` model's fan-in
+"what's in scope" query works, and the landing projection's boundary frame draws
+from real edges) at near-zero cost for a demo where there is exactly one account
+and it is entirely in scope.
+
+**Why the collector, and why not the seed or `fedramp_20x_ksi`.**
+- Not the GRIFT seed: the account is collector-owned and does not exist at seed
+  time, so a hardcoded edge to it dangles on a clean boot (the defect this
+  replaces).
+- Not `fedramp_20x_ksi`: auto-including `aws_account` in the *generic* FedRAMP
+  boundary would bake an aws_core-specific assumption into a plugin that must not
+  know AWS exists (hermetic-plugins rule).
+- The collector (in `samsite`, the integration plugin that depends on both
+  aws_core and fedramp_20x_ksi and owns the boundary instance) mints the edges
+  *after* the accounts exist, so nothing dangles. This is a first-class,
+  spec-stated cross-plugin dependency, not a coincidental one.
+
+**Disclosure + future seam.** Every synthesized edge carries
+`properties.kludge = "all-aws-accounts-auto-in-boundary-v0"` so the demo-only
+edges are machine-identifiable. Replace this requirement with a curated
+membership declaration (which account(s)/resources are actually in scope) the
+moment there is more than one account or any out-of-scope resource. Code:
+`plugins/samsite/collectors/compliance_collector/boundary_membership.py`.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-samsite-collector-boundary-membership-1 | One Edge Per Account | Proposed | After decomposition the collector emits exactly one `SCOPED_TO_BOUNDARY` edge from each `aws_account` on the grid to the samsite boundary. | |
+| req-samsite-collector-boundary-membership-2 | Idempotent | Proposed | Edge ids are deterministic (`uuid5` over `SCOPED_TO_BOUNDARY:<account>-><boundary>`); re-runs upsert rather than duplicate. | |
+| req-samsite-collector-boundary-membership-3 | Graceful When Empty | Proposed | With no `aws_account` on the grid (fresh boot before the boto3 collector) the collector synthesizes zero edges and does not error. | |
+| req-samsite-collector-boundary-membership-4 | Machine-Readable Kludge Marker | Proposed | Each synthesized edge carries `properties.kludge = "all-aws-accounts-auto-in-boundary-v0"`. | |
 
 ### v0 Non-Goals
 ----

@@ -20,6 +20,10 @@ from typing import Any
 from tap_cares.collectors.base import CollectorBase
 
 from .batch import assemble_batch
+from .boundary_membership import (
+    fetch_aws_account_entity_ids,
+    synthesize_boundary_membership_edges,
+)
 from .decompose import (
     decompose_compliance_artifact,
     decompose_ksi_signal,
@@ -40,6 +44,7 @@ _SITE_BATCH_SUBMITTED = "0772"
 _SITE_NOTHING_TO_SUBMIT = "12f5"
 _SITE_VERIFY_PASSED = "8acc"
 _SITE_VERIFY_FAILED = "9394"
+_SITE_BOUNDARY_MEMBERSHIP = "b967"
 
 _FETCH_TIMEOUT_SECONDS = 30
 _USER_AGENT = "tap-samsite-compliance-collector"
@@ -60,7 +65,9 @@ def _fetch(url: str) -> bytes:
     if not url.startswith("https://"):
         raise ValueError(f"Refusing to fetch non-HTTPS URL: {url}")
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
-    with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT_SECONDS) as response:  # noqa: S310 — HTTPS-guarded above
+    with urllib.request.urlopen(
+        request, timeout=_FETCH_TIMEOUT_SECONDS
+    ) as response:  # noqa: S310 — HTTPS-guarded above
         return response.read()
 
 
@@ -150,9 +157,7 @@ class SamsiteComplianceCollector(CollectorBase):
                         },
                     )
 
-            fetched.append(
-                {"artifact": artifact, "body": body, "bundle": bundle_bytes, "verification": verification}
-            )
+            fetched.append({"artifact": artifact, "body": body, "bundle": bundle_bytes, "verification": verification})
             self.record_info(
                 _SITE_ARTIFACT_FETCHED,
                 "ARTIFACT_FETCHED",
@@ -231,9 +236,27 @@ class SamsiteComplianceCollector(CollectorBase):
             all_nodes.extend(decomp.nodes)
             all_edges.extend(decomp.edges)
 
+        # ---- Phase 2.5: authorization-boundary membership (MAJOR KLUDGE) ----
+        # Blanket-scope every aws_account on the grid into the samsite FedRAMP
+        # boundary. See boundary_membership.py for the full rationale and the
+        # future seam (curated membership). Grid-derived, not artifact-derived:
+        # runs regardless of whether any artifact was fetched/decomposed, and
+        # no-ops cleanly when no account exists yet (fresh boot before the
+        # boto3 collector has run). req-samsite-collector-boundary-membership.
+        boundary_edges = synthesize_boundary_membership_edges(fetch_aws_account_entity_ids())
+        if boundary_edges:
+            all_edges.extend(boundary_edges)
+            self.record_info(
+                _SITE_BOUNDARY_MEMBERSHIP,
+                "BOUNDARY_MEMBERSHIP_KLUDGE",
+                f"KLUDGE: scoped {len(boundary_edges)} aws_account(s) into the samsite "
+                f"authorization boundary (blanket all-accounts membership).",
+                message_data={"account_count": len(boundary_edges)},
+            )
+
         # ---- Phase 3: assemble + submit -------------------------------------
-        if not all_nodes:
-            self.summary = "No artifacts decomposed; nothing to submit."
+        if not all_nodes and not all_edges:
+            self.summary = "No artifacts decomposed and no boundary membership; nothing to submit."
             self.record_warn(
                 _SITE_NOTHING_TO_SUBMIT,
                 "NOTHING_TO_SUBMIT",
