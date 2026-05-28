@@ -71,7 +71,14 @@
                 <form hx-post="/panel/{{ panel.slug }}--{{ panel.entity_id }}/?entity_id={{ collector.entity_id }}"
                       hx-target="closest .tap-panel"
                       hx-swap="outerHTML"
+                      hx-disinherit="hx-select"
                       class="tap-cares-detail__self-test-form">
+                    {# `hx-disinherit="hx-select"` is load-bearing: the form lives inside     #}
+                    {# `#cares-self-test-block` which carries hx-select="#cares-self-test-block"  #}
+                    {# for its 5s polling. Without disinherit, the button POST would extract    #}
+                    {# only the self-test block from the response and use THAT as the           #}
+                    {# replacement for `closest .tap-panel`, collapsing the whole panel to      #}
+                    {# just the self-test row. We want the full panel response to land here.    #}
                     {% csrf_token %}
                     <input type="hidden" name="action" value="self_test">
                     <input type="hidden" name="collector_entity_id" value="{{ collector.entity_id }}">
