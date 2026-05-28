@@ -73,6 +73,8 @@ def register_<thing>(
 
 The entry point is called at plugin load time — typically inside the plugin's `AppConfig.ready()`. Calling it again on subsequent reloads is idempotent: the same `scope:key` produces the same entity_id, and the upsert refreshes mutable descriptive fields without disturbing identity, dimensions, history, or version semantics.
 
+Idempotency must extend to **concurrent first-create across processes**, not just sequential reloads. Because the entry point runs in `AppConfig.ready()`, and a deployment commonly starts several processes at once (e.g. a web server and a task-queue worker), two processes can reach the create path simultaneously on a fresh database. The non-atomic check-then-create is a race: one process wins the `entity_id` primary key, the other's create fails on the unique constraint. The entry point must treat that lost race as success — re-read the now-present node and fall through to the descriptive-field upsert rather than raising (the `get_or_create` race-safety pattern). A create whose failure leaves no row behind is still a real error. (Originating failure: the loser raised and crashed a Steady Queue supervisor at spawn time, so collector jobs sat un-drained — `tap_cares` registry, 2026-05-28.)
+
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
@@ -81,6 +83,7 @@ The entry point is called at plugin load time — typically inside the plugin's 
 | req-grid-dual-existence-pattern-2 | One Caller Surface | Proposed | Plugin code calls one function (`register_<thing>(...)`) which performs both registrations; the caller is not required to coordinate them separately. | |
 | req-grid-dual-existence-pattern-3 | Idempotent Reload | Proposed | Repeated calls with the same `scope:key` upsert the grid node without creating duplicates or destabilizing identity. | |
 | req-grid-dual-existence-pattern-4 | Behavior Stays Sub-Grid | Proposed | Executable behavior (the registered class or callable) lives only on the sub-grid side. The grid node carries identity and descriptive metadata, never logic. | |
+| req-grid-dual-existence-pattern-5 | Concurrent-Create Safe | Proposed | When two processes hit the create path at once on a fresh DB, the loser re-reads and falls through to the upsert rather than raising; only a create leaving no row behind is fatal. | |
 
 ---
 
