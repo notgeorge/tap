@@ -49,7 +49,9 @@ class TestManifests:
         manifest = load_link_manifest()
         assert manifest["manifest_version"] == "0"
         edge_types = {r["edge_type"] for r in manifest["rules"]}
-        assert edge_types == {"REFERENCES_RESOURCE"}
+        # YAML-ref rules emit REFERENCES_RESOURCE; the structural OIDC rule
+        # emits FEDERATES_VIA (repo -> aws_iam_oidc_provider).
+        assert edge_types == {"REFERENCES_RESOURCE", "FEDERATES_VIA"}
 
     def test_link_manifest_oneof_source_enforced(self) -> None:
         """Schema must reject rules with both source_field_path and source_constant."""
@@ -88,6 +90,9 @@ class TestManifests:
         rule = oidc[0]
         assert rule["source_constant"] == "token.actions.githubusercontent.com"
         assert rule["near_match_pattern"] == r"(?i)githubusercontent\.com"
+        # The federation rule emits the dedicated FEDERATES_VIA edge (not the
+        # generic REFERENCES_RESOURCE) — repo -> aws_iam_oidc_provider.
+        assert rule["edge_type"] == "FEDERATES_VIA"
 
 
 class TestPATSchema:

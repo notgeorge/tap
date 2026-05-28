@@ -18,6 +18,15 @@ class GithubRepository(BaseModel):
     ENTITY_DESCRIPTION: ClassVar[str] = "A repository hosted on GitHub."
     ENTITY_ICON: ClassVar[str] = "github-repository"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"github.platform": "github.com"}
+    # Inner level of the GitHub nesting palette — deeper accent blue; the white
+    # workflow leaf cards sit on this bed. See github_platform for the scheme.
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "round-rectangle",
+            "colors": {"fill": "#B6E3FF", "border": "#0969DA", "label": "#0A3069"},
+            "label": {"valign": "top", "halign": "center", "position": "outside"},
+        }
+    }
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "full_name": {"type": "string", "minLength": 1},

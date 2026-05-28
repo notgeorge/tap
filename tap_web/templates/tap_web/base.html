@@ -20,7 +20,8 @@
     {# + (palette affordance, Phase 4) + (mini-graph slot, backlog). The         #}
     {# `block header_title` injection is gone — the breadcrumb auto-derives.    #}
     <nav class="bg-slate-800 text-white" aria-label="Breadcrumb">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {# Header is full-width app chrome (GitHub/Linear-style) — always edge-to-edge, just gutters, independent of the body's full_bleed mode. #}
+        <div class="px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-10">
                 <ol class="flex items-center text-sm" style="gap: 0.5rem;">
                     {% for seg in breadcrumb %}
@@ -79,7 +80,8 @@
     </nav>
 
     <main class="flex-1 flex flex-col min-h-0">
-        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 w-full flex-1 flex flex-col min-h-0">
+        {# full_bleed (per-page, from layout.full_bleed) drops the centered max-width so graph/dashboard pages fill the viewport; padding gutters stay. #}
+        <div class="py-6 px-4 sm:px-6 lg:px-8 w-full flex-1 flex flex-col min-h-0{% if not full_bleed %} max-w-7xl mx-auto{% endif %}">
             {% block content %}{% endblock %}
         </div>
     </main>

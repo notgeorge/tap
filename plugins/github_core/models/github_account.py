@@ -18,6 +18,15 @@ class GithubAccount(BaseModel):
     ENTITY_DESCRIPTION: ClassVar[str] = "A GitHub user or organization account."
     ENTITY_ICON: ClassVar[str] = "github-account"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"github.platform": "github.com"}
+    # Mid level of the GitHub nesting palette — light accent blue. See
+    # github_platform.GithubPlatform.DEFAULT_DISPLAY for the family scheme.
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "round-rectangle",
+            "colors": {"fill": "#DDF4FF", "border": "#54AEFF", "label": "#0A3069"},
+            "label": {"valign": "top", "halign": "center", "position": "outside"},
+        }
+    }
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "login": {"type": "string", "minLength": 1},

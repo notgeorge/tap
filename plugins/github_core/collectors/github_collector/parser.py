@@ -143,6 +143,11 @@ def _categorize_refs(parsed: dict[str, Any]) -> dict[str, list[str]]:
 
     Used by the enrichment phase. Conservative pattern matching; false hits
     just fail to find a grid candidate and produce no edge.
+
+    Known limitation: this shape-regex approach both fabricates (tags version
+    pins / filenames as `domain_names`) and misses `${{ }}`-embedded values.
+    The successor design — match against the known grid vocabulary instead of
+    guessing shapes — is specced as `req-github-core-backlog-grid-vocab-links`.
     """
     refs = _empty_refs()
     for value in _string_values(parsed):

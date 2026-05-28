@@ -67,8 +67,8 @@ surface and takes only the Actions plumbing path needed for samsite.
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-github-core-scope | [Plugin Scope](#plugin-scope) | Implemented | v0 is GitHub Actions deployment plumbing for `notgeorge/samsite` |
-| req-github-core-models | [Model Set](#model-set) | Implemented | Account, repo, workflow, run, job, runner — all six tables landed via 0001_initial |
-| req-github-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | Repo/workflow/run/job/runner spine plus conservative AWS links — all six edge files registered |
+| req-github-core-models | [Model Set](#model-set) | Implemented | Platform, account, repo, workflow, run, job, runner — six tables via 0001_initial + the synthesized `github_platform` singleton via 0002 |
+| req-github-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | Platform/account/repo/workflow/run/job/runner spine (incl. `HOSTS_ACCOUNT`) plus cross-grid `REFERENCES_RESOURCE` + `FEDERATES_VIA` — eight edge files registered |
 | req-github-core-dimensions | [Dimension Strategy](#dimension-strategy) | Implemented | All four dimensions emitted: platform on every node/edge, repo on collector envelopes, surface on Actions models, observation on runs/jobs |
 | req-github-core-secret | [PAT Secret Kind](#pat-secret-kind) | Implemented | `github_pat` data shape, additionalProperties: false; GitHub App auth still deferred |
 | req-github-core-collector | [Collector Runtime](#collector-runtime) | Implemented | Two-phase run + degraded-runner + no-delete + single-attempt + incremental + non-terminal refresh + empty-body-404 retry + per-run-/jobs degrade |
@@ -79,6 +79,7 @@ surface and takes only the Actions plumbing path needed for samsite.
 | req-github-core-python-deps | [Plugin Python Dependency](#plugin-python-dependency) | Implemented | `PyYAML` is plugin-owned via root uv workspace; first proof of `req-plugin-arch-python-deps` |
 | req-github-core-backlog-references | [Variables And Secret References (Backlog)](#variables-and-secret-references-backlog) | Backlog | Two-source-of-truth model, hotlink contract implication, provenance shape; pick up when critical path |
 | req-github-core-backlog-run-attempts | [Multi-Attempt Run Observation (Backlog)](#multi-attempt-run-observation-backlog) | Backlog | Per-attempt run + job fan-out, re-run-failed-jobs subtlety, HAS_JOB lifecycle; pick up when critical path |
+| req-github-core-backlog-grid-vocab-links | [Grid-Vocabulary Reference Resolution (Backlog)](#grid-vocabulary-reference-resolution-backlog) | Backlog | Replace the parser's regex shape-guessing with matching against the known grid vocabulary (regions/zones/dist-ids); removes junk refs, recovers `${{ }}`-embedded matches, needs confidence markers |
 | req-github-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Full GitHub inventory, Sigstore/Rekor, deletion/reaping, schedules, references, multi-attempt runs — boundaries hold |
 
 ### Plugin Scope
@@ -110,6 +111,7 @@ dedicated node types rather than being jammed into workflow JSON.
 
 Models:
 
+- `github_platform` — the platform instance (github.com today, a GHES host tomorrow); the top of the `platform → account → repo → workflow` tree. Synthesized as a singleton by the collector (one per run) rather than fetched — no GitHub API enumerates "the platform." Natural key is the host, so a self-hosted GHES tenant becomes a second instance rather than a special case.
 - `github_account` — owner/user/org account.
 - `github_repository` — repository shell; v0 only needs enough fields to show it exists and anchor Actions objects.
 - `github_workflow` — workflow definition discovered from GitHub Actions API and parsed workflow file content.
@@ -127,6 +129,7 @@ Natural-key inputs:
 
 | Model | Natural Key |
 | --- | --- |
+| `github_platform` | host (`github.com`) |
 | `github_account` | account login or GitHub numeric id |
 | `github_repository` | `owner/repo` |
 | `github_workflow` | `owner/repo` + workflow id/path |
@@ -177,7 +180,8 @@ must not conflate the two.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-models-1 | V0 Models Declared | Implemented | The plugin declares the six v0 model types listed above. | |
+| req-github-core-models-1 | V0 Models Declared | Implemented | The plugin declares the seven v0 model types listed above. | The original six landed via 0001_initial; `github_platform` was added later via 0002. |
+| req-github-core-models-8 | Platform Singleton Synthesized | Implemented | `github_platform` is a synthesized singleton (one per run, deterministic id keyed on the host), not fetched from any API; re-runs and hand-written GRIFT nodes with the same host upsert cleanly onto it. | Collector emits it before the per-repo walk; mirrors `aws_core`'s `aws_account_singleton` pattern. |
 | req-github-core-models-3 | Job Steps Blobbed | Implemented | Workflow job steps remain structured data in `github_actions_job.configuration` in v0. | Future visualization target. |
 | req-github-core-models-4 | Deterministic Identity | Implemented | Every model uses deterministic UUIDv5 identity based on the natural keys above. | `collectors/github_collector/identity.py` mints UUIDv5 from `(entity_type, natural_key)` under a fixed namespace. |
 | req-github-core-models-7 | Raw Workflow YAML Retained | Implemented | `github_workflow.configuration.raw_yaml` stores the full workflow YAML body fetched at collection time. | Parser stores raw bytes; collector base64-decodes the Contents-API `content` field and writes it. |
@@ -193,12 +197,14 @@ V0 edge types:
 
 | Edge | Direction | Meaning |
 | --- | --- | --- |
+| `HOSTS_ACCOUNT` | `github_platform` -> `github_account` | Platform instance hosts an account (top-of-tree containment). Synthesized alongside the platform singleton. |
 | `OWNS_REPO` | `github_account` -> `github_repository` | Account owns repo. |
 | `DEFINES_WORKFLOW` | `github_repository` -> `github_workflow` | Repo contains workflow definition. |
 | `EXECUTES_WORKFLOW` | `github_actions_run` -> `github_workflow` | Run executes workflow. |
 | `HAS_JOB` | `github_actions_run` -> `github_actions_job` | Run contains job. v0 reflects the latest-attempt job set; multi-attempt tracking deferred. |
 | `EXECUTED_ON` | `github_actions_job` -> `github_runner` | Job executed on a durable runner node when matchable. (Distinct from `computing_core.RUNS_ON`, which models program-on-compute-environment.) |
-| `REFERENCES_RESOURCE` | GitHub node -> external grid node | Conservative exact-match link to existing AWS nodes. |
+| `REFERENCES_RESOURCE` | GitHub node -> external grid node | Conservative exact-match link to existing AWS nodes (resolved in the enrichment phase). |
+| `FEDERATES_VIA` | `github_repository` -> `aws_iam_oidc_provider` | Repo federates into AWS through the GitHub Actions OIDC provider (URL `token.actions.githubusercontent.com`). Chains with the AWS-side `FEDERATES_INTO` (provider -> deploy role). Derived link resolved in the enrichment phase. |
 
 Secret and variable reference edges (`REFERENCES_SECRET`, `REFERENCES_VARIABLE`)
 are deferred to `req-github-core-backlog-references`.
@@ -211,8 +217,8 @@ ownership, or runtime control.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-edges-1 | Execution Spine | Implemented | The repo/workflow/run/job/runner edges are declared and constrained. | |
-| req-github-core-edges-2 | Resource Reference Edge | Implemented | The single v0 cross-grid reference edge is `REFERENCES_RESOURCE`. | Secret/variable reference edges deferred. |
+| req-github-core-edges-1 | Containment + Execution Spine | Implemented | The platform/account/repo/workflow/run/job/runner edges (`HOSTS_ACCOUNT`, `OWNS_REPO`, `DEFINES_WORKFLOW`, `EXECUTES_WORKFLOW`, `HAS_JOB`, `EXECUTED_ON`) are declared and constrained. | `HOSTS_ACCOUNT` is the top-of-tree containment edge synthesized with the platform singleton. |
+| req-github-core-edges-2 | Cross-Grid Edges | Implemented | The v0 cross-grid edges are `REFERENCES_RESOURCE` (conservative resource reference) and `FEDERATES_VIA` (repo -> AWS OIDC provider federation). Both resolve in the enrichment phase. | Secret/variable reference edges deferred. |
 | req-github-core-edges-3 | Conservative Resource Semantics | Implemented | `REFERENCES_RESOURCE` is used only for exact, unambiguous matches and does not overstate deployment semantics. | Enforced by the link-manifest schema (`match_mode: exact`-only enum) and the resolver's one-candidate-only emission rule. |
 
 ### Dimension Strategy
@@ -521,7 +527,9 @@ The link manifest supports two source-side shapes:
   structural rules where the join key isn't node-specific. First user:
   `repo_federates_with_github_oidc_provider` matches every collected
   `github_repository` against the canonical GitHub Actions OIDC issuer URL
-  on `aws_iam_oidc_provider.url`.
+  on `aws_iam_oidc_provider.url`, emitting a `FEDERATES_VIA` edge. (A rule's
+  `edge_type` is declared in the manifest; the federation rule is the one
+  structural rule that emits `FEDERATES_VIA` rather than `REFERENCES_RESOURCE`.)
 
 Rules may also declare a `near_match_pattern` (case-insensitive regex). When
 exact resolution returns zero candidates AND the target field of any row
@@ -542,8 +550,9 @@ GitHubCollector.run():
     2. Submission        — submit_grift(github_batch); committed
     3. Enrichment phase  — query landed GitHub nodes for the configured repos,
                             run link manifest rules against grid candidates,
-                            emit REFERENCES_RESOURCE edges as a second GRIFT
-                            batch (edges only — sources and targets already exist)
+                            emit cross-grid link edges (REFERENCES_RESOURCE,
+                            FEDERATES_VIA) as a second GRIFT batch (edges only —
+                            sources and targets already exist)
 ```
 
 This timing is deliberate:
@@ -608,10 +617,10 @@ future capability deferred with the rest of variable/secret-ref work in
 | req-github-core-grid-links-1 | Search/Gryphon Read Path | Implemented | Link resolution uses TAP's canonical search/Gryphon read surfaces. | `enrichment.py` runs four Gryphon Searches per rule: source-node fetch (`MATCH (n:<source_type>) WHERE n.data.full_name IN [...]`), exact-match candidate (`WHERE n.data.<field> = $value`), near-match (`WHERE n.data.<field> =~ $pattern AND NOT n.data.<field> = $exact`), and the labelless target-name lookup falls out of the spine envelope's `name` field (no extra query needed). The `=~` operator landed in `req-grid-traversal-lang-regex` on 2026-05-28. |
 | req-github-core-grid-links-2 | Exact Match Only | Implemented | Links are emitted only for exact unambiguous matches. | Manifest schema constrains `match_mode` to the `exact` enum value; resolver emits only when `len(candidates) == 1`. |
 | req-github-core-grid-links-3 | Ambiguity Warns | Implemented | Multiple matches produce a structured warning and no edge. | Resolver records a `LINK_AMBIGUOUS` warn per multi-candidate hit. |
-| req-github-core-grid-links-4 | Enrichment Phase | Implemented | Link resolution executes as a follow-on phase after the main GitHub GRIFT batch commits, emitting a second GRIFT batch containing only `REFERENCES_RESOURCE` edges. | `GithubCollector.run()` submits collection batch, then `resolve_links()` runs, then a second `submit_grift` if any edges resolved. |
+| req-github-core-grid-links-4 | Enrichment Phase | Implemented | Link resolution executes as a follow-on phase after the main GitHub GRIFT batch commits, emitting a second GRIFT batch containing only cross-grid link edges (`REFERENCES_RESOURCE`, `FEDERATES_VIA`). | `GithubCollector.run()` submits collection batch, then `resolve_links()` runs, then a second `submit_grift` if any edges resolved. |
 | req-github-core-grid-links-5 | Re-Resolve Every Run | Implemented | Every collector run re-resolves links against all configured-repo GitHub nodes, not just newly-changed ones. | `_source_queryset_for_repos` filters by `full_name__in=repos` and walks every matching landed node every run. |
 | req-github-core-grid-links-6 | Enrichment Failures Warn Only | Implemented | Enrichment-phase failures emit structured warnings; they do not roll back the already-committed GitHub batch. | Enrichment has no abort path; missing target models log + skip, multi-candidate hits warn + skip. |
-| req-github-core-grid-links-7 | Not Hotlink-Backed | Implemented | `REFERENCES_RESOURCE` is a derived link, not a hotlink: no `HOTLINKS` declaration, no pre-commit consistency-phase participation. | No HOTLINKS declared on any github_core model; resolver is a separate phase, not a model-level invariant. |
+| req-github-core-grid-links-7 | Not Hotlink-Backed | Implemented | The enrichment-resolved edges (`REFERENCES_RESOURCE`, `FEDERATES_VIA`) are derived links, not hotlinks: no `HOTLINKS` declaration, no pre-commit consistency-phase participation. | No HOTLINKS declared on any github_core model; resolver is a separate phase, not a model-level invariant. |
 
 ### Plugin Python Dependency
 ----
@@ -879,6 +888,81 @@ the demo doesn't hit it, and the fix lives here.
 | req-github-core-backlog-run-attempts-4 | Re-Run Failed Semantics | Backlog | The collector records exactly what each attempt's endpoint returns; no synthesis to fill in successful jobs from earlier attempts. | "Latest full state" is a derived query, not a stored shape. |
 | req-github-core-backlog-run-attempts-5 | Static Per-Attempt Edges | Backlog | Once an attempt's HAS_JOB edges land, they are not modified by re-collection of that attempt. | Each attempt is immutable once terminal. |
 | req-github-core-backlog-run-attempts-6 | v0 Graph Clutter Resolved | Backlog | Implementing this requirement resolves the documented v0 limitation in `req-github-core-collector-8` where re-runs cause HAS_JOB to span attempts. | |
+
+### Grid-Vocabulary Reference Resolution (Backlog)
+----
+RID: `req-github-core-backlog-grid-vocab-links`
+Status: `Backlog`
+
+The v0 parser (`_categorize_refs` in `parser.py`) extracts grid-link candidates
+by flattening every string value in the workflow YAML and shape-guessing each
+against a domain / region / CloudFront-id regex. This is the wrong tool for two
+reasons, surfaced while wiring the samsite landing GitHub lane (2026-05-28):
+
+- **It fabricates.** The loose domain regex ("dotted alphanumeric token") tags
+  version pins (`0.57.0`, `1.10.2`) and scan-output filenames
+  (`checkov-results.sarif`) as `domain_names`. No edge results (they find no
+  grid candidate), but the *node* persists false data under a field that
+  claims to hold domains — an undetectable lie to any downstream query.
+- **It's lossy.** The regex matches whole strings only, so it skips the values
+  that actually carry the references: `${{ vars.AWS_REGION || 'us-east-2' }}`,
+  `${{ vars.DOMAIN_NAME || '...' }}`, and `terraform output -raw
+  cloudfront_distribution_id`. The samsite deploy workflow parameterizes every
+  resource through repo variables / Terraform outputs / comments, so the
+  shape-regex found *zero* real references and only the junk above.
+
+The deeper point: the **targets** are documented or enumerable and we already
+have them — AWS regions are a closed published set (botocore
+`get_available_regions` / its `endpoints.json`, and the 34 `aws_region` nodes
+already on the grid), and the relevant zones / distributions are concrete facts
+collected by `aws_core`. The right question is not "does this string *look* like
+a domain?" but "is this string one of the regions / zones / dist-ids we
+actually know about?" The **source** side (what a workflow references) has no
+upstream contract — GitHub workflows don't declare resource dependencies — so
+extraction stays inference; the fix is to *ground* that inference in the known
+target vocabulary rather than guess shapes.
+
+#### Goal Shape (When Picked Up)
+
+Invert the pipeline. Instead of shape-classify-then-match:
+
+- Pull the known vocabulary *from the grid* (region codes, Route53 zone names,
+  CloudFront distribution ids — small, authoritative sets) and search the
+  workflow text for those exact values, substring-aware.
+- This removes the junk structurally (`1.10.2` is not a region or a zone on the
+  grid, so it can never be mislabeled) and recovers the matches the whole-string
+  regex misses (the known code `us-east-2` is *found* inside the `${{ }}`
+  fallback expression).
+
+#### What We Figured Out (Carry-Forward Notes)
+
+- **Confidence / context markers are required.** A substring search also hits a
+  domain mentioned only in a comment (the samsite deploy YAML names
+  `samsite.unified-systems.com` only in a comment) and finds the *fallback*
+  region (`us-east-2`), not the operative `vars.AWS_REGION` value. Matches must
+  carry context (active config vs. comment vs. fallback-literal) rather than be
+  asserted as fact — per the disclose-shortcuts-machine-readably discipline. Do
+  not emit a bare edge that implies certainty the source can't support.
+- **CloudFront dist-id links have an upstream dependency.** `aws_core` currently
+  leaves `aws_cloudfront_distribution.distribution_id` null on the grid, so even
+  a correct YAML ref has nothing to match. That gap must close first (or in
+  tandem) for dist-id links to resolve.
+- **The enrichment phase already trusts the grid** (it queries Gryphon for exact
+  matches). The vestigial mistake is only the parser's *pre-classification*; the
+  redesign brings phase 1 into line with what phase 2 already does.
+- **Land it with a parser/Gridkin test.** This is a behavior change to extraction
+  quality, not a one-line tweak — exactly the class of change that needs a
+  locked-in test, per the testing discipline.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-github-core-backlog-grid-vocab-links-1 | Vocabulary From Grid | Backlog | Region / zone / dist-id candidate sets are read from the grid (and/or botocore for the canonical region list), not hand-rolled regexes. | Region set is a closed published vocabulary; zones/dist-ids are `aws_core` facts. |
+| req-github-core-backlog-grid-vocab-links-2 | No Fabricated Refs | Backlog | The parser no longer stores strings that merely match a shape; a value is only recorded as a domain/region/dist-id if it corresponds to a known grid resource. | Kills the `0.57.0` / `checkov-results.sarif` junk class. |
+| req-github-core-backlog-grid-vocab-links-3 | Embedded-Value Recovery | Backlog | Known vocabulary is matched substring-aware, recovering references inside `${{ }}` expressions and shell commands. | Recovers `us-east-2` from the `${{ vars.AWS_REGION || 'us-east-2' }}` fallback. |
+| req-github-core-backlog-grid-vocab-links-4 | Context Markers | Backlog | Each resolved reference carries a context/confidence marker (active config vs. comment-only vs. fallback-literal); edges do not assert certainty the source can't support. | Disclose-shortcuts-machine-readably. |
+| req-github-core-backlog-grid-vocab-links-5 | CloudFront Dependency Noted | Backlog | Dist-id resolution is gated on `aws_core` populating `aws_cloudfront_distribution.distribution_id`. | Cross-plugin dependency; close first or in tandem. |
 
 ### v0 Non-Goals
 ----

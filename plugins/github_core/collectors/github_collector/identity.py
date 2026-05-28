@@ -19,6 +19,11 @@ def _id(entity_type: str, natural_key: str) -> UUID:
     return uuid5(GITHUB_CORE_NAMESPACE, f"{entity_type}:{natural_key}")
 
 
+def platform_id(host: str) -> UUID:
+    # Natural key is the host ("github.com"); a GHES tenant gets its own id.
+    return _id("github_platform", host)
+
+
 def account_id(login: str) -> UUID:
     return _id("github_account", login)
 

@@ -5,6 +5,7 @@ name = "TAP GitHub Core"
 description = "GitHub Actions deployment plumbing models for samsite — workflows, runs, jobs, runners."
 
 [models]
+github_platform = "plugins.github_core.models.github_platform.GithubPlatform"
 github_account = "plugins.github_core.models.github_account.GithubAccount"
 github_repository = "plugins.github_core.models.github_repository.GithubRepository"
 github_workflow = "plugins.github_core.models.github_workflow.GithubWorkflow"
@@ -13,12 +14,14 @@ github_actions_job = "plugins.github_core.models.github_actions_job.GithubAction
 github_runner = "plugins.github_core.models.github_runner.GithubRunner"
 
 [edges]
+HOSTS_ACCOUNT = "edges/HOSTS_ACCOUNT.edge.json"
 OWNS_REPO = "edges/OWNS_REPO.edge.json"
 DEFINES_WORKFLOW = "edges/DEFINES_WORKFLOW.edge.json"
 EXECUTES_WORKFLOW = "edges/EXECUTES_WORKFLOW.edge.json"
 HAS_JOB = "edges/HAS_JOB.edge.json"
 EXECUTED_ON = "edges/EXECUTED_ON.edge.json"
 REFERENCES_RESOURCE = "edges/REFERENCES_RESOURCE.edge.json"
+FEDERATES_VIA = "edges/FEDERATES_VIA.edge.json"
 
 [grift]
 repo-landing-page = "grift/repo-landing-page.grift.json"

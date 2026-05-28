@@ -25,6 +25,14 @@ class GithubWorkflow(BaseModel):
         "github.platform": "github.com",
         "github.surface": "actions",
     }
+    # Leaf cards inside the repo box — white fill, accent-blue border so they
+    # pop on the deeper-blue repo bed. See github_platform for the family scheme.
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "round-rectangle",
+            "colors": {"fill": "#FFFFFF", "border": "#0969DA", "label": "#1F2328"},
+        }
+    }
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "full_name": {"type": "string", "minLength": 1},
