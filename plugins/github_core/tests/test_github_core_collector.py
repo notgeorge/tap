@@ -254,3 +254,82 @@ class TestCollectorRegistration:
 
         cls = get_collector("github_core")
         assert cls.__name__ == "GithubCollector"
+
+
+class TestSelfTest:
+    """Self-test exercises the four readiness checks with mocked dependencies.
+
+    Spec: plugins/github_core/specs/spec-github-core-v0.md
+    (req-github-core-collector self-test). Live happy-path is exercised
+    against the loaded samsite secret manually; unit tests cover the failure
+    paths and the per-repo specificity that's the value-add over the default
+    base-class self_test.
+    """
+
+    def test_unconfigured_when_secret_missing(self, monkeypatch) -> None:
+        from tap_cares.exceptions import SecretNotFoundError
+
+        from plugins.github_core.collectors.github_collector import collector as mod
+
+        def _raise(_ref):
+            raise SecretNotFoundError("github/collector secret not found")
+
+        monkeypatch.setattr(mod, "resolve_github_secret", _raise)
+        result = mod.GithubCollector.self_test()
+        assert result.status == "unconfigured"
+        assert not result.runnable
+        assert any(c.is_failure and c.code == "GITHUB_SECRET_PRESENT" for c in result.checks)
+
+    def test_misconfigured_when_secret_schema_fails(self, monkeypatch) -> None:
+        from tap_cares.exceptions import SecretValidationError
+
+        from plugins.github_core.collectors.github_collector import collector as mod
+
+        def _raise(_ref):
+            raise SecretValidationError("bad shape: 'token' missing")
+
+        monkeypatch.setattr(mod, "resolve_github_secret", _raise)
+        result = mod.GithubCollector.self_test()
+        assert result.status == "misconfigured"
+        assert any(c.is_failure and c.code == "GITHUB_SECRET_VALID" for c in result.checks)
+
+    def test_per_repo_failure_surfaces_each_repo_separately(self, monkeypatch) -> None:
+        """A 404 on one repo records that repo's failure by name; healthy
+        repos still get their per-repo PASS row so the operator sees the
+        whole picture, not just the first broken thing."""
+        from plugins.github_core.collectors.github_collector import collector as mod
+        from plugins.github_core.collectors.github_collector.api_client import GithubAPIError
+        from tap_cares.secrets.models import Secret, SecretRef
+
+        def _good_secret(_ref):
+            return Secret(
+                ref=SecretRef(scope="github", key="collector"),
+                kind="github_pat",
+                description="test",
+                data={"token": "ghp_x", "repos": ["good/repo", "bad/repo"]},
+                source_path="/test",
+                metadata={},
+            )
+
+        class _StubClient:
+            def __init__(self, **kwargs):
+                pass
+
+            def get(self, path, **_):
+                if path == "/rate_limit":
+                    return {"rate": {"limit": 5000, "used": 0}}
+                if path == "/repos/bad/repo":
+                    raise GithubAPIError(status=404, url=path, body='{"message":"Not Found"}')
+                return {}
+
+        monkeypatch.setattr(mod, "resolve_github_secret", _good_secret)
+        monkeypatch.setattr(mod, "GithubClient", _StubClient)
+        result = mod.GithubCollector.self_test()
+        assert result.status == "error"
+        codes = {c.code: c.is_failure for c in result.checks}
+        assert codes["GITHUB_REPO_ACCESS:good/repo"] is False
+        assert codes["GITHUB_REPO_ACCESS:bad/repo"] is True
+        # Per-repo specificity check: the failing repo name appears in the
+        # check message so an operator can act on it without reading code.
+        bad_check = next(c for c in result.checks if c.code == "GITHUB_REPO_ACCESS:bad/repo")
+        assert "bad/repo" in bad_check.message
