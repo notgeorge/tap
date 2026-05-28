@@ -66,25 +66,25 @@ surface and takes only the Actions plumbing path needed for samsite.
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-github-core-scope | [Plugin Scope](#plugin-scope) | Proposed | v0 is GitHub Actions deployment plumbing for `notgeorge/samsite` |
+| req-github-core-scope | [Plugin Scope](#plugin-scope) | Implemented | v0 is GitHub Actions deployment plumbing for `notgeorge/samsite` |
 | req-github-core-models | [Model Set](#model-set) | Implemented | Account, repo, workflow, run, job, runner — all six tables landed via 0001_initial |
 | req-github-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | Repo/workflow/run/job/runner spine plus conservative AWS links — all six edge files registered |
 | req-github-core-dimensions | [Dimension Strategy](#dimension-strategy) | Implemented | All four dimensions emitted: platform on every node/edge, repo on collector envelopes, surface on Actions models, observation on runs/jobs |
 | req-github-core-secret | [PAT Secret Kind](#pat-secret-kind) | Implemented | `github_pat` data shape, additionalProperties: false; GitHub App auth still deferred |
-| req-github-core-collector | [Collector Runtime](#collector-runtime) | Proposed | Two-phase run + degraded-runner + no-delete + single-attempt all implemented; incremental + non-terminal refresh still pending |
+| req-github-core-collector | [Collector Runtime](#collector-runtime) | Implemented | Two-phase run + degraded-runner + no-delete + single-attempt + incremental + non-terminal refresh + empty-body-404 retry + per-run-/jobs degrade |
 | req-github-core-manifests | [Collection And Link Manifests](#collection-and-link-manifests) | Implemented | Two manifests + JSON Schemas, validated at load; link manifest is data-driven |
-| req-github-core-workflow-parse | [Workflow File Parsing](#workflow-file-parsing) | Proposed | YAML parse + raw retention + in-memory fetch implemented; local-action detection warning still pending |
+| req-github-core-workflow-parse | [Workflow File Parsing](#workflow-file-parsing) | Implemented | YAML parse + raw retention + in-memory fetch + scope-bound ref extraction + local-action detection |
 | req-github-core-runner | [Runner Semantics](#runner-semantics) | Implemented | Durable runner nodes + matchable EXECUTED_ON + observed-runner-on-job + no-ephemeral-runner-nodes |
 | req-github-core-grid-links | [Existing Grid Links](#existing-grid-links) | Implemented | Enrichment phase + exact-only + warn-only failures + Gryphon read path (via `=~` regex operator); OIDC link verified end-to-end against samsite + AWS |
 | req-github-core-python-deps | [Plugin Python Dependency](#plugin-python-dependency) | Implemented | `PyYAML` is plugin-owned via root uv workspace; first proof of `req-plugin-arch-python-deps` |
 | req-github-core-backlog-references | [Variables And Secret References (Backlog)](#variables-and-secret-references-backlog) | Backlog | Two-source-of-truth model, hotlink contract implication, provenance shape; pick up when critical path |
 | req-github-core-backlog-run-attempts | [Multi-Attempt Run Observation (Backlog)](#multi-attempt-run-observation-backlog) | Backlog | Per-attempt run + job fan-out, re-run-failed-jobs subtlety, HAS_JOB lifecycle; pick up when critical path |
-| req-github-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Full GitHub inventory, Sigstore/Rekor, deletion/reaping, schedules, references, multi-attempt runs |
+| req-github-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Full GitHub inventory, Sigstore/Rekor, deletion/reaping, schedules, references, multi-attempt runs — boundaries hold |
 
 ### Plugin Scope
 ----
 RID: `req-github-core-scope`
-Status: `Proposed`
+Status: `Implemented`
 
 `github_core` models GitHub platform objects that matter to deployment and
 compliance plumbing. v0 targets `notgeorge/samsite` and does not attempt to
@@ -95,9 +95,9 @@ permission surface.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-scope-1 | Target Repo | Proposed | The v0 collector target is configured as `notgeorge/samsite`. | Via the `github_pat` secret `repos` array. |
-| req-github-core-scope-2 | Actions Plumbing Focus | Proposed | v0 focuses on repository, workflow, run, job, and runner data needed to explain deployment flow. | Variables and secret references are deferred (`req-github-core-backlog-references`). |
-| req-github-core-scope-3 | No Broad Introspection | Proposed | Full GitHub account/org/repo introspection is deferred. | |
+| req-github-core-scope-1 | Target Repo | Implemented | The v0 collector target is configured as `notgeorge/samsite`. | Via the `github_pat` secret `repos` array. |
+| req-github-core-scope-2 | Actions Plumbing Focus | Implemented | v0 focuses on repository, workflow, run, job, and runner data needed to explain deployment flow. | Variables and secret references are deferred (`req-github-core-backlog-references`). |
+| req-github-core-scope-3 | No Broad Introspection | Implemented | Full GitHub account/org/repo introspection is deferred. | Collector touches only the documented endpoints; no broad walk. |
 
 ### Model Set
 ----
@@ -318,7 +318,7 @@ Do not pre-build it; wait for the trigger.
 ### Collector Runtime
 ----
 RID: `req-github-core-collector`
-Status: `Proposed`
+Status: `Implemented`
 
 The collector is a standard `CollectorBase` subclass registered by
 `github_core`. It resolves one `github_pat` secret, validates its shape, and
@@ -362,8 +362,8 @@ Collection policy:
 | --- | --- | :---: | --- | --- |
 | req-github-core-collector-1 | CollectorBase | Implemented | The collector subclasses `CollectorBase` and uses the normal `tap_cares` runtime. | `GithubCollector` registered via `register_collector(key="github_core")` in `apps.py`. |
 | req-github-core-collector-2 | First Run Seeds Ten | Implemented | Initial collection defaults to the latest 10 runs per repo. | Default from `initial_run_limit(data)` (returns 10 when absent); applied via `per_page` query + `[:run_limit]` slice. |
-| req-github-core-collector-3 | Incremental Later Runs | Proposed | Later runs collect runs created since the latest on-grid run for the repo. | Future: filter by max `github_actions_run.created_at` on the grid. |
-| req-github-core-collector-4 | Non-Terminal Refresh | Proposed | Non-terminal prior runs/jobs are refreshed on each run. | Future: re-fetch prior runs with `status != "completed"` until terminal. |
+| req-github-core-collector-3 | Incremental Later Runs | Implemented | Later runs collect runs created since the latest on-grid `run_started_at` for the repo via GitHub's `?created=>ISO` filter. First-ever population (no on-grid runs) falls back to the `initial_run_limit` cap. | `_fetch_run_window` in `collector.py`. Records an `INCREMENTAL_WINDOW` info per run showing the boundary timestamp. |
+| req-github-core-collector-4 | Non-Terminal Refresh | Implemented | Non-terminal prior runs (any `status` not in `_TERMINAL_RUN_STATUSES = {"completed"}`) are re-fetched on each collection via the single-run endpoint and re-emitted so OCC upserts pick up the terminal state. | `_fetch_non_terminal_refresh` in `collector.py`. Per-run 404 on the single-run endpoint graceful-degrades with a `RUN_NOT_FOUND` warn (mirrors the per-run /jobs degrade pattern). Terminal-set is enumerated explicitly so GitHub adding a new in-flight status (`waiting`/`pending`/etc.) is correctly treated as non-terminal until proven otherwise. |
 | req-github-core-collector-5 | Runner Permission Degrades | Implemented | Runner-config permission failures record warnings and do not abort run/job collection. | Collector catches `GithubAPIError.status == 403` on `/actions/runners` and emits a structured `RUNNER_CONFIG_FORBIDDEN` warn. |
 | req-github-core-collector-6 | No Deletion Semantics | Implemented | v0 never deletes GitHub nodes based on absence from API responses. | Collector emits only upserts; no `deletes`/`purges` sections in batch. |
 | req-github-core-collector-7 | Two-Phase Run | Implemented | Each collector run executes a collection phase followed by an enrichment phase, in that order. | `GithubCollector.run()` calls `submit_grift` twice; enrichment runs only if the first batch lands. |
@@ -405,7 +405,7 @@ installation interprets GitHub data against the grid."
 ### Workflow File Parsing
 ----
 RID: `req-github-core-workflow-parse`
-Status: `Proposed`
+Status: `Implemented`
 
 Workflow parsing is v0 because the demo needs to explain the deployment
 plumbing inside the workflow file. The plugin parses `.github/workflows/*.yml`
@@ -467,7 +467,7 @@ flags it as a near-soon implementation target for the next GitHub-focused pass.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-github-core-workflow-parse-1 | Workflow YAML Parsed | Implemented | The collector parses `.github/workflows/*.yml|*.yaml` files. | `parser.parse_workflow_yaml` using PyYAML's `safe_load`; YAML 1.1 `on:` boolean gotcha handled. |
-| req-github-core-workflow-parse-3 | Local Actions Deferred Warning | Proposed | Local/composite action references produce a visible info/warning and are not silently ignored. | Detector not yet implemented in `parser.py`. |
+| req-github-core-workflow-parse-3 | Local Actions Deferred Warning | Implemented | Local/composite action references (`uses: ./path/to/action`, NOT `uses: ./.github/workflows/x.yml` which is a reusable-workflow call) produce a visible `LOCAL_ACTION_DEFERRED` warn per detected reference. | `_detect_local_action_refs` in `parser.py` returns each ref's `{job_id, path, uses}`; `_collect_repo` emits one warn per ref via `self.record_warn`. The reusable-workflow-call carve-out is explicit (path ends in `.yml`/`.yaml`) so an operator isn't told to investigate something that's a different category entirely. |
 | req-github-core-workflow-parse-4 | Steps Not Nodes | Implemented | Step-level details remain in job/workflow configuration in v0. | Parser preserves the `steps` list verbatim under `configuration.jobs[i].steps`. |
 | req-github-core-workflow-parse-5 | In-Memory Fetch | Implemented | Workflow YAML is fetched via the Contents API and parsed in memory; v0 writes no temp file and creates no working copy. | `GithubCollector._fetch_workflow_config` calls `/repos/{owner/repo}/contents/{path}`, decodes inline base64, never writes to disk. |
 
@@ -882,7 +882,7 @@ the demo doesn't hit it, and the fix lives here.
 ### v0 Non-Goals
 ----
 RID: `req-github-core-nongoals`
-Status: `Proposed`
+Status: `Implemented`
 
 Out of scope for v0:
 
@@ -909,9 +909,9 @@ Out of scope for v0:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-nongoals-1 | Broad Inventory Deferred | Proposed | v0 does not attempt full GitHub introspection. | |
-| req-github-core-nongoals-2 | Provenance Plugins Deferred | Proposed | Sigstore/Rekor belong to separate future plugin work. | |
-| req-github-core-nongoals-3 | No Schedule | Proposed | v0 registers the collector capability but does not seed an automatic schedule. | Manual/demo run first. |
+| req-github-core-nongoals-1 | Broad Inventory Deferred | Implemented | v0 does not attempt full GitHub introspection. | Boundary holds — collector touches only documented endpoints. |
+| req-github-core-nongoals-2 | Provenance Plugins Deferred | Implemented | Sigstore/Rekor belong to separate future plugin work. | No Sigstore/Rekor code in github_core. |
+| req-github-core-nongoals-3 | No Schedule | Implemented | v0 registers the collector capability but does not seed an automatic schedule. | Manual/demo run only; no schedule GRIFT seeded. |
 
 ## Status Vocabulary
 

@@ -51,6 +51,18 @@ _SITE_WORKFLOW_YAML_MISSING = "9573"
 _SITE_BATCH_SUBMITTED = "d66b"
 _SITE_ENRICHMENT_SUMMARY = "fd9e"
 _SITE_RUN_JOBS_MISSING = "bcff"
+_SITE_INCREMENTAL_WINDOW = "c2ca"
+_SITE_NON_TERMINAL_REFRESH = "6558"
+_SITE_RUN_NOT_FOUND = "f938"
+_SITE_LOCAL_ACTION_DEFERRED = "b148"
+
+# GitHub Actions `status` values that are non-terminal — runs in any of these
+# states are re-fetched on every collection until they reach `completed`
+# (`req-github-core-collector-4`). Enumerating terminal-vs-not is more robust
+# than enumerating "the non-terminal ones": GitHub may add new in-flight
+# states (`waiting`, `pending`, `requested`, `action_required`, etc.) and
+# anything we don't recognize is safer treated as "keep watching."
+_TERMINAL_RUN_STATUSES: frozenset[str] = frozenset({"completed"})
 
 
 class GithubCollectorError(Exception):
@@ -220,14 +232,31 @@ class GithubCollector(CollectorBase):
                 )
             )
             edges.append(self._edge("DEFINES_WORKFLOW", repo_uuid, wf_uuid, actions_dims))
+            # Local-action surfacing per req-github-core-workflow-parse-3.
+            for ref in parsed_config.get("local_action_refs") or []:
+                self.record_warn(
+                    _SITE_LOCAL_ACTION_DEFERRED,
+                    "LOCAL_ACTION_DEFERRED",
+                    f"{full_name} workflow {wf.get('path', '')}: local/composite "
+                    f"action reference {ref.get('uses')!r} at {ref.get('path')} "
+                    f"(job {ref.get('job_id')!r}); v0 does not parse action.yml bodies.",
+                )
 
-        # runs (latest run_limit)
-        run_payloads = client.get_paginated(
-            f"/repos/{full_name}/actions/runs",
-            params={"per_page": str(min(run_limit, 100))},
-            item_path="workflow_runs",
-            max_pages=1,
-        )[:run_limit]
+        # runs — incremental fetch per req-github-core-collector-3:
+        #   - First population (no on-grid runs): latest `run_limit` runs.
+        #   - Later populations: runs created since the latest on-grid
+        #     `run_started_at` for this repo, using GitHub's `created` filter.
+        run_payloads = self._fetch_run_window(client, full_name, run_limit)
+
+        # Non-terminal refresh per req-github-core-collector-4: pull every
+        # on-grid run for this repo whose status is not in
+        # _TERMINAL_RUN_STATUSES and re-fetch it singly. Skips any run_id
+        # already in this batch's run_payloads (the incremental fetch may
+        # already have re-fetched it).
+        refreshed = self._fetch_non_terminal_refresh(
+            client, full_name, already_fetched_run_ids={r["id"] for r in run_payloads}
+        )
+        run_payloads.extend(refreshed)
         for r in run_payloads:
             run_uuid = run_id(full_name, r["id"])
             wf_ref_uuid = workflow_id(full_name, r["workflow_id"]) if r.get("workflow_id") else None
@@ -367,6 +396,98 @@ class GithubCollector(CollectorBase):
                 # Maybe it's an org; let /orgs handle it (rare for user-owned repos).
                 return client.get(f"/orgs/{owner}")
             raise
+
+    def _fetch_run_window(
+        self, client: GithubClient, full_name: str, run_limit: int
+    ) -> list[dict[str, Any]]:
+        """Run-list fetch per req-github-core-collector-3.
+
+        First population (no on-grid runs): the latest `run_limit` runs.
+        Later populations: every run created since the latest on-grid
+        `run_started_at` for this repo, scoped via GitHub's `?created=>=ISO`
+        filter. The first-fetch cap is `run_limit`; later fetches are
+        unbounded but typically small (only new runs since last collection).
+        """
+        from django.db.models import Max
+
+        from plugins.github_core.models import GithubActionsRun
+
+        max_ts = (
+            GithubActionsRun.objects.filter(full_name=full_name)
+            .aggregate(Max("run_started_at"))["run_started_at__max"]
+        )
+        if max_ts is None:
+            # First population — cap at run_limit, one page is enough.
+            return client.get_paginated(
+                f"/repos/{full_name}/actions/runs",
+                params={"per_page": str(min(run_limit, 100))},
+                item_path="workflow_runs",
+                max_pages=1,
+            )[:run_limit]
+
+        # Incremental — fetch everything strictly newer. GitHub's `created`
+        # filter accepts ISO 8601 with comparison operators. We use `>` not
+        # `>=` to avoid re-fetching the boundary run we already have.
+        iso = max_ts.astimezone().strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.record_info(
+            _SITE_INCREMENTAL_WINDOW,
+            "INCREMENTAL_WINDOW",
+            f"{full_name}: incremental run fetch since {iso}.",
+        )
+        return client.get_paginated(
+            f"/repos/{full_name}/actions/runs",
+            params={"created": f">{iso}", "per_page": "100"},
+            item_path="workflow_runs",
+        )
+
+    def _fetch_non_terminal_refresh(
+        self,
+        client: GithubClient,
+        full_name: str,
+        already_fetched_run_ids: set[int],
+    ) -> list[dict[str, Any]]:
+        """Re-fetch on-grid runs whose status is non-terminal per
+        req-github-core-collector-4.
+
+        Each run is fetched via the single-run endpoint
+        `/repos/{owner}/{repo}/actions/runs/{run_id}`. A 404 on that endpoint
+        (real, body-bearing — the empty-body retry in api_client already
+        absorbed the intermittent ones) records a structured warn and the
+        run is skipped from this refresh; mirrors the per-run /jobs degrade
+        in `_fetch_run_jobs`.
+        """
+        from plugins.github_core.models import GithubActionsRun
+
+        non_terminal_ids = list(
+            GithubActionsRun.objects.filter(full_name=full_name)
+            .exclude(status__in=list(_TERMINAL_RUN_STATUSES))
+            .exclude(run_id__in=list(already_fetched_run_ids))
+            .values_list("run_id", flat=True)
+        )
+        if not non_terminal_ids:
+            return []
+        self.record_info(
+            _SITE_NON_TERMINAL_REFRESH,
+            "NON_TERMINAL_REFRESH",
+            f"{full_name}: refreshing {len(non_terminal_ids)} non-terminal run(s).",
+        )
+        refreshed: list[dict[str, Any]] = []
+        for rid in non_terminal_ids:
+            try:
+                payload = client.get(f"/repos/{full_name}/actions/runs/{rid}")
+            except GithubAPIError as exc:
+                if exc.status == 404:
+                    self.record_warn(
+                        _SITE_RUN_NOT_FOUND,
+                        "RUN_NOT_FOUND",
+                        f"{full_name} run {rid}: single-run endpoint 404 "
+                        f"({exc.body[:120] or '(empty)'}). "
+                        f"Skipping refresh for this run.",
+                    )
+                    continue
+                raise
+            refreshed.append(payload)
+        return refreshed
 
     def _fetch_run_jobs(
         self, client: GithubClient, full_name: str, run_id_int: int
