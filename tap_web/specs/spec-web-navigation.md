@@ -32,7 +32,7 @@ The chrome budget is fixed: product mark, breadcrumb, session tag, command-palet
 | req-web-nav-segment-interactions | [Segment Interactions](#segment-interactions) | Proposed | Single-click navigates; chevron-click shows immediate sibling popover; alt-click opens expanded column-view |
 | req-web-nav-auto-parent | [Auto-Derived Parent From URL](#auto-derived-parent-from-url) | Proposed | Each URL segment is a breadcrumb level; v0 has no explicit override |
 | req-web-nav-command-palette | [Command Palette Affordance](#command-palette-affordance) | Proposed | Cmd-K opens fuzzy palette; full spec in `spec-web-command-palette.md` |
-| req-web-nav-mini-graph | [Mini-Graph Affordance](#mini-graph-affordance) | Proposed | Header upper-right renders local entity+neighbors; full spec in `spec-viz-mini-map.md` |
+| req-web-nav-mini-graph | [Mini-Graph Affordance](#mini-graph-affordance) | Backlog | Reserved chrome slot held; mini-graph itself is backlog pending sibling `spec-viz-mini-map.md` |
 | req-web-nav-no-hamburger | [No Hamburger Menu](#no-hamburger-menu) | Proposed | Hard prohibition; defends the design against drift |
 | req-web-nav-chrome-budget | [Chrome Budget](#chrome-budget) | Proposed | Header contents enumerated and capped at five elements |
 | req-web-nav-index-endpoint | [Machine-Readable Nav Index](#machine-readable-nav-index) | Proposed | `/__nav-index.json` enumerates reachable pages + canonical breadcrumb paths |
@@ -185,7 +185,13 @@ Plugin-contributed commands (each plugin can register palette commands that oper
 ### Mini-Graph Affordance
 ----
 RID: `req-web-nav-mini-graph`
-Status: `Proposed`
+Status: `Backlog`
+
+#### Status Details
+
+Backlog — great idea, not v0 critical path. The chrome budget keeps the upper-right slot **reserved** (see `req-web-nav-chrome-budget` element 5) so the affordance can drop in when the sibling spec lands; the slot is empty in v0. This keeps the chrome from accumulating ad-hoc additions in what would otherwise be unused space, and makes it visible to reviewers that the slot is intentionally held.
+
+The sibling spec (`tap_viz/specs/spec-viz-mini-map.md`) and the tap_viz Cytoscape primitives it relies on are the unlocking work; this requirement returns to `Proposed` and then moves through implementation when the substrate is in place.
 
 The upper-right of the header bar contains a small live Cytoscape rendering of the current entity's local neighborhood: the entity + 3–5 nearest neighbors, clickable to navigate. Detailed sizing/rendering behavior lives in a sibling spec (`tap_viz/specs/spec-viz-mini-map.md`); this requirement enumerates only the mini-graph's *contract with the navigation system*.
 
@@ -264,7 +270,7 @@ The header bar contains exactly the following, in this left-to-right order:
 2. **Breadcrumb** — the active page's URL path, rendered per `req-web-nav-breadcrumb-header` and `req-web-nav-segment-interactions`.
 3. **Session tag** — when a multi-session dev label is active, the `[<label>]` chip in the session tag style (see `spec-dev-multisession.md`).
 4. **Command palette affordance** — the search-icon button (see `req-web-nav-command-palette`).
-5. **Mini-graph slot** — the local-neighborhood graph (see `req-web-nav-mini-graph`).
+5. **Mini-graph slot** — the local-neighborhood graph (see `req-web-nav-mini-graph`). In v0 this slot is *reserved but empty* — the mini-graph requirement is `Backlog`; the slot exists in the chrome layout so nothing else accumulates into the space, and the mini-graph drops in when the sibling spec lands.
 
 No sixth element. Features that earn permanent chrome require a new requirement in this spec.
 
@@ -372,6 +378,7 @@ A few directions intentionally deferred from v0, kept here as breadcrumbs for th
 | Status States | |
 | --- | --- |
 | Proposed | |
+| Backlog | Wanted, intentionally deferred from this revision; distinct from `Proposed` (actively under consideration) and from Future Seams (not committed). |
 | Approved for Development | |
 | In Development | |
 | Implemented | |
