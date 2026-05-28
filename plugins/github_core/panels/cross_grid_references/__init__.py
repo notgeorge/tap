@@ -51,12 +51,12 @@ class CrossGridReferencesPanelType:
             )
             total_edges = len(edges)
 
-            target_ids = [e.to_entity_id for e in edges]
+            target_ids = [str(e.to_entity_id) for e in edges]
             target_index = _build_target_index(target_ids)
 
             grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
             for edge in edges:
-                target = target_index.get(edge.to_entity_id)
+                target = target_index.get(str(edge.to_entity_id))
                 if target is None:
                     continue
                 props = edge.properties or {}

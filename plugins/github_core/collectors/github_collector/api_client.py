@@ -3,6 +3,15 @@
 Stays on stdlib (`urllib`) to avoid adding a new dependency. PAT auth, basic
 pagination via the `Link: rel="next"` header, and a structured `GithubAPIError`
 for non-200 responses. Used by the collector during the collection phase.
+
+Empty-body-404 retry: GitHub returns intermittent 404s with empty response
+bodies on `/actions/*` endpoints under conditions that are not documented
+(rate-limit docs explicitly state secondary rate limits return 403/429, not
+404). Observed signature: valid `X-GitHub-Request-Id`, `Server: github.com`,
+HTTP 404, zero-length body. Real GitHub 404s (missing resource, permission
+denied) always carry a JSON `{"message": "Not Found"}` body. This client
+retries empty-body 404s with exponential backoff bounded to a small ceiling
+so real 404s still fail loudly with their explanatory body.
 """
 
 from __future__ import annotations
@@ -10,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -22,6 +32,10 @@ _LINK_RE = re.compile(r'<([^>]+)>;\s*rel="next"')
 
 # Identifies our collector in GitHub's user-agent logs (req: API politeness).
 USER_AGENT = "tap-github-core-collector/0.1"
+
+# Empty-body-404 retry policy (see module docstring).
+_EMPTY_404_MAX_RETRIES = 5
+_EMPTY_404_INITIAL_BACKOFF_SECONDS = 0.5
 
 
 @dataclass(frozen=True)
@@ -81,6 +95,34 @@ class GithubClient:
         return urlunparse(parsed._replace(query=query))
 
     def _request(self, url: str) -> Any:
+        backoff = _EMPTY_404_INITIAL_BACKOFF_SECONDS
+        for attempt in range(_EMPTY_404_MAX_RETRIES + 1):
+            try:
+                return self._request_once(url)
+            except GithubAPIError as exc:
+                # Real 404s carry a JSON body explaining the failure. Empty-body
+                # 404 is GitHub's undocumented intermittent quirk — retry it.
+                # See module docstring for evidence + reasoning.
+                if exc.status == 404 and not exc.body and attempt < _EMPTY_404_MAX_RETRIES:
+                    logger.warning(
+                        "[c1d4] github empty-body 404 on %s (attempt %d/%d); "
+                        "retrying after %.2fs",
+                        url,
+                        attempt + 1,
+                        _EMPTY_404_MAX_RETRIES,
+                        backoff,
+                    )
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                raise
+        raise GithubAPIError(
+            status=404,
+            url=url,
+            body=f"persistent empty-body 404 after {_EMPTY_404_MAX_RETRIES} retries",
+        )
+
+    def _request_once(self, url: str) -> Any:
         req = Request(
             url,
             headers={

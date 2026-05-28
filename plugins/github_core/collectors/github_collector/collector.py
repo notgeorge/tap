@@ -50,6 +50,7 @@ _SITE_RUNNER_DEGRADED = "b969"
 _SITE_WORKFLOW_YAML_MISSING = "9573"
 _SITE_BATCH_SUBMITTED = "d66b"
 _SITE_ENRICHMENT_SUMMARY = "fd9e"
+_SITE_RUN_JOBS_MISSING = "bcff"
 
 
 class GithubCollectorError(Exception):
@@ -260,9 +261,7 @@ class GithubCollector(CollectorBase):
                 edges.append(self._edge("EXECUTES_WORKFLOW", run_uuid, wf_ref_uuid, observation_dims))
 
             # jobs for this run (latest-attempt endpoint per req-github-core-collector-8)
-            jobs = client.get_paginated(
-                f"/repos/{full_name}/actions/runs/{r['id']}/jobs", item_path="jobs"
-            )
+            jobs = self._fetch_run_jobs(client, full_name, r["id"])
             for j in jobs:
                 j_uuid = job_id(full_name, j["id"])
                 j_display_name = j.get("name") or str(j["id"])
@@ -336,9 +335,7 @@ class GithubCollector(CollectorBase):
 
         # EXECUTED_ON edges (only when an observed job runner_id matches a durable runner node)
         for r in run_payloads:
-            run_jobs = client.get_paginated(
-                f"/repos/{full_name}/actions/runs/{r['id']}/jobs", item_path="jobs"
-            )
+            run_jobs = self._fetch_run_jobs(client, full_name, r["id"])
             for j in run_jobs:
                 if j.get("runner_id") and j["runner_id"] in runner_uuid_by_id:
                     j_uuid = job_id(full_name, j["id"])
@@ -369,6 +366,34 @@ class GithubCollector(CollectorBase):
             if exc.status == 404:
                 # Maybe it's an org; let /orgs handle it (rare for user-owned repos).
                 return client.get(f"/orgs/{owner}")
+            raise
+
+    def _fetch_run_jobs(
+        self, client: GithubClient, full_name: str, run_id_int: int
+    ) -> list[dict[str, Any]]:
+        """Fetch the jobs list for a specific run.
+
+        Per GitHub docs the endpoint documents only `200 - OK`; no 404
+        condition is documented. The HTTP client retries empty-body 404s
+        (undocumented intermittent quirk; see api_client module docstring).
+        Real 404s — a JSON body with `{"message": "..."}` — still propagate
+        and we graceful-degrade per-run to avoid aborting the whole collection
+        on a single quirky run (`req-github-core-collector-5` discipline).
+        """
+        try:
+            return client.get_paginated(
+                f"/repos/{full_name}/actions/runs/{run_id_int}/jobs", item_path="jobs"
+            )
+        except GithubAPIError as exc:
+            if exc.status == 404:
+                self.record_warn(
+                    _SITE_RUN_JOBS_MISSING,
+                    "RUN_JOBS_MISSING",
+                    f"{full_name} run {run_id_int} jobs endpoint returned 404 "
+                    f"with body: {exc.body[:120] or '(empty)'}. "
+                    f"Skipping job collection for this run.",
+                )
+                return []
             raise
 
     def _fetch_workflow_config(
