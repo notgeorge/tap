@@ -38,7 +38,10 @@ dependencies = [
     "croniter>=6.2.2",
     "steady-queue>=0.2.0",
     "boto3>=1.43.9",
-    "sigstore>=4.2.0",
+    # NOTE: `sigstore` is NOT here — it is plugin-owned by sigstore_core,
+    # declared in plugins/sigstore_core/pyproject.toml and resolved via the
+    # workspace member entry below (mirrors github_core's PyYAML pattern;
+    # req-sigstore-core-python-deps).
 ]
 
 # -----------------------------------------------------------------------------
@@ -84,7 +87,7 @@ dev = [
 # req-plugin-arch-python-deps.
 
 [tool.uv.workspace]
-members = ["plugins/github_core"]
+members = ["plugins/github_core", "plugins/sigstore_core"]
 
 # -----------------------------------------------------------------------------
 # Tool Configuration
@@ -134,7 +137,7 @@ module = ["simple_history", "simple_history.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["botocore", "botocore.*", "boto3", "boto3.*", "jsonschema", "jsonschema.*"]
+module = ["botocore", "botocore.*", "boto3", "boto3.*", "jsonschema", "jsonschema.*", "sigstore", "sigstore.*"]
 ignore_missing_imports = true
 
 [tool.django-stubs]

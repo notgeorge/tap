@@ -36,6 +36,13 @@ class RekorLogEntry(BaseModel):
         "sigstore.platform": "public-good",
         "sigstore.log_kind": "rekor",
     }
+    # White cards with a green border, sitting on the sigstore_ca's green bed.
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "round-rectangle",
+            "colors": {"fill": "#FFFFFF", "border": "#1E8E3E", "label": "#0B5323"},
+        }
+    }
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "log_key_id": {"type": "string", "minLength": 1},

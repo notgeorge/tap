@@ -122,6 +122,13 @@ INSTALLED_APPS = [
     # runner; collector lands the REFERENCES_RESOURCE links against aws_core
     # nodes during the enrichment phase.
     "plugins.github_core.apps.GithubCoreConfig",
+    # Sigstore Core plugin — library plugin owning Sigstore-ecosystem models
+    # (rekor_log_entry, sigstore_ca) + the canonical verify/decompose helpers.
+    # No collector/panel of its own; samsite's compliance_collector consumes it
+    # to turn signed /.well-known/ artifacts into transparency-log graph data.
+    # Loads before samsite so its EntityTypes + edge constraints are registered
+    # when the samsite collector emits sigstore_core nodes/edges.
+    "plugins.sigstore_core.apps.SigstoreCoreConfig",
     # Genericom plugin — DEPRECATED 2026-05-19: 100% hand-built mock AWS
     # dataset (lotr-lineage scaffolding) built on aws_core. Code retained in
     # plugins/genericom/ but NOT loaded — real-account work (samsite)

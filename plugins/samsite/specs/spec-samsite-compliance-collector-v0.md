@@ -41,7 +41,7 @@ collector is its first proving instance.
 | --- | --- | :---: | --- |
 | req-samsite-collector | [The Collector](#the-collector) | Proposed | `CollectorBase` subclass; no cloud creds; one run grabs the whole `.well-known/` set |
 | req-samsite-collector-manifest | [Artifact Manifest](#artifact-manifest) | Proposed | Declarative `{url, kind, handling}` manifest, JSON-Schema-validated |
-| req-samsite-collector-verify | [Signature Verification](#signature-verification) | Proposed | `sigstore` library; verification result recorded; failure visible, not fatal |
+| req-samsite-collector-verify | [Signature Verification](#signature-verification) | Implemented | Verifies via `sigstore_core.verify_bundle`; emits the sigstore_core signature graph (rekor_log_entry + edges); failure visible, not fatal |
 | req-samsite-collector-decompose | [Decomposition](#decomposition) | Proposed | KSI signal + VDR decomposed into the fedramp models; OSCAL/IIW blobbed |
 | req-samsite-collector-schedule | [Daily Schedule](#daily-schedule) | Proposed | Registered to run daily through the `tap_cares` scheduler |
 | req-samsite-collector-identity | [Identity And Emission History](#identity-and-emission-history) | Proposed | Components dedup across emissions; signals/reports/findings per-emission |
@@ -98,18 +98,31 @@ reading collector code.
 ### Signature Verification
 ----
 RID: `req-samsite-collector-verify`
-Status: `Proposed`
+Status: `Implemented`
 
 Every artifact ships a paired `.bundle` (Sigstore keyless: Fulcio cert +
 signature + Rekor inclusion proof). The collector verifies each artifact
-against its bundle using the **`sigstore`** Python library — added to the root
-`pyproject.toml` 2026-05-22; the dependency-approval gate is cleared. The
-verification result is recorded on the node (`signature_verified`, `signed_by`,
-`rekor_log_index`, `verified_at`).
+through **`sigstore_core`** — the canonical TAP-side verifier — calling
+`sigstore_core.verify.verify_bundle`, never importing `sigstore.*` directly
+(the original inline `compliance_collector/verify.py` was removed when this
+plugin became sigstore_core's first consumer; see `req-sigstore-core-verify-8`).
+
+Each verified bundle is decomposed via `sigstore_core.decompose.bundle_to_grift_fragment`
+into the transparency-log graph — a `rekor_log_entry` node, a `sigstore_ca`
+upsert, and `ATTESTED_BY` / `CERT_ISSUED_BY` edges — merged into the same
+batch. The collector resolves the signing `github_workflow` from the cert SAN
+(`(full_name, path)` via a Gryphon read, `sigstore_link.resolve_workflow_entity_id`)
+and, on a single match, supplies it so a `SIGNED_BY_IDENTITY` edge is emitted.
+The verification verdict is the absolute fact on the `ATTESTED_BY` edge per
+`req-sigstore-core-disclosure`. (The artifact nodes retain their own
+`signature_verified` / `signed_by` / `rekor_log_index` fields for now; folding
+them onto the edge as the single source of truth is a follow-up that also
+touches the consumer disclosure panels.)
 
 A failed or unverifiable signature is recorded as `signature_verified =
 false`/`null` — never silently dropped — and does not abort the run; an
-unverified artifact is still collected, flagged.
+unverified artifact is still collected, flagged, and (when the bundle parsed)
+still emits its `ATTESTED_BY` edge with the false verdict.
 
 **Scope line.** v0 verification is *bounded evaluation* — signature checking,
 Rekor inclusion-proof checking, JSON-Schema validation, parsing. It does not
@@ -120,9 +133,10 @@ sandbox/satellite concern and is out of scope.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-samsite-collector-verify-1 | Bundles Verified | Proposed | Each artifact is verified against its `.bundle` via `sigstore`; the result is recorded on the node. | |
-| req-samsite-collector-verify-2 | Failure Is Visible, Not Fatal | Proposed | A failed/unverifiable signature is recorded as such; the artifact still collects; the run does not abort. | |
-| req-samsite-collector-verify-3 | Bounded Evaluation Only | Proposed | v0 verification is signature/proof/schema checking and parsing — never executing fetched content as code. | |
+| req-samsite-collector-verify-1 | Bundles Verified | Implemented | Each artifact is verified against its `.bundle` via `sigstore_core.verify_bundle` (not `sigstore.*` directly); the result is recorded. | |
+| req-samsite-collector-verify-2 | Failure Is Visible, Not Fatal | Implemented | A failed/unverifiable signature is recorded as such; the artifact still collects; the run does not abort. | |
+| req-samsite-collector-verify-3 | Bounded Evaluation Only | Implemented | v0 verification is signature/proof/schema checking and parsing — never executing fetched content as code. | |
+| req-samsite-collector-verify-4 | Signature Graph Emitted | Implemented | Each verified bundle is decomposed via `sigstore_core.bundle_to_grift_fragment` into a `rekor_log_entry` + `sigstore_ca` + `ATTESTED_BY`/`CERT_ISSUED_BY`, merged into the batch; `SIGNED_BY_IDENTITY` is added when the signing `github_workflow` resolves to a single node via Gryphon. | Cross-plugin workflow *read* is the consumer's job per `req-sigstore-core-edges-5`. |
 
 ### Decomposition
 ----

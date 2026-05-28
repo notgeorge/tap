@@ -22,7 +22,8 @@ from typing import Any
 
 import cryptography.x509 as x509
 from sigstore.models import Bundle, InvalidBundle
-from sigstore.verify import Verifier, policy as sigstore_policy
+from sigstore.verify import Verifier
+from sigstore.verify import policy as sigstore_policy
 
 # Public Fulcio + Rekor identifiers. v0 only encounters the public-good
 # instances; the model layer accommodates others without code change.
@@ -112,12 +113,39 @@ def _signed_by_from_cert(bundle: Bundle) -> str:
     return ""
 
 
+def _decode_fulcio_issuer(raw: Any) -> str:
+    """Decode a Fulcio issuer-extension value to a clean string.
+
+    The legacy issuer OID (.1.1) stores a raw UTF-8 string; the RFC8693 issuer
+    OID (.1.8) stores a *DER-encoded* UTF8String (tag 0x0c). Reading the .1.8
+    bytes verbatim leaks the TLV header (e.g. ``\\x0c+https://...``), so strip
+    the short-form DER UTF8String wrapper when present.
+    """
+    if isinstance(raw, str):
+        return raw
+    if not isinstance(raw, bytes):
+        return ""
+    # DER UTF8String: 0x0c <length> <value>. Short-form length (< 0x80) covers
+    # every real issuer URL.
+    if len(raw) >= 2 and raw[0] == 0x0C:
+        length = raw[1]
+        if length < 0x80 and len(raw) >= 2 + length:
+            try:
+                return raw[2 : 2 + length].decode("utf-8")
+            except UnicodeDecodeError:
+                pass
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return ""
+
+
 def _signing_issuer_from_cert(bundle: Bundle) -> str:
     """Extract the OIDC issuer URL from the signing cert when present.
 
     Fulcio puts the OIDC issuer in a custom extension OID 1.3.6.1.4.1.57264.1.1
-    (legacy) or OID 1.3.6.1.4.1.57264.1.8 (RFC8693 issuer URI). v0 best-effort
-    reads either; absence is non-fatal.
+    (legacy) or OID 1.3.6.1.4.1.57264.1.8 (RFC8693 issuer URI, DER UTF8String).
+    v0 best-effort reads either; absence is non-fatal.
     """
     cert = bundle.signing_certificate
     for oid_str in ("1.3.6.1.4.1.57264.1.8", "1.3.6.1.4.1.57264.1.1"):
@@ -126,13 +154,9 @@ def _signing_issuer_from_cert(bundle: Bundle) -> str:
         except x509.ExtensionNotFound:
             continue
         raw: Any = ext.value if hasattr(ext, "value") else ext
-        if isinstance(raw, bytes):
-            try:
-                return raw.decode("utf-8")
-            except UnicodeDecodeError:
-                continue
-        if isinstance(raw, str):
-            return raw
+        decoded = _decode_fulcio_issuer(raw)
+        if decoded:
+            return decoded
     return ""
 
 
@@ -149,36 +173,34 @@ def _extract_log_data(bundle: Bundle) -> tuple[str, str, str, str]:
     integrated_time = ""
     entry_kind = ""
 
-    try:
-        tlog_entries = bundle.log_entry
-        # ``log_entry`` is a single TransparencyLogEntry on current
-        # sigstore-python; older shapes used a list. Normalize.
-        entries = tlog_entries if isinstance(tlog_entries, list) else [tlog_entries]
-        if entries:
-            first = entries[0]
-            log_index_val = getattr(first, "log_index", None)
+    inner = _log_entry_inner(bundle)
+    if inner is not None:
+        try:
+            log_index_val = getattr(inner, "log_index", None)
             if log_index_val is not None:
                 log_index = str(log_index_val)
-            integrated_val = getattr(first, "integrated_time", None)
+            integrated_val = getattr(inner, "integrated_time", None)
             if integrated_val is not None:
-                # integrated_time on sigstore-python is typically an int (seconds-since-epoch)
-                # or already an ISO string. Normalize to ISO.
+                # sigstore-python's protobuf carries integrated_time as an int
+                # (seconds-since-epoch); normalize to ISO. Tolerate a pre-formatted string.
                 if isinstance(integrated_val, int | float):
-                    integrated_time = datetime.fromtimestamp(int(integrated_val), tz=UTC).isoformat().replace("+00:00", "Z")
+                    integrated_time = (
+                        datetime.fromtimestamp(int(integrated_val), tz=UTC).isoformat().replace("+00:00", "Z")
+                    )
                 else:
                     integrated_time = str(integrated_val)
-            log_id_obj = getattr(first, "log_id", None)
+            log_id_obj = getattr(inner, "log_id", None)
             if log_id_obj is not None:
-                key_id = getattr(log_id_obj, "key_id", None) or log_id_obj
+                key_id = getattr(log_id_obj, "key_id", None)
                 if isinstance(key_id, bytes):
                     log_key_id = key_id.hex()
-                else:
+                elif key_id is not None:
                     log_key_id = str(key_id)
-            kind_val = getattr(first, "kind_version", None) or getattr(first, "kind", None)
+            kind_val = getattr(inner, "kind_version", None)
             if kind_val is not None:
-                entry_kind = getattr(kind_val, "kind", None) or str(kind_val)
-    except (AttributeError, IndexError, ValueError, TypeError):
-        pass
+                entry_kind = getattr(kind_val, "kind", "") or ""
+        except AttributeError, ValueError, TypeError:
+            pass
 
     return log_key_id, log_index, integrated_time, entry_kind
 
@@ -201,19 +223,35 @@ def _translate_policy(p: GitHubWorkflowPolicy) -> sigstore_policy.VerificationPo
     return sigstore_policy.AllOf(predicates)
 
 
+def _log_entry_inner(bundle: Bundle) -> Any:
+    """Return the protobuf-backed inner of the bundle's transparency-log entry.
+
+    sigstore-python 4.x wraps the Rekor entry in a ``TransparencyLogEntry``
+    whose fields (``log_index``, ``integrated_time``, ``log_id``,
+    ``kind_version``, ``inclusion_proof``) live on a ``._inner`` pydantic
+    model rather than on the wrapper directly (pre-4.x exposed them on the
+    wrapper). Reaching into ``._inner`` is the upstream-containment seam this
+    module exists to own: if sigstore-python shifts the shape again, this one
+    function changes. Returns ``None`` when no entry is present.
+    """
+    try:
+        entry = bundle.log_entry
+    except Exception:  # noqa: BLE001  # bundle may not expose log_entry at all
+        return None
+    if entry is None:
+        return None
+    return getattr(entry, "_inner", entry)
+
+
 def _has_rekor_proof(bundle: Bundle) -> bool:
     """True iff the bundle carries a Rekor transparency-log inclusion proof.
 
     Spec: req-sigstore-core-verify-5 (Rekor-Backed Only).
     """
-    try:
-        entry = bundle.log_entry
-    except Exception:  # noqa: BLE001  # bundle may not expose log_entry at all
+    inner = _log_entry_inner(bundle)
+    if inner is None:
         return False
-    if entry is None:
-        return False
-    entries = entry if isinstance(entry, list) else [entry]
-    return any(getattr(e, "log_index", None) is not None for e in entries)
+    return getattr(inner, "log_index", None) is not None
 
 
 def verify_bundle(
@@ -267,7 +305,9 @@ def verify_bundle(
     if not _has_rekor_proof(bundle):
         result.signature_verified = False
         result.failure_code = "no_rekor_proof"
-        result.failure_detail = "bundle parsed but contains no Rekor inclusion proof; RFC3161 timestamp-only verification is deferred"
+        result.failure_detail = (
+            "bundle parsed but contains no Rekor inclusion proof; RFC3161 timestamp-only verification is deferred"
+        )
         return result
 
     try:
