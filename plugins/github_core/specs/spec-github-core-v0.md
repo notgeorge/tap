@@ -75,7 +75,7 @@ surface and takes only the Actions plumbing path needed for samsite.
 | req-github-core-manifests | [Collection And Link Manifests](#collection-and-link-manifests) | Implemented | Two manifests + JSON Schemas, validated at load; link manifest is data-driven |
 | req-github-core-workflow-parse | [Workflow File Parsing](#workflow-file-parsing) | Proposed | YAML parse + raw retention + in-memory fetch implemented; local-action detection warning still pending |
 | req-github-core-runner | [Runner Semantics](#runner-semantics) | Implemented | Durable runner nodes + matchable EXECUTED_ON + observed-runner-on-job + no-ephemeral-runner-nodes |
-| req-github-core-grid-links | [Existing Grid Links](#existing-grid-links) | Proposed | Enrichment-phase shape + exact-only + warn-only failures implemented; Gryphon read path still pending (v0 uses ORM directly) |
+| req-github-core-grid-links | [Existing Grid Links](#existing-grid-links) | Implemented | Enrichment phase + exact-only + warn-only failures + Gryphon read path (via `=~` regex operator); OIDC link verified end-to-end against samsite + AWS |
 | req-github-core-python-deps | [Plugin Python Dependency](#plugin-python-dependency) | Implemented | `PyYAML` is plugin-owned via root uv workspace; first proof of `req-plugin-arch-python-deps` |
 | req-github-core-backlog-references | [Variables And Secret References (Backlog)](#variables-and-secret-references-backlog) | Backlog | Two-source-of-truth model, hotlink contract implication, provenance shape; pick up when critical path |
 | req-github-core-backlog-run-attempts | [Multi-Attempt Run Observation (Backlog)](#multi-attempt-run-observation-backlog) | Backlog | Per-attempt run + job fan-out, re-run-failed-jobs subtlety, HAS_JOB lifecycle; pick up when critical path |
@@ -502,7 +502,7 @@ in v0.
 ### Existing Grid Links
 ----
 RID: `req-github-core-grid-links`
-Status: `Proposed`
+Status: `Implemented`
 
 The collector always attempts to resolve exact links from collected GitHub
 data to existing TAP nodes using the canonical graph read/query surface. Raw
@@ -604,7 +604,7 @@ future capability deferred with the rest of variable/secret-ref work in
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-grid-links-1 | Search/Gryphon Read Path | Proposed | Link resolution uses TAP's canonical search/Gryphon read surfaces. | v0 uses Django ORM filter directly (`Model.objects.filter(target_field=value)`). Migration to Gryphon is a future enhancement once the read-API shape stabilizes for this case. |
+| req-github-core-grid-links-1 | Search/Gryphon Read Path | Implemented | Link resolution uses TAP's canonical search/Gryphon read surfaces. | `enrichment.py` runs four Gryphon Searches per rule: source-node fetch (`MATCH (n:<source_type>) WHERE n.data.full_name IN [...]`), exact-match candidate (`WHERE n.data.<field> = $value`), near-match (`WHERE n.data.<field> =~ $pattern AND NOT n.data.<field> = $exact`), and the labelless target-name lookup falls out of the spine envelope's `name` field (no extra query needed). The `=~` operator landed in `req-grid-traversal-lang-regex` on 2026-05-28. |
 | req-github-core-grid-links-2 | Exact Match Only | Implemented | Links are emitted only for exact unambiguous matches. | Manifest schema constrains `match_mode` to the `exact` enum value; resolver emits only when `len(candidates) == 1`. |
 | req-github-core-grid-links-3 | Ambiguity Warns | Implemented | Multiple matches produce a structured warning and no edge. | Resolver records a `LINK_AMBIGUOUS` warn per multi-candidate hit. |
 | req-github-core-grid-links-4 | Enrichment Phase | Implemented | Link resolution executes as a follow-on phase after the main GitHub GRIFT batch commits, emitting a second GRIFT batch containing only `REFERENCES_RESOURCE` edges. | `GithubCollector.run()` submits collection batch, then `resolve_links()` runs, then a second `submit_grift` if any edges resolved. |
