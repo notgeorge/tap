@@ -1,0 +1,44 @@
+{
+  "nodes": [
+    {
+      "entity_id": "019e6eab-d14d-7144-845c-2d48d4cc2edb",
+      "entity_type": "pg_node",
+      "name": "Reading One",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e6eab-d14d-7144-845c-2d49aac6c4f4",
+      "entity_type": "pg_node",
+      "name": "Reading Two",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e6eab-d14d-7144-845c-2d4c0112d84e",
+      "entity_type": "pg_node",
+      "name": "Reading Null",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    }
+  ],
+  "edges": []
+}
