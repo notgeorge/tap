@@ -31,6 +31,16 @@ class SigstoreCa(BaseModel):
         "sigstore.platform": "public-good",
         "sigstore.ca_kind": "fulcio",
     }
+    # Sigstore family palette — a green scheme, distinct from github-blue and
+    # AWS-beige, marking the external keyless-signing / transparency system.
+    # The CA is the outer box; rekor entries are the cards inside it.
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "round-rectangle",
+            "colors": {"fill": "#E6F4EA", "border": "#1E8E3E", "label": "#0B5323"},
+            "label": {"valign": "top", "halign": "center", "position": "outside"},
+        }
+    }
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "ca_url": {"type": "string", "minLength": 1},

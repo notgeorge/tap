@@ -38,6 +38,11 @@ class DecomposedArtifact:
 
     nodes: list[dict[str, Any]] = field(default_factory=list)
     edges: list[dict[str, Any]] = field(default_factory=list)
+    # Entity id of the root artifact node (the ksi_signal / vdr_report /
+    # compliance_artifact). The signed entity that sigstore_core's ATTESTED_BY
+    # edge hangs off — set by each decompose so the collector can wire the
+    # signature graph without re-deriving the natural key.
+    anchor_entity_id: str = ""
     # system_id -> ksi_signal entity_id (str). Populated when this artifact is
     # a ksi_signal; consumed by VDR REFERENCES_SIGNAL resolution.
     ksi_signal_by_system: dict[str, str] = field(default_factory=dict)
@@ -124,6 +129,7 @@ def decompose_ksi_signal(
     disclosure = signal.get("disclosure") or {}
 
     signal_node_id = str(node_entity_id("ksi_signal", signal_id))
+    out.anchor_entity_id = signal_node_id
     out.ksi_signal_by_system[system_id] = signal_node_id
     signal_name = f"KSI signal {signal_id} @ {signal.get('emitted_at', '')}"
     out.nodes.append(
@@ -301,6 +307,7 @@ def decompose_vdr_report(
         return out
 
     report_node_id = str(node_entity_id("vdr_report", report_id))
+    out.anchor_entity_id = report_node_id
     report_name = f"VDR report {report_id[:8]} @ {report.get('emitted_at', '')}"
     out.nodes.append(
         _node_envelope(
@@ -422,13 +429,14 @@ def decompose_compliance_artifact(
     # produces a different node (per-emission, per the spec).
     natural_key = f"{artifact_kind}/{fetched_at}"
     artifact_node_id = str(node_entity_id("compliance_artifact", natural_key))
+    out.anchor_entity_id = artifact_node_id
 
     if content_format == "json":
         import json
 
         try:
             content: Any = json.loads(body.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        except UnicodeDecodeError, json.JSONDecodeError:
             content = body.decode("utf-8", errors="replace")
     else:
         # IIW is CSV — stored as text (JSONField can hold a string).

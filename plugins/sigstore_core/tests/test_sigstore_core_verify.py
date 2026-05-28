@@ -11,6 +11,8 @@ and ``req-sigstore-core-testing-backlog`` in this plugin's spec).
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from plugins.sigstore_core.verify import (
@@ -47,7 +49,7 @@ class TestGitHubWorkflowPolicy:
 
     def test_frozen(self) -> None:
         p = GitHubWorkflowPolicy(oidc_issuer="x", github_repository="y")
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             p.oidc_issuer = "z"  # type: ignore[misc]
 
 

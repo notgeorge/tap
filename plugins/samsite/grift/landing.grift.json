@@ -37,6 +37,8 @@
                 "MATCH (ga:github_account)",
                 "MATCH (gr:github_repository)",
                 "MATCH (gw:github_workflow)",
+                "MATCH (re:rekor_log_entry)",
+                "MATCH (ca:sigstore_ca)",
                 "MATCH (n)",
                 "WHERE n.data.tags.Project = \"samsite\""
               ]

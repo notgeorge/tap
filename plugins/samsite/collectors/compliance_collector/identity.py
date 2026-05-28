@@ -14,9 +14,7 @@ from __future__ import annotations
 import uuid
 from typing import Final
 
-NAMESPACE_SAMSITE_COMPLIANCE: Final[uuid.UUID] = uuid.uuid5(
-    uuid.NAMESPACE_DNS, "tap.samsite.compliance_collector"
-)
+NAMESPACE_SAMSITE_COMPLIANCE: Final[uuid.UUID] = uuid.uuid5(uuid.NAMESPACE_DNS, "tap.samsite.compliance_collector")
 
 
 def node_entity_id(entity_type: str, natural_key: str) -> uuid.UUID:

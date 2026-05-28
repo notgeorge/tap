@@ -101,6 +101,11 @@ const NESTING_RELATIONSHIPS = [
     {name: "platform-hosts-account",    gryphon: "(parent:github_platform)-[:HOSTS_ACCOUNT]->(child:github_account)"},
     {name: "account-owns-repo",         gryphon: "(parent:github_account)-[:OWNS_REPO]->(child:github_repository)"},
     {name: "repo-defines-workflow",     gryphon: "(parent:github_repository)-[:DEFINES_WORKFLOW]->(child:github_workflow)"},
+    // Sigstore: the Fulcio CA box contains the Rekor entries whose certs it
+    // issued (CERT_ISSUED_BY: entry→ca, walked in reverse). SIGNED_BY_IDENTITY
+    // (entry→workflow) is deliberately NOT a nesting rule — it stays a visible
+    // line crossing from inside the CA box up to the signing workflow.
+    {name: "ca-contains-entries",       gryphon: "(parent:sigstore_ca)<-[:CERT_ISSUED_BY]-(child:rekor_log_entry)"},
 ];
 
 export async function execute(context) {
@@ -127,6 +132,20 @@ export async function execute(context) {
         const gap = 72;
         const top = ghRoot.y - ((workflows.length - 1) * gap) / 2;
         workflows.forEach((n, i) => n.position({x: ghRoot.x, y: top + i * gap}));
+    }
+
+    // Sigstore signing/transparency cluster — external, below the github.com box.
+    // Lay the Rekor entries out in a row; the sigstore_ca compound (nesting rule
+    // above) auto-sizes around them. Each entry's SIGNED_BY_IDENTITY edge then
+    // runs up to the workflow that signed it; CERT_ISSUED_BY is hidden once it
+    // drives the containment.
+    const rekorEntries = cy.nodes('[entity_type="rekor_log_entry"]')
+        .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
+    if (rekorEntries.length > 0) {
+        const sigX = ghRoot ? ghRoot.x : 250;
+        const sigGap = 165;
+        const sigLeft = sigX - ((rekorEntries.length - 1) * sigGap) / 2;
+        rekorEntries.forEach((n, i) => n.position({x: sigLeft + i * sigGap, y: 1060}));
     }
 
     // Apply compound-parent nesting: every aws_* under aws_account, aws_account

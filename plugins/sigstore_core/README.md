@@ -80,7 +80,16 @@ useful.
 
 ## Status
 
-v0 scaffolded. Plugin shape, manifest, models, edges, and icons are in
-place. The verify/decompose helpers expose the v0 API surface as stubs;
-full implementations are a follow-up lift from samsite's existing
-`compliance_collector/verify.py`.
+v0 live. Plugin shape, manifest, models, edges, and icons are in place;
+`verify_bundle` and `bundle_to_grift_fragment` are fully implemented (not
+stubs). The plugin is installed (`INSTALLED_APPS`), migrated, and consumed
+in production by samsite's `compliance_collector`, which fetches signed
+`/.well-known/` artifacts, calls `verify_bundle`, and merges the
+`bundle_to_grift_fragment` output into its batch — so `rekor_log_entry` /
+`sigstore_ca` nodes and the trust-chain edges are live on the grid. `sigstore`
+is plugin-owned via the uv workspace (`members` entry; removed from the root
+`pyproject.toml`).
+
+Deferred to the live-integration harness: happy-path / log-metadata
+verification against a real bundle (`req-sigstore-core-testing-backlog`); v0
+ships hermetic unit tests only.

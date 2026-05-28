@@ -84,18 +84,18 @@ template to borrow from here.
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-sigstore-core-scope | [Plugin Scope](#plugin-scope) | Implemented | Library plugin; models + edges + verify/decompose helpers — scaffolded, structural validation green |
+| req-sigstore-core-scope | [Plugin Scope](#plugin-scope) | Implemented | Library plugin; models + edges + verify/decompose helpers. Installed, migrated, types/edge-constraints registered; consumed by samsite's compliance collector (nodes/edges live on the grid) |
 | req-sigstore-core-models | [Model Set](#model-set) | Implemented | `rekor_log_entry`, `sigstore_ca` |
 | req-sigstore-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | `ATTESTED_BY`, `CERT_ISSUED_BY`, `SIGNED_BY_IDENTITY` |
 | req-sigstore-core-no-collector | [No Collector In v0](#no-collector-in-v0) | Implemented | `apps.py` is `pass`; no `tap_cares` registration |
-| req-sigstore-core-verify | [Verify Helper](#verify-helper) | Implemented | `sigstore_core.verify.verify_bundle(...)` exists with documented signature, three-state result, failure codes, and Rekor-only enforcement. Consumer migration (samsite) is `-8`, still Proposed. |
+| req-sigstore-core-verify | [Verify Helper](#verify-helper) | Implemented | `sigstore_core.verify.verify_bundle(...)` exists with documented signature, three-state result, failure codes, and Rekor-only enforcement. Consumer migration (samsite, `-8`) is done — its inline verify module was removed and it now calls `verify_bundle`. |
 | req-sigstore-core-decompose | [Decompose Helper](#decompose-helper) | Implemented | `sigstore_core.decompose.bundle_to_grift_fragment(...)` exists; returns `GriftFragment` with the documented 4-or-5 pieces |
 | req-sigstore-core-policy | [Verification Policy Shape](#verification-policy-shape) | Implemented | `GitHubWorkflowPolicy` dataclass + translation to `sigstore-python` policy live in `verify.py` |
 | req-sigstore-core-dimensions | [Dimension Strategy](#dimension-strategy) | Implemented | `sigstore.platform`, `sigstore.ca_kind`, `sigstore.log_kind` set on model defaults and edge defaults |
-| req-sigstore-core-python-deps | [Plugin Python Dependency](#plugin-python-dependency) | Proposed | `plugins/sigstore_core/pyproject.toml` declared; root-pyproject cleanup + uv-workspace member registration gated on this branch merging with the github_core workspace setup on main |
+| req-sigstore-core-python-deps | [Plugin Python Dependency](#plugin-python-dependency) | Implemented | `sigstore` is plugin-owned: declared in `plugins/sigstore_core/pyproject.toml`, registered as a `[tool.uv.workspace]` member, removed from the root `pyproject.toml`. Installs via `uv sync --all-packages`, mirroring github_core's PyYAML |
 | req-sigstore-core-disclosure | [Verification Disclosure](#verification-disclosure) | Implemented | Verdict + failure code/detail + applied policy live as `ATTESTED_BY` edge attributes per the spec |
 | req-sigstore-core-testing-backlog | [Live-Bundle Verification Testing (Backlog)](#live-bundle-verification-testing-backlog) | Backlog | v0 ships hermetic unit tests only; happy-path verification against a real Rekor-backed bundle waits for the platform live-integration harness |
-| req-sigstore-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | RFC3161 bundles, dedicated verification node, live Rekor pull, OIDC issuer node, checkpoint nodes, witness/cosigning, attestations |
+| req-sigstore-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | RFC3161 bundles, dedicated verification node, live Rekor pull, OIDC issuer node, checkpoint nodes, witness/cosigning, attestations |
 
 ### Plugin Scope
 ----
@@ -120,9 +120,9 @@ graph surface is the model and edge types other plugins write to.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-scope-1 | Library Shape | Proposed | The plugin registers no collectors; its public Python API is `sigstore_core.verify` and `sigstore_core.decompose`. | |
-| req-sigstore-core-scope-2 | Models Owned Here | Proposed | `rekor_log_entry` and `sigstore_ca` are owned by `sigstore_core`, not by any consumer plugin. | |
-| req-sigstore-core-scope-3 | Edges Owned Here | Proposed | `ATTESTED_BY`, `CERT_ISSUED_BY`, and `SIGNED_BY_IDENTITY` are declared by `sigstore_core`. | Consumer plugins emit instances. |
+| req-sigstore-core-scope-1 | Library Shape | Implemented | The plugin registers no collectors; its public Python API is `sigstore_core.verify` and `sigstore_core.decompose`. | |
+| req-sigstore-core-scope-2 | Models Owned Here | Implemented | `rekor_log_entry` and `sigstore_ca` are owned by `sigstore_core`, not by any consumer plugin. | |
+| req-sigstore-core-scope-3 | Edges Owned Here | Implemented | `ATTESTED_BY`, `CERT_ISSUED_BY`, and `SIGNED_BY_IDENTITY` are declared by `sigstore_core`. | Consumer plugins emit instances. |
 
 ### Model Set
 ----
@@ -197,10 +197,10 @@ Vocabulary](#edge-vocabulary).
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-models-1 | Models Declared | Proposed | The plugin declares the two v0 model types listed above. | |
-| req-sigstore-core-models-2 | Deterministic Identity | Proposed | Both models use deterministic UUIDv5 identity based on their natural keys. | |
-| req-sigstore-core-models-3 | Immutable Facts Only | Proposed | `rekor_log_entry` stores only immutable transparency-log facts; verification verdict and policy-applied attributes live on the `ATTESTED_BY` edge, not the node. | A `rekor_log_entry` only exists if `verify_bundle` parsed the bundle. |
-| req-sigstore-core-models-4 | CA Kind Field | Proposed | `sigstore_ca.ca_kind` is a string field that defaults to `fulcio` in v0 but is not constrained to it at the model level. | Future non-Fulcio CAs need no schema change. |
+| req-sigstore-core-models-1 | Models Declared | Implemented | The plugin declares the two v0 model types listed above. | |
+| req-sigstore-core-models-2 | Deterministic Identity | Implemented | Both models use deterministic UUIDv5 identity based on their natural keys. | |
+| req-sigstore-core-models-3 | Immutable Facts Only | Implemented | `rekor_log_entry` stores only immutable transparency-log facts; verification verdict and policy-applied attributes live on the `ATTESTED_BY` edge, not the node. | A `rekor_log_entry` only exists if `verify_bundle` parsed the bundle. |
+| req-sigstore-core-models-4 | CA Kind Field | Implemented | `sigstore_ca.ca_kind` is a string field that defaults to `fulcio` in v0 but is not constrained to it at the model level. | Future non-Fulcio CAs need no schema change. |
 
 ### Edge Vocabulary
 ----
@@ -301,12 +301,12 @@ itself.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-edges-1 | Trust Chain | Proposed | The three edge types are declared and constrained. | |
-| req-sigstore-core-edges-2 | Polymorphic Anchor | Proposed | `ATTESTED_BY` does not constrain its source entity type at the platform level. | |
-| req-sigstore-core-edges-3 | Decompose Emits CA Chain | Proposed | `bundle_to_grift_fragment` emits exactly one `ATTESTED_BY` and exactly one `CERT_ISSUED_BY` per call. | |
-| req-sigstore-core-edges-4 | Verdict On Edge | Proposed | The verification verdict, the policy that produced it, and the verification time are recorded as attributes of the `ATTESTED_BY` edge, not as fields on `rekor_log_entry`. | |
-| req-sigstore-core-edges-5 | Identity Edge Caller-Supplied | Proposed | `SIGNED_BY_IDENTITY` is emitted only when the caller passes a resolved identity entity id to the decompose helper. The helper performs no cross-plugin graph reads of its own. | |
-| req-sigstore-core-edges-6 | Github_Core Optional For Helper | Proposed | The decompose helper runs without `github_core` installed; in that mode `SIGNED_BY_IDENTITY` is simply not emitted (no caller can supply a target entity id). | The `signing_identity_uri` field on the Rekor entry remains, so the identity is still visible as data. |
+| req-sigstore-core-edges-1 | Trust Chain | Implemented | The three edge types are declared and constrained. | |
+| req-sigstore-core-edges-2 | Polymorphic Anchor | Implemented | `ATTESTED_BY` does not constrain its source entity type at the platform level. | |
+| req-sigstore-core-edges-3 | Decompose Emits CA Chain | Implemented | `bundle_to_grift_fragment` emits exactly one `ATTESTED_BY` and exactly one `CERT_ISSUED_BY` per call. | |
+| req-sigstore-core-edges-4 | Verdict On Edge | Implemented | The verification verdict, the policy that produced it, and the verification time are recorded as attributes of the `ATTESTED_BY` edge, not as fields on `rekor_log_entry`. | |
+| req-sigstore-core-edges-5 | Identity Edge Caller-Supplied | Implemented | `SIGNED_BY_IDENTITY` is emitted only when the caller passes a resolved identity entity id to the decompose helper. The helper performs no cross-plugin graph reads of its own. | |
+| req-sigstore-core-edges-6 | Github_Core Optional For Helper | Implemented | The decompose helper runs without `github_core` installed; in that mode `SIGNED_BY_IDENTITY` is simply not emitted (no caller can supply a target entity id). | The `signing_identity_uri` field on the Rekor entry remains, so the identity is still visible as data. |
 
 ### No Collector In v0
 ----
@@ -327,8 +327,8 @@ explicitly deferred in non-goals.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-no-collector-1 | No Collector Registered | Proposed | `plugins/sigstore_core/apps.py` registers no collector capability with `tap_cares` in v0. | |
-| req-sigstore-core-no-collector-2 | No Network Calls | Proposed | The plugin's helpers issue no outbound network calls of their own beyond the TUF trust-root refresh that `sigstore-python` performs internally. | |
+| req-sigstore-core-no-collector-1 | No Collector Registered | Implemented | `plugins/sigstore_core/apps.py` registers no collector capability with `tap_cares` in v0. | |
+| req-sigstore-core-no-collector-2 | No Network Calls | Implemented | The plugin's helpers issue no outbound network calls of their own beyond the TUF trust-root refresh that `sigstore-python` performs internally. | |
 
 ### Verify Helper
 ----
@@ -394,14 +394,14 @@ refresh side-effect inside `sigstore-python` and the returned result.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-verify-1 | Canonical Function | Proposed | `sigstore_core.verify.verify_bundle` is the single entry point TAP plugins use to verify a Sigstore bundle. | |
-| req-sigstore-core-verify-2 | Three-State Result | Proposed | `signature_verified` is `True`, `False`, or `None`, distinguishing parse failure from verification failure. | |
-| req-sigstore-core-verify-3 | Never Raises On Verification Failure | Proposed | A parseable bundle that fails verification yields `signature_verified=False`, not an exception. | |
-| req-sigstore-core-verify-4 | Failure Code Surfaced | Proposed | A failed verification populates `failure_code` and `failure_detail` so callers can distinguish failure modes without parsing the detail string. | |
-| req-sigstore-core-verify-5 | Rekor-Backed Only | Proposed | A parseable bundle lacking a Rekor inclusion proof yields `signature_verified=False`, `failure_code="no_rekor_proof"`. RFC3161 timestamp-only verification is deferred. | |
-| req-sigstore-core-verify-6 | Verifier Cached | Proposed | The `sigstore.verify.Verifier` instance is cached per worker lifetime. | |
-| req-sigstore-core-verify-7 | No Graph Writes | Proposed | `verify_bundle` performs no graph reads or writes. | |
-| req-sigstore-core-verify-8 | Consumers Migrated | Proposed | Once this helper is live, any pre-existing in-consumer verify modules are removed and their callers switched to `sigstore_core.verify.verify_bundle`. | Per-consumer migration steps live in each consumer plugin's own spec. |
+| req-sigstore-core-verify-1 | Canonical Function | Implemented | `sigstore_core.verify.verify_bundle` is the single entry point TAP plugins use to verify a Sigstore bundle. | |
+| req-sigstore-core-verify-2 | Three-State Result | Implemented | `signature_verified` is `True`, `False`, or `None`, distinguishing parse failure from verification failure. | |
+| req-sigstore-core-verify-3 | Never Raises On Verification Failure | Implemented | A parseable bundle that fails verification yields `signature_verified=False`, not an exception. | |
+| req-sigstore-core-verify-4 | Failure Code Surfaced | Implemented | A failed verification populates `failure_code` and `failure_detail` so callers can distinguish failure modes without parsing the detail string. | |
+| req-sigstore-core-verify-5 | Rekor-Backed Only | Implemented | A parseable bundle lacking a Rekor inclusion proof yields `signature_verified=False`, `failure_code="no_rekor_proof"`. RFC3161 timestamp-only verification is deferred. | |
+| req-sigstore-core-verify-6 | Verifier Cached | Implemented | The `sigstore.verify.Verifier` instance is cached per worker lifetime. | |
+| req-sigstore-core-verify-7 | No Graph Writes | Implemented | `verify_bundle` performs no graph reads or writes. | |
+| req-sigstore-core-verify-8 | Consumers Migrated | Implemented | Once this helper is live, any pre-existing in-consumer verify modules are removed and their callers switched to `sigstore_core.verify.verify_bundle`. | Per-consumer migration steps live in each consumer plugin's own spec. |
 
 ### Decompose Helper
 ----
@@ -452,11 +452,11 @@ Behavior:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-decompose-1 | Returns Fragment | Proposed | `bundle_to_grift_fragment` returns a typed object the caller merges into its batch; the helper does not submit GRIFT itself. | |
-| req-sigstore-core-decompose-2 | Four Or Five Pieces | Proposed | The fragment contains the CA upsert, the log-entry node, `CERT_ISSUED_BY`, `ATTESTED_BY`, and (when the caller supplies `signing_identity_entity_id`) `SIGNED_BY_IDENTITY`, and nothing else in v0. | |
-| req-sigstore-core-decompose-3 | Unparseable Refused | Proposed | The helper raises if `result.parsed_bundle` is `None`. | Callers must check `verify_bundle` parsed successfully before decomposing. |
-| req-sigstore-core-decompose-4 | No Network Calls | Proposed | The helper reads only `result`; it makes no outbound calls. | |
-| req-sigstore-core-decompose-5 | Failed Verdicts Emitted | Proposed | The helper emits the Rekor entry node and the `ATTESTED_BY` edge with `signature_verified=False` when verification failed but the bundle parsed; it does not silently drop failed verdicts. | |
+| req-sigstore-core-decompose-1 | Returns Fragment | Implemented | `bundle_to_grift_fragment` returns a typed object the caller merges into its batch; the helper does not submit GRIFT itself. | |
+| req-sigstore-core-decompose-2 | Four Or Five Pieces | Implemented | The fragment contains the CA upsert, the log-entry node, `CERT_ISSUED_BY`, `ATTESTED_BY`, and (when the caller supplies `signing_identity_entity_id`) `SIGNED_BY_IDENTITY`, and nothing else in v0. | |
+| req-sigstore-core-decompose-3 | Unparseable Refused | Implemented | The helper raises if `result.parsed_bundle` is `None`. | Callers must check `verify_bundle` parsed successfully before decomposing. |
+| req-sigstore-core-decompose-4 | No Network Calls | Implemented | The helper reads only `result`; it makes no outbound calls. | |
+| req-sigstore-core-decompose-5 | Failed Verdicts Emitted | Implemented | The helper emits the Rekor entry node and the `ATTESTED_BY` edge with `signature_verified=False` when verification failed but the bundle parsed; it does not silently drop failed verdicts. | |
 
 ### Verification Policy Shape
 ----
@@ -510,10 +510,10 @@ arrive. The v0 spec does not attempt to enumerate them.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-policy-1 | Typed Descriptor | Proposed | The `policy` argument is a typed dataclass, not a raw `sigstore-python` policy object. | Keeps `sigstore-python` out of consumer plugins' imports. |
-| req-sigstore-core-policy-2 | GitHub Workflow Policy Shipped | Proposed | `GitHubWorkflowPolicy` is the one concrete policy in v0, with required `oidc_issuer` and `github_repository` plus optional `workflow_identity_uri`, `workflow_ref`, and `workflow_sha` predicates. | |
-| req-sigstore-core-policy-3 | Applied Predicates Recorded | Proposed | The applied policy predicates are captured on the `ATTESTED_BY` edge attributes so a reader can tell which checks the verdict relied on. | Required: `policy_kind`, `policy_oidc_issuer`. Optional: repo, identity URI, ref, SHA. |
-| req-sigstore-core-policy-4 | Open To Extension | Proposed | Adding a new policy descriptor does not require changing `verify_bundle`'s signature. | |
+| req-sigstore-core-policy-1 | Typed Descriptor | Implemented | The `policy` argument is a typed dataclass, not a raw `sigstore-python` policy object. | Keeps `sigstore-python` out of consumer plugins' imports. |
+| req-sigstore-core-policy-2 | GitHub Workflow Policy Shipped | Implemented | `GitHubWorkflowPolicy` is the one concrete policy in v0, with required `oidc_issuer` and `github_repository` plus optional `workflow_identity_uri`, `workflow_ref`, and `workflow_sha` predicates. | |
+| req-sigstore-core-policy-3 | Applied Predicates Recorded | Implemented | The applied policy predicates are captured on the `ATTESTED_BY` edge attributes so a reader can tell which checks the verdict relied on. | Required: `policy_kind`, `policy_oidc_issuer`. Optional: repo, identity URI, ref, SHA. |
+| req-sigstore-core-policy-4 | Open To Extension | Implemented | Adding a new policy descriptor does not require changing `verify_bundle`'s signature. | |
 
 ### Dimension Strategy
 ----
@@ -540,14 +540,14 @@ change.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-dimensions-1 | Platform Dimension | Proposed | All `sigstore_core`-owned nodes and edges carry `sigstore.platform`. | Default `public-good` in v0. |
-| req-sigstore-core-dimensions-2 | CA Kind Dimension | Proposed | `sigstore_ca` nodes carry `sigstore.ca_kind`. | Default `fulcio` in v0. |
-| req-sigstore-core-dimensions-3 | Log Kind Dimension | Proposed | `rekor_log_entry` nodes carry `sigstore.log_kind`. | Default `rekor` in v0. |
+| req-sigstore-core-dimensions-1 | Platform Dimension | Implemented | All `sigstore_core`-owned nodes and edges carry `sigstore.platform`. | Default `public-good` in v0. |
+| req-sigstore-core-dimensions-2 | CA Kind Dimension | Implemented | `sigstore_ca` nodes carry `sigstore.ca_kind`. | Default `fulcio` in v0. |
+| req-sigstore-core-dimensions-3 | Log Kind Dimension | Implemented | `rekor_log_entry` nodes carry `sigstore.log_kind`. | Default `rekor` in v0. |
 
 ### Plugin Python Dependency
 ----
 RID: `req-sigstore-core-python-deps`
-Status: `Proposed`
+Status: `Implemented`
 
 The `sigstore` Python library is owned by `sigstore_core` and declared in
 `plugins/sigstore_core/pyproject.toml` via the root uv workspace pattern.
@@ -557,9 +557,11 @@ uv workspace/member wiring, one resolved environment, no dependency entries
 in `tap-plugin.toml`.
 
 The root `pyproject.toml`'s previous `sigstore` dependency (carried over from
-the pre-`sigstore_core` era) is removed in the same change that scaffolds
-this plugin, since the package is now declared by the workspace member that
-actually uses it.
+the pre-`sigstore_core` era) has been removed; the package is now declared by
+the workspace member that actually uses it. `plugins/sigstore_core` is a
+`[tool.uv.workspace]` member, so `uv sync --all-packages` resolves and
+installs `sigstore` through the member, mirroring `plugins/github_core` and
+`PyYAML`.
 
 Consumer plugins (and the rest of the codebase) MUST import only from
 `sigstore_core.*` and never from `sigstore.*` directly. This keeps
@@ -575,10 +577,10 @@ dependency is justified by and documented with `sigstore_core`.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-python-deps-1 | Sigstore Approved | Proposed | `sigstore` is approved specifically for `sigstore_core`. | The plugin formalizes ownership of an existing TAP dependency. |
-| req-sigstore-core-python-deps-2 | Plugin-Owned Declaration | Proposed | The `sigstore` dependency is declared in `plugins/sigstore_core/pyproject.toml`, registered through the root uv workspace, and not declared in the root `pyproject.toml` or in `tap-plugin.toml`. | Mirrors github_core's `PyYAML` pattern. |
-| req-sigstore-core-python-deps-3 | Root Pyproject Cleaned | Proposed | The root `pyproject.toml`'s `sigstore` entry is removed in the same change that scaffolds this plugin. | The dependency now flows through the workspace member that uses it. |
-| req-sigstore-core-python-deps-4 | No Direct Sigstore Imports In Consumers | Proposed | Consumer plugins import only from `sigstore_core.*`, not from `sigstore.*`. | Keeps the `sigstore-python` surface contained. |
+| req-sigstore-core-python-deps-1 | Sigstore Approved | Implemented | `sigstore` is approved specifically for `sigstore_core`. | The plugin formalizes ownership of an existing TAP dependency. |
+| req-sigstore-core-python-deps-2 | Plugin-Owned Declaration | Implemented | The `sigstore` dependency is declared in `plugins/sigstore_core/pyproject.toml`, registered through the root uv workspace (`members` entry), and not declared in the root `pyproject.toml` or in `tap-plugin.toml`. | Mirrors github_core's `PyYAML` pattern. |
+| req-sigstore-core-python-deps-3 | Root Pyproject Cleaned | Implemented | The root `pyproject.toml`'s `sigstore` entry is removed; the dependency now flows through the workspace member that uses it. | Done when samsite became sigstore_core's first consumer, after github_core's workspace pattern reached main. |
+| req-sigstore-core-python-deps-4 | No Direct Sigstore Imports In Consumers | Implemented | Consumer plugins import only from `sigstore_core.*`, not from `sigstore.*`. | Keeps the `sigstore-python` surface contained. |
 
 ### Verification Disclosure
 ----
@@ -617,10 +619,10 @@ mode this requirement exists to prevent.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-disclosure-1 | Absolute Fact On Edge | Proposed | `ATTESTED_BY.signature_verified` records the absolute verdict; consumers derive interpretation, do not store it. | |
-| req-sigstore-core-disclosure-2 | No Implicit Success | Proposed | Absence of an `ATTESTED_BY` edge is "not observed" (or "not applicable"), not "verified." Consumer panels must surface this distinction explicitly. | |
-| req-sigstore-core-disclosure-3 | Failure Reason Machine-Readable | Proposed | A `False` verdict carries `verification_failure_code` and `verification_failure_detail` on the edge so consumers can branch on the failure mode. | |
-| req-sigstore-core-disclosure-4 | Applied Policy On Edge | Proposed | The applied policy descriptor is recorded on the edge attributes so the verdict is interpretable later. | |
+| req-sigstore-core-disclosure-1 | Absolute Fact On Edge | Implemented | `ATTESTED_BY.signature_verified` records the absolute verdict; consumers derive interpretation, do not store it. | |
+| req-sigstore-core-disclosure-2 | No Implicit Success | Implemented | Absence of an `ATTESTED_BY` edge is "not observed" (or "not applicable"), not "verified." Consumer panels must surface this distinction explicitly. | |
+| req-sigstore-core-disclosure-3 | Failure Reason Machine-Readable | Implemented | A `False` verdict carries `verification_failure_code` and `verification_failure_detail` on the edge so consumers can branch on the failure mode. | |
+| req-sigstore-core-disclosure-4 | Applied Policy On Edge | Implemented | The applied policy descriptor is recorded on the edge attributes so the verdict is interpretable later. | |
 
 ### Live-Bundle Verification Testing (Backlog)
 ----
@@ -639,6 +641,7 @@ Three behaviors require a real Rekor-backed Sigstore bundle to test end-to-end a
 1. **Happy-path verification** — `verify_bundle` returning `signature_verified=True` against a real bundle whose Fulcio cert, signature, Rekor inclusion proof, and policy all match. This is the load-bearing assertion that the helper actually works; v0 cannot prove it without reaching across to another plugin's published artifacts (which would violate `req-tap-test-hermetic-plugins`) or publishing TAP-owned entries to the public-good Rekor log (which leaves permanent records and isn't appropriate for routine testing).
 2. **Policy-mismatch verification** — `verify_bundle` returning `signature_verified=False, failure_code="policy_mismatch"` against a real bundle with a wrong-repo or wrong-identity policy. Requires the same real bundle as the happy path.
 3. **`no_rekor_proof` enforcement** — `verify_bundle` returning `signature_verified=False, failure_code="no_rekor_proof"` against a parseable bundle that lacks a Rekor inclusion proof (e.g. an RFC3161 timestamp-only bundle). Requires either an RFC3161-shaped bundle in hand or synthetic-bundle construction; both are deferred.
+4. **Log-metadata extraction** — `verify_bundle` populating `rekor_log_index`, `log_key_id`, `integrated_time`, and `entry_kind` from a real bundle (these form the `rekor_log_entry` natural key, so blank extraction silently collides every entry into one). The harness MUST assert these populate, not just that `signature_verified=True`. **2026-05-28 finding:** a manual real-bundle check (against `samsite.unified-systems.com`) found `_extract_log_data`/`_has_rekor_proof` were reading the pre-4.x `bundle.log_entry.log_index` shape; sigstore-python 4.x moves these onto `bundle.log_entry._inner`. The hermetic unit tests passed throughout because their mocks lacked `_inner` and hit the fallback path — exactly the gap this harness closes. Fixed via the `_log_entry_inner` containment helper in `verify.py`; verified live (`signature_verified=True`, `log_index=1635734195`).
 
 Until the live-integration harness exists, any developer who wants to validate the happy path locally can:
 
@@ -655,12 +658,13 @@ The right long-term shape is the harness, not vendored fixtures. Vendoring is th
 | req-sigstore-core-testing-backlog-2 | Happy Path Deferred | Backlog | Happy-path `verify_bundle` validation against a real Rekor-backed bundle waits for `req-tap-test-live-integration-backlog`. | |
 | req-sigstore-core-testing-backlog-3 | Policy Mismatch Deferred | Backlog | Policy-mismatch verification against a real bundle waits for the same harness. | |
 | req-sigstore-core-testing-backlog-4 | no_rekor_proof Deferred | Backlog | RFC3161-only or otherwise-no-proof bundle verification waits for the harness or a vendored fixture with a `SOURCE` note. | |
+| req-sigstore-core-testing-backlog-6 | Log-Metadata Extraction Asserted | Backlog | The harness asserts `verify_bundle` populates `rekor_log_index`, `log_key_id`, `integrated_time`, `entry_kind` from a real bundle — the `rekor_log_entry` natural key. | Mock-based hermetic tests cannot catch upstream shape drift here (see the 2026-05-28 `_inner` finding); only a real bundle does. |
 | req-sigstore-core-testing-backlog-5 | No Coincidental Cross-Plugin | Implemented | v0 tests do not reach into any other plugin's `grift/`, `static/`, `tests/fixtures/`, or `.well-known/` artifacts, per `req-tap-test-hermetic-plugins`. | |
 
 ### v0 Non-Goals
 ----
 RID: `req-sigstore-core-nongoals`
-Status: `Proposed`
+Status: `Implemented`
 
 Out of scope for v0:
 
@@ -702,14 +706,14 @@ Out of scope for v0:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-sigstore-core-nongoals-1 | RFC3161 Bundles Deferred | Proposed | v0 rejects timestamp-only bundles with `failure_code="no_rekor_proof"`. | Honest demo fence. |
-| req-sigstore-core-nongoals-2 | Dedicated Verification Node Deferred | Proposed | v0 keeps verdict on the `ATTESTED_BY` edge; a `sigstore_verification` node is a v1 candidate for multi-policy / re-verification history. | |
-| req-sigstore-core-nongoals-3 | Live Rekor Deferred | Proposed | v0 does not query Rekor over the network. | |
-| req-sigstore-core-nongoals-4 | OIDC Issuer Deferred | Proposed | v0 captures the OIDC issuer as a field, not a node. | Near-soon follow-up. |
-| req-sigstore-core-nongoals-5 | Checkpoint Node Deferred | Proposed | v0 captures checkpoint fields on the entry, not as their own node. | |
-| req-sigstore-core-nongoals-6 | Attestation Models Deferred | Proposed | v0 does not lift intoto / DSSE statements to their own node types. | |
-| req-sigstore-core-nongoals-7 | No Signing | Proposed | The plugin never produces a Sigstore signature. | |
-| req-sigstore-core-nongoals-8 | No Collector | Proposed | No `tap_cares` collector is registered in v0. | |
+| req-sigstore-core-nongoals-1 | RFC3161 Bundles Deferred | Implemented | v0 rejects timestamp-only bundles with `failure_code="no_rekor_proof"`. | Honest demo fence. |
+| req-sigstore-core-nongoals-2 | Dedicated Verification Node Deferred | Implemented | v0 keeps verdict on the `ATTESTED_BY` edge; a `sigstore_verification` node is a v1 candidate for multi-policy / re-verification history. | |
+| req-sigstore-core-nongoals-3 | Live Rekor Deferred | Implemented | v0 does not query Rekor over the network. | |
+| req-sigstore-core-nongoals-4 | OIDC Issuer Deferred | Implemented | v0 captures the OIDC issuer as a field, not a node. | Near-soon follow-up. |
+| req-sigstore-core-nongoals-5 | Checkpoint Node Deferred | Implemented | v0 captures checkpoint fields on the entry, not as their own node. | |
+| req-sigstore-core-nongoals-6 | Attestation Models Deferred | Implemented | v0 does not lift intoto / DSSE statements to their own node types. | |
+| req-sigstore-core-nongoals-7 | No Signing | Implemented | The plugin never produces a Sigstore signature. | |
+| req-sigstore-core-nongoals-8 | No Collector | Implemented | No `tap_cares` collector is registered in v0. | |
 
 ## Status Vocabulary
 

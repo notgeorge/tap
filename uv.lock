@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 members = [
     "tap",
     "tap-plugin-github-core",
+    "tap-plugin-sigstore-core",
 ]
 
 [[package]]
@@ -1055,7 +1056,6 @@ dependencies = [
     { name = "jsonschema" },
     { name = "lark" },
     { name = "psycopg", extra = ["binary"] },
-    { name = "sigstore" },
     { name = "steady-queue" },
 ]
 
@@ -1081,7 +1081,6 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "lark", specifier = ">=1.3.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
-    { name = "sigstore", specifier = ">=4.2.0" },
     { name = "steady-queue", specifier = ">=0.2.0" },
 ]
 
@@ -1106,6 +1105,17 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "pyyaml", specifier = ">=6.0.2" }]
+
+[[package]]
+name = "tap-plugin-sigstore-core"
+version = "0.1.0"
+source = { editable = "plugins/sigstore_core" }
+dependencies = [
+    { name = "sigstore" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "sigstore", specifier = ">=4.2.0" }]
 
 [[package]]
 name = "tuf"
