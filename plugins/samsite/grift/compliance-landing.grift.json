@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e6f4d-ac7b-7097-ae0b-91148cab7795",
+        "entity_id": "019e6f63-62ec-70ea-acaf-233b25a6df8f",
         "entity_type": "batch",
-        "name": "Samsite Compliance landing v1.0 \u2014 consolidated (page + all 11 panels + USES_PANEL edges in one batch)",
+        "name": "Samsite Compliance landing v1.1 \u2014 drop nav-links panel (breadcrumb chrome replaces hero nav)",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-landing",
-        "name": "Samsite Compliance landing v1.0 \u2014 consolidated (page + all 11 panels + USES_PANEL edges in one batch)",
-        "description": "Consolidated landing-page bundle for /samsite/compliance. Carries the page node with its v0.3.0 11-row layout, all 11 panels referenced by that layout (9 data-table panels + samsite-nav-links + samsite-vdr-ingestion-health), and all 11 USES_PANEL edges binding panels to page slots. Single-batch shape is required because precommit-consistency hotlink validation runs per-batch \u2014 the page's layout hotlinks need every referenced panel + its USES_PANEL edge visible in the same atomic transaction. Earlier versions of this file kept these as 4 sequential batches (v0.1.0 \u2192 v0.2.0 \u2192 v0.3.0 plus a vdr-health-add batch), which broke fresh-DB imports: edges in batches 0\u20132 referenced a page only created in batch 3, and batch 3's page hotlinks referenced panels only created in batches 1 and 2. The git history captures the prior incremental evolution; the on-disk shape is now single-batch."
+        "name": "Samsite Compliance landing v1.1 \u2014 drop nav-links panel (breadcrumb chrome replaces hero nav)",
+        "description": "Consolidated landing-page bundle for /samsite/compliance. v1.1 drops the samsite hero-nav panel + its USES_PANEL edge + the corresponding row from the page layout \u2014 replaced by the platform-level breadcrumb chrome (spec-web-navigation req-web-nav-breadcrumb-header). The remaining 10 panels (page + 9 data-table panels + samsite-vdr-ingestion-health) and their 10 USES_PANEL edges still ship in one atomic batch so precommit-consistency hotlink validation sees the full graph in scope."
       },
       "nodes": [
         {
@@ -36,10 +36,6 @@
                   "rows": {
                     "row-1-vdr-health": {
                       "panel-id": "vdr-health",
-                      "height": "auto"
-                    },
-                    "row-2-nav": {
-                      "panel-id": "nav",
                       "height": "auto"
                     },
                     "row-3-signal": {
@@ -760,41 +756,6 @@
         },
         {
           "entity": {
-            "entity_id": "019e651a-900a-7689-b437-ff827b136317",
-            "entity_type": "panel",
-            "name": "Compliance Workbench Shortcuts",
-            "dimensions": {
-              "tap.graph": "web"
-            }
-          },
-          "node": {
-            "slug": "samsite-nav-links",
-            "name": "Compliance Workbench Shortcuts",
-            "description": "Nav-link cards on /samsite/compliance pointing to the OSCAL SSP and POA&M workbench pages. Bare URLs resolve to the latest emission via the canonical entity-resolution fallback (tap_web/specs/spec-web-panel-entity-resolution-v0).",
-            "view": "samsite/panels/nav_links.html",
-            "config": {
-              "links": [
-                {
-                  "label": "OSCAL SSP Workbench",
-                  "href": "/samsite/compliance/oscal",
-                  "description": "Render the latest OSCAL System Security Plan as a readable workbench."
-                },
-                {
-                  "label": "OSCAL POA&M Workbench",
-                  "href": "/samsite/compliance/poam",
-                  "description": "Render the latest OSCAL Plan of Action and Milestones as an action register."
-                },
-                {
-                  "label": "KSI Scoreboard",
-                  "href": "/samsite/compliance/scoreboard",
-                  "description": "Synthesized FedRAMP 20x KSI status \u2014 joins the indicator catalog against the latest SSP + POA&M for passing/in-progress/accepted/gap per KSI."
-                }
-              ]
-            }
-          }
-        },
-        {
-          "entity": {
             "entity_id": "019e66c8-2fe0-7a6e-a7ef-6021f1046438",
             "entity_type": "panel",
             "name": "Samsite VDR Ingestion Health",
@@ -1126,28 +1087,6 @@
         },
         {
           "entity": {
-            "entity_id": "019e651a-900a-73cc-a670-8582f67a10cc",
-            "entity_type": "edge",
-            "name": "Compliance Page USES_PANEL Nav Links",
-            "dimensions": {
-              "tap.graph": "web"
-            }
-          },
-          "edge": {
-            "from_entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
-            "to_entity_id": "019e651a-900a-7689-b437-ff827b136317",
-            "edge_type": "USES_PANEL",
-            "properties": {
-              "hotlink": {
-                "model": "page",
-                "spec": "page-panels",
-                "value": "nav"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
             "entity_id": "019e66c8-2fe0-78e0-9f40-bd18a6fa5592",
             "entity_type": "edge",
             "name": "Compliance Page USES_PANEL VDR Health",
@@ -1168,7 +1107,25 @@
             }
           }
         }
-      ]
+      ],
+      "deletes": {
+        "on_missing": "ignore",
+        "on_tombstoned": "ignore",
+        "edges": [
+          {
+            "entity_id": "019e651a-900a-73cc-a670-8582f67a10cc",
+            "entity_type": "edge",
+            "reason": "Removes the USES_PANEL edge that linked the compliance landing page to the samsite-nav-links panel. The panel is dropped in favor of the platform-level breadcrumb chrome (spec-web-navigation req-web-nav-breadcrumb-header)."
+          }
+        ],
+        "nodes": [
+          {
+            "entity_id": "019e651a-900a-7689-b437-ff827b136317",
+            "entity_type": "panel",
+            "reason": "Removes the samsite-nav-links 'Compliance Workbench Shortcuts' panel from the grid. The platform-level breadcrumb chrome covers the navigation; landing-page hero nav-cards become unnecessary."
+          }
+        ]
+      }
     }
   ]
 }

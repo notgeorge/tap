@@ -29,20 +29,13 @@ class SamsiteConfig(TapPluginConfig):
             ),
         )
 
-        # Samsite-side nav-link cards panel — generic static-link renderer used
-        # by samsite GRIFT to wire one-click discovery between samsite pages
-        # (req-samsite-pages-discovery-1).
-        from plugins.samsite.panels.nav_links import NavLinksPanelType
-        from tap_web.registry import panel_type_registry
-
-        panel_type_registry.register("samsite-nav-links", NavLinksPanelType)
-
         # KSI Scoreboard — synthesizes per-indicator pass/in-progress/accepted/gap
         # status by joining the on-grid KSI catalog against the latest SSP +
         # POA&M emissions. Samsite-specific because the catalog + artifacts are
         # samsite's; the panel can be lifted to fedramp_20x_ksi later if a
         # second consumer appears.
         from plugins.samsite.panels.ksi_scoreboard import KsiScoreboardPanelType
+        from tap_web.registry import panel_type_registry
 
         panel_type_registry.register("samsite-ksi-scoreboard", KsiScoreboardPanelType)
 
