@@ -245,9 +245,13 @@ export async function execute(context) {
             // with Website Serving rather than drooping below it.
             const websiteCenterY = (websiteBB.y1 + websiteBB.y2) / 2;
             const startY = websiteCenterY - (ARTIFACT_STEP * (files.length - 1)) / 2;
+            // Sit the same distance to the RIGHT of the website box as the website
+            // box sits ABOVE the compliance box. The inter-group vertical gap is
+            // V_GAP (icon-bbox to icon-bbox), and every scope box shares the same
+            // padding, so an equal icon-bbox gap on x yields an equal visual box gap.
             alignDistributeHorizontal(cy, {
                 members: files,
-                anchor: {x: websiteBB.x2 + 40, y: startY},
+                anchor: {x: websiteBB.x2 + V_GAP, y: startY},
                 gap: 26,
                 step: ARTIFACT_STEP,
                 stepFrom: "left",  // left card is highest; each one to the right drops a step
