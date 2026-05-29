@@ -221,9 +221,11 @@ export async function execute(context) {
     const workflows = cy.nodes('[entity_type="github_workflow"]');
     alignDistributeHorizontal(cy, {members: workflows, anchor: {x: ghLeftX, y: bootCenterY}, gap: WF_GAP});
 
-    // 4. OIDC issuer hub — midway in the gap, on the bootstrap row's y so
-    //    TRUSTS_ISSUER (AWS provider → issuer) reads horizontal.
-    cy.nodes('[entity_type="oidc_issuer"]').forEach((n) => n.position({x: (bootRight + ghLeftX) / 2, y: bootCenterY}));
+    // 4. OIDC issuer (token.actions.githubusercontent.com) — it's a github.com
+    //    service, so it's nested INSIDE the github.com platform box alongside the
+    //    github_app(s). Positioned + parented in step 9 (after the platform compound
+    //    is resolved). Its TRUSTS_ISSUER edge to the AWS provider then crosses the
+    //    gap, showing the AWS→GitHub federation trust.
 
     // 5. Sigstore Rekor entries — collected here; collapsed into a single stack
     //    at the end (step 8), after nesting, so the representative already sits
@@ -307,17 +309,34 @@ export async function execute(context) {
     // 9. Threaded-in node types from the merge — anchored to the parts of the
     //    system they relate to.
 
-    // github_app (Dependabot) → inside the github.com PLATFORM box, NOT the repo.
-    // No app→platform edge exists for a nesting rule and the resolver is
-    // single-hop, so parent it to the platform compound directly here, positioned
-    // above the repo content so the box wraps it at the top.
+    // github_app (Dependabot) + the oidc_issuer (token.actions.githubusercontent.com)
+    // → inside the github.com PLATFORM box, NOT the repo. Both are github.com-level
+    // services. No service→platform edge exists for a nesting rule and the resolver
+    // is single-hop, so parent them to the platform compound directly here, in a
+    // row above the repo content so the box wraps them at the top. The issuer sits
+    // to the LEFT (toward the AWS provider its TRUSTS_ISSUER edge points at).
     const platform = cy.nodes('[entity_type="github_platform"]').first();
     if (platform.nonempty()) {
+        const appRowY = wfBB.y1 - 150;
+        cy.nodes('[entity_type="oidc_issuer"]').forEach((n) => {
+            n.position({x: ghCenterX - WF_GAP, y: appRowY});
+            n.move({parent: platform.id()});
+        });
         cy.nodes('[entity_type="github_app"]').forEach((a, i) => {
-            a.position({x: ghCenterX + i * WF_GAP, y: wfBB.y1 - 150});
+            a.position({x: ghCenterX + i * WF_GAP, y: appRowY});
             a.move({parent: platform.id()});
         });
     }
+
+    // Both github.com services carry their title bottom-center (the issuer's model
+    // default is top/center; github_app inherits a baked default). Drive it through
+    // the standard label-position data fields so the node[label_valign][label_halign]
+    // rule applies it.
+    cy.nodes('[entity_type="oidc_issuer"], [entity_type="github_app"]').forEach((n) => {
+        n.data("label_valign", "bottom");
+        n.data("label_halign", "center");
+        n.data("label_margin_y", 4);
+    });
 
     // Human actors — anchored OUTSIDE the boundary they work on, at a consistent
     // gap (the "outside but still working on it" distance). Sam sits OUTSIDE_GAP
