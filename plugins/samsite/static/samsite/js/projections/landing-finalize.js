@@ -388,13 +388,15 @@ export async function execute(context) {
 
     // 10. Z-order: the IDENTITY_VOUCHED_BY edges run from the Rekor entries down to
     //     the OIDC issuer, crossing the notgeorge account + repo boxes on the way.
-    //     Sink them beneath everything (z-compound-depth "bottom") so they tuck
-    //     BEHIND the opaque account/repo boxes instead of drawing across their faces.
-    //     That also drops them below the github.com platform box, so render that box
-    //     outline-only (transparent body, the same treatment as the FedRAMP boundary
-    //     — and its near-bg fill was barely visible anyway). The sunk edge then shows
-    //     THROUGH github.com, keeping its connection to the issuer visible, while the
-    //     filled account/repo boxes still occlude it. (The edge label is the edge type.)
-    cy.edges('[label="IDENTITY_VOUCHED_BY"]').style({"z-compound-depth": "bottom"});
-    cy.nodes('[entity_type="github_platform"]').style({"background-opacity": 0});
+    //     We want them BEHIND those (filled) boxes but still visible connecting to the
+    //     issuer over the github.com fill. Within a single z-compound-depth group
+    //     Cytoscape draws edges ABOVE nodes regardless of z-index, so z-index alone
+    //     can't put the edge under the boxes — the only "below" lever is the "bottom"
+    //     group. Dropping just the edge there also sinks it under the github.com box
+    //     (hiding the issuer run), so put the github.com box in the SAME "bottom" group
+    //     with a lower z-index: the edge then draws above the platform fill (issuer
+    //     connection visible) but below the account/repo boxes (default "auto" group),
+    //     which still occlude it. account/repo are left untouched. (Edge label = type.)
+    cy.edges('[label="IDENTITY_VOUCHED_BY"]').style({"z-compound-depth": "bottom", "z-index": 1});
+    cy.nodes('[entity_type="github_platform"]').style({"z-compound-depth": "bottom", "z-index": 0});
 }
