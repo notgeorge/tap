@@ -251,6 +251,12 @@ export async function execute(context) {
             members: rekor,
             representative: rekor.first(),
             position: {x: ghCenterX, y: TOP_Y - REKOR_ABOVE},
+            // Explicit direction: this stack sits in the upper-right quadrant, so
+            // it should fan up-right. We can't rely on "auto" here — applyStack
+            // runs before step 9 positions the actors / github_app / CISA, so its
+            // scene-center would be computed against an incomplete (mis-centered)
+            // scene and resolve the wrong way.
+            direction: "up-right",
             label: "Rekor Entries",
         });
     }
