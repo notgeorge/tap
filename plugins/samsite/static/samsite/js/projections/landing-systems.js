@@ -1,208 +1,48 @@
 /**
- * Samsite landing systems layout.
+ * Samsite landing — seed the AWS cluster roots.
  *
- * Hybrid approach (path 3 from the design conversation): this module places
- * the three *cluster roots* — the entry node of each story — at fixed (x, y)
- * positions on the canvas. Everything else within each cluster is positioned
- * by stackable per-cluster arrangements (declared on the Layout entity) that
- * express the actual 2D flow between nodes, not just a vertical stack.
+ * Frame layout that runs FIRST in the elevation. It places the entry node of
+ * each AWS story at a provisional position so the per-Component arrangements
+ * (run next by the runtime, per cluster Layout) can build each cluster's
+ * internal 2D shape relative to its root.
  *
- * Vertical stacking (3 rows, ~600 px wide canvas):
+ * Everything global — treating each cluster as a group, left-aligning them,
+ * distributing them vertically with even gaps, then deriving the GitHub /
+ * Sigstore / OIDC-issuer positions off the settled groups, plus compound
+ * nesting and scope boxes — happens in the finalize pass (landing-finalize.js),
+ * which runs LAST, after the arrangements have settled member positions. The
+ * group bounding boxes don't exist until then, so the composition can't live
+ * here.
  *
- *   ┌──────────────────────────────────────┐
- *   │ COMPLIANCE                           │   ← top
- *   │   EventBridge                        │
- *   │     │                                │
- *   │   Lambda ── log-grp                  │
- *   │     │  └─ IAM-role above logs        │
- *   ├──────────────────────────────────────┤
- *   │ WEBSITE                              │   ← middle
- *   │   Route53 ── ACM                     │
- *   │     │                                │
- *   │   CloudFront ── S3                   │
- *   ├──────────────────────────────────────┤
- *   │ DEPLOY / BOOTSTRAP                   │   ← bottom
- *   │   OIDC                               │
- *   │     │                                │
- *   │   deploy-IAM ── tfstate-S3           │
- *   │                  └─ tfstate-DDB      │
- *   └──────────────────────────────────────┘
+ * Provisional positions: only the build DIRECTION matters at this stage — the
+ * bootstrap cluster is a single horizontal row that builds LEFTWARD from its
+ * OIDC-provider root (negative-offset arrangements), so that root starts to the
+ * right. finalize re-aligns and re-distributes the whole groups afterward, so
+ * the exact provisional x/y here are not load-bearing.
  *
- * Each arrangement is a single-rule positioning step (anchor + member +
- * axis + offset) — they stack to build up the 2D structure. The Layout
- * entity references all of them in execution order. Arrangements are
- * root-anchor relative, so moving a root translates its whole cluster.
- *
- * Companion entity: the Layout entity `samsite-landing-layout` in
+ * Companion entities: the Layout entities samsite-landing-layout (this module)
+ * and samsite-landing-finalize (landing-finalize.js) in
  * plugins/samsite/grift/landing.grift.json.
  */
 
-import {resolveNesting, HIDDEN_CONTAINMENT_CLASS} from "/static/tap_viz/js/runtime/nested-projection.js";
-import {applyScopeBoxes} from "/static/tap_viz/js/runtime/layout-scope-boxes.js";
-
-// Per-cluster scope-box configs. One box per cluster Layout (each sibling
-// Layout under samsite-landing-elevation owns one node group, per
-// spec-viz-layouts § Philosophy). Members are selected by the AWS resource
-// tag Component=<cluster> — the same predicate the arrangement member
-// queries use. Future work (server-side scope resolution) will pass these
-// from the projection JSON instead of hardcoding them here.
-const SCOPE_BOXES = [
-    {label: "Compliance Flow",   filter: (n) => (n.data("tags") || {}).Component === "compliance"},
-    // Website cluster is the union of two underlying tag values: Component=dns
-    // (Route53 zone + ACM cert) and Component=site (CloudFront + S3 origin) —
-    // a separation that exists in the upstream Terraform but reads as one
-    // story on the landing.
-    {label: "Website Serving",   filter: (n) => {
-        const c = (n.data("tags") || {}).Component;
-        return c === "dns" || c === "site";
-    }},
-    {label: "Deploy & Bootstrap", filter: (n) => (n.data("tags") || {}).Component === "bootstrap"},
-];
-
 const CLUSTER_ROOTS = [
-    {root_entity_type: "aws_eventbridge_rule",  x:  250, y:  200, cluster: "compliance"},
-    {root_entity_type: "aws_route53_zone",      x:  250, y:  450, cluster: "website"},
-    {root_entity_type: "aws_iam_oidc_provider", x:  250, y:  700, cluster: "bootstrap"},
-    // GitHub source/deploy stack — the deepest leaf (workflow) is positioned
-    // to the LEFT of the boundary so the github.com > account > repo > workflow
-    // compounds nest around it OUTSIDE the FedRAMP boundary, and the workflow's
-    // REFERENCES_RESOURCE edges (→ CloudFront/Route53) + the repo's
-    // FEDERATES_VIA edge (→ the AWS OIDC provider) read as lines crossing
-    // rightward into the boundary. (Sam draws github.com inside the boundary;
-    // we render it outside — argue later.)
-    {root_entity_type: "github_workflow",       x: -380, y:  575, cluster: "github"},
-];
-
-// aws_account and boundary become compound parents around the three cluster
-// roots (see the nesting pass below). They don't need explicit positions —
-// Cytoscape sizes a compound parent around its children automatically.
-
-// Nesting relationships, applied after the arrangements settle. Two rules:
-//
-//   1. boundary contains aws_account     — edge: SCOPED_TO_BOUNDARY
-//      (aws_account ─SCOPED_TO_BOUNDARY→ boundary, so the edge direction
-//      reads child→parent in graph terms; the matcher walks it in reverse).
-//   2. aws_account contains every aws_*  — dimension equality on `aws_account`.
-//      Every collected aws_* node carries `dimensions.aws_account = "<id>"`
-//      and the aws_account singleton itself carries the same value. The
-//      shared dimension *is* the containment relationship; we don't
-//      materialize edges for it.
-// GitHub side is nested by EDGES, not dimension equality: every github_* node
-// shares `github.platform=github.com`, so a dimension_match would collapse the
-// whole subtree flat under github.com AND collide with the per-level edges
-// (producing "multiple parents" → dropped). Walking one containment edge per
-// level keeps each node's parent unambiguous:
-//   github.com ─HOSTS_ACCOUNT→   account
-//   account    ─OWNS_REPO→       repo
-//   repo       ─DEFINES_WORKFLOW→ workflow (leaf)
-const NESTING_RELATIONSHIPS = [
-    {name: "boundary-contains-account", gryphon: "(parent:boundary)<-[:SCOPED_TO_BOUNDARY]-(child:aws_account)"},
-    {name: "account-owns-resource",     dimension_match: {parent_type: "aws_account", dimension: "aws_account"}},
-    {name: "platform-hosts-account",    gryphon: "(parent:github_platform)-[:HOSTS_ACCOUNT]->(child:github_account)"},
-    {name: "account-owns-repo",         gryphon: "(parent:github_account)-[:OWNS_REPO]->(child:github_repository)"},
-    {name: "repo-defines-workflow",     gryphon: "(parent:github_repository)-[:DEFINES_WORKFLOW]->(child:github_workflow)"},
-    // Sigstore: the Fulcio CA box contains the Rekor entries whose certs it
-    // issued (CERT_ISSUED_BY: entry→ca, walked in reverse). SIGNED_BY_IDENTITY
-    // (entry→workflow) is deliberately NOT a nesting rule — it stays a visible
-    // line crossing from inside the CA box up to the signing workflow.
-    {name: "ca-contains-entries",       gryphon: "(parent:sigstore_ca)<-[:CERT_ISSUED_BY]-(child:rekor_log_entry)"},
+    {root_entity_type: "aws_route53_zone",      x:  250, y:  200, cluster: "website"},
+    {root_entity_type: "aws_eventbridge_rule",  x:  250, y:  480, cluster: "compliance"},
+    // Bootstrap root sits to the right so its arrangements can build the row
+    // leftward (lock ← tfstate-S3 ← deploy-role ← OIDC-provider).
+    {root_entity_type: "aws_iam_oidc_provider", x:  970, y:  760, cluster: "bootstrap"},
 ];
 
 export async function execute(context) {
     const {cy} = context;
 
-    // Place the three cluster roots — entry node of each story. Each root
-    // entity_type has exactly one samsite-tagged instance on the panel's
-    // seed-search scope, so positioning by entity_type alone is sufficient.
-    // Arrangements (run after this module returns) position the rest of
-    // each cluster relative to its root and to each other.
+    // Place the three AWS cluster roots — the entry node of each story. Each root
+    // entity_type has exactly one samsite-tagged instance in the panel's seed-search
+    // scope, so positioning by entity_type alone is sufficient. The arrangements
+    // (run after this module returns) position the rest of each cluster relative to
+    // its root; the finalize pass re-composes the groups globally.
     for (const r of CLUSTER_ROOTS) {
         cy.nodes(`[entity_type="${r.root_entity_type}"]`)
             .forEach((n) => n.position({x: r.x, y: r.y}));
     }
-
-    // The github cluster root is the workflow leaf, but a repo defines several
-    // workflows — the loop above stacked them all on one point. Spread them
-    // into a vertical column centered on the root y so they don't overlap;
-    // the repo / account / github.com compounds auto-size around the column.
-    const ghRoot = CLUSTER_ROOTS.find((r) => r.cluster === "github");
-    if (ghRoot) {
-        const workflows = cy.nodes('[entity_type="github_workflow"]')
-            .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
-        const gap = 72;
-        const top = ghRoot.y - ((workflows.length - 1) * gap) / 2;
-        workflows.forEach((n, i) => n.position({x: ghRoot.x, y: top + i * gap}));
-    }
-
-    // Sigstore signing/transparency cluster — external, below the github.com box.
-    // Lay the Rekor entries out in a row; the sigstore_ca compound (nesting rule
-    // above) auto-sizes around them. Each entry's SIGNED_BY_IDENTITY edge then
-    // runs up to the workflow that signed it; CERT_ISSUED_BY is hidden once it
-    // drives the containment.
-    const rekorEntries = cy.nodes('[entity_type="rekor_log_entry"]')
-        .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
-    if (rekorEntries.length > 0) {
-        const sigX = ghRoot ? ghRoot.x : 250;
-        const sigGap = 165;
-        const sigLeft = sigX - ((rekorEntries.length - 1) * sigGap) / 2;
-        rekorEntries.forEach((n, i) => n.position({x: sigLeft + i * sigGap, y: 1060}));
-    }
-
-    // OIDC issuer — the identity hub. The AWS federation path reaches it
-    // (aws_provider TRUSTS_ISSUER) and every Sigstore identity points at it
-    // (rekor IDENTITY_VOUCHED_BY); placed lower-centre, between the Sigstore box
-    // and the boundary, so the converging edges read as one anchor. Free node
-    // (no nesting rule matches it).
-    cy.nodes('[entity_type="oidc_issuer"]').forEach((n) => n.position({x: 430, y: 1200}));
-
-    // Apply compound-parent nesting: every aws_* under aws_account, aws_account
-    // under boundary. resolveNesting reads the SCOPED_TO_BOUNDARY edge and the
-    // shared `aws_account` dimension value; cy.move stamps the parent
-    // relationship on each cy node and Cytoscape draws the compound bbox
-    // around children automatically. Done in this module rather than via
-    // projectNested because samsite owns precise child positioning via the
-    // arrangements — projectNested's natural-layout positioning would
-    // override them. The aws_account / boundary bboxes auto-fit around
-    // whatever positions the arrangements settle the children into.
-    const {parentByChildId, hiddenEdgeIds, warnings} = resolveNesting(cy, NESTING_RELATIONSHIPS);
-    warnings.forEach((w) => console.warn("[landing-systems nesting]", w.category, w.message));
-    Object.entries(parentByChildId).forEach(([childId, parentId]) => {
-        const child = cy.getElementById(childId);
-        if (child && child.length > 0) child.move({parent: parentId});
-    });
-    // Hide edges that drove a containment assignment — once a node is nested
-    // inside its parent compound, the edge that established that containment
-    // (e.g. SCOPED_TO_BOUNDARY) is visual noise: the spatial nesting already
-    // says it. The class is honored by the global tap_viz hidden-edge style.
-    hiddenEdgeIds.forEach((edgeId) => {
-        const edge = cy.getElementById(edgeId);
-        if (edge && edge.length > 0) edge.addClass(HIDDEN_CONTAINMENT_CLASS);
-    });
-    // Boundary visual: transparent body, red border only. Override the
-    // per-model `:parent[fill_color]` rule (which sets background-opacity 1)
-    // at the element level so the boundary reads as an outline-only frame
-    // around the aws_account compound rather than a tinted card.
-    cy.nodes('[entity_type="boundary"]').style({"background-opacity": 0});
-
-    // Draw a labeled overlay box per cluster Layout (compliance / website /
-    // bootstrap), wrapping the nodes that belong to each. Scope boxes are
-    // the visual companion to the Layout entity (spec-viz-layouts § Philosophy
-    // — one Layout = one node group); they cross-cut the compound parent
-    // hierarchy because Cytoscape compound parents are strictly hierarchical
-    // but a scope box is a free overlay.
-    applyScopeBoxes(cy, SCOPE_BOXES);
-
-    // Members of each system are positioned by the per-Component arrangements
-    // wired on the Layout entity — they run automatically after this module
-    // returns. We don't touch member positions here; that's the arrangement
-    // system's job, and keeping it there means each system stays
-    // independently tweakable via its arrangement.
-
-    // Initial framing happens in projection.js between runLayoutsSerially
-    // and cascade-reveal, not here. cy.fit() during the layout phase is
-    // a no-op (or returns mid-reconcile bboxes) because Cytoscape treats
-    // layouts as in-flight; only post-layout fits frame correctly. The
-    // projection runtime now does the fit at the right moment with the
-    // container still hidden, so the cascade fade-in animates the
-    // already-framed scene.
 }

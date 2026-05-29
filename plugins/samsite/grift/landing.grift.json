@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e714b-67c5-7349-9fa7-b28f4e9fece1",
+        "entity_id": "019e73d4-18f7-7085-b318-bbe8ebf8abaa",
         "entity_type": "batch",
-        "name": "Samsite landing v0.1.1",
+        "name": "Samsite landing v0.1.3",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite",
-        "name": "Samsite landing v0.1.1",
-        "description": "Landing page: cytoscape graph panel projecting the samsite-tagged AWS resources for account 180731181784. The aws_account container node is no longer minted here \u2014 the aws_core boto3 collector now synthesizes it (aws_account_singleton custom_fn, deterministic uuid5); the samsite multi-MATCH search's MATCH (account:aws_account) resolves against the collector-owned node. v0.1.1 bumps the batch_entity_id (was f9cac1cb-7642-56d4-8876-29bed02dd856) so already-seeded sessions re-apply the search-definition change that added MATCH (oi:oidc_issuer) to the projection \u2014 the OIDC issuer convergence node now appears in the landing graph; the skip-if-exists guard is batch-id-keyed, so the id must change for the edit to land on existing DBs."
+        "name": "Samsite landing v0.1.3",
+        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.3 adds a finalize frame Layout (samsite-landing-finalize / landing-finalize.js, appended last to the elevation's layouts) that runs after the per-cluster arrangements: it measures each AWS cluster as a group, left-aligns the three and distributes them vertically with even gaps (website/compliance/deploy-bootstrap top\u2192bottom), then derives the GitHub cluster (right of bootstrap), the OIDC issuer hub (in the gap), and the Sigstore Rekor row (centered above github), and applies compound nesting + scope boxes. landing-systems.js is trimmed to just seed the three AWS roots. Bootstrap remains a single horizontal row (lock \u2192 tfstate-S3 \u2192 deploy-role \u2192 OIDC-provider). Bumps the batch_entity_id (was 019e73ca-0a2d-7734-801c-bc477e364d60) so already-seeded sessions re-apply the new finalize Layout + elevation wiring; the skip-if-exists guard is batch-id-keyed."
       },
       "nodes": [
         {
@@ -149,6 +149,24 @@
         },
         {
           "entity": {
+            "entity_id": "019e73d4-18f7-7085-b318-bbe63c362721",
+            "entity_type": "layout",
+            "name": "samsite-landing-finalize",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "name": "samsite-landing-finalize",
+            "description": "Finalize frame Layout — runs LAST in the elevation. landing-finalize.js treats each AWS cluster as a group: it measures each post-arrangement bounding box, left-aligns the three to a common x, and distributes them vertically with even gaps (website / compliance / deploy-bootstrap top→bottom); then derives the GitHub cluster (directly right of where bootstrap landed), the OIDC issuer hub (in the gap), and the Sigstore Rekor row (centered above github), and applies compound nesting + scope boxes. Separate Layout from samsite-landing-layout because the group bounding boxes only exist after the per-cluster arrangements run (projection.js runs the frame js_file first, the cluster arrangements after).",
+            "definition": {
+              "js_file": "plugins/samsite/static/samsite/js/projections/landing-finalize.js",
+              "arrangements": []
+            }
+          }
+        },
+        {
+          "entity": {
             "entity_id": "019e646a-85fc-7159-b12b-c665b668b4e2",
             "entity_type": "elevation",
             "name": "samsite-landing-elevation",
@@ -166,7 +184,8 @@
                 "e49c40aa-508a-5751-9c58-7df6b73ff385",
                 "019e658f-685e-7415-bab6-8212d0d4fc82",
                 "019e658f-685e-7415-bab6-821392a4e80e",
-                "019e658f-685e-7415-bab6-82143ba9147f"
+                "019e658f-685e-7415-bab6-82143ba9147f",
+                "019e73d4-18f7-7085-b318-bbe63c362721"
               ],
               "double_tap_targets": []
             }
@@ -432,7 +451,7 @@
           },
           "node": {
             "name": "samsite-bootstrap-oidc-federates-to-deploy",
-            "description": "Places the deploy IAM role directly below the GitHub Actions OIDC provider \u2014 FEDERATES_INTO, the trust path GitHub uses to assume the deploy role.",
+            "description": "Places the deploy IAM role directly to the LEFT of the GitHub Actions OIDC provider on a single horizontal row \u2014 FEDERATES_INTO, the trust path GitHub uses to assume the deploy role. The OIDC provider is the bootstrap cluster root and the row's rightmost node (it federates out to the GitHub side on the right), so the row builds leftward via negative horizontal offsets.",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_iam_oidc_provider) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
@@ -440,9 +459,9 @@
               "members": {
                 "gryphon": "MATCH (n:aws_iam_role) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
               },
-              "positioning": "vertical",
+              "positioning": "horizontal",
               "distribution": "even",
-              "anchor_offset_px": 130
+              "anchor_offset_px": -240
             }
           }
         },
@@ -457,7 +476,7 @@
           },
           "node": {
             "name": "samsite-bootstrap-deploy-stores-state",
-            "description": "Places the Terraform state S3 bucket to the right of the deploy IAM role \u2014 the state-storage branch.",
+            "description": "Places the Terraform state S3 bucket to the LEFT of the deploy IAM role on the bootstrap row \u2014 the state-storage branch. Builds the horizontal row leftward (the OIDC-provider root is rightmost).",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_iam_role) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
@@ -467,7 +486,7 @@
               },
               "positioning": "horizontal",
               "distribution": "even",
-              "anchor_offset_px": 240
+              "anchor_offset_px": -240
             }
           }
         },
@@ -475,14 +494,14 @@
           "entity": {
             "entity_id": "019e6497-bd8e-720e-b05f-262811f45090",
             "entity_type": "arrangement",
-            "name": "samsite-bootstrap-lock-above-state",
+            "name": "samsite-bootstrap-lock-left-of-state",
             "dimensions": {
               "tap.graph": "web"
             }
           },
           "node": {
-            "name": "samsite-bootstrap-lock-above-state",
-            "description": "Stacks the DynamoDB state-lock table just above the tfstate S3 bucket \u2014 same stacking pattern as the compliance side (anchors on the previously-placed S3 so the two right-of-deploy-IAM branches don't overlap).",
+            "name": "samsite-bootstrap-lock-left-of-state",
+            "description": "Places the DynamoDB state-lock table to the LEFT of the tfstate S3 bucket \u2014 the leftmost node of the bootstrap horizontal row (anchors on the previously-placed S3 so the row continues building leftward from the OIDC-provider root).",
             "definition": {
               "anchor": {
                 "gryphon": "MATCH (n:aws_s3_bucket) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
@@ -490,9 +509,9 @@
               "members": {
                 "gryphon": "MATCH (n:aws_dynamodb_table) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"bootstrap\""
               },
-              "positioning": "vertical",
+              "positioning": "horizontal",
               "distribution": "even",
-              "anchor_offset_px": -130
+              "anchor_offset_px": -240
             }
           }
         }
@@ -704,6 +723,26 @@
         },
         {
           "entity": {
+            "entity_id": "019e73d4-18f7-7085-b318-bbe7c943b929",
+            "entity_type": "edge",
+            "name": "Elevation USES_LAYOUT samsite-landing-finalize",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e646a-85fc-7159-b12b-c665b668b4e2",
+            "to_entity_id": "019e73d4-18f7-7085-b318-bbe63c362721",
+            "edge_type": "USES_LAYOUT",
+            "properties": {
+              "hotlink": {
+                "model": "elevation",
+                "spec": "elevation-layouts",
+                "value": "019e73d4-18f7-7085-b318-bbe63c362721"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
             "entity_id": "6532c421-abc0-5bed-831a-8a38c9412449",
             "entity_type": "edge",
             "name": "Page USES_PANEL Samsite Landing Graph",
@@ -900,7 +939,7 @@
           "entity": {
             "entity_id": "019e6497-bd8e-720e-b05f-2629889dea48",
             "entity_type": "edge",
-            "name": "samsite-bootstrap-layout USES_ARRANGEMENT samsite-bootstrap-lock-above-state",
+            "name": "samsite-bootstrap-layout USES_ARRANGEMENT samsite-bootstrap-lock-left-of-state",
             "dimensions": {}
           },
           "edge": {
