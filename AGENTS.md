@@ -4,6 +4,14 @@ This repository is TAP, The Analogy Platform: a Python/Django, PostgreSQL-backed
 
 ## Start Here
 
+**What is this instance?** Before asking the user what this grid is, what it's for, or where its data came from, read the **keystone(s)** on the grid — that's what they're there for:
+
+```
+MATCH (k:keystone) RETURN k ORDER BY k.created_at ASC
+```
+
+Read the **oldest first** (it's the foundational instance context; newer keystones layer on). Each keystone carries human prose (`description`) plus `context_json` and the JSON Schema documenting it (`context_schema_json` — its property `description`s are the legend). See `tap_grid/specs/spec-grid-keystone.md`.
+
 Before designing or implementing anything substantial:
 
 1. Read `architecture.md`.

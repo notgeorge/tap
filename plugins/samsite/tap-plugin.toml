@@ -5,6 +5,7 @@ name = "Samsite"
 description = "Projection plugin for George's live reproduction of Sam Aydlette's static site + FedRAMP 20x compliance machinery (target of the Sam demo)."
 
 [grift]
+keystone = "grift/samsite-keystone.grift.json"
 landing = "grift/landing.grift.json"
 compliance-landing = "grift/compliance-landing.grift.json"
 compliance-pages = "grift/compliance-pages.grift.json"

@@ -1,0 +1,127 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e7543-5aaf-70bf-8d9d-158220e2e22a",
+        "entity_type": "batch",
+        "name": "Samsite keystone v0.1",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite",
+        "name": "Samsite keystone v0.1",
+        "description": "Seeds the instance keystone for the samsite reproduction: the node a human or agent reads to learn what this grid is, what it's for, and where it came from (the sam-aydlette/samaydlette.com upstream). Ships context_json + the JSON Schema documenting it."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e7543-5aaf-70bf-8d9d-15815ac8808b",
+            "entity_type": "keystone",
+            "name": "Samsite",
+            "dimensions": { "tap.meta": "keystone" }
+          },
+          "node": {
+            "name": "Samsite",
+            "description": "This TAP instance is a working reproduction of Sam Aydlette's personal site, samaydlette.com, built as the demonstration target for Rampart (TAP's FedRAMP 20x assessment surface). The reproduced AWS architecture, GitHub source/deploy pipeline, and signed /.well-known/ compliance artifacts (KSI signal, VDR report, OSCAL SSP/POA&M, IIW) are modeled on the grid so Rampart can assess a faithful, live copy of Sam's own infrastructure. Upstream source: github.com/sam-aydlette/samaydlette.com. Start at /samsite.",
+            "context_json": {
+              "purpose": "Demonstration target for Rampart — assess a faithful, live reproduction of Sam Aydlette's own infrastructure (FedRAMP 20x).",
+              "subject": { "name": "samaydlette.com", "kind": "reproduction" },
+              "sources": [
+                { "role": "upstream_repo", "url": "https://github.com/sam-aydlette/samaydlette.com", "ref": "main" },
+                { "role": "reproduced_site", "url": "https://samsite.unified-systems.com" },
+                { "role": "original_site", "url": "https://samaydlette.com" }
+              ],
+              "fidelity": {
+                "kind": "reproduction",
+                "real": ["AWS architecture", "GitHub source/deploy pipeline", "signed /.well-known/ compliance artifacts"],
+                "synthetic": ["mock seed nodes added for demo coverage"]
+              },
+              "entry_points": [
+                { "label": "Landing graph", "path": "/samsite" },
+                { "label": "Compliance landing", "path": "/samsite/compliance" },
+                { "label": "KSI scoreboard", "path": "/samsite/compliance/scoreboard" },
+                { "label": "OSCAL POA&M", "path": "/samsite/compliance/poam" }
+              ],
+              "owner": { "name": "George Chamales", "contact": "george@criticalsec.com" },
+              "references": [
+                { "label": "Rampart roadmap", "path": "plan/road-rampart.md" }
+              ]
+            },
+            "context_schema_json": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "description": "Context describing what this TAP instance models and why.",
+              "properties": {
+                "purpose": { "type": "string", "description": "Why this instance exists / what it's for." },
+                "subject": {
+                  "type": "object",
+                  "description": "The system being modeled.",
+                  "properties": {
+                    "name": { "type": "string", "description": "Human name of the modeled system." },
+                    "kind": { "type": "string", "description": "Fidelity class: real-system | reproduction | mock | hypothetical." }
+                  }
+                },
+                "sources": {
+                  "type": "array",
+                  "description": "Provenance — where the modeled system came from. THIS is the field that answers 'where did this come from?' (e.g. the upstream repo).",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "role": { "type": "string", "description": "Source role, e.g. upstream_repo, reproduced_site, original_site." },
+                      "url": { "type": "string", "description": "Locator for this source." },
+                      "ref": { "type": "string", "description": "Optional version / branch / commit reference." }
+                    }
+                  }
+                },
+                "fidelity": {
+                  "type": "object",
+                  "description": "How faithful the reproduction is — what is real vs. synthetic (disclosure).",
+                  "properties": {
+                    "kind": { "type": "string", "description": "Overall fidelity classification." },
+                    "real": { "type": "array", "items": { "type": "string" }, "description": "Aspects modeled from the real system." },
+                    "synthetic": { "type": "array", "items": { "type": "string" }, "description": "Aspects that are mocked / synthesized." }
+                  }
+                },
+                "entry_points": {
+                  "type": "array",
+                  "description": "Where to start exploring this instance.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": { "type": "string", "description": "Human label for the entry point." },
+                      "path": { "type": "string", "description": "URL path on this instance." }
+                    }
+                  }
+                },
+                "owner": {
+                  "type": "object",
+                  "description": "Who set this instance up.",
+                  "properties": {
+                    "name": { "type": "string", "description": "Owner name." },
+                    "contact": { "type": "string", "description": "Owner contact." }
+                  }
+                },
+                "references": {
+                  "type": "array",
+                  "description": "Pointers to canonical docs / specs / roadmap.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": { "type": "string", "description": "Reference label." },
+                      "path": { "type": "string", "description": "Path or URL to the reference." }
+                    }
+                  }
+                }
+              },
+              "required": ["purpose", "sources"]
+            }
+          }
+        }
+      ],
+      "edges": [],
+      "deletes": { "on_missing": "ignore", "on_tombstoned": "ignore", "edges": [], "nodes": [] }
+    }
+  ]
+}
