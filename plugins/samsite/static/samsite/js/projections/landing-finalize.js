@@ -327,8 +327,6 @@ export async function execute(context) {
         // Issuer pinned far-left (static) — closest to the box edge for its hops out
         // to AWS / up to Sigstore.
         cy.nodes('[entity_type="oidc_issuer"]').forEach((n) => {
-            // Terse board label; the entity name stays the full issuer URL.
-            n.data("label", "OIDC Issuer");
             n.position({x: leftX, y: appRowY});
             n.move({parent: platform.id()});
         });
