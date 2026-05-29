@@ -26,11 +26,15 @@
 <div class="tap-page-grid h-full"
      style="display: grid; grid-template-columns: {% for col in grid_cols %}{{ col.width }}{% if not forloop.last %} {% endif %}{% endfor %}; gap: 1rem; min-height: 0;">
   {% for col in processed_columns %}
-  <div class="tap-col" style="display: flex; flex-direction: column; gap: 1rem; min-height: 0;">
+  {# min-width: 0 lets the grid/flex column shrink below its content's intrinsic #}
+  {# width (overriding the default min-width:auto), so a wide panel stays inside #}
+  {# the viewport and scrolls/wraps within its own box instead of overflowing    #}
+  {# the document (which would clip the sticky header). #}
+  <div class="tap-col" style="display: flex; flex-direction: column; gap: 1rem; min-height: 0; min-width: 0;">
     {% for row in col.rows %}
     <div class="tap-panel-slot"
          data-row-height="{{ row.height }}"
-         style="grid-row: span {{ row.row_span }}; grid-column: span {{ row.col_span }};{% if row.height == 'auto' %} flex: 0 0 auto;{% else %} flex: {{ row.height|slice:':-2' }} 1 0; min-height: 0;{% endif %}">
+         style="grid-row: span {{ row.row_span }}; grid-column: span {{ row.col_span }}; min-width: 0;{% if row.height == 'auto' %} flex: 0 0 auto;{% else %} flex: {{ row.height|slice:':-2' }} 1 0; min-height: 0;{% endif %}">
       {% if not row.panel_url_id %}
       <div class="text-slate-400 text-sm p-4 border border-dashed border-slate-300 rounded">
         No panel linked to slot <code>{{ row.panel_id }}</code>.

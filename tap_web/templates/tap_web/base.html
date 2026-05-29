@@ -90,7 +90,10 @@
     {# (a flex-1/min-h-0 main would shrink to one viewport and detach the sticky nav).    #}
     <main class="flex flex-col{% if full_bleed %} flex-1 min-h-0{% endif %}">
         {# full_bleed (per-page, from layout.full_bleed) drops the centered max-width so graph/dashboard pages fill the viewport; padding gutters stay. #}
-        <div class="py-6 px-4 sm:px-6 lg:px-8 w-full flex flex-col{% if full_bleed %} flex-1 min-h-0{% else %} max-w-7xl mx-auto{% endif %}">
+        {# Standard pages fill the viewport width up to a cap, then center: laptops fill #}
+        {# edge-to-edge, very wide monitors get hemmed in to a readable measure. The cap #}
+        {# is screen-independent — it bounds the content, the viewport drives the rest. #}
+        <div class="py-6 px-4 sm:px-6 lg:px-8 w-full flex flex-col{% if full_bleed %} flex-1 min-h-0{% else %} max-w-[1700px] mx-auto{% endif %}">
             {% block content %}{% endblock %}
         </div>
     </main>
