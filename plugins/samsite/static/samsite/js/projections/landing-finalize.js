@@ -239,11 +239,17 @@ export async function execute(context) {
         files.forEach(styleFileNode);
         const websiteBB = (groups.find((g) => g.key === "website") || {}).bb;
         if (websiteBB) {
+            const ARTIFACT_STEP = 16;  // staircase down-right so the filename labels stop overlapping
+            // Center the staircase's vertical span on the website block's center
+            // (lift the start by half the total drop) so the set reads as aligned
+            // with Website Serving rather than drooping below it.
+            const websiteCenterY = (websiteBB.y1 + websiteBB.y2) / 2;
+            const startY = websiteCenterY - (ARTIFACT_STEP * (files.length - 1)) / 2;
             alignDistributeHorizontal(cy, {
                 members: files,
-                anchor: {x: websiteBB.x2 + 90, y: (websiteBB.y1 + websiteBB.y2) / 2},
+                anchor: {x: websiteBB.x2 + 90, y: startY},
                 gap: 26,
-                step: 16,          // staircase down-right so the filename labels stop overlapping
+                step: ARTIFACT_STEP,
                 stepFrom: "left",  // left card is highest; each one to the right drops a step
                 label: "Signed Artifacts",
             });
