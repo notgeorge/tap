@@ -118,15 +118,9 @@ class GithubClient:
                 # 404 is GitHub's undocumented intermittent quirk — retry it
                 # (unless retry_empty_404 was disabled — see self-test path).
                 # See module docstring for evidence + reasoning.
-                if (
-                    self._retry_empty_404
-                    and exc.status == 404
-                    and not exc.body
-                    and attempt < _EMPTY_404_MAX_RETRIES
-                ):
+                if self._retry_empty_404 and exc.status == 404 and not exc.body and attempt < _EMPTY_404_MAX_RETRIES:
                     logger.warning(
-                        "[c1d4] github empty-body 404 on %s (attempt %d/%d); "
-                        "retrying after %.2fs",
+                        "[c1d4] github empty-body 404 on %s (attempt %d/%d); " "retrying after %.2fs",
                         url,
                         attempt + 1,
                         _EMPTY_404_MAX_RETRIES,

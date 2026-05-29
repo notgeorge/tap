@@ -50,6 +50,18 @@
       "multiple_candidates": "warn_no_edge",
       "near_match_pattern": "(?i)githubusercontent\\.com",
       "description": "Structural link: every collected GitHub repository points at the AWS IAM OIDC provider whose URL is the canonical github.com Actions issuer. Refuses to link if (a) AWS has multiple OIDC providers with that exact URL (IAM enforces uniqueness so this is defensive), or (b) AWS has an OIDC provider whose URL matches the near-match pattern but isn't an exact match for the canonical value (GHES tenants, alternate audiences, typos — warns rather than guesses). Pattern is a Postgres POSIX regex evaluated via Gryphon's `=~` operator; `(?i)` prefix opts into case-insensitive matching."
+    },
+    {
+      "name": "aws_oidc_provider_trusts_issuer",
+      "source_entity_type": "aws_iam_oidc_provider",
+      "source_field_path": "url",
+      "target_entity_type": "oidc_issuer",
+      "target_field": "host",
+      "edge_type": "TRUSTS_ISSUER",
+      "match_mode": "exact",
+      "zero_candidates": "info",
+      "multiple_candidates": "warn_no_edge",
+      "description": "Converges the AWS federation path onto the OIDC issuer node: matches each AWS IAM OIDC provider's scheme-less url against an oidc_issuer's host and emits aws_iam_oidc_provider -> oidc_issuer TRUSTS_ISSUER. The github_core collector synthesizes the oidc_issuer singleton earlier in the same run, so it is on the grid when this enrichment rule evaluates. Source is an AWS node (no full_name), so the resolver falls back to a type-scoped scan."
     }
   ]
 }

@@ -33,15 +33,13 @@ def resolve_repo(panel: Any, request: Any) -> RepoResolution:
       - fallback: variable absent → latest by updated_at; empty grid → empty_grid
       - not_found: variable supplied + no matching row → no repo, source records the id
     """
-    var_name = (
-        (getattr(panel, "config", None) or {}).get("repo_entity_id_var") or DEFAULT_REPO_VAR
-    )
+    var_name = (getattr(panel, "config", None) or {}).get("repo_entity_id_var") or DEFAULT_REPO_VAR
     requested = (request.GET.get(var_name) or "").strip() if request else ""
 
     if requested:
         try:
             repo = GithubRepository.objects.filter(entity_id=requested).first()
-        except (ValueError, GithubRepository.DoesNotExist):
+        except ValueError, GithubRepository.DoesNotExist:
             repo = None
         if repo is None:
             return RepoResolution(repo=None, source="not_found", requested_entity_id=requested)

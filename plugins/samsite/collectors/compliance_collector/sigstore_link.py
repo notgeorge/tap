@@ -85,6 +85,42 @@ def resolve_workflow_entity_id(full_name: str, workflow_path: str) -> str | None
     return None
 
 
+def oidc_issuer_entity_id(issuer_url: str) -> str:
+    """Deterministic entity id of the github_core-owned ``oidc_issuer`` node for
+    ``issuer_url``. Uses github_core's identity scheme so this collector's upsert
+    and github_core's own singleton synthesis converge on the same node."""
+    from plugins.github_core.collectors.github_collector.identity import oidc_issuer_id
+
+    return str(oidc_issuer_id(issuer_url))
+
+
+def oidc_issuer_node_envelope(issuer_url: str) -> dict[str, Any]:
+    """Build the ``oidc_issuer`` node envelope for ``issuer_url``.
+
+    The consumer ensures this node exists in its own batch so the rekor entry's
+    hotlinked ``IDENTITY_VOUCHED_BY`` edge has a valid, present target regardless
+    of whether github_core's collector has run. ``host`` is the scheme-less form
+    (matches ``aws_iam_oidc_provider.url`` for the AWS-side ``TRUSTS_ISSUER`` link).
+    """
+    host = issuer_url.split("://", 1)[-1]
+    provider = "github-actions" if "githubusercontent.com" in host else ""
+    return {
+        "entity": {
+            "entity_id": oidc_issuer_entity_id(issuer_url),
+            "entity_type": "oidc_issuer",
+            "name": issuer_url,
+            "dimensions": {"identity.protocol": "oidc"},
+        },
+        "node": {
+            "issuer_url": issuer_url,
+            "host": host,
+            "provider": provider,
+            "configuration": {},
+            "tags": {},
+        },
+    }
+
+
 def verification_dict(result: Any) -> dict[str, Any]:
     """Adapt a ``sigstore_core`` ``VerificationResult`` into the verification dict
     the artifact decompose functions still consume (back-compat field stamping).

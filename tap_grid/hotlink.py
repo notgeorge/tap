@@ -39,7 +39,7 @@ _HOTLINK_REQUIRED_KEYS: frozenset[str] = frozenset(
     }
 )
 
-_VALID_SELECTOR_TYPES: frozenset[str] = frozenset({"simple_path"})
+_VALID_SELECTOR_TYPES: frozenset[str] = frozenset({"simple_path", "scalar"})
 _VALID_EDGE_DIRECTIONS: frozenset[str] = frozenset({"outbound", "inbound"})
 _VALID_MODES: frozenset[str] = frozenset({"exists", "unique", "exact"})
 
@@ -153,12 +153,28 @@ def _simple_path_extract(value: Any, selector: str) -> set[str]:
     return result
 
 
+def _scalar_extract(value: Any, selector: str) -> set[str]:
+    """Extract the single identifier carried directly by a scalar field.
+
+    For a field whose value *is* the identifier (e.g. a URL or id stored in a
+    CharField), the identifier set is just that value. ``simple_path`` cannot
+    serve this case — it traverses JSON structure and yields nothing for a bare
+    scalar — yet scalar identifier fields are the common hotlink shape. An empty
+    or null value yields the empty set (no reference, hence no expected edge).
+    The ``selector`` argument is unused for this backend (conventionally "").
+    """
+    if value is None or value == "":
+        return set()
+    return {str(value)}
+
+
 def extract_identifiers(field_value: Any, selector_type: str, selector: str) -> set[str]:
     """Extract identifiers from a field value using the given selector backend.
 
     Args:
         field_value: The model field value to inspect.
-        selector_type: Backend identifier. Currently only 'simple_path' is supported.
+        selector_type: Backend identifier. ``simple_path`` traverses structured
+            JSON; ``scalar`` returns the field's own value as the sole identifier.
         selector: Backend-specific selector expression.
 
     Returns:
@@ -169,6 +185,8 @@ def extract_identifiers(field_value: Any, selector_type: str, selector: str) -> 
     """
     if selector_type == "simple_path":
         return _simple_path_extract(field_value, selector)
+    if selector_type == "scalar":
+        return _scalar_extract(field_value, selector)
     raise ValueError(f"Unsupported selector_type: {selector_type!r}")
 
 

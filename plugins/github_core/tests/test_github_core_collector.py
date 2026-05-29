@@ -5,8 +5,6 @@ Spec: plugins/github_core/specs/spec-github-core-v0.md
 
 from __future__ import annotations
 
-import json
-
 import jsonschema
 import pytest
 
@@ -49,9 +47,10 @@ class TestManifests:
         manifest = load_link_manifest()
         assert manifest["manifest_version"] == "0"
         edge_types = {r["edge_type"] for r in manifest["rules"]}
-        # YAML-ref rules emit REFERENCES_RESOURCE; the structural OIDC rule
-        # emits FEDERATES_VIA (repo -> aws_iam_oidc_provider).
-        assert edge_types == {"REFERENCES_RESOURCE", "FEDERATES_VIA"}
+        # YAML-ref rules emit REFERENCES_RESOURCE; the structural OIDC rule emits
+        # FEDERATES_VIA (repo -> aws_iam_oidc_provider); the issuer-convergence
+        # rule emits TRUSTS_ISSUER (aws_iam_oidc_provider -> oidc_issuer).
+        assert edge_types == {"REFERENCES_RESOURCE", "FEDERATES_VIA", "TRUSTS_ISSUER"}
 
     def test_link_manifest_oneof_source_enforced(self) -> None:
         """Schema must reject rules with both source_field_path and source_constant."""
@@ -82,10 +81,7 @@ class TestManifests:
 
     def test_link_manifest_includes_oidc_rule(self) -> None:
         manifest = load_link_manifest()
-        oidc = [
-            r for r in manifest["rules"]
-            if r.get("target_entity_type") == "aws_iam_oidc_provider"
-        ]
+        oidc = [r for r in manifest["rules"] if r.get("target_entity_type") == "aws_iam_oidc_provider"]
         assert len(oidc) == 1
         rule = oidc[0]
         assert rule["source_constant"] == "token.actions.githubusercontent.com"
@@ -123,9 +119,7 @@ class TestPATSchema:
 
     def test_pat_malformed_repo_rejected(self) -> None:
         with pytest.raises(jsonschema.ValidationError):
-            jsonschema.validate(
-                {"token": "ghp_x", "repos": ["just-a-name"]}, GITHUB_PAT_SCHEMA
-            )
+            jsonschema.validate({"token": "ghp_x", "repos": ["just-a-name"]}, GITHUB_PAT_SCHEMA)
 
     def test_pat_extra_fields_rejected(self) -> None:
         with pytest.raises(jsonschema.ValidationError):
@@ -272,9 +266,8 @@ class TestSelfTest:
     """
 
     def test_unconfigured_when_secret_missing(self, monkeypatch) -> None:
-        from tap_cares.exceptions import SecretNotFoundError
-
         from plugins.github_core.collectors.github_collector import collector as mod
+        from tap_cares.exceptions import SecretNotFoundError
 
         def _raise(_ref):
             raise SecretNotFoundError("github/collector secret not found")
@@ -286,9 +279,8 @@ class TestSelfTest:
         assert any(c.is_failure and c.code == "GITHUB_SECRET_PRESENT" for c in result.checks)
 
     def test_misconfigured_when_secret_schema_fails(self, monkeypatch) -> None:
-        from tap_cares.exceptions import SecretValidationError
-
         from plugins.github_core.collectors.github_collector import collector as mod
+        from tap_cares.exceptions import SecretValidationError
 
         def _raise(_ref):
             raise SecretValidationError("bad shape: 'token' missing")

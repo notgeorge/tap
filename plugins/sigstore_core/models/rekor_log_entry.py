@@ -43,6 +43,21 @@ class RekorLogEntry(BaseModel):
             "colors": {"fill": "#FFFFFF", "border": "#1E8E3E", "label": "#0B5323"},
         }
     }
+    # The signing identity's OIDC issuer is an authoritative scalar field; the
+    # IDENTITY_VOUCHED_BY edge to the matching oidc_issuer node must mirror it
+    # exactly. Hotlink makes that drift-impossible (req-grid-hotlink). Uses the
+    # `scalar` selector since the field's value IS the identifier.
+    HOTLINKS: ClassVar[list[dict]] = [
+        {
+            "name": "rekor-issuer",
+            "field": "signing_identity_issuer",
+            "selector_type": "scalar",
+            "selector": "",
+            "edge_direction": "outbound",
+            "edge_type": "IDENTITY_VOUCHED_BY",
+            "mode": "exact",
+        }
+    ]
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "log_key_id": {"type": "string", "minLength": 1},

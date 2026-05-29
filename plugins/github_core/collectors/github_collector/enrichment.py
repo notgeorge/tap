@@ -88,9 +88,7 @@ def resolve_links(
             source_uuid = UUID(source_node["entity_id"])
             values = _values_for_source(source_data, rule)
             for value in values:
-                candidates = _fetch_exact_candidates(
-                    rule["target_entity_type"], rule["target_field"], value
-                )
+                candidates = _fetch_exact_candidates(rule["target_entity_type"], rule["target_field"], value)
                 if len(candidates) == 1:
                     target = candidates[0]
                     tgt_uuid = UUID(target["entity_id"])
@@ -155,9 +153,7 @@ def resolve_links(
 # ---------------------------------------------------------------------------
 
 
-def _fetch_source_nodes(
-    source_entity_type: str, repos: list[str]
-) -> list[dict[str, Any]]:
+def _fetch_source_nodes(source_entity_type: str, repos: list[str]) -> list[dict[str, Any]]:
     """Return source-node envelopes for the configured repos.
 
     Most github_core models carry a `full_name` field ("owner/repo"); we IN-
@@ -172,26 +168,16 @@ def _fetch_source_nodes(
     # type whether full_name is a field, but the link manifest is plugin-
     # generic and shouldn't carry that knowledge.
     try:
-        query = (
-            f"MATCH (n:{source_entity_type}) "
-            f"WHERE n.data.full_name IN [{repo_in}] "
-            "RETURN n"
-        )
+        query = f"MATCH (n:{source_entity_type}) " f"WHERE n.data.full_name IN [{repo_in}] " "RETURN n"
         return _gryphon_nodes(query, inputs=repo_params)
     except Exception:  # noqa: BLE001 - bare match scope, see comment above
         query = f"MATCH (n:{source_entity_type}) RETURN n"
         return _gryphon_nodes(query, inputs={})
 
 
-def _fetch_exact_candidates(
-    target_entity_type: str, target_field: str, value: str
-) -> list[dict[str, Any]]:
+def _fetch_exact_candidates(target_entity_type: str, target_field: str, value: str) -> list[dict[str, Any]]:
     """Return target-node envelopes whose `target_field` equals `value` exactly."""
-    query = (
-        f"MATCH (n:{target_entity_type}) "
-        f"WHERE n.data.{target_field} = $value "
-        "RETURN n"
-    )
+    query = f"MATCH (n:{target_entity_type}) " f"WHERE n.data.{target_field} = $value " "RETURN n"
     return _gryphon_nodes(query, inputs={"value": value})
 
 
@@ -214,9 +200,7 @@ def _fetch_near_matches(
         f"AND NOT n.data.{target_field} = $exact "
         "RETURN n"
     )
-    return _gryphon_nodes(
-        query, inputs={"pattern": pattern, "exact": exact_value}
-    )
+    return _gryphon_nodes(query, inputs={"pattern": pattern, "exact": exact_value})
 
 
 def _gryphon_nodes(query: str, *, inputs: dict[str, Any]) -> list[dict[str, Any]]:
@@ -250,9 +234,7 @@ def _input_schema_for(inputs: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _in_list_params(
-    values: Iterable[str], *, prefix: str
-) -> tuple[dict[str, Any], str]:
+def _in_list_params(values: Iterable[str], *, prefix: str) -> tuple[dict[str, Any], str]:
     """Build (params_dict, in_list_text) for a Gryphon `IN [$p0, $p1, ...]` clause."""
     params: dict[str, Any] = {}
     placeholders: list[str] = []
@@ -313,6 +295,6 @@ def _normalize_jsonable(value: Any) -> Any:  # pragma: no cover - utility
     if isinstance(value, str):
         try:
             return json.loads(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return value
     return value

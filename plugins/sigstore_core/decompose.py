@@ -84,6 +84,7 @@ def bundle_to_grift_fragment(
     policy: VerificationPolicy,
     dimensions: dict[str, str],
     signing_identity_entity_id: str | None = None,
+    oidc_issuer_entity_id: str | None = None,
 ) -> GriftFragment:
     """Turn a verified Sigstore bundle into a GRIFT fragment.
 
@@ -103,6 +104,11 @@ def bundle_to_grift_fragment(
             ``SIGNED_BY_IDENTITY`` edge from the Rekor entry to this entity.
             The helper performs no graph reads to resolve this — that's the
             caller's job (per req-sigstore-core-edges-5).
+        oidc_issuer_entity_id: Optional. If supplied AND the bundle carries a
+            signing issuer, the helper emits a hotlink-backed ``IDENTITY_VOUCHED_BY``
+            edge from the Rekor entry to this ``oidc_issuer`` node, carrying
+            ``properties.hotlink`` so the edge mirrors ``signing_identity_issuer``
+            (req-grid-hotlink, mode exact). Caller-resolved, like the identity edge.
 
     Returns:
         A ``GriftFragment`` with the four or five GRIFT pieces. Caller merges
@@ -194,6 +200,29 @@ def bundle_to_grift_fragment(
                 "edge_id": _edge_id("SIGNED_BY_IDENTITY", entry_id, signing_identity_entity_id),
                 "source_entity_id": entry_id,
                 "target_entity_id": signing_identity_entity_id,
+                "dimensions": dict(dimensions),
+            }
+        )
+
+    # IDENTITY_VOUCHED_BY: hotlink-backed edge to the OIDC issuer (caller-
+    # supplied target). Emitted only when the bundle carries a signing issuer —
+    # otherwise the rekor node's signing_identity_issuer field is empty and the
+    # exact-mode hotlink expects zero edges. properties.hotlink mirrors that
+    # field so the edge cannot drift from it (req-grid-hotlink, scalar selector).
+    if oidc_issuer_entity_id is not None and result.signing_issuer:
+        fragment.edges.append(
+            {
+                "edge_type": "IDENTITY_VOUCHED_BY",
+                "edge_id": _edge_id("IDENTITY_VOUCHED_BY", entry_id, oidc_issuer_entity_id),
+                "source_entity_id": entry_id,
+                "target_entity_id": oidc_issuer_entity_id,
+                "properties": {
+                    "hotlink": {
+                        "model": "rekor_log_entry",
+                        "spec": "rekor-issuer",
+                        "value": result.signing_issuer,
+                    }
+                },
                 "dimensions": dict(dimensions),
             }
         )

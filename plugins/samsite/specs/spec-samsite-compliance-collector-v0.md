@@ -114,6 +114,10 @@ upsert, and `ATTESTED_BY` / `CERT_ISSUED_BY` edges — merged into the same
 batch. The collector resolves the signing `github_workflow` from the cert SAN
 (`(full_name, path)` via a Gryphon read, `sigstore_link.resolve_workflow_entity_id`)
 and, on a single match, supplies it so a `SIGNED_BY_IDENTITY` edge is emitted.
+It also ensures the `oidc_issuer` convergence node (github_core-owned) is in
+the batch and supplies its id so the hotlinked `IDENTITY_VOUCHED_BY` edge has a
+present target — the rekor entry's `signing_identity_issuer` field and that
+edge are validated together in the one batch (deferred hotlink consistency).
 The verification verdict is the absolute fact on the `ATTESTED_BY` edge per
 `req-sigstore-core-disclosure`. (The artifact nodes retain their own
 `signature_verified` / `signed_by` / `rekor_log_index` fields for now; folding
@@ -137,7 +141,7 @@ sandbox/satellite concern and is out of scope.
 | req-samsite-collector-verify-1 | Bundles Verified | Implemented | Each artifact is verified against its `.bundle` via `sigstore_core.verify_bundle` (not `sigstore.*` directly); the result is recorded. | |
 | req-samsite-collector-verify-2 | Failure Is Visible, Not Fatal | Implemented | A failed/unverifiable signature is recorded as such; the artifact still collects; the run does not abort. | |
 | req-samsite-collector-verify-3 | Bounded Evaluation Only | Implemented | v0 verification is signature/proof/schema checking and parsing — never executing fetched content as code. | |
-| req-samsite-collector-verify-4 | Signature Graph Emitted | Implemented | Each verified bundle is decomposed via `sigstore_core.bundle_to_grift_fragment` into a `rekor_log_entry` + `sigstore_ca` + `ATTESTED_BY`/`CERT_ISSUED_BY`, merged into the batch; `SIGNED_BY_IDENTITY` is added when the signing `github_workflow` resolves to a single node via Gryphon. | Cross-plugin workflow *read* is the consumer's job per `req-sigstore-core-edges-5`. |
+| req-samsite-collector-verify-4 | Signature Graph Emitted | Implemented | Each verified bundle is decomposed via `sigstore_core.bundle_to_grift_fragment` into a `rekor_log_entry` + `sigstore_ca` + `ATTESTED_BY`/`CERT_ISSUED_BY`, merged into the batch; `SIGNED_BY_IDENTITY` is added when the signing `github_workflow` resolves to a single node via Gryphon; the `oidc_issuer` node is ensured in-batch and the hotlinked `IDENTITY_VOUCHED_BY` edge emitted. | Cross-plugin workflow *read* + oidc_issuer ensure-exists are the consumer's job per `req-sigstore-core-edges-5`/`-7`. |
 
 ### Decomposition
 ----

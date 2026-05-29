@@ -45,7 +45,5 @@ class GithubCoreConfig(TapPluginConfig):
         panel_type_registry.register("github-recent-activity", RecentActivityPanelType)
         panel_type_registry.register("github-deploy-health", DeployHealthPanelType)
         panel_type_registry.register("github-workflow-catalog", WorkflowCatalogPanelType)
-        panel_type_registry.register(
-            "github-cross-grid-references", CrossGridReferencesPanelType
-        )
+        panel_type_registry.register("github-cross-grid-references", CrossGridReferencesPanelType)
         panel_type_registry.register("github-history-strip", HistoryStripPanelType)

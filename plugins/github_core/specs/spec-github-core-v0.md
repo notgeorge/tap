@@ -67,8 +67,8 @@ surface and takes only the Actions plumbing path needed for samsite.
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-github-core-scope | [Plugin Scope](#plugin-scope) | Implemented | v0 is GitHub Actions deployment plumbing for `notgeorge/samsite` |
-| req-github-core-models | [Model Set](#model-set) | Implemented | Platform, account, repo, workflow, run, job, runner — six tables via 0001_initial + the synthesized `github_platform` singleton via 0002 |
-| req-github-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | Platform/account/repo/workflow/run/job/runner spine (incl. `HOSTS_ACCOUNT`) plus cross-grid `REFERENCES_RESOURCE` + `FEDERATES_VIA` — eight edge files registered |
+| req-github-core-models | [Model Set](#model-set) | Implemented | account/repo/workflow/run/job/runner (0001) + synthesized `github_platform` (0002) + synthesized `oidc_issuer` (0003) — eight tables |
+| req-github-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | Platform/account/repo/workflow/run/job/runner spine (incl. `HOSTS_ACCOUNT`) plus cross-grid `REFERENCES_RESOURCE`, `FEDERATES_VIA`, and `TRUSTS_ISSUER` — nine edge files registered |
 | req-github-core-dimensions | [Dimension Strategy](#dimension-strategy) | Implemented | All four dimensions emitted: platform on every node/edge, repo on collector envelopes, surface on Actions models, observation on runs/jobs |
 | req-github-core-secret | [PAT Secret Kind](#pat-secret-kind) | Implemented | `github_pat` data shape, additionalProperties: false; GitHub App auth still deferred |
 | req-github-core-collector | [Collector Runtime](#collector-runtime) | Implemented | Two-phase run + degraded-runner + no-delete + single-attempt + incremental + non-terminal refresh + empty-body-404 retry + per-run-/jobs degrade |
@@ -112,6 +112,7 @@ dedicated node types rather than being jammed into workflow JSON.
 Models:
 
 - `github_platform` — the platform instance (github.com today, a GHES host tomorrow); the top of the `platform → account → repo → workflow` tree. Synthesized as a singleton by the collector (one per run) rather than fetched — no GitHub API enumerates "the platform." Natural key is the host, so a self-hosted GHES tenant becomes a second instance rather than a special case.
+- `oidc_issuer` — an OpenID Connect identity provider, keyed by its canonical issuer URL (the GitHub Actions issuer, `https://token.actions.githubusercontent.com`, in v0). The federated-identity convergence node: AWS IAM registers trust in it (`aws_iam_oidc_provider —TRUSTS_ISSUER→`) and Sigstore binds signing certs to identities from it (`rekor_log_entry —IDENTITY_VOUCHED_BY→`, owned by sigstore_core). Synthesized as a singleton by the collector. A generic OIDC concept that github_core mints first because the v0 issuer is GitHub's; the scheme-less `host` field mirrors the form AWS IAM stores so the derived `TRUSTS_ISSUER` link matches exactly.
 - `github_account` — owner/user/org account.
 - `github_repository` — repository shell; v0 only needs enough fields to show it exists and anchor Actions objects.
 - `github_workflow` — workflow definition discovered from GitHub Actions API and parsed workflow file content.
@@ -130,6 +131,7 @@ Natural-key inputs:
 | Model | Natural Key |
 | --- | --- |
 | `github_platform` | host (`github.com`) |
+| `oidc_issuer` | canonical issuer URL (`https://token.actions.githubusercontent.com`) |
 | `github_account` | account login or GitHub numeric id |
 | `github_repository` | `owner/repo` |
 | `github_workflow` | `owner/repo` + workflow id/path |
@@ -180,8 +182,9 @@ must not conflate the two.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-models-1 | V0 Models Declared | Implemented | The plugin declares the seven v0 model types listed above. | The original six landed via 0001_initial; `github_platform` was added later via 0002. |
+| req-github-core-models-1 | V0 Models Declared | Implemented | The plugin declares the eight v0 model types listed above. | The original six landed via 0001_initial; `github_platform` via 0002; `oidc_issuer` via 0003. |
 | req-github-core-models-8 | Platform Singleton Synthesized | Implemented | `github_platform` is a synthesized singleton (one per run, deterministic id keyed on the host), not fetched from any API; re-runs and hand-written GRIFT nodes with the same host upsert cleanly onto it. | Collector emits it before the per-repo walk; mirrors `aws_core`'s `aws_account_singleton` pattern. |
+| req-github-core-models-9 | OIDC Issuer Singleton Synthesized | Implemented | `oidc_issuer` is a synthesized singleton (deterministic id keyed on the canonical issuer URL); the GitHub Actions issuer is a well-known constant, not fetched. Consumers (e.g. samsite) may upsert the same deterministic node so their hotlinked edges have a present target regardless of run order. | The federated-identity convergence node. |
 | req-github-core-models-3 | Job Steps Blobbed | Implemented | Workflow job steps remain structured data in `github_actions_job.configuration` in v0. | Future visualization target. |
 | req-github-core-models-4 | Deterministic Identity | Implemented | Every model uses deterministic UUIDv5 identity based on the natural keys above. | `collectors/github_collector/identity.py` mints UUIDv5 from `(entity_type, natural_key)` under a fixed namespace. |
 | req-github-core-models-7 | Raw Workflow YAML Retained | Implemented | `github_workflow.configuration.raw_yaml` stores the full workflow YAML body fetched at collection time. | Parser stores raw bytes; collector base64-decodes the Contents-API `content` field and writes it. |
@@ -205,6 +208,7 @@ V0 edge types:
 | `EXECUTED_ON` | `github_actions_job` -> `github_runner` | Job executed on a durable runner node when matchable. (Distinct from `computing_core.RUNS_ON`, which models program-on-compute-environment.) |
 | `REFERENCES_RESOURCE` | GitHub node -> external grid node | Conservative exact-match link to existing AWS nodes (resolved in the enrichment phase). |
 | `FEDERATES_VIA` | `github_repository` -> `aws_iam_oidc_provider` | Repo federates into AWS through the GitHub Actions OIDC provider (URL `token.actions.githubusercontent.com`). Chains with the AWS-side `FEDERATES_INTO` (provider -> deploy role). Derived link resolved in the enrichment phase. |
+| `TRUSTS_ISSUER` | `aws_iam_oidc_provider` -> `oidc_issuer` | The AWS IAM OIDC provider registers trust in an OIDC issuer — its scheme-less `url` matches the issuer's `host`. Converges the AWS federation path onto the same `oidc_issuer` node Sigstore identities are vouched by. Derived link resolved in the enrichment phase (not hotlink-backed: the provider is written by aws_core, which does not emit this edge). |
 
 Secret and variable reference edges (`REFERENCES_SECRET`, `REFERENCES_VARIABLE`)
 are deferred to `req-github-core-backlog-references`.
@@ -218,7 +222,7 @@ ownership, or runtime control.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-github-core-edges-1 | Containment + Execution Spine | Implemented | The platform/account/repo/workflow/run/job/runner edges (`HOSTS_ACCOUNT`, `OWNS_REPO`, `DEFINES_WORKFLOW`, `EXECUTES_WORKFLOW`, `HAS_JOB`, `EXECUTED_ON`) are declared and constrained. | `HOSTS_ACCOUNT` is the top-of-tree containment edge synthesized with the platform singleton. |
-| req-github-core-edges-2 | Cross-Grid Edges | Implemented | The v0 cross-grid edges are `REFERENCES_RESOURCE` (conservative resource reference) and `FEDERATES_VIA` (repo -> AWS OIDC provider federation). Both resolve in the enrichment phase. | Secret/variable reference edges deferred. |
+| req-github-core-edges-2 | Cross-Grid Edges | Implemented | The v0 cross-grid edges are `REFERENCES_RESOURCE` (conservative resource reference), `FEDERATES_VIA` (repo -> AWS OIDC provider federation), and `TRUSTS_ISSUER` (AWS OIDC provider -> oidc_issuer). All resolve in the enrichment phase. | Secret/variable reference edges deferred. |
 | req-github-core-edges-3 | Conservative Resource Semantics | Implemented | `REFERENCES_RESOURCE` is used only for exact, unambiguous matches and does not overstate deployment semantics. | Enforced by the link-manifest schema (`match_mode: exact`-only enum) and the resolver's one-candidate-only emission rule. |
 
 ### Dimension Strategy
@@ -551,8 +555,8 @@ GitHubCollector.run():
     3. Enrichment phase  — query landed GitHub nodes for the configured repos,
                             run link manifest rules against grid candidates,
                             emit cross-grid link edges (REFERENCES_RESOURCE,
-                            FEDERATES_VIA) as a second GRIFT batch (edges only —
-                            sources and targets already exist)
+                            FEDERATES_VIA, TRUSTS_ISSUER) as a second GRIFT batch
+                            (edges only — sources and targets already exist)
 ```
 
 This timing is deliberate:
@@ -617,10 +621,10 @@ future capability deferred with the rest of variable/secret-ref work in
 | req-github-core-grid-links-1 | Search/Gryphon Read Path | Implemented | Link resolution uses TAP's canonical search/Gryphon read surfaces. | `enrichment.py` runs four Gryphon Searches per rule: source-node fetch (`MATCH (n:<source_type>) WHERE n.data.full_name IN [...]`), exact-match candidate (`WHERE n.data.<field> = $value`), near-match (`WHERE n.data.<field> =~ $pattern AND NOT n.data.<field> = $exact`), and the labelless target-name lookup falls out of the spine envelope's `name` field (no extra query needed). The `=~` operator landed in `req-grid-traversal-lang-regex` on 2026-05-28. |
 | req-github-core-grid-links-2 | Exact Match Only | Implemented | Links are emitted only for exact unambiguous matches. | Manifest schema constrains `match_mode` to the `exact` enum value; resolver emits only when `len(candidates) == 1`. |
 | req-github-core-grid-links-3 | Ambiguity Warns | Implemented | Multiple matches produce a structured warning and no edge. | Resolver records a `LINK_AMBIGUOUS` warn per multi-candidate hit. |
-| req-github-core-grid-links-4 | Enrichment Phase | Implemented | Link resolution executes as a follow-on phase after the main GitHub GRIFT batch commits, emitting a second GRIFT batch containing only cross-grid link edges (`REFERENCES_RESOURCE`, `FEDERATES_VIA`). | `GithubCollector.run()` submits collection batch, then `resolve_links()` runs, then a second `submit_grift` if any edges resolved. |
+| req-github-core-grid-links-4 | Enrichment Phase | Implemented | Link resolution executes as a follow-on phase after the main GitHub GRIFT batch commits, emitting a second GRIFT batch containing only cross-grid link edges (`REFERENCES_RESOURCE`, `FEDERATES_VIA`, `TRUSTS_ISSUER`). | `GithubCollector.run()` submits collection batch, then `resolve_links()` runs, then a second `submit_grift` if any edges resolved. The `TRUSTS_ISSUER` rule has an AWS-node source (`aws_iam_oidc_provider`), proving the resolver is not github-source-only. |
 | req-github-core-grid-links-5 | Re-Resolve Every Run | Implemented | Every collector run re-resolves links against all configured-repo GitHub nodes, not just newly-changed ones. | `_source_queryset_for_repos` filters by `full_name__in=repos` and walks every matching landed node every run. |
 | req-github-core-grid-links-6 | Enrichment Failures Warn Only | Implemented | Enrichment-phase failures emit structured warnings; they do not roll back the already-committed GitHub batch. | Enrichment has no abort path; missing target models log + skip, multi-candidate hits warn + skip. |
-| req-github-core-grid-links-7 | Not Hotlink-Backed | Implemented | The enrichment-resolved edges (`REFERENCES_RESOURCE`, `FEDERATES_VIA`) are derived links, not hotlinks: no `HOTLINKS` declaration, no pre-commit consistency-phase participation. | No HOTLINKS declared on any github_core model; resolver is a separate phase, not a model-level invariant. |
+| req-github-core-grid-links-7 | Not Hotlink-Backed | Implemented | The enrichment-resolved edges (`REFERENCES_RESOURCE`, `FEDERATES_VIA`, `TRUSTS_ISSUER`) are derived links, not hotlinks: no `HOTLINKS` declaration, no pre-commit consistency-phase participation. | `TRUSTS_ISSUER` is deliberately derived: its source `aws_iam_oidc_provider` is written by aws_core, which neither knows about nor emits the edge — a hotlink there would fail on every provider write (see AGENTS.md "apply mechanisms by fit"). |
 
 ### Plugin Python Dependency
 ----

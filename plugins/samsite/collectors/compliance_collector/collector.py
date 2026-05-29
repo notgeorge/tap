@@ -106,6 +106,18 @@ class SamsiteComplianceCollector(CollectorBase):
             return
         full_name, workflow_path = sigstore_link.parse_signing_san(result.signed_by)
         workflow_id = sigstore_link.resolve_workflow_entity_id(full_name, workflow_path) if full_name else None
+
+        # OIDC issuer convergence node. Ensure it exists in this batch (deduped)
+        # so the hotlinked IDENTITY_VOUCHED_BY edge has a present target; supply
+        # its id to the decompose helper, which emits the edge.
+        issuer_entity_id: str | None = None
+        issuer_url = (result.signing_issuer or "").strip()
+        if issuer_url:
+            issuer_entity_id = sigstore_link.oidc_issuer_entity_id(issuer_url)
+            if issuer_entity_id not in seen_node_ids:
+                seen_node_ids.add(issuer_entity_id)
+                all_nodes.append(sigstore_link.oidc_issuer_node_envelope(issuer_url))
+
         if workflow_id is None and result.signed_by:
             self.record_info(
                 _SITE_SIGNATURE_NO_WORKFLOW,
@@ -119,6 +131,7 @@ class SamsiteComplianceCollector(CollectorBase):
             policy=policy,
             dimensions={},
             signing_identity_entity_id=workflow_id,
+            oidc_issuer_entity_id=issuer_entity_id,
         )
         nodes, edges = sigstore_link.fragment_to_envelopes(fragment)
         for node in nodes:

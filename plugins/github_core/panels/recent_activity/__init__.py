@@ -34,15 +34,14 @@ class RecentActivityPanelType:
         config = getattr(panel, "config", None) or {}
         try:
             limit = int(config.get("limit") or DEFAULT_LIMIT)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             limit = DEFAULT_LIMIT
         limit = max(1, min(limit, MAX_LIMIT))
 
         rows: list[dict[str, Any]] = []
         if res.repo is not None:
             runs = list(
-                GithubActionsRun.objects.filter(full_name=res.repo.full_name)
-                .order_by("-run_started_at")[:limit]
+                GithubActionsRun.objects.filter(full_name=res.repo.full_name).order_by("-run_started_at")[:limit]
             )
             # Join workflows once — N+1 avoidance for the demo dataset (small).
             workflow_ids = {r.configuration.get("workflow_id") for r in runs if r.configuration}

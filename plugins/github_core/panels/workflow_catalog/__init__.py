@@ -31,15 +31,11 @@ class WorkflowCatalogPanelType:
         rows: list[dict[str, Any]] = []
         default_expanded_index: int | None = None
         if res.repo is not None:
-            workflows = list(
-                GithubWorkflow.objects.filter(full_name=res.repo.full_name).order_by("name")
-            )
+            workflows = list(GithubWorkflow.objects.filter(full_name=res.repo.full_name).order_by("name"))
             # Pick the workflow with the most recent run for default expansion.
             most_recent_workflow_id: int | None = None
             most_recent_run = (
-                GithubActionsRun.objects.filter(full_name=res.repo.full_name)
-                .order_by("-run_started_at")
-                .first()
+                GithubActionsRun.objects.filter(full_name=res.repo.full_name).order_by("-run_started_at").first()
             )
             if most_recent_run is not None:
                 most_recent_workflow_id = (most_recent_run.configuration or {}).get("workflow_id")
@@ -68,15 +64,15 @@ class WorkflowCatalogPanelType:
                     {
                         "workflow": wf,
                         "last_run": last_run,
-                        "last_run_pill": status_pill(
-                            last_run.status if last_run else "",
-                            last_run.conclusion if last_run else "",
-                        )
-                        if last_run
-                        else None,
-                        "last_run_age": humanize_age(last_run.run_started_at)
-                        if last_run
-                        else "—",
+                        "last_run_pill": (
+                            status_pill(
+                                last_run.status if last_run else "",
+                                last_run.conclusion if last_run else "",
+                            )
+                            if last_run
+                            else None
+                        ),
+                        "last_run_age": humanize_age(last_run.run_started_at) if last_run else "—",
                         "triggers": cfg.get("triggers") or [],
                         "permissions": cfg.get("permissions") or {},
                         "jobs": jobs_summary,

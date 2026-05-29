@@ -148,6 +148,13 @@ export async function execute(context) {
         rekorEntries.forEach((n, i) => n.position({x: sigLeft + i * sigGap, y: 1060}));
     }
 
+    // OIDC issuer — the identity hub. The AWS federation path reaches it
+    // (aws_provider TRUSTS_ISSUER) and every Sigstore identity points at it
+    // (rekor IDENTITY_VOUCHED_BY); placed lower-centre, between the Sigstore box
+    // and the boundary, so the converging edges read as one anchor. Free node
+    // (no nesting rule matches it).
+    cy.nodes('[entity_type="oidc_issuer"]').forEach((n) => n.position({x: 430, y: 1200}));
+
     // Apply compound-parent nesting: every aws_* under aws_account, aws_account
     // under boundary. resolveNesting reads the SCOPED_TO_BOUNDARY edge and the
     // shared `aws_account` dimension value; cy.move stamps the parent

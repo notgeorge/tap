@@ -36,6 +36,7 @@ from .identity import (
     account_id,
     edge_id,
     job_id,
+    oidc_issuer_id,
     platform_id,
     repository_id,
     run_id,
@@ -89,6 +90,12 @@ _TERMINAL_RUN_STATUSES: frozenset[str] = frozenset({"completed"})
 # v0 is github.com only; a GHES host would key on its own hostname.
 _PLATFORM_HOST = "github.com"
 _PLATFORM_DIMENSIONS = {"github.platform": "github.com"}
+
+# GitHub Actions' OIDC issuer — the identity convergence node. Synthesized as a
+# singleton (well-known constant): AWS IAM federation trusts it and Sigstore
+# binds signing certs to it. `host` is the scheme-less form AWS IAM stores.
+_OIDC_ISSUER_URL = "https://token.actions.githubusercontent.com"
+_OIDC_ISSUER_HOST = "token.actions.githubusercontent.com"
 
 
 class GithubCollectorError(Exception):
@@ -172,8 +179,7 @@ class GithubCollector(CollectorBase):
             checks.append(
                 check_fail(
                     "GITHUB_API_REACHABLE",
-                    f"GitHub /rate_limit failed: status={exc.status} "
-                    f"body={exc.body[:200] or '(empty)'}",
+                    f"GitHub /rate_limit failed: status={exc.status} " f"body={exc.body[:200] or '(empty)'}",
                     readiness_status=CollectorReadinessStatus.ERROR,
                     docs=_DOCS,
                 )
@@ -187,8 +193,7 @@ class GithubCollector(CollectorBase):
         checks.append(
             check_pass(
                 "GITHUB_API_REACHABLE",
-                f"GitHub API reachable; PAT rate-limit "
-                f"{core.get('used', '?')}/{core.get('limit', '?')} used.",
+                f"GitHub API reachable; PAT rate-limit " f"{core.get('used', '?')}/{core.get('limit', '?')} used.",
                 context={"rate": core},
                 docs=_DOCS,
             )
@@ -206,8 +211,7 @@ class GithubCollector(CollectorBase):
                 checks.append(
                     check_fail(
                         f"GITHUB_REPO_ACCESS:{repo}",
-                        f"PAT cannot access {repo}: status={exc.status} "
-                        f"body={exc.body[:200] or '(empty)'}",
+                        f"PAT cannot access {repo}: status={exc.status} " f"body={exc.body[:200] or '(empty)'}",
                         readiness_status=CollectorReadinessStatus.ERROR,
                         docs=_DOCS,
                     )
@@ -271,6 +275,26 @@ class GithubCollector(CollectorBase):
                 fields={
                     "host": _PLATFORM_HOST,
                     "html_url": f"https://{_PLATFORM_HOST}",
+                    "configuration": {},
+                    "tags": {},
+                },
+            )
+        )
+
+        # --- OIDC issuer singleton: GitHub Actions' identity issuer, the
+        # convergence node. AWS federation trusts it (TRUSTS_ISSUER, resolved in
+        # enrichment) and Sigstore vouches identities by it (IDENTITY_VOUCHED_BY,
+        # emitted by the sigstore consumer). Deterministic id keyed on the URL.
+        nodes.append(
+            node_envelope(
+                entity_id=oidc_issuer_id(_OIDC_ISSUER_URL),
+                entity_type="oidc_issuer",
+                name=_OIDC_ISSUER_URL,
+                dimensions={"identity.protocol": "oidc"},
+                fields={
+                    "issuer_url": _OIDC_ISSUER_URL,
+                    "host": _OIDC_ISSUER_HOST,
+                    "provider": "github-actions",
                     "configuration": {},
                     "tags": {},
                 },
@@ -363,9 +387,7 @@ class GithubCollector(CollectorBase):
         )
         # platform hosts this account — top-of-tree containment. Deterministic
         # edge id dedupes across repos that share an owner.
-        edges.append(
-            self._edge("HOSTS_ACCOUNT", platform_uuid, account_uuid, dict(_PLATFORM_DIMENSIONS))
-        )
+        edges.append(self._edge("HOSTS_ACCOUNT", platform_uuid, account_uuid, dict(_PLATFORM_DIMENSIONS)))
 
         # repository (envelope name == payload name == full_name for display)
         repo_payload = client.get(f"/repos/{full_name}")
@@ -392,9 +414,7 @@ class GithubCollector(CollectorBase):
         edges.append(self._edge("OWNS_REPO", account_uuid, repo_uuid, repo_dims))
 
         # workflows + workflow YAML
-        workflows = client.get_paginated(
-            f"/repos/{full_name}/actions/workflows", item_path="workflows"
-        )
+        workflows = client.get_paginated(f"/repos/{full_name}/actions/workflows", item_path="workflows")
         for wf in workflows:
             wf_uuid = workflow_id(full_name, wf["id"])
             raw_yaml, parsed_config = self._fetch_workflow_config(client, full_name, wf.get("path", ""))
@@ -510,9 +530,7 @@ class GithubCollector(CollectorBase):
 
         # runners (graceful-degrade on 403 per req-github-core-collector-5)
         try:
-            runners = client.get_paginated(
-                f"/repos/{full_name}/actions/runners", item_path="runners"
-            )
+            runners = client.get_paginated(f"/repos/{full_name}/actions/runners", item_path="runners")
         except GithubAPIError as exc:
             if exc.status == 403:
                 self.record_warn(
@@ -583,9 +601,7 @@ class GithubCollector(CollectorBase):
                 return client.get(f"/orgs/{owner}")
             raise
 
-    def _fetch_run_window(
-        self, client: GithubClient, full_name: str, run_limit: int
-    ) -> list[dict[str, Any]]:
+    def _fetch_run_window(self, client: GithubClient, full_name: str, run_limit: int) -> list[dict[str, Any]]:
         """Run-list fetch per req-github-core-collector-3.
 
         First population (no on-grid runs): the latest `run_limit` runs.
@@ -598,10 +614,9 @@ class GithubCollector(CollectorBase):
 
         from plugins.github_core.models import GithubActionsRun
 
-        max_ts = (
-            GithubActionsRun.objects.filter(full_name=full_name)
-            .aggregate(Max("run_started_at"))["run_started_at__max"]
-        )
+        max_ts = GithubActionsRun.objects.filter(full_name=full_name).aggregate(Max("run_started_at"))[
+            "run_started_at__max"
+        ]
         if max_ts is None:
             # First population — cap at run_limit, one page is enough.
             return client.get_paginated(
@@ -675,9 +690,7 @@ class GithubCollector(CollectorBase):
             refreshed.append(payload)
         return refreshed
 
-    def _fetch_run_jobs(
-        self, client: GithubClient, full_name: str, run_id_int: int
-    ) -> list[dict[str, Any]]:
+    def _fetch_run_jobs(self, client: GithubClient, full_name: str, run_id_int: int) -> list[dict[str, Any]]:
         """Fetch the jobs list for a specific run.
 
         Per GitHub docs the endpoint documents only `200 - OK`; no 404
@@ -688,9 +701,7 @@ class GithubCollector(CollectorBase):
         on a single quirky run (`req-github-core-collector-5` discipline).
         """
         try:
-            return client.get_paginated(
-                f"/repos/{full_name}/actions/runs/{run_id_int}/jobs", item_path="jobs"
-            )
+            return client.get_paginated(f"/repos/{full_name}/actions/runs/{run_id_int}/jobs", item_path="jobs")
         except GithubAPIError as exc:
             if exc.status == 404:
                 self.record_warn(
@@ -703,9 +714,7 @@ class GithubCollector(CollectorBase):
                 return []
             raise
 
-    def _fetch_workflow_config(
-        self, client: GithubClient, full_name: str, path: str
-    ) -> tuple[str, dict[str, Any]]:
+    def _fetch_workflow_config(self, client: GithubClient, full_name: str, path: str) -> tuple[str, dict[str, Any]]:
         """Fetch workflow YAML via Contents API; return (raw, parsed configuration)."""
         if not path:
             return "", parse_workflow_yaml("")

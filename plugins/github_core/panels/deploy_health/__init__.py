@@ -33,15 +33,13 @@ class DeployHealthPanelType:
         config = getattr(panel, "config", None) or {}
         try:
             window = int(config.get("window") or DEFAULT_WINDOW)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             window = DEFAULT_WINDOW
         window = max(1, window)
 
         rows: list[dict[str, Any]] = []
         if res.repo is not None:
-            workflows = list(
-                GithubWorkflow.objects.filter(full_name=res.repo.full_name).order_by("name")
-            )
+            workflows = list(GithubWorkflow.objects.filter(full_name=res.repo.full_name).order_by("name"))
             for wf in workflows:
                 wf_runs = list(
                     GithubActionsRun.objects.filter(full_name=res.repo.full_name)

@@ -96,6 +96,28 @@ class TestSimplePathExtract:
         result = _simple_path_extract(data, "columns.*.rows.*.panel-id")
         assert result == set()
 
+
+# req-grid-hotlink-selector: scalar extraction
+# ---------------------------------------------------------------------------
+
+
+class TestScalarExtract:
+    """Unit tests for the `scalar` selector backend — a field whose value IS
+    the identifier (the common case the JSON-traversing simple_path can't serve)."""
+
+    def test_scalar_value_is_the_identifier(self):
+        assert extract_identifiers("https://token.actions.githubusercontent.com", "scalar", "") == {
+            "https://token.actions.githubusercontent.com"
+        }
+
+    def test_empty_scalar_yields_no_identifier(self):
+        assert extract_identifiers("", "scalar", "") == set()
+        assert extract_identifiers(None, "scalar", "") == set()
+
+    def test_scalar_ignores_selector_expression(self):
+        # The selector argument is unused for scalar; any value behaves the same.
+        assert extract_identifiers("v", "scalar", "ignored") == {"v"}
+
     def test_non_traversable_node_skipped(self):
         """A string node at a wildcard position is silently skipped."""
         data = {"columns": "not-a-dict"}

@@ -90,10 +90,7 @@ def _source_entity_ids_for_repo(repo: GithubRepository) -> list[str]:
     ids: list[str] = [str(repo.entity_id)]
     for model in (GithubWorkflow, GithubActionsRun, GithubActionsJob):
         ids.extend(
-            str(eid)
-            for eid in model.objects.filter(full_name=repo.full_name).values_list(
-                "entity_id", flat=True
-            )
+            str(eid) for eid in model.objects.filter(full_name=repo.full_name).values_list("entity_id", flat=True)
         )
     return ids
 

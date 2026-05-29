@@ -39,6 +39,7 @@
                 "MATCH (gw:github_workflow)",
                 "MATCH (re:rekor_log_entry)",
                 "MATCH (ca:sigstore_ca)",
+                "MATCH (oi:oidc_issuer)",
                 "MATCH (n)",
                 "WHERE n.data.tags.Project = \"samsite\""
               ]

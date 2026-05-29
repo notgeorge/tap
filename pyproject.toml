@@ -37,11 +37,10 @@ dependencies = [
     "lark>=1.3.1",
     "croniter>=6.2.2",
     "steady-queue>=0.2.0",
-    "boto3>=1.43.9",
-    # NOTE: `sigstore` is NOT here — it is plugin-owned by sigstore_core,
-    # declared in plugins/sigstore_core/pyproject.toml and resolved via the
-    # workspace member entry below (mirrors github_core's PyYAML pattern;
-    # req-sigstore-core-python-deps).
+    # NOTE: plugin-owned third-party deps are NOT listed here — they live in the
+    # owning plugin's pyproject.toml and resolve via the workspace `members`
+    # entries below (the github_core PyYAML pattern). `boto3` → aws_core,
+    # `sigstore` → sigstore_core, `PyYAML` → github_core.
 ]
 
 # -----------------------------------------------------------------------------
@@ -87,7 +86,7 @@ dev = [
 # req-plugin-arch-python-deps.
 
 [tool.uv.workspace]
-members = ["plugins/github_core", "plugins/sigstore_core"]
+members = ["plugins/aws_core", "plugins/github_core", "plugins/sigstore_core"]
 
 # -----------------------------------------------------------------------------
 # Tool Configuration

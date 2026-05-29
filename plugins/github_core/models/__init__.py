@@ -7,6 +7,7 @@ from plugins.github_core.models.github_platform import GithubPlatform
 from plugins.github_core.models.github_repository import GithubRepository
 from plugins.github_core.models.github_runner import GithubRunner
 from plugins.github_core.models.github_workflow import GithubWorkflow
+from plugins.github_core.models.oidc_issuer import OidcIssuer
 
 __all__ = [
     "GithubAccount",
@@ -16,4 +17,5 @@ __all__ = [
     "GithubRepository",
     "GithubRunner",
     "GithubWorkflow",
+    "OidcIssuer",
 ]

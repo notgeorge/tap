@@ -5,6 +5,7 @@ requires-python = ">=3.14"
 [manifest]
 members = [
     "tap",
+    "tap-plugin-aws-core",
     "tap-plugin-github-core",
     "tap-plugin-sigstore-core",
 ]
@@ -1047,7 +1048,6 @@ name = "tap"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "boto3" },
     { name = "croniter" },
     { name = "dj-database-url" },
     { name = "django" },
@@ -1072,7 +1072,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "boto3", specifier = ">=1.43.9" },
     { name = "croniter", specifier = ">=6.2.2" },
     { name = "dj-database-url", specifier = ">=2.2" },
     { name = "django", specifier = ">=6.0" },
@@ -1094,6 +1093,17 @@ dev = [
     { name = "pytest-django", specifier = ">=4.9" },
     { name = "ruff", specifier = ">=0.8" },
 ]
+
+[[package]]
+name = "tap-plugin-aws-core"
+version = "0.1.0"
+source = { editable = "plugins/aws_core" }
+dependencies = [
+    { name = "boto3" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "boto3", specifier = ">=1.43.9" }]
 
 [[package]]
 name = "tap-plugin-github-core"

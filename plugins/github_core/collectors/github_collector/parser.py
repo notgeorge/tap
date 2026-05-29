@@ -19,7 +19,9 @@ import yaml
 _AWS_REGION_RE = re.compile(r"^(us|eu|ap|sa|ca|me|af|cn|us-gov)(-[a-z]+)+-\d+$")
 _CLOUDFRONT_DISTRIBUTION_ID_RE = re.compile(r"^E[0-9A-Z]{12,16}$")
 # Loose domain pattern: at least one dot, no slashes, no spaces, valid TLD.
-_DOMAIN_NAME_RE = re.compile(r"^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$", re.IGNORECASE)
+_DOMAIN_NAME_RE = re.compile(
+    r"^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$", re.IGNORECASE
+)
 
 
 def parse_workflow_yaml(raw_yaml: str) -> dict[str, Any]:

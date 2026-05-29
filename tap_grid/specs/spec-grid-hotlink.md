@@ -217,6 +217,7 @@ The decision to start with a simple path selector is pragmatic. Hotlink validati
 | req-grid-hotlink-selector-2 | V1 Simple Path Selector | Implemented | `selector_type = "simple_path"` is supported for deterministic traversal of structured JSON fields. | |
 | req-grid-hotlink-selector-3 | Backend-Pluggable Contract | Implemented | Additional selector backends may be added later without changing the top-level `HOTLINKS` contract. | |
 | req-grid-hotlink-selector-4 | No Implicit JSONPath Claim | Implemented | The v1 path selector is TAP-specific and is not presented as JSONPath compatibility. | |
+| req-grid-hotlink-selector-5 | Scalar Backend | Implemented | `selector_type = "scalar"` returns the field's own value as the sole identifier (empty/null → no identifier); `selector` is unused. For fields whose value *is* the reference (e.g. a URL/id in a CharField), which `simple_path` cannot serve. | First user: `rekor_log_entry.signing_identity_issuer` → `IDENTITY_VOUCHED_BY`. |
 
 #### Future
 When a concrete use case requires it, define a separate requirement for `selector_type = "jsonpath"` with an explicitly chosen library or dialect and a compatibility policy.

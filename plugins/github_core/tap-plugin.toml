@@ -6,6 +6,7 @@ description = "GitHub Actions deployment plumbing models for samsite — workflo
 
 [models]
 github_platform = "plugins.github_core.models.github_platform.GithubPlatform"
+oidc_issuer = "plugins.github_core.models.oidc_issuer.OidcIssuer"
 github_account = "plugins.github_core.models.github_account.GithubAccount"
 github_repository = "plugins.github_core.models.github_repository.GithubRepository"
 github_workflow = "plugins.github_core.models.github_workflow.GithubWorkflow"
@@ -22,6 +23,7 @@ HAS_JOB = "edges/HAS_JOB.edge.json"
 EXECUTED_ON = "edges/EXECUTED_ON.edge.json"
 REFERENCES_RESOURCE = "edges/REFERENCES_RESOURCE.edge.json"
 FEDERATES_VIA = "edges/FEDERATES_VIA.edge.json"
+TRUSTS_ISSUER = "edges/TRUSTS_ISSUER.edge.json"
 
 [grift]
 repo-landing-page = "grift/repo-landing-page.grift.json"
