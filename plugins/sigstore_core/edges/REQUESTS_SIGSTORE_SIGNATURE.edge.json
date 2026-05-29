@@ -1,0 +1,10 @@
+{
+  "slug": "REQUESTS_SIGSTORE_SIGNATURE",
+  "name": "Requests Sigstore Signature",
+  "description": "This identity requests a Sigstore keyless signing certificate from this Fulcio CA — the cert-request step of the keyless flow: the CI workflow presents an OIDC token to Fulcio, which issues a short-lived signing cert bound to the workflow identity; the workflow then signs with the ephemeral key and logs the signature in Rekor. Named specifically (REQUESTS_SIGSTORE_SIGNATURE, not a generic 'requests signature') to disambiguate from other signing schemes a workflow may use in future. v0 source is narrow (github_workflow) until additional CI identity-node types arrive; target is the Fulcio CA node.",
+  "sources": ["github_workflow"],
+  "targets": ["sigstore_ca"],
+  "default_dimensions": {
+    "sigstore.platform": "public-good"
+  }
+}

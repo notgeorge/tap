@@ -23,6 +23,7 @@ AVAILABLE_AT = "edges/AVAILABLE_AT.edge.json"
 LISTENS_ON = "edges/LISTENS_ON.edge.json"
 CONNECTS_TO = "edges/CONNECTS_TO.edge.json"
 PAIRED_WITH = "edges/PAIRED_WITH.edge.json"
+GENERATES_FILE = "edges/GENERATES_FILE.edge.json"
 
 [grift]
 dimension = "grift/dimension.grift.json"

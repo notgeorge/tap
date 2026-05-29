@@ -203,6 +203,19 @@ def bundle_to_grift_fragment(
                 "dimensions": dict(dimensions),
             }
         )
+        # REQUESTS_SIGSTORE_SIGNATURE: signing identity (workflow) → Fulcio CA.
+        # The keyless cert-request step that precedes the signature; emitted only
+        # when the caller resolved a signing identity (same precondition as
+        # SIGNED_BY_IDENTITY). Source is the identity, target the issuing CA.
+        fragment.edges.append(
+            {
+                "edge_type": "REQUESTS_SIGSTORE_SIGNATURE",
+                "edge_id": _edge_id("REQUESTS_SIGSTORE_SIGNATURE", signing_identity_entity_id, ca_id),
+                "source_entity_id": signing_identity_entity_id,
+                "target_entity_id": ca_id,
+                "dimensions": dict(dimensions),
+            }
+        )
 
     # IDENTITY_VOUCHED_BY: hotlink-backed edge to the OIDC issuer (caller-
     # supplied target). Emitted only when the bundle carries a signing issuer —
