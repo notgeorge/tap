@@ -1,0 +1,15 @@
+{
+  "slug": "ENABLED_ON",
+  "name": "Enabled On",
+  "description": "A GitHub App or first-party platform app is enabled on a repository.",
+  "sources": [
+    "github_app"
+  ],
+  "targets": [
+    "github_repository"
+  ],
+  "default_dimensions": {
+    "github.platform": "github.com",
+    "github.surface": "apps"
+  }
+}

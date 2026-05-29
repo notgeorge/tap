@@ -42,6 +42,12 @@ def workflow_id(full_name: str, workflow_id_int: int | str) -> UUID:
     return _id("github_workflow", f"{full_name}#{workflow_id_int}")
 
 
+def github_app_id(slug: str) -> UUID:
+    # Natural key is the app slug ("dependabot"); one app node is shared across
+    # every repo that enables it (ENABLED_ON edges fan in).
+    return _id("github_app", slug)
+
+
 def run_id(full_name: str, run_id_int: int | str) -> UUID:
     # v0 natural key is owner/repo + run_id (run_attempt deferred — see
     # req-github-core-backlog-run-attempts).

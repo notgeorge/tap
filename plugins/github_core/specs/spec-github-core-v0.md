@@ -69,6 +69,7 @@ surface and takes only the Actions plumbing path needed for samsite.
 | req-github-core-scope | [Plugin Scope](#plugin-scope) | Implemented | v0 is GitHub Actions deployment plumbing for `notgeorge/samsite` |
 | req-github-core-models | [Model Set](#model-set) | Implemented | account/repo/workflow/run/job/runner (0001) + synthesized `github_platform` (0002) + synthesized `oidc_issuer` (0003) — eight tables |
 | req-github-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | Platform/account/repo/workflow/run/job/runner spine (incl. `HOSTS_ACCOUNT`) plus cross-grid `REFERENCES_RESOURCE`, `FEDERATES_VIA`, and `TRUSTS_ISSUER` — nine edge files registered |
+| req-github-core-app | [GitHub Apps](#github-apps) | Implemented | Generic `github_app` type + `ENABLED_ON` edge; Dependabot detected from the synthetic Actions entry and reclassified at collection time |
 | req-github-core-dimensions | [Dimension Strategy](#dimension-strategy) | Implemented | All four dimensions emitted: platform on every node/edge, repo on collector envelopes, surface on Actions models, observation on runs/jobs |
 | req-github-core-secret | [PAT Secret Kind](#pat-secret-kind) | Implemented | `github_pat` data shape, additionalProperties: false; GitHub App auth still deferred |
 | req-github-core-collector | [Collector Runtime](#collector-runtime) | Implemented | Two-phase run + degraded-runner + no-delete + single-attempt + incremental + non-terminal refresh + empty-body-404 retry + per-run-/jobs degrade |
@@ -80,6 +81,7 @@ surface and takes only the Actions plumbing path needed for samsite.
 | req-github-core-backlog-references | [Variables And Secret References (Backlog)](#variables-and-secret-references-backlog) | Backlog | Two-source-of-truth model, hotlink contract implication, provenance shape; pick up when critical path |
 | req-github-core-backlog-run-attempts | [Multi-Attempt Run Observation (Backlog)](#multi-attempt-run-observation-backlog) | Backlog | Per-attempt run + job fan-out, re-run-failed-jobs subtlety, HAS_JOB lifecycle; pick up when critical path |
 | req-github-core-backlog-grid-vocab-links | [Grid-Vocabulary Reference Resolution (Backlog)](#grid-vocabulary-reference-resolution-backlog) | Backlog | Replace the parser's regex shape-guessing with matching against the known grid vocabulary (regions/zones/dist-ids); removes junk refs, recovers `${{ }}`-embedded matches, needs confidence markers |
+| req-github-core-backlog-app-relationships | [GitHub App Relationships (Backlog)](#github-app-relationships-backlog) | Backlog | Model what apps *do* beyond being enabled — e.g. Dependabot opens dependency-bump PRs against the repo, code scanning posts alerts. Edges like `OPENS_PR` / `RAISES_ALERT` once there's a consumer |
 | req-github-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Full GitHub inventory, Sigstore/Rekor, deletion/reaping, schedules, references, multi-attempt runs — boundaries hold |
 
 ### Plugin Scope
@@ -119,6 +121,7 @@ Models:
 - `github_actions_run` — one workflow run (latest observed state; multi-attempt tracking deferred to `req-github-core-backlog-run-attempts`).
 - `github_actions_job` — one job within a workflow run. Step details live in `configuration` in v0.
 - `github_runner` — durable registered self-hosted runner configuration when visible through the API.
+- `github_app` — a GitHub App or first-party platform app (e.g. Dependabot) enabled on a repository. Generic across GitHub's app surface (managed apps, third-party apps, OIDC token-issuing apps); keyed by app slug so one node is shared across every repo that enables it, with `ENABLED_ON` edges fanning in. See [GitHub Apps](#github-apps).
 
 Variables (`github_actions_variable`) and secret references
 (`github_actions_secret_ref`) are deferred to
@@ -138,6 +141,7 @@ Natural-key inputs:
 | `github_actions_run` | `owner/repo` + run id |
 | `github_actions_job` | `owner/repo` + job id |
 | `github_runner` | `owner/repo` + runner id for durable registered runners |
+| `github_app` | app slug (`dependabot`) — singleton across repos |
 
 Entity IDs are deterministic UUIDv5 values over the model type and natural key.
 
@@ -209,6 +213,7 @@ V0 edge types:
 | `REFERENCES_RESOURCE` | GitHub node -> external grid node | Conservative exact-match link to existing AWS nodes (resolved in the enrichment phase). |
 | `FEDERATES_VIA` | `github_repository` -> `aws_iam_oidc_provider` | Repo federates into AWS through the GitHub Actions OIDC provider (URL `token.actions.githubusercontent.com`). Chains with the AWS-side `FEDERATES_INTO` (provider -> deploy role). Derived link resolved in the enrichment phase. |
 | `TRUSTS_ISSUER` | `aws_iam_oidc_provider` -> `oidc_issuer` | The AWS IAM OIDC provider registers trust in an OIDC issuer — its scheme-less `url` matches the issuer's `host`. Converges the AWS federation path onto the same `oidc_issuer` node Sigstore identities are vouched by. Derived link resolved in the enrichment phase (not hotlink-backed: the provider is written by aws_core, which does not emit this edge). |
+| `ENABLED_ON` | `github_app` -> `github_repository` | A GitHub App or platform app is enabled on the repo. Emitted during the per-repo walk when an enabled app is detected. See [GitHub Apps](#github-apps). |
 
 Secret and variable reference edges (`REFERENCES_SECRET`, `REFERENCES_VARIABLE`)
 are deferred to `req-github-core-backlog-references`.
@@ -224,6 +229,41 @@ ownership, or runtime control.
 | req-github-core-edges-1 | Containment + Execution Spine | Implemented | The platform/account/repo/workflow/run/job/runner edges (`HOSTS_ACCOUNT`, `OWNS_REPO`, `DEFINES_WORKFLOW`, `EXECUTES_WORKFLOW`, `HAS_JOB`, `EXECUTED_ON`) are declared and constrained. | `HOSTS_ACCOUNT` is the top-of-tree containment edge synthesized with the platform singleton. |
 | req-github-core-edges-2 | Cross-Grid Edges | Implemented | The v0 cross-grid edges are `REFERENCES_RESOURCE` (conservative resource reference), `FEDERATES_VIA` (repo -> AWS OIDC provider federation), and `TRUSTS_ISSUER` (AWS OIDC provider -> oidc_issuer). All resolve in the enrichment phase. | Secret/variable reference edges deferred. |
 | req-github-core-edges-3 | Conservative Resource Semantics | Implemented | `REFERENCES_RESOURCE` is used only for exact, unambiguous matches and does not overstate deployment semantics. | Enforced by the link-manifest schema (`match_mode: exact`-only enum) and the resolver's one-candidate-only emission rule. |
+
+### GitHub Apps
+----
+RID: `req-github-core-app`
+Status: `Implemented`
+
+A `github_app` node models a GitHub App or first-party platform app enabled on
+a repository, linked by `ENABLED_ON`. The type is generic so the same shape
+covers GitHub's managed apps (Dependabot, code scanning), third-party apps, and
+OIDC token-issuing apps; the node is a singleton keyed by app slug, with one
+`ENABLED_ON` edge per repo that enables it.
+
+#### Detection
+
+GitHub surfaces an enabled platform app in the repo's Actions workflow list
+under a synthetic `dynamic/<app>/...` path (e.g. Dependabot appears as
+`dynamic/dependabot/dependabot-updates`). These are not repo CI workflows — they
+are platform apps enabled on the repo. The collector recognizes the synthetic
+path prefixes (a small declared map) during the per-repo workflow walk and emits
+a `github_app` + `ENABLED_ON` instead of a `github_workflow` + `DEFINES_WORKFLOW`,
+skipping the YAML fetch (no real file exists at the dynamic path). Detection is
+thus a side effect of collection that already happens — no extra API calls, and
+consumers (e.g. samsite) get the app node for free without doing anything.
+
+The app node carries no `app_id` from this signal (the synthetic entry does not
+expose one); `slug`, `name`, `html_url`, and `description` come from the declared
+prefix map.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-github-core-app-1 | Generic App Type | Implemented | `github_app` is a generic type (slug-keyed singleton) covering managed, third-party, and token-issuing apps; `ENABLED_ON` links it to repositories. | Reused beyond Dependabot. |
+| req-github-core-app-2 | Dependabot Detected At Collection | Implemented | The collector reclassifies the synthetic `dynamic/dependabot/...` Actions entry into a `github_app` (`slug=dependabot`) + `ENABLED_ON` edge, not a `github_workflow`. | Declared synthetic-path prefix map; no extra API calls. |
+| req-github-core-app-3 | App Node Deduped | Implemented | The `github_app` node is emitted once per run (deduped by slug) even when enabled on multiple repos; `ENABLED_ON` edges still fan in per repo. | Run-level dedup set. |
 
 ### Dimension Strategy
 ----
@@ -967,6 +1007,26 @@ Invert the pipeline. Instead of shape-classify-then-match:
 | req-github-core-backlog-grid-vocab-links-3 | Embedded-Value Recovery | Backlog | Known vocabulary is matched substring-aware, recovering references inside `${{ }}` expressions and shell commands. | Recovers `us-east-2` from the `${{ vars.AWS_REGION || 'us-east-2' }}` fallback. |
 | req-github-core-backlog-grid-vocab-links-4 | Context Markers | Backlog | Each resolved reference carries a context/confidence marker (active config vs. comment-only vs. fallback-literal); edges do not assert certainty the source can't support. | Disclose-shortcuts-machine-readably. |
 | req-github-core-backlog-grid-vocab-links-5 | CloudFront Dependency Noted | Backlog | Dist-id resolution is gated on `aws_core` populating `aws_cloudfront_distribution.distribution_id`. | Cross-plugin dependency; close first or in tandem. |
+
+### GitHub App Relationships (Backlog)
+----
+RID: `req-github-core-backlog-app-relationships`
+Status: `Backlog`
+
+`req-github-core-app` models that an app is *enabled on* a repo (`ENABLED_ON`).
+It does not model what apps *do*. Future work, once a consumer needs it:
+
+- **Dependabot opens dependency-bump PRs** against the repo — a `github_app -OPENS_PR-> github_pull_request` (and a `github_pull_request` model) story, distinct from the deploy-time alerts fetch.
+- **Code scanning / secret scanning raise alerts** — a `github_app -RAISES_ALERT->` story.
+- App→workflow consumption (e.g. a deploy workflow querying the Dependabot alerts API as a VDR gate input) — a `FETCH_ALERTS`-style edge, if it can be detected from the workflow body or the alerts API rather than guessed.
+
+These are deferred until there is a concrete graph consumer; v0 stops at presence (`ENABLED_ON`).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-github-core-backlog-app-relationships-1 | App Action Edges | Backlog | Model app *behaviors* (PR authoring, alert raising, alert serving) as distinct edges once a consumer needs them, rather than overloading `ENABLED_ON`. | Keeps presence separate from behavior. |
 
 ### v0 Non-Goals
 ----
