@@ -388,10 +388,13 @@ export async function execute(context) {
 
     // 10. Z-order: the IDENTITY_VOUCHED_BY edges run from the Rekor entries down to
     //     the OIDC issuer, crossing the notgeorge account + repo boxes on the way.
-    //     Sink them beneath their compound siblings (account/repo) so they tuck
-    //     BEHIND those boxes instead of drawing across their faces. z-compound-depth
-    //     "bottom" drops the edge to the bottom of its compound layer — below the
-    //     account/repo subtrees but still above the parent github.com box, so the
-    //     run out from the issuer stays visible. (The edge label is the edge type.)
+    //     Sink them beneath everything (z-compound-depth "bottom") so they tuck
+    //     BEHIND the opaque account/repo boxes instead of drawing across their faces.
+    //     That also drops them below the github.com platform box, so render that box
+    //     outline-only (transparent body, the same treatment as the FedRAMP boundary
+    //     — and its near-bg fill was barely visible anyway). The sunk edge then shows
+    //     THROUGH github.com, keeping its connection to the issuer visible, while the
+    //     filled account/repo boxes still occlude it. (The edge label is the edge type.)
     cy.edges('[label="IDENTITY_VOUCHED_BY"]').style({"z-compound-depth": "bottom"});
+    cy.nodes('[entity_type="github_platform"]').style({"background-opacity": 0});
 }
