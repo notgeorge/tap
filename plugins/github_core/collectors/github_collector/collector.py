@@ -432,6 +432,11 @@ class GithubCollector(CollectorBase):
         )
         edges.append(self._edge("OWNS_REPO", account_uuid, repo_uuid, repo_dims))
 
+        # The Actions OIDC issuer (synthesized once as a platform singleton) is
+        # enabled for every repo's workflows to mint identity tokens — mirror the
+        # github_app ENABLED_ON pattern so it connects into the repo it serves.
+        edges.append(self._edge("ENABLED_ON", oidc_issuer_id(_OIDC_ISSUER_URL), repo_uuid, repo_dims))
+
         # workflows + workflow YAML
         workflows = client.get_paginated(f"/repos/{full_name}/actions/workflows", item_path="workflows")
         for wf in workflows:
