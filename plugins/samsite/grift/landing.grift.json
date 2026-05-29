@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e73d4-18f7-7085-b318-bbe8ebf8abaa",
+        "entity_id": "019e73fb-b80e-72de-8872-a89cb4b0c671",
         "entity_type": "batch",
-        "name": "Samsite landing v0.1.3",
+        "name": "Samsite landing v0.1.4",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite",
-        "name": "Samsite landing v0.1.3",
-        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.3 adds a finalize frame Layout (samsite-landing-finalize / landing-finalize.js, appended last to the elevation's layouts) that runs after the per-cluster arrangements: it measures each AWS cluster as a group, left-aligns the three and distributes them vertically with even gaps (website/compliance/deploy-bootstrap top\u2192bottom), then derives the GitHub cluster (right of bootstrap), the OIDC issuer hub (in the gap), and the Sigstore Rekor row (centered above github), and applies compound nesting + scope boxes. landing-systems.js is trimmed to just seed the three AWS roots. Bootstrap remains a single horizontal row (lock \u2192 tfstate-S3 \u2192 deploy-role \u2192 OIDC-provider). Bumps the batch_entity_id (was 019e73ca-0a2d-7734-801c-bc477e364d60) so already-seeded sessions re-apply the new finalize Layout + elevation wiring; the skip-if-exists guard is batch-id-keyed."
+        "name": "Samsite landing v0.1.4",
+        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.4 surfaces the signed /.well-known/ artifacts (the 'files') on the board: the seed search now also matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind (the collector accumulates one set per run; dedicated computing_core.file nodes + history are a deferred 'storage' question) and positions the surviving ~5 files in the right-middle region between the GitHub deploy cluster and the Sigstore Rekor row. Bumps the batch_entity_id (was 019e73d4-18f7-7085-b318-bbe8ebf8abaa) so seeded sessions re-apply the search change; the skip-if-exists guard is batch-id-keyed."
       },
       "nodes": [
         {
@@ -40,6 +40,9 @@
                 "MATCH (re:rekor_log_entry)",
                 "MATCH (ca:sigstore_ca)",
                 "MATCH (oi:oidc_issuer)",
+                "MATCH (sig:ksi_signal)",
+                "MATCH (vr:vdr_report)",
+                "MATCH (cart:compliance_artifact)",
                 "MATCH (n)",
                 "WHERE n.data.tags.Project = \"samsite\""
               ]
