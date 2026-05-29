@@ -197,7 +197,7 @@
     vdr_finding:         function (id) { return "/samsite/finding/"   + id; },
     ksi_indicator:       function (id) { return "/samsite/indicator/" + id; },
     ksi_component:       function (id) { return "/samsite/component/" + id; },
-    ksi_signal:          function (id) { return "/samsite/signal/"    + id; },
+    ksi_signal:          function (id) { return "/samsite/compliance/ksi-signal?ksi_signal_entity_id=" + id; },
     compliance_artifact: function (id, row) {
       var kind = ((row || {}).data || {}).kind || "";
       if (kind === "oscal_ssp")  return "/samsite/compliance/ssp?oscal_ssp_artifact_entity_id=" + id;

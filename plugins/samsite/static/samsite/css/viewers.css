@@ -1,0 +1,51 @@
+/* Samsite compliance-artifact viewers — classy card / stat / table aesthetic,
+   in the spirit of the roscale OSCAL workbench but samsite-namespaced (ss-). */
+.ss-wb { display: flex; flex-direction: column; gap: 1rem; }
+
+.ss-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem 1.25rem; }
+.ss-card > h3 { margin: 0 0 0.75rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+
+/* trust band */
+.ss-band { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.55rem 1rem; font-size: 0.85rem; }
+.ss-band-label { font-weight: 600; color: #475569; }
+
+.ss-pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.74rem; font-weight: 600; white-space: nowrap; }
+.ss-pill-ok { background: #d1fae5; color: #047857; }
+.ss-pill-bad { background: #fee2e2; color: #b91c1c; }
+.ss-pill-unknown { background: #e2e8f0; color: #475569; }
+.ss-pill-neutral { background: #e0e7ff; color: #3730a3; }
+
+/* stat grid */
+.ss-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 0.75rem; }
+.ss-stat { display: flex; flex-direction: column; align-items: flex-start; padding: 0.6rem 0.85rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+.ss-stat-num { font-size: 1.6rem; font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums; line-height: 1; }
+.ss-stat-label { margin-top: 0.3rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
+
+/* tables */
+.ss-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.ss-table th { text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; padding: 0.35rem 0.5rem; }
+.ss-table td { padding: 0.32rem 0.5rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.ss-table tbody tr:hover td { background: #f8fafc; }
+.ss-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.78rem; }
+.ss-group-row td { background: #f1f5f9; font-weight: 700; color: #334155; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* CIA security-category badges */
+.ss-cia { display: inline-block; min-width: 1.3rem; text-align: center; border-radius: 4px; font-size: 0.7rem; font-weight: 700; padding: 0 0.2rem; }
+.ss-cia-low { background: #dcfce7; color: #166534; }
+.ss-cia-moderate { background: #fef9c3; color: #854d0e; }
+.ss-cia-high { background: #fee2e2; color: #991b1b; }
+.ss-cia-na { color: #cbd5e1; }
+
+/* key/value */
+.ss-kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; font-size: 0.83rem; margin: 0; }
+.ss-kv dt { color: #64748b; }
+.ss-kv dd { margin: 0; color: #0f172a; word-break: break-word; }
+
+.ss-fallback { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.5rem 0.85rem; font-size: 0.82rem; color: #1e40af; }
+.ss-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.75rem 1rem; color: #b91c1c; }
+.ss-empty { color: #94a3b8; font-size: 0.85rem; font-style: italic; margin: 0; }
+
+/* finding emphasis */
+.ss-flag { font-weight: 700; }
+.ss-flag-on { color: #b91c1c; }
+.ss-flag-off { color: #cbd5e1; }

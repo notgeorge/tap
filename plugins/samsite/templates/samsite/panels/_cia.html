@@ -1,0 +1,1 @@
+{% if v == "low" %}<span class="ss-cia ss-cia-low" title="low">L</span>{% elif v == "moderate" %}<span class="ss-cia ss-cia-moderate" title="moderate">M</span>{% elif v == "high" %}<span class="ss-cia ss-cia-high" title="high">H</span>{% else %}<span class="ss-cia ss-cia-na" title="{{ v|default:'not applicable' }}">–</span>{% endif %}
