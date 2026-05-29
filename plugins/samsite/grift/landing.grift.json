@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e73f3-8a79-7448-97ab-c7a6bd70fece",
+        "entity_id": "019e73fe-b8f1-76ab-b789-12f3ac010a80",
         "entity_type": "batch",
-        "name": "Samsite landing v0.1.2",
+        "name": "Samsite landing v0.1.3",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite",
-        "name": "Samsite landing v0.1.2",
-        "description": "Landing page: cytoscape graph panel projecting the samsite-tagged AWS resources for account 180731181784. The aws_account container node is no longer minted here \u2014 the aws_core boto3 collector now synthesizes it (aws_account_singleton custom_fn, deterministic uuid5); the samsite multi-MATCH search's MATCH (account:aws_account) resolves against the collector-owned node. v0.1.2 bumps the batch_entity_id (was 019e714b-67c5-7349-9fa7-b28f4e9fece1) so already-seeded sessions re-apply the search-definition change that added MATCH (wh:web_host) + MATCH (wd:web_document) to the projection \u2014 the CISA web host and KEV catalog (seeded by kev-fetch.grift.json) now appear in the landing graph, so the deploy\u2192KEV fetch story renders. web_host/web_document carry no per-model tags field, so they are seeded by explicit per-label MATCHes rather than the tag scan, same as the GitHub lane. The skip-if-exists guard is batch-id-keyed, so the id must change for the edit to land on existing DBs."
+        "name": "Samsite landing v0.1.3",
+        "description": "Landing page: cytoscape graph panel projecting the samsite-tagged AWS resources for account 180731181784. The aws_account container node is no longer minted here \u2014 the aws_core boto3 collector now synthesizes it (aws_account_singleton custom_fn, deterministic uuid5); the samsite multi-MATCH search's MATCH (account:aws_account) resolves against the collector-owned node. v0.1.3 bumps the batch_entity_id (was 019e73f3-8a79-7448-97ab-c7a6bd70fece) so already-seeded sessions re-apply the search-definition change that added MATCH (u:user) \u2014 the three human actors seeded by users.grift.json (Readers, george, Sam) now appear in the landing graph. v0.1.2 had added MATCH (wh:web_host) + MATCH (wd:web_document) for the CISA web host and KEV catalog (kev-fetch.grift.json), so the deploy\u2192KEV fetch story renders. web_host/web_document/user all carry no per-model tags field, so they are reached by explicit per-label MATCHes rather than the Project=samsite tag scan, same as the GitHub lane. The skip-if-exists guard is batch-id-keyed, so the id must change for the edit to land on existing DBs."
       },
       "nodes": [
         {
@@ -42,6 +42,7 @@
                 "MATCH (oi:oidc_issuer)",
                 "MATCH (wh:web_host)",
                 "MATCH (wd:web_document)",
+                "MATCH (u:user)",
                 "MATCH (n)",
                 "WHERE n.data.tags.Project = \"samsite\""
               ]
