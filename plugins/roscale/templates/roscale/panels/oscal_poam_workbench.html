@@ -73,35 +73,9 @@
     </section>
   {% endif %}
 
-  {% if provenance %}
-    <section class="roscale-card roscale-provenance">
-      <h3>Artifact provenance</h3>
-      <dl class="roscale-kv">
-        <dt>Source URL</dt><dd>{% if provenance.source_url %}<a href="{{ provenance.source_url }}">{{ provenance.source_url }}</a>{% else %}(unknown){% endif %}</dd>
-        <dt>Fetched at</dt><dd>{{ provenance.fetched_at|default:"(unknown)" }}</dd>
-        <dt>Signature verified</dt><dd>{% if provenance.signature_verified is True %}yes{% elif provenance.signature_verified is False %}no{% else %}(unknown){% endif %}</dd>
-        <dt>Signed by</dt><dd>{{ provenance.signed_by|default:"(unknown)" }}</dd>
-        <dt>Rekor log index</dt><dd>{{ provenance.rekor_log_index|default:"(unknown)" }}</dd>
-      </dl>
-    </section>
-  {% endif %}
-
-  {% if metadata %}
-    <section class="roscale-card roscale-doc-metadata">
-      <h3>OSCAL POA&amp;M metadata</h3>
-      <dl class="roscale-kv">
-        <dt>Title</dt><dd>{{ metadata.title|default:"(none)" }}</dd>
-        <dt>OSCAL version</dt><dd>{{ metadata.oscal_version|default:"(none)" }}</dd>
-        <dt>Document version</dt><dd>{{ metadata.document_version|default:"(none)" }}</dd>
-        <dt>Published</dt><dd>{{ metadata.published|default:"(none)" }}</dd>
-        <dt>Last modified</dt><dd>{{ metadata.last_modified|default:"(none)" }}</dd>
-      </dl>
-    </section>
-  {% endif %}
-
   {% if headline_stats %}
     <section class="roscale-card roscale-headline-stats">
-      <h3>Headline stats</h3>
+      <h3>Headline Stats</h3>
       <div class="roscale-stat-grid">
         <div class="roscale-stat"><span class="roscale-stat-num">{{ headline_stats.total }}</span><span class="roscale-stat-label">POA&amp;M items</span></div>
         <div class="roscale-stat"><span class="roscale-stat-num">{{ headline_stats.open_count }}</span><span class="roscale-stat-label">open</span></div>
@@ -121,7 +95,7 @@
   {% if items_by_status %}
     <section class="roscale-card roscale-controls" data-roscale-poam>
       <div class="roscale-controls-header">
-        <h3>POA&amp;M register</h3>
+        <h3>POA&amp;M Register</h3>
         <div class="roscale-controls-toolbar">
           <input type="search"
                  class="roscale-controls-search"
@@ -132,7 +106,7 @@
         </div>
       </div>
       {% for grp in items_by_status %}
-        <details class="roscale-family" data-roscale-family>
+        <details class="roscale-family" data-roscale-family{% if grp.status == "open" or grp.status == "risk-accepted" %} open{% endif %}>
           <summary>
             <span class="roscale-family-name">{{ grp.label }}</span>
             <span class="roscale-family-count">{{ grp.count }} item{{ grp.count|pluralize }}</span>
@@ -242,6 +216,32 @@
         input.addEventListener("input", applyFilter);
       })();
       </script>
+    </section>
+  {% endif %}
+
+  {% if metadata %}
+    <section class="roscale-card roscale-doc-metadata">
+      <h3>OSCAL POA&amp;M Metadata</h3>
+      <dl class="roscale-kv">
+        <dt>Title</dt><dd>{{ metadata.title|default:"(none)" }}</dd>
+        <dt>OSCAL version</dt><dd>{{ metadata.oscal_version|default:"(none)" }}</dd>
+        <dt>Document version</dt><dd>{{ metadata.document_version|default:"(none)" }}</dd>
+        <dt>Published</dt><dd>{{ metadata.published|default:"(none)" }}</dd>
+        <dt>Last modified</dt><dd>{{ metadata.last_modified|default:"(none)" }}</dd>
+      </dl>
+    </section>
+  {% endif %}
+
+  {% if provenance %}
+    <section class="roscale-card roscale-provenance">
+      <h3>Artifact Provenance</h3>
+      <dl class="roscale-kv">
+        <dt>Source URL</dt><dd>{% if provenance.source_url %}<a href="{{ provenance.source_url }}">{{ provenance.source_url }}</a>{% else %}(unknown){% endif %}</dd>
+        <dt>Fetched at</dt><dd>{{ provenance.fetched_at|default:"(unknown)" }}</dd>
+        <dt>Signature verified</dt><dd>{% if provenance.signature_verified is True %}yes{% elif provenance.signature_verified is False %}no{% else %}(unknown){% endif %}</dd>
+        <dt>Signed by</dt><dd>{{ provenance.signed_by|default:"(unknown)" }}</dd>
+        <dt>Rekor log index</dt><dd>{{ provenance.rekor_log_index|default:"(unknown)" }}</dd>
+      </dl>
     </section>
   {% endif %}
 
