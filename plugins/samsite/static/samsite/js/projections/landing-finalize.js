@@ -247,7 +247,7 @@ export async function execute(context) {
             const startY = websiteCenterY - (ARTIFACT_STEP * (files.length - 1)) / 2;
             alignDistributeHorizontal(cy, {
                 members: files,
-                anchor: {x: websiteBB.x2 + 90, y: startY},
+                anchor: {x: websiteBB.x2 + 40, y: startY},
                 gap: 26,
                 step: ARTIFACT_STEP,
                 stepFrom: "left",  // left card is highest; each one to the right drops a step
