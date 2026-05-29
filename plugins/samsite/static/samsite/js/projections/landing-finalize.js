@@ -310,20 +310,27 @@ export async function execute(context) {
     //    system they relate to.
 
     // github_app (Dependabot) + the oidc_issuer (token.actions.githubusercontent.com)
-    // → inside the github.com PLATFORM box, NOT the repo. Both are github.com-level
-    // services. No service→platform edge exists for a nesting rule and the resolver
-    // is single-hop, so parent them to the platform compound directly here, in a
-    // row above the repo content so the box wraps them at the top. The issuer sits
-    // to the LEFT (toward the AWS provider its TRUSTS_ISSUER edge points at).
+    // → github.com BACK-END SERVICES: nested inside the platform box in a row BELOW
+    // the notgeorge account + its repo (the user-facing front; these two sit beneath
+    // it). No service→account edge exists for a nesting rule and the resolver is
+    // single-hop, so parent them to the platform compound directly — the box grows
+    // down to wrap them under the account. The issuer is on the LEFT, closest to the
+    // box edge, so its TRUSTS_ISSUER hop across to the AWS account and the up-hop to
+    // Sigstore stay short.
     const platform = cy.nodes('[entity_type="github_platform"]').first();
     if (platform.nonempty()) {
-        const appRowY = wfBB.y1 - 150;
+        // Anchor below the notgeorge account compound (which wraps repo + workflows);
+        // fall back to the workflow row if the account isn't on the board.
+        const account = cy.nodes('[entity_type="github_account"]').first();
+        const frontBB = account.nonempty() ? account.boundingBox() : wfBB;
+        const appRowY = frontBB.y2 + 80;
+        const leftX = frontBB.x1 + 30;
         cy.nodes('[entity_type="oidc_issuer"]').forEach((n) => {
-            n.position({x: ghCenterX - WF_GAP, y: appRowY});
+            n.position({x: leftX, y: appRowY});
             n.move({parent: platform.id()});
         });
         cy.nodes('[entity_type="github_app"]').forEach((a, i) => {
-            a.position({x: ghCenterX + i * WF_GAP, y: appRowY});
+            a.position({x: leftX + (i + 1) * WF_GAP, y: appRowY});
             a.move({parent: platform.id()});
         });
     }
