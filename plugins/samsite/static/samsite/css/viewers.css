@@ -58,6 +58,10 @@
 .ss-stat-toggle.is-active::after { background: #3b82f6; border-color: #3b82f6; }
 .ss-stat-clear { cursor: pointer; }
 .ss-stat-clear:hover { border-color: #94a3b8; background: #f1f5f9; }
+/* A zero-count toggle filters to nothing, so it's inert: no dot, no hover, no pointer. */
+.ss-stat-toggle.is-empty { cursor: default; }
+.ss-stat-toggle.is-empty::after { display: none; }
+.ss-stat-toggle.is-empty:hover { border-color: #e2e8f0; background: #f8fafc; }
 .ss-hint { font-size: 0.66rem; font-weight: 500; text-transform: none; letter-spacing: 0; color: #94a3b8; }
 
 .ss-fallback { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.5rem 0.85rem; font-size: 0.82rem; color: #1e40af; }

@@ -28,10 +28,10 @@
     <h3>Headline Stats <span class="ss-hint">· tap a filter box to down-select</span></h3>
     <div class="ss-stat-grid">
       <div class="ss-stat ss-stat-clear" data-ss-facet-clear title="Clear all filters"><span class="ss-stat-num">{{ headline.total }}</span><span class="ss-stat-label">findings</span></div>
-      <div class="ss-stat ss-stat-toggle" data-ss-facet="kev" data-ss-facet-field="is_kev" data-ss-facet-type="bool"><span class="ss-stat-num">{{ headline.kev }}</span><span class="ss-stat-label">KEV</span></div>
-      <div class="ss-stat ss-stat-toggle" data-ss-facet="blocking" data-ss-facet-field="is_blocking" data-ss-facet-type="bool"><span class="ss-stat-num">{{ headline.blocking }}</span><span class="ss-stat-label">blocking</span></div>
-      <div class="ss-stat ss-stat-toggle" data-ss-facet="net" data-ss-facet-field="internet_reachable" data-ss-facet-type="bool"><span class="ss-stat-num">{{ headline.internet_reachable }}</span><span class="ss-stat-label">internet-reachable</span></div>
-      <div class="ss-stat ss-stat-toggle" data-ss-facet="risk" data-ss-facet-field="disposition" data-ss-facet-type="eq" data-ss-facet-value="risk-accepted"><span class="ss-stat-num">{{ headline.risk_accepted }}</span><span class="ss-stat-label">risk-accepted</span></div>
+      <div class="ss-stat ss-stat-toggle{% if not headline.kev %} is-empty{% endif %}" data-ss-facet="kev" data-ss-facet-field="is_kev" data-ss-facet-type="bool"><span class="ss-stat-num">{{ headline.kev }}</span><span class="ss-stat-label">KEV</span></div>
+      <div class="ss-stat ss-stat-toggle{% if not headline.blocking %} is-empty{% endif %}" data-ss-facet="blocking" data-ss-facet-field="is_blocking" data-ss-facet-type="bool"><span class="ss-stat-num">{{ headline.blocking }}</span><span class="ss-stat-label">blocking</span></div>
+      <div class="ss-stat ss-stat-toggle{% if not headline.internet_reachable %} is-empty{% endif %}" data-ss-facet="net" data-ss-facet-field="internet_reachable" data-ss-facet-type="bool"><span class="ss-stat-num">{{ headline.internet_reachable }}</span><span class="ss-stat-label">internet-reachable</span></div>
+      <div class="ss-stat ss-stat-toggle{% if not headline.risk_accepted %} is-empty{% endif %}" data-ss-facet="risk" data-ss-facet-field="disposition" data-ss-facet-type="eq" data-ss-facet-value="risk-accepted"><span class="ss-stat-num">{{ headline.risk_accepted }}</span><span class="ss-stat-label">risk-accepted</span></div>
     </div>
   </section>
 
@@ -88,7 +88,7 @@
     var panelId = root.getAttribute("data-ss-facets");
     var mountSel = "#tap-table-mount-" + panelId;
     var TEXT_FIELDS = ["title", "resource", "source", "cve", "disposition", "pain"];
-    var cards = root.querySelectorAll("[data-ss-facet]");
+    var cards = root.querySelectorAll("[data-ss-facet]:not(.is-empty)");  // zero-count facets are inert
     var clears = root.querySelectorAll("[data-ss-facet-clear]");
     var input = root.querySelector("[data-ss-facet-filter]");
     var active = {};  // key -> {field, type, value}
