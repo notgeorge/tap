@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019dd143-3e8f-73e4-b0fa-e798d18f1b2e",
+        "entity_id": "019e7162-de7e-71bd-bb0a-207988b17f73",
         "entity_type": "batch",
-        "name": "Entity viewer/editor pages v0.1.0",
+        "name": "Entity viewer/editor pages v0.1.1",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.administrivia",
-        "name": "Entity viewer/editor pages v0.1.0",
-        "description": "GRIFT-defined entity viewer and editor pages with graph, viewer, flip, and editor panels."
+        "name": "Entity viewer/editor pages v0.1.1",
+        "description": "GRIFT-defined entity viewer and editor pages with graph, viewer, flip, and editor panels. v0.1.1 marks the /__entity-viewer and /__entity-editor pages discoverable:false so they stop appearing in the command palette / nav index (they are reached programmatically via click-through, not direct navigation); bumps the batch_entity_id so already-seeded sessions re-apply (skip-guard is batch-id-keyed)."
       },
       "nodes": [
         {
@@ -131,6 +131,7 @@
           "node": {
             "name": "Entity Viewer",
             "slug": "/__entity-viewer",
+            "discoverable": false,
             "layout": {
               "columns": {
                 "col-1": {
@@ -155,6 +156,7 @@
           "node": {
             "name": "Entity Editor",
             "slug": "/__entity-editor",
+            "discoverable": false,
             "layout": {
               "columns": {
                 "col-1": {
