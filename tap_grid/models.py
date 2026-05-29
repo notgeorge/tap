@@ -1149,3 +1149,110 @@ class BatchEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} on {self.entity_type}:{self.entity_id}"
+
+
+# ---------------------------------------------------------------------------
+# Keystone — instance/grid self-description
+# ---------------------------------------------------------------------------
+
+
+class Keystone(BaseModel):
+    """Instance/grid self-description: what this TAP instance is, what it's for,
+    where it came from, and where to start.
+
+    A keystone is the node a human or agent reads to understand the instance
+    instead of being told. It is *self-describing*: it ships its context data
+    (``context_json``) together with the JSON Schema that defines and documents
+    that data (``context_schema_json``), so a reader gets both the values and
+    their meaning from a single node. The creator owns the context shape; the
+    platform owns only this envelope.
+
+    Spine-resident infrastructure entity type (alongside edge/dimension/search/
+    batch) so instance context is plugin-independent and never de-registerable.
+
+    Spec: tap_grid/specs/spec-grid-keystone.md
+    """
+
+    ENTITY_TYPE: ClassVar[str] = "keystone"
+    ENTITY_NAME: ClassVar[str] = "Keystone"
+    ENTITY_DESCRIPTION: ClassVar[str] = (
+        "Instance self-description: what this grid models, what it's for, and where it came from."
+    )
+    ENTITY_ICON: ClassVar[str] = "keystone"
+    DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.meta": "keystone"}
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "round-rectangle",
+            "colors": {"fill": "#C9A227", "border": "#8A6D1B", "label": "#1E1500"},
+        }
+    }
+
+    FIELD_CRUD_SCHEMA: ClassVar[dict[str, dict]] = {
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "context_json": {"type": "object"},
+        "context_schema_json": {"type": "object"},
+    }
+
+    FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {
+        "name": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}},
+        "description": {"validation": "jsonschema", "schema": {"type": "string"}},
+        "context_json": {"validation": "jsonschema", "schema": {"type": "object"}},
+        "context_schema_json": {"validation": "jsonschema", "schema": {"type": "object"}},
+    }
+
+    CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    context_json = models.JSONField(default=dict, blank=True)
+    context_schema_json = models.JSONField(default=dict, blank=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "grid_keystone"
+
+    def get_name(self) -> str:
+        return self.name
+
+    def __str__(self) -> str:
+        return self.name
+
+    def validate(self) -> None:
+        """Self-describing-context contract (req-grid-keystone-validation).
+
+        1. context present  ⇒ a context schema is required.
+        2. schema present    ⇒ it must be a valid JSON Schema.
+        3. schema present    ⇒ context_json must conform to it.
+
+        Runs through the whole-record hook, so it fires on every service-layer /
+        GRIFT write — fail loud, no silent bad context.
+        """
+        context = self.context_json or {}
+        schema = self.context_schema_json or {}
+
+        if context and not schema:
+            raise ValidationError(
+                {
+                    "context_schema_json": [
+                        "context_json is present but context_schema_json is empty; a keystone must "
+                        "ship the JSON Schema that describes its context."
+                    ]
+                }
+            )
+
+        if not schema:
+            return
+
+        try:
+            jsonschema.Draft202012Validator.check_schema(schema)
+        except jsonschema.SchemaError as exc:
+            raise ValidationError(
+                {"context_schema_json": [f"is not a valid JSON Schema: {exc.message}"]}
+            ) from exc
+
+        try:
+            jsonschema.validate(instance=context, schema=schema)
+        except jsonschema.ValidationError as exc:
+            raise ValidationError(
+                {"context_json": [f"does not conform to context_schema_json: {exc.message}"]}
+            ) from exc

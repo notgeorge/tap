@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019dd143-3e8f-73e4-b0fa-e6948cd774c7",
+        "entity_id": "019e7592-0ee9-722c-b208-59b6607bc283",
         "entity_type": "batch",
         "name": "FedRAMP 20x KSI compliance page v0.1.0",
         "dimensions": {}
@@ -67,6 +67,7 @@
           "node": {
             "name": "FedRAMP 20x Key Security Indicators",
             "slug": "/fedramp-ksi",
+            "discoverable": false,
             "layout": {
               "columns": {
                 "col-1": {

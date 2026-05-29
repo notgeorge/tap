@@ -1098,6 +1098,21 @@ def _validate_document_schema(document: dict[str, Any], issues: list[GriftIssue]
         return False
 
 
+def validate_grift_document(document: dict[str, Any]) -> list[GriftIssue]:
+    """Validate a parsed GRIFT document against the GRIFT JSON Schema, without
+    touching the database.
+
+    Returns the list of issues; an empty list means the document is structurally
+    valid. This is the public pre-flight / dry-run validation surface — the same
+    document-schema check the real importer runs (single source of truth). It is
+    structural only: per-record model validation (``full_validate``) runs against
+    the database during a real import and is therefore out of scope here.
+    """
+    issues: list[GriftIssue] = []
+    _validate_document_schema(document, issues)
+    return issues
+
+
 def _run_preflight(
     document: dict[str, Any],
     *,
@@ -2474,13 +2489,13 @@ def _execute_grift_batch(
                 any_failure = False
                 # write_batch returns `results` truncated at the first failing op
                 # (services.py raises _BailOut on per-op failure), so results may
-                # be shorter than op_meta. zip() without strict= silently stops at
+                # be shorter than op_meta. zip(strict=False) deliberately stops at
                 # the shorter iterator, which is the right behavior: the user has
                 # already seen the failing op's per-op errors and trailing ops
                 # never executed. strict=True here surfaced as a confusing
                 # `zip() argument 2 is longer than argument 1` traceback on top
                 # of the real per-op error.
-                for op_result, meta in zip(batch_result.results, op_meta):
+                for op_result, meta in zip(batch_result.results, op_meta, strict=False):
                     if op_result.success:
                         if meta["kind"] == "node":
                             nodes_imported += 1

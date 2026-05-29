@@ -1698,3 +1698,29 @@ class TestGriftRemovalTargetSchemaOCC:
         result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
         assert not result.success
         assert any(e.code == "schema_validation_failed" for e in result.errors)
+
+
+# ---------------------------------------------------------------------------
+# Dry-run / pre-flight document validation (validate_grift_document)
+#
+# Regression: import_plugin_grift --dry-run was born broken (commit d76ad85)
+# — it imported a never-defined GRIFT_DOCUMENT_SCHEMA, so every dry-run threw
+# ImportError. No caller, no test, so it rotted silently. These guard the
+# public validation surface the command now uses.
+# ---------------------------------------------------------------------------
+
+
+def test_validate_grift_document_accepts_minimal_valid_doc():
+    from tap_grid.grift import validate_grift_document
+
+    assert validate_grift_document(_minimal_doc()) == []
+
+
+def test_validate_grift_document_flags_structural_error():
+    from tap_grid.grift import validate_grift_document
+
+    # `deletes` must be an object, not a list — the exact shape that slipped
+    # past the (broken) dry-run and was only caught on real import.
+    issues = validate_grift_document(_minimal_doc([{"deletes": []}]))
+    assert issues, "expected a schema validation issue for a malformed batch"
+    assert all(i.phase == "schema" for i in issues)

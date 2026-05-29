@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e7102-7e73-7530-87b0-ee57ec921c68",
+        "entity_id": "019e7592-0ee9-722c-b208-59b5f5b4a651",
         "entity_type": "batch",
         "name": "Samsite Compliance landing v1.2 \u2014 KSI Components grouping + compact C/I/A + public dash",
         "dimensions": {}
@@ -21,14 +21,15 @@
           "entity": {
             "entity_id": "019e5502-cee6-744a-93b2-9599032cb55d",
             "entity_type": "page",
-            "name": "Samsite Compliance",
+            "name": "Compliance",
             "dimensions": {
               "tap.graph": "web"
             }
           },
           "node": {
-            "name": "Samsite Compliance",
+            "name": "Compliance",
             "slug": "/samsite/compliance",
+            "discoverable": false,
             "layout": {
               "columns": {
                 "col-1": {
@@ -75,11 +76,11 @@
           "entity": {
             "entity_id": "019e5502-cee6-744a-93b2-958b9a924ac8",
             "entity_type": "search",
-            "name": "KSI Signal emissions",
+            "name": "KSI Signal Emissions",
             "dimensions": {}
           },
           "node": {
-            "name": "KSI Signal emissions",
+            "name": "KSI Signal Emissions",
             "description": "Every KSI signal emission on the grid \u2014 one per fedramp-20x KSI document the collector has ingested.",
             "search_type": "gryphon",
             "root": "node",
@@ -208,14 +209,14 @@
           "entity": {
             "entity_id": "019e5502-cee6-744a-93b2-959208090e06",
             "entity_type": "panel",
-            "name": "KSI Signal emissions",
+            "name": "KSI Signal Emissions",
             "dimensions": {
               "tap.graph": "web"
             }
           },
           "node": {
             "slug": "samsite-compliance-ksi-signals",
-            "name": "KSI Signal emissions",
+            "name": "KSI Signal Emissions",
             "view": "tap_web/panels/table_panel.html",
             "config": {
               "column_mode": "common_metadata",
@@ -627,12 +628,16 @@
             "config": {
               "column_mode": "common_metadata",
               "default_page_size": 25,
+              "group_by": {
+                "field": "data.kind",
+                "rules": [
+                  { "prefix": "iiw", "label": "IIW" },
+                  { "prefix": "oscal_poam", "label": "POA&M" },
+                  { "prefix": "oscal_ssp", "label": "SSP" }
+                ],
+                "default_label": "Other"
+              },
               "columns": [
-                {
-                  "field": "data.kind",
-                  "title": "Kind",
-                  "width": 130
-                },
                 {
                   "field": "data.source_url",
                   "title": "Source URL",

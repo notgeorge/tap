@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e6fbe-affa-7540-8d00-a8e12b1a7e7a",
+        "entity_id": "019e7592-0ee9-722c-b208-59b7ebd14a41",
         "entity_type": "batch",
         "name": "fedramp_20x_ksi findings page v0.1.1 \u2014 single global WHERE fix",
         "dimensions": {}
@@ -84,6 +84,7 @@
           "node": {
             "name": "Findings",
             "slug": "/fedramp-ksi/findings",
+            "discoverable": false,
             "layout": {
               "columns": {
                 "col-1": {

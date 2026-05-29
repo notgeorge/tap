@@ -106,9 +106,9 @@ class Command(BaseCommand):
         purge = options["purge"]
         lint = options["lint"]
 
-        force_batches: list[str] = [
-            b.strip() for b in force_batches_raw.split(",") if b.strip()
-        ] if force_batches_raw else []
+        force_batches: list[str] = (
+            [b.strip() for b in force_batches_raw.split(",") if b.strip()] if force_batches_raw else []
+        )
 
         # Fail fast with operator-friendly errors before touching any files.
         if (force_batches or purge) and not getattr(settings, "DEBUG", False):
@@ -118,13 +118,9 @@ class Command(BaseCommand):
                 "req-grid-import-grift-sweep-purge — refusing the invocation."
             )
         if purge and not force_batches:
-            raise CommandError(
-                "--purge requires --force-batches; name the batches to purge explicitly."
-            )
+            raise CommandError("--purge requires --force-batches; name the batches to purge explicitly.")
         if sweep_strict and not force_batches:
-            raise CommandError(
-                "--sweep-strict requires --force-batches; it only affects sweeps on force re-import."
-            )
+            raise CommandError("--sweep-strict requires --force-batches; it only affects sweeps on force re-import.")
 
         plugin_configs = self._resolve_plugins(all_plugins, plugin_slugs)
 
@@ -154,7 +150,9 @@ class Command(BaseCommand):
 
         for config in plugin_configs:
             imported, errors = self._import_plugin(
-                config, bundle_name, dry_run,
+                config,
+                bundle_name,
+                dry_run,
                 force_batches=force_batches,
                 sweep_strict=sweep_strict,
                 purge=purge,
@@ -168,8 +166,7 @@ class Command(BaseCommand):
             # fire its failure trap) instead of silently leaving the session
             # in a partially-seeded state.
             raise CommandError(
-                f"Completed with {total_errors} error(s); "
-                f"{total_imported} bundle(s) imported successfully."
+                f"Completed with {total_errors} error(s); " f"{total_imported} bundle(s) imported successfully."
             )
         self.stdout.write(self.style.SUCCESS(f"Done. {total_imported} bundle(s) imported."))
 
@@ -243,8 +240,10 @@ class Command(BaseCommand):
                 continue
 
             if dry_run:
-                self._dry_run_bundle(manifest.slug, bundle.name, document)
-                imported += 1
+                if self._dry_run_bundle(manifest.slug, bundle.name, document):
+                    imported += 1
+                else:
+                    errors += 1
                 continue
 
             result = self._run_import(
@@ -281,17 +280,20 @@ class Command(BaseCommand):
             purge=purge,
         )
 
-    def _dry_run_bundle(self, plugin_slug: str, bundle_name: str, document: dict) -> None:
-        """Validate a GRIFT document without writing to the database."""
-        import jsonschema
+    def _dry_run_bundle(self, plugin_slug: str, bundle_name: str, document: dict) -> bool:
+        """Validate a GRIFT document against the GRIFT schema without writing.
 
-        from tap_grid.grift import GRIFT_DOCUMENT_SCHEMA
+        Uses the importer's own document-schema validation (single source of
+        truth) — structural only; per-record model validation runs against the
+        DB on a real import. Returns True iff the document is valid.
+        """
+        from tap_grid.grift import validate_grift_document
 
-        try:
-            jsonschema.validate(document, GRIFT_DOCUMENT_SCHEMA)
-        except jsonschema.ValidationError as exc:
-            self.stderr.write(self.style.ERROR(f"    [{plugin_slug}/{bundle_name}] Schema error: {exc.message}"))
-            return
+        issues = validate_grift_document(document)
+        if issues:
+            for issue in issues:
+                self.stderr.write(self.style.ERROR(f"    [{plugin_slug}/{bundle_name}] {issue.path}: {issue.message}"))
+            return False
 
         batch_count = len(document.get("batches", []))
         node_count = sum(len(b.get("nodes", [])) for b in document.get("batches", []))
@@ -302,6 +304,7 @@ class Command(BaseCommand):
                 f"{batch_count} batch(es), {node_count} node(s), {edge_count} edge(s)."
             )
         )
+        return True
 
     def _report_result(self, plugin_slug: str, bundle_name: str, result) -> None:
         counts = result.counts
@@ -314,7 +317,11 @@ class Command(BaseCommand):
                     f"{counts.batches_imported} batch(es), "
                     f"{counts.nodes_imported} node(s), "
                     f"{counts.edges_imported} edge(s) imported"
-                    + (f", {counts.batches_force_reimported} force-reimported" if counts.batches_force_reimported else "")
+                    + (
+                        f", {counts.batches_force_reimported} force-reimported"
+                        if counts.batches_force_reimported
+                        else ""
+                    )
                     + (f", {counts.entities_swept} swept" if counts.entities_swept else "")
                     + (f" ({counts.entities_purged} purged)" if counts.entities_purged else "")
                     + (f", {counts.sweep_skipped} sweep skip(s)" if counts.sweep_skipped else "")
@@ -331,9 +338,7 @@ class Command(BaseCommand):
             for batch_summary in result.imported_batches:
                 for u in batch_summary.upserted_entities:
                     name_part = f" '{u.name}'" if u.name else ""
-                    self.stdout.write(
-                        f"      [upsert] {u.kind} {u.entity_type} {u.entity_id}{name_part}"
-                    )
+                    self.stdout.write(f"      [upsert] {u.kind} {u.entity_type} {u.entity_id}{name_part}")
             # Skipped-batch visibility: when a batch is skipped because its
             # batch_entity_id already exists, surface it explicitly so the
             # developer can decide whether --force-batches is warranted.
@@ -381,53 +386,65 @@ class Command(BaseCommand):
                     with open(grift_path) as fh:
                         document = json.load(fh)
                 except (OSError, json.JSONDecodeError) as exc:
-                    self.stderr.write(self.style.ERROR(
-                        f"  [{manifest.slug}/{bundle.name}] Failed to read: {exc}"
-                    ))
+                    self.stderr.write(self.style.ERROR(f"  [{manifest.slug}/{bundle.name}] Failed to read: {exc}"))
                     continue
 
                 for batch_idx, batch in enumerate(document.get("batches", [])):
                     bep = batch.get("batch_entity", {})
                     self._lint_record(
-                        seen, bep.get("entity_id"), bep.get("entity_type", "batch"),
-                        bep.get("name"), manifest.slug, bundle.name,
+                        seen,
+                        bep.get("entity_id"),
+                        bep.get("entity_type", "batch"),
+                        bep.get("name"),
+                        manifest.slug,
+                        bundle.name,
                         f"$.batches[{batch_idx}].batch_entity",
                     )
                     for n_idx, node_obj in enumerate(batch.get("nodes", [])):
                         env = node_obj.get("entity", {})
                         self._lint_record(
-                            seen, env.get("entity_id"), env.get("entity_type"),
-                            env.get("name"), manifest.slug, bundle.name,
+                            seen,
+                            env.get("entity_id"),
+                            env.get("entity_type"),
+                            env.get("name"),
+                            manifest.slug,
+                            bundle.name,
                             f"$.batches[{batch_idx}].nodes[{n_idx}]",
                         )
                     for e_idx, edge_obj in enumerate(batch.get("edges", [])):
                         env = edge_obj.get("entity", {})
                         self._lint_record(
-                            seen, env.get("entity_id"), env.get("entity_type", "edge"),
-                            env.get("name"), manifest.slug, bundle.name,
+                            seen,
+                            env.get("entity_id"),
+                            env.get("entity_type", "edge"),
+                            env.get("name"),
+                            manifest.slug,
+                            bundle.name,
                             f"$.batches[{batch_idx}].edges[{e_idx}]",
                         )
 
         # Report duplicates.
         duplicates = {eid: sites for eid, sites in seen.items() if len(sites) > 1}
         if not duplicates:
-            self.stdout.write(self.style.SUCCESS(
-                f"Lint OK — scanned {sum(1 for _ in seen)} unique entity_id(s) across selected bundles; no duplicates."
-            ))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Lint OK — scanned {sum(1 for _ in seen)} unique entity_id(s) across selected bundles; no duplicates."
+                )
+            )
             return True
 
-        self.stderr.write(self.style.WARNING(
-            f"Lint found {len(duplicates)} entity_id(s) declared in more than one place. "
-            f"Last-declared wins per req-grid-import-grift-ordering; confirm this is intentional."
-        ))
+        self.stderr.write(
+            self.style.WARNING(
+                f"Lint found {len(duplicates)} entity_id(s) declared in more than one place. "
+                f"Last-declared wins per req-grid-import-grift-ordering; confirm this is intentional."
+            )
+        )
         for eid, sites in duplicates.items():
             etype = sites[0].get("entity_type") or "?"
             self.stderr.write(f"\n  {etype} {eid}")
             for site in sites:
                 name_part = f" ('{site['name']}')" if site.get("name") else ""
-                self.stderr.write(
-                    f"    - {site['plugin']}/{site['bundle']} at {site['path']}{name_part}"
-                )
+                self.stderr.write(f"    - {site['plugin']}/{site['bundle']} at {site['path']}{name_part}")
         return False
 
     @staticmethod
@@ -442,10 +459,12 @@ class Command(BaseCommand):
     ) -> None:
         if not entity_id:
             return
-        seen.setdefault(entity_id, []).append({
-            "entity_type": entity_type,
-            "name": name,
-            "plugin": plugin,
-            "bundle": bundle,
-            "path": path,
-        })
+        seen.setdefault(entity_id, []).append(
+            {
+                "entity_type": entity_type,
+                "name": name,
+                "plugin": plugin,
+                "bundle": bundle,
+                "path": path,
+            }
+        )

@@ -1,5 +1,11 @@
 # TAP Development Guide 
 
+Instance context (keystone — read before asking)
+    To learn what THIS instance is, what it's for, or where its data came from, read the keystone(s)
+    on the grid before asking the user: `MATCH (k:keystone) RETURN k ORDER BY k.created_at ASC` and
+    read the OLDEST first (foundational context; newer ones layer on). Each keystone ships human prose
+    plus context_json + the JSON Schema documenting it (context_schema_json). Spec: tap_grid/specs/spec-grid-keystone.md.
+
 Roadmap (on-path authority)
     Before planning or implementing substantial work, read the active step in plan/road-rampart.md
     (the Rampart roadmap, governed by specs/spec-roadmap.md). Judge the work against that step's

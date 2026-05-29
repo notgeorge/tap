@@ -6,9 +6,9 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e6ea5-a23a-70ea-96b9-821e26fbcc13",
+        "entity_id": "019e7592-0ee9-722c-b208-59b82a8742b5",
         "entity_type": "batch",
-        "name": "GitHub Core Repo Landing Page v0.1.0",
+        "name": "GitHub Core Repo Landing Page v0.2.0 — nestled at /samsite/repo",
         "dimensions": {}
       },
       "batch_node": {
@@ -21,12 +21,13 @@
           "entity": {
             "entity_id": "019e6ea5-a23a-70ea-96b9-821f9a1f53ea",
             "entity_type": "page",
-            "name": "GitHub Core — Repository",
+            "name": "Repository",
             "dimensions": {"tap.graph": "web"}
           },
           "node": {
-            "name": "GitHub Core — Repository",
-            "slug": "/github_core/repo",
+            "name": "Repository",
+            "slug": "/samsite/repo",
+            "nav_weight": 70,
             "layout": {
               "columns": {
                 "col-1": {
