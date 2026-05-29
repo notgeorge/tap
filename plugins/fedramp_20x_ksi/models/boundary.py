@@ -31,7 +31,9 @@ class Boundary(BaseModel):
         "components in scope for a single ATO. Components link to it "
         "via the SCOPED_TO_BOUNDARY edge."
     )
-    ENTITY_ICON: ClassVar[str] = "boundary"
+    # No type icon: the red box from DEFAULT_DISPLAY is sufficient to read the
+    # boundary on the graph, and the icon badge added visual noise.
+    ENTITY_ICON: ClassVar[str] = ""
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"compliance": "boundary"}
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
