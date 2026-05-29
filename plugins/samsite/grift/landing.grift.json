@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e744d-6317-73a0-a328-ef7589e4b19c",
+        "entity_id": "019e746f-f3b1-73b2-b5e8-ee7fcb84fd4f",
         "entity_type": "batch",
-        "name": "Samsite landing v0.1.5",
+        "name": "Samsite landing v0.1.6",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite",
-        "name": "Samsite landing v0.1.5",
-        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.5 is the merge of two parallel lines onto one batch: (a) the signed /.well-known/ artifacts on the board \u2014 the seed search matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind and styles them as file cards; (b) the deploy\u2192KEV-fetch + human-actor story \u2014 the search also matches web_host / web_document (CISA host + KEV catalog, kev-fetch.grift.json) and user (the three actors Readers / george / Sam, users.grift.json). web_host / web_document / user / the compliance file types carry no per-model tags, so they are reached by explicit per-label MATCHes (like the GitHub lane), not the Project=samsite tag scan. Fresh batch_entity_id (supersedes both 019e73fb-... and 019e73fe-...) so any session seeded from either parent re-applies the combined search; the skip-if-exists guard is batch-id-keyed. The Rekor entries collapse into a stack (tap_viz stack primitive) in landing-finalize.js."
+        "name": "Samsite landing v0.1.6",
+        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.5 is the merge of two parallel lines onto one batch: (a) the signed /.well-known/ artifacts on the board \u2014 the seed search matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind and styles them as file cards; (b) the deploy\u2192KEV-fetch + human-actor story \u2014 the search also matches web_host / web_document (CISA host + KEV catalog, kev-fetch.grift.json) and user (the three actors Readers / george / Sam, users.grift.json). web_host / web_document / user / the compliance file types carry no per-model tags, so they are reached by explicit per-label MATCHes (like the GitHub lane), not the Project=samsite tag scan. Fresh batch_entity_id (supersedes both 019e73fb-... and 019e73fe-...) so any session seeded from either parent re-applies the combined search; the skip-if-exists guard is batch-id-keyed. The Rekor entries collapse into a stack (tap_viz stack primitive) in landing-finalize.js. v0.1.6 adds MATCH (gapp:github_app) so the Dependabot github_app (reclassified from a workflow by the collector) renders — the finalize pass parents it to the github.com platform compound."
       },
       "nodes": [
         {
@@ -37,6 +37,7 @@
                 "MATCH (ga:github_account)",
                 "MATCH (gr:github_repository)",
                 "MATCH (gw:github_workflow)",
+                "MATCH (gapp:github_app)",
                 "MATCH (re:rekor_log_entry)",
                 "MATCH (ca:sigstore_ca)",
                 "MATCH (oi:oidc_issuer)",

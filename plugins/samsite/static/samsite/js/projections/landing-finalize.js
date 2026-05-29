@@ -270,19 +270,25 @@ export async function execute(context) {
         });
     }
 
-    // Human actors — anchored to the parts of the system they touch.
+    // Human actors — anchored OUTSIDE the boundary they work on, at a consistent
+    // gap (the "outside but still working on it" distance). Sam sits OUTSIDE_GAP
+    // right of the github.com box; Readers / george sit the same gap outside the
+    // FedRAMP boundary, aligned with the system part they touch.
+    const OUTSIDE_GAP = 130;
     const userByName = (re) => cy.nodes('[entity_type="user"]').filter((n) => re.test(n.data("label") || ""));
-    // Readers → directly to the left of the CloudFront CDN.
+    const boundary = cy.nodes('[entity_type="boundary"]').first();
+    const bndBB = boundary.nonempty() ? boundary.boundingBox() : null;
+    // Readers → left of the boundary, level with the CloudFront CDN they read from.
     const cf = cy.nodes('[entity_type="aws_cloudfront_distribution"]').first();
-    if (cf.nonempty()) userByName(/reader/i).forEach((n) => n.position({x: cf.position("x") - 170, y: cf.position("y")}));
-    // george → directly underneath the bootstrap tfstate S3 bucket.
+    if (cf.nonempty() && bndBB) userByName(/reader/i).forEach((n) => n.position({x: bndBB.x1 - OUTSIDE_GAP, y: cf.position("y")}));
+    // george → below the boundary, under the bootstrap tfstate S3 bucket he manages.
     const tfstate = cy.nodes('[entity_type="aws_s3_bucket"]')
         .filter((n) => (n.data("tags") || {}).Component === "bootstrap").first();
-    if (tfstate.nonempty()) userByName(/george/i).forEach((n) => n.position({x: tfstate.position("x"), y: tfstate.position("y") + 110}));
-    // Sam → to the right of the github.com box (recompute its bbox now the app is inside).
+    if (tfstate.nonempty() && bndBB) userByName(/george/i).forEach((n) => n.position({x: tfstate.position("x"), y: bndBB.y2 + OUTSIDE_GAP}));
+    // Sam → right of the github.com box (recompute its bbox now the app is inside).
     if (platform.nonempty()) {
         const ghBB = platform.boundingBox();
-        userByName(/sam/i).forEach((n) => n.position({x: ghBB.x2 + 130, y: (ghBB.y1 + ghBB.y2) / 2}));
+        userByName(/sam/i).forEach((n) => n.position({x: ghBB.x2 + OUTSIDE_GAP, y: (ghBB.y1 + ghBB.y2) / 2}));
     }
 
     // CISA (web_host) contains the KEV catalog (web_document, nested via the
