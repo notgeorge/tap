@@ -30,7 +30,8 @@
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    white-space: nowrap;
+    /* Headers wrap so they don't force the table wider than the panel; the
+     * table fits without a horizontal scrollbar. */
 }
 .tap-cares-schedules__table tbody td {
     padding: 8px 10px;
@@ -62,14 +63,14 @@
 
 /* description cell — dominant horizontal space, mirrors collectors table */
 .tap-cares-schedules__desc {
-    min-width: 320px;
+    min-width: 180px;
     color: #475569;
     line-height: 1.45;
 }
 
 /* target cell */
 .tap-cares-schedules__target {
-    min-width: 180px;
+    min-width: 120px;
 }
 .tap-cares-schedules__target a {
     color: #1d4ed8;
@@ -129,12 +130,11 @@
 
 /* summary cell */
 .tap-cares-schedules__summary {
-    max-width: 360px;
+    max-width: 280px;
     color: #334155;
     font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    /* Wrap rather than truncate so the column shrinks to fit the panel width. */
+    overflow-wrap: anywhere;
 }
 
 /* empty state */

@@ -43,7 +43,6 @@
             <thead>
                 <tr>
                     <th>Name</th>
-                    <th>Source plugin</th>
                     <th>Description</th>
                     <th>Run state</th>
                     <th>Last run</th>
@@ -58,7 +57,6 @@
                     <td class="tap-cares-collectors__name">
                         <a href="/administrivia/cares/collector?entity_id={{ row.entity_id }}">{{ row.name }}</a>
                     </td>
-                    <td><code class="tap-cares-collectors__scope">{{ row.source_plugin }}</code></td>
                     <td class="tap-cares-collectors__desc">{{ row.description }}</td>
                     <td>
                         {% if row.is_running %}

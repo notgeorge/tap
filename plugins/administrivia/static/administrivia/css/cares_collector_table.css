@@ -87,7 +87,8 @@
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    white-space: nowrap;
+    /* Headers wrap (e.g. "Last run at" → two lines) so they don't force the
+     * table wider than the panel; the table fits without a horizontal scrollbar. */
 }
 .tap-cares-collectors__table tbody td {
     padding: 8px 10px;
@@ -110,7 +111,7 @@
     text-decoration: underline;
 }
 .tap-cares-collectors__desc {
-    min-width: 360px;
+    min-width: 240px;
     color: #475569;
     line-height: 1.45;
 }
@@ -129,12 +130,14 @@
     vertical-align: middle;
 }
 .tap-cares-collectors__summary {
-    max-width: 360px;
+    /* min-width makes Summary claim space the Description column would otherwise
+     * absorb (auto table layout gives slack to the uncapped column); max-width
+     * keeps it from running away on very wide monitors. Wraps, never truncates. */
+    min-width: 300px;
+    max-width: 440px;
     color: #334155;
     font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 .tap-cares-collectors__action-col {
     text-align: right;
