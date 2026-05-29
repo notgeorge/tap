@@ -93,7 +93,7 @@ Status: `Implemented`
 | req-fedramp-20x-ksi-boundary-model-1 | Entity Type | Implemented | `ENTITY_TYPE = "boundary"`; registered in `tap-plugin.toml` `[models]`. | Unprefixed, matching the plugin's compliance-domain models (`finding`, `evidence`, `exception`). |
 | req-fedramp-20x-ksi-boundary-model-2 | Fields | Implemented | `name` (required on create) and `description`. Both in `FIELD_CRUD_SCHEMA` and `FIELD_VALIDATION_SCHEMA`. | Initial pass — structured FedRAMP metadata added later as typed fields. |
 | req-fedramp-20x-ksi-boundary-model-3 | Dimensions | Implemented | `DEFAULT_DIMENSIONS = {"compliance": "boundary"}`. | Sits in the plugin's `compliance` dimension namespace. |
-| req-fedramp-20x-ksi-boundary-model-4 | Display + Icon | Implemented | `ENTITY_ICON = "boundary"` (corner-bracket perimeter glyph); `DEFAULT_DISPLAY` renders a red-themed round-rectangle, on-theme with the eventual bright-red boundary perimeter. | |
+| req-fedramp-20x-ksi-boundary-model-4 | Display + Icon | Implemented | No type icon (`ENTITY_ICON = ""`): `DEFAULT_DISPLAY` renders a red-themed round-rectangle, which is sufficient to read the boundary on the graph and is on-theme with the eventual bright-red perimeter. The corner-bracket glyph was dropped — it added visual noise without aiding recognition. | The `boundary.svg` asset remains in `static/` (orphaned) for easy revival. |
 
 ### Scoped-To-Boundary Edge
 ----

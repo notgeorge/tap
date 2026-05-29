@@ -9,6 +9,8 @@ from plugins.computing_core.models.program import Program
 from plugins.computing_core.models.public_key import PublicKey
 from plugins.computing_core.models.tcp_connection import TcpConnection
 from plugins.computing_core.models.user import User
+from plugins.computing_core.models.web_document import WebDocument
+from plugins.computing_core.models.web_host import WebHost
 
 __all__ = [
     "File",
@@ -20,4 +22,6 @@ __all__ = [
     "PublicKey",
     "TcpConnection",
     "User",
+    "WebDocument",
+    "WebHost",
 ]

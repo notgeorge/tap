@@ -33,6 +33,7 @@
 
 import {resolveNesting, HIDDEN_CONTAINMENT_CLASS} from "/static/tap_viz/js/runtime/nested-projection.js";
 import {applyScopeBoxes} from "/static/tap_viz/js/runtime/layout-scope-boxes.js";
+import {applyStack} from "/static/tap_viz/js/runtime/stack.js";
 
 // Top→bottom group order. Selectors mirror the arrangement member queries and the
 // scope-box filters: AWS resources carry a Component tag; the website group is the
@@ -187,16 +188,11 @@ export async function execute(context) {
     //    TRUSTS_ISSUER (AWS provider → issuer) reads horizontal.
     cy.nodes('[entity_type="oidc_issuer"]').forEach((n) => n.position({x: (bootRight + ghLeftX) / 2, y: bootCenterY}));
 
-    // 5. Sigstore Rekor row — centered above the GitHub set; the sigstore_ca
-    //    compound (nesting rule below) auto-sizes around it.
+    // 5. Sigstore Rekor entries — collected here; collapsed into a single stack
+    //    at the end (step 8), after nesting, so the representative already sits
+    //    inside the sigstore_ca compound.
     const rekor = cy.nodes('[entity_type="rekor_log_entry"]')
         .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
-    if (rekor.nonempty()) {
-        const wfBB = workflows.boundingBox();
-        const ghCenterX = (wfBB.x1 + wfBB.x2) / 2;
-        const rLeft = ghCenterX - ((rekor.length - 1) * REKOR_GAP) / 2;
-        rekor.forEach((n, i) => n.position({x: rLeft + i * REKOR_GAP, y: TOP_Y - REKOR_ABOVE}));
-    }
 
     // 5b. Signed files — the latest snapshot of each, in a row in the right-middle
     //     between the Rekor row (above) and the GitHub deploy cluster (below), so
@@ -233,4 +229,37 @@ export async function execute(context) {
     // 7. Scope boxes — labeled overlays per AWS cluster, drawn from the settled
     //    member positions.
     applyScopeBoxes(cy, SCOPE_BOXES);
+
+    const wfBB = workflows.boundingBox();
+    const ghCenterX = (wfBB.x1 + wfBB.x2) / 2;
+
+    // 8. Collapse the Rekor transparency-log entries into a single stack (the
+    //    tap_viz stack primitive). Run LAST — after nesting + scope boxes — so the
+    //    representative is already a child of the sigstore_ca compound; the depth
+    //    cards join the same box and it auto-sizes around the compact pile instead
+    //    of a wide row. The count chip carries the true count; members'
+    //    SIGNED_BY_IDENTITY / IDENTITY_VOUCHED_BY edges dedup onto the
+    //    representative and the files' ATTESTED_BY edges re-point onto it.
+    //    Positioned at the Sigstore slot (top-right, centered above the GitHub set).
+    if (rekor.nonempty()) {
+        applyStack(cy, {
+            members: rekor,
+            representative: rekor.first(),
+            position: {x: ghCenterX, y: TOP_Y - REKOR_ABOVE},
+            label: "Rekor Entries",
+        });
+    }
+
+    // 9. Node types threaded in from the nitpick merge — PROVISIONAL placement,
+    //    pending a story-driven layout pass (flagged for review):
+    //    - web_document (CISA KEV catalog) + web_host (CISA) — the KEV-fetch input
+    //      the deploy workflow FETCHES; parked below the GitHub deploy cluster.
+    //    - user (Readers / george / Sam) — the human actors; parked in a column on
+    //      the far left.
+    const kev = cy.nodes('[entity_type="web_document"], [entity_type="web_host"]')
+        .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
+    kev.forEach((n, i) => n.position({x: ghCenterX - 110 + i * 220, y: bootCenterY + 230}));
+    const users = cy.nodes('[entity_type="user"]')
+        .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
+    users.forEach((n, i) => n.position({x: LEFT_X - 280, y: TOP_Y + i * 95}));
 }

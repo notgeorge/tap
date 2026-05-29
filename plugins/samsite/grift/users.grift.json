@@ -1,0 +1,66 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e73fe-33ae-7375-ba2e-17710feab3e5",
+        "entity_type": "batch",
+        "name": "Samsite users seed v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite",
+        "name": "Samsite users seed v0.1.0",
+        "description": "Seeds the human actors in the samsite story as computing_core `user` nodes: Readers (the site's audience), george (the operator reproducing and modeling the system in TAP), and Sam (Sam Aydlette, author of the original samaydlette.com system). The `user` type carries no per-model tags field, so the landing search reaches these via an explicit MATCH (u:user) rather than the Project=samsite tag scan. Edges/roles and projection placement are intentionally not seeded here — the visualization session decides where these sit on the projection."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e73fe-33af-72c4-b998-1b69b1d5ba33",
+            "entity_type": "user",
+            "name": "Readers",
+            "dimensions": {
+              "tap.computing": "identity"
+            }
+          },
+          "node": {
+            "name": "Readers",
+            "description": "The readers/audience of the site — visitors who consume samaydlette.com and its published compliance artifacts."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e73fe-33af-72c4-b998-1b6a014609e9",
+            "entity_type": "user",
+            "name": "george",
+            "dimensions": {
+              "tap.computing": "identity"
+            }
+          },
+          "node": {
+            "name": "george",
+            "description": "The operator reproducing and modeling the samsite system in TAP."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e73fe-33af-72c4-b998-1b6bc5ec7e91",
+            "entity_type": "user",
+            "name": "Sam",
+            "dimensions": {
+              "tap.computing": "identity"
+            }
+          },
+          "node": {
+            "name": "Sam",
+            "description": "Sam Aydlette — author of the original samaydlette.com system and its FedRAMP 20x compliance machinery."
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

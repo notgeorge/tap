@@ -34,7 +34,7 @@ This specification defines the geometry contract and the runtime projection API.
 | req-viz-nested-projection-container-size-from-children | [Container Size From Children](#container-size-from-children) | Implemented | Container outer box derived from children's laid-out bbox plus padding |
 | req-viz-nested-projection-no-leaf-compression | [No Leaf Compression](#no-leaf-compression) | Implemented | Leaves never shrink; scale-to-fit removed. Supersedes scale-to-fit. |
 | req-viz-nested-projection-two-pass | [Two-Pass Measure/Position](#two-pass-measureposition) | Implemented | Measure bottom-up; position top-down. Supersedes viewport-constrained layout order. |
-| req-viz-nested-projection-natural-layouts | [Natural Layouts](#natural-layouts) | Implemented | Built-in natural layouts: `grid`, `stack-vertical`, `tiered-rows` |
+| req-viz-nested-projection-natural-layouts | [Natural Layouts](#natural-layouts) | Implemented | Built-in natural layouts: `grid`, `align-distribute-vertical`, `tiered-rows` |
 | req-viz-nested-projection-runtime-api | [Runtime Projection API](#runtime-projection-api) | Implemented | `projectNested` runtime module owns the geometry pipeline |
 | req-viz-nested-projection-dimension-match | [Dimension-Equality Relationships](#dimension-equality-relationships) | Implemented | `{dimension_match: {parent_type, dimension}}` pairs children whose dimension value matches a parent's — implicit containment via shared spine dimension, no edge required |
 | req-viz-nested-projection-container-visual | [Container Visual Switch](#container-visual-switch) | Implemented | Viewport parents switch to container rendering automatically |
@@ -170,9 +170,9 @@ This inverts the v0 model. The container no longer has an authoritative outer bo
 
 "Model-space" coordinates still apply. Cytoscape's zoom scales the whole resolved scene uniformly on screen.
 
-V1 provides three natural layouts — `grid`, `stack-vertical`, and `tiered-rows` — specified in [Natural Layouts](#natural-layouts). Plugins may register additional natural layouts by providing a function matching the contract above.
+V1 provides three natural layouts — `grid`, `align-distribute-vertical`, and `tiered-rows` — specified in [Natural Layouts](#natural-layouts). Plugins may register additional natural layouts by providing a function matching the contract above.
 
-Per-container-type layout choice is supported via `innerLayouts: {entity_type: "grid" | "stack-vertical" | "tiered-rows" | {name, ...opts}}`, with a default `innerLayout` for the rest.
+Per-container-type layout choice is supported via `innerLayouts: {entity_type: "grid" | "align-distribute-vertical" | "tiered-rows" | {name, ...opts}}`, with a default `innerLayout` for the rest.
 
 #### Development
 
@@ -286,15 +286,15 @@ Opts: `{spacing}`.
 
 Use when children are roughly homogeneous and visual ordering doesn't matter.
 
-**`stack-vertical`**
+**`align-distribute-vertical`**
 
-Children are stacked top-to-bottom at uniform x; container width equals the widest child; height sums child heights plus `gap` between each.
+Children are aligned to a uniform x and distributed top-to-bottom; container width equals the widest child; height sums child heights plus `gap` between each. (Distinct from the [stack](spec-viz-stack.md) primitive, which collapses a homogeneous set into a single pile token — this layout keeps every child visible in a column.)
 
 Opts: `{gap, typeOrder}`.
 
 `typeOrder` is an optional array of `entity_type` strings. Children whose `entity_type` appears earlier in the array are placed higher. Unlisted entity types come after, in input order. Omitting `typeOrder` preserves input order.
 
-Use when a container's children should stack in a declared order (e.g. in the AWS layout, an account's Route 53 zone on top, VPC below).
+Use when a container's children should be distributed in a declared order (e.g. in the AWS layout, an account's Route 53 zone on top, VPC below).
 
 **`tiered-rows`**
 
@@ -346,7 +346,7 @@ Separating classification from placement lets authors add scene-specific layouts
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-viz-nested-projection-natural-layouts-1 | Grid Layout | Implemented | `grid` packs children into a square-ish grid with cells sized to the largest child. | |
-| req-viz-nested-projection-natural-layouts-2 | Stack-Vertical Layout | Implemented | `stack-vertical` stacks children top-to-bottom with optional `typeOrder`. | |
+| req-viz-nested-projection-natural-layouts-2 | Align-Distribute-Vertical Layout | Implemented | `align-distribute-vertical` aligns children to a uniform x and distributes them top-to-bottom with optional `typeOrder`. | |
 | req-viz-nested-projection-natural-layouts-3 | Tiered-Rows Layout | Implemented | `tiered-rows` groups children by tier with contained/primary split and alphabetical sort. | |
 | req-viz-nested-projection-natural-layouts-4 | Pure Function Contract | Implemented | All natural layouts are side-effect-free `(children, opts) → {width, height, placements}`. | |
 
@@ -445,7 +445,7 @@ export async function execute(context) {
     padding: 20,
     innerLayout: "grid",
     innerLayouts: {
-      realm: {name: "stack-vertical", gap: 12}  // per-type override
+      realm: {name: "align-distribute-vertical", gap: 12}  // per-type override
     }
   });
 
@@ -487,7 +487,7 @@ The runtime performs:
 | `baseSizes` | object | Yes | Map of `entity_type` → `{width, height}`. True size for leaves; minimum floor for containers. |
 | `padding` | number | Yes | Default padding inflated around each container's child bbox. |
 | `paddings` | object | No | Per-parent-type padding override. Map of container `entity_type` → number. |
-| `innerLayout` | string or object | Yes | Default natural layout: `"grid"`, `"stack-vertical"`, or an object `{name, ...opts}`. Also used for root placement. |
+| `innerLayout` | string or object | Yes | Default natural layout: `"grid"`, `"align-distribute-vertical"`, or an object `{name, ...opts}`. Also used for root placement. |
 | `innerLayouts` | object | No | Per-entity-type layout override. Map of container `entity_type` → layout spec. |
 | `fit` | boolean | No | If true, fit viewport to the scene after projection. Default: false. |
 

@@ -123,6 +123,19 @@ These values should remain small, reviewable, and durable in v0. The purpose is 
 
 The plugin also experiments with explicit dimension nodes representing those categories, including explanatory descriptions of what each category means and why it exists. This is intended as a practical trial of TAP's optional dimension-node concept rather than a claim that the full dimension-node design is complete.
 
+##### Web-Native Marker (future `web_core` seam)
+----
+RID: `req-computing-core-web-marker`
+
+The `web_host` and `web_document` types were added under demo-time scope creep
+above the plugin's intended "below service/application" line. To keep that
+creep cleanly reversible, every web-native type and edge carries a second
+dimension `tap.web: native` alongside its `tap.computing` stack-layer value.
+This is an explicit future seam: a later `web_core` plugin can lift every
+web-native type and edge in one shot by matching on the `tap.web` key, without
+having to disentangle them from the genuine computing primitives. `tap.web`
+also previews that plugin's eventual domain dimension key.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
@@ -131,6 +144,7 @@ The plugin also experiments with explicit dimension nodes representing those cat
 | req-computing-core-dimensions-2 | Edge Default Dimensions Required | Proposed | Each edge definition declares meaningful `default_dimensions` using the `tap.computing` key. | |
 | req-computing-core-dimensions-3 | Small Category Set | Proposed | v0 uses a small, reviewable set of `tap.computing` values rather than ad hoc proliferation. | |
 | req-computing-core-dimensions-4 | Dimension Node Experiment | Proposed | The plugin seeds dimension nodes explaining the chosen categories and their intent. | |
+| req-computing-core-web-marker-1 | Web-Native Dual Tag | Proposed | `web_host`/`web_document` and their edges carry `tap.web: native` alongside their `tap.computing` value, so a future `web_core` split is a one-shot lift by `tap.web`. | |
 
 #### Open Questions
 
@@ -155,6 +169,7 @@ The initial v0 model set is:
 | Networking | `network_interface`, `ip_address`, `ip_subnet`, `port` | Stable IP-stack primitives |
 | Transport/Protocol | `tcp_connection`, `application_protocol` | Session node plus protocol abstraction above layer four |
 | Identity | `user` | The human actor who interacts with the systems |
+| Web (web-native) | `web_host`, `web_document` | Internet hosts and URL-addressed documents; carry the `tap.web` marker (see below) |
 
 Definitions and intent:
 
@@ -173,6 +188,8 @@ Definitions and intent:
 - **tcp_connection**: a TCP session represented as a node
 - **application_protocol**: a generic protocol concept that rides above transport and can later branch into specific protocols
 - **user**: a human who interacts with the systems; the generic person primitive. Roles such as administrator are expressed as assigned relationships rather than distinct node types, so a single `user` type can carry any edge in or out.
+- **web_host**: a named internet host that serves content over HTTP(S), identified by hostname (e.g. `cisa.gov`). For external/unmanaged hosts this models the serving origin, not its internal compute.
+- **web_document**: a document retrievable at a URL over HTTP(S) (e.g. the CISA KEV catalog). Distinct from `file`, which is a filesystem object keyed by path; a web document is network-delivered content addressed by URL.
 
 Relationship simplification for v0:
 
@@ -190,6 +207,7 @@ This is intentionally simpler than trying to model every possible runtime or orc
 | req-computing-core-models-3 | Storage Volume Included | Proposed | The model set includes a generic `storage_volume` abstraction to support later provider integration. | |
 | req-computing-core-models-4 | Application Deferred | Proposed | The plugin does not define a generic `application` or `service` model in v0. | |
 | req-computing-core-models-5 | User Is Generic Person | Proposed | The plugin models a generic `user` person type; roles such as administrator are assigned relationships, not distinct node types. | `tap.computing: identity` |
+| req-computing-core-models-6 | Web-Native Primitives | Proposed | The plugin models `web_host` (internet host serving over HTTP(S)) and `web_document` (URL-addressed document), distinct from `file`. Both carry the `tap.web` marker. | Demo-time scope creep above the vendor-neutral line; see `req-computing-core-web-marker`. |
 
 #### Open Questions
 
@@ -311,6 +329,12 @@ Representative relationship categories for v0 include:
 | Runtime | `EXECUTES`, `SPAWNS`, `LISTENS_ON`, `CONNECTS_TO` | Runtime execution and endpoint/session relationships |
 | Networking | `HAS_IP`, `AVAILABLE_AT`, `BELONGS_TO_SUBNET`, `ROUTES_VIA` | Interface and address relationships, including scanner-visible observations |
 | Protocol | `USES_PROTOCOL`, `RELIES_ON_CONNECTION` | Protocol attachment and dependency |
+| Web (web-native) | `HOSTED_BY`, `FETCHES` | A `web_document -HOSTED_BY-> web_host`; any fetcher `-FETCHES-> web_document`. Both carry the `tap.web` marker. |
+
+`FETCHES` deliberately leaves its source type as wildcard so any fetcher (a CI
+workflow, a program) can fetch a `web_document` without `computing_core`
+depending on the fetcher's owning plugin — e.g. a `github_workflow` (github_core)
+fetching the CISA KEV catalog. The instance wiring lives with the consumer.
 
 The exact edge set should remain expressive and specific enough that graph queries read naturally. Reuse matters, but v0 should lean toward semantic clarity rather than collapsing too much behavior into generic edges.
 

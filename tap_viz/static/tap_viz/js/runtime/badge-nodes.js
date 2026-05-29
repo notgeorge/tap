@@ -59,10 +59,15 @@ export function applyBadgeNodes(cy, opts = {}) {
 
     const excludeSet = new Set(opts.excludeTypes || []);
 
-    // Collect host nodes that qualify for a badge.
+    // Collect host nodes that qualify for a badge. Only *visible* nodes get
+    // badges: elements hidden by class (elevation-deferred, nesting-consumed,
+    // stack-collapsed) have no on-canvas corner to anchor to. Stack helper
+    // nodes (depth cards, count chip) are decoration, not hosts.
     const hosts = cy.nodes().filter((n) => {
         const url = n.data("icon_url");
         if (!url || url === "" || n.data("_is_badge")) return false;
+        if (n.data("_is_stack_card") || n.data("_is_stack_chip")) return false;
+        if (!n.visible()) return false;
         if (excludeSet.size > 0 && excludeSet.has(n.data("entity_type"))) return false;
         return true;
     });

@@ -560,7 +560,9 @@ function initGraph(panelId) {
                 //    nesting resolution (the edge drove a parent-child assignment)
                 //  - tap-elevation-hidden: the active elevation's layout has
                 //    deferred this element to a lower-altitude elevation
-                selector: ".tap-nesting-hidden, .tap-hidden-containment, .tap-elevation-hidden",
+                //  - tap-stack-collapsed: collapsed into a stack pile, the
+                //    representative + count chip stand in for it
+                selector: ".tap-nesting-hidden, .tap-hidden-containment, .tap-elevation-hidden, .tap-stack-collapsed",
                 style: { "display": "none" },
             },
             {
@@ -627,6 +629,66 @@ function initGraph(panelId) {
                 style: {
                     "border-style": "dashed",
                     "border-color": "#94a3b8",
+                },
+            },
+            {
+                // Stack depth cards: decorative offset copies drawn behind the
+                // representative so a collapsed pile reads as "many of these."
+                // No icon — a faded blank token in the representative's own
+                // model colors (the per-model node[fill_color] rule below
+                // repaints fill/border when the model ships colors; the neutral
+                // slate here is the fallback for uncolored models). Per-card
+                // z-index (data(_stack_z)) makes each deeper card draw strictly
+                // below the one in front, so the offset reads as a stack.
+                selector: "node[_is_stack_card]",
+                style: {
+                    "shape": "data(shape)",
+                    "background-color": "#e2e8f0",
+                    "background-image": "none",
+                    "opacity": 0.5,
+                    "border-width": 2,
+                    "border-color": "#cbd5e1",
+                    "label": "",
+                    "events": "no",
+                    "z-index": "data(_stack_z)",
+                },
+            },
+            {
+                // Stack representative: the face of the pile, raised above its
+                // depth cards (CARD_Z_TOP is 10 in stack.js; 20 clears all
+                // cards while staying below the badges/chip at 999/1000).
+                selector: "node[_stack_front_id]",
+                style: {
+                    "z-index": 20,
+                },
+            },
+            {
+                // Stack count chip: a neutral rounded-rectangle straddling the
+                // bottom edge of the representative, showing the true
+                // cardinality (humanized for large numbers). The white hairline
+                // is a contrast halo so the count reads over any icon. Neutral
+                // slate — deliberately NOT an alert color — to distinguish
+                // "how many" from the alert/status badges in the upper-right.
+                // Events ARE enabled so the chip can answer hover for the exact
+                // count; tap/double-tap are filtered out (see hit-test below).
+                selector: "node[_is_stack_chip]",
+                style: {
+                    "shape": "round-rectangle",
+                    "background-color": "#475569",
+                    "background-opacity": 1,
+                    "background-image": "none",
+                    "border-width": 1.5,
+                    "border-color": "#ffffff",
+                    "color": "#ffffff",
+                    "label": "data(_stack_count_label)",
+                    "text-valign": "center",
+                    "text-halign": "center",
+                    "text-margin-x": 0,
+                    "text-margin-y": 0,
+                    "font-size": 10,
+                    "font-weight": "bold",
+                    "events": "yes",
+                    "z-index": 1000,
                 },
             },
             {
@@ -886,6 +948,9 @@ function initGraph(panelId) {
     cy.on("tap", "node", function (evt) {
         var node = evt.target;
         if (node.data("_is_badge") || node.data("_is_shadow")) return;
+        // Stack helpers (depth cards, count chip) are not entities — they carry
+        // no tap/double-tap semantics. The chip answers hover only.
+        if (node.data("_is_stack_card") || node.data("_is_stack_chip")) return;
 
         // Status badge tap → open info window for the host. Badges are the
         // only single-tap target that opens the info-window. Fire immediately;
@@ -929,6 +994,7 @@ function _findNodeAtRenderedPosition(cy, x, y) {
     var hits = [];
     cy.nodes(":visible").forEach(function (n) {
         if (n.data("_is_badge") || n.data("_is_shadow")) return;
+        if (n.data("_is_stack_card") || n.data("_is_stack_chip")) return;
         var rpos = n.renderedPosition();
         var rw = n.renderedWidth() / 2;
         var rh = n.renderedHeight() / 2;

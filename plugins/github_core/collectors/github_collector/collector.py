@@ -35,6 +35,7 @@ from .enrichment import resolve_links
 from .identity import (
     account_id,
     edge_id,
+    github_app_id,
     job_id,
     oidc_issuer_id,
     platform_id,
@@ -68,6 +69,21 @@ _SITE_INCREMENTAL_WINDOW = "c2ca"
 _SITE_NON_TERMINAL_REFRESH = "6558"
 _SITE_RUN_NOT_FOUND = "f938"
 _SITE_LOCAL_ACTION_DEFERRED = "b148"
+_SITE_DEPENDABOT_APP = "a7c1"
+
+# GitHub surfaces enabled platform apps (Dependabot) in the Actions workflow
+# list under synthetic ``dynamic/<app>/...`` paths. These are not repo CI
+# workflows — they are platform apps enabled on the repo — so we reclassify
+# them as github_app + ENABLED_ON instead of github_workflow. Map the synthetic
+# path prefix to the app's stable slug + display metadata.
+_SYNTHETIC_APP_BY_PATH_PREFIX: dict[str, dict[str, str]] = {
+    "dynamic/dependabot/": {
+        "slug": "dependabot",
+        "name": "Dependabot",
+        "html_url": "https://github.com/apps/dependabot",
+        "description": "GitHub's managed dependency-update and security-alert app.",
+    },
+}
 
 _DOCS = (
     CollectorDocRef(
@@ -242,6 +258,9 @@ class GithubCollector(CollectorBase):
 
     def run(self) -> None:
         self.record_info(_SITE_RUN_STARTED, "RUN_STARTED", "GitHub Core collection started.")
+        # github_app nodes are singletons shared across repos; dedupe the node
+        # emission across the whole run (the ENABLED_ON edges still fan in).
+        self._emitted_app_ids: set[str] = set()
 
         # --- secret resolution (unrecoverable on failure) ---
         try:
@@ -416,6 +435,18 @@ class GithubCollector(CollectorBase):
         # workflows + workflow YAML
         workflows = client.get_paginated(f"/repos/{full_name}/actions/workflows", item_path="workflows")
         for wf in workflows:
+            path = wf.get("path", "")
+            # Synthetic platform-app entries (e.g. Dependabot) come back here but
+            # are not repo CI workflows; reclassify them as github_app + ENABLED_ON
+            # and skip the YAML fetch (no real file exists at the dynamic/ path).
+            app_meta = next(
+                (meta for prefix, meta in _SYNTHETIC_APP_BY_PATH_PREFIX.items() if path.startswith(prefix)),
+                None,
+            )
+            if app_meta is not None:
+                self._emit_github_app(app_meta, full_name, repo_uuid, repo_dims, nodes, edges)
+                continue
+
             wf_uuid = workflow_id(full_name, wf["id"])
             raw_yaml, parsed_config = self._fetch_workflow_config(client, full_name, wf.get("path", ""))
             wf_display_name = wf.get("name") or wf.get("path") or str(wf["id"])
@@ -576,6 +607,47 @@ class GithubCollector(CollectorBase):
                     edges.append(self._edge("EXECUTED_ON", j_uuid, rn_uuid, observation_dims))
 
     # ---------- helpers ----------
+
+    def _emit_github_app(
+        self,
+        app_meta: dict[str, str],
+        full_name: str,
+        repo_uuid: Any,
+        repo_dims: dict[str, str],
+        nodes: list[dict[str, Any]],
+        edges: list[dict[str, Any]],
+    ) -> None:
+        """Emit a github_app node (deduped, singleton by slug) + ENABLED_ON edge
+        for a platform app detected enabled on ``full_name``."""
+        apps_dims = {**repo_dims, "github.surface": "apps"}
+        app_uuid = github_app_id(app_meta["slug"])
+        if str(app_uuid) not in self._emitted_app_ids:
+            self._emitted_app_ids.add(str(app_uuid))
+            nodes.append(
+                node_envelope(
+                    entity_id=app_uuid,
+                    entity_type="github_app",
+                    name=app_meta["name"],
+                    dimensions=apps_dims,
+                    fields={
+                        "slug": app_meta["slug"],
+                        "name": app_meta["name"],
+                        "app_id": None,
+                        "html_url": app_meta.get("html_url", ""),
+                        "description": app_meta.get("description", ""),
+                        "configuration": {},
+                        "tags": {},
+                    },
+                )
+            )
+        edges.append(self._edge("ENABLED_ON", app_uuid, repo_uuid, apps_dims))
+        self.record_info(
+            _SITE_DEPENDABOT_APP,
+            "GITHUB_APP_ENABLED",
+            f"{app_meta['name']} app detected enabled on {full_name} "
+            f"(reclassified from the synthetic Actions workflow entry).",
+            message_data={"app_slug": app_meta["slug"], "repo": full_name},
+        )
 
     def _edge(
         self,

@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e73fb-b80e-72de-8872-a89cb4b0c671",
+        "entity_id": "019e744d-6317-73a0-a328-ef7589e4b19c",
         "entity_type": "batch",
-        "name": "Samsite landing v0.1.4",
+        "name": "Samsite landing v0.1.5",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite",
-        "name": "Samsite landing v0.1.4",
-        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.4 surfaces the signed /.well-known/ artifacts (the 'files') on the board: the seed search now also matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind (the collector accumulates one set per run; dedicated computing_core.file nodes + history are a deferred 'storage' question) and positions the surviving ~5 files in the right-middle region between the GitHub deploy cluster and the Sigstore Rekor row. Bumps the batch_entity_id (was 019e73d4-18f7-7085-b318-bbe8ebf8abaa) so seeded sessions re-apply the search change; the skip-if-exists guard is batch-id-keyed."
+        "name": "Samsite landing v0.1.5",
+        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.5 is the merge of two parallel lines onto one batch: (a) the signed /.well-known/ artifacts on the board \u2014 the seed search matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind and styles them as file cards; (b) the deploy\u2192KEV-fetch + human-actor story \u2014 the search also matches web_host / web_document (CISA host + KEV catalog, kev-fetch.grift.json) and user (the three actors Readers / george / Sam, users.grift.json). web_host / web_document / user / the compliance file types carry no per-model tags, so they are reached by explicit per-label MATCHes (like the GitHub lane), not the Project=samsite tag scan. Fresh batch_entity_id (supersedes both 019e73fb-... and 019e73fe-...) so any session seeded from either parent re-applies the combined search; the skip-if-exists guard is batch-id-keyed. The Rekor entries collapse into a stack (tap_viz stack primitive) in landing-finalize.js."
       },
       "nodes": [
         {
@@ -43,6 +43,9 @@
                 "MATCH (sig:ksi_signal)",
                 "MATCH (vr:vdr_report)",
                 "MATCH (cart:compliance_artifact)",
+                "MATCH (wh:web_host)",
+                "MATCH (wd:web_document)",
+                "MATCH (u:user)",
                 "MATCH (n)",
                 "WHERE n.data.tags.Project = \"samsite\""
               ]
