@@ -1,0 +1,117 @@
+{
+  "metadata": {"grift_version": "0"},
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e7574-f9bf-772a-99cd-e1639785f450",
+        "entity_type": "batch",
+        "name": "Samsite VDR Report viewer page v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite.grift.vdr-report-page",
+        "name": "Samsite VDR Report viewer page v0.1.0",
+        "description": "Seeds /samsite/compliance/vdr-report: a classy workbench view of one VDR report (samsite-vdr-report-workbench) with a sequence-nav selector above it. Both share vdr_report_entity_id; the workbench falls back to the latest vdr_report by emitted_at."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e7574-f9bf-772a-99cd-e162c1bca510",
+            "entity_type": "page",
+            "name": "VDR Report",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "VDR Report",
+            "slug": "/samsite/compliance/vdr-report",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-nav": {"panel-id": "nav", "height": "auto"},
+                    "row-2-workbench": {"panel-id": "workbench", "height": "1fr"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e7574-f9bf-772a-99cd-e1650a32d3b5",
+            "entity_type": "panel",
+            "name": "Samsite VDR Report Workbench",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-vdr-report-workbench",
+            "name": "Samsite VDR Report Workbench",
+            "description": "VDR report workbench panel instance. Resolves a vdr_report via tap_web.panels.entity_resolution (deep link via vdr_report_entity_id wins; else latest by emitted_at) and recomposes its findings from the grid.",
+            "view": "samsite/panels/vdr_report_workbench.html",
+            "config": {
+              "entity_id_var": "vdr_report_entity_id",
+              "fallback": {
+                "query": "MATCH (r:vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 1",
+                "description": "Latest vdr_report emission by emitted_at."
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e7574-f9bf-772a-99cd-e164e9967d4a",
+            "entity_type": "panel",
+            "name": "Samsite VDR Report Sequence Nav",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "samsite-vdr-report-nav",
+            "name": "Samsite VDR Report Sequence Nav",
+            "description": "Back/forward selector over VDR report emissions. Shares vdr_report_entity_id with the workbench below; resolves the newest-first sequence of vdr_report by emitted_at.",
+            "view": "tap_web/panels/sequence_nav.html",
+            "config": {
+              "entity_id_var": "vdr_report_entity_id",
+              "sequence": {
+                "query": "MATCH (r:vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 200",
+                "label_field": "emitted_at",
+                "label": "VDR Report"
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e7574-f9bf-772a-99cd-e166a2857cb3",
+            "entity_type": "edge",
+            "name": "VDR Report Page USES_PANEL Sequence Nav",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e7574-f9bf-772a-99cd-e162c1bca510",
+            "to_entity_id": "019e7574-f9bf-772a-99cd-e164e9967d4a",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "nav"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e7574-f9bf-772a-99cd-e167d906d0c5",
+            "entity_type": "edge",
+            "name": "VDR Report Page USES_PANEL Workbench",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e7574-f9bf-772a-99cd-e162c1bca510",
+            "to_entity_id": "019e7574-f9bf-772a-99cd-e1650a32d3b5",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "workbench"}}
+          }
+        }
+      ]
+    }
+  ]
+}

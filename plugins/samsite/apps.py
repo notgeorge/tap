@@ -54,8 +54,14 @@ class SamsiteConfig(TapPluginConfig):
         # Classy per-artifact viewers (rollout: KSI signal first), modeled on
         # the roscale OSCAL workbench — resolve one decomposed artifact and
         # recompose it from the grid into a workbench view.
+        from plugins.samsite.panels.iiw_workbench import IiwWorkbenchPanelType
         from plugins.samsite.panels.ksi_signal_workbench import (
             KsiSignalWorkbenchPanelType,
         )
+        from plugins.samsite.panels.vdr_report_workbench import (
+            VdrReportWorkbenchPanelType,
+        )
 
         panel_type_registry.register("samsite-ksi-signal-workbench", KsiSignalWorkbenchPanelType)
+        panel_type_registry.register("samsite-vdr-report-workbench", VdrReportWorkbenchPanelType)
+        panel_type_registry.register("samsite-iiw-workbench", IiwWorkbenchPanelType)

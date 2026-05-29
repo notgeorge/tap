@@ -202,7 +202,8 @@
       var kind = ((row || {}).data || {}).kind || "";
       if (kind === "oscal_ssp")  return "/samsite/compliance/ssp?oscal_ssp_artifact_entity_id=" + id;
       if (kind === "oscal_poam") return "/samsite/compliance/poam?oscal_poam_artifact_entity_id=" + id;
-      return "/samsite/artifact/" + id;  // iiw + fallback: universal viewer until a dedicated one exists
+      if (kind === "iiw")        return "/samsite/compliance/iiw?iiw_artifact_entity_id=" + id;
+      return "/samsite/artifact/" + id;  // fallback: universal viewer
     },
   };
 
@@ -215,6 +216,7 @@
       };
       if (spec.width != null) col.width = spec.width;
       if (spec.widthGrow != null) col.widthGrow = spec.widthGrow;
+      if (spec.minWidth != null) col.minWidth = spec.minWidth;
       var fmt = FORMATTERS[spec.formatter || "plaintext"];
       if (fmt) {
         col.formatter = fmt;
