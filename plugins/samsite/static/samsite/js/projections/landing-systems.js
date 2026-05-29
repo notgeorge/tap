@@ -39,6 +39,7 @@
 
 import {resolveNesting, HIDDEN_CONTAINMENT_CLASS} from "/static/tap_viz/js/runtime/nested-projection.js";
 import {applyScopeBoxes} from "/static/tap_viz/js/runtime/layout-scope-boxes.js";
+import {applyStack} from "/static/tap_viz/js/runtime/stack.js";
 
 // Per-cluster scope-box configs. One box per cluster Layout (each sibling
 // Layout under samsite-landing-elevation owns one node group, per
@@ -134,19 +135,13 @@ export async function execute(context) {
         workflows.forEach((n, i) => n.position({x: ghRoot.x, y: top + i * gap}));
     }
 
-    // Sigstore signing/transparency cluster — external, below the github.com box.
-    // Lay the Rekor entries out in a row; the sigstore_ca compound (nesting rule
-    // above) auto-sizes around them. Each entry's SIGNED_BY_IDENTITY edge then
-    // runs up to the workflow that signed it; CERT_ISSUED_BY is hidden once it
-    // drives the containment.
-    const rekorEntries = cy.nodes('[entity_type="rekor_log_entry"]')
-        .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
-    if (rekorEntries.length > 0) {
-        const sigX = ghRoot ? ghRoot.x : 250;
-        const sigGap = 165;
-        const sigLeft = sigX - ((rekorEntries.length - 1) * sigGap) / 2;
-        rekorEntries.forEach((n, i) => n.position({x: sigLeft + i * sigGap, y: 1060}));
-    }
+    // Sigstore signing/transparency cluster — external, below the github.com
+    // box. The Rekor entries are all the same kind of thing — transparency-log
+    // receipts — and there are many; rather than spread them in a row that eats
+    // the whole canvas width, they collapse into a single stack (applied below,
+    // after nesting, so the representative is already inside the sigstore_ca
+    // box). The pile's count chip says how many; one SIGNED_BY_IDENTITY edge
+    // (deduped from the members) runs up to the signing workflow.
 
     // OIDC issuer — the identity hub. The AWS federation path reaches it
     // (aws_provider TRUSTS_ISSUER) and every Sigstore identity points at it
@@ -192,7 +187,24 @@ export async function execute(context) {
     // but a scope box is a free overlay.
     applyScopeBoxes(cy, SCOPE_BOXES);
 
-    // Members of each system are positioned by the per-Component arrangements
+    // Collapse the Rekor transparency-log entries into a single stack. Run
+    // AFTER the nesting pass so the representative entry is already a child of
+    // the sigstore_ca compound — the stack's depth cards then join the same
+    // box, and the box auto-sizes around the compact pile instead of a wide
+    // row. The count chip carries the true number of entries; the members'
+    // SIGNED_BY_IDENTITY / IDENTITY_VOUCHED_BY edges dedup onto the
+    // representative (one line each up to the signing workflow and the OIDC
+    // issuer). CERT_ISSUED_BY stays hidden — it drove the CA containment.
+    const rekorEntries = cy.nodes('[entity_type="rekor_log_entry"]')
+        .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
+    if (rekorEntries.length > 0) {
+        const sigX = ghRoot ? ghRoot.x : 250;
+        applyStack(cy, {
+            members: rekorEntries,
+            representative: rekorEntries.first(),
+            position: {x: sigX, y: 1060},
+        });
+    }
     // wired on the Layout entity — they run automatically after this module
     // returns. We don't touch member positions here; that's the arrangement
     // system's job, and keeping it there means each system stays
