@@ -32,6 +32,7 @@ Two quantities are kept deliberately distinct. **Depth** is how many layers are 
 | req-viz-stack-count-chip | [Count Chip](#count-chip) | Implemented | Neutral rounded-rect straddling the representative's bottom edge |
 | req-viz-stack-count-format | [Count Formatting](#count-formatting) | Implemented | Humanized k/M/B abbreviation with bounded width |
 | req-viz-stack-count-disclosure | [Count Disclosure](#count-disclosure) | Implemented | Exact integer stored on the chip; surfaced on hover; label is a derived view |
+| req-viz-stack-name | [Stack Name](#stack-name) | Implemented | Optional stack name shown on the representative in place of its individual label |
 | req-viz-stack-edge-collapse | [Edge Collapse](#edge-collapse) | Implemented | Re-point + dedup collapsed members' external edges onto the representative |
 | req-viz-stack-min-collapse | [Collapse Threshold](#collapse-threshold) | Implemented | Below `minToCollapse` members, no-op |
 | req-viz-stack-idempotent | [Idempotent Re-Run](#idempotent-re-run) | Implemented | Keyed by `stackId`; a re-run tears down the prior pass first |
@@ -50,7 +51,7 @@ The stack is delivered as a client-side runtime module, `tap_viz/static/tap_viz/
 
 `applyStack` returns a handle `{destroy, count, collapsed}`. `destroy()` removes the helper nodes and synthetic edges, un-collapses the members, and detaches listeners — restoring the pre-stack scene.
 
-Inputs (`opts`): `members` (the full set, including the representative), optional `representative` (defaults to the first member), optional `position` for the representative, `depthCap` (default 3), `minToCollapse` (default 2), `cardOffset`, `chip` (default true), and `stackId`.
+Inputs (`opts`): `members` (the full set, including the representative), optional `representative` (defaults to the first member), optional `position` for the representative, `depthCap` (default 3), `minToCollapse` (default 2), `cardOffset`, `chip` (default true), `label` (the stack name — see [Stack Name](#stack-name)), and `stackId`.
 
 ### Proxy Collapse
 ----
@@ -66,7 +67,7 @@ This is a true collapse, not a visual overlap: a pile of N contributes one rende
 RID: `req-viz-stack-depth`
 Status: `Implemented`
 
-Behind the representative, `min(count, depthCap) - 1` decorative **depth cards** are drawn, each offset from the representative by a fixed per-card delta so the group reads as a fanned pile. Cards are non-interactive nodes carrying the representative's icon at reduced opacity, z-ordered below the representative. When the representative has a nesting parent, cards are created within that same parent so they share its render layer and z-ordering.
+Behind the representative, `min(count, depthCap) - 1` decorative **depth cards** are drawn, each offset from the representative by a fixed per-card delta so the group reads as a fanned pile. Cards are non-interactive, reduced-opacity nodes that mirror the representative's shape and model colors (fill / border) but carry **no icon** — a faded blank token reads as "another one of these" without the icon-placement noise of a half-shown glyph on a small offset card. The cards are z-ordered front-to-back: the card nearest the front draws highest and each deeper card strictly below it, all below the representative, so the offset reads unambiguously as a stack rather than a scatter. When the representative has a nesting parent, cards are created within that same parent so they share its render layer and z-ordering.
 
 Depth is **capped decoration**. It does not scale with the count and carries no numeric meaning. A stack of 4 and a stack of 4,000 draw the same number of cards. The cap (`depthCap`, default 3) bounds the decoration so a large pile does not sprawl.
 
@@ -104,6 +105,15 @@ Status: `Implemented`
 The humanized chip label is a **lossy display**, never the source of truth. The exact integer count is stored on the chip node and surfaced verbatim (grouped, e.g. `1,234`) on hover. The exact value is read from the stored datum — it is never reconstructed by expanding the abbreviated label. A consumer inspecting the token can always recover the true cardinality.
 
 This is the disclosure discipline applied to the stack: store the absolute fact, derive the human view from it, and keep the fact recoverable.
+
+### Stack Name
+----
+RID: `req-viz-stack-name`
+Status: `Implemented`
+
+Once a set is collapsed, the pile is best described by what the set *is* ("Rekor Entries"), not by the identity of whichever member happens to be the representative ("entry #1635734195"). An optional `label` therefore stands in for the representative's individual label while the stack is active. The original label is stashed and restored on `destroy()`, so the substitution is non-destructive and survives idempotent re-runs.
+
+The name is the layout author's choice; the primitive does not derive it. Combined with the count chip, the token reads as "&lt;name&gt; ×&lt;count&gt;".
 
 ### Edge Collapse
 ----
