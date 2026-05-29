@@ -43,6 +43,11 @@ const TOOLTIP_CLASS = "tap-stack-tooltip";
 const DEFAULT_DEPTH_CAP = 3;
 const DEFAULT_MIN_TO_COLLAPSE = 2;
 const DEFAULT_CARD_OFFSET = {x: 7, y: 7};
+// Depth-card z-index ceiling. The front card (depth 1) draws at CARD_Z_TOP - 1,
+// each deeper card one lower, so the pile reads front-to-back. The
+// representative sits above all cards (see node[_stack_front_id] in
+// panel-graph.js, z-index 20 > CARD_Z_TOP).
+const CARD_Z_TOP = 10;
 
 /**
  * Collapse a set of member nodes into a single stack token.
@@ -60,6 +65,8 @@ const DEFAULT_CARD_OFFSET = {x: 7, y: 7};
  * @param {number} [opts.minToCollapse=2] Below this many members, no-op.
  * @param {{x:number,y:number}} [opts.cardOffset] Per-card offset behind the face.
  * @param {boolean} [opts.chip=true] Render the count chip.
+ * @param {string} [opts.label] Stack name shown on the representative in place
+ *   of its individual label (e.g. "Rekor Entries"). Restored on destroy.
  * @param {string} [opts.stackId] Stable id for idempotent re-runs.
  * @returns {{destroy: Function, count: number, collapsed: number}}
  */
@@ -106,10 +113,16 @@ export function applyStack(cy, opts = {}) {
     _rerouteEdges(cy, {representative, collapsed, memberIds, stackId});
 
     // --- Depth cards (decoration only) ----------------------------------
+    // Cards mirror the representative's shape and model colors but carry NO
+    // icon: a faded blank token reads as "another one of these" without the
+    // icon-placement noise of a half-shown glyph on a small offset card. They
+    // are z-ordered so each deeper card sits strictly below the one in front.
     const depthShown = Math.min(count, depthCap);
     const parentId = _parentId(representative);
-    const cardIcon = representative.data("icon_url") || representative.data("_original_icon_url") || "";
     const cardShape = representative.data("shape") || "ellipse";
+    const cardFill = representative.data("fill_color");
+    const cardBorder = representative.data("border_color");
+    const cardLabelColor = representative.data("label_color");
     const repW = representative.width();
     const repH = representative.height();
     const cardEls = [];
@@ -119,13 +132,25 @@ export function applyStack(cy, opts = {}) {
             _is_stack_card: true,
             _stack_id: stackId,
             _stack_depth: depth,
-            icon_url: cardIcon,
+            _stack_z: CARD_Z_TOP - depth,
             shape: cardShape,
         };
+        if (cardFill) data.fill_color = cardFill;
+        if (cardBorder) data.border_color = cardBorder;
+        if (cardLabelColor) data.label_color = cardLabelColor;
         if (parentId) data.parent = parentId;
         cardEls.push({group: "nodes", data, locked: true});
     }
     representative.data("_stack_front_id", stackId);
+    // Optional stack name: once collapsed, the pile is "Rekor Entries", not
+    // entry #1635734195 — so the stack label stands in for the representative's
+    // individual label. Stash the original so destroy() can restore it.
+    if (opts.label != null) {
+        if (representative.data("_stack_label_orig") === undefined) {
+            representative.data("_stack_label_orig", representative.data("label"));
+        }
+        representative.data("label", opts.label);
+    }
     if (cardEls.length > 0) {
         cy.add(cardEls);
         cardEls.forEach((c) => {
@@ -320,6 +345,13 @@ function _cleanup(cy, stackId) {
         n.removeClass(STACK_COLLAPSED_CLASS);
         n.removeData("_stack_collapsed_by");
     });
-    // Clear the representative's front marker for this stack.
-    cy.nodes('[_stack_front_id = "' + stackId + '"]').removeData("_stack_front_id");
+    // Clear the representative's front marker for this stack, restoring the
+    // original (pre-stack) label if the stack name overrode it.
+    cy.nodes('[_stack_front_id = "' + stackId + '"]').forEach((n) => {
+        if (n.data("_stack_label_orig") !== undefined) {
+            n.data("label", n.data("_stack_label_orig"));
+            n.removeData("_stack_label_orig");
+        }
+        n.removeData("_stack_front_id");
+    });
 }

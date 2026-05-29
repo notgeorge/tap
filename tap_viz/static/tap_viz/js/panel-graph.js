@@ -634,34 +634,32 @@ function initGraph(panelId) {
             {
                 // Stack depth cards: decorative offset copies drawn behind the
                 // representative so a collapsed pile reads as "many of these."
-                // Faded, non-interactive, and z-ordered below the front node.
-                // Pure decoration — the chip carries the actual count.
+                // No icon — a faded blank token in the representative's own
+                // model colors (the per-model node[fill_color] rule below
+                // repaints fill/border when the model ships colors; the neutral
+                // slate here is the fallback for uncolored models). Per-card
+                // z-index (data(_stack_z)) makes each deeper card draw strictly
+                // below the one in front, so the offset reads as a stack.
                 selector: "node[_is_stack_card]",
                 style: {
                     "shape": "data(shape)",
-                    "background-color": "#e0e7ff",
-                    "background-image": "data(icon_url)",
-                    "background-fit": "none",
-                    "background-width": "65%",
-                    "background-height": "65%",
-                    "background-position-x": "50%",
-                    "background-position-y": "50%",
-                    "background-clip": "none",
-                    "background-image-opacity": 1,
+                    "background-color": "#e2e8f0",
+                    "background-image": "none",
                     "opacity": 0.5,
-                    "border-width": 1,
+                    "border-width": 2,
                     "border-color": "#cbd5e1",
                     "label": "",
                     "events": "no",
-                    "z-index": 1,
+                    "z-index": "data(_stack_z)",
                 },
             },
             {
                 // Stack representative: the face of the pile, raised above its
-                // depth cards.
+                // depth cards (CARD_Z_TOP is 10 in stack.js; 20 clears all
+                // cards while staying below the badges/chip at 999/1000).
                 selector: "node[_stack_front_id]",
                 style: {
-                    "z-index": 3,
+                    "z-index": 20,
                 },
             },
             {

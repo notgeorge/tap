@@ -203,6 +203,7 @@ export async function execute(context) {
             members: rekorEntries,
             representative: rekorEntries.first(),
             position: {x: sigX, y: 1060},
+            label: "Rekor Entries",
         });
     }
     // wired on the Layout entity — they run automatically after this module
