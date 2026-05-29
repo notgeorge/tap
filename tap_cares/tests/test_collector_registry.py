@@ -7,6 +7,8 @@ Covers:
 """
 
 import dataclasses
+import uuid
+from unittest import mock
 from uuid import UUID, uuid4
 
 import pytest
@@ -233,6 +235,42 @@ class TestRegisterCollector:
         except InvalidCollectorRegistryKeyError:
             pass
         assert collector_registry.keys() == []
+
+    @pytest.mark.django_db
+    def test_ensure_node_survives_concurrent_create_race(self):
+        """A grid-node create that loses the fresh-DB startup race re-reads and
+        patches instead of crashing (the get_or_create pattern).
+
+        Regression for the spawn-time supervisor crash: the web and steady_queue
+        processes both run app ready() at once, and on a fresh DB both reached
+        the create path; the loser raised ImproperlyConfigured and killed the
+        Steady Queue supervisor, so collector jobs sat READY forever.
+        """
+        from tap_cares.models import Collector
+        from tap_cares.registry import NAMESPACE_COLLECTOR, _ensure_collector_node
+        from tap_grid import services as svc
+        from tap_grid.service_types import ServiceError, WriteResult
+
+        qualified_key = "tap_cares.tests.race:loser"
+        entity_id = uuid.uuid5(NAMESPACE_COLLECTOR, qualified_key)
+        real_create = svc._create_node_internal
+
+        def racing_create(type_slug, data, **kwargs):
+            # Simulate the winning process creating the row first, then our own
+            # create losing the Entity primary-key race.
+            real_create(type_slug, data, **kwargs)
+            return WriteResult(
+                success=False,
+                batch_id="",
+                operation="create_node",
+                errors=[ServiceError(code="internal_error", message="duplicate key value ...")],
+            )
+
+        with mock.patch.object(svc, "_create_node_internal", side_effect=racing_create):
+            # Must NOT raise — the loser re-reads and falls through to patch.
+            _ensure_collector_node(qualified_key, name="Racer", description="d")
+
+        assert Collector.objects.filter(entity_id=entity_id).count() == 1
 
 
 # ---------------------------------------------------------------------------

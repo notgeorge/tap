@@ -264,7 +264,10 @@ USE_TZ = True
 # =============================================================================
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+# No project-level static/ dir — each app ships its own static/ (collected by
+# AppDirectoriesFinder). Declaring BASE_DIR/"static" here only produced a
+# staticfiles.W004 "directory does not exist" check warning on every command.
+STATICFILES_DIRS: list = []
 
 # =============================================================================
 # Default Primary Key Type

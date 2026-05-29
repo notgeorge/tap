@@ -98,6 +98,18 @@
   // ---------------------------------------------------------------------
   function _safeStr(v) { return v == null ? "" : String(v); }
 
+  // Resolve a dotted field path ("data.attributes.public") against a row object.
+  function _getPath(obj, path) {
+    if (!path) return undefined;
+    var parts = String(path).split(".");
+    var cur = obj;
+    for (var i = 0; i < parts.length; i++) {
+      if (cur == null) return undefined;
+      cur = cur[parts[i]];
+    }
+    return cur;
+  }
+
   var FORMATTERS = {
     plaintext: function (cell) { return _safeStr(cell.getValue()); },
     datetime: function (cell) {
@@ -153,6 +165,24 @@
       var v = cell.getValue();
       if (!Array.isArray(v) || v.length === 0) return '<span style="color:#9ca3af">—</span>';
       return String(v.length);
+    },
+    // Like tickCross but a "no" is rendered as a neutral dash rather than a red
+    // ✕ — for boolean columns where false/absent is unremarkable (e.g. a
+    // component simply not being public).
+    tickDash: function (cell) {
+      var v = cell.getValue();
+      if (v === true || v === "true") return '<span style="color:#16a34a;font-weight:600">✓</span>';
+      return '<span style="color:#9ca3af">–</span>';
+    },
+    // Compact FIPS-199-style impact level: low → L, moderate → M, high → H,
+    // anything else (not-applicable, n/a, blank) → a neutral dash. Color-coded
+    // by severity so the C/I/A columns read at a glance.
+    ciaLevel: function (cell) {
+      var v = _safeStr(cell.getValue()).toLowerCase().trim();
+      var map = { low: ["L", "#16a34a"], moderate: ["M", "#d97706"], high: ["H", "#dc2626"] };
+      var hit = map[v];
+      if (hit) return '<span style="color:' + hit[1] + ';font-weight:700">' + hit[0] + '</span>';
+      return '<span style="color:#9ca3af">–</span>';
     },
   };
 
@@ -264,6 +294,21 @@
       columns = mode === "edge" ? EDGE_COLUMNS : COMMON_METADATA_COLUMNS;
     }
 
+    // Optional declarative row grouping (panel.config.group_by). Generic
+    // prefix-rule engine: each row is classified into a group by matching a
+    // field value against an ordered list of {prefix, label} rules; non-matches
+    // fall into default_label. Group display order follows rule order, so the
+    // consumer's grift config — not this platform JS — owns the section taxonomy.
+    var groupSpec = null;
+    var groupScript = document.getElementById("tap-table-groupby-" + panelId);
+    if (groupScript) {
+      try {
+        groupSpec = JSON.parse(groupScript.textContent);
+      } catch (e) {
+        console.warn("TAP table panel: failed to parse group_by spec for panel", panelId, e);
+      }
+    }
+
     var tableOptions = {
       data: rows,
       columns: columns,
@@ -271,6 +316,38 @@
       pagination: false, // Server handles pagination; disable Tabulator's own.
       placeholder: "No results.",
     };
+
+    if (groupSpec && Array.isArray(groupSpec.rules) && groupSpec.rules.length > 0) {
+      var groupRules = groupSpec.rules;
+      var groupField = groupSpec.field;
+      var defaultLabel = groupSpec.default_label || "Other";
+      var classify = function (rowData) {
+        var raw = _safeStr(_getPath(rowData, groupField));
+        for (var i = 0; i < groupRules.length; i++) {
+          if (raw.indexOf(groupRules[i].prefix) === 0) return groupRules[i].label;
+        }
+        return defaultLabel;
+      };
+      // Rank groups by rule order (default group sorts last) so sections render
+      // in the order the consumer declared, with rows sorted within each group.
+      var groupRank = {};
+      groupRules.forEach(function (r, i) { groupRank[r.label] = i; });
+      var defaultRank = groupRules.length;
+      var rankOf = function (label) {
+        return Object.prototype.hasOwnProperty.call(groupRank, label) ? groupRank[label] : defaultRank;
+      };
+      rows.sort(function (a, b) {
+        var ra = rankOf(classify(a)), rb = rankOf(classify(b));
+        if (ra !== rb) return ra - rb;
+        var av = _safeStr(_getPath(a, groupField)), bv = _safeStr(_getPath(b, groupField));
+        return av < bv ? -1 : av > bv ? 1 : 0;
+      });
+      tableOptions.groupBy = classify;
+      tableOptions.groupHeader = function (value, count) {
+        return _safeStr(value) +
+          ' <span style="color:#6b7280;font-weight:400;margin-left:8px">(' + count + ')</span>';
+      };
+    }
 
     // Node-mode rows navigate to the object viewer on click (req-web-stdpanel-table-row-nav).
     // Use rowFormatter to attach the click handler directly on the DOM element — Tabulator v6
@@ -299,8 +376,33 @@
     }
 
     /* global Tabulator */
-    new Tabulator(mountEl, tableOptions);
+    var table = new Tabulator(mountEl, tableOptions);
     mountEl.setAttribute("data-tap-table-mounted", "true");
+
+    // Optional quick-filter search box (panel.config.quick_filter). Live-filters
+    // the loaded rows across all displayed columns; group headers re-count as the
+    // set narrows. Client-side only — scoped to the rows currently on the page.
+    var filterInput = document.getElementById("tap-table-filter-" + panelId);
+    if (filterInput) {
+      var filterFields = (customColumns && customColumns.length > 0)
+        ? customColumns.map(function (c) { return c.field; })
+        : ["name", "entity_type"];
+      var applyFilter = function () {
+        var term = filterInput.value.trim().toLowerCase();
+        if (!term) { table.clearFilter(); return; }
+        table.setFilter(function (data) {
+          for (var i = 0; i < filterFields.length; i++) {
+            var v = _getPath(data, filterFields[i]);
+            if (v != null && String(v).toLowerCase().indexOf(term) !== -1) return true;
+          }
+          return false;
+        });
+      };
+      filterInput.addEventListener("input", applyFilter);
+      // Re-apply any pre-existing value (e.g. after an HTMX fragment swap that
+      // recreated the table but left a typed term in the input).
+      if (filterInput.value) applyFilter();
+    }
   }
 
   /**

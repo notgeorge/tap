@@ -108,9 +108,10 @@ def load_secrets(
         loaded.append(secret.ref)
 
     logger.info(
-        "[d644] tap-cares secrets: loaded %d secret(s) from %s.",
+        "[d644] tap-cares secrets: loaded %d secret(s) from %s: %s.",
         len(loaded),
         root_path,
+        ", ".join(sorted(ref.qualified for ref in loaded)) or "(none)",
     )
     return loaded
 

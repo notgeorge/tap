@@ -90,9 +90,7 @@ def register_collector(
     Spec: req-tap-cares-collector-registration.
     """
     if not (isinstance(cls, type) and issubclass(cls, CollectorBase)):
-        raise ImproperlyConfigured(
-            f"register_collector: {cls!r} must be a subclass of CollectorBase."
-        )
+        raise ImproperlyConfigured(f"register_collector: {cls!r} must be a subclass of CollectorBase.")
 
     # Phase 1: sub-grid registration of the runner class.
     collector_registry.register(key, cls, scope=scope)
@@ -117,6 +115,12 @@ def _ensure_collector_node(
     registrations updates `name` and/or `description` if they have drifted;
     otherwise no-op.
 
+    Concurrent-safe: the dual-existence pattern (spec-grid-dual-existence) runs
+    this from app `ready()`, and the web + steady_queue processes start at the
+    same time, so on a fresh DB two processes can hit the create path at once.
+    A create that loses the primary-key race re-reads and falls through to the
+    patch path instead of crashing — the get_or_create race-safety pattern.
+
     If the database is not yet ready (e.g. during `makemigrations` before
     migrations have been applied), this function silently skips and returns.
     Subsequent app.ready() runs will retry once the DB is usable. This keeps
@@ -132,12 +136,10 @@ def _ensure_collector_node(
 
     try:
         existing = Collector.objects.filter(entity_id=entity_id).first()
-    except (OperationalError, ProgrammingError):
+    except OperationalError, ProgrammingError:
         # DB not migrated yet, or tap_cares tables don't exist.
         # Silent skip; the next app.ready() will pick it up after migrate.
-        logger.debug(
-            "[ae7c] Collector grid-node upsert skipped (DB not ready): %s", qualified_key
-        )
+        logger.debug("[ae7c] Collector grid-node upsert skipped (DB not ready): %s", qualified_key)
         return
     except Exception:
         # Catch-all for other DB-access blockers — e.g. pytest-django's
@@ -161,12 +163,23 @@ def _ensure_collector_node(
             },
             entity_id=entity_id,
         )
-        if not result.success:
+        if result.success:
+            return
+        # Create failed. The web and steady_queue processes both run app
+        # ready() concurrently at startup; on a fresh DB both reach this create
+        # path and one loses the race on the Entity primary key, surfacing as a
+        # failed WriteResult. Re-read: if the node now exists, another process
+        # won the create — fall through to the patch path rather than crashing.
+        # This is the get_or_create race-safety pattern (Django docs, "Get or
+        # create": create, and on a conflicting unique constraint re-fetch).
+        # A create that genuinely left no row behind is still fatal.
+        existing = Collector.objects.filter(entity_id=entity_id).first()
+        if existing is None:
             raise ImproperlyConfigured(
                 f"_ensure_collector_node({qualified_key!r}) create failed: "
                 f"{[(e.code, e.message) for e in result.errors]}"
             )
-        return
+        # else: lost the concurrent-create race — fall through to patch below.
 
     # Existing row — patch only the mutable descriptive fields if they have
     # drifted. collector_registry is identity-bearing and not patched here.
@@ -197,6 +210,5 @@ def get_collector(collector_key: str) -> type[CollectorBase]:
         return collector_registry.get(collector_key)
     except KeyError:
         raise CollectorNotFoundError(
-            f"No collector registered for key '{collector_key}'. "
-            f"Registered: {collector_registry.keys()}"
+            f"No collector registered for key '{collector_key}'. " f"Registered: {collector_registry.keys()}"
         ) from None

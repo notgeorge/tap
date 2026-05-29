@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e6f63-62ec-70ea-acaf-233b25a6df8f",
+        "entity_id": "019e7102-7e73-7530-87b0-ee57ec921c68",
         "entity_type": "batch",
-        "name": "Samsite Compliance landing v1.1 \u2014 drop nav-links panel (breadcrumb chrome replaces hero nav)",
+        "name": "Samsite Compliance landing v1.2 \u2014 KSI Components grouping + compact C/I/A + public dash",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-landing",
-        "name": "Samsite Compliance landing v1.1 \u2014 drop nav-links panel (breadcrumb chrome replaces hero nav)",
-        "description": "Consolidated landing-page bundle for /samsite/compliance. v1.1 drops the samsite hero-nav panel + its USES_PANEL edge + the corresponding row from the page layout \u2014 replaced by the platform-level breadcrumb chrome (spec-web-navigation req-web-nav-breadcrumb-header). The remaining 10 panels (page + 9 data-table panels + samsite-vdr-ingestion-health) and their 10 USES_PANEL edges still ship in one atomic batch so precommit-consistency hotlink validation sees the full graph in scope."
+        "name": "Samsite Compliance landing v1.2 \u2014 KSI Components grouping + compact C/I/A + public dash",
+        "description": "Consolidated landing-page bundle for /samsite/compliance. v1.2 re-upserts the KSI Components table panel: rows now group into sections (AWS components / External services / HTML artifacts / npm packages, with an 'Unexpected Name' catch-all) by matching the component name prefix via the table panel's declarative group_by engine; the Public column renders a neutral dash instead of a red \u2715 for non-public components (tickDash); and the C/I/A columns render compact L/M/H badges with a dash for not-applicable (ciaLevel). New batch_entity_id forces existing already-seeded sessions to re-apply the changed panel config (the skip guard is batch-id-keyed); node upserts remain idempotent on their own entity_ids. Still one atomic batch (page + 9 data-table panels + samsite-vdr-ingestion-health + their USES_PANEL edges) so hotlink validation sees the full graph; v1.1's nav-panel deletes are retained and idempotent."
       },
       "nodes": [
         {
@@ -283,6 +283,29 @@
             "config": {
               "column_mode": "common_metadata",
               "default_page_size": 200,
+              "quick_filter": true,
+              "group_by": {
+                "field": "name",
+                "rules": [
+                  {
+                    "prefix": "aws::",
+                    "label": "AWS components"
+                  },
+                  {
+                    "prefix": "ext::",
+                    "label": "External services"
+                  },
+                  {
+                    "prefix": "html::",
+                    "label": "HTML artifacts"
+                  },
+                  {
+                    "prefix": "npm::",
+                    "label": "npm packages"
+                  }
+                ],
+                "default_label": "Unexpected Name"
+              },
               "columns": [
                 {
                   "field": "name",
@@ -304,22 +327,25 @@
                 {
                   "field": "data.attributes.public",
                   "title": "Public",
-                  "formatter": "tickCross",
+                  "formatter": "tickDash",
                   "width": 70
                 },
                 {
                   "field": "data.security_confidentiality",
                   "title": "C",
+                  "formatter": "ciaLevel",
                   "width": 50
                 },
                 {
                   "field": "data.security_integrity",
                   "title": "I",
+                  "formatter": "ciaLevel",
                   "width": 50
                 },
                 {
                   "field": "data.security_availability",
                   "title": "A",
+                  "formatter": "ciaLevel",
                   "width": 50
                 },
                 {

@@ -49,6 +49,8 @@ New requirement establishing the authoritative config contract for Table Panel i
 
 #### Config JSON Schema
 
+The authoritative schema is `TABLE_CONFIG_SCHEMA` in `tap_web/panels/table_panel/__init__.py`; this block mirrors it.
+
 ```json
 {
   "type": "object",
@@ -57,25 +59,89 @@ New requirement establishing the authoritative config contract for Table Panel i
     "column_mode": {
       "type": "string",
       "enum": ["common_metadata"],
-      "default": "common_metadata",
-      "description": "Column rendering strategy. V1 supports only common_metadata."
+      "description": "Column rendering strategy when no explicit `columns` are given. V1 supports only common_metadata."
     },
-    "default_limit": {
+    "default_page_size": {
       "type": "integer",
       "minimum": 1,
       "maximum": 500,
-      "default": 25,
-      "description": "Default rows per page. Clamped to the linked Search's max_limit."
+      "description": "Default rows per page before the user selects another size. Clamped to the linked Search's max_limit; defaults to 100 when absent."
+    },
+    "quick_filter": {
+      "type": "boolean",
+      "description": "When true, render a quick-filter search box top-right of the table that live-filters the loaded rows client-side across all displayed columns. Filters the current page's rows only — pair with a page size that loads the full set when whole-table filtering is intended."
+    },
+    "columns": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Explicit column specs; overrides column_mode. Each maps to one client-side table column.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "title"],
+        "properties": {
+          "field": {"type": "string", "minLength": 1, "description": "Dotted path into the node envelope, e.g. `name` or `data.<field>`."},
+          "title": {"type": "string", "description": "Column header text."},
+          "width": {"type": "integer", "minimum": 20, "maximum": 800},
+          "widthGrow": {"type": "integer", "minimum": 1, "maximum": 5},
+          "formatter": {
+            "type": "string",
+            "enum": ["plaintext", "datetime", "tickCross", "tickDash", "ciaLevel", "ellipsisSuffix", "json", "passFailBadge", "painBadge", "arrayCount"],
+            "description": "Named client-side cell renderer; see Column Formatters below."
+          },
+          "tooltip": {"type": "string", "enum": ["full_value"]},
+          "headerSort": {"type": "boolean"}
+        }
+      }
+    },
+    "group_by": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "rules"],
+      "description": "Declarative row grouping into sections; see Row Grouping below.",
+      "properties": {
+        "field": {"type": "string", "minLength": 1, "description": "Dotted path whose value is prefix-matched to choose a section."},
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["prefix", "label"],
+            "properties": {
+              "prefix": {"type": "string", "minLength": 1},
+              "label": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "default_label": {"type": "string", "minLength": 1, "description": "Section label for rows that match no rule."}
+      }
     }
   }
 }
 ```
 
 `column_mode` options:
-- `common_metadata` — fixed column set derived from current entity-spine metadata fields. Canonical entity metadata terminology is `name`, not `display_name` or `title`. This is the only supported mode in V1.
+- `common_metadata` — fixed column set derived from current entity-spine metadata fields. Canonical entity metadata terminology is `name`, not `display_name` or `title`. This is the only supported mode in V1, and the fallback when no explicit `columns` are given.
+
+#### Column Formatters
+`columns[].formatter` selects a named client-side renderer (defined in `panel-table.js`); string names keep the config declarable with no inline JS. Available formatters:
+- `plaintext` — raw string value (default).
+- `datetime` — compact local timestamp (`yyyy-mm-dd hh:mm`).
+- `tickCross` — `✓` / `✕` / `–` for true / false / null-or-absent.
+- `tickDash` — `✓` for true, a neutral `–` otherwise; for boolean columns where a "no" is unremarkable rather than a fault.
+- `ciaLevel` — compact impact level: `low → L`, `moderate → M`, `high → H`, anything else (not-applicable, blank) → a neutral `–`; color-coded by severity.
+- `ellipsisSuffix` — last 8 characters with a leading ellipsis; for long opaque identifiers.
+- `json` — compact JSON, truncated.
+- `passFailBadge` — `PASS` / `FAIL` pill.
+- `painBadge` — colored pill for ordinal severity codes.
+- `arrayCount` — count of array items, `–` when empty.
+
+#### Row Grouping
+When `group_by` is present, rows are partitioned into ordered sections. Each row is classified by matching its `field` value against the `rules` in order; the first rule whose `prefix` the value starts with assigns the row's section `label`. Rows matching no rule fall into `default_label`. Sections render in rule order (the `default_label` section last), with rows sorted within each section by the grouping field. Section headers show a live count that re-tallies as a `quick_filter` narrows the set. The section taxonomy (the prefix→label rules) lives in the panel's config, not in the platform JS — so the consumer owns its grouping vocabulary.
 
 #### Development
-Every future Table Panel option (column overrides, page size choices, per-type split mode) must be added to this schema and this section first. The schema is the contract; everything else follows from it.
+Every future Table Panel option (per-type split mode, row actions, richer renderers) must be added to this schema and this section first. The schema is the contract; everything else follows from it. New `columns[].formatter` values are added to the enum here and implemented as a named renderer in `panel-table.js` in the same change.
 
 #### Acceptance Criteria
 
@@ -83,11 +149,11 @@ Every future Table Panel option (column overrides, page size choices, per-type s
 | --- | --- | :---: | --- | --- |
 | req-web-stdpanel-table-config-1 | Config Is Validated On Save | Proposed | Table Panel config is validated against the defined JSON Schema before each save. | Uses `jsonschema.validate`; raises `ValidationError` on failure. |
 | req-web-stdpanel-table-config-2 | No Arbitrary Keys | Proposed | `additionalProperties: false` — unrecognized config keys are rejected at save time. | |
-| req-web-stdpanel-table-config-3 | Defaults Applied | Proposed | `column_mode` defaults to `common_metadata`; `default_limit` defaults to `25` when absent. | |
-| req-web-stdpanel-table-config-4 | Search Cap Respected | Proposed | `default_limit` is advisory; the search service `max_limit` takes precedence at execution time. | Cross-ref `req-web-stdpanel-table-pagination-4`. |
+| req-web-stdpanel-table-config-3 | Defaults Applied | Proposed | `column_mode` defaults to `common_metadata`; `default_page_size` defaults to `100` when absent. | |
+| req-web-stdpanel-table-config-4 | Search Cap Respected | Proposed | `default_page_size` is advisory; the search service `max_limit` takes precedence at execution time. | Cross-ref `req-web-stdpanel-table-pagination-4`. |
 
 #### Future
-Add `column_overrides` (per-column width/visibility), `page_size_options` (user-selectable page sizes), and `per_node_type_tables` (separate tables per entity type) as config keys once each is specced and approved.
+Add `per_node_type_tables` (separate tables per entity type) and per-row actions as config keys once each is specced and approved. (Explicit `columns` with named formatters, declarative `group_by` row sections, and the `quick_filter` search box are implemented above.)
 
 ### Table Panel Type
 ----

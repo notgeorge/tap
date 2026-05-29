@@ -25,11 +25,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from tap_web.utils import safe_json
-
 import jsonschema  # type: ignore[import-untyped]
 from django import forms
 from django.core.exceptions import ValidationError
+
+from tap_web.utils import safe_json
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -54,6 +54,13 @@ TABLE_CONFIG_SCHEMA: dict[str, Any] = {
             "minimum": 1,
             "maximum": 500,
         },
+        # When true, render a quick-filter search box top-right of the table that
+        # live-filters the loaded rows client-side (matches across all columns).
+        # Note: filters the current page's rows only — pair with a page size that
+        # loads the full set when whole-table filtering is intended.
+        "quick_filter": {
+            "type": "boolean",
+        },
         # Optional custom column specs — overrides column_mode in the JS.
         # Each spec maps to a Tabulator column; `formatter` selects one of the
         # JS preset formatters (panel-table.js) so column logic is declarable.
@@ -75,6 +82,8 @@ TABLE_CONFIG_SCHEMA: dict[str, Any] = {
                             "plaintext",
                             "datetime",
                             "tickCross",
+                            "tickDash",
+                            "ciaLevel",
                             "ellipsisSuffix",
                             "json",
                             "passFailBadge",
@@ -85,6 +94,32 @@ TABLE_CONFIG_SCHEMA: dict[str, Any] = {
                     "tooltip": {"type": "string", "enum": ["full_value"]},
                     "headerSort": {"type": "boolean"},
                 },
+            },
+        },
+        # Optional declarative row grouping. The JS classifies each row into a
+        # section by matching a field value against ordered {prefix, label}
+        # rules; non-matches fall into default_label. Section order follows rule
+        # order. Keeps the section taxonomy in the consumer's config, not in JS.
+        "group_by": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["field", "rules"],
+            "properties": {
+                "field": {"type": "string", "minLength": 1},
+                "rules": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["prefix", "label"],
+                        "properties": {
+                            "prefix": {"type": "string", "minLength": 1},
+                            "label": {"type": "string", "minLength": 1},
+                        },
+                    },
+                },
+                "default_label": {"type": "string", "minLength": 1},
             },
         },
     },
@@ -241,12 +276,14 @@ class TablePanelType:
         }
 
         custom_columns = config.get("columns")
+        group_by = config.get("group_by")
         return {
             "table_nodes": nodes,
             "table_meta": meta,
             "table_search": search,
             "table_nodes_json": safe_json(nodes),
             "table_columns_json": safe_json(custom_columns) if custom_columns else "",
+            "table_group_by_json": safe_json(group_by) if group_by else "",
             "table_error": None,
         }
 
@@ -317,8 +354,6 @@ class TablePanelType:
                 )
 
 
-
-
 def _build_page_size_options(total_count: int, current_page_size: int) -> list[dict[str, Any]]:
     """Build dynamic page-size selector options based on total row count.
 
@@ -347,5 +382,5 @@ def _safe_int(value: Any, default: int) -> int:
     try:
         result = int(value)
         return result if result >= 0 else default
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default

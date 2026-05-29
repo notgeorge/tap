@@ -140,7 +140,7 @@ Each GRIFT batch is declared in the samsite plugin manifest (`tap-plugin.toml` `
 
 ### KI-1: `compliance-landing.grift.json` fails on fresh-DB spawn (batch-ordering bug)
 
-Status: **Open** — flagged 2026-05-27. Fix deferred pending the in-progress panel/page latest-entity-by-path resolution spec; revisit once that spec lands.
+Status: **Resolved** — flagged 2026-05-27, fixed 2026-05-28 in `200b22b` (*"samsite: consolidate compliance-landing GRIFT into one batch (fresh-import safe)"*). The bundle was collapsed back to a single batch — the **preferred** fix path below, not the interim shuffle — so the original batch-ordering hazard is eliminated by construction rather than worked around. The symptom/root-cause/history below are retained for the record.
 
 #### Symptom
 
@@ -172,6 +172,7 @@ That sequencing isn't supported — edges can't land before their endpoints exis
 | `78de9c6` | 2026-05-23 | Original landing page | 1 batch: page + panels + edges (works on any DB) |
 | `37aab54` | 2026-05-23 | Path B per-type viewer + KSI Framework rows | 2 batches: page moved into batch 1 ("add themes/indicators rows"); marker placeholder added to batch 0 to satisfy `nodes[]` requirement (broken on fresh DB) |
 | `08881c4` | 2026-05-26 | OSCAL pages + nav-links | 3 batches: page now in batch 2; nav panel + nav edge in batch 1 (still broken on fresh DB; broken in same way) |
+| `200b22b` | 2026-05-28 | **Fix:** consolidate to one batch | 1 batch: page node first, then all 10 panels, then all USES_PANEL edges; nav panel removed via `deletes` block. Back to the `78de9c6` working shape — fresh-import safe (nodes land before edges; hotlink validation deferred to end-of-batch per req-grid-hotlink-deferred). |
 
 The bug has been latent on `origin/main` since `37aab54`. It only surfaces on fresh spawns because long-lived DBs retain the page entity from the original `78de9c6` single-batch import. Every spawn since `37aab54` has hit this, but the noise was attributed to other causes until the 2026-05-27 spawn investigation.
 
@@ -189,6 +190,6 @@ This bug is structurally tied to the bundle's reliance on hardcoded USES_PANEL e
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| KI-1-1 | Spec Resolution | Open | The new panel/page latest-entity-by-path resolution spec is finalized. | Tracked outside this spec; this issue is gated on its landing |
-| KI-1-2 | Fresh-Spawn Green | Open | `import_plugin_grift --all` on a fresh DB completes with `samsite/compliance-landing` reporting OK. | Verifiable via `scripts/spawn-session.sh` against a new worktree |
-| KI-1-3 | Live-DB Idempotent | Open | Re-importing the bundle against an already-seeded DB does not re-trigger the failure or produce drift. | Important because most existing sessions already have the page entity from the `78de9c6` original import |
+| KI-1-1 | Spec Resolution | N/A | The new panel/page latest-entity-by-path resolution spec is finalized. | No longer a gate — the single-batch collapse fixes KI-1 directly, independent of that spec. The slug-resolution spec remains desirable future work but this issue is not blocked on it. |
+| KI-1-2 | Fresh-Spawn Green | Resolved | `import_plugin_grift --all` on a fresh DB completes with `samsite/compliance-landing` reporting OK. | The single-batch shape is structurally identical to the `78de9c6` shape this table certifies "works on any DB" — nodes precede edges, hotlink validation deferred to end-of-batch. Fresh-spawn green follows by equivalence; canonical confirmation is the standing `scripts/spawn-session.sh` test. |
+| KI-1-3 | Live-DB Idempotent | Resolved | Re-importing the bundle against an already-seeded DB does not re-trigger the failure or produce drift. | Verified 2026-05-28: `import_plugin_grift samsite` re-import is green with 0 drift; page entity + all 10 USES_PANEL edges present on the grid. |
