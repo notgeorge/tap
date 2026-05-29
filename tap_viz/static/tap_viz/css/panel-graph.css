@@ -255,3 +255,24 @@
     color: #b91c1c;
     font-style: normal;
 }
+
+/* Stack count tooltip: hover surface for a stack chip showing the exact,
+   grouped integer ("1,234") behind the humanized chip label ("1.2k"). Plain
+   overlay positioned from the chip's rendered coordinates; does not follow
+   pan/zoom (it hides on either). */
+.tap-stack-tooltip {
+    position: absolute;
+    display: none;
+    z-index: 20;
+    transform: translate(-50%, -100%);
+    padding: 3px 7px;
+    background: #1e293b;
+    color: #f8fafc;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: 5px;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+}

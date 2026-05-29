@@ -146,8 +146,16 @@ async function _renderPass(state) {
 
     _removeStatusBadges(cy);
 
+    // Only visible, non-helper nodes host status badges. Excludes type-icon
+    // badges, other status badges, stack helper nodes (depth cards / count
+    // chip), and anything hidden by class (elevation/nesting/stack-collapsed).
     const hosts = cy.nodes().filter(
-        (n) => !n.data("_is_badge") && !n.data("_is_status_badge"),
+        (n) =>
+            !n.data("_is_badge") &&
+            !n.data("_is_status_badge") &&
+            !n.data("_is_stack_card") &&
+            !n.data("_is_stack_chip") &&
+            n.visible(),
     );
 
     const badgeElements = [];
