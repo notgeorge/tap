@@ -12,7 +12,17 @@ module.exports = {
     "./plugins/**/templates/**/*.html",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        // Warm-neutral off-white page canvas — Tufte "paper, not glare". The
+        // default app background (set on <html> in base.html); replaces cool
+        // gray-50 / straight white. Deliberately warm-NEUTRAL (only a couple
+        // points of warmth) rather than a saturated cream, so it lifts off
+        // white without clashing with TAP's cool slate UI. White panels/cards
+        // sit on it with subtle separation.
+        canvas: "#f6f5f1",
+      },
+    },
   },
   plugins: [],
 }
