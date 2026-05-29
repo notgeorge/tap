@@ -55,6 +55,11 @@ const NESTING_RELATIONSHIPS = [
     {name: "account-owns-repo",         gryphon: "(parent:github_account)-[:OWNS_REPO]->(child:github_repository)"},
     {name: "repo-defines-workflow",     gryphon: "(parent:github_repository)-[:DEFINES_WORKFLOW]->(child:github_workflow)"},
     {name: "ca-contains-entries",       gryphon: "(parent:sigstore_ca)<-[:CERT_ISSUED_BY]-(child:rekor_log_entry)"},
+    {name: "host-hosts-document",       gryphon: "(parent:web_host)<-[:HOSTED_BY]-(child:web_document)"},
+    // github_app (Dependabot) is enabled on the repo (ENABLED_ON) but belongs at
+    // the github.com PLATFORM level, not inside the repo box. The nesting resolver
+    // is single-hop and there's no app→platform edge, so it's parented to the
+    // platform compound directly in execute() (step 9) rather than via a rule.
 ];
 
 // Layout constants (canvas units). Tuned for the samsite node-set; iterate visually.
@@ -250,16 +255,43 @@ export async function execute(context) {
         });
     }
 
-    // 9. Node types threaded in from the nitpick merge — PROVISIONAL placement,
-    //    pending a story-driven layout pass (flagged for review):
-    //    - web_document (CISA KEV catalog) + web_host (CISA) — the KEV-fetch input
-    //      the deploy workflow FETCHES; parked below the GitHub deploy cluster.
-    //    - user (Readers / george / Sam) — the human actors; parked in a column on
-    //      the far left.
-    const kev = cy.nodes('[entity_type="web_document"], [entity_type="web_host"]')
-        .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
-    kev.forEach((n, i) => n.position({x: ghCenterX - 110 + i * 220, y: bootCenterY + 230}));
-    const users = cy.nodes('[entity_type="user"]')
-        .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
-    users.forEach((n, i) => n.position({x: LEFT_X - 280, y: TOP_Y + i * 95}));
+    // 9. Threaded-in node types from the merge — anchored to the parts of the
+    //    system they relate to.
+
+    // github_app (Dependabot) → inside the github.com PLATFORM box, NOT the repo.
+    // No app→platform edge exists for a nesting rule and the resolver is
+    // single-hop, so parent it to the platform compound directly here, positioned
+    // above the repo content so the box wraps it at the top.
+    const platform = cy.nodes('[entity_type="github_platform"]').first();
+    if (platform.nonempty()) {
+        cy.nodes('[entity_type="github_app"]').forEach((a, i) => {
+            a.position({x: ghCenterX + i * WF_GAP, y: wfBB.y1 - 150});
+            a.move({parent: platform.id()});
+        });
+    }
+
+    // Human actors — anchored to the parts of the system they touch.
+    const userByName = (re) => cy.nodes('[entity_type="user"]').filter((n) => re.test(n.data("label") || ""));
+    // Readers → directly to the left of the CloudFront CDN.
+    const cf = cy.nodes('[entity_type="aws_cloudfront_distribution"]').first();
+    if (cf.nonempty()) userByName(/reader/i).forEach((n) => n.position({x: cf.position("x") - 170, y: cf.position("y")}));
+    // george → directly underneath the bootstrap tfstate S3 bucket.
+    const tfstate = cy.nodes('[entity_type="aws_s3_bucket"]')
+        .filter((n) => (n.data("tags") || {}).Component === "bootstrap").first();
+    if (tfstate.nonempty()) userByName(/george/i).forEach((n) => n.position({x: tfstate.position("x"), y: tfstate.position("y") + 110}));
+    // Sam → to the right of the github.com box (recompute its bbox now the app is inside).
+    if (platform.nonempty()) {
+        const ghBB = platform.boundingBox();
+        userByName(/sam/i).forEach((n) => n.position({x: ghBB.x2 + 130, y: (ghBB.y1 + ghBB.y2) / 2}));
+    }
+
+    // CISA (web_host) contains the KEV catalog (web_document, nested via the
+    // host-hosts-document rule). Position the catalog to the right of the Sigstore
+    // box — CISA, the compound that auto-wraps it, then sits right of Sigstore.
+    const sigCa = cy.nodes('[entity_type="sigstore_ca"]').first();
+    const kevDoc = cy.nodes('[entity_type="web_document"]').first();
+    if (sigCa.nonempty() && kevDoc.nonempty()) {
+        const sb = sigCa.boundingBox();
+        kevDoc.position({x: sb.x2 + 180, y: (sb.y1 + sb.y2) / 2});
+    }
 }
