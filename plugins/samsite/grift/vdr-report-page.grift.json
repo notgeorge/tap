@@ -4,9 +4,9 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e7574-f9bf-772a-99cd-e1639785f450",
+        "entity_id": "019e7592-0ee9-722c-b208-59b3b0615ce4",
         "entity_type": "batch",
-        "name": "Samsite VDR Report viewer page v0.1.0",
+        "name": "Samsite VDR Report viewer page v0.2.0 — under /samsite/artifacts",
         "dimensions": {}
       },
       "batch_node": {
@@ -24,7 +24,8 @@
           },
           "node": {
             "name": "VDR Report",
-            "slug": "/samsite/compliance/vdr-report",
+            "slug": "/samsite/artifacts/vdr-report",
+            "nav_weight": 40,
             "layout": {
               "columns": {
                 "col-1": {

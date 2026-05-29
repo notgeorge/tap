@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e7538-8416-7530-9d70-4778f97baf2c",
+        "entity_id": "019e7592-0ee9-722c-b208-59b5f5b4a651",
         "entity_type": "batch",
         "name": "Samsite Compliance landing v1.2 \u2014 KSI Components grouping + compact C/I/A + public dash",
         "dimensions": {}
@@ -29,6 +29,7 @@
           "node": {
             "name": "Compliance",
             "slug": "/samsite/compliance",
+            "discoverable": false,
             "layout": {
               "columns": {
                 "col-1": {

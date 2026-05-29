@@ -4,9 +4,9 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e74d5-e6f6-75a6-8f05-0c8e29478e67",
+        "entity_id": "019e7592-0ee9-722c-b208-59b9c6340794",
         "entity_type": "batch",
-        "name": "Samsite Artifacts page v0.2.0",
+        "name": "Samsite Artifacts page v0.3.0 — nav order",
         "dimensions": {}
       },
       "batch_node": {
@@ -25,6 +25,7 @@
           "node": {
             "name": "Artifacts",
             "slug": "/samsite/artifacts",
+            "nav_weight": 90,
             "layout": {
               "columns": {
                 "col-1": {

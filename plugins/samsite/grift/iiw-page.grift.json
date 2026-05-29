@@ -4,9 +4,9 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e757e-785c-77ea-9813-c1b3efbb1d74",
+        "entity_id": "019e7592-0ee9-722c-b208-59b4283d575b",
         "entity_type": "batch",
-        "name": "Samsite IIW viewer page v0.2.0 — full-bleed",
+        "name": "Samsite IIW viewer page v0.3.0 — under /samsite/artifacts, full-bleed",
         "dimensions": {}
       },
       "batch_node": {
@@ -24,7 +24,8 @@
           },
           "node": {
             "name": "IIW",
-            "slug": "/samsite/compliance/iiw",
+            "slug": "/samsite/artifacts/iiw",
+            "nav_weight": 30,
             "layout": {
               "full_bleed": true,
               "columns": {

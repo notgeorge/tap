@@ -6,9 +6,9 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e7523-9988-75e1-88f1-6300c0ee0a2b",
+        "entity_id": "019e7592-0ee9-722c-b208-59b0b33ac84f",
         "entity_type": "batch",
-        "name": "Samsite Compliance pages v0.3.0 — sequence-nav back/forward selector on SSP + POA&M",
+        "name": "Samsite Compliance pages v0.4.0 — relocate SSP + POA&M under /samsite/artifacts",
         "dimensions": {}
       },
       "batch_node": {
@@ -28,7 +28,8 @@
           },
           "node": {
             "name": "SSP",
-            "slug": "/samsite/compliance/ssp",
+            "slug": "/samsite/artifacts/ssp",
+            "nav_weight": 10,
             "layout": {
               "columns": {
                 "col-1": {
@@ -106,7 +107,8 @@
           },
           "node": {
             "name": "POA&M",
-            "slug": "/samsite/compliance/poam",
+            "slug": "/samsite/artifacts/poam",
+            "nav_weight": 20,
             "layout": {
               "columns": {
                 "col-1": {
@@ -267,9 +269,9 @@
     },
     {
       "batch_entity": {
-        "entity_id": "019e6f1f-89cc-753e-af9d-6194f481b655",
+        "entity_id": "019e7592-0ee9-722c-b208-59b1b36ab016",
         "entity_type": "batch",
-        "name": "Samsite KSI Scoreboard page v0.2.1 — canonical multi-entity resolution (Gryphon double-quoted literals)",
+        "name": "Samsite KSI Scoreboard page v0.3.0 — promoted to /samsite/scoreboard",
         "dimensions": {}
       },
       "batch_node": {
@@ -289,7 +291,7 @@
           },
           "node": {
             "name": "KSI Scoreboard",
-            "slug": "/samsite/compliance/scoreboard",
+            "slug": "/samsite/scoreboard",
             "layout": {
               "columns": {
                 "col-1": {

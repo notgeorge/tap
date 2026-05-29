@@ -4,9 +4,9 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e7550-0607-7043-bac9-d7e42d0d9faa",
+        "entity_id": "019e7592-0ee9-722c-b208-59b2d7b5ee6c",
         "entity_type": "batch",
-        "name": "Samsite KSI Signal viewer page v0.1.0",
+        "name": "Samsite KSI Signal viewer page v0.2.0 — under /samsite/artifacts",
         "dimensions": {}
       },
       "batch_node": {
@@ -24,7 +24,8 @@
           },
           "node": {
             "name": "KSI Signal",
-            "slug": "/samsite/compliance/ksi-signal",
+            "slug": "/samsite/artifacts/ksi-signal",
+            "nav_weight": 50,
             "layout": {
               "columns": {
                 "col-1": {

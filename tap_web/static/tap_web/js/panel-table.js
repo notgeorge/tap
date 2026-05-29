@@ -197,13 +197,13 @@
     vdr_finding:         function (id) { return "/samsite/finding/"   + id; },
     ksi_indicator:       function (id) { return "/samsite/indicator/" + id; },
     ksi_component:       function (id) { return "/samsite/component/" + id; },
-    ksi_signal:          function (id) { return "/samsite/compliance/ksi-signal?ksi_signal_entity_id=" + id; },
-    vdr_report:          function (id) { return "/samsite/compliance/vdr-report?vdr_report_entity_id=" + id; },
+    ksi_signal:          function (id) { return "/samsite/artifacts/ksi-signal?ksi_signal_entity_id=" + id; },
+    vdr_report:          function (id) { return "/samsite/artifacts/vdr-report?vdr_report_entity_id=" + id; },
     compliance_artifact: function (id, row) {
       var kind = ((row || {}).data || {}).kind || "";
-      if (kind === "oscal_ssp")  return "/samsite/compliance/ssp?oscal_ssp_artifact_entity_id=" + id;
-      if (kind === "oscal_poam") return "/samsite/compliance/poam?oscal_poam_artifact_entity_id=" + id;
-      if (kind === "iiw")        return "/samsite/compliance/iiw?iiw_artifact_entity_id=" + id;
+      if (kind === "oscal_ssp")  return "/samsite/artifacts/ssp?oscal_ssp_artifact_entity_id=" + id;
+      if (kind === "oscal_poam") return "/samsite/artifacts/poam?oscal_poam_artifact_entity_id=" + id;
+      if (kind === "iiw")        return "/samsite/artifacts/iiw?iiw_artifact_entity_id=" + id;
       return "/samsite/artifact/" + id;  // fallback: universal viewer
     },
   };
