@@ -117,6 +117,7 @@ The plugin uses `tap.computing` as its core domain dimension key. Each model and
 - `storage`
 - `network`
 - `protocol`
+- `identity`
 
 These values should remain small, reviewable, and durable in v0. The purpose is not to create a deep ontology on day one, but to force the plugin to locate each type within the computing domain explicitly.
 
@@ -153,6 +154,7 @@ The initial v0 model set is:
 | Storage | `storage_volume`, `filesystem`, `file` | Generic storage abstraction plus mounted and contained data |
 | Networking | `network_interface`, `ip_address`, `ip_subnet`, `port` | Stable IP-stack primitives |
 | Transport/Protocol | `tcp_connection`, `application_protocol` | Session node plus protocol abstraction above layer four |
+| Identity | `user` | The human actor who interacts with the systems |
 
 Definitions and intent:
 
@@ -170,6 +172,7 @@ Definitions and intent:
 - **port**: a transport endpoint identified primarily by port number and transport family
 - **tcp_connection**: a TCP session represented as a node
 - **application_protocol**: a generic protocol concept that rides above transport and can later branch into specific protocols
+- **user**: a human who interacts with the systems; the generic person primitive. Roles such as administrator are expressed as assigned relationships rather than distinct node types, so a single `user` type can carry any edge in or out.
 
 Relationship simplification for v0:
 
@@ -186,6 +189,7 @@ This is intentionally simpler than trying to model every possible runtime or orc
 | req-computing-core-models-2 | Program Included | Proposed | The model set distinguishes `program` from `process` and leaves higher-level `application` semantics deferred. | |
 | req-computing-core-models-3 | Storage Volume Included | Proposed | The model set includes a generic `storage_volume` abstraction to support later provider integration. | |
 | req-computing-core-models-4 | Application Deferred | Proposed | The plugin does not define a generic `application` or `service` model in v0. | |
+| req-computing-core-models-5 | User Is Generic Person | Proposed | The plugin models a generic `user` person type; roles such as administrator are assigned relationships, not distinct node types. | `tap.computing: identity` |
 
 #### Open Questions
 

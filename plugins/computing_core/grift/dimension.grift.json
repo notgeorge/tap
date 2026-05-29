@@ -28,7 +28,7 @@
           },
           "node": {
             "name": "tap.computing",
-            "description": "The computing dimension. All entity types and edges from the Computing Core plugin are tagged with tap.computing as their default dimension key, with category values: host (compute environments), runtime (programs and processes), storage (files and volumes), network (interfaces, addresses, ports, connections), and protocol (application protocols above transport). This plugin provides vendor-neutral primitives that apply across cloud and on-prem environments."
+            "description": "The computing dimension. All entity types and edges from the Computing Core plugin are tagged with tap.computing as their default dimension key, with category values: host (compute environments), runtime (programs and processes), storage (files and volumes), network (interfaces, addresses, ports, connections), protocol (application protocols above transport), and identity (humans who interact with the systems). This plugin provides vendor-neutral primitives that apply across cloud and on-prem environments."
           }
         }
       ],
