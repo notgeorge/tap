@@ -189,12 +189,21 @@
   // Per-entity-type detail URLs override the generic /object/<type>/.../ route
   // when a custom page exists (Path B parameterized pages). Coupling lives in
   // the URL map for now; a per-plugin registration mechanism would lift this.
+  // Each function receives (entity_id, rowData) so a single entity_type can
+  // route by an inner field — compliance_artifact fans out by `kind` to the
+  // dedicated OSCAL workbench viewers (entity passed via each viewer's
+  // entity_id_var query param), falling back to the universal viewer.
   var PER_TYPE_DETAIL_URL = {
     vdr_finding:         function (id) { return "/samsite/finding/"   + id; },
     ksi_indicator:       function (id) { return "/samsite/indicator/" + id; },
     ksi_component:       function (id) { return "/samsite/component/" + id; },
     ksi_signal:          function (id) { return "/samsite/signal/"    + id; },
-    compliance_artifact: function (id) { return "/samsite/artifact/"  + id; },
+    compliance_artifact: function (id, row) {
+      var kind = ((row || {}).data || {}).kind || "";
+      if (kind === "oscal_ssp")  return "/samsite/compliance/ssp?oscal_ssp_artifact_entity_id=" + id;
+      if (kind === "oscal_poam") return "/samsite/compliance/poam?oscal_poam_artifact_entity_id=" + id;
+      return "/samsite/artifact/" + id;  // iiw + fallback: universal viewer until a dedicated one exists
+    },
   };
 
   function buildCustomColumns(specs) {
@@ -367,7 +376,7 @@
           saveScrollForReturn();
           var perType = PER_TYPE_DETAIL_URL[entityType];
           if (perType && entityId) {
-            window.location.href = perType(entityId);
+            window.location.href = perType(entityId, data);
           } else if (urlId) {
             window.location.href = "/object/" + entityType + "/" + urlId + "/";
           }
