@@ -2489,13 +2489,13 @@ def _execute_grift_batch(
                 any_failure = False
                 # write_batch returns `results` truncated at the first failing op
                 # (services.py raises _BailOut on per-op failure), so results may
-                # be shorter than op_meta. zip() without strict= silently stops at
+                # be shorter than op_meta. zip(strict=False) deliberately stops at
                 # the shorter iterator, which is the right behavior: the user has
                 # already seen the failing op's per-op errors and trailing ops
                 # never executed. strict=True here surfaced as a confusing
                 # `zip() argument 2 is longer than argument 1` traceback on top
                 # of the real per-op error.
-                for op_result, meta in zip(batch_result.results, op_meta):
+                for op_result, meta in zip(batch_result.results, op_meta, strict=False):
                     if op_result.success:
                         if meta["kind"] == "node":
                             nodes_imported += 1
