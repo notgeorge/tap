@@ -386,17 +386,19 @@ export async function execute(context) {
         kevDoc.position({x: sb.x2 + 180, y: (sb.y1 + sb.y2) / 2});
     }
 
-    // 10. Z-order: the IDENTITY_VOUCHED_BY edges run from the Rekor entries down to
-    //     the OIDC issuer, crossing the notgeorge account + repo boxes on the way.
-    //     We want them BEHIND those (filled) boxes but still visible connecting to the
-    //     issuer over the github.com fill. Within a single z-compound-depth group
-    //     Cytoscape draws edges ABOVE nodes regardless of z-index, so z-index alone
-    //     can't put the edge under the boxes — the only "below" lever is the "bottom"
-    //     group. Dropping just the edge there also sinks it under the github.com box
-    //     (hiding the issuer run), so put the github.com box in the SAME "bottom" group
-    //     with a lower z-index: the edge then draws above the platform fill (issuer
-    //     connection visible) but below the account/repo boxes (default "auto" group),
-    //     which still occlude it. account/repo are left untouched. (Edge label = type.)
-    cy.edges('[label="IDENTITY_VOUCHED_BY"]').style({"z-compound-depth": "bottom", "z-index": 1});
-    cy.nodes('[entity_type="github_platform"]').style({"z-compound-depth": "bottom", "z-index": 0});
+    // 10. Z-order (verified against the cytoscape renderer's z-sort cache): the
+    //     IDENTITY_VOUCHED_BY edges run from the Rekor entries down to the OIDC issuer,
+    //     crossing the notgeorge account + repo boxes. We want them BEHIND those
+    //     (filled) boxes but still visible connecting to the issuer over the github.com
+    //     fill. Cytoscape z-order works in z-compound-depth GROUPS (bottom < auto < top);
+    //     account/repo stay in "auto", so dropping the edge to the "bottom" group puts
+    //     it under them. But the edge alone in "bottom" also sinks under the github.com
+    //     box — so put that box in the SAME "bottom" group. The catch: WITHIN a group
+    //     cytoscape draws nodes over edges by default (z-index-compare "auto"), which
+    //     re-hid the edge behind the platform fill. Setting z-index-compare "manual" on
+    //     both makes z-index strict, so the edge (z 1) draws above the platform box
+    //     (z 0) — issuer connection visible — while the account/repo "auto" group still
+    //     floats above and occludes it. account/repo untouched. (Edge label = type.)
+    cy.edges('[label="IDENTITY_VOUCHED_BY"]').style({"z-compound-depth": "bottom", "z-index": 1, "z-index-compare": "manual"});
+    cy.nodes('[entity_type="github_platform"]').style({"z-compound-depth": "bottom", "z-index": 0, "z-index-compare": "manual"});
 }
