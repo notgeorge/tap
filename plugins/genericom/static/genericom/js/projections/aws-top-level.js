@@ -156,7 +156,7 @@ export async function execute(context) {
             // Route 53 sits at the top (it's the front door — what the customer
             // hits first); the VPC below.
             aws_account: {
-                name: "stack-vertical",
+                name: "align-distribute-vertical",
                 // Wider gap so the VPC's outside-top label has clearance
                 // from the Route 53 node above it.
                 gap: 40,

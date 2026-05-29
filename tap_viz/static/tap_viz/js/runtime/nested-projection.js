@@ -204,7 +204,7 @@ export function resolveNesting(cy, relationships) {
  *   True size for leaves; minimum floor for containers.
  * @param {number} config.padding - Default padding on all sides of a container's inner bbox.
  * @param {Object<string, number>} [config.paddings] - Per-parent-type padding overrides.
- * @param {string|Object} config.innerLayout - "grid" | "stack-vertical" | {name, ...opts}.
+ * @param {string|Object} config.innerLayout - "grid" | "align-distribute-vertical" | {name, ...opts}.
  * @param {Object<string, string|Object>} [config.innerLayouts] - Per-parent-type overrides.
  * @param {boolean} [config.fit] - Fit viewport after projection.
  * @returns {Promise<{warnings: Array}>}
@@ -419,7 +419,7 @@ function _gridNatural(children, opts) {
     return {width, height, placements};
 }
 
-function _stackVerticalNatural(children, opts) {
+function _alignDistributeVerticalNatural(children, opts) {
     const gap = (opts && opts.gap != null) ? opts.gap : 8;
     const typeOrder = (opts && opts.typeOrder) || null;
     const n = children.length;
@@ -617,8 +617,8 @@ function _resolveLayoutFn(parentNode, defaultLayout, perTypeLayouts) {
         opts = spec || {};
     }
     switch (name) {
-        case "stack-vertical":
-            return (children) => _stackVerticalNatural(children, opts);
+        case "align-distribute-vertical":
+            return (children) => _alignDistributeVerticalNatural(children, opts);
         case "tiered-rows":
             return (children) => _tieredRowsNatural(children, opts);
         case "grid":
