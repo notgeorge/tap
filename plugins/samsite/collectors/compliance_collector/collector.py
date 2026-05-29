@@ -21,7 +21,7 @@ from plugins.sigstore_core.decompose import bundle_to_grift_fragment
 from plugins.sigstore_core.verify import GitHubWorkflowPolicy, verify_bundle
 from tap_cares.collectors.base import CollectorBase
 
-from . import sigstore_link
+from . import kev_process, sigstore_link
 from .batch import assemble_batch
 from .boundary_membership import (
     fetch_aws_account_entity_ids,
@@ -49,6 +49,8 @@ _SITE_VERIFY_FAILED = "9394"
 _SITE_SIGNATURE_GRAPH = "f587"
 _SITE_SIGNATURE_NO_WORKFLOW = "ce2f"
 _SITE_BOUNDARY_MEMBERSHIP = "b967"
+_SITE_KEV_FETCH_EDGE = "e3db"
+_SITE_KEV_FETCH_SKIPPED = "fa71"
 
 _FETCH_TIMEOUT_SECONDS = 30
 _USER_AGENT = "tap-samsite-compliance-collector"
@@ -107,6 +109,12 @@ class SamsiteComplianceCollector(CollectorBase):
         full_name, workflow_path = sigstore_link.parse_signing_san(result.signed_by)
         workflow_id = sigstore_link.resolve_workflow_entity_id(full_name, workflow_path) if full_name else None
 
+        # The workflow that signs the /.well-known/ artifacts IS the deploy
+        # workflow; capture it (first resolved wins) for the KEV FETCHES edge in
+        # Phase 2.6.
+        if workflow_id is not None and self._deploy_workflow_id is None:
+            self._deploy_workflow_id = workflow_id
+
         # OIDC issuer convergence node. Ensure it exists in this batch (deduped)
         # so the hotlinked IDENTITY_VOUCHED_BY edge has a present target; supply
         # its id to the decompose helper, which emits the edge.
@@ -156,6 +164,9 @@ class SamsiteComplianceCollector(CollectorBase):
     def run(self) -> None:
         self.record_info(_SITE_RUN_STARTED, "RUN_STARTED", "Samsite compliance collection started.")
         fetched_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        # Set by _emit_signature_graph when the signing (= deploy) workflow
+        # resolves; consumed by the Phase 2.6 KEV FETCHES edge.
+        self._deploy_workflow_id: str | None = None
 
         try:
             manifest = load_manifest()
@@ -350,6 +361,39 @@ class SamsiteComplianceCollector(CollectorBase):
                 f"KLUDGE: scoped {len(boundary_edges)} aws_account(s) into the samsite "
                 f"authorization boundary (blanket all-accounts membership).",
                 message_data={"account_count": len(boundary_edges)},
+            )
+
+        # ---- Phase 2.6: CISA KEV fetch process edge -------------------------
+        # The deploy workflow (signer of every /.well-known/ artifact) fetches
+        # the CISA KEV catalog each run as the VDR gate input. The CISA host +
+        # KEV catalog nodes and their HOSTED_BY edge are seeded statically
+        # (kev-fetch.grift.json); here we add the FETCHES edge from the resolved
+        # deploy workflow to the seeded catalog. Both ends are resolved, never
+        # minted: if the signing workflow didn't resolve, or the catalog wasn't
+        # seeded, FETCHES is omitted (graceful, mirroring SIGNED_BY_IDENTITY and
+        # the boundary-membership phase) rather than left dangling.
+        if self._deploy_workflow_id is not None:
+            kev_catalog_id = kev_process.resolve_kev_catalog_entity_id()
+            if kev_catalog_id is not None:
+                all_edges.append(kev_process.fetches_edge_envelope(self._deploy_workflow_id, kev_catalog_id))
+                self.record_info(
+                    _SITE_KEV_FETCH_EDGE,
+                    "KEV_FETCH_EDGE",
+                    "FETCHES edge added: deploy workflow -> CISA KEV catalog.",
+                    message_data={"deploy_workflow": self._deploy_workflow_id, "kev_catalog": kev_catalog_id},
+                )
+            else:
+                self.record_info(
+                    _SITE_KEV_FETCH_SKIPPED,
+                    "KEV_FETCH_NO_CATALOG",
+                    "Deploy workflow resolved but the CISA KEV catalog node is not on the grid "
+                    "(kev-fetch.grift.json not seeded?); FETCHES omitted.",
+                )
+        else:
+            self.record_info(
+                _SITE_KEV_FETCH_SKIPPED,
+                "KEV_FETCH_NO_WORKFLOW",
+                "No deploy workflow resolved from artifact signatures; KEV FETCHES edge omitted.",
             )
 
         # ---- Phase 3: assemble + submit -------------------------------------

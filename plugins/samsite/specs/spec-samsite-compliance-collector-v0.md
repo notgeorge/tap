@@ -46,6 +46,7 @@ collector is its first proving instance.
 | req-samsite-collector-schedule | [Daily Schedule](#daily-schedule) | Proposed | Registered to run daily through the `tap_cares` scheduler |
 | req-samsite-collector-identity | [Identity And Emission History](#identity-and-emission-history) | Proposed | Components dedup across emissions; signals/reports/findings per-emission |
 | req-samsite-collector-boundary-membership | [Authorization Boundary Membership (v0 KLUDGE)](#authorization-boundary-membership-v0-kludge) | Proposed | **KLUDGE** — blanket-scope every `aws_account` into the samsite boundary; replace with curated membership |
+| req-samsite-collector-kev-fetch | [CISA KEV Fetch Process](#cisa-kev-fetch-process) | Proposed | Collector emits `FETCHES` (deploy workflow → seeded KEV catalog); host/doc/`HOSTED_BY` seeded statically |
 | req-samsite-collector-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Generic web collector archetype, deferred |
 
 ---
@@ -270,6 +271,52 @@ moment there is more than one account or any out-of-scope resource. Code:
 | req-samsite-collector-boundary-membership-2 | Idempotent | Proposed | Edge ids are deterministic (`uuid5` over `SCOPED_TO_BOUNDARY:<account>-><boundary>`); re-runs upsert rather than duplicate. | |
 | req-samsite-collector-boundary-membership-3 | Graceful When Empty | Proposed | With no `aws_account` on the grid (fresh boot before the boto3 collector) the collector synthesizes zero edges and does not error. | |
 | req-samsite-collector-boundary-membership-4 | Machine-Readable Kludge Marker | Proposed | Each synthesized edge carries `properties.kludge = "all-aws-accounts-auto-in-boundary-v0"`. | |
+
+### CISA KEV Fetch Process
+----
+RID: `req-samsite-collector-kev-fetch`
+Status: `Proposed`
+
+The samsite deploy pipeline fetches the CISA Known Exploited Vulnerabilities
+(KEV) catalog from `cisa.gov` on every run, as the KEV gate input to the VDR
+report (BOD 22-01). TAP models this fetch as a graph story spanning a seeded
+static end and a collector-resolved dynamic end.
+
+#### Implementation
+
+The story is three nodes and two edges:
+
+```
+github_workflow (deploy) ─FETCHES─▶ web_document (CISA KEV catalog) ─HOSTED_BY─▶ web_host (CISA)
+```
+
+- **Static end (seed).** `grift/kev-fetch.grift.json` seeds the `web_host`
+  (`cisa.gov`), the `web_document` (the KEV catalog URL), and the `HOSTED_BY`
+  edge between them. Both endpoints are seeded together, so `HOSTED_BY` is
+  always safe. The two nodes use `computing_core`'s web-native types and carry
+  the `tap.web: native` marker. Ids are `uuid5` over the compliance collector's
+  frozen namespace (`node_entity_id`/`edge_entity_id`), so the seed and the
+  collector agree on the catalog's identity.
+- **Dynamic end (collector).** The `FETCHES` edge cannot be seeded: the deploy
+  `github_workflow`'s id derives from a GitHub-assigned numeric workflow id,
+  unknowable at authoring time. The signer of every `/.well-known/` artifact is
+  the deploy workflow, so the collector captures the workflow it already
+  resolves for `SIGNED_BY_IDENTITY` and, in a dedicated phase, emits `FETCHES`
+  from it to the seeded KEV catalog. Both ends are *resolved, never minted*: if
+  the signing workflow didn't resolve, or the catalog isn't on the grid, the
+  edge is omitted rather than dangled.
+- **Board.** The samsite landing search adds explicit `MATCH (wh:web_host)` /
+  `MATCH (wd:web_document)` (these types carry no per-model `tags` field, so the
+  tag scan can't reach them), so the fetch story renders in the landing graph.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-samsite-collector-kev-fetch-1 | Static Nodes Seeded | Proposed | The CISA `web_host`, the KEV `web_document`, and their `HOSTED_BY` edge are seeded by `kev-fetch.grift.json`. | |
+| req-samsite-collector-kev-fetch-2 | FETCHES From Deploy Workflow | Proposed | The collector emits a `FETCHES` edge from the resolved deploy `github_workflow` to the seeded KEV catalog. | Reuses the `SIGNED_BY_IDENTITY` workflow resolution. |
+| req-samsite-collector-kev-fetch-3 | Resolved Not Minted | Proposed | The collector resolves both edge endpoints; it never mints the KEV catalog node. `FETCHES` is omitted (not dangled) when either endpoint is absent. | Mirrors `SIGNED_BY_IDENTITY` / boundary-membership graceful degradation. |
+| req-samsite-collector-kev-fetch-4 | Idempotent | Proposed | The `FETCHES` edge id is deterministic (`uuid5` over `FETCHES:<workflow>-><catalog>`); re-runs upsert rather than duplicate. | |
 
 ### v0 Non-Goals
 ----

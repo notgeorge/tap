@@ -1,0 +1,75 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "40455f46-60d6-59d1-9ca2-db671ed674eb",
+        "entity_type": "batch",
+        "name": "Samsite KEV fetch seed v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite",
+        "name": "Samsite KEV fetch seed v0.1.0",
+        "description": "Seeds the static end of the CISA KEV fetch story for the samsite board: the CISA web host (cisa.gov) and the KEV catalog web document it serves, joined by HOSTED_BY. Both endpoints are seeded here, so HOSTED_BY is safe at seed time. The dynamic end — the FETCHES edge from the deploy github_workflow to the KEV catalog — is NOT seeded here: the deploy workflow is collector-resolved (its id derives from a GitHub-assigned numeric workflow id, not knowable at authoring time), so the samsite compliance collector emits FETCHES once it resolves the signing workflow. Entity ids are uuid5 over the compliance collector's frozen namespace (node_entity_id/edge_entity_id) so the seed and the collector's FETCHES edge converge on the same kev_catalog node."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "36077809-9276-593f-b97f-e6953663f201",
+            "entity_type": "web_host",
+            "name": "CISA",
+            "dimensions": {
+              "tap.computing": "network",
+              "tap.web": "native"
+            }
+          },
+          "node": {
+            "name": "CISA",
+            "hostname": "www.cisa.gov",
+            "description": "U.S. Cybersecurity and Infrastructure Security Agency. Publishes the Known Exploited Vulnerabilities (KEV) catalog that the samsite deploy pipeline fetches as a release-gate input."
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "17f81ef4-4598-55e8-b145-c61bd859e299",
+            "entity_type": "web_document",
+            "name": "CISA KEV Catalog",
+            "dimensions": {
+              "tap.computing": "storage",
+              "tap.web": "native"
+            }
+          },
+          "node": {
+            "name": "CISA KEV Catalog",
+            "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+            "content_type": "application/json",
+            "description": "CISA Known Exploited Vulnerabilities catalog — the authoritative list of CVEs known to be actively exploited. The samsite deploy pipeline fetches it each run as the KEV gate input to the VDR report (BOD 22-01)."
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "c332c765-b74d-5442-825b-d917f62da5fc",
+            "entity_type": "edge",
+            "name": "CISA KEV Catalog HOSTED_BY CISA",
+            "dimensions": {
+              "tap.computing": "network",
+              "tap.web": "native"
+            }
+          },
+          "edge": {
+            "from_entity_id": "17f81ef4-4598-55e8-b145-c61bd859e299",
+            "to_entity_id": "36077809-9276-593f-b97f-e6953663f201",
+            "edge_type": "HOSTED_BY",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}
