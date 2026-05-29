@@ -29,6 +29,16 @@ class KsiSignal(BaseModel):
     ENTITY_ICON: ClassVar[str] = "ksi-signal"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"compliance": "ksi-signal"}
 
+    # This emission is a signed file artifact; render it as a file card in graph
+    # views (sharp olive rectangle + document glyph). The node owns the background
+    # so the icon stays a clean glyph.
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "colors": {"fill": "#837228", "border": "#5F5418", "label": "#5F4300"},
+        }
+    }
+
     _EMITTER_VALUES = ["deploy", "runtime"]
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {

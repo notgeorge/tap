@@ -27,6 +27,16 @@ class VdrReport(BaseModel):
     ENTITY_ICON: ClassVar[str] = "vdr-report"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"compliance": "vdr"}
 
+    # Signed file artifact — render as a file card in graph views (sharp olive
+    # rectangle + document glyph); the node owns the background so the icon stays
+    # a clean glyph.
+    DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
+        "tap_viz": {
+            "shape": "rectangle",
+            "colors": {"fill": "#837228", "border": "#5F5418", "label": "#5F4300"},
+        }
+    }
+
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string", "minLength": 1},
         "report_version": {"type": "string"},

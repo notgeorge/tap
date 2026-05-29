@@ -120,14 +120,10 @@ function pruneToLatestFiles(cy) {
     return cy.nodes().filter((n) => FILE_TYPES.includes(n.data("entity_type")));
 }
 
-// Generic file icon — the signed artifacts are different domain types
-// (ksi_signal / vdr_report / compliance_artifact) but all play the "file" role
-// on this board, so we standardize them onto one icon + rounded-rectangle.
-const FILE_ICON_URL = "/static/computing_core/icons/file.svg";
-
-// Short, readable label: the artifact's filename. Prefer the real source_url
-// basename; fall back to a type/kind → filename map so the board shows
-// "oscal-ssp.json" rather than "oscal_ssp @ 2026-05-29T01:15:21.525309Z".
+// Short, readable label: the artifact's filename. The board shows "oscal-ssp.json"
+// rather than the full "oscal_ssp @ 2026-05-29T01:15:21.525309Z" node name. This is
+// a landing-specific compaction of the name; the file-CARD appearance (sharp olive
+// rectangle + document glyph) lives in each model's DEFAULT_DISPLAY, not here.
 const _FILE_NAME_BY_KIND = {oscal_ssp: "oscal-ssp.json", oscal_poam: "oscal-poam.json", iiw: "iiw.csv"};
 function shortFileLabel(n) {
     const t = n.data("entity_type");
@@ -138,23 +134,10 @@ function shortFileLabel(n) {
     return head || t;
 }
 
-// Standardize a signed-file node: rounded-rectangle, generic file icon, short label.
+// Compact the signed-file node's label for the board. Visual styling (shape, olive
+// fill, file glyph) comes from the model DEFAULT_DISPLAY.
 function styleFileNode(n) {
     n.data("label", shortFileLabel(n));
-    n.style({
-        "shape": "round-rectangle",
-        "width": 46,
-        "height": 38,
-        "background-color": "#F1ECDD",
-        "border-color": "#A99A63",
-        "border-width": 1.5,
-        "background-image": FILE_ICON_URL,
-        "background-fit": "contain",
-        "background-width": "62%",
-        "background-height": "62%",
-        "background-position-x": "50%",
-        "background-position-y": "50%",
-    });
 }
 
 export async function execute(context) {
@@ -385,4 +368,20 @@ export async function execute(context) {
         const sb = sigCa.boundingBox();
         kevDoc.position({x: sb.x2 + 180, y: (sb.y1 + sb.y2) / 2});
     }
+
+    // 10. Z-order (verified against the cytoscape renderer's z-sort cache): the
+    //     IDENTITY_VOUCHED_BY edges run from the Rekor entries down to the OIDC issuer,
+    //     crossing the notgeorge account + repo boxes. We want them BEHIND those
+    //     (filled) boxes but still visible connecting to the issuer over the github.com
+    //     fill. Cytoscape z-order works in z-compound-depth GROUPS (bottom < auto < top);
+    //     account/repo stay in "auto", so dropping the edge to the "bottom" group puts
+    //     it under them. But the edge alone in "bottom" also sinks under the github.com
+    //     box — so put that box in the SAME "bottom" group. The catch: WITHIN a group
+    //     cytoscape draws nodes over edges by default (z-index-compare "auto"), which
+    //     re-hid the edge behind the platform fill. Setting z-index-compare "manual" on
+    //     both makes z-index strict, so the edge (z 1) draws above the platform box
+    //     (z 0) — issuer connection visible — while the account/repo "auto" group still
+    //     floats above and occludes it. account/repo untouched. (Edge label = type.)
+    cy.edges('[label="IDENTITY_VOUCHED_BY"]').style({"z-compound-depth": "bottom", "z-index": 1, "z-index-compare": "manual"});
+    cy.nodes('[entity_type="github_platform"]').style({"z-compound-depth": "bottom", "z-index": 0, "z-index-compare": "manual"});
 }
