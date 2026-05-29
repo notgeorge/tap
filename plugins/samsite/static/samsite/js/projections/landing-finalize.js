@@ -142,7 +142,7 @@ function shortFileLabel(n) {
 function styleFileNode(n) {
     n.data("label", shortFileLabel(n));
     n.style({
-        "shape": "round-rectangle",
+        "shape": "rectangle",
         "width": 46,
         "height": 38,
         "background-color": "#F1ECDD",
