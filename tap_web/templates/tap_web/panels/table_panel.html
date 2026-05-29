@@ -1,24 +1,33 @@
 <div class="tap-panel tap-panel--table">
-    {% if not panel.config.hide_header %}{% include "tap_web/panel_header.html" %}{% endif %}
+    {% if not panel.config.hide_header or not table_error %}
+    {# Heading inline with the row-selection nav bar, directly above the table. #}
+    <div class="mb-2 flex items-center justify-between gap-3">
+        {% if not panel.config.hide_header %}
+        <h2 class="text-lg font-semibold text-slate-800">{{ panel.name }}</h2>
+        {% else %}
+        <span></span>
+        {% endif %}
+        {% if not table_error %}
+        <div class="flex items-center gap-3">
+            {% if panel.config.quick_filter %}
+            <input type="search"
+                   id="tap-table-filter-{{ panel.entity_id }}"
+                   data-tap-table-filter
+                   placeholder="Filter…"
+                   aria-label="Filter table contents"
+                   class="tap-table-filter rounded border border-slate-300 bg-white px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-slate-400">
+            {% endif %}
+            {% include "tap_web/panels/_table_nav_bar.html" with nav_align="right" %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 
     {% if table_error %}
     <div class="tap-panel-error rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         {{ table_error }}
     </div>
     {% else %}
-
-    {# Nav bar above table — right-aligned, with optional quick-filter search box. #}
-    <div class="mb-2 flex items-center justify-end gap-3">
-        {% if panel.config.quick_filter %}
-        <input type="search"
-               id="tap-table-filter-{{ panel.entity_id }}"
-               data-tap-table-filter
-               placeholder="Filter…"
-               aria-label="Filter table contents"
-               class="tap-table-filter rounded border border-slate-300 bg-white px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-slate-400">
-        {% endif %}
-        {% include "tap_web/panels/_table_nav_bar.html" with nav_align="right" %}
-    </div>
 
     {# Tabulator mount point. data-tap-table-panel-id links to the JSON data block below. #}
     <div data-tap-table-mount
