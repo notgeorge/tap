@@ -8,6 +8,7 @@ from plugins.computing_core.models.private_key import PrivateKey
 from plugins.computing_core.models.program import Program
 from plugins.computing_core.models.public_key import PublicKey
 from plugins.computing_core.models.tcp_connection import TcpConnection
+from plugins.computing_core.models.user import User
 
 __all__ = [
     "File",
@@ -18,4 +19,5 @@ __all__ = [
     "Program",
     "PublicKey",
     "TcpConnection",
+    "User",
 ]
