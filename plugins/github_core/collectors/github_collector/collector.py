@@ -112,9 +112,10 @@ _PLATFORM_DIMENSIONS = {"github.platform": "github.com"}
 # binds signing certs to it. `host` is the scheme-less form AWS IAM stores.
 _OIDC_ISSUER_URL = "https://token.actions.githubusercontent.com"
 _OIDC_ISSUER_HOST = "token.actions.githubusercontent.com"
-# Terse display name; the full issuer URL stays on the `issuer_url`/`host` fields
-# (and is the natural key behind the deterministic entity id).
-_OIDC_ISSUER_NAME = "OIDC Issuer"
+# Terse, issuer-specific display name; the full issuer URL stays on the
+# `issuer_url`/`host` fields (and is the natural key behind the deterministic
+# entity id). Specific enough to stay unambiguous alongside other OIDC issuers.
+_OIDC_ISSUER_NAME = "GitHub Actions OIDC"
 
 
 class GithubCollectorError(Exception):
