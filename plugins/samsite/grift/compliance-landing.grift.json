@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e7531-486e-771b-8225-2f43a95f8e55",
+        "entity_id": "019e7538-8416-7530-9d70-4778f97baf2c",
         "entity_type": "batch",
         "name": "Samsite Compliance landing v1.2 \u2014 KSI Components grouping + compact C/I/A + public dash",
         "dimensions": {}
@@ -627,12 +627,16 @@
             "config": {
               "column_mode": "common_metadata",
               "default_page_size": 25,
+              "group_by": {
+                "field": "data.kind",
+                "rules": [
+                  { "prefix": "iiw", "label": "IIW" },
+                  { "prefix": "oscal_poam", "label": "POA&M" },
+                  { "prefix": "oscal_ssp", "label": "SSP" }
+                ],
+                "default_label": "Other"
+              },
               "columns": [
-                {
-                  "field": "data.kind",
-                  "title": "Kind",
-                  "width": 130
-                },
                 {
                   "field": "data.source_url",
                   "title": "Source URL",
