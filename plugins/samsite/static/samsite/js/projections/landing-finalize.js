@@ -385,4 +385,13 @@ export async function execute(context) {
         const sb = sigCa.boundingBox();
         kevDoc.position({x: sb.x2 + 180, y: (sb.y1 + sb.y2) / 2});
     }
+
+    // 10. Z-order: the IDENTITY_VOUCHED_BY edges run from the Rekor entries down to
+    //     the OIDC issuer, crossing the notgeorge account + repo boxes on the way.
+    //     Sink them beneath their compound siblings (account/repo) so they tuck
+    //     BEHIND those boxes instead of drawing across their faces. z-compound-depth
+    //     "bottom" drops the edge to the bottom of its compound layer — below the
+    //     account/repo subtrees but still above the parent github.com box, so the
+    //     run out from the issuer stays visible. (The edge label is the edge type.)
+    cy.edges('[label="IDENTITY_VOUCHED_BY"]').style({"z-compound-depth": "bottom"});
 }
