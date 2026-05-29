@@ -71,6 +71,40 @@
 .ss-wb .tabulator .tabulator-row.tabulator-group:hover { background: #e9eef5; }
 .ss-wb .tabulator .tabulator-col .tabulator-col-sorter { color: #cbd5e1; }
 
+/* Wide viewer (IIW, full-bleed): angled column headers so many narrow columns
+   fit. The title element is forced narrow so its width can't dictate the
+   column width; the rotated text overflows up-and-right into the tall header
+   band. Scoped to .ss-wb-wide so only the wide inventory gets it. */
+.ss-wb-wide .tabulator .tabulator-header,
+.ss-wb-wide .tabulator .tabulator-header .tabulator-headers { overflow: visible; background: #fff; }
+.ss-wb-wide .tabulator .tabulator-header { border-bottom: 1px solid #e2e8f0; }
+/* let the rotated title spill out of the column box instead of being clipped */
+.ss-wb-wide .tabulator .tabulator-col,
+.ss-wb-wide .tabulator .tabulator-col .tabulator-col-content,
+.ss-wb-wide .tabulator .tabulator-col .tabulator-col-content .tabulator-col-title-holder { overflow: visible; }
+.ss-wb-wide .tabulator .tabulator-col { vertical-align: bottom; }
+.ss-wb-wide .tabulator .tabulator-col .tabulator-col-content { padding: 0 2px; }
+.ss-wb-wide .tabulator .tabulator-col .tabulator-col-title-holder { height: 138px; display: flex; align-items: flex-end; }
+.ss-wb-wide .tabulator .tabulator-col .tabulator-col-title {
+  transform: rotate(-45deg);
+  transform-origin: left bottom;
+  white-space: nowrap;
+  width: 1.4em !important;
+  min-width: 1.4em;
+  overflow: visible !important;
+  text-overflow: clip;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 2px;
+}
+.ss-wb-wide .tabulator .tabulator-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* sort arrows clutter the angled heads — hide them; click-to-sort stays */
+.ss-wb-wide .tabulator .tabulator-col .tabulator-col-sorter,
+.ss-wb-wide .tabulator .tabulator-col .tabulator-arrow { display: none !important; }
+
 /* finding emphasis */
 .ss-flag { font-weight: 700; }
 .ss-flag-on { color: #b91c1c; }

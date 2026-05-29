@@ -41,11 +41,15 @@ def _parse_csv(content: Any) -> tuple[list[dict[str, Any]], list[dict[str, str]]
     if not all_rows:
         return [], []
     header = all_rows[0]
+    # First column (the asset identifier) carries long values and earns room;
+    # the rest stay compact so the angled headers + full-bleed width fit as
+    # many columns on screen as possible.
     columns = [
         {
             "field": f"c{i}",
             "title": h or f"Column {i + 1}",
-            "minWidth": 150,
+            "minWidth": 220 if i == 0 else 70,
+            "widthGrow": 1 if i == 0 else 0,
             "tooltip": "full_value",
         }
         for i, h in enumerate(header)
