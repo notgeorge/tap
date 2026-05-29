@@ -120,14 +120,10 @@ function pruneToLatestFiles(cy) {
     return cy.nodes().filter((n) => FILE_TYPES.includes(n.data("entity_type")));
 }
 
-// Generic file icon — the signed artifacts are different domain types
-// (ksi_signal / vdr_report / compliance_artifact) but all play the "file" role
-// on this board, so we standardize them onto one icon + rounded-rectangle.
-const FILE_ICON_URL = "/static/computing_core/icons/file.svg";
-
-// Short, readable label: the artifact's filename. Prefer the real source_url
-// basename; fall back to a type/kind → filename map so the board shows
-// "oscal-ssp.json" rather than "oscal_ssp @ 2026-05-29T01:15:21.525309Z".
+// Short, readable label: the artifact's filename. The board shows "oscal-ssp.json"
+// rather than the full "oscal_ssp @ 2026-05-29T01:15:21.525309Z" node name. This is
+// a landing-specific compaction of the name; the file-CARD appearance (sharp olive
+// rectangle + document glyph) lives in each model's DEFAULT_DISPLAY, not here.
 const _FILE_NAME_BY_KIND = {oscal_ssp: "oscal-ssp.json", oscal_poam: "oscal-poam.json", iiw: "iiw.csv"};
 function shortFileLabel(n) {
     const t = n.data("entity_type");
@@ -138,23 +134,10 @@ function shortFileLabel(n) {
     return head || t;
 }
 
-// Standardize a signed-file node: rounded-rectangle, generic file icon, short label.
+// Compact the signed-file node's label for the board. Visual styling (shape, olive
+// fill, file glyph) comes from the model DEFAULT_DISPLAY.
 function styleFileNode(n) {
     n.data("label", shortFileLabel(n));
-    n.style({
-        "shape": "rectangle",
-        "width": 46,
-        "height": 38,
-        "background-color": "#F1ECDD",
-        "border-color": "#A99A63",
-        "border-width": 1.5,
-        "background-image": FILE_ICON_URL,
-        "background-fit": "contain",
-        "background-width": "62%",
-        "background-height": "62%",
-        "background-position-x": "50%",
-        "background-position-y": "50%",
-    });
 }
 
 export async function execute(context) {
