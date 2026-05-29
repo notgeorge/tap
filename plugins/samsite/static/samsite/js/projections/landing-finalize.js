@@ -247,16 +247,14 @@ export async function execute(context) {
     //    representative and the files' ATTESTED_BY edges re-point onto it.
     //    Positioned at the Sigstore slot (top-right, centered above the GitHub set).
     if (rekor.nonempty()) {
+        // direction defaults to "auto" — the projection runtime resolves it in
+        // settleStacks() after every layout has run, so it correctly reads this
+        // stack as upper-right and fans up-right (no longer skewed by step 9's
+        // not-yet-placed actors / github_app / CISA at applyStack time).
         applyStack(cy, {
             members: rekor,
             representative: rekor.first(),
             position: {x: ghCenterX, y: TOP_Y - REKOR_ABOVE},
-            // Explicit direction: this stack sits in the upper-right quadrant, so
-            // it should fan up-right. We can't rely on "auto" here — applyStack
-            // runs before step 9 positions the actors / github_app / CISA, so its
-            // scene-center would be computed against an incomplete (mis-centered)
-            // scene and resolve the wrong way.
-            direction: "up-right",
             label: "Rekor Entries",
         });
     }
