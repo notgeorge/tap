@@ -20,6 +20,7 @@
 
 import {loadLayoutModule} from "./layout-loader.js";
 import {executeArrangements} from "./arrangement.js";
+import {settleStacks} from "./stack.js";
 
 /**
  * @param {cytoscape.Core} cy
@@ -134,6 +135,12 @@ export async function initProjection(cy, projection, opts = {}) {
         };
 
         await runLayoutsSerially(elevation, context);
+
+        // Resolve any "auto"-direction stacks now that every layout has run and
+        // the scene is settled — a layout may call applyStack mid-render, before
+        // sibling layouts position their nodes, so the growth direction can only
+        // be trusted against the final scene center. No-op when there are none.
+        settleStacks(cy);
 
         // Apply type icon badges after layout settles positions.
         if (state.typeBadgesHandle) {

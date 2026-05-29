@@ -21,7 +21,7 @@ from plugins.sigstore_core.decompose import bundle_to_grift_fragment
 from plugins.sigstore_core.verify import GitHubWorkflowPolicy, verify_bundle
 from tap_cares.collectors.base import CollectorBase
 
-from . import kev_process, sigstore_link
+from . import identity, kev_process, sigstore_link
 from .batch import assemble_batch
 from .boundary_membership import (
     fetch_aws_account_entity_ids,
@@ -149,6 +149,28 @@ class SamsiteComplianceCollector(CollectorBase):
             seen_node_ids.add(nid)
             all_nodes.append(node)
         all_edges.extend(edges)
+        # GENERATES_FILE: the signing workflow produced this file. Inference — the
+        # samsite deploy workflow both builds and signs the artifact, so the
+        # resolved signer identity is taken as the producer (disclosed on the edge
+        # via properties.basis). A computing_core edge; emitted here as consumer
+        # wiring rather than by the generic sigstore helper.
+        if workflow_id is not None:
+            all_edges.append(
+                {
+                    "entity": {
+                        "entity_id": str(identity.edge_entity_id("GENERATES_FILE", workflow_id, anchor_entity_id)),
+                        "entity_type": "edge",
+                        "name": "GENERATES_FILE",
+                        "dimensions": {},
+                    },
+                    "edge": {
+                        "from_entity_id": workflow_id,
+                        "to_entity_id": anchor_entity_id,
+                        "edge_type": "GENERATES_FILE",
+                        "properties": {"basis": "signer_identity_inferred"},
+                    },
+                }
+            )
         self.record_info(
             _SITE_SIGNATURE_GRAPH,
             "SIGNATURE_GRAPH_EMITTED",
@@ -405,6 +427,20 @@ class SamsiteComplianceCollector(CollectorBase):
                 self.summary,
             )
             return
+
+        # Dedupe edges by entity_id. Some edges are shared across artifacts —
+        # REQUESTS_SIGSTORE_SIGNATURE (workflow → Fulcio CA) is one logical edge
+        # for every file signed by the same workflow with the same CA, so the
+        # per-artifact emission produces deterministic-id duplicates. Keep first.
+        seen_edge_ids: set[str] = set()
+        deduped_edges: list[dict[str, Any]] = []
+        for _env in all_edges:
+            _eid = _env["entity"]["entity_id"]
+            if _eid in seen_edge_ids:
+                continue
+            seen_edge_ids.add(_eid)
+            deduped_edges.append(_env)
+        all_edges = deduped_edges
 
         document = assemble_batch(
             source=_COLLECTOR_SOURCE,

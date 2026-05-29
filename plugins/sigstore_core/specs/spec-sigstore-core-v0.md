@@ -218,6 +218,7 @@ V0 edge types:
 | `CERT_ISSUED_BY` | `rekor_log_entry` -> `sigstore_ca` | "The signing cert for this entry was issued by this CA." |
 | `SIGNED_BY_IDENTITY` | `rekor_log_entry` -> `github_workflow` | "The Fulcio cert for this entry asserts this GitHub workflow as the signing identity." |
 | `IDENTITY_VOUCHED_BY` | `rekor_log_entry` -> `oidc_issuer` | "The signing identity was vouched for by this OIDC issuer (Fulcio bound the cert to an identity from it)." **Hotlink-backed** (`mode: exact`, `scalar` selector): the edge mirrors `rekor_log_entry.signing_identity_issuer` so it cannot drift from the field. Converges with the AWS federation path on the same `oidc_issuer` node (`github_core`-owned). |
+| `REQUESTS_SIGSTORE_SIGNATURE` | `github_workflow` -> `sigstore_ca` | "This workflow requested a keyless signing cert from this Fulcio CA — the cert-request step that precedes the Rekor-logged signature." Unlike the other four (which read as the verifier's walk outward from the entry), this is the *action* edge from the signing identity. Caller-supplied identity (same precondition as `SIGNED_BY_IDENTITY`); emitted by `bundle_to_grift_fragment` when a signing identity resolves. Named specifically to disambiguate from other signing schemes. v0 source narrow (`github_workflow`). |
 
 The source side of `ATTESTED_BY` is intentionally polymorphic. The plugin
 declares the edge type but does not constrain which entity types may anchor a

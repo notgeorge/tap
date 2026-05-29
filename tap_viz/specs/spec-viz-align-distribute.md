@@ -1,0 +1,59 @@
+# Viz Align-Distribute Specification
+
+## Philosophy
+
+A scene often contains a small set of peer nodes that should simply read as a tidy line — a fan of artifacts, the steps of a deploy flow, the workflows in a repo. Hand-positioning them (pick an x, add a width, repeat) is the kind of arithmetic a layout module shouldn't carry inline. **Align-distribute** is the runtime helper for it: give it a node set and it aligns them on one axis and distributes them evenly along the other, with a configurable gap.
+
+It is the **standalone companion** to the `align-distribute-vertical` *natural layout* (`spec-viz-nested-projection.md` § Natural Layouts). The natural layout arranges a **compound's children** and returns relative geometry the nesting runtime applies; this helper operates on **any caller-supplied node set** with no container, setting absolute positions directly — the same alignment idea exposed for layout modules that position nodes by hand (e.g. `landing-finalize.js`). The two are siblings; unifying their shared core is a future cleanup, not a contract.
+
+Two modes, one helper:
+
+- **Just make them pretty** — pass a node set; they're aligned + distributed. Use inside a container that already supplies its own framing (e.g. a repo's workflows, which only need clean distribution inside the repo box).
+- **Give it a label** — pass `label`; a titled box is drawn around the group, reusing the scope-box overlay (`spec-viz-layouts`). Use when the group is a named region in its own right (e.g. "Signed Artifacts", "Deploy & Bootstrap").
+
+## Requirement Status
+
+| RID | Name | Status | Notes |
+| --- | --- | :---: | --- |
+| req-viz-align-distribute-helper | [Runtime Helper](#runtime-helper) | Implemented | `alignDistributeHorizontal(cy, opts)` / `alignDistributeVertical(cy, opts)` |
+| req-viz-align-distribute-gap | [Gap](#gap) | Implemented | Edge-to-edge spacing along the main axis; `gap` (alias `spacing`), default 24 |
+| req-viz-align-distribute-anchor | [Anchor](#anchor) | Implemented | `anchor` point + `anchorMode` (`start` \| `center`) |
+| req-viz-align-distribute-label | [Optional Label](#optional-label) | Implemented | `label` draws a titled scope-box around the group; omit for none |
+| req-viz-align-distribute-order | [Order](#order) | Implemented | Members sorted by label by default; `sort: false` preserves caller order |
+
+## Runtime Helper
+
+RID: `req-viz-align-distribute-helper`
+Status: `Implemented`
+
+`tap_viz/static/tap_viz/js/runtime/align-distribute.js` exports `alignDistributeHorizontal(cy, opts)` and `alignDistributeVertical(cy, opts)`, sharing one core (axis-parameterized). A layout module calls it from `execute(context)` after collecting the node set, the same way it calls `applyStack` / `applyScopeBoxes`. Returns `{destroy, members}`; `destroy()` removes the label box (if any).
+
+`opts`: `members` (the node set), `anchor` (`{x,y}`, defaults to the first member's position), `anchorMode` (`"start"` — anchor is the leading edge, default; `"center"` — anchor is the midpoint), `gap` / `spacing` (default 24), `sort` (default true), `label` (optional), `style` (optional box style).
+
+## Gap
+
+RID: `req-viz-align-distribute-gap`
+Status: `Implemented`
+
+`gap` (alias `spacing`) is the **edge-to-edge** distance between consecutive nodes along the main axis (the helper respects each node's own size), matching the `gap` semantics of the `align-distribute-vertical` natural layout. Cross-axis position is uniform (the alignment line).
+
+## Anchor
+
+RID: `req-viz-align-distribute-anchor`
+Status: `Implemented`
+
+`anchor` is the reference point. `anchorMode: "start"` (default) treats it as the leading (left/top) edge and grows the line from it; `"center"` treats it as the line's midpoint. The cross-axis component of `anchor` is the alignment line.
+
+## Optional Label
+
+RID: `req-viz-align-distribute-label`
+Status: `Implemented`
+
+When `label` is set, a titled box is drawn around the laid-out group by delegating to `applyScopeBoxes` (which is additive — it never clobbers other scope boxes). When `label` is omitted, only positioning happens. This is the single knob distinguishing "a named region" from "a clean row inside an existing container".
+
+## Order
+
+RID: `req-viz-align-distribute-order`
+Status: `Implemented`
+
+Members are ordered by their display label before layout (stable, readable). Pass `sort: false` to preserve the caller's collection order when the caller has already imposed a meaningful sequence.

@@ -65,6 +65,53 @@ const DIRECTIONS = {
 };
 const DEFAULT_DIRECTION = "auto";
 
+// "auto" stacks awaiting a settled scene. The growth direction for "auto" depends
+// on the representative's position relative to the scene center, which isn't
+// reliable until every layout has positioned its nodes — applyStack may be called
+// from a layout module's execute() mid-render, before sibling layouts run. So
+// "auto" stacks register here and resolve in settleStacks(), which the projection
+// runtime calls once all layouts have run. Keyed per-cy; each entry holds the
+// shared mutable `step` object, so the resolved direction also flows through the
+// representative's position-follow handler.
+const _autoStacks = new WeakMap();
+
+function _trackAuto(cy, state) {
+    let m = _autoStacks.get(cy);
+    if (!m) {
+        m = new Map();
+        _autoStacks.set(cy, m);
+    }
+    m.set(state.stackId, state);
+}
+
+function _untrackAuto(cy, stackId) {
+    const m = _autoStacks.get(cy);
+    if (m) m.delete(stackId);
+}
+
+/**
+ * Resolve + apply the growth direction for every "auto" stack against the now-
+ * settled scene. The projection runtime calls this AFTER all layouts have run,
+ * so _sceneCenter reflects final node positions (not the partial scene visible
+ * when an individual layout called applyStack). Idempotent — safe to re-run on
+ * elevation transitions. Explicit-direction stacks are not tracked and need no
+ * settle; no-op when no "auto" stacks exist.
+ *
+ * @param {cytoscape.Core} cy
+ */
+export function settleStacks(cy) {
+    const m = _autoStacks.get(cy);
+    if (!m || m.size === 0) return;
+    const center = _sceneCenter(cy);
+    m.forEach((state) => {
+        if (!state.representative || state.representative.length === 0) return;
+        const dir = _resolveDirection("auto", state.representative.position(), center);
+        state.step.x = dir.dx * state.offset;
+        state.step.y = dir.dy * state.offset;
+        _positionParts(cy, {representative: state.representative, stackId: state.stackId, step: state.step, chipId: state.chipId});
+    });
+}
+
 /**
  * Collapse a set of member nodes into a single stack token.
  *
@@ -220,6 +267,15 @@ export function applyStack(cy, opts = {}) {
         _positionParts(cy, {representative, stackId, step, chipId});
     }
     cy.on("position bounds", "node[_stack_front_id]", onRepMove);
+
+    // "auto" can't be trusted at call time — applyStack may run before sibling
+    // layouts position their nodes — so track it for settleStacks() to resolve
+    // against the settled scene. The `step` resolved above is a best-effort
+    // placeholder; settleStacks mutates this same object, so onRepMove picks up
+    // the corrected direction too.
+    if (direction === "auto") {
+        _trackAuto(cy, {representative, stackId, chipId, offset, step});
+    }
 
     // --- Hover tooltip: exact count on the chip -------------------------
     const tooltip = chipId ? _attachTooltip(cy, {chipId, stackId, count}) : {destroy: () => {}};
@@ -423,4 +479,5 @@ function _cleanup(cy, stackId) {
         }
         n.removeData("_stack_front_id");
     });
+    _untrackAuto(cy, stackId);
 }
