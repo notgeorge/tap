@@ -40,6 +40,23 @@ def _children(signal_entity_id: str, edge_type: str, child_type: str) -> list[di
     return [n.get("data") or {} for n in (envelope.get("nodes") or []) if n.get("entity_type") == child_type]
 
 
+def _component_family(component_id: str, component_type: str) -> str:
+    """Coarse grouping family from the component_id prefix.
+
+    Collapses every AWS resource type under one "AWS" family; non-AWS prefixes
+    map to their natural family; anything else falls back to its type.
+    """
+    if component_id.startswith("aws::"):
+        return "AWS"
+    if component_id.startswith("ext::"):
+        return "External services"
+    if component_id.startswith("html::"):
+        return "HTML artifacts"
+    if component_id.startswith("npm::"):
+        return "npm packages"
+    return component_type or "Other"
+
+
 def _component_identifier(c: dict[str, Any]) -> str:
     """The component's most specific global/native identifier, in priority order."""
     return c.get("native_id") or c.get("global_purl") or c.get("global_sha256") or c.get("global_image_digest") or ""
@@ -110,17 +127,24 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         }
         for c in components
     ]
-    type_counts = Counter(r["component_type"] for r in comp_rows)
+    # Group by component family (component_id prefix), not by individual type:
+    # all AWS resource types collapse under one "AWS" heading — janky but
+    # information-rich (the specific type stays in the Type column).
+    fam_order = ["AWS", "External services", "HTML artifacts", "npm packages"]
+    fam_rank = {f: i for i, f in enumerate(fam_order)}
+    for r in comp_rows:
+        r["family"] = _component_family(r["component_id"] or "", r["component_type"])
+    fam_counts = Counter(r["family"] for r in comp_rows)
     base["component_groups"] = [
         {
-            "type": t,
-            "count": type_counts[t],
+            "label": f,
+            "count": fam_counts[f],
             "items": sorted(
-                (r for r in comp_rows if r["component_type"] == t),
-                key=lambda r: r["component_id"] or "",
+                (r for r in comp_rows if r["family"] == f),
+                key=lambda r: (r["component_type"] or "", r["component_id"] or ""),
             ),
         }
-        for t in sorted(type_counts)
+        for f in sorted(fam_counts, key=lambda f: (fam_rank.get(f, 99), f))
     ]
 
     base["validations"] = sorted(
@@ -148,7 +172,7 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
     passed = sum(1 for v in base["validations"] if v["result"] == "pass")
     base["headline"] = {
         "components_total": len(comp_rows),
-        "component_type_count": len(type_counts),
+        "component_type_count": len({r["component_type"] for r in comp_rows}),
         "validations_total": len(base["validations"]),
         "validations_passed": passed,
         "validations_failed": len(base["validations"]) - passed,

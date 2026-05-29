@@ -37,7 +37,22 @@
     </div>
   </section>
 
-  {# Components, grouped by type. #}
+  {# Violations — load-bearing: "no violations" is the headline finding, so it sits high. #}
+  <section class="ss-card">
+    <h3>Violations ({{ headline.violations_total }})</h3>
+    {% if violations %}
+    <table class="ss-table">
+      <thead><tr><th>Type</th><th>Severity</th><th>Resource</th><th>Message</th></tr></thead>
+      <tbody>
+        {% for v in violations %}
+        <tr><td>{{ v.violation_type }}</td><td>{{ v.severity }}</td><td class="ss-mono">{{ v.resource }}</td><td>{{ v.message }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="ss-empty">No violations reported — all {{ headline.validations_total }} checks passed.</p>{% endif %}
+  </section>
+
+  {# Components, grouped by family. #}
   <section class="ss-card">
     <h3>Components ({{ headline.components_total }})</h3>
     {% if component_groups %}
@@ -45,7 +60,7 @@
       <thead><tr><th>Component</th><th>Type</th><th>C</th><th>I</th><th>A</th><th>Identifier</th></tr></thead>
       <tbody>
         {% for g in component_groups %}
-        <tr class="ss-group-row"><td colspan="6">{{ g.type }} · {{ g.count }}</td></tr>
+        <tr class="ss-group-row"><td colspan="6">{{ g.label }} · {{ g.count }}</td></tr>
         {% for r in g.items %}
         <tr>
           <td class="ss-mono">{{ r.component_id }}</td>
@@ -80,21 +95,6 @@
       </tbody>
     </table>
     {% else %}<p class="ss-empty">No validations on this signal.</p>{% endif %}
-  </section>
-
-  {# Violations — explicit empty note when clean (informational, not blank). #}
-  <section class="ss-card">
-    <h3>Violations ({{ headline.violations_total }})</h3>
-    {% if violations %}
-    <table class="ss-table">
-      <thead><tr><th>Type</th><th>Severity</th><th>Resource</th><th>Message</th></tr></thead>
-      <tbody>
-        {% for v in violations %}
-        <tr><td>{{ v.violation_type }}</td><td>{{ v.severity }}</td><td class="ss-mono">{{ v.resource }}</td><td>{{ v.message }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<p class="ss-empty">No violations reported — all {{ headline.validations_total }} checks passed.</p>{% endif %}
   </section>
 
   {# Footers: signal metadata + provenance. #}
