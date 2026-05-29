@@ -318,20 +318,30 @@ export async function execute(context) {
     // box edge, so its TRUSTS_ISSUER hop across to the AWS account and the up-hop to
     // Sigstore stay short.
     const platform = cy.nodes('[entity_type="github_platform"]').first();
-    if (platform.nonempty()) {
-        // Anchor below the notgeorge account compound (which wraps repo + workflows);
-        // fall back to the workflow row if the account isn't on the board.
-        const account = cy.nodes('[entity_type="github_account"]').first();
-        const frontBB = account.nonempty() ? account.boundingBox() : wfBB;
+    const account = cy.nodes('[entity_type="github_account"]').first();
+    if (platform.nonempty() && account.nonempty()) {
+        // Anchor below the notgeorge account compound (which wraps repo + workflows).
+        const frontBB = account.boundingBox();
         const appRowY = frontBB.y2 + 80;
         const leftX = frontBB.x1 + 30;
+        // Issuer pinned far-left (static) — closest to the box edge for its hops out
+        // to AWS / up to Sigstore.
         cy.nodes('[entity_type="oidc_issuer"]').forEach((n) => {
             n.position({x: leftX, y: appRowY});
             n.move({parent: platform.id()});
         });
-        cy.nodes('[entity_type="github_app"]').forEach((a, i) => {
-            a.position({x: leftX + (i + 1) * WF_GAP, y: appRowY});
-            a.move({parent: platform.id()});
+        // Dependabot centered on the account — but the account's box settles a few px
+        // after this pass (post-layout reflow), so a center computed here lands off.
+        // adh's anchorNode re-resolves on the account's "bounds"/"position" events
+        // (like applyScopeBoxes tracks its members), keeping it dead-centered through
+        // the settle. Cross-axis pinned to the shared row y via `anchor.y`.
+        const apps = cy.nodes('[entity_type="github_app"]');
+        apps.forEach((a) => a.move({parent: platform.id()}));
+        alignDistributeHorizontal(cy, {
+            members: apps,
+            anchorNode: account,
+            anchorMode: "center",
+            anchor: {y: appRowY},
         });
     }
 

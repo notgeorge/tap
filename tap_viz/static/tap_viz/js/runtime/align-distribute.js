@@ -32,9 +32,22 @@ function _toNodeArray(members) {
  * @param {Object} opts
  * @param {cytoscape.Collection|Array} opts.members  Nodes to lay out.
  * @param {{x:number,y:number}} [opts.anchor]  Reference point (see anchorMode);
- *   defaults to the first member's current position.
+ *   defaults to the first member's current position. When `anchorNode` is set this
+ *   only supplies a cross-axis override (e.g. `{y: rowY}` for a horizontal row).
+ * @param {cytoscape.Collection} [opts.anchorNode]  Anchor on a NODE's live bounding
+ *   box instead of a static point: the row's main-axis center tracks the node's
+ *   bbox center (cross-axis from `anchor` if given, else the node's bbox center),
+ *   and — unless `reactive: false` — re-resolves on the node's "position"/"bounds"
+ *   and the cy "layoutstop", so it stays put through post-layout reflows (badges,
+ *   stack settle) and drags. The node must NOT be an ancestor of any member (that
+ *   would feedback-loop). Implies anchorMode "center".
+ * @param {{x:number,y:number}} [opts.offset]  Added to the resolved anchor point —
+ *   e.g. `{x:0, y:80}` to drop the row below the anchor node.
+ * @param {boolean} [opts.reactive=true]  When `anchorNode` is set, re-resolve on
+ *   its events (set false for a one-shot snapshot).
  * @param {string} [opts.anchorMode="start"]  "start" — anchor is the leading
  *   (left/top) edge and the line grows from it; "center" — anchor is the midpoint.
+ *   Defaults to "center" when `anchorNode` is set.
  * @param {number} [opts.gap]  Edge-to-edge spacing between nodes (px). Alias:
  *   opts.spacing. Default 24.
  * @param {boolean} [opts.sort=true]  Sort members by label first (false keeps
@@ -58,7 +71,10 @@ function _alignDistribute(cy, opts, axis) {
     const main = axis; // "x" for horizontal, "y" for vertical
     const cross = axis === "x" ? "y" : "x";
     const sizeMain = (n) => (axis === "x" ? n.width() : n.height());
-    const anchor = opts.anchor || members[0].position();
+    const offset = opts.offset || {};
+
+    const anchorNode = opts.anchorNode && opts.anchorNode.nonempty && opts.anchorNode.nonempty() ? opts.anchorNode : null;
+    const anchorMode = opts.anchorMode || (anchorNode ? "center" : "start");
 
     const step = opts.step != null ? opts.step : 0;
     // The baseline is the "start" end; nodes step away from it. ordered[] runs in
@@ -72,30 +88,81 @@ function _alignDistribute(cy, opts, axis) {
             ? members
             : [...members].sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
 
+    // Resolve the anchor point. For a static anchor it's `opts.anchor` (or the first
+    // member's position); for an anchorNode it's that node's live bbox center, with
+    // an optional cross-axis override from `opts.anchor`. `offset` nudges either.
+    function resolveAnchor() {
+        let pt;
+        if (anchorNode) {
+            const bb = anchorNode.boundingBox();
+            pt = {x: (bb.x1 + bb.x2) / 2, y: (bb.y1 + bb.y2) / 2};
+            if (opts.anchor && opts.anchor[cross] != null) pt[cross] = opts.anchor[cross];
+        } else {
+            pt = {...(opts.anchor || ordered[0].position())};
+        }
+        if (offset.x != null) pt.x += offset.x;
+        if (offset.y != null) pt.y += offset.y;
+        return pt;
+    }
+
     // Distribute along the main axis (edge-to-edge gap), aligned on the cross axis
     // (optionally stepped into a staircase via `step` + `stepFrom`).
-    const totalMain = ordered.reduce((s, n) => s + sizeMain(n), 0) + gap * (ordered.length - 1);
-    let cursor = opts.anchorMode === "center" ? anchor[main] - totalMain / 2 : anchor[main];
-    const last = ordered.length - 1;
-    ordered.forEach((n, i) => {
-        const half = sizeMain(n) / 2;
-        const stepIndex = stepFromFar ? last - i : i;
-        const pos = {};
-        pos[main] = cursor + half;
-        pos[cross] = anchor[cross] + step * stepIndex;
-        n.position(pos);
-        cursor += sizeMain(n) + gap;
-    });
+    function place(anchor) {
+        const totalMain = ordered.reduce((s, n) => s + sizeMain(n), 0) + gap * (ordered.length - 1);
+        let cursor = anchorMode === "center" ? anchor[main] - totalMain / 2 : anchor[main];
+        const last = ordered.length - 1;
+        ordered.forEach((n, i) => {
+            const half = sizeMain(n) / 2;
+            const stepIndex = stepFromFar ? last - i : i;
+            const pos = {};
+            pos[main] = cursor + half;
+            pos[cross] = anchor[cross] + step * stepIndex;
+            n.position(pos);
+            cursor += sizeMain(n) + gap;
+        });
+    }
+
+    place(resolveAnchor());
+
+    // Reactive anchor: re-resolve whenever the anchor node moves or its bbox changes
+    // (post-layout badge/stack reflow, drags), mirroring how applyScopeBoxes tracks
+    // its members. Loop-safe only when no member is a descendant of the anchor node;
+    // skip + warn otherwise (moving such a member would re-fire the anchor's bounds).
+    let unbind = () => {};
+    if (anchorNode && opts.reactive !== false) {
+        const descendantMember = ordered.some((n) => n.ancestors().anySame(anchorNode));
+        if (descendantMember) {
+            console.warn("[align-distribute] anchorNode is an ancestor of a member; skipping reactive bind (would loop).");
+        } else {
+            // Bind plain (un-namespaced) events and unbind by handler reference —
+            // Cytoscape's node.on() does NOT honor event namespaces for
+            // position/bounds, so a namespaced handler silently never fires.
+            const reResolve = () => place(resolveAnchor());
+            anchorNode.on("position bounds", reResolve);
+            cy.on("layoutstop", reResolve);
+            unbind = () => {
+                anchorNode.off("position bounds", reResolve);
+                cy.off("layoutstop", reResolve);
+            };
+        }
+    }
 
     // Optional titled box around the group (reuses the scope-box overlay, which
-    // is additive — it never clobbers other scope boxes).
+    // is additive — it never clobbers other scope boxes). It carries its own
+    // position/bounds listeners, so it follows the members on every re-resolve.
     let box = {destroy: () => {}};
     if (opts.label) {
         const ids = new Set(ordered.map((n) => n.id()));
         box = applyScopeBoxes(cy, [{label: opts.label, filter: (n) => ids.has(n.id()), style: opts.style}]);
     }
 
-    return {destroy: () => box.destroy(), members: ordered};
+    return {
+        destroy: () => {
+            unbind();
+            box.destroy();
+        },
+        members: ordered,
+    };
 }
 
 export function alignDistributeHorizontal(cy, opts = {}) {
