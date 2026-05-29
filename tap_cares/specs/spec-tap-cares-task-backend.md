@@ -232,7 +232,7 @@ This makes the rule self-enforcing: a contributor who adds a second `@recurring`
 RID: `req-tap-cares-task-backend-deployment`
 Status: `Implemented`
 
-Steady Queue's supervisor runs alongside Django `runserver` inside the existing web container. Same pattern the Huey consumer follows today: `docker/entrypoint.sh` backgrounds `manage.py steady_queue` before `exec`-ing into `runserver`, with a `trap` to clean up on exit.
+Steady Queue's supervisor runs alongside the Django dev server inside the existing web container. Same pattern the Huey consumer follows today: `docker/entrypoint.sh` backgrounds `manage.py steady_queue` before `exec`-ing into the dev server (`runserver_nocache` — the no-store-static dev variant of `runserver`), with a `trap` to clean up on exit.
 
 This preserves the one-container dev story (no separate compose service) and inherits the same caveats: Steady Queue does NOT auto-reload on file changes; restart the container after editing task code.
 

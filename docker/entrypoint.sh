@@ -49,5 +49,5 @@ STEADY_QUEUE_PID=$!
 
 trap "kill ${STEADY_QUEUE_PID} 2>/dev/null || true" EXIT
 
-echo "==> Starting Django development server..."
-exec uv run python manage.py runserver 0.0.0.0:8000
+echo "==> Starting Django development server (no-store on static for live JS/CSS)..."
+exec uv run python manage.py runserver_nocache 0.0.0.0:8000

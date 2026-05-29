@@ -20,6 +20,8 @@ Two modes, one helper:
 | req-viz-align-distribute-anchor | [Anchor](#anchor) | Implemented | `anchor` point + `anchorMode` (`start` \| `center`) |
 | req-viz-align-distribute-label | [Optional Label](#optional-label) | Implemented | `label` draws a titled scope-box around the group; omit for none |
 | req-viz-align-distribute-order | [Order](#order) | Implemented | Members sorted by label by default; `sort: false` preserves caller order |
+| req-viz-align-distribute-step | [Staircase Step](#staircase-step) | Implemented | `step` drops each successive node on the cross axis; `stepFrom` picks the baseline end |
+| req-viz-align-distribute-node-anchor | [Reactive Node Anchor](#reactive-node-anchor) | Implemented | `anchorNode` tracks a node's live bbox + re-resolves on its events; `offset` nudges from it |
 
 ## Runtime Helper
 
@@ -28,7 +30,7 @@ Status: `Implemented`
 
 `tap_viz/static/tap_viz/js/runtime/align-distribute.js` exports `alignDistributeHorizontal(cy, opts)` and `alignDistributeVertical(cy, opts)`, sharing one core (axis-parameterized). A layout module calls it from `execute(context)` after collecting the node set, the same way it calls `applyStack` / `applyScopeBoxes`. Returns `{destroy, members}`; `destroy()` removes the label box (if any).
 
-`opts`: `members` (the node set), `anchor` (`{x,y}`, defaults to the first member's position), `anchorMode` (`"start"` — anchor is the leading edge, default; `"center"` — anchor is the midpoint), `gap` / `spacing` (default 24), `sort` (default true), `label` (optional), `style` (optional box style).
+`opts`: `members` (the node set), `anchor` (`{x,y}`, defaults to the first member's position), `anchorNode` + `offset` (anchor on a live node, see below), `anchorMode` (`"start"` — anchor is the leading edge, default; `"center"` — anchor is the midpoint; defaults to `"center"` when `anchorNode` is set), `gap` / `spacing` (default 24), `sort` (default true), `step` + `stepFrom` (optional staircase, see below), `reactive` (default true when `anchorNode` set), `label` (optional), `style` (optional box style).
 
 ## Gap
 
@@ -57,3 +59,25 @@ RID: `req-viz-align-distribute-order`
 Status: `Implemented`
 
 Members are ordered by their display label before layout (stable, readable). Pass `sort: false` to preserve the caller's collection order when the caller has already imposed a meaningful sequence.
+
+## Staircase Step
+
+RID: `req-viz-align-distribute-step`
+Status: `Implemented`
+
+By default the cross-axis position is uniform (a flat line). Set `step` to offset each successive node on the cross axis by a fixed amount — a **staircase**. For a horizontal row this is a downward drop per node, so the labels that hang below each node land at staggered heights and stop overlapping (the originating need: a row of file cards whose filename labels collided when flat).
+
+`stepFrom` picks the **baseline** end — the un-stepped node the cascade descends *away* from: `"left"` / `"right"` for horizontal (default `"left"`), `"top"` / `"bottom"` for vertical (default `"top"`). With `stepFrom: "left"` the leftmost node sits on the anchor line and each node to the right drops one `step`, so the row reads as a gentle down-and-to-the-right cascade. `step` defaults to `0` (flat); `stepFrom` is only meaningful when `step != 0`.
+
+A labeled group's box wraps the stepped extent (the scope-box bbox spans the staircase), so the titled box simply grows to enclose the diagonal.
+
+## Reactive Node Anchor
+
+RID: `req-viz-align-distribute-node-anchor`
+Status: `Implemented`
+
+A static `anchor` point is a snapshot — it's read once, at call time. But a layout module often wants to position a node *relative to a container that is still settling*: a compound's bounding box shifts after the call returns (post-layout reflows — badge overlays, stack settle — and user drags). A center computed at call time then lands a few pixels off the container's final box.
+
+`anchorNode` solves this by anchoring on a **node's live bounding box** instead of a fixed point: the row's main-axis center tracks the node's bbox center (the cross-axis line comes from `anchor` when supplied, else the node's bbox center), and — unless `reactive: false` — the layout **re-resolves whenever that node fires `position`/`bounds`, plus on the cy `layoutstop`**. This mirrors how the scope-box overlay (`spec-viz-layouts`) tracks its members, and the stack primitive's post-layout `auto`-direction settle (`spec-viz-stack`): event-bound re-resolution is the established runtime idiom for "stay correct as the scene settles", not a one-shot pass. `offset` (`{x,y}`) nudges the resolved anchor — e.g. to drop the row below the anchor node.
+
+Loop safety: the anchor node must not be an **ancestor** of any member — repositioning a member would change the ancestor's bbox and re-fire the handler endlessly. The helper detects this, skips the reactive bind, and warns. The returned handle's `destroy()` unbinds the listeners (Cytoscape's `node.on()` does not honor event namespaces for `position`/`bounds`, so the binding uses plain events and unbinds by handler reference).
