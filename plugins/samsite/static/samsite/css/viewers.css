@@ -5,6 +5,12 @@
 .ss-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem 1.25rem; }
 .ss-card > h3 { margin: 0 0 0.75rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
 
+/* card heading inline with a control (e.g. the components quick-filter) */
+.ss-card-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
+.ss-card-head > h3 { margin: 0; }
+.ss-filter { flex: 0 0 auto; width: 16rem; max-width: 50%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.2rem 0.55rem; font-size: 0.82rem; }
+.ss-filter:focus { outline: none; box-shadow: 0 0 0 2px #bfdbfe; border-color: #93c5fd; }
+
 /* trust band */
 .ss-band { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.55rem 1rem; font-size: 0.85rem; }
 .ss-band-label { font-weight: 600; color: #475569; }

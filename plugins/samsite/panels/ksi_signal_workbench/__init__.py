@@ -17,7 +17,6 @@ Resolution contract: tap_web/specs/spec-web-panel-entity-resolution-v0.md
 
 from __future__ import annotations
 
-from collections import Counter
 from typing import Any, ClassVar
 
 from django.http import HttpRequest
@@ -25,6 +24,7 @@ from django.http import HttpRequest
 from tap_grid.gryphon.executor import execute_gryphon_raw
 from tap_web.models import Panel
 from tap_web.panels.entity_resolution import resolve_entity
+from tap_web.utils import safe_json
 
 DEFAULT_VAR_NAME = "ksi_signal_entity_id"
 
@@ -38,23 +38,6 @@ def _children(signal_entity_id: str, edge_type: str, child_type: str) -> list[di
     query = f"MATCH (s:ksi_signal)-[:{edge_type}]->(c:{child_type}) WHERE s.entity_id = $id RETURN c"
     envelope = execute_gryphon_raw(query, {"id": signal_entity_id}, layer="extended")
     return [n.get("data") or {} for n in (envelope.get("nodes") or []) if n.get("entity_type") == child_type]
-
-
-def _component_family(component_id: str, component_type: str) -> str:
-    """Coarse grouping family from the component_id prefix.
-
-    Collapses every AWS resource type under one "AWS" family; non-AWS prefixes
-    map to their natural family; anything else falls back to its type.
-    """
-    if component_id.startswith("aws::"):
-        return "AWS"
-    if component_id.startswith("ext::"):
-        return "External services"
-    if component_id.startswith("html::"):
-        return "HTML artifacts"
-    if component_id.startswith("npm::"):
-        return "npm packages"
-    return component_type or "Other"
 
 
 def _component_identifier(c: dict[str, Any]) -> str:
@@ -78,7 +61,7 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         "provenance": None,
         "disclosure": None,
         "headline": None,
-        "component_groups": [],
+        "components_json": "[]",
         "validations": [],
         "violations": [],
     }
@@ -127,25 +110,10 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         }
         for c in components
     ]
-    # Group by component family (component_id prefix), not by individual type:
-    # all AWS resource types collapse under one "AWS" heading — janky but
-    # information-rich (the specific type stays in the Type column).
-    fam_order = ["AWS", "External services", "HTML artifacts", "npm packages"]
-    fam_rank = {f: i for i, f in enumerate(fam_order)}
-    for r in comp_rows:
-        r["family"] = _component_family(r["component_id"] or "", r["component_type"])
-    fam_counts = Counter(r["family"] for r in comp_rows)
-    base["component_groups"] = [
-        {
-            "label": f,
-            "count": fam_counts[f],
-            "items": sorted(
-                (r for r in comp_rows if r["family"] == f),
-                key=lambda r: (r["component_type"] or "", r["component_id"] or ""),
-            ),
-        }
-        for f in sorted(fam_counts, key=lambda f: (fam_rank.get(f, 99), f))
-    ]
+    # The components table is Tabulator-driven (panel-table.js) for sortable
+    # headers + a quick filter. Emit the flat rows as JSON; the template carries
+    # the static column + group_by (by component_id prefix) specs.
+    base["components_json"] = safe_json(comp_rows)
 
     base["validations"] = sorted(
         (
@@ -187,8 +155,14 @@ class KsiSignalWorkbenchPanelType:
     slug: ClassVar[str] = "samsite-ksi-signal-workbench"
     label: ClassVar[str] = "KSI Signal Workbench"
     view: ClassVar[str] = "samsite/panels/ksi_signal_workbench.html"
-    css: ClassVar[list[str]] = ["samsite/css/viewers.css"]
-    js: ClassVar[list[str]] = []
+    css: ClassVar[list[str]] = [
+        "samsite/css/viewers.css",
+        "tap_web/css/lib/tabulator.min.css",
+    ]
+    js: ClassVar[list[str]] = [
+        "tap_web/js/lib/tabulator.min.js",
+        "tap_web/js/panel-table.js",
+    ]
     config_defaults: ClassVar[dict[str, Any]] = {"entity_id_var": DEFAULT_VAR_NAME}
 
     @classmethod

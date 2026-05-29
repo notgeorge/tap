@@ -52,29 +52,42 @@
     {% else %}<p class="ss-empty">No violations reported — all {{ headline.validations_total }} checks passed.</p>{% endif %}
   </section>
 
-  {# Components, grouped by family. #}
+  {% comment %}
+    Components — Tabulator-driven via panel-table.js (sortable headers + quick
+    filter across the columns), grouped by component_id prefix so all AWS
+    resources collapse under one heading; the specific type stays in the Type
+    column. C/I/A render as L/M/H badges via the ciaLevel formatter.
+  {% endcomment %}
   <section class="ss-card">
-    <h3>Components ({{ headline.components_total }})</h3>
-    {% if component_groups %}
-    <table class="ss-table">
-      <thead><tr><th>Component</th><th>Type</th><th>C</th><th>I</th><th>A</th><th>Identifier</th></tr></thead>
-      <tbody>
-        {% for g in component_groups %}
-        <tr class="ss-group-row"><td colspan="6">{{ g.label }} · {{ g.count }}</td></tr>
-        {% for r in g.items %}
-        <tr>
-          <td class="ss-mono">{{ r.component_id }}</td>
-          <td>{{ r.component_type }}</td>
-          <td>{% include "samsite/panels/_cia.html" with v=r.c %}</td>
-          <td>{% include "samsite/panels/_cia.html" with v=r.i %}</td>
-          <td>{% include "samsite/panels/_cia.html" with v=r.a %}</td>
-          <td class="ss-mono">{{ r.identifier|default:"—" }}</td>
-        </tr>
-        {% endfor %}
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<p class="ss-empty">No components on this signal.</p>{% endif %}
+    <div class="ss-card-head">
+      <h3>Components ({{ headline.components_total }})</h3>
+      <input type="search" id="tap-table-filter-{{ panel.entity_id }}" data-tap-table-filter
+             placeholder="Filter components…" aria-label="Filter components" class="ss-filter">
+    </div>
+    <div data-tap-table-mount
+         data-tap-table-panel-id="{{ panel.entity_id }}"
+         data-tap-table-mode="raw"
+         id="tap-table-mount-{{ panel.entity_id }}"
+         class="tap-table-container"></div>
+    <script type="application/json" id="tap-table-data-{{ panel.entity_id }}">{{ components_json|safe }}</script>
+    <script type="application/json" id="tap-table-columns-{{ panel.entity_id }}">[
+      {"field": "component_id", "title": "Component", "widthGrow": 2, "tooltip": "full_value"},
+      {"field": "component_type", "title": "Type", "width": 150},
+      {"field": "c", "title": "C", "formatter": "ciaLevel", "width": 50},
+      {"field": "i", "title": "I", "formatter": "ciaLevel", "width": 50},
+      {"field": "a", "title": "A", "formatter": "ciaLevel", "width": 50},
+      {"field": "identifier", "title": "Identifier", "widthGrow": 2, "tooltip": "full_value"}
+    ]</script>
+    <script type="application/json" id="tap-table-groupby-{{ panel.entity_id }}">{
+      "field": "component_id",
+      "rules": [
+        {"prefix": "aws::", "label": "AWS"},
+        {"prefix": "ext::", "label": "External services"},
+        {"prefix": "html::", "label": "HTML artifacts"},
+        {"prefix": "npm::", "label": "npm packages"}
+      ],
+      "default_label": "Other"
+    }</script>
   </section>
 
   {# Validations. #}
