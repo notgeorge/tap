@@ -39,6 +39,13 @@ function _toNodeArray(members) {
  *   opts.spacing. Default 24.
  * @param {boolean} [opts.sort=true]  Sort members by label first (false keeps
  *   caller order).
+ * @param {number} [opts.step=0]  Cross-axis offset added per successive node — a
+ *   staircase. For a horizontal row this is a downward drop per node (so labels
+ *   below each node stagger and stop overlapping). 0 = a flat line (default).
+ * @param {string} [opts.stepFrom]  Which end is the staircase baseline (the
+ *   un-stepped end the cascade descends away from): "left"/"right" for horizontal
+ *   (default "left"), "top"/"bottom" for vertical (default "top"). Only meaningful
+ *   when step != 0.
  * @param {string} [opts.label]  Optional — draw a titled box around the group.
  * @param {Object} [opts.style]  Optional scope-box style override (when labeled).
  * @returns {{destroy: Function, members: Array}}
@@ -53,19 +60,29 @@ function _alignDistribute(cy, opts, axis) {
     const sizeMain = (n) => (axis === "x" ? n.width() : n.height());
     const anchor = opts.anchor || members[0].position();
 
+    const step = opts.step != null ? opts.step : 0;
+    // The baseline is the "start" end; nodes step away from it. ordered[] runs in
+    // increasing main-axis position (left→right / top→bottom), so the far end is
+    // "right"/"bottom".
+    const stepFromFar =
+        (axis === "x" && opts.stepFrom === "right") || (axis === "y" && opts.stepFrom === "bottom");
+
     const ordered =
         opts.sort === false
             ? members
             : [...members].sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
 
-    // Distribute along the main axis (edge-to-edge gap), aligned on the cross axis.
+    // Distribute along the main axis (edge-to-edge gap), aligned on the cross axis
+    // (optionally stepped into a staircase via `step` + `stepFrom`).
     const totalMain = ordered.reduce((s, n) => s + sizeMain(n), 0) + gap * (ordered.length - 1);
     let cursor = opts.anchorMode === "center" ? anchor[main] - totalMain / 2 : anchor[main];
-    ordered.forEach((n) => {
+    const last = ordered.length - 1;
+    ordered.forEach((n, i) => {
         const half = sizeMain(n) / 2;
+        const stepIndex = stepFromFar ? last - i : i;
         const pos = {};
         pos[main] = cursor + half;
-        pos[cross] = anchor[cross];
+        pos[cross] = anchor[cross] + step * stepIndex;
         n.position(pos);
         cursor += sizeMain(n) + gap;
     });

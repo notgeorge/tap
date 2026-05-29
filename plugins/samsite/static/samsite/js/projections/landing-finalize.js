@@ -243,6 +243,8 @@ export async function execute(context) {
                 members: files,
                 anchor: {x: websiteBB.x2 + 90, y: (websiteBB.y1 + websiteBB.y2) / 2},
                 gap: 26,
+                step: 16,          // staircase down-right so the filename labels stop overlapping
+                stepFrom: "left",  // left card is highest; each one to the right drops a step
                 label: "Signed Artifacts",
             });
         }
