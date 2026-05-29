@@ -1,0 +1,89 @@
+{
+  "metadata": {"grift_version": "0"},
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e74b6-1034-76fd-b352-82f431de1f95",
+        "entity_type": "batch",
+        "name": "Samsite Artifact Inventory page v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.samsite",
+        "name": "Samsite Artifact Inventory page v0.1.0",
+        "description": "The /samsite/artifacts inventory page: everything collected from samsite, grouped by artifact type, newest first, one click into each viewer. Reuses the existing compliance table panel instances (KSI signals, VDR reports, compliance artifacts) as movable subjects; rows click through via the PER_TYPE_DETAIL_URL row-nav map. Per req-samsite-artifact-inventory in spec-samsite-viewer-pages-v0.md."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e74b6-1034-76fd-b352-82f38d636552",
+            "entity_type": "page",
+            "name": "Samsite — Artifact Inventory",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Samsite — Artifact Inventory",
+            "slug": "/samsite/artifacts",
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-signals": {"panel-id": "ksi-signals", "height": "auto"},
+                    "row-2-reports": {"panel-id": "vdr-reports", "height": "auto"},
+                    "row-3-artifacts": {"panel-id": "artifacts", "height": "auto"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e74b6-1034-76fd-b352-82f5e69e4e7a",
+            "entity_type": "edge",
+            "name": "Artifact Inventory USES_PANEL ksi-signals",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e74b6-1034-76fd-b352-82f38d636552",
+            "to_entity_id": "019e5502-cee6-744a-93b2-959208090e06",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "ksi-signals"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e74b6-1034-76fd-b352-82f608e4fe47",
+            "entity_type": "edge",
+            "name": "Artifact Inventory USES_PANEL vdr-reports",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e74b6-1034-76fd-b352-82f38d636552",
+            "to_entity_id": "019e5502-cee6-744a-93b2-959691ca5c4c",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "vdr-reports"}}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e74b6-1034-76fd-b352-82f7789de090",
+            "entity_type": "edge",
+            "name": "Artifact Inventory USES_PANEL artifacts",
+            "dimensions": {}
+          },
+          "edge": {
+            "from_entity_id": "019e74b6-1034-76fd-b352-82f38d636552",
+            "to_entity_id": "019e5502-cee6-744a-93b2-9598e6e741a3",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "artifacts"}}
+          }
+        }
+      ]
+    }
+  ]
+}
