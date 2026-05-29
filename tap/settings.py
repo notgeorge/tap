@@ -175,6 +175,10 @@ from tap.logging import build_logging_config  # noqa: E402
 LOGGING = build_logging_config(INSTALLED_APPS)
 
 MIDDLEWARE = [
+    # Dev-only: no-store on page responses so reloads pick up edits (the
+    # runserver_nocache command covers /static/, which bypasses middleware).
+    # Outermost so it has the final say on Cache-Control; inert when DEBUG is off.
+    "tap_web.middleware.DevNoStoreMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
