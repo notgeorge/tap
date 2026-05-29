@@ -29,6 +29,7 @@ Two quantities are kept deliberately distinct. **Depth** is how many layers are 
 | req-viz-stack-primitive | [Runtime Primitive](#runtime-primitive) | Implemented | `applyStack(cy, opts)` runtime module, called by layout modules |
 | req-viz-stack-proxy-collapse | [Proxy Collapse](#proxy-collapse) | Implemented | Representative stays visible; other members hidden via `tap-stack-collapsed` |
 | req-viz-stack-depth | [Depth Cards](#depth-cards) | Implemented | Up to `depthCap - 1` decorative offset cards; capped, never a count |
+| req-viz-stack-direction | [Growth Direction](#growth-direction) | Implemented | `auto` fans away from scene center (POV); overridable enum + per-axis `offset` |
 | req-viz-stack-count-chip | [Count Chip](#count-chip) | Implemented | Neutral rounded-rect straddling the representative's bottom edge |
 | req-viz-stack-count-format | [Count Formatting](#count-formatting) | Implemented | Humanized k/M/B abbreviation with bounded width |
 | req-viz-stack-count-disclosure | [Count Disclosure](#count-disclosure) | Implemented | Exact integer stored on the chip; surfaced on hover; label is a derived view |
@@ -51,7 +52,7 @@ The stack is delivered as a client-side runtime module, `tap_viz/static/tap_viz/
 
 `applyStack` returns a handle `{destroy, count, collapsed}`. `destroy()` removes the helper nodes and synthetic edges, un-collapses the members, and detaches listeners — restoring the pre-stack scene.
 
-Inputs (`opts`): `members` (the full set, including the representative), optional `representative` (defaults to the first member), optional `position` for the representative, `depthCap` (default 3), `minToCollapse` (default 2), `cardOffset`, `chip` (default true), `label` (the stack name — see [Stack Name](#stack-name)), and `stackId`.
+Inputs (`opts`): `members` (the full set, including the representative), optional `representative` (defaults to the first member), optional `position` for the representative, `depthCap` (default 3), `minToCollapse` (default 2), `direction` (default `"auto"` — see [Growth Direction](#growth-direction)), `offset` (px between stacked icons, default 7), `chip` (default true), `label` (the stack name — see [Stack Name](#stack-name)), and `stackId`.
 
 ### Proxy Collapse
 ----
@@ -70,6 +71,25 @@ Status: `Implemented`
 Behind the representative, `min(count, depthCap) - 1` decorative **depth cards** are drawn, each offset from the representative by a fixed per-card delta so the group reads as a fanned pile. Cards are non-interactive, reduced-opacity nodes that mirror the representative's shape and model colors (fill / border) but carry **no icon** — a faded blank token reads as "another one of these" without the icon-placement noise of a half-shown glyph on a small offset card. The cards are z-ordered front-to-back: the card nearest the front draws highest and each deeper card strictly below it, all below the representative, so the offset reads unambiguously as a stack rather than a scatter. When the representative has a nesting parent, cards are created within that same parent so they share its render layer and z-ordering.
 
 Depth is **capped decoration**. It does not scale with the count and carries no numeric meaning. A stack of 4 and a stack of 4,000 draw the same number of cards. The cap (`depthCap`, default 3) bounds the decoration so a large pile does not sprawl.
+
+### Growth Direction
+----
+RID: `req-viz-stack-direction`
+Status: `Implemented`
+
+The pile grows in a configurable direction — the side the depth cards fan toward, set by `direction` with a per-axis `offset` (px between successive icons, default 7).
+
+**`auto`** (the default) fans the pile **away from the center of the visible scene**, mimicking the viewer's perspective: a token in the upper-right of the view builds up-right, one in the lower-left builds down-left, and so on. This reads as stable because every pile leans toward the nearest edge, away from the focal center, rather than all leaning the same way. The scene center is the center of the bounding box of all visible content (excluding helper nodes) — the proxy for "center of the initial view", since the projection's initial fit frames exactly that content. It is computed once when the stack is built (after collapse, so hidden members don't skew it).
+
+The `auto` quadrant rule, with deterministic tiebreaks for on-axis tokens:
+
+- strictly inside a quadrant → fan into that quadrant (upper-right → up-right, upper-left → up-left, lower-right → down-right, lower-left → down-left);
+- on the center-vertical line → up-right;
+- on the center-horizontal line → up-right at/right of center, up-left left of center.
+
+On-axis cases bias **upward**; the vertical and right-of-center cases bias **right**.
+
+**Explicit override** — any of `up-right`, `up-left`, `down-right`, `down-left`, `up`, `down`, `left`, `right` — pins the direction regardless of position. The diagonals fan on both axes; `up`/`down` and `left`/`right` fan on one. The count chip stays bottom-center in every direction (see [Count Chip](#count-chip)).
 
 ### Count Chip
 ----

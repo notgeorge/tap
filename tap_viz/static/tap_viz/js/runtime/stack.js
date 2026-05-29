@@ -42,12 +42,28 @@ const TOOLTIP_CLASS = "tap-stack-tooltip";
 
 const DEFAULT_DEPTH_CAP = 3;
 const DEFAULT_MIN_TO_COLLAPSE = 2;
-const DEFAULT_CARD_OFFSET = {x: 7, y: 7};
+// Pixel shift between successive cards (and between the representative and the
+// first card), applied per active axis of the stack direction.
+const DEFAULT_OFFSET = 7;
 // Depth-card z-index ceiling. The front card (depth 1) draws at CARD_Z_TOP - 1,
 // each deeper card one lower, so the pile reads front-to-back. The
 // representative sits above all cards (see node[_stack_front_id] in
 // panel-graph.js, z-index 20 > CARD_Z_TOP).
 const CARD_Z_TOP = 10;
+
+// Stack growth directions → unit (dx, dy) in Cytoscape model space (+y is down).
+// "auto" is resolved per-stack against the scene center (see _resolveDirection).
+const DIRECTIONS = {
+    "up-right":   {dx:  1, dy: -1},
+    "up-left":    {dx: -1, dy: -1},
+    "down-right": {dx:  1, dy:  1},
+    "down-left":  {dx: -1, dy:  1},
+    "up":         {dx:  0, dy: -1},
+    "down":       {dx:  0, dy:  1},
+    "left":       {dx: -1, dy:  0},
+    "right":      {dx:  1, dy:  0},
+};
+const DEFAULT_DIRECTION = "auto";
 
 /**
  * Collapse a set of member nodes into a single stack token.
@@ -63,8 +79,12 @@ const CARD_Z_TOP = 10;
  *   the representative's current position.
  * @param {number} [opts.depthCap=3] Max visual layers (representative + cards).
  * @param {number} [opts.minToCollapse=2] Below this many members, no-op.
- * @param {{x:number,y:number}} [opts.cardOffset] Per-card offset behind the face.
- * @param {boolean} [opts.chip=true] Render the count chip.
+ * @param {string} [opts.direction="auto"] Growth direction. "auto" fans the
+ *   pile away from the scene center (POV perspective: a node in the lower-left
+ *   builds down-left, etc.). Explicit: "up-right" | "up-left" | "down-right" |
+ *   "down-left" | "up" | "down" | "left" | "right".
+ * @param {number} [opts.offset=7] Pixel shift between stacked icons, per active axis.
+ * @param {boolean} [opts.chip=true] Render the count chip (always bottom-center).
  * @param {string} [opts.label] Stack name shown on the representative in place
  *   of its individual label (e.g. "Rekor Entries"). Restored on destroy.
  * @param {string} [opts.stackId] Stable id for idempotent re-runs.
@@ -86,7 +106,8 @@ export function applyStack(cy, opts = {}) {
 
     const stackId = opts.stackId || ("stack:" + representative.id());
     const depthCap = opts.depthCap || DEFAULT_DEPTH_CAP;
-    const cardOffset = opts.cardOffset || DEFAULT_CARD_OFFSET;
+    const offset = opts.offset != null ? opts.offset : DEFAULT_OFFSET;
+    const direction = opts.direction || DEFAULT_DIRECTION;
     const wantChip = opts.chip !== false;
 
     // Idempotency: tear down any prior pass for this stackId before rebuilding.
@@ -111,6 +132,15 @@ export function applyStack(cy, opts = {}) {
     // as synthetic edges from the representative, skipping any the
     // representative already carries.
     _rerouteEdges(cy, {representative, collapsed, memberIds, stackId});
+
+    // --- Resolve growth direction ---------------------------------------
+    // In "auto", the pile fans away from the center of the visible scene (the
+    // content the initial fit frames), so a node in the lower-left builds
+    // down-left, mimicking the viewer's perspective. Computed after collapse so
+    // the now-hidden members don't skew the center. `step` is the per-card
+    // shift along whichever axes the direction activates.
+    const dir = _resolveDirection(direction, representative.position(), _sceneCenter(cy));
+    const step = {x: dir.dx * offset, y: dir.dy * offset};
 
     // --- Depth cards (decoration only) ----------------------------------
     // Cards mirror the representative's shape and model colors but carry NO
@@ -183,11 +213,11 @@ export function applyStack(cy, opts = {}) {
     }
 
     // --- Position cards + chip, then track the representative ------------
-    _positionParts(cy, {representative, stackId, cardOffset, chipId});
+    _positionParts(cy, {representative, stackId, step, chipId});
 
     function onRepMove(evt) {
         if (evt.target.id() !== repId) return;
-        _positionParts(cy, {representative, stackId, cardOffset, chipId});
+        _positionParts(cy, {representative, stackId, step, chipId});
     }
     cy.on("position bounds", "node[_stack_front_id]", onRepMove);
 
@@ -218,6 +248,45 @@ function _toNodeArray(members) {
 function _parentId(node) {
     const parent = node.parent();
     return parent && parent.length > 0 ? parent.id() : null;
+}
+
+/**
+ * Center of the visible scene — the proxy for "center of the initial view",
+ * since the projection's initial fit() frames exactly this content. Helper
+ * nodes (cards, chips, badges, shadows) are excluded so they don't skew it.
+ */
+function _sceneCenter(cy) {
+    const real = cy.nodes(":visible").filter(
+        (n) =>
+            !n.data("_is_stack_card") &&
+            !n.data("_is_stack_chip") &&
+            !n.data("_is_badge") &&
+            !n.data("_is_status_badge") &&
+            !n.data("_is_shadow"),
+    );
+    const bb = (real.length > 0 ? real : cy.nodes(":visible")).boundingBox();
+    return {x: (bb.x1 + bb.x2) / 2, y: (bb.y1 + bb.y2) / 2};
+}
+
+/**
+ * Resolve a direction option to a unit (dx, dy). Explicit values map straight
+ * through DIRECTIONS; "auto" fans the pile away from the scene center:
+ *   - strictly inside a quadrant → that quadrant (upper-right → up-right, …)
+ *   - on the center-vertical line → up-right
+ *   - on the center-horizontal line → up-right (at/right of center) or up-left
+ * On-axis cases bias upward; the vertical/right cases bias right. EPS gives a
+ * small tolerance so a near-centered node resolves deterministically.
+ */
+function _resolveDirection(direction, repPos, sceneCenter) {
+    if (direction && direction !== "auto") {
+        return DIRECTIONS[direction] || DIRECTIONS["up-right"];
+    }
+    const EPS = 0.5;
+    const dx = repPos.x - sceneCenter.x;
+    const dy = repPos.y - sceneCenter.y;
+    if (Math.abs(dx) <= EPS) return DIRECTIONS["up-right"];
+    if (Math.abs(dy) <= EPS) return dx >= 0 ? DIRECTIONS["up-right"] : DIRECTIONS["up-left"];
+    return {dx: dx > 0 ? 1 : -1, dy: dy < 0 ? -1 : 1};
 }
 
 function _rerouteEdges(cy, {representative, collapsed, memberIds, stackId}) {
@@ -262,14 +331,14 @@ function _rerouteEdges(cy, {representative, collapsed, memberIds, stackId}) {
     if (syntheticEls.length > 0) cy.add(syntheticEls);
 }
 
-function _positionParts(cy, {representative, stackId, cardOffset, chipId}) {
+function _positionParts(cy, {representative, stackId, step, chipId}) {
     const pos = representative.position();
     if (isNaN(pos.x) || isNaN(pos.y)) return;
 
     cy.nodes('[_stack_id = "' + stackId + '"][?_is_stack_card]').forEach((card) => {
         const depth = card.data("_stack_depth") || 1;
         card.unlock();
-        card.position({x: pos.x + cardOffset.x * depth, y: pos.y + cardOffset.y * depth});
+        card.position({x: pos.x + step.x * depth, y: pos.y + step.y * depth});
         card.lock();
     });
 
