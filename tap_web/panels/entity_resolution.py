@@ -118,7 +118,7 @@ def resolve_entity(
         try:
             node = _lookup_by_entity_id(entity_id)
         except Exception as exc:  # noqa: BLE001
-            logger.exception("[er1] Entity lookup failed for %s", entity_id)
+            logger.exception("[6504] Entity lookup failed for %s", entity_id)
             return EntityResolution(
                 entity_id=entity_id,
                 var_name=var_name,
@@ -143,7 +143,7 @@ def resolve_entity(
         try:
             nodes, count = _run_fallback_query(fallback_query)
         except Exception as exc:  # noqa: BLE001
-            logger.exception("[er2] Fallback query failed: %s", fallback_query[:80])
+            logger.exception("[ec3d] Fallback query failed: %s", fallback_query[:80])
             return EntityResolution(
                 entity_id="",
                 var_name=var_name,

@@ -189,7 +189,7 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
     try:
         indicators = _load_indicators()
     except Exception as exc:  # noqa: BLE001
-        logger.exception("[scb3] indicator load failed")
+        logger.exception("[c2cf] indicator load failed")
         base["error_phase"] = "load"
         base["error_message"] = f"KSI indicator lookup failed: {exc}"
         return base
@@ -206,7 +206,7 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
     try:
         themes = _load_themes()
     except Exception as exc:  # noqa: BLE001
-        logger.exception("[scb4] theme load failed; proceeding without theme labels")
+        logger.exception("[2e0a] theme load failed; proceeding without theme labels")
         themes = {}
 
     result = score(indicators=indicators, ssp_doc=ssp_doc, poam_doc=poam_doc)

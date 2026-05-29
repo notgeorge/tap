@@ -41,13 +41,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Record-site IDs minted via scripts/log-site-id; uniqueness checked by
-# tap/tests/test_log_site_ids.py.
-_SITE_MISSING_TOP = "651f"
-_SITE_MISSING_DATA = "aaee"
-_SITE_MIRROR_MISMATCH = "9aaa"
-_SITE_INVALID_TYPE = "fc69"
-
 
 # Top-level spine fields the envelope must carry on the write path. These
 # correspond to the Entity-row fields the service layer can set during
@@ -137,8 +130,7 @@ def parse_envelope_for_write(env: dict[str, Any]) -> SplitPayload:
     """
     if not isinstance(env, dict):
         logger.warning(
-            "[%s] envelope must be a dict, got %s",
-            _SITE_INVALID_TYPE,
+            "[fc69] envelope must be a dict, got %s",
             type(env).__name__,
         )
         raise EnvelopeValidationError(
@@ -149,8 +141,7 @@ def parse_envelope_for_write(env: dict[str, Any]) -> SplitPayload:
     missing = _SPINE_REQUIRED_FIELDS - env.keys()
     if missing:
         logger.warning(
-            "[%s] envelope missing required spine fields: %s",
-            _SITE_MISSING_TOP,
+            "[651f] envelope missing required spine fields: %s",
             sorted(missing),
         )
         raise EnvelopeValidationError(
@@ -161,8 +152,7 @@ def parse_envelope_for_write(env: dict[str, Any]) -> SplitPayload:
     data = env.get("data")
     if data is None:
         logger.warning(
-            "[%s] envelope missing required `data` lane",
-            _SITE_MISSING_DATA,
+            "[aaee] envelope missing required `data` lane",
         )
         raise EnvelopeValidationError(
             "data_lane_missing",
@@ -183,8 +173,7 @@ def parse_envelope_for_write(env: dict[str, Any]) -> SplitPayload:
             continue
         if top_value != data_value:
             logger.warning(
-                "[%s] envelope mirror mismatch on %s: top=%r data=%r",
-                _SITE_MIRROR_MISMATCH,
+                "[9aaa] envelope mirror mismatch on %s: top=%r data=%r",
                 field_name,
                 top_value,
                 data_value,
