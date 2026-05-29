@@ -1,5 +1,5 @@
 {% load static %}
-<div class="ss-wb">
+<div class="ss-wb" data-ss-facets="{{ panel.entity_id }}">
   {% if error_phase %}
     <div class="ss-error">[{{ error_phase }}] {{ error_message }}</div>
   {% else %}
@@ -23,15 +23,15 @@
     {% if report.vdr_class %}<span class="ss-band-label">Class</span><span class="ss-pill ss-pill-neutral">{{ report.vdr_class }}</span>{% endif %}
   </div>
 
-  {# Headline stats — lead with the at-a-glance risk picture. #}
+  {# Headline stats — toggle cards down-select the findings table (AND-combined + text filter); total = clear-all. #}
   <section class="ss-card">
-    <h3>Headline Stats</h3>
+    <h3>Headline Stats <span class="ss-hint">· tap a filter box to down-select</span></h3>
     <div class="ss-stat-grid">
-      <div class="ss-stat"><span class="ss-stat-num">{{ headline.total }}</span><span class="ss-stat-label">findings</span></div>
-      <div class="ss-stat"><span class="ss-stat-num">{{ headline.kev }}</span><span class="ss-stat-label">KEV</span></div>
-      <div class="ss-stat"><span class="ss-stat-num">{{ headline.blocking }}</span><span class="ss-stat-label">blocking</span></div>
-      <div class="ss-stat"><span class="ss-stat-num">{{ headline.internet_reachable }}</span><span class="ss-stat-label">internet-reachable</span></div>
-      <div class="ss-stat"><span class="ss-stat-num">{{ headline.risk_accepted }}</span><span class="ss-stat-label">risk-accepted</span></div>
+      <div class="ss-stat ss-stat-clear" data-ss-facet-clear title="Clear all filters"><span class="ss-stat-num">{{ headline.total }}</span><span class="ss-stat-label">findings</span></div>
+      <div class="ss-stat ss-stat-toggle" data-ss-facet="kev" data-ss-facet-field="is_kev" data-ss-facet-type="bool"><span class="ss-stat-num">{{ headline.kev }}</span><span class="ss-stat-label">KEV</span></div>
+      <div class="ss-stat ss-stat-toggle" data-ss-facet="blocking" data-ss-facet-field="is_blocking" data-ss-facet-type="bool"><span class="ss-stat-num">{{ headline.blocking }}</span><span class="ss-stat-label">blocking</span></div>
+      <div class="ss-stat ss-stat-toggle" data-ss-facet="net" data-ss-facet-field="internet_reachable" data-ss-facet-type="bool"><span class="ss-stat-num">{{ headline.internet_reachable }}</span><span class="ss-stat-label">internet-reachable</span></div>
+      <div class="ss-stat ss-stat-toggle" data-ss-facet="risk" data-ss-facet-field="disposition" data-ss-facet-type="eq" data-ss-facet-value="risk-accepted"><span class="ss-stat-num">{{ headline.risk_accepted }}</span><span class="ss-stat-label">risk-accepted</span></div>
     </div>
   </section>
 
@@ -42,7 +42,8 @@
   <section class="ss-card">
     <div class="ss-card-head">
       <h3>Findings ({{ headline.total }})</h3>
-      <input type="search" id="tap-table-filter-{{ panel.entity_id }}" data-tap-table-filter
+      {# Own filter input (not panel-table.js's id) so the facet script combines text + toggles in one filter. #}
+      <input type="search" id="ss-facet-filter-{{ panel.entity_id }}" data-ss-facet-filter
              placeholder="Filter findings…" aria-label="Filter findings" class="ss-filter">
     </div>
     <div data-tap-table-mount
@@ -75,6 +76,84 @@
       <dt>Class</dt><dd>{{ report.vdr_class|default:"—" }}</dd>
     </dl>
   </section>
+
+  <script>
+  (function () {
+    // Faceted down-select: the Headline Stats toggle cards + the text input drive
+    // one combined Tabulator filter (facets AND each other AND the text term).
+    // We own the filter here (the input deliberately does NOT use panel-table.js's
+    // id) and reach the table via Tabulator.findTable once panel-table.js builds it.
+    var root = document.currentScript.closest("[data-ss-facets]");
+    if (!root) return;
+    var panelId = root.getAttribute("data-ss-facets");
+    var mountSel = "#tap-table-mount-" + panelId;
+    var TEXT_FIELDS = ["title", "resource", "source", "cve", "disposition", "pain"];
+    var cards = root.querySelectorAll("[data-ss-facet]");
+    var clears = root.querySelectorAll("[data-ss-facet-clear]");
+    var input = root.querySelector("[data-ss-facet-filter]");
+    var active = {};  // key -> {field, type, value}
+
+    function getTable() {
+      if (!(window.Tabulator && Tabulator.findTable)) return null;
+      var found = Tabulator.findTable(mountSel);
+      return (found && found.length) ? found[0] : null;
+    }
+    function matches(row, f) {
+      var v = row[f.field];
+      if (f.type === "eq") return String(v) === String(f.value);
+      return v === true;  // bool
+    }
+    function apply() {
+      var table = getTable();
+      if (!table) return;
+      var term = ((input && input.value) || "").trim().toLowerCase();
+      var facets = Object.keys(active).map(function (k) { return active[k]; });
+      table.setFilter(function (row) {
+        for (var i = 0; i < facets.length; i++) { if (!matches(row, facets[i])) return false; }
+        if (term) {
+          for (var j = 0; j < TEXT_FIELDS.length; j++) {
+            var val = row[TEXT_FIELDS[j]];
+            if (val != null && String(val).toLowerCase().indexOf(term) !== -1) return true;
+          }
+          return false;
+        }
+        return true;
+      });
+    }
+
+    cards.forEach(function (card) {
+      card.addEventListener("click", function () {
+        var key = card.getAttribute("data-ss-facet");
+        if (active[key]) { delete active[key]; card.classList.remove("is-active"); }
+        else {
+          active[key] = {
+            field: card.getAttribute("data-ss-facet-field"),
+            type: card.getAttribute("data-ss-facet-type") || "bool",
+            value: card.getAttribute("data-ss-facet-value"),
+          };
+          card.classList.add("is-active");
+        }
+        apply();
+      });
+    });
+    clears.forEach(function (el) {
+      el.addEventListener("click", function () {
+        active = {};
+        cards.forEach(function (c) { c.classList.remove("is-active"); });
+        apply();
+      });
+    });
+    if (input) input.addEventListener("input", apply);
+
+    // panel-table.js builds the Tabulator on htmx:afterSettle / DOMContentLoaded,
+    // which may be after this inline script runs — poll briefly for it.
+    var tries = 0;
+    (function waitForTable() {
+      if (getTable()) { apply(); return; }
+      if (tries++ < 80) setTimeout(waitForTable, 50);
+    })();
+  })();
+  </script>
 
   {% endif %}
 </div>

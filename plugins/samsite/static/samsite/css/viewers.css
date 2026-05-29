@@ -47,6 +47,19 @@
 .ss-kv dt { color: #64748b; }
 .ss-kv dd { margin: 0; color: #0f172a; word-break: break-word; }
 
+/* Faceted toggle stat boxes — a subtle hollow corner dot marks the ones that
+   down-select the table; it fills + the box tints when active. Non-toggle
+   stats have no dot, so the two are visually distinct. */
+.ss-stat-toggle { cursor: pointer; position: relative; transition: background 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease; }
+.ss-stat-toggle::after { content: ""; position: absolute; top: 7px; right: 7px; width: 9px; height: 9px; border-radius: 999px; border: 1.5px solid #cbd5e1; background: #fff; }
+.ss-stat-toggle:hover { border-color: #94a3b8; background: #f1f5f9; }
+.ss-stat-toggle:hover::after { border-color: #94a3b8; }
+.ss-stat-toggle.is-active { border-color: #3b82f6; background: #eff6ff; box-shadow: inset 0 0 0 1px #3b82f6; }
+.ss-stat-toggle.is-active::after { background: #3b82f6; border-color: #3b82f6; }
+.ss-stat-clear { cursor: pointer; }
+.ss-stat-clear:hover { border-color: #94a3b8; background: #f1f5f9; }
+.ss-hint { font-size: 0.66rem; font-weight: 500; text-transform: none; letter-spacing: 0; color: #94a3b8; }
+
 .ss-fallback { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.5rem 0.85rem; font-size: 0.82rem; color: #1e40af; }
 .ss-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.75rem 1rem; color: #b91c1c; }
 .ss-empty { color: #94a3b8; font-size: 0.85rem; font-style: italic; margin: 0; }

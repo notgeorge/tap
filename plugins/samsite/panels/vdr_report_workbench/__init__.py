@@ -92,12 +92,15 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         for f in findings
     ]
     base["findings_json"] = safe_json(rows)
+    # Count from the rows actually rendered so the headline stats == the table
+    # == the toggle filters (summary.total_findings counts only active findings,
+    # not the risk-accepted ledger that's also on the grid).
     base["headline"] = {
-        "total": summary.get("total_findings", len(rows)),
+        "total": len(rows),
         "kev": sum(1 for r in rows if r["is_kev"]),
-        "blocking": summary.get("blocking", sum(1 for r in rows if r["is_blocking"])),
+        "blocking": sum(1 for r in rows if r["is_blocking"]),
         "internet_reachable": sum(1 for r in rows if r["internet_reachable"]),
-        "risk_accepted": summary.get("risk_accepted", 0),
+        "risk_accepted": sum(1 for r in rows if r["disposition"] == "risk-accepted"),
     }
     return base
 
