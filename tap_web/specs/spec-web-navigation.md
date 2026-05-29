@@ -60,6 +60,9 @@ Supersedes the prior revision of this spec, which proposed a classic web-based h
 - Each segment renders as a clickable link to its corresponding URL prefix.
 - The last segment (the current page) is rendered with active styling to communicate position.
 - The breadcrumb truncates from the middle when the path is too long for the header width (collapse to `[home] › … › grandparent › parent › current`); the collapsed segments remain accessible through the chevron popover on the ellipsis.
+- The header is pinned to the top of the viewport (`position: sticky; top: 0`) so it stays visible while the page scrolls. The chrome is a sibling of `<main>` in normal document flow; pinning is achieved with sticky positioning plus a body-height policy that depends on page kind:
+  - **Stacked (scrolling) pages** use a growable body (`min-height`, not a definite height) so the document scrolls under the pinned header and the header's sticky containing block spans the full page height. A definite-height or `flex-1 min-h-0` main would shrink to one viewport and detach the sticky header after the first screenful — so stacked pages must let `<main>` take its natural content height.
+  - **Full-bleed pages** (graph / dashboard, per `layout.full_bleed`) keep a *definite* viewport-height body (`height: 100%`) so their internal panels resolve percentage/flex heights and scroll internally; the document itself does not scroll. `min-height` is not a definite height and collapses such panels (e.g. a Cytoscape canvas) to zero — full-bleed pages must use a definite body height.
 
 #### Development
 
@@ -75,6 +78,7 @@ The user's mental model is reinforced: each segment is a place, the path is a st
 | req-web-nav-breadcrumb-header-2 | Each Segment Clickable | Implemented | Every breadcrumb segment links to its URL-prefix slice. | Parent segments render as `<a>`; current renders as a non-link `<span>` (per ACID-3). |
 | req-web-nav-breadcrumb-header-3 | Current Segment Active | Implemented | The last (current) segment uses an active visual style to communicate position. | `text-white font-medium aria-current="page"`. |
 | req-web-nav-breadcrumb-header-4 | Middle-Collapse On Overflow | Implemented | When the breadcrumb exceeds the header width, the middle of the path collapses to an ellipsis that remains interactively reachable. | `tap_web/static/tap_web/js/breadcrumb.js` `applyOverflowTruncation()` uses ResizeObserver to keep first 1 + last 2 segments; clicking the `…` reveals the hidden segments via the chevron-popover infrastructure. |
+| req-web-nav-breadcrumb-header-5 | Header Pinned On Scroll | Implemented | The header stays pinned to the top of the viewport while the page content scrolls beneath it, on every page. | `base.html` nav is `sticky top-0 z-50`; body height is `h-full` for `full_bleed` pages (definite, so graph/dashboard panels resolve their height and scroll internally) and `min-h-full` otherwise (growable, so the document scrolls and the sticky header pins for the full page height). |
 
 #### Future
 

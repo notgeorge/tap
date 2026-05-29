@@ -7,8 +7,18 @@
     </div>
     {% else %}
 
-    {# Nav bar above table — right-aligned #}
-    <div class="mb-2">{% include "tap_web/panels/_table_nav_bar.html" with nav_align="right" %}</div>
+    {# Nav bar above table — right-aligned, with optional quick-filter search box. #}
+    <div class="mb-2 flex items-center justify-end gap-3">
+        {% if panel.config.quick_filter %}
+        <input type="search"
+               id="tap-table-filter-{{ panel.entity_id }}"
+               data-tap-table-filter
+               placeholder="Filter…"
+               aria-label="Filter table contents"
+               class="tap-table-filter rounded border border-slate-300 bg-white px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-slate-400">
+        {% endif %}
+        {% include "tap_web/panels/_table_nav_bar.html" with nav_align="right" %}
+    </div>
 
     {# Tabulator mount point. data-tap-table-panel-id links to the JSON data block below. #}
     <div data-tap-table-mount
@@ -22,6 +32,11 @@
     {# Optional custom column spec — JS uses this when present, else falls back to common_metadata / edge defaults. #}
     {% if table_columns_json %}
     <script type="application/json" id="tap-table-columns-{{ panel.entity_id }}">{{ table_columns_json|safe }}</script>
+    {% endif %}
+
+    {# Optional declarative row-grouping spec (panel.config.group_by). #}
+    {% if table_group_by_json %}
+    <script type="application/json" id="tap-table-groupby-{{ panel.entity_id }}">{{ table_group_by_json|safe }}</script>
     {% endif %}
 
     {# Nav bar below table — right-aligned #}
