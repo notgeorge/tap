@@ -34,6 +34,7 @@
 import {resolveNesting, HIDDEN_CONTAINMENT_CLASS} from "/static/tap_viz/js/runtime/nested-projection.js";
 import {applyScopeBoxes} from "/static/tap_viz/js/runtime/layout-scope-boxes.js";
 import {applyStack} from "/static/tap_viz/js/runtime/stack.js";
+import {alignDistributeHorizontal} from "/static/tap_viz/js/runtime/align-distribute.js";
 
 // Top→bottom group order. Selectors mirror the arrangement member queries and the
 // scope-box filters: AWS resources carry a Component tag; the website group is the
@@ -70,7 +71,6 @@ const H_GAP = 380;        // gap from the bootstrap group's right edge to the Gi
 const WF_GAP = 185;       // spacing between GitHub workflow-row nodes
 const REKOR_GAP = 175;    // spacing between Rekor entries
 const REKOR_ABOVE = 120;  // how far above TOP_Y the Rekor row sits
-const FILE_GAP = 180;     // spacing between the signed-file nodes
 
 // The signed /.well-known/ artifacts ("files"). The collector mints a new
 // timestamped node per run, so the grid accumulates snapshots; the landing shows
@@ -199,20 +199,21 @@ export async function execute(context) {
     const rekor = cy.nodes('[entity_type="rekor_log_entry"]')
         .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
 
-    // 5b. Signed files — the latest snapshot of each, in a row in the right-middle
-    //     between the Rekor row (above) and the GitHub deploy cluster (below), so
-    //     the workflow ─GENERATES_FILE▶ file ◀─ATTESTED_BY─ rekor story reads
-    //     vertically on the right. (Positions iterate; eyes-on placement.)
+    // 5b. Signed files — styled as file cards, then laid out with the adh helper
+    //     as a titled row in the blank space to the RIGHT of the Website Serving
+    //     cluster, inside the boundary (they're eventually written there, so it's
+    //     philosophically in-scope). Style first so the box wraps the final sizes.
     if (files.nonempty()) {
-        const wfBB = workflows.boundingBox();
-        const ghCenterX = (wfBB.x1 + wfBB.x2) / 2;
-        const fileY = (TOP_Y - REKOR_ABOVE + bootCenterY) / 2;
-        const arr = files.sort((a, b) => (a.data("name") || "").localeCompare(b.data("name") || ""));
-        const fLeft = ghCenterX - ((arr.length - 1) * FILE_GAP) / 2;
-        arr.forEach((n, i) => {
-            n.position({x: fLeft + i * FILE_GAP, y: fileY});
-            styleFileNode(n);
-        });
+        files.forEach(styleFileNode);
+        const websiteBB = (groups.find((g) => g.key === "website") || {}).bb;
+        if (websiteBB) {
+            alignDistributeHorizontal(cy, {
+                members: files,
+                anchor: {x: websiteBB.x2 + 90, y: (websiteBB.y1 + websiteBB.y2) / 2},
+                gap: 26,
+                label: "Signed Artifacts",
+            });
+        }
     }
 
     // 6. Compound nesting — boundary > aws_account > aws_*, github.com > account >
