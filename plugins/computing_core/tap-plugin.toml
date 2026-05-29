@@ -14,6 +14,8 @@ file = "plugins.computing_core.models.file.File"
 public_key = "plugins.computing_core.models.public_key.PublicKey"
 private_key = "plugins.computing_core.models.private_key.PrivateKey"
 user = "plugins.computing_core.models.user.User"
+web_host = "plugins.computing_core.models.web_host.WebHost"
+web_document = "plugins.computing_core.models.web_document.WebDocument"
 
 [edges]
 HOSTS = "edges/HOSTS.edge.json"
@@ -23,6 +25,8 @@ AVAILABLE_AT = "edges/AVAILABLE_AT.edge.json"
 LISTENS_ON = "edges/LISTENS_ON.edge.json"
 CONNECTS_TO = "edges/CONNECTS_TO.edge.json"
 PAIRED_WITH = "edges/PAIRED_WITH.edge.json"
+HOSTED_BY = "edges/HOSTED_BY.edge.json"
+FETCHES = "edges/FETCHES.edge.json"
 
 [grift]
 dimension = "grift/dimension.grift.json"

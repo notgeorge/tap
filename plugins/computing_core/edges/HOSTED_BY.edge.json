@@ -1,0 +1,15 @@
+{
+  "slug": "HOSTED_BY",
+  "name": "Hosted By",
+  "description": "A web document is served by a web host.",
+  "sources": [
+    "web_document"
+  ],
+  "targets": [
+    "web_host"
+  ],
+  "default_dimensions": {
+    "tap.computing": "network",
+    "tap.web": "native"
+  }
+}
