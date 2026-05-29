@@ -51,6 +51,26 @@
 .ss-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.75rem 1rem; color: #b91c1c; }
 .ss-empty { color: #94a3b8; font-size: 0.85rem; font-style: italic; margin: 0; }
 
+/* Minimalist Tabulator theme — scoped to the samsite viewers (.ss-wb) so the
+   compliance tables and other table panels keep the stock theme. Strips the
+   boxy default chrome down to light row separators, a clean uppercase header,
+   uniform white rows with a subtle hover, and quiet group bands. */
+.ss-wb .tabulator { border: none; background: transparent; font-size: 0.82rem; }
+.ss-wb .tabulator .tabulator-header,
+.ss-wb .tabulator .tabulator-header .tabulator-col { border: none; background: #fff; }
+.ss-wb .tabulator .tabulator-header { border-bottom: 1px solid #e2e8f0; }
+.ss-wb .tabulator .tabulator-header .tabulator-col .tabulator-col-content { padding: 0.3rem 0.5rem; }
+.ss-wb .tabulator .tabulator-col-title { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #64748b; }
+.ss-wb .tabulator .tabulator-tableholder .tabulator-table { background: transparent; }
+.ss-wb .tabulator .tabulator-row,
+.ss-wb .tabulator .tabulator-row.tabulator-row-odd,
+.ss-wb .tabulator .tabulator-row.tabulator-row-even { border: none; border-bottom: 1px solid #f1f5f9; background: #fff; }
+.ss-wb .tabulator .tabulator-row:hover { background: #f8fafc; }
+.ss-wb .tabulator .tabulator-cell { border: none; padding: 0.3rem 0.5rem; color: #0f172a; }
+.ss-wb .tabulator .tabulator-row.tabulator-group { background: #f1f5f9; border: none; border-bottom: 1px solid #e2e8f0; color: #334155; font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.3rem 0.5rem; }
+.ss-wb .tabulator .tabulator-row.tabulator-group:hover { background: #e9eef5; }
+.ss-wb .tabulator .tabulator-col .tabulator-col-sorter { color: #cbd5e1; }
+
 /* finding emphasis */
 .ss-flag { font-weight: 700; }
 .ss-flag-on { color: #b91c1c; }
