@@ -6,7 +6,7 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e74d5-e6f6-75a6-8f05-0c8f323cc30d",
+        "entity_id": "019e7531-486e-771b-8225-2f43a95f8e55",
         "entity_type": "batch",
         "name": "Samsite Compliance landing v1.2 \u2014 KSI Components grouping + compact C/I/A + public dash",
         "dimensions": {}
@@ -75,11 +75,11 @@
           "entity": {
             "entity_id": "019e5502-cee6-744a-93b2-958b9a924ac8",
             "entity_type": "search",
-            "name": "KSI Signal emissions",
+            "name": "KSI Signal Emissions",
             "dimensions": {}
           },
           "node": {
-            "name": "KSI Signal emissions",
+            "name": "KSI Signal Emissions",
             "description": "Every KSI signal emission on the grid \u2014 one per fedramp-20x KSI document the collector has ingested.",
             "search_type": "gryphon",
             "root": "node",
@@ -208,14 +208,14 @@
           "entity": {
             "entity_id": "019e5502-cee6-744a-93b2-959208090e06",
             "entity_type": "panel",
-            "name": "KSI Signal emissions",
+            "name": "KSI Signal Emissions",
             "dimensions": {
               "tap.graph": "web"
             }
           },
           "node": {
             "slug": "samsite-compliance-ksi-signals",
-            "name": "KSI Signal emissions",
+            "name": "KSI Signal Emissions",
             "view": "tap_web/panels/table_panel.html",
             "config": {
               "column_mode": "common_metadata",
