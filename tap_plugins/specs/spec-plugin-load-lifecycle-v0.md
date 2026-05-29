@@ -388,9 +388,10 @@ Using strict upsert in v0 keeps the system deterministic and aligns with the exi
 | req-plugin-load-v0-upsert-4 | Startup Checks Path Existence | Proposed | Startup validation confirms that each declared GRIFT path exists. | |
 | req-plugin-load-v0-upsert-5 | Import Checks GRIFT Validity | Proposed | GRIFT content validation happens when import is invoked rather than only from file presence at startup. | |
 | req-plugin-load-v0-upsert-6 | No Semantic Dedupe | Proposed | v0 plugin GRIFT import does not perform fuzzy or semantic deduplication. | |
+| req-plugin-load-v0-dry-run-1 | Dry-Run Validation | Implemented | `import_plugin_grift --dry-run` validates each declared bundle against the GRIFT document schema (via the importer's `validate_grift_document` — single source of truth) without writing to the database, reports any issues, and counts an invalid bundle as an error. Structural only: per-record model validation runs against the DB on a real import. | Shipped ahead of spec and born broken (imported a never-defined `GRIFT_DOCUMENT_SCHEMA`); fixed + tested 2026-05-29. |
 
 #### Future
-Later specs may add import modes such as dry-run, replace-only, create-only, conflict reporting, or scoped import policies per plugin or per data bundle.
+Later specs may add import modes such as replace-only, create-only, conflict reporting, or scoped import policies per plugin or per data bundle.
 
 ### Load Order And Execution Phases
 ----

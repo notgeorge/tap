@@ -11,6 +11,12 @@ call sites working without changes.
 """
 
 # Importer re-exports (backward compatible).
+# Envelope parse-and-split (write path; spec-grift-envelope § Envelope Validation).
+from tap_grid.grift.envelope import (
+    EnvelopeValidationError,
+    SplitPayload,
+    parse_envelope_for_write,
+)
 from tap_grid.grift.importer import (
     GRIFT_VERSION,
     IMPORT_MODE,
@@ -20,13 +26,7 @@ from tap_grid.grift.importer import (
     GriftIssue,
     GriftSkippedBatch,
     grift_import,
-)
-
-# Envelope parse-and-split (write path; spec-grift-envelope § Envelope Validation).
-from tap_grid.grift.envelope import (
-    EnvelopeValidationError,
-    SplitPayload,
-    parse_envelope_for_write,
+    validate_grift_document,
 )
 
 # Subgraph public API — envelope shape per spec-grift-envelope.
@@ -59,6 +59,7 @@ __all__ = [
     "GriftIssue",
     "GriftSkippedBatch",
     "grift_import",
+    "validate_grift_document",
     # Envelope parse / write-path
     "EnvelopeValidationError",
     "SplitPayload",

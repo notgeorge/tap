@@ -1098,6 +1098,21 @@ def _validate_document_schema(document: dict[str, Any], issues: list[GriftIssue]
         return False
 
 
+def validate_grift_document(document: dict[str, Any]) -> list[GriftIssue]:
+    """Validate a parsed GRIFT document against the GRIFT JSON Schema, without
+    touching the database.
+
+    Returns the list of issues; an empty list means the document is structurally
+    valid. This is the public pre-flight / dry-run validation surface — the same
+    document-schema check the real importer runs (single source of truth). It is
+    structural only: per-record model validation (``full_validate``) runs against
+    the database during a real import and is therefore out of scope here.
+    """
+    issues: list[GriftIssue] = []
+    _validate_document_schema(document, issues)
+    return issues
+
+
 def _run_preflight(
     document: dict[str, Any],
     *,
