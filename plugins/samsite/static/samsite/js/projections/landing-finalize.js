@@ -1,9 +1,10 @@
 /**
  * Samsite landing — finalize / scene-composition pass.
  *
- * Runs LAST in the elevation (after landing-systems.js seeds the three AWS
- * cluster roots and the per-Component arrangements build each cluster's internal
- * 2D shape). This pass treats each AWS cluster as a GROUP:
+ * Runs LAST in the elevation (after landing-systems.js seeds the AWS cluster
+ * roots and the website/compliance per-Component arrangements build their
+ * internal 2D shapes; the Deploy & Bootstrap row is laid out + labeled by THIS
+ * pass via the adh helper — step 0b). This pass treats each AWS cluster as a GROUP:
  *
  *   1. measure each group's post-arrangement bounding box,
  *   2. left-align all three to a common x, and
@@ -45,7 +46,10 @@ const GROUPS = [
     {key: "bootstrap",  label: "Deploy & Bootstrap",  sel: (n) => (n.data("tags") || {}).Component === "bootstrap"},
 ];
 
-const SCOPE_BOXES = GROUPS.map((g) => ({label: g.label, filter: g.sel}));
+// Website + compliance keep their post-distribute scope boxes here. Bootstrap's
+// titled box is drawn by its adh call (step 0b) — adh both lays out the row AND
+// labels it — so it's excluded from this set to avoid a double box.
+const SCOPE_BOXES = GROUPS.filter((g) => g.key !== "bootstrap").map((g) => ({label: g.label, filter: g.sel}));
 
 // Same nesting rules as before — parent assignment is position-independent, so it
 // runs here once the leaf positions (incl. github + sigstore) are settled.
@@ -68,7 +72,12 @@ const LEFT_X = 250;       // common left edge for the three AWS groups
 const TOP_Y = 160;        // top of the first (website) group
 const V_GAP = 48;         // vertical gap between AWS group icon-boxes (leaves room for the bottom-row labels)
 const H_GAP = 380;        // gap from the bootstrap group's right edge to the GitHub cluster
-const WF_GAP = 185;       // spacing between GitHub workflow-row nodes
+const WF_GAP = 140;       // edge-to-edge gap between GitHub workflow-row nodes (adh)
+const BOOT_GAP = 160;     // edge-to-edge gap for the Deploy & Bootstrap row (adh)
+// Deploy & Bootstrap reads left→right by role: state-lock → tfstate bucket →
+// deploy role → OIDC provider (the root, rightmost, nearest GitHub). adh needs
+// this explicit order since it's semantic, not alphabetical (sort:false).
+const BOOT_TYPE_ORDER = ["aws_dynamodb_table", "aws_s3_bucket", "aws_iam_role", "aws_iam_oidc_provider"];
 const REKOR_GAP = 175;    // spacing between Rekor entries
 const REKOR_ABOVE = 120;  // how far above TOP_Y the Rekor row sits
 
@@ -155,6 +164,27 @@ export async function execute(context) {
     //    positioning in step 5b). Done first so the stale dupes never reach layout.
     const files = pruneToLatestFiles(cy);
 
+    // 0b. Deploy & Bootstrap row — laid out AND labeled by adh (this replaced the
+    //     old per-Component arrangements). Runs BEFORE the group measure (step 1) so
+    //     the bootstrap bbox exists for distribution; the titled box is reactive and
+    //     follows the group when step 2 shifts it. landing-systems seeds only the
+    //     root, so adh is what positions the rest. Ordered by role, not label (so
+    //     sort:false) — see BOOT_TYPE_ORDER.
+    const bootSel = GROUPS.find((g) => g.key === "bootstrap").sel;
+    const bootMembers = cy.nodes().filter(bootSel).toArray().sort((a, b) => {
+        const oi = (t) => { const i = BOOT_TYPE_ORDER.indexOf(t); return i < 0 ? 99 : i; };
+        return oi(a.data("entity_type")) - oi(b.data("entity_type"));
+    });
+    if (bootMembers.length) {
+        alignDistributeHorizontal(cy, {
+            members: bootMembers,
+            anchor: {x: LEFT_X, y: 760},
+            gap: BOOT_GAP,
+            sort: false,
+            label: "Deploy & Bootstrap",
+        });
+    }
+
     // 1. Measure each AWS cluster's post-arrangement bounding box. includeLabels:
     //    false measures the ICONS only — node labels are wider than the icons and
     //    overhang by different amounts per group, so a label-inclusive box would
@@ -185,9 +215,11 @@ export async function execute(context) {
     //    so the repo box is a short bar and FEDERATES_VIA (repo → AWS OIDC provider)
     //    reads as a horizontal line.
     const ghLeftX = bootRight + H_GAP;
-    const workflows = cy.nodes('[entity_type="github_workflow"]')
-        .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
-    workflows.forEach((n, i) => n.position({x: ghLeftX + i * WF_GAP, y: bootCenterY}));
+    // workflows: a clean horizontal row via adh — no label, the github_repository
+    // compound box already frames them. Sorted by label (adh default) for a stable
+    // left→right order; the row's y is the bootstrap row so FEDERATES_VIA reads flat.
+    const workflows = cy.nodes('[entity_type="github_workflow"]');
+    alignDistributeHorizontal(cy, {members: workflows, anchor: {x: ghLeftX, y: bootCenterY}, gap: WF_GAP});
 
     // 4. OIDC issuer hub — midway in the gap, on the bootstrap row's y so
     //    TRUSTS_ISSUER (AWS provider → issuer) reads horizontal.
