@@ -1,0 +1,33 @@
+{# Sequence navigator — back/forward across an ordered emission sequence. #}
+{# Links flip `seq_var` on the current path; a full nav re-resolves every #}
+{# panel on the page (content + this selector) to the chosen emission. #}
+<div class="tap-seqnav">
+  {% if seq_error %}
+    <div class="tap-seqnav-empty">{{ seq_error }}</div>
+  {% else %}
+    <div class="tap-seqnav-bar">
+      {% if seq_older_id %}
+        <a class="tap-seqnav-btn" href="?{{ seq_var }}={{ seq_older_id }}" rel="prev">&lsaquo; Older</a>
+      {% else %}
+        <span class="tap-seqnav-btn is-disabled" aria-disabled="true">&lsaquo; Older</span>
+      {% endif %}
+
+      <span class="tap-seqnav-pos">
+        {% if seq_label %}<strong class="tap-seqnav-kind">{{ seq_label }}</strong>{% endif %}
+        {% if seq_unknown_position %}
+          <span class="tap-seqnav-count">this emission · {{ seq_total }} on the grid</span>
+        {% else %}
+          <span class="tap-seqnav-count">{{ seq_position }} of {{ seq_total }}</span>
+          {% if seq_current_label %}<span class="tap-seqnav-when">{{ seq_current_label }}</span>{% endif %}
+          {% if seq_is_latest %}<span class="tap-seqnav-latest">latest</span>{% endif %}
+        {% endif %}
+      </span>
+
+      {% if seq_newer_id %}
+        <a class="tap-seqnav-btn" href="?{{ seq_var }}={{ seq_newer_id }}" rel="next">Newer &rsaquo;</a>
+      {% else %}
+        <span class="tap-seqnav-btn is-disabled" aria-disabled="true">Newer &rsaquo;</span>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>

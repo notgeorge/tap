@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e6f1f-89cc-753e-af9d-61934345d36e",
+        "entity_id": "019e7523-9988-75e1-88f1-6300c0ee0a2b",
         "entity_type": "batch",
-        "name": "Samsite Compliance pages v0.2.1 \u2014 canonical entity-resolution configs (Gryphon double-quoted literals)",
+        "name": "Samsite Compliance pages v0.3.0 — sequence-nav back/forward selector on SSP + POA&M",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-pages",
-        "name": "Samsite Compliance pages v0.2.1 \u2014 canonical entity-resolution configs (Gryphon double-quoted literals)",
-        "description": "Seeds two sibling Samsite compliance pages hosting the ROSCALE OSCAL workbench panels: /samsite/compliance/ssp renders the on-grid OSCAL SSP via roscale-oscal-workbench; /samsite/compliance/poam renders the OSCAL POA&M via roscale-oscal-poam-workbench. v0.2.0 migrates the panel configs to the canonical tap_web.panels.entity_resolution contract (spec-web-panel-entity-resolution-v0): `entity_id_var` replaces `artifact_entity_id_var`; `fallback.{query, description}` replaces `fallback.kind`. Fallback queries use Gryphon graph-envelope ORDER BY + LIMIT plus defensive `AND a.data.fetched_at IS NOT NULL` so a null sort field can't silently win."
+        "name": "Samsite Compliance pages v0.3.0 — sequence-nav back/forward selector on SSP + POA&M",
+        "description": "Seeds two sibling Samsite compliance pages hosting the ROSCALE OSCAL workbench panels: /samsite/compliance/ssp and /samsite/compliance/poam. v0.3.0 mounts a tap_web sequence-nav panel ABOVE each workbench (a sibling, not a modification of the roscale panel): both panels read the same entity_id_var, the nav panel resolves the full ordered emission sequence (compliance_artifact of the kind, newest-first by fetched_at) and renders Older/Newer links that flip that var plus a 'N of M' position indicator. v0.2.x migrated the panel configs to the canonical tap_web.panels.entity_resolution contract (entity_id_var + fallback.{query, description}); those are unchanged."
       },
       "nodes": [
         {
@@ -34,7 +34,11 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1-workbench": {
+                    "row-1-nav": {
+                      "panel-id": "nav",
+                      "height": "auto"
+                    },
+                    "row-2-workbench": {
                       "panel-id": "workbench",
                       "height": "1fr"
                     }
@@ -69,6 +73,30 @@
         },
         {
           "entity": {
+            "entity_id": "019e7523-9988-75e1-88f1-62faea90b0db",
+            "entity_type": "panel",
+            "name": "Samsite OSCAL SSP Sequence Nav",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "slug": "samsite-oscal-ssp-nav",
+            "name": "Samsite OSCAL SSP Sequence Nav",
+            "description": "Back/forward selector over OSCAL SSP emissions. Shares oscal_ssp_artifact_entity_id with the SSP workbench below it; resolves the full newest-first sequence of oscal_ssp compliance_artifacts by fetched_at and renders Older/Newer links + position.",
+            "view": "tap_web/panels/sequence_nav.html",
+            "config": {
+              "entity_id_var": "oscal_ssp_artifact_entity_id",
+              "sequence": {
+                "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_ssp\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 200",
+                "label_field": "fetched_at",
+                "label": "OSCAL SSP"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
             "entity_id": "019e6505-7081-7358-a3bc-4ac800a2e1cc",
             "entity_type": "page",
             "name": "POA&M",
@@ -84,7 +112,11 @@
                 "col-1": {
                   "width": "1fr",
                   "rows": {
-                    "row-1-workbench": {
+                    "row-1-nav": {
+                      "panel-id": "nav",
+                      "height": "auto"
+                    },
+                    "row-2-workbench": {
                       "panel-id": "workbench",
                       "height": "1fr"
                     }
@@ -116,6 +148,30 @@
               }
             }
           }
+        },
+        {
+          "entity": {
+            "entity_id": "019e7523-9988-75e1-88f1-62fb23888385",
+            "entity_type": "panel",
+            "name": "Samsite OSCAL POA&M Sequence Nav",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "node": {
+            "slug": "samsite-oscal-poam-nav",
+            "name": "Samsite OSCAL POA&M Sequence Nav",
+            "description": "Back/forward selector over OSCAL POA&M emissions. Shares oscal_poam_artifact_entity_id with the POA&M workbench below it; resolves the full newest-first sequence of oscal_poam compliance_artifacts by fetched_at and renders Older/Newer links + position.",
+            "view": "tap_web/panels/sequence_nav.html",
+            "config": {
+              "entity_id_var": "oscal_poam_artifact_entity_id",
+              "sequence": {
+                "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_poam\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 200",
+                "label_field": "fetched_at",
+                "label": "OSCAL POA&M"
+              }
+            }
+          }
         }
       ],
       "edges": [
@@ -143,6 +199,28 @@
         },
         {
           "entity": {
+            "entity_id": "019e7523-9988-75e1-88f1-62fc3154a561",
+            "entity_type": "edge",
+            "name": "Samsite SSP Page USES_PANEL SSP Sequence Nav",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "edge": {
+            "from_entity_id": "019e6505-7081-7358-a3bc-4ac58251ba53",
+            "to_entity_id": "019e7523-9988-75e1-88f1-62faea90b0db",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "nav"
+              }
+            }
+          }
+        },
+        {
+          "entity": {
             "entity_id": "019e6505-7081-7358-a3bc-4aca70d3c3f7",
             "entity_type": "edge",
             "name": "Samsite POA&M Page USES_PANEL POA&M Workbench",
@@ -162,6 +240,28 @@
               }
             }
           }
+        },
+        {
+          "entity": {
+            "entity_id": "019e7523-9988-75e1-88f1-62fde40606f8",
+            "entity_type": "edge",
+            "name": "Samsite POA&M Page USES_PANEL POA&M Sequence Nav",
+            "dimensions": {
+              "tap.graph": "web"
+            }
+          },
+          "edge": {
+            "from_entity_id": "019e6505-7081-7358-a3bc-4ac800a2e1cc",
+            "to_entity_id": "019e7523-9988-75e1-88f1-62fb23888385",
+            "edge_type": "USES_PANEL",
+            "properties": {
+              "hotlink": {
+                "model": "page",
+                "spec": "page-panels",
+                "value": "nav"
+              }
+            }
+          }
         }
       ]
     },
@@ -169,13 +269,13 @@
       "batch_entity": {
         "entity_id": "019e6f1f-89cc-753e-af9d-6194f481b655",
         "entity_type": "batch",
-        "name": "Samsite KSI Scoreboard page v0.2.1 \u2014 canonical multi-entity resolution (Gryphon double-quoted literals)",
+        "name": "Samsite KSI Scoreboard page v0.2.1 — canonical multi-entity resolution (Gryphon double-quoted literals)",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite.grift.compliance-pages",
-        "name": "Samsite KSI Scoreboard page v0.2.1 \u2014 canonical multi-entity resolution (Gryphon double-quoted literals)",
-        "description": "Seeds /samsite/compliance/scoreboard hosting the samsite-ksi-scoreboard panel \u2014 a synthesized roll-up that joins the on-grid FedRAMP 20x KSI catalog (ksi_indicator + ksi_theme) against the latest OSCAL SSP and POA&M emissions to compute per-indicator passing/in-progress/accepted/gap status. v0.2.0 migrates the panel config to the canonical tap_web.panels.entity_resolution multi-entity contract (req-web-panel-entity-resolution-multi): `<role>_entity_id_var` replaces `<role>_artifact_entity_id_var`; `fallback.<role>.{query, description}` replaces flat `fallback.<role>_kind`. Each per-role fallback uses envelope ORDER BY + LIMIT plus defensive IS NOT NULL."
+        "name": "Samsite KSI Scoreboard page v0.2.1 — canonical multi-entity resolution (Gryphon double-quoted literals)",
+        "description": "Seeds /samsite/compliance/scoreboard hosting the samsite-ksi-scoreboard panel — a synthesized roll-up that joins the on-grid FedRAMP 20x KSI catalog (ksi_indicator + ksi_theme) against the latest OSCAL SSP and POA&M emissions to compute per-indicator passing/in-progress/accepted/gap status. v0.2.0 migrates the panel config to the canonical tap_web.panels.entity_resolution multi-entity contract (req-web-panel-entity-resolution-multi): `<role>_entity_id_var` replaces `<role>_artifact_entity_id_var`; `fallback.<role>.{query, description}` replaces flat `fallback.<role>_kind`. Each per-role fallback uses envelope ORDER BY + LIMIT plus defensive IS NOT NULL."
       },
       "nodes": [
         {

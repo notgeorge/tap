@@ -214,7 +214,7 @@ This spec adds one entry (`vdr_report`) and records the coupling as **acknowledg
 
 Explicitly deferred — named so the deferral is a decision, not an omission:
 
-- **Version navigation (prev/next across emissions).** Deferred to a `tap_web` sequence-navigator primitive, which graduates the already-named "History timeline panel" future seam in `spec-web-panel-entity-resolution-v0.md`. At demo time there is one emission per artifact; the feature has no data to act on yet.
+- ~~**Version navigation (prev/next across emissions).**~~ **Built** — the `tap_web` sequence-navigator panel (`spec-web-panel-sequence-navigation-v0.md`) is mounted above the OSCAL SSP (`/samsite/compliance/ssp`) and POA&M (`/samsite/compliance/poam`) workbenches, walking their `compliance_artifact` emissions newest-first. The KSI signal and VDR report viewers get the same panel when those custom viewers are built. (Caveat: `ksi_signal`/`vdr_report` accumulate only on genuine new emissions; rich history for them awaits runtime-signal collection — below.)
 - **`compliance_artifact` content-hash re-key.** Re-keying identity from `kind/fetched_at` to `kind/<content-sha256>` (so genuine versions accumulate and pure re-fetches upsert) is the precondition for meaningful blob-type history. An identity change to every artifact node; deferred until the history layer is built.
 - **Wayback-style history/timeline visualization.** The motivating long-term vision for the above; not v0.
 - **Lifting the `PER_TYPE_DETAIL_URL` map to a plugin-registration mechanism.** Recorded as debt (`req-samsite-viewer-row-nav-coupling`); lifted with the plugin-dependency model.
