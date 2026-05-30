@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e74a6-fb0f-7152-bda2-5862222f5312",
+        "entity_id": "019e7908-37df-7607-a9fb-6b868c526d45",
         "entity_type": "batch",
-        "name": "Samsite landing v0.1.7",
+        "name": "Samsite landing v0.1.8",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite",
-        "name": "Samsite landing v0.1.7",
-        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.5 is the merge of two parallel lines onto one batch: (a) the signed /.well-known/ artifacts on the board — the seed search matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind and styles them as file cards; (b) the deploy→KEV-fetch + human-actor story — the search also matches web_host / web_document (CISA host + KEV catalog, kev-fetch.grift.json) and user (the three actors Readers / george / Sam, users.grift.json). web_host / web_document / user / the compliance file types carry no per-model tags, so they are reached by explicit per-label MATCHes (like the GitHub lane), not the Project=samsite tag scan. Fresh batch_entity_id (supersedes both 019e73fb-... and 019e73fe-...) so any session seeded from either parent re-applies the combined search; the skip-if-exists guard is batch-id-keyed. The Rekor entries collapse into a stack (tap_viz stack primitive) in landing-finalize.js. v0.1.7 adds MATCH (gapp:github_app) so the Dependabot github_app (reclassified from a workflow by the collector) renders — the finalize pass parents it to the github.com platform compound."
+        "name": "Samsite landing v0.1.8",
+        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.5 is the merge of two parallel lines onto one batch: (a) the signed /.well-known/ artifacts on the board — the seed search matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind and styles them as file cards; (b) the deploy→KEV-fetch + human-actor story — the search also matches web_host / web_document (CISA host + KEV catalog, kev-fetch.grift.json) and user (the three actors Readers / george / Sam, users.grift.json). web_host / web_document / user / the compliance file types carry no per-model tags, so they are reached by explicit per-label MATCHes (like the GitHub lane), not the Project=samsite tag scan. Fresh batch_entity_id (supersedes both 019e73fb-... and 019e73fe-...) so any session seeded from either parent re-applies the combined search; the skip-if-exists guard is batch-id-keyed. The Rekor entries collapse into a stack (tap_viz stack primitive) in landing-finalize.js. v0.1.7 adds MATCH (gapp:github_app) so the Dependabot github_app (reclassified from a workflow by the collector) renders — the finalize pass parents it to the github.com platform compound. v0.1.8 removes four orphaned edges left behind when the samsite-bootstrap-layout + its three samsite-bootstrap-* arrangements were retired (commit 43f0cd8): the node defs were dropped and the nodes tombstoned via deletes.nodes, but the USES_LAYOUT edge into the layout and the three USES_ARRANGEMENT edges out of it were never removed, so they dangled on a fresh seed. Fresh batch_entity_id so any mid-state grid re-applies the cleaned batch."
       },
       "nodes": [
         {
@@ -613,26 +613,6 @@
         },
         {
           "entity": {
-            "entity_id": "019e659b-d268-75db-a931-8d0cf33f8ed8",
-            "entity_type": "edge",
-            "name": "Elevation USES_LAYOUT samsite-bootstrap-layout",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "019e646a-85fc-7159-b12b-c665b668b4e2",
-            "to_entity_id": "019e658f-685e-7415-bab6-82143ba9147f",
-            "edge_type": "USES_LAYOUT",
-            "properties": {
-              "hotlink": {
-                "model": "elevation",
-                "spec": "elevation-layouts",
-                "value": "019e658f-685e-7415-bab6-82143ba9147f"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
             "entity_id": "019e73d4-18f7-7085-b318-bbe7c943b929",
             "entity_type": "edge",
             "name": "Elevation USES_LAYOUT samsite-landing-finalize",
@@ -801,66 +781,6 @@
                 "model": "layout",
                 "spec": "layout-arrangements",
                 "value": "019e6497-bd8e-720e-b05f-262298ffdd94"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e6497-bd8e-720e-b05f-2625fa5b546b",
-            "entity_type": "edge",
-            "name": "samsite-bootstrap-layout USES_ARRANGEMENT samsite-bootstrap-oidc-federates-to-deploy",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "019e658f-685e-7415-bab6-82143ba9147f",
-            "to_entity_id": "019e6497-bd8e-720e-b05f-26243f90f71f",
-            "edge_type": "USES_ARRANGEMENT",
-            "properties": {
-              "hotlink": {
-                "model": "layout",
-                "spec": "layout-arrangements",
-                "value": "019e6497-bd8e-720e-b05f-26243f90f71f"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e6497-bd8e-720e-b05f-2627046d6bad",
-            "entity_type": "edge",
-            "name": "samsite-bootstrap-layout USES_ARRANGEMENT samsite-bootstrap-deploy-stores-state",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "019e658f-685e-7415-bab6-82143ba9147f",
-            "to_entity_id": "019e6497-bd8e-720e-b05f-2626eb7d55a5",
-            "edge_type": "USES_ARRANGEMENT",
-            "properties": {
-              "hotlink": {
-                "model": "layout",
-                "spec": "layout-arrangements",
-                "value": "019e6497-bd8e-720e-b05f-2626eb7d55a5"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e6497-bd8e-720e-b05f-2629889dea48",
-            "entity_type": "edge",
-            "name": "samsite-bootstrap-layout USES_ARRANGEMENT samsite-bootstrap-lock-left-of-state",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "019e658f-685e-7415-bab6-82143ba9147f",
-            "to_entity_id": "019e6497-bd8e-720e-b05f-262811f45090",
-            "edge_type": "USES_ARRANGEMENT",
-            "properties": {
-              "hotlink": {
-                "model": "layout",
-                "spec": "layout-arrangements",
-                "value": "019e6497-bd8e-720e-b05f-262811f45090"
               }
             }
           }
