@@ -1,0 +1,120 @@
+{% load static %}
+<div class="tw-batch">
+  {% if error_phase %}
+    <div class="tw-error">[{{ error_phase }}] {{ error_message }}</div>
+  {% else %}
+
+  {% if used_fallback %}
+    <div class="tw-fallback"><strong>Showing the latest batch.</strong> No <code>{{ var_name }}</code> in the URL — {{ fallback_description }} <span class="tw-mono">{{ entity_id }}</span></div>
+  {% endif %}
+
+  {# Identity band. #}
+  <div class="tw-band">
+    <span class="tw-band-label">{{ batch.name }}</span>
+    {% if batch.status %}<span class="tw-pill {% if batch.status == 'closed' or batch.status == 'completed' %}tw-pill-ok{% elif batch.status == 'failed' %}tw-pill-bad{% else %}tw-pill-muted{% endif %}">{{ batch.status }}</span>{% endif %}
+    {% if batch.source %}<span class="tw-band-label">Source</span><span class="tw-pill tw-pill-neutral">{{ batch.source }}</span>{% endif %}
+    <span class="tw-band-label">Started</span><span class="tw-mono">{{ batch.started_at|default:"—" }}</span>
+  </div>
+
+  {# At-a-glance counts. #}
+  <section class="tw-card">
+    <h3>This Batch Did</h3>
+    <div class="tw-stat-grid">
+      <div class="tw-stat"><span class="tw-stat-num">{{ counts.nodes }}</span><span class="tw-stat-label">nodes added</span></div>
+      <div class="tw-stat"><span class="tw-stat-num">{{ counts.node_types }}</span><span class="tw-stat-label">node types</span></div>
+      <div class="tw-stat"><span class="tw-stat-num">{{ counts.edges }}</span><span class="tw-stat-label">edges added</span></div>
+      <div class="tw-stat"><span class="tw-stat-num">{{ counts.deletes }}</span><span class="tw-stat-label">deletes</span></div>
+      <div class="tw-stat"><span class="tw-stat-num">{{ counts.purges }}</span><span class="tw-stat-label">purges</span></div>
+    </div>
+  </section>
+
+  {# Nodes added. #}
+  <section class="tw-card">
+    <div class="tw-card-head">
+      <h3>Nodes Added ({{ counts.nodes }})</h3>
+      <input type="search" id="tap-table-filter-{{ panel.entity_id }}-nodes" data-tap-table-filter placeholder="Filter nodes…" aria-label="Filter nodes" class="tw-filter">
+    </div>
+    {% if counts.nodes %}
+    <div data-tap-table-mount data-tap-table-panel-id="{{ panel.entity_id }}-nodes" data-tap-table-mode="raw" id="tap-table-mount-{{ panel.entity_id }}-nodes" class="tap-table-container"></div>
+    <script type="application/json" id="tap-table-data-{{ panel.entity_id }}-nodes">{{ nodes_json|safe }}</script>
+    <script type="application/json" id="tap-table-columns-{{ panel.entity_id }}-nodes">[
+      {"field": "entity_type", "title": "Type", "width": 200},
+      {"field": "name", "title": "Name", "widthGrow": 3, "tooltip": "full_value"},
+      {"field": "entity_id", "title": "Entity ID", "widthGrow": 2, "tooltip": "full_value"}
+    ]</script>
+    {% else %}<p class="tw-empty">No nodes stamped with this batch.</p>{% endif %}
+  </section>
+
+  {# Edges added — from → type → to, endpoints flagged in-batch vs external. #}
+  <section class="tw-card">
+    <div class="tw-card-head">
+      <h3>Edges Added ({{ counts.edges }})</h3>
+      <input type="search" id="tap-table-filter-{{ panel.entity_id }}-edges" data-tap-table-filter placeholder="Filter edges…" aria-label="Filter edges" class="tw-filter">
+    </div>
+    {% if counts.edges %}
+    <div data-tap-table-mount data-tap-table-panel-id="{{ panel.entity_id }}-edges" data-tap-table-mode="raw" id="tap-table-mount-{{ panel.entity_id }}-edges" class="tap-table-container"></div>
+    <script type="application/json" id="tap-table-data-{{ panel.entity_id }}-edges">{{ edges_json|safe }}</script>
+    <script type="application/json" id="tap-table-columns-{{ panel.entity_id }}-edges">[
+      {"field": "from_name", "title": "From", "widthGrow": 3, "tooltip": "full_value"},
+      {"field": "from_scope", "title": "From scope", "width": 110},
+      {"field": "edge_type", "title": "Relationship", "width": 200},
+      {"field": "to_name", "title": "To", "widthGrow": 3, "tooltip": "full_value"},
+      {"field": "to_scope", "title": "To scope", "width": 110}
+    ]</script>
+    {% else %}<p class="tw-empty">No edges stamped with this batch.</p>{% endif %}
+  </section>
+
+  {# Deletes (tombstones — soft-deleted rows persist, so they're recoverable). #}
+  <section class="tw-card">
+    <div class="tw-card-head">
+      <h3>Deletes ({{ counts.deletes }})</h3>
+      {% if counts.deletes %}<input type="search" id="tap-table-filter-{{ panel.entity_id }}-deletes" data-tap-table-filter placeholder="Filter deletes…" aria-label="Filter deletes" class="tw-filter">{% endif %}
+    </div>
+    {% if counts.deletes %}
+    <div data-tap-table-mount data-tap-table-panel-id="{{ panel.entity_id }}-deletes" data-tap-table-mode="raw" id="tap-table-mount-{{ panel.entity_id }}-deletes" class="tap-table-container"></div>
+    <script type="application/json" id="tap-table-data-{{ panel.entity_id }}-deletes">{{ deletes_json|safe }}</script>
+    <script type="application/json" id="tap-table-columns-{{ panel.entity_id }}-deletes">[
+      {"field": "entity_type", "title": "Type", "width": 200},
+      {"field": "name", "title": "Name", "widthGrow": 3, "tooltip": "full_value"},
+      {"field": "deleted_at", "title": "Deleted At", "width": 200},
+      {"field": "entity_id", "title": "Entity ID", "widthGrow": 2, "tooltip": "full_value"}
+    ]</script>
+    {% else %}<p class="tw-empty">This batch tombstoned nothing.</p>{% endif %}
+  </section>
+
+  {# Purges (hard deletes) — only recoverable from a persisted removal manifest. #}
+  <section class="tw-card">
+    <div class="tw-card-head">
+      <h3>Purges ({{ counts.purges }})</h3>
+    </div>
+    {% if counts.purges %}
+    <div data-tap-table-mount data-tap-table-panel-id="{{ panel.entity_id }}-purges" data-tap-table-mode="raw" id="tap-table-mount-{{ panel.entity_id }}-purges" class="tap-table-container"></div>
+    <script type="application/json" id="tap-table-data-{{ panel.entity_id }}-purges">{{ purges_json|safe }}</script>
+    <script type="application/json" id="tap-table-columns-{{ panel.entity_id }}-purges">[
+      {"field": "entity_type", "title": "Type", "width": 200},
+      {"field": "name", "title": "Name", "widthGrow": 3, "tooltip": "full_value"},
+      {"field": "entity_id", "title": "Entity ID", "widthGrow": 2, "tooltip": "full_value"}
+    ]</script>
+    {% elif has_manifest %}
+    <p class="tw-empty">No purges recorded for this batch.</p>
+    {% else %}
+    <p class="tw-note">Purged rows are hard-deleted and this batch retains no removal manifest, so individual purges can't be listed. (Persisting one — <code>metadata.removals</code> — is <code>req-web-batch-viewer-removal-manifest</code>.)</p>
+    {% endif %}
+  </section>
+
+  {# Batch metadata footer. #}
+  <section class="tw-card">
+    <h3>Batch Metadata</h3>
+    <dl class="tw-kv">
+      <dt>Entity ID</dt><dd class="tw-mono">{{ batch.entity_id }}</dd>
+      <dt>Source</dt><dd>{{ batch.source|default:"—" }}</dd>
+      <dt>Status</dt><dd>{{ batch.status|default:"—" }}</dd>
+      <dt>Started</dt><dd>{{ batch.started_at|default:"—" }}</dd>
+      <dt>Closed</dt><dd>{{ batch.closed_at|default:"—" }}</dd>
+      {% if batch.description %}<dt>Description</dt><dd>{{ batch.description }}</dd>{% endif %}
+      {% if batch.error_message %}<dt>Error</dt><dd class="tw-mono">{{ batch.error_message }}</dd>{% endif %}
+    </dl>
+  </section>
+
+  {% endif %}
+</div>
