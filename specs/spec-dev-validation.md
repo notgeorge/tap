@@ -6,7 +6,7 @@ For the current solo dog-food window (one developer, running real security asses
 
 This spec is the **center of gravity for validation tracking**. It owns the cross-cutting pre-push gate and an authoritative **Validation Map**; it *references* the leaf validation surfaces (spawn-env smoke, teardown, the log-site scanner, the task-backend async-delivery tiers) rather than re-specifying them. As environments multiply, stage-validation and prod-validation become additive: new Map rows and sibling specs under this index, not divergent reinventions.
 
-The discipline running through every requirement here is honest coverage accounting, adopted from the false-confidence failure mode named in `aar/2026-05-16-aws-collector-sprint-sprawl.md` §4 and `spec-tap-cares-task-backend.md`: **a requirement whose only guard is a one-time manual check or "the suite still passes" is effectively unguarded, and MUST be labeled CI-unguarded — by design, not by oversight.** "Green" is only meaningful if known-broken is enumerated in the repository and never in a human's memory.
+The discipline running through every requirement here is honest coverage accounting, adopted from the false-confidence failure mode named in `docs/aar/2026-05-16-aws-collector-sprint-sprawl.md` §4 and `spec-tap-cares-task-backend.md`: **a requirement whose only guard is a one-time manual check or "the suite still passes" is effectively unguarded, and MUST be labeled CI-unguarded — by design, not by oversight.** "Green" is only meaningful if known-broken is enumerated in the repository and never in a human's memory.
 
 ## Goals
 

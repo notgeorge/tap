@@ -8,7 +8,7 @@
 | **Author** | Claude (`session/codex-prime`) |
 | **Critical-path authority** | Pending strategy doc (separate session); see Corrective Actions |
 
-This is the first report filed under `aar/`. Its section structure is the
+This is the first report filed under `docs/aar/`. Its section structure is the
 intended standard for future after-action reports (see *Standardized Format*
 at the end).
 
@@ -157,7 +157,7 @@ land the recovery.
 
 ## Standardized Format (for future reports)
 
-Every AAR under `aar/` uses these sections, in order:
+Every AAR under `docs/aar/` uses these sections, in order:
 
 1. **Goal vs. Outcome** — one sentence, first. What we set out to do vs.
    what we got.
@@ -172,4 +172,4 @@ Every AAR under `aar/` uses these sections, in order:
 8. **Lessons → Durable Rules** — the report is not closed until lessons are
    mirrored to agent memory and AGENTS.md.
 
-Filing convention: `aar/<YYYY-MM-DD>-<short-slug>.md`.
+Filing convention: `docs/aar/<YYYY-MM-DD>-<short-slug>.md`.

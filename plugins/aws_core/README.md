@@ -60,7 +60,7 @@ That tag holds the deleted code, the design spec
 plugin tooling layer. It is the durable record of what was learned —
 mine it to guide the boto3 build, do not resurrect it wholesale. The
 decision rationale lives in the AAR at
-`aar/2026-05-16-aws-collector-sprint-sprawl.md`.
+`docs/aar/2026-05-16-aws-collector-sprint-sprawl.md`.
 
 What is **preserved and collector-agnostic** (the durable WHAT that
 guides the boto3 build): the 37 resource-type models, 15 edge types,

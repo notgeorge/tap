@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "description": "Samsite demo — populate a fresh session end-to-end: AWS resource graph, GitHub repo data, the FedRAMP 20x KSI catalog, then samsite's signed compliance artifacts (which also synthesize authorization-boundary membership). Order matters: samsite-compliance reads aws_account nodes, so boto3 must run first.",
+  "description": "Samsite demo — populate a fresh session end-to-end: AWS resource graph, GitHub repo data, the FedRAMP 20x KSI catalog, then samsite's signed compliance artifacts (which also synthesize authorization-boundary membership). Order matters: samsite-compliance reads aws_account nodes (boto3) AND content-matches github_workflow nodes (github_core) to wire its sigstore identity edges, so both must run before it.",
   "on_failure": "abort",
   "collectors": [
     {
@@ -21,7 +21,7 @@
     {
       "key": "plugins.samsite.collectors.compliance_collector.collector:samsite-compliance",
       "enabled": true,
-      "note": "Signed /.well-known/ compliance artifacts (OSCAL SSP/POA&M, KSI signal, VDR). MUST run after boto3 — synthesizes SCOPED_TO_BOUNDARY membership from the aws_account nodes."
+      "note": "Signed /.well-known/ compliance artifacts (OSCAL SSP/POA&M, KSI signal, VDR). MUST run after boto3 (synthesizes SCOPED_TO_BOUNDARY membership from the aws_account nodes) AND after github_core (sigstore_link resolves the signing github_workflow by content-match to wire SIGNED_BY_IDENTITY / REQUESTS_SIGSTORE_SIGNATURE; if the workflow node isn't on the grid yet those edges are silently omitted)."
     }
   ]
 }

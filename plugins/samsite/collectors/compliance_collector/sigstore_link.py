@@ -20,7 +20,10 @@ Spec: plugins/samsite/specs/spec-samsite-compliance-collector-v0.md.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 _GITHUB_PREFIX = "https://github.com/"
 
@@ -82,6 +85,24 @@ def resolve_workflow_entity_id(full_name: str, workflow_path: str) -> str | None
     nodes = list((result.get("results", result) or {}).get("nodes", []) or [])
     if len(nodes) == 1:
         return str(nodes[0]["entity_id"])
+    if not nodes:
+        # No github_workflow node on the grid for this signing identity — almost
+        # always because github_core hasn't collected yet (boot ordering). The
+        # SIGNED_BY_IDENTITY / REQUESTS_SIGSTORE_SIGNATURE edges are omitted; log
+        # so the absence is visible rather than indistinguishable from "unsigned".
+        logger.info(
+            "[3e92] sigstore_link: no github_workflow matched %s path=%s — omitting signing-identity edges "
+            "(run github_core before samsite-compliance)",
+            full_name,
+            workflow_path,
+        )
+        return None
+    logger.warning(
+        "[5b05] sigstore_link: %d github_workflow nodes matched %s path=%s — ambiguous, omitting signing-identity edges",
+        len(nodes),
+        full_name,
+        workflow_path,
+    )
     return None
 
 

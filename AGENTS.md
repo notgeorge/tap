@@ -28,6 +28,13 @@ Use the OpenAI developer documentation MCP server for current OpenAI API, ChatGP
 
 For non-OpenAI frameworks and libraries, prefer official upstream documentation and current installed package behavior when the answer may depend on version.
 
+## Post-Mortems & the Paladin Foundation
+
+Two co-located incident corpora live under `docs/`, answering different questions — keep them distinct and cross-link when one caused the other:
+
+- **`docs/postmortems/`** — incidents in the *running instance's internal state* (a bug, runtime/ordering issue, or UX defect in TAP itself). These are the **training foundation for the Paladin system**: a forthcoming LLM-based healer for TAP instance state (detect an unhealthy instance from observable signals; remediate or escalate without guessing). File as `YYYY-MM-DD-<slug>.md` with machine-readable frontmatter (`tags`, `failure_class`, `surfaces`, `fix_commits`) and end each with a **"What Paladin would need"** section: the observable detection signal + the safe remediation. The tag taxonomy is **provisional and accreted as we go** (don't freeze it) — starter tags: `application-bug`, `runtime-issue`, `frontend-ux`, `seed-data-integrity`, `collector-dependency`, `silent-failure`, `dev-tooling`. `failure_class` names the shared *shape* across unrelated incidents — the cross-cutting view Paladin generalizes from. Going forward, capture what we learn running/maintaining/fixing TAP with Paladin in mind.
+- **`docs/aar/`** — After-Action Reports: retrospectives on the *development process* (how we worked — scope, definition-of-done, validation honesty), NOT instance state. Feeds workflow/collaboration rules. 8-section standard format defined in the first report; file as `docs/aar/<YYYY-MM-DD>-<slug>.md`.
+
 ## Core TAP Rules
 
 - `Entity` is the canonical graph spine for TAP-managed nodes and edges.
@@ -104,7 +111,7 @@ The current tap-cares spec lives at:
 
 ## Collaboration Norms
 
-- Open every session with an explicit stated goal / definition-of-done (the user states it, or the agent asks for it and reflects it back). It resolves to the strategy doc's critical path when one exists. Restate it on mid-session scope changes. An agent working without a clear stated goal should stop and ask for one. (AAR root causes #1/#2 — `aar/2026-05-16-aws-collector-sprint-sprawl.md`.)
+- Open every session with an explicit stated goal / definition-of-done (the user states it, or the agent asks for it and reflects it back). It resolves to the strategy doc's critical path when one exists. Restate it on mid-session scope changes. An agent working without a clear stated goal should stop and ask for one. (AAR root causes #1/#2 — `docs/aar/2026-05-16-aws-collector-sprint-sprawl.md`.)
 - If the user says they are framing, spitballing, or discussing, do not start implementing.
 - Ask clarifying questions when the architectural choice is genuinely open. Prefer batches of five questions, ordered with the most important questions first.
 - Keep edits scoped to the requested app/spec/feature.
