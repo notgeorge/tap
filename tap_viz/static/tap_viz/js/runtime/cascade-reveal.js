@@ -19,17 +19,17 @@
 /**
  * @param {cytoscape.Core} cy
  * @param {Object} [opts]
- * @param {number} [opts.layerDelay=200] - ms between each depth layer starting its reveal.
- * @param {number} [opts.staggerRange=120] - ms random spread for individual nodes within a layer.
- * @param {number} [opts.fadeDuration=300] - ms for each node's opacity transition.
- * @param {number} [opts.edgeStaggerRange=400] - ms random spread for individual edges (after the nodes).
+ * @param {number} [opts.layerDelay=100] - ms between each depth layer starting its reveal.
+ * @param {number} [opts.staggerRange=60] - ms random spread for individual nodes within a layer.
+ * @param {number} [opts.fadeDuration=150] - ms for each node's opacity transition.
+ * @param {number} [opts.edgeStaggerRange=200] - ms random spread for individual edges (after the nodes).
  * @returns {Promise<void>} Resolves when the full cascade is complete.
  */
 export function cascadeReveal(cy, opts = {}) {
-    const layerDelay = opts.layerDelay ?? 200;
-    const staggerRange = opts.staggerRange ?? 120;
-    const fadeDuration = opts.fadeDuration ?? 300;
-    const edgeStaggerRange = opts.edgeStaggerRange ?? 400;
+    const layerDelay = opts.layerDelay ?? 100;
+    const staggerRange = opts.staggerRange ?? 60;
+    const fadeDuration = opts.fadeDuration ?? 150;
+    const edgeStaggerRange = opts.edgeStaggerRange ?? 200;
 
     // Collect visible nodes grouped by z-index.
     // Badge nodes are excluded — they fade in with their host node.
