@@ -1,0 +1,51 @@
+{# Deep-link scroll for OSCAL workbenches.
+
+   Cross-page links (e.g. the KSI scoreboard) target a specific control or
+   POA&M item by URL fragment — #control-<control-id> / #poam-<poam-id>, which
+   match the id="" set on each item <li>. Browsers won't scroll to an element
+   buried inside a collapsed <details>, so on load (and on hashchange) we open
+   every ancestor <details> plus the item's own card, scroll it into view, and
+   flash it. Self-contained; included by both workbench templates. #}
+<style>
+  .roscale-anchor-flash {
+    animation: roscale-anchor-flash 2s ease-out;
+    border-radius: 4px;
+  }
+  @keyframes roscale-anchor-flash {
+    0%, 30% { background-color: rgba(249, 168, 37, 0.35); box-shadow: 0 0 0 3px rgba(249, 168, 37, 0.45); }
+    100% { background-color: transparent; box-shadow: none; }
+  }
+</style>
+<script>
+(function () {
+  function reveal() {
+    var hash = window.location.hash;
+    if (!hash || hash.length < 2) return;
+    var target;
+    try { target = document.getElementById(decodeURIComponent(hash.slice(1))); }
+    catch (e) { return; }
+    if (!target) return;
+    // Open every ancestor <details> so a collapsed item becomes visible.
+    var el = target;
+    while (el) {
+      if (el.tagName === "DETAILS") el.open = true;
+      el = el.parentElement;
+    }
+    // Open the item's own card (a <details> nested directly inside the <li>).
+    var inner = target.querySelector ? target.querySelector("details") : null;
+    if (inner) inner.open = true;
+    target.scrollIntoView({behavior: "smooth", block: "center"});
+    target.classList.add("roscale-anchor-flash");
+    setTimeout(function () { target.classList.remove("roscale-anchor-flash"); }, 2000);
+  }
+  // Run once now (panel HTML — including the anchor — is in the DOM by the time
+  // this inline script executes, even when HTMX-inserted after page load), and
+  // again whenever the fragment changes.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", reveal);
+  } else {
+    reveal();
+  }
+  window.addEventListener("hashchange", reveal);
+})();
+</script>

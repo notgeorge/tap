@@ -113,7 +113,7 @@
           </summary>
           <ul class="roscale-req-list">
             {% for it in grp.items %}
-              <li data-roscale-req data-roscale-search-text="{{ it.search_text }}">
+              <li id="poam-{{ it.poam_id|default:it.uuid }}" data-roscale-req data-roscale-search-text="{{ it.search_text }}">
                 <details class="roscale-req-card">
                   <summary class="roscale-req-summary">
                     <code class="roscale-req-id">{{ it.poam_id|default:it.uuid|slice:":13" }}</code>
@@ -251,4 +251,6 @@
       <pre class="roscale-json">{{ raw_json }}</pre>
     </details>
   {% endif %}
+
+  {% include "roscale/panels/_anchor_scroll.html" %}
 </div>

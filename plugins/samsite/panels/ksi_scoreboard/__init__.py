@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from plugins.roscale.panels._common import build_provenance, parse, pretty_json
+from plugins.roscale.panels._common import build_provenance, parse
 from plugins.samsite.scoring import (
     INDICATOR_ACCEPTED,
     INDICATOR_GAP,
@@ -45,16 +45,16 @@ DEFAULT_SSP_VAR = "oscal_ssp_artifact_entity_id"
 DEFAULT_POAM_VAR = "oscal_poam_artifact_entity_id"
 
 _SSP_FALLBACK_QUERY = (
-    'MATCH (a:compliance_artifact) '
+    "MATCH (a:compliance_artifact) "
     'WHERE a.data.kind = "oscal_ssp" AND a.data.fetched_at IS NOT NULL '
-    'ORDER BY a.data.fetched_at DESC LIMIT 1'
+    "ORDER BY a.data.fetched_at DESC LIMIT 1"
 )
 _SSP_FALLBACK_DESCRIPTION = "Latest oscal_ssp compliance artifact by fetched_at."
 
 _POAM_FALLBACK_QUERY = (
-    'MATCH (a:compliance_artifact) '
+    "MATCH (a:compliance_artifact) "
     'WHERE a.data.kind = "oscal_poam" AND a.data.fetched_at IS NOT NULL '
-    'ORDER BY a.data.fetched_at DESC LIMIT 1'
+    "ORDER BY a.data.fetched_at DESC LIMIT 1"
 )
 _POAM_FALLBACK_DESCRIPTION = "Latest oscal_poam compliance artifact by fetched_at."
 
@@ -151,6 +151,13 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         "is_empty_state": (not ssp_res.ok) and ssp_res.fallback_count == 0,
         "ssp_provenance": None,
         "poam_provenance": None,
+        # Resolved artifact ids — let the template deep-link each control's SSP
+        # status / POA&M refs to the exact artifacts the scoreboard scored
+        # against (pin via the page's entity_id var + a #control-/#poam- anchor).
+        "ssp_entity_id": None,
+        "poam_entity_id": None,
+        "ssp_var_name_page": DEFAULT_SSP_VAR,
+        "poam_var_name_page": DEFAULT_POAM_VAR,
         "error_phase": None,
         "error_message": None,
         "system_class": None,
@@ -180,8 +187,10 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
 
     if ssp_node:
         base["ssp_provenance"] = build_provenance(ssp_node)
+        base["ssp_entity_id"] = ssp_node.get("entity_id") if isinstance(ssp_node, dict) else None
     if poam_node:
         base["poam_provenance"] = build_provenance(poam_node)
+        base["poam_entity_id"] = poam_node.get("entity_id") if isinstance(poam_node, dict) else None
 
     ssp_doc = _doc_or_none(ssp_node)
     poam_doc = _doc_or_none(poam_node)
@@ -198,22 +207,19 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
     if not indicators:
         base["error_phase"] = "load"
         base["error_message"] = (
-            "No ksi_indicator nodes on the grid. Import the fedramp_20x_ksi "
-            "plugin's GRIFT seed first."
+            "No ksi_indicator nodes on the grid. Import the fedramp_20x_ksi " "plugin's GRIFT seed first."
         )
         return base
 
     try:
         themes = _load_themes()
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         logger.exception("[2e0a] theme load failed; proceeding without theme labels")
         themes = {}
 
     result = score(indicators=indicators, ssp_doc=ssp_doc, poam_doc=poam_doc)
     base["system_class"] = result.system_class
-    base["totals_strip"] = [
-        {"status": s, "count": result.totals.get(s, 0)} for s in _STATUS_DISPLAY_ORDER
-    ]
+    base["totals_strip"] = [{"status": s, "count": result.totals.get(s, 0)} for s in _STATUS_DISPLAY_ORDER]
     base["excluded_class_mismatch"] = result.excluded_class_mismatch
     base["indicator_count"] = len(result.indicators)
     base["poam_warning"] = poam_warning

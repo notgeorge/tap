@@ -94,8 +94,16 @@
                       <tr class="samsite-scoreboard-control samsite-scoreboard-control-{{ c.status }}">
                         <td><code>{{ c.control_id }}</code></td>
                         <td><span class="samsite-scoreboard-control-status samsite-scoreboard-badge-{{ c.status }}">{{ c.status }}</span></td>
-                        <td>{{ c.ssp_implementation_status|default:"—" }}</td>
-                        <td>{% if c.poam_item_ids %}{{ c.poam_item_ids|join:", " }}{% else %}—{% endif %}</td>
+                        <td>
+                          {% if c.ssp_implementation_status %}
+                            <a class="samsite-scoreboard-link" href="/samsite/artifacts/ssp{% if ssp_entity_id %}?{{ ssp_var_name_page }}={{ ssp_entity_id }}{% endif %}#control-{{ c.control_id }}" title="Jump to {{ c.control_id }} in the SSP">{{ c.ssp_implementation_status }}</a>
+                          {% else %}—{% endif %}
+                        </td>
+                        <td>
+                          {% if c.poam_item_ids %}
+                            {% for pid in c.poam_item_ids %}<a class="samsite-scoreboard-link" href="/samsite/artifacts/poam{% if poam_entity_id %}?{{ poam_var_name_page }}={{ poam_entity_id }}{% endif %}#poam-{{ pid }}" title="Jump to {{ pid }} in the POA&amp;M">{{ pid }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
+                          {% else %}—{% endif %}
+                        </td>
                       </tr>
                     {% endfor %}
                   </tbody>
