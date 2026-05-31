@@ -27,13 +27,15 @@ class VdrReport(BaseModel):
     ENTITY_ICON: ClassVar[str] = "vdr-report"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"compliance": "vdr"}
 
-    # Signed file artifact — render as a file card in graph views (sharp olive
-    # rectangle + document glyph); the node owns the background so the icon stays
-    # a clean glyph.
+    # Signed file artifact — render as a file card in graph views: pale-olive
+    # rectangle (light fill, saturated border) matching the AWS leaf-node pattern
+    # so the document glyph stays a clean glyph and the title isn't lost against a
+    # dark fill. Name sits bottom-center, outside the box, on the canvas.
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
-            "colors": {"fill": "#837228", "border": "#5F5418", "label": "#5F4300"},
+            "colors": {"fill": "#EAE4C0", "border": "#8C7A1E", "label": "#463B08"},
+            "label": {"valign": "bottom", "halign": "center", "position": "outside"},
         }
     }
 
