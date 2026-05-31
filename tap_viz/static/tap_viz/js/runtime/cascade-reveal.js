@@ -7,6 +7,9 @@
  * to create a "bubbling up" effect. Edges fade in together after all nodes
  * are revealed.
  *
+ * After the nodes, edges fade in one by one at staggered times (not all at
+ * once) so the wiring "draws in" — the same bubbling feel as the nodes.
+ *
  * Usage:
  *   await cascadeReveal(cy, { layerDelay: 200, staggerRange: 120, fadeDuration: 300 });
  *
@@ -19,12 +22,14 @@
  * @param {number} [opts.layerDelay=200] - ms between each depth layer starting its reveal.
  * @param {number} [opts.staggerRange=120] - ms random spread for individual nodes within a layer.
  * @param {number} [opts.fadeDuration=300] - ms for each node's opacity transition.
+ * @param {number} [opts.edgeStaggerRange=400] - ms random spread for individual edges (after the nodes).
  * @returns {Promise<void>} Resolves when the full cascade is complete.
  */
 export function cascadeReveal(cy, opts = {}) {
     const layerDelay = opts.layerDelay ?? 200;
     const staggerRange = opts.staggerRange ?? 120;
     const fadeDuration = opts.fadeDuration ?? 300;
+    const edgeStaggerRange = opts.edgeStaggerRange ?? 400;
 
     // Collect visible nodes grouped by z-index.
     // Badge nodes are excluded — they fade in with their host node.
@@ -91,20 +96,24 @@ export function cascadeReveal(cy, opts = {}) {
             });
         });
 
-        // Edges fade in after all nodes.
-        const edgeStart = totalTime + 50;
-        setTimeout(() => {
-            cy.edges(":visible").forEach((e) => {
-                // Shadow links have their own reduced opacity from styles.
-                const targetOpacity = e.data("_is_shadow_link") ? 1 : 1;
+        // Edges fade in after all nodes, each at its own staggered time so the
+        // wiring draws in one by one rather than snapping on all at once —
+        // mirroring the per-node stagger above.
+        const edgeBaseStart = totalTime + 50;
+        let lastEdgeEnd = edgeBaseStart + fadeDuration;
+        cy.edges(":visible").forEach((e) => {
+            const edgeStart = edgeBaseStart + Math.random() * edgeStaggerRange;
+            const edgeEnd = edgeStart + fadeDuration;
+            if (edgeEnd > lastEdgeEnd) lastEdgeEnd = edgeEnd;
+            setTimeout(() => {
                 e.animate(
-                    {style: {opacity: targetOpacity}},
+                    {style: {opacity: 1}},
                     {duration: fadeDuration, easing: "ease-out"}
                 );
-            });
-        }, edgeStart);
+            }, edgeStart);
+        });
 
-        // Resolve after everything is done.
-        setTimeout(resolve, edgeStart + fadeDuration + 50);
+        // Resolve after the last edge finishes.
+        setTimeout(resolve, lastEdgeEnd + 50);
     });
 }
