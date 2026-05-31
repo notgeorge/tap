@@ -4,7 +4,7 @@
 
 A **batch** is TAP's unit of provenance: every node/edge mutation is stamped with the `batch_id` that wrote it (FLIP), and GRIFT imports are batch-scoped. There are many batches on any grid (collector runs, grift imports, service mutations), but no way to *see* what one did. This page makes a single batch legible — what it **added** (nodes + edges), what it **removed** (deletes + purges), and the batch's own metadata — for any batch from any plugin.
 
-It is a generic platform view (the panel lives in `tap_web`), reached from the **Administrivia** backend section (the page is seeded by the `administrivia` plugin, which owns that `/administrivia/*` namespace).
+It is a generic platform view (the panels live in `tap_web`), reached from the **Administrivia** backend section (the pages are seeded by the `administrivia` plugin, which owns that `/administrivia/*` namespace). Two surfaces work together: a **roster** at `/administrivia/batches` (the discoverable nav entry — every batch, newest-first) and the **single-batch viewer** at `/administrivia/batch` (hidden from nav; reached by clicking a roster row or by deep link).
 
 ## The representation problem (and how each section is sourced)
 
@@ -23,7 +23,8 @@ The purge row is the crux the design has to solve honestly: a **purge is a hard 
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-web-batch-viewer-panel | [Batch Viewer Panel + Page](#batch-viewer-panel--page) | Implemented | `tap_web` `batch-viewer` panel; `administrivia` page at `/administrivia/batch`; latest-by-default + deep-link |
+| req-web-batch-viewer-roster | [Batch Roster Page](#batch-roster-page) | Implemented | `tap_web` `batch-list` panel; `administrivia` page at `/administrivia/batches`; the discoverable nav entry; rows click through to the single-batch viewer |
+| req-web-batch-viewer-panel | [Batch Viewer Panel + Page](#batch-viewer-panel--page) | Implemented | `tap_web` `batch-viewer` panel; `administrivia` page at `/administrivia/batch` (hidden from nav); latest-by-default + deep-link |
 | req-web-batch-viewer-header | [Batch Header](#batch-header) | Implemented | name, source, status, started/closed, description, at-a-glance counts |
 | req-web-batch-viewer-nodes | [Nodes Added Table](#nodes-added-table) | Implemented | Gryphon by `data.batch_id`; Tabulator (type, name, entity_id), grouped by type |
 | req-web-batch-viewer-edges | [Edges Table](#edges-table) | Implemented | `from → type → to` with names; each endpoint flagged in-batch vs external |
@@ -31,12 +32,29 @@ The purge row is the crux the design has to solve honestly: a **purge is a hard 
 | req-web-batch-viewer-purges | [Purges Representation](#purges-representation) | Implemented | reads `metadata.removals` (action=purge); honest empty/absent state |
 | req-web-batch-viewer-removal-manifest | [Removal Manifest Persistence](#removal-manifest-persistence) | Proposed | importer records `metadata.removals` so purges become recoverable |
 
+### Batch Roster Page
+----
+RID: `req-web-batch-viewer-roster`
+Status: `Implemented`
+
+A `tap_web` panel type `batch-list` (`tap_web/panels/batch_list/`), seeded by the `administrivia` plugin at **`/administrivia/batches`** — the discoverable Administrivia nav entry. It lists **every** batch on the grid, newest-first, with columns: name, source, status, started_at, closed_at, plus an at-a-glance count band (total / closed / open / failed). Each row clicks through to the single-batch viewer at `/administrivia/batch?batch_entity_id=<id>`.
+
+**Why a dedicated panel rather than the generic search-driven `table` panel:** a batch's most useful columns — `status`, `started_at`, `closed_at` — are lifecycle fields the `Batch` model deliberately keeps **out** of its writeable `FIELD_CRUD_SCHEMA`, so they never enter the Gryphon node `data` envelope that the generic table reads (they render blank). `batch-list` reads the `Batch` ORM rows directly, so those fields are available. It emits a `raw`-mode Tabulator (`panel-table.js`); each row carries a `_url` string, and raw-mode rows with a `_url` become click-through navigations (the generic raw-table row-nav hook added alongside this panel).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description |
+| --- | --- | :---: | --- |
+| req-web-batch-viewer-roster-1 | Registered + Routed | Implemented | `batch-list` is registered; `/administrivia/batches` resolves and mounts it as the discoverable nav entry. |
+| req-web-batch-viewer-roster-2 | Lifecycle Columns | Implemented | status / started_at / closed_at render (read from `Batch` ORM, not the data envelope). |
+| req-web-batch-viewer-roster-3 | Row Click-Through | Implemented | A roster row navigates to `/administrivia/batch?batch_entity_id=<id>` via the raw-mode `_url` hook. |
+
 ### Batch Viewer Panel + Page
 ----
 RID: `req-web-batch-viewer-panel`
 Status: `Implemented`
 
-A `tap_web` panel type `batch-viewer` (`tap_web/panels/batch_viewer/`). The page is seeded by the `administrivia` plugin at **`/administrivia/batch`** (bare-slug, discoverable under Administrivia). The panel resolves a batch via `tap_web.panels.entity_resolution`: deep-link `?batch_entity_id=<id>` wins; otherwise the fallback selects the **most recent batch** (`MATCH (b:batch) WHERE b.data.started_at IS NOT NULL ORDER BY b.data.started_at DESC LIMIT 1`). A sequence-nav selector walks batches newest-first.
+A `tap_web` panel type `batch-viewer` (`tap_web/panels/batch_viewer/`). The page is seeded by the `administrivia` plugin at **`/administrivia/batch`** (bare-slug, **hidden from nav** — `discoverable: false`; reached via a roster row click or deep link). The panel resolves a batch via `tap_web.panels.entity_resolution`: deep-link `?batch_entity_id=<id>` wins; otherwise the fallback selects the **most recent batch** (`MATCH (b:batch) WHERE b.data.started_at IS NOT NULL ORDER BY b.data.started_at DESC LIMIT 1`). A sequence-nav selector walks batches newest-first.
 
 #### Acceptance Criteria
 

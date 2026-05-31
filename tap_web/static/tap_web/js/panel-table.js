@@ -199,6 +199,7 @@
     ksi_component:       function (id) { return "/samsite/component/" + id; },
     ksi_signal:          function (id) { return "/samsite/artifacts/ksi-signal?ksi_signal_entity_id=" + id; },
     vdr_report:          function (id) { return "/samsite/artifacts/vdr-report?vdr_report_entity_id=" + id; },
+    batch:               function (id) { return "/administrivia/batch?batch_entity_id=" + id; },
     compliance_artifact: function (id, row) {
       var kind = ((row || {}).data || {}).kind || "";
       if (kind === "oscal_ssp")  return "/samsite/artifacts/ssp?oscal_ssp_artifact_entity_id=" + id;
@@ -383,6 +384,20 @@
           } else if (urlId) {
             window.location.href = "/object/" + entityType + "/" + urlId + "/";
           }
+        });
+      };
+    } else if (mode === "raw") {
+      // Raw-mode rows are self-sourced (the panel emits the JSON). A row may
+      // carry a `_url` string; if present the row becomes a clickable
+      // navigation to that URL. Rows without `_url` stay inert.
+      tableOptions.rowFormatter = function (row) {
+        var url = row.getData()._url || "";
+        if (!url) return;
+        var el = row.getElement();
+        el.style.cursor = "pointer";
+        el.addEventListener("click", function () {
+          saveScrollForReturn();
+          window.location.href = url;
         });
       };
     }

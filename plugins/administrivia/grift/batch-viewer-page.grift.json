@@ -4,9 +4,9 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e7adc-3d1f-7e2a-8d8e-c383ac384de2",
+        "entity_id": "019e78f4-e5f3-72a9-ab59-aec938a3e62a",
         "entity_type": "batch",
-        "name": "Batch Viewer page v0.1.0",
+        "name": "Batch Viewer page v0.2.0 — columnar + hidden from nav",
         "dimensions": {}
       },
       "batch_node": {
@@ -19,15 +19,14 @@
           "entity": {
             "entity_id": "019e7adc-3d1f-7e2a-8d8e-c38239f9bff7",
             "entity_type": "page",
-            "name": "Batches",
+            "name": "Batch",
             "dimensions": {"tap.graph": "web"}
           },
           "node": {
-            "name": "Batches",
+            "name": "Batch",
             "slug": "/administrivia/batch",
-            "nav_weight": 50,
+            "discoverable": false,
             "layout": {
-              "full_bleed": true,
               "columns": {
                 "col-1": {
                   "width": "1fr",

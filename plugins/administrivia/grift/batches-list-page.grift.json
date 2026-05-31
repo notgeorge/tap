@@ -1,0 +1,75 @@
+{
+  "metadata": {"grift_version": "0"},
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019e7c46-6c08-73f1-a67d-496216205f00",
+        "entity_type": "batch",
+        "name": "Batches list page v0.2.0 — dedicated batch-list panel",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.administrivia.grift.batches-list-page",
+        "name": "Batches list page v0.2.0",
+        "description": "Seeds /administrivia/batches: a roster of every batch on the grid via the tap_web batch-list panel (reads Batch ORM directly so it can show status/started/closed — lifecycle fields the generic search-driven table can't surface). Rows click through to the single-batch viewer at /administrivia/batch. This is the discoverable Administrivia entry; the single-batch /administrivia/batch detail is hidden from nav."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019e78f4-9c9e-7083-883d-6f375133ab91",
+            "entity_type": "page",
+            "name": "Batches",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "name": "Batches",
+            "slug": "/administrivia/batches",
+            "nav_weight": 60,
+            "layout": {
+              "columns": {
+                "col-1": {
+                  "width": "1fr",
+                  "rows": {
+                    "row-1-table": {"panel-id": "table", "height": "1fr"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019e78f4-9c9e-7083-883d-6f39eee827a5",
+            "entity_type": "panel",
+            "name": "Batches",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "node": {
+            "slug": "administrivia-batches-list",
+            "name": "Batches",
+            "description": "Batch roster panel. Reads Batch ORM rows directly (newest-first by started_at) and renders a raw Tabulator with status/started/closed; each row links to /administrivia/batch.",
+            "view": "tap_web/panels/batch_list.html",
+            "config": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019e78f4-9c9e-7083-883d-6f3bb6216d5d",
+            "entity_type": "edge",
+            "name": "Batches Page USES_PANEL Table",
+            "dimensions": {"tap.graph": "web"}
+          },
+          "edge": {
+            "from_entity_id": "019e78f4-9c9e-7083-883d-6f375133ab91",
+            "to_entity_id": "019e78f4-9c9e-7083-883d-6f39eee827a5",
+            "edge_type": "USES_PANEL",
+            "properties": {"hotlink": {"model": "page", "spec": "page-panels", "value": "table"}}
+          }
+        }
+      ]
+    }
+  ]
+}
