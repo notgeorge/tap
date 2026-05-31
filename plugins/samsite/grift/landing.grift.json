@@ -6,15 +6,15 @@
   "batches": [
     {
       "batch_entity": {
-        "entity_id": "019e74a6-fb0f-7152-bda2-5862222f5312",
+        "entity_id": "019e7e65-ad2b-7044-80c1-37bb91b75729",
         "entity_type": "batch",
-        "name": "Samsite landing v0.1.7",
+        "name": "Samsite landing v0.1.8",
         "dimensions": {}
       },
       "batch_node": {
         "source": "plugins.samsite",
-        "name": "Samsite landing v0.1.7",
-        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.5 is the merge of two parallel lines onto one batch: (a) the signed /.well-known/ artifacts on the board — the seed search matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind and styles them as file cards; (b) the deploy→KEV-fetch + human-actor story — the search also matches web_host / web_document (CISA host + KEV catalog, kev-fetch.grift.json) and user (the three actors Readers / george / Sam, users.grift.json). web_host / web_document / user / the compliance file types carry no per-model tags, so they are reached by explicit per-label MATCHes (like the GitHub lane), not the Project=samsite tag scan. Fresh batch_entity_id (supersedes both 019e73fb-... and 019e73fe-...) so any session seeded from either parent re-applies the combined search; the skip-if-exists guard is batch-id-keyed. The Rekor entries collapse into a stack (tap_viz stack primitive) in landing-finalize.js. v0.1.7 adds MATCH (gapp:github_app) so the Dependabot github_app (reclassified from a workflow by the collector) renders — the finalize pass parents it to the github.com platform compound."
+        "name": "Samsite landing v0.1.8",
+        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.5 is the merge of two parallel lines onto one batch: (a) the signed /.well-known/ artifacts on the board — the seed search matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind and styles them as file cards; (b) the deploy→KEV-fetch + human-actor story — the search also matches web_host / web_document (CISA host + KEV catalog, kev-fetch.grift.json) and user (the three actors Readers / george / Sam, users.grift.json). web_host / web_document / user / the compliance file types carry no per-model tags, so they are reached by explicit per-label MATCHes (like the GitHub lane), not the Project=samsite tag scan. Fresh batch_entity_id (supersedes both 019e73fb-... and 019e73fe-...) so any session seeded from either parent re-applies the combined search; the skip-if-exists guard is batch-id-keyed. The Rekor entries collapse into a stack (tap_viz stack primitive) in landing-finalize.js. v0.1.7 adds MATCH (gapp:github_app) so the Dependabot github_app (reclassified from a workflow by the collector) renders — the finalize pass parents it to the github.com platform compound. v0.1.8 adds nav_rules to the graph panel config (interpreted generically by tap_viz graph_panel → display.tap_viz.nav_url → single-tap navigation in panel-graph.js): the signed artifacts (compliance_artifact by kind / ksi_signal / vdr_report) open their corresponding workbench viewer pages pinned by entity_id; the GitHub nodes (repository / account / platform / workflow / app) open their html_url on github.com in a new tab."
       },
       "nodes": [
         {
@@ -214,7 +214,19 @@
             "view": "tap_viz/panels/graph_panel.html",
             "config": {
               "height": "100%",
-              "hide_header": true
+              "hide_header": true,
+              "nav_rules": [
+                {"entity_type": "compliance_artifact", "where": {"kind": "oscal_ssp"}, "url_template": "/samsite/artifacts/ssp?oscal_ssp_artifact_entity_id={entity_id}"},
+                {"entity_type": "compliance_artifact", "where": {"kind": "oscal_poam"}, "url_template": "/samsite/artifacts/poam?oscal_poam_artifact_entity_id={entity_id}"},
+                {"entity_type": "compliance_artifact", "where": {"kind": "iiw"}, "url_template": "/samsite/artifacts/iiw?iiw_artifact_entity_id={entity_id}"},
+                {"entity_type": "ksi_signal", "url_template": "/samsite/artifacts/ksi-signal?ksi_signal_entity_id={entity_id}"},
+                {"entity_type": "vdr_report", "url_template": "/samsite/artifacts/vdr-report?vdr_report_entity_id={entity_id}"},
+                {"entity_type": "github_repository", "url_field": "html_url", "external": true},
+                {"entity_type": "github_account", "url_field": "html_url", "external": true},
+                {"entity_type": "github_platform", "url_field": "html_url", "external": true},
+                {"entity_type": "github_workflow", "url_field": "html_url", "external": true},
+                {"entity_type": "github_app", "url_field": "html_url", "external": true}
+              ]
             }
           }
         },
@@ -613,26 +625,6 @@
         },
         {
           "entity": {
-            "entity_id": "019e659b-d268-75db-a931-8d0cf33f8ed8",
-            "entity_type": "edge",
-            "name": "Elevation USES_LAYOUT samsite-bootstrap-layout",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "019e646a-85fc-7159-b12b-c665b668b4e2",
-            "to_entity_id": "019e658f-685e-7415-bab6-82143ba9147f",
-            "edge_type": "USES_LAYOUT",
-            "properties": {
-              "hotlink": {
-                "model": "elevation",
-                "spec": "elevation-layouts",
-                "value": "019e658f-685e-7415-bab6-82143ba9147f"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
             "entity_id": "019e73d4-18f7-7085-b318-bbe7c943b929",
             "entity_type": "edge",
             "name": "Elevation USES_LAYOUT samsite-landing-finalize",
@@ -801,66 +793,6 @@
                 "model": "layout",
                 "spec": "layout-arrangements",
                 "value": "019e6497-bd8e-720e-b05f-262298ffdd94"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e6497-bd8e-720e-b05f-2625fa5b546b",
-            "entity_type": "edge",
-            "name": "samsite-bootstrap-layout USES_ARRANGEMENT samsite-bootstrap-oidc-federates-to-deploy",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "019e658f-685e-7415-bab6-82143ba9147f",
-            "to_entity_id": "019e6497-bd8e-720e-b05f-26243f90f71f",
-            "edge_type": "USES_ARRANGEMENT",
-            "properties": {
-              "hotlink": {
-                "model": "layout",
-                "spec": "layout-arrangements",
-                "value": "019e6497-bd8e-720e-b05f-26243f90f71f"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e6497-bd8e-720e-b05f-2627046d6bad",
-            "entity_type": "edge",
-            "name": "samsite-bootstrap-layout USES_ARRANGEMENT samsite-bootstrap-deploy-stores-state",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "019e658f-685e-7415-bab6-82143ba9147f",
-            "to_entity_id": "019e6497-bd8e-720e-b05f-2626eb7d55a5",
-            "edge_type": "USES_ARRANGEMENT",
-            "properties": {
-              "hotlink": {
-                "model": "layout",
-                "spec": "layout-arrangements",
-                "value": "019e6497-bd8e-720e-b05f-2626eb7d55a5"
-              }
-            }
-          }
-        },
-        {
-          "entity": {
-            "entity_id": "019e6497-bd8e-720e-b05f-2629889dea48",
-            "entity_type": "edge",
-            "name": "samsite-bootstrap-layout USES_ARRANGEMENT samsite-bootstrap-lock-left-of-state",
-            "dimensions": {}
-          },
-          "edge": {
-            "from_entity_id": "019e658f-685e-7415-bab6-82143ba9147f",
-            "to_entity_id": "019e6497-bd8e-720e-b05f-262811f45090",
-            "edge_type": "USES_ARRANGEMENT",
-            "properties": {
-              "hotlink": {
-                "model": "layout",
-                "spec": "layout-arrangements",
-                "value": "019e6497-bd8e-720e-b05f-262811f45090"
               }
             }
           }
