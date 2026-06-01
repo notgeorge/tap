@@ -160,17 +160,17 @@
             {% if grift_imported %}
             <div class="tap-cares-run__batches-group">
                 <h4>Imported ({{ counts.grift_imported }})</h4>
-                <ul class="tap-cares-run__batches">
-                    {% for b in grift_imported %}<li><code>{{ b }}</code></li>{% endfor %}
-                </ul>
+                <div class="tap-cares-run__batch-cards">
+                    {% for card in grift_imported %}{% include "tap_web/partials/batch_card.html" with card=card compact=True %}{% endfor %}
+                </div>
             </div>
             {% endif %}
             {% if grift_skipped %}
             <div class="tap-cares-run__batches-group">
                 <h4>Skipped ({{ counts.grift_skipped }})</h4>
-                <ul class="tap-cares-run__batches">
-                    {% for b in grift_skipped %}<li><code>{{ b }}</code></li>{% endfor %}
-                </ul>
+                <div class="tap-cares-run__batch-cards">
+                    {% for card in grift_skipped %}{% include "tap_web/partials/batch_card.html" with card=card compact=True %}{% endfor %}
+                </div>
             </div>
             {% endif %}
         </section>

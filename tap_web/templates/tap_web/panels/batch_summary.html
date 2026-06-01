@@ -1,0 +1,17 @@
+{% comment %}
+batch-summary panel view. Renders the shared batch_card partial so the batch
+representation is identical to inline references elsewhere. Honest empty/error
+states per the panel entity-resolution contract.
+{% endcomment %}
+<div class="batch-summary-panel">
+  {% if error_message %}
+    <div class="batch-summary-panel__error">{{ error_message }}</div>
+  {% elif card %}
+    {% if used_fallback %}
+      <div class="batch-summary-panel__fallback">Showing {{ fallback_description }}</div>
+    {% endif %}
+    {% include "tap_web/partials/batch_card.html" with card=card %}
+  {% else %}
+    <div class="batch-summary-panel__empty">No batch to show.</div>
+  {% endif %}
+</div>

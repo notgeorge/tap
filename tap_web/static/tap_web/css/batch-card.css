@@ -1,0 +1,79 @@
+/* Reusable batch summary card — used by the batch-summary panel and inline
+   batch references (e.g. CARES run detail). Minimalist, neutral; inherits the
+   surrounding page's type. */
+
+.batch-card {
+  border: 1px solid var(--tap-border, #e2e2e6);
+  border-left: 3px solid var(--tap-border, #c9c9cf);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  background: var(--tap-surface, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.batch-card--status-closed     { border-left-color: #3a9d6e; }
+.batch-card--status-open       { border-left-color: #c79a23; }
+.batch-card--status-failed     { border-left-color: #c0524b; }
+
+.batch-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.batch-card__name {
+  font-weight: 600;
+  color: var(--tap-text, #1a1a1e);
+  text-decoration: none;
+}
+.batch-card__name:hover { text-decoration: underline; }
+
+.batch-card__status {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #ecedf0;
+  color: #54555c;
+  white-space: nowrap;
+}
+.batch-card__status--closed { background: #e3f3ea; color: #2c7d56; }
+.batch-card__status--open   { background: #f7eecd; color: #8a6a12; }
+.batch-card__status--failed { background: #f6e0de; color: #99332c; }
+
+.batch-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 1.1rem;
+  margin: 0;
+}
+.batch-card__meta > div { display: flex; gap: 0.35rem; align-items: baseline; }
+.batch-card__meta dt { color: #84858c; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; margin: 0; }
+.batch-card__meta dd { margin: 0; color: var(--tap-text, #2a2a2e); }
+.batch-card__meta code { font-size: 0.78rem; }
+
+.batch-card__desc { margin: 0; color: #54555c; line-height: 1.35; }
+.batch-card__error { margin: 0; color: #99332c; font-family: var(--tap-mono, monospace); font-size: 0.78rem; }
+
+.batch-card__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #54555c;
+}
+.batch-card__counts b { color: var(--tap-text, #1a1a1e); }
+
+.batch-card__link { font-size: 0.78rem; align-self: flex-start; }
+
+.batch-card__id { margin-top: 0.2rem; }
+.batch-card__id code { font-size: 0.68rem; color: #a0a1a8; }
+
+/* Compact variant for lists of many batches. */
+.batch-card--compact { gap: 0.25rem; padding: 0.45rem 0.6rem; }
+.batch-card--compact .batch-card__meta { gap: 0.1rem 0.8rem; }

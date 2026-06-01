@@ -19,11 +19,37 @@ import json
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
+from tap_grid.batch import batch_summary
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
 
     from tap_web.models import Panel
+
+# This panel lives in the same plugin (administrivia) as the batch detail page,
+# so it owns this route directly — core stays neutral about plugin slugs.
+_BATCH_PAGE_SLUG = "/administrivia/batch"
+
+
+def _batch_cards(batch_ids: list[Any]) -> list[dict[str, Any]]:
+    """Turn raw batch entity_id strings into rich, linked batch cards.
+
+    Uses the shared ``tap_grid.batch.batch_summary`` (with_counts=False — a run's
+    batch list can be several rows and the counts require per-batch graph scans)
+    so the representation matches the batch-summary panel and the batch viewer.
+    A batch id with no backing row still renders as a link so the reference is
+    never lost.
+    """
+    cards: list[dict[str, Any]] = []
+    for bid in batch_ids:
+        url = f"{_BATCH_PAGE_SLUG}?batch_entity_id={bid}"
+        summary = batch_summary(bid, with_counts=False)
+        if summary is None:
+            cards.append({"entity_id": str(bid), "name": str(bid), "status": "", "url": url})
+        else:
+            summary["url"] = url
+            cards.append(summary)
+    return cards
 
 
 def _format_duration(started_at: Any, finished_at: Any) -> str | None:
@@ -48,7 +74,7 @@ def _pretty_context(ctx: Any) -> str:
         return ""
     try:
         return json.dumps(ctx, indent=2, sort_keys=True, default=str)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return repr(ctx)
 
 
@@ -139,8 +165,8 @@ def _build_context(job_entity_id: str) -> dict[str, Any]:
         "info_entries": info_entries,
         "warn_entries": warn_entries,
         "error_entries": error_entries,
-        "grift_imported": imported,
-        "grift_skipped": skipped,
+        "grift_imported": _batch_cards(imported),
+        "grift_skipped": _batch_cards(skipped),
         "detail_error": "",
     }
 
@@ -149,7 +175,7 @@ class RunDetailPanelType:
     slug = "cares_run_detail"
     label = "CARES Run Detail"
     view = "administrivia/panels/run_detail.html"
-    css: ClassVar[list[str]] = ["administrivia/css/cares_run_detail.css"]
+    css: ClassVar[list[str]] = ["administrivia/css/cares_run_detail.css", "tap_web/css/batch-card.css"]
     js: ClassVar[list[str]] = []
     editor_view = ""
     config_defaults: ClassVar[dict[str, Any]] = {}

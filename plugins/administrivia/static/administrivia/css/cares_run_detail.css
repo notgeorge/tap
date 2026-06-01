@@ -276,3 +276,11 @@
 .tap-cares-pill--err     { background: #fee2e2; color: #991b1b; }
 .tap-cares-pill--running { background: #dbeafe; color: #1e40af; }
 .tap-cares-pill--neutral { background: #e2e8f0; color: #334155; }
+
+/* Batch references rendered as shared batch cards (tap_web batch-card partial). */
+.tap-cares-run__batch-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 640px;
+}

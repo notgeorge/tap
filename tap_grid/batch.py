@@ -224,3 +224,77 @@ def get_entity_batches(entity_id: uuid.UUID) -> list[Batch]:
     batch_ids = BatchEvent.objects.filter(entity_id=entity_id).values_list("batch_id", flat=True).distinct()
 
     return list(Batch.objects.filter(id__in=batch_ids).order_by("-started_at"))
+
+
+def batch_counts(batch_id: uuid.UUID | str, *, batch: Batch | None = None) -> dict[str, int]:
+    """How many nodes/edges a batch added, deleted (tombstoned), and purged.
+
+    ``batch_id`` is stamped on the typed rows (``n.data.batch_id``), not the
+    Entity spine, so the node questions go through Gryphon; the edge count is a
+    direct ``Edge`` scan; purges survive only in the batch's recorded removal
+    manifest (hard-deleted rows are gone). These scans are not free — callers
+    rendering many batches in a list should prefer ``batch_summary(...,
+    with_counts=False)``.
+    """
+    from collections import Counter
+
+    from tap_grid.gryphon.executor import execute_gryphon_raw
+    from tap_grid.models import Batch, Edge
+
+    bid = str(batch_id)
+
+    def _added(*, deleted: bool) -> list[dict[str, Any]]:
+        clause = "IS NOT NULL" if deleted else "IS NULL"
+        envelope = execute_gryphon_raw(
+            f"MATCH (n) WHERE n.data.batch_id = $bid AND n.deleted_at {clause} RETURN n",
+            {"bid": bid},
+            layer="extended",
+        )
+        # The batch node isn't "added by" itself.
+        return [n for n in (envelope.get("nodes") or []) if n.get("entity_type") != "batch"]
+
+    added = _added(deleted=False)
+    tombstoned = _added(deleted=True)
+
+    if batch is None:
+        batch = Batch.objects.filter(entity_id=bid).first()
+    removals = (getattr(batch, "metadata", None) or {}).get("removals")
+    purges = [r for r in (removals or []) if r.get("action") == "purge"]
+
+    return {
+        "nodes": len(added),
+        "edges": Edge.objects.filter(batch_id=bid).count(),
+        "deletes": len(tombstoned),
+        "purges": len(purges),
+        "node_types": len(Counter(n.get("entity_type") for n in added)),
+    }
+
+
+def batch_summary(batch_id: uuid.UUID | str, *, with_counts: bool = True) -> dict[str, Any] | None:
+    """Display-oriented summary of one batch — the single source of truth for
+    "what is this batch" across panels, inline references, the API, and tooling.
+
+    Returns ``None`` when ``batch_id`` does not resolve to a batch. With
+    ``with_counts`` (default), also reports node/edge/delete/purge counts via
+    :func:`batch_counts` (extra DB work — pass ``with_counts=False`` for list
+    rendering where only the metadata + a link is wanted).
+    """
+    from tap_grid.models import Batch
+
+    batch = Batch.objects.filter(entity_id=str(batch_id)).select_related("actor").first()
+    if batch is None:
+        return None
+
+    summary: dict[str, Any] = {
+        "entity_id": str(batch.entity_id),
+        "name": batch.name or "(unnamed batch)",
+        "source": batch.source,
+        "status": batch.status,
+        "started_at": batch.started_at,
+        "closed_at": batch.closed_at,
+        "description": batch.description,
+        "error_message": batch.error_message,
+    }
+    if with_counts:
+        summary["counts"] = batch_counts(str(batch.entity_id), batch=batch)
+    return summary
