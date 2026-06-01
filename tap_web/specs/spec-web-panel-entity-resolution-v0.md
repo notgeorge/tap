@@ -6,6 +6,8 @@ Several TAP panels render content derived from a single on-grid entity. The enti
 
 The configured shape is a **Gryphon query**, written by the panel author directly in config alongside a human-readable description of *why* that query is the right fallback for this panel. There is no enumerated "selection strategy" — the query *is* the strategy. A panel wanting "latest by timestamp" writes `ORDER BY n.data.<sort_field> DESC LIMIT 1`. A panel wanting "single match expected, surface ambiguity" writes `LIMIT 2` and lets the helper report the row count. A panel wanting "first by name" writes `ORDER BY n.name ASC LIMIT 1`. The helper does not enumerate strategies, parse the query, or construct it from disassembled config fields; it runs the query Gryphon-side and reports what came back.
 
+A third path — **relative (context-derived) resolution** — is proposed (`req-web-panel-entity-resolution-relative`): resolve the panel's entity by traversing the grid *from* the entity the host page is about (whose id is in the URL) to a related target, e.g. a batch-summary panel dropped on a collection-run page resolving "the batch this run produced." It is the fallback mechanism with one change — the Gryphon query is bound to a URL-derived context id and hops an edge, instead of running with empty parameters — so it reuses the same count semantics, error states, and result shape. It does not change the two paths below; it inserts between them in the resolution order.
+
 This spec governs **panel-side resolution**. Per-emission identity semantics for the *entities themselves* (why nodes accumulate over time rather than upserting in place, when and why a discriminator field carries a particular value) live with the relevant collector spec. This spec does not govern those decisions; it governs what panels do once those nodes exist.
 
 **Dependency on Gryphon.** This spec presumes Gryphon supports `ORDER BY` + `LIMIT` on graph-envelope returns for type-scans — the common "latest" fallback shape is the demand-shape behind that ask. The wishlist entry sits in Bucket A of [`docs/misc/doc-dev-gryphon-wishlist.md`](../../docs/misc/doc-dev-gryphon-wishlist.md). The helper module is built against that surface; the resolution path runs entirely inside Gryphon with no Python-side sort and no candidate-set materialization.
@@ -33,6 +35,7 @@ This spec governs **panel-side resolution**. Per-emission identity semantics for
 | req-web-panel-entity-resolution-errors | [Polished Error States](#polished-error-states) | Implemented | Distinct messages per failure phase; entity_id, var_name, and fallback_description echoed as relevant |
 | req-web-panel-entity-resolution-empty-state | [Empty-State Distinction](#empty-state-distinction) | Implemented | Single-entity panels SHOULD render `fallback_count == 0` as an informational empty state, not a red error block |
 | req-web-panel-entity-resolution-multi | [Multi-Entity Panels](#multi-entity-panels) | Implemented | Per-role resolution + per-role fallback sub-block when a panel needs more than one entity |
+| req-web-panel-entity-resolution-relative | [Relative (Context-Derived) Resolution](#relative-context-derived-resolution) | Proposed | Resolve the target by traversing from a URL context entity; the fallback mechanism bound to `$context_id` over an edge |
 | req-web-panel-entity-resolution-tests | [Test Coverage Requirements](#test-coverage-requirements) | Implemented | Each consumer mocks the helpers and exercises URL-wins / fallback-fires / no-URL-no-fallback / fallback-empty / fallback-ambiguous paths |
 
 ### Panel Config Contract
@@ -282,6 +285,79 @@ Some panels need more than one entity to render (e.g., the FedRAMP 20x KSI score
 | req-web-panel-entity-resolution-multi-1 | Per-Role Config | Implemented | The config carries one `<role>_entity_id_var` per role plus a `fallback` block with per-role sub-blocks each holding `query` + `description`. | |
 | req-web-panel-entity-resolution-multi-2 | Independent Resolution | Implemented | Each role is resolved through `resolve_entity` separately; one role's failure does not short-circuit the other. | |
 | req-web-panel-entity-resolution-multi-3 | Required vs Degraded | Implemented | The panel declares per-role whether absence is a hard fail or a degraded render; both modes are valid. | |
+
+### Relative (Context-Derived) Resolution
+----
+RID: `req-web-panel-entity-resolution-relative`
+Status: `Proposed`
+
+The two implemented paths resolve a panel's entity either by a direct `entity_id` of *its own type* in the URL, or by a static fallback query that takes no input. Neither lets a generic, droppable panel resolve an entity **relative to the entity the host page is about**. A page keyed by `?<context_var>=<X>` whose panel wants a *related* entity Y — reachable from X by a graph hop — has no path: the URL carries X's id (often a different type), and the static fallback query cannot see X.
+
+Relative resolution adds that path. The panel declares a **context variable** (the URL var holding the id of the entity the page is about) and a **parameterized Gryphon traversal** that, bound to that id, returns the target. It is the `fallback` mechanism (`req-web-panel-entity-resolution-config`) with exactly one difference: the query is executed with `{"context_id": <url value>}` instead of `{}`. Everything else — author owns the query, `LIMIT`/`ORDER BY` shape *is* the strategy, the helper neither parses nor wraps it, count semantics (0 → empty, 1 → resolved, ≥2 → ambiguous) — is identical.
+
+**Config shape (single-entity):**
+
+```json
+{
+  "entity_id_var": "<target-url-var>",
+  "relative": {
+    "context_var": "<url-var-holding-the-context-entity-id>",
+    "query": "MATCH (ctx) WHERE ctx.entity_id = $context_id MATCH (ctx)-[:<EDGE_TYPE>]->(t:<target_type>) RETURN t ORDER BY ... LIMIT 1",
+    "description": "<human-readable rationale: what relationship this traverses and why>"
+  }
+}
+```
+
+**Binding contract.** The helper binds exactly one parameter — `$context_id` — to `request.GET[context_var]` (whitespace-stripped). The name is fixed so the contract is explicit and the author references it in the `WHERE` clause; the author owns all other query structure. The helper does not inject the hop, the label, or the ordering — the traversal is wholly the author's, exactly as with `fallback`.
+
+**Resolution order (inserts into `req-web-panel-entity-resolution-order`).** Per role:
+
+1. **Direct URL deep link** (`entity_id_var` present, non-empty) — wins, unchanged. A bookmarked target id always reproduces a specific view.
+2. **Relative resolution** — if `relative` is configured AND `relative.context_var` is present + non-empty in the URL: bind `$context_id`, run the traversal. One row → `EntityResolution(node=<t>, used_relative=True, context_entity_id=<X>)`. Zero rows → polished "no related entity — <description>" empty state. Two-or-more → polished "relative resolution ambiguous: N entities — <description>" error (author adds `ORDER BY … LIMIT 1` or tightens the hop).
+3. **Static fallback** — if `fallback` is configured and neither of the above produced an entity (target var empty AND no usable context). Unchanged.
+4. **Error** — "no entity specified," unchanged.
+
+Rationale: most-specific-wins. An explicit target id pins a bookmark; a present context derives from *what the page is about*; the static fallback is the always-render-something default. A page may legitimately configure both `relative` (works when opened in context) and `fallback` (works when opened bare).
+
+**Multiplicity is single — collections are out of scope.** Relative resolution resolves exactly ONE target, like fallback. A context entity related to *many* targets that all matter (e.g. a run that imported several batches) is a **collection**, rendered by a list-capable surface (the shared card looped), not a single-entity panel. "The one related target" is expressed with `ORDER BY … LIMIT 1`; a genuine 1:N where every element matters stays a list concern. This is exactly why the CARES run page renders its batches inline rather than via a single dropped panel — and why this seam does not, by itself, replace that rendering.
+
+**Graph-edge prerequisite.** Relative resolution traverses Gryphon **edges**, not typed-row JSON fields. The relationship MUST exist as a first-class edge on the grid. Where a relationship is currently carried in a JSON field, promoting it to an edge is a prerequisite — and is independently desirable (queryable, graph-visible, history-bearing). The promotion lives in the relationship-owner's spec, not here. **Concretely for the motivating case:** the canonical producer→batch edge is already specced — `req-grid-edge-produced-batch` (`tap_grid/specs/spec-grid-edge.md`): `<producer> --PRODUCED_BATCH--> Batch` carrying a `disposition` property ∈ {`imported`, `skipped`}, intended to *replace* embedded batch-ID lists. It is **`Proposed`, not built** — `spec-dev-validation.md` records zero `PRODUCED_BATCH` edges system-wide and `CollectionJob.grift_batches` (JSONField) is still the live signal. So a batch-summary panel dropped on a run page depends on closing that drift (build `req-grid-edge-produced-batch` + retire `grift_batches`) first. Relative resolution is a second consumer strengthening the case for that edge.
+
+**Gryphon dependency.** The traversal needs parameterized multi-hop edge matching (`MATCH (a) WHERE a.entity_id = $p MATCH (a)-[:T]->(b) …`). Gryphon supports this today (Gridkin `multi_hop` / `multi_edge` / `edge_type_scan`). When this requirement is built, a Gridkin scenario MUST cover the parameterized-context traversal shape (bound `$context_id` + one hop + `ORDER BY … LIMIT 1`, and the edge-property filter form `-[r:T]->()  WHERE r.<prop> = "<value>"`), per the Gryphon-failures-not-okay discipline.
+
+**`EntityResolution` additions.** Two generic (non-consumer) fields parallel to the fallback pair: `used_relative: bool` and `context_entity_id: str | None` (the id bound as `$context_id`). When this graduates, `req-web-panel-entity-resolution-result-shape` bumps to include them. Templates surface a banner analogous to the fallback banner — "Showing the <description> for <context_entity_id>" — and a `context_var`-based hint for how to deep-link the target directly.
+
+**Helper change.** `resolve_entity` gains the relative branch between deep-link and fallback. `_run_fallback_query(query)` generalizes to run with a params dict (`fallback` passes `{}`; relative passes `{"context_id": <id>}`) — or a sibling `_run_relative_query(query, context_id)`. Narrowness preserved: still "run the author's query, report `(nodes, count)`," no parsing or wrapping.
+
+**Composition with `variable_map`** (`req-web-panel-inputs`, Proposed). The two are orthogonal and compose: `variable_map` moves a *value* from page to panel-local input; relative resolution turns a context *id* into a *related entity* via traversal. Once page→panel input mapping lands, `context_var` can be fed from a page variable rather than read directly from `request.GET`, the same migration `entity_id_var` will make. This requirement does not block on `variable_map`; it reads the URL directly in the interim, exactly as the implemented paths do.
+
+**Concrete example (illustrative — not contract).** A `batch-summary` panel dropped on a collection-run page (`?entity_id=<CollectionJob>`), resolving the batch the run imported:
+
+```json
+{
+  "entity_id_var": "batch_entity_id",
+  "relative": {
+    "context_var": "entity_id",
+    "query": "MATCH (j) WHERE j.entity_id = $context_id MATCH (j)-[r:PRODUCED_BATCH]->(b:batch) WHERE r.disposition = \"imported\" RETURN b ORDER BY b.data.started_at DESC LIMIT 1",
+    "description": "The most-recent batch this collection run imported (PRODUCED_BATCH, disposition=imported)."
+  }
+}
+```
+
+This config is inert until `PRODUCED_BATCH` edges exist (see the graph-edge prerequisite). A run that imported *multiple* batches resolves only the most recent here by `LIMIT 1`; showing all of them remains the inline-card (collection) concern.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-panel-entity-resolution-relative-1 | Config Fields Required | Proposed | When a `relative` block is present, `context_var`, `query`, and `description` MUST all be set; a partial block is a config error. The platform bakes in no default context var, edge type, or query. | |
+| req-web-panel-entity-resolution-relative-2 | Single Fixed Bound Param | Proposed | The helper binds exactly `$context_id` to `request.GET[context_var]` and runs the query verbatim; it does not inject hops, labels, ordering, or any other parameter. | |
+| req-web-panel-entity-resolution-relative-3 | Order Placement | Proposed | Relative resolution runs after a direct URL deep link and before the static fallback; an explicit target id still wins, and a configured static fallback still fires when there is no usable context. | |
+| req-web-panel-entity-resolution-relative-4 | Count Semantics Reused | Proposed | 0 / 1 / ≥2 rows map to empty / resolved / ambiguous exactly as for `fallback`; `fallback_count` (or an equivalent) carries the count so panels render informational-empty vs error per `req-web-panel-entity-resolution-empty-state`. | |
+| req-web-panel-entity-resolution-relative-5 | Single Target Only | Proposed | Relative resolution resolves at most one target. Rendering a 1:N relationship where all targets matter is a collection concern, not this requirement. | |
+| req-web-panel-entity-resolution-relative-6 | Edge Prerequisite Stated | Proposed | The traversed relationship must be a first-class grid edge. For the producer→batch case this is `req-grid-edge-produced-batch`, which is `Proposed`/unbuilt; relative-resolution use of it is blocked on closing that drift. | |
+| req-web-panel-entity-resolution-relative-7 | Result Fields + Banner | Proposed | `EntityResolution` exposes `used_relative` + `context_entity_id`; templates show a banner naming the relationship description and the context entity, and how to deep-link the target directly. | |
+| req-web-panel-entity-resolution-relative-8 | Gridkin Coverage | Proposed | A Gridkin scenario covers the parameterized-context single-hop traversal (bound `$context_id`, `ORDER BY … LIMIT 1`, and the edge-property-filtered form) before this ships. | |
 
 ### Test Coverage Requirements
 ----

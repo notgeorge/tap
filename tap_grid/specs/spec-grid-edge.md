@@ -366,6 +366,8 @@ Property schema (registered via `register_edge_property_schema`):
 
 Edges are created through the canonical `create_edge()` service path (`req-grid-edge-service`). This requirement supersedes embedded batch-ID-list patterns: a caller that previously stored `{"imported": [...], "skipped": [...]}` (e.g. `CollectionJob.grift_batches`) instead creates one `PRODUCED_BATCH` edge per batch with the appropriate `disposition`. The producer's own sole-writer / terminal-state rules govern *when* the edges are created, not whether.
 
+**Demand signals.** Beyond replacing embedded batch-ID lists, this edge has a second, independent consumer: **relative panel resolution** (`req-web-panel-entity-resolution-relative` in `tap_web/specs/spec-web-panel-entity-resolution-v0.md`) traverses `PRODUCED_BATCH` so a dropped batch-summary panel can resolve "the batch this run produced" from a run-page URL keyed by the producing `CollectionJob`. That use is blocked until this requirement is built — `spec-dev-validation.md` records zero `PRODUCED_BATCH` edges system-wide today, with `CollectionJob.grift_batches` (JSONField) still the live signal. Closing that contract↔implementation drift is the prerequisite.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
