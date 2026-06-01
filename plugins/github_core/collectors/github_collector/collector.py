@@ -115,6 +115,11 @@ _OIDC_ISSUER_HOST = "token.actions.githubusercontent.com"
 # Terse, issuer-specific display name; the full issuer URL stays on the
 # `issuer_url`/`host` fields (and is the natural key behind the deterministic
 # entity id). Specific enough to stay unambiguous alongside other OIDC issuers.
+# NOTE: Entity.name is a subordinate projection of OidcIssuer.get_name(), so the
+# *authority* for the node's grid name is _WELL_KNOWN_NAMES in
+# plugins/github_core/models/oidc_issuer.py — this envelope name is overwritten
+# by it on save and only needs to match it (GRIFT rejects a name mismatch).
+# Renaming the issuer means editing BOTH this constant and that map.
 _OIDC_ISSUER_NAME = "GitHub Actions OIDC"
 
 

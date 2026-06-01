@@ -1,0 +1,22 @@
+/* Minimalist Tabulator theme — the TAP house default. Strips the stock boxy
+   chrome down to a quiet uppercase header with one bottom rule, uniform white
+   rows with light separators + a subtle hover, and quiet group bands. Loaded
+   AFTER tap_web/css/lib/tabulator.min.css so equal-specificity rules win.
+
+   Currently loaded by panels that opt in (batch-viewer); rolling out to every
+   table panel is the standing "flip all tables to minimalist" task. */
+.tabulator { border: none; background: transparent; font-size: 0.82rem; }
+.tabulator .tabulator-header,
+.tabulator .tabulator-header .tabulator-col { border: none; background: #fff; }
+.tabulator .tabulator-header { border-bottom: 1px solid #e2e8f0; }
+.tabulator .tabulator-header .tabulator-col .tabulator-col-content { padding: 0.3rem 0.5rem; }
+.tabulator .tabulator-col-title { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #64748b; }
+.tabulator .tabulator-tableholder .tabulator-table { background: transparent; }
+.tabulator .tabulator-row,
+.tabulator .tabulator-row.tabulator-row-odd,
+.tabulator .tabulator-row.tabulator-row-even { border: none; border-bottom: 1px solid #f1f5f9; background: #fff; }
+.tabulator .tabulator-row:hover { background: #f8fafc; }
+.tabulator .tabulator-cell { border: none; padding: 0.3rem 0.5rem; color: #0f172a; }
+.tabulator .tabulator-row.tabulator-group { background: #f1f5f9; border: none; border-bottom: 1px solid #e2e8f0; color: #334155; font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.3rem 0.5rem; }
+.tabulator .tabulator-row.tabulator-group:hover { background: #e9eef5; }
+.tabulator .tabulator-col .tabulator-col-sorter { color: #cbd5e1; }

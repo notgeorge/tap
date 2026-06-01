@@ -62,8 +62,8 @@ if "runserver" in sys.argv:
             "Then add the generated value to your docker-compose.yml environment.\n"
         )
 
-# User-facing product name. Override to rebrand the UI (e.g. "Rampart").
-TAP_PRODUCT_NAME = os.environ.get("TAP_PRODUCT_NAME", "TAP")
+# User-facing product name. Override via the TAP_PRODUCT_NAME env var.
+TAP_PRODUCT_NAME = os.environ.get("TAP_PRODUCT_NAME", "RAMPART")
 
 # Session label for multi-session dev disambiguation. When set, the UI prefixes
 # the page title and nav with "[<label>]" so the developer can see at a glance

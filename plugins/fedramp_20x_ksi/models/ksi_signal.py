@@ -30,12 +30,14 @@ class KsiSignal(BaseModel):
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"compliance": "ksi-signal"}
 
     # This emission is a signed file artifact; render it as a file card in graph
-    # views (sharp olive rectangle + document glyph). The node owns the background
-    # so the icon stays a clean glyph.
+    # views: pale-olive rectangle (light fill, saturated border) matching the AWS
+    # leaf-node pattern so the document glyph stays a clean glyph and the title
+    # isn't lost against a dark fill. Name sits bottom-center, outside, on canvas.
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "rectangle",
-            "colors": {"fill": "#837228", "border": "#5F5418", "label": "#5F4300"},
+            "colors": {"fill": "#EAE4C0", "border": "#8C7A1E", "label": "#463B08"},
+            "label": {"valign": "bottom", "halign": "center", "position": "outside"},
         }
     }
 

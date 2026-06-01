@@ -41,12 +41,95 @@ def _sanitize_panel_height(raw: Any) -> str:
         return raw
     return _DEFAULT_PANEL_HEIGHT
 
+
 if TYPE_CHECKING:
     from django.http import HttpRequest
 
     from tap_web.models import Panel
 
 logger = logging.getLogger(__name__)
+
+
+# Declarative node-click navigation. A panel's config may carry a `nav_rules`
+# array; graph_panel matches each rendered node against the rules and stamps a
+# `nav_url` onto the node's `display.tap_viz` lane, which panel-graph.js turns
+# into a single-tap navigation. Routing lives in the consumer's panel config
+# (e.g. samsite's landing graph) — graph_panel only interprets this generic
+# shape, so no consumer URLs leak into the platform.
+#
+# A rule matches by `entity_type` (and optional `where` equality against
+# per-model `data` fields), then yields a URL from exactly one of:
+#   - url_template: a static/internal path; "{entity_id}" is substituted.
+#   - url_field:    read a per-model `data` field (e.g. github html_url).
+# `external: true` opens the target in a new tab.
+_NAV_RULES_SCHEMA: dict[str, Any] = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "required": ["entity_type"],
+        "properties": {
+            "entity_type": {"type": "string", "minLength": 1},
+            "where": {"type": "object", "additionalProperties": {"type": "string"}},
+            "url_template": {"type": "string", "minLength": 1},
+            "url_field": {"type": "string", "minLength": 1},
+            "external": {"type": "boolean"},
+        },
+        "oneOf": [
+            {"required": ["url_template"]},
+            {"required": ["url_field"]},
+        ],
+        "additionalProperties": False,
+    },
+}
+
+
+def _apply_nav_rules(
+    nodes: list[dict[str, Any]],
+    rules: Any,
+    panel_id: Any,
+) -> None:
+    """Stamp `display.tap_viz.nav_url` onto nodes per the panel's nav_rules.
+
+    Mutates `nodes` in place. Navigation is a display enhancement, so invalid
+    rules degrade gracefully (logged, no navigation) rather than blanking the
+    graph. First matching rule wins per node.
+    """
+    if not rules:
+        return
+    try:
+        import jsonschema
+
+        jsonschema.validate(rules, _NAV_RULES_SCHEMA)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[c3a7] graph panel %s: invalid nav_rules, skipping node navigation: %s",
+            panel_id,
+            exc,
+        )
+        return
+
+    for node in nodes:
+        entity_type = node.get("entity_type")
+        data = node.get("data") or {}
+        for rule in rules:
+            if rule["entity_type"] != entity_type:
+                continue
+            where = rule.get("where") or {}
+            if any(str(data.get(k)) != str(v) for k, v in where.items()):
+                continue
+            if "url_template" in rule:
+                url = rule["url_template"].replace("{entity_id}", str(node.get("entity_id") or ""))
+            else:
+                field_val = data.get(rule["url_field"])
+                if not field_val:
+                    break  # no URL on this instance — leave it un-navigable
+                url = str(field_val)
+            display = node.setdefault("display", {})
+            tap_viz = display.setdefault("tap_viz", {})
+            tap_viz["nav_url"] = url
+            if rule.get("external"):
+                tap_viz["nav_external"] = True
+            break
 
 
 class GraphPanelType:
@@ -123,8 +206,11 @@ class GraphPanelType:
         placement = presentation.get("placement", "cytoscape:cose")
         nesting_enabled = presentation.get("nesting", {}).get("enabled", False)
 
+        node_list = list(nodes.values())
+        _apply_nav_rules(node_list, (panel.config or {}).get("nav_rules"), panel.entity_id)
+
         return {
-            "graph_nodes_json": safe_json(list(nodes.values())),
+            "graph_nodes_json": safe_json(node_list),
             "graph_edges_json": safe_json(list(edges.values())),
             "graph_projection_json": safe_json(None),
             "graph_inputs_json": safe_json({}),
@@ -176,8 +262,11 @@ class GraphPanelType:
 
         resolved_definition = resolve_projection_definition(projection.definition or {})
 
+        node_list = list(nodes.values())
+        _apply_nav_rules(node_list, (panel.config or {}).get("nav_rules"), panel.entity_id)
+
         return {
-            "graph_nodes_json": safe_json(list(nodes.values())),
+            "graph_nodes_json": safe_json(node_list),
             "graph_edges_json": safe_json(list(edges.values())),
             "graph_projection_json": safe_json(resolved_definition),
             "graph_inputs_json": safe_json(raw_inputs),

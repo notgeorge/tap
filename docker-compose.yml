@@ -130,9 +130,9 @@ services:
       # Parameterized so each isolated session can carry its own install identity.
       TAP_GRID_ID: "${TAP_GRID_ID:-019c2a9a-cfdb-768e-82c5-7a037556064d}"
 
-      # Product name shown in the UI title bar and header (default "TAP").
-      # Set per-session in .env.local (e.g. "RAMPART") for branded demo instances.
-      TAP_PRODUCT_NAME: "${TAP_PRODUCT_NAME:-TAP}"
+      # Product name shown in the UI title bar and header (default "RAMPART").
+      # Override per-session in .env.local if a different brand is needed.
+      TAP_PRODUCT_NAME: "${TAP_PRODUCT_NAME:-RAMPART}"
 
       # tap-cares runtime secrets root inside the container. Backed by the
       # ./tap_secrets:/run/tap-secrets:ro bind mount above. See

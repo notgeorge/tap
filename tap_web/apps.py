@@ -86,6 +86,8 @@ class TapWebConfig(AppConfig):
         from tap_web.registry import panel_type_registry, register_editor
 
         register_edge_types_from_list(self.edge_types)
+        from tap_web.panels.batch_list import BatchListPanelType
+        from tap_web.panels.batch_viewer import BatchViewerPanelType
         from tap_web.panels.editor_panel import EditorPanelType
         from tap_web.panels.sequence_nav import SequenceNavPanelType
         from tap_web.panels.viewer_panel import ViewerPanelType
@@ -97,6 +99,8 @@ class TapWebConfig(AppConfig):
         panel_type_registry.register("editor", EditorPanelType)
         panel_type_registry.register("chart", ChartPanelType)
         panel_type_registry.register("sequence-nav", SequenceNavPanelType)
+        panel_type_registry.register("batch-viewer", BatchViewerPanelType)
+        panel_type_registry.register("batch-list", BatchListPanelType)
 
         class _PanelEditorDescriptor(EditorDescriptor):
             """Redirects /object/panel/.../edit/ to the panel-specific editor."""

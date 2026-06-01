@@ -62,11 +62,20 @@ class OidcIssuer(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
     tags = models.JSONField(default=dict, blank=True)
 
+    # Friendly display names for well-known issuers, keyed by canonical issuer_url.
+    # Entity.name is a subordinate projection of get_name() (see BaseModel spine
+    # sync), so this — not any collector-supplied envelope name — is the authority
+    # for what the node is called on the grid. Unknown issuers fall back to the
+    # raw issuer_url (honest: we have no friendlier label for them).
+    _WELL_KNOWN_NAMES: ClassVar[dict[str, str]] = {
+        "https://token.actions.githubusercontent.com": "GitHub Actions OIDC",
+    }
+
     class Meta(BaseModel.Meta):
         db_table = "oidc_issuer"
 
     def get_name(self) -> str:
-        return self.issuer_url
+        return self._WELL_KNOWN_NAMES.get(self.issuer_url, self.issuer_url)
 
     def __str__(self) -> str:
         return self.get_name()

@@ -90,36 +90,6 @@
     </section>
   {% endif %}
 
-  {% if provenance %}
-    <section class="roscale-card roscale-provenance">
-      <h3>Artifact provenance</h3>
-      <dl class="roscale-kv">
-        <dt>Source URL</dt><dd>{% if provenance.source_url %}<a href="{{ provenance.source_url }}">{{ provenance.source_url }}</a>{% else %}(unknown){% endif %}</dd>
-        <dt>Fetched at</dt><dd>{{ provenance.fetched_at|default:"(unknown)" }}</dd>
-        <dt>Content type</dt><dd>{{ provenance.content_type|default:"(unknown)" }}</dd>
-        <dt>Size</dt><dd>{% if provenance.size_bytes %}{{ provenance.size_bytes }} bytes{% else %}(unknown){% endif %}</dd>
-        <dt>Signature verified</dt><dd>{% if provenance.signature_verified is True %}yes{% elif provenance.signature_verified is False %}no{% else %}(unknown){% endif %}</dd>
-        <dt>Signed by</dt><dd>{{ provenance.signed_by|default:"(unknown)" }}</dd>
-        <dt>Rekor log index</dt><dd>{{ provenance.rekor_log_index|default:"(unknown)" }}</dd>
-        <dt>Verified at</dt><dd>{{ provenance.verified_at|default:"(unknown)" }}</dd>
-      </dl>
-    </section>
-  {% endif %}
-
-  {% if metadata %}
-    <section class="roscale-card roscale-doc-metadata">
-      <h3>OSCAL document metadata</h3>
-      <dl class="roscale-kv">
-        <dt>Title</dt><dd>{{ metadata.title|default:"(none)" }}</dd>
-        <dt>OSCAL version</dt><dd>{{ metadata.oscal_version|default:"(none)" }}</dd>
-        <dt>Document version</dt><dd>{{ metadata.document_version|default:"(none)" }}</dd>
-        <dt>Published</dt><dd>{{ metadata.published|default:"(none)" }}</dd>
-        <dt>Last modified</dt><dd>{{ metadata.last_modified|default:"(none)" }}</dd>
-        {% if metadata.remarks %}<dt>Remarks</dt><dd>{{ metadata.remarks }}</dd>{% endif %}
-      </dl>
-    </section>
-  {% endif %}
-
   {% if headline_stats %}
     <section class="roscale-card roscale-headline-stats">
       <h3>Headline stats</h3>
@@ -210,7 +180,7 @@
           </summary>
           <ul class="roscale-req-list">
             {% for req in fam.requirements %}
-              <li data-roscale-req data-roscale-search-text="{{ req.search_text }}">
+              <li id="control-{{ req.control_id|lower }}" data-roscale-req data-roscale-search-text="{{ req.search_text }}">
                 <details class="roscale-req-card">
                   <summary class="roscale-req-summary">
                     <code class="roscale-req-id">{{ req.control_id }}</code>
@@ -366,10 +336,42 @@
     </section>
   {% endif %}
 
+  {% if provenance %}
+    <section class="roscale-card roscale-provenance">
+      <h3>Artifact provenance</h3>
+      <dl class="roscale-kv">
+        <dt>Source URL</dt><dd>{% if provenance.source_url %}<a href="{{ provenance.source_url }}">{{ provenance.source_url }}</a>{% else %}(unknown){% endif %}</dd>
+        <dt>Fetched at</dt><dd>{{ provenance.fetched_at|default:"(unknown)" }}</dd>
+        <dt>Content type</dt><dd>{{ provenance.content_type|default:"(unknown)" }}</dd>
+        <dt>Size</dt><dd>{% if provenance.size_bytes %}{{ provenance.size_bytes }} bytes{% else %}(unknown){% endif %}</dd>
+        <dt>Signature verified</dt><dd>{% if provenance.signature_verified is True %}yes{% elif provenance.signature_verified is False %}no{% else %}(unknown){% endif %}</dd>
+        <dt>Signed by</dt><dd>{{ provenance.signed_by|default:"(unknown)" }}</dd>
+        <dt>Rekor log index</dt><dd>{{ provenance.rekor_log_index|default:"(unknown)" }}</dd>
+        <dt>Verified at</dt><dd>{{ provenance.verified_at|default:"(unknown)" }}</dd>
+      </dl>
+    </section>
+  {% endif %}
+
+  {% if metadata %}
+    <section class="roscale-card roscale-doc-metadata">
+      <h3>OSCAL document metadata</h3>
+      <dl class="roscale-kv">
+        <dt>Title</dt><dd>{{ metadata.title|default:"(none)" }}</dd>
+        <dt>OSCAL version</dt><dd>{{ metadata.oscal_version|default:"(none)" }}</dd>
+        <dt>Document version</dt><dd>{{ metadata.document_version|default:"(none)" }}</dd>
+        <dt>Published</dt><dd>{{ metadata.published|default:"(none)" }}</dd>
+        <dt>Last modified</dt><dd>{{ metadata.last_modified|default:"(none)" }}</dd>
+        {% if metadata.remarks %}<dt>Remarks</dt><dd>{{ metadata.remarks }}</dd>{% endif %}
+      </dl>
+    </section>
+  {% endif %}
+
   {% if raw_json %}
     <details class="roscale-card roscale-raw-json">
       <summary>Raw OSCAL JSON</summary>
       <pre class="roscale-json">{{ raw_json }}</pre>
     </details>
   {% endif %}
+
+  {% include "roscale/panels/_anchor_scroll.html" %}
 </div>

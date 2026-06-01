@@ -283,3 +283,17 @@
 
 .samsite-scoreboard-provenance dt { font-weight: 600; }
 .samsite-scoreboard-provenance dd { margin: 0; }
+
+/* Cross-page deep links from the control table — SSP status jumps to the
+   control in the SSP workbench; each POA&M ref jumps to its item in the POA&M
+   workbench (#control-/#poam- anchors). Subtle until hovered. */
+.samsite-scoreboard-link {
+  color: #1d4ed8;
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(29, 78, 216, 0.4);
+}
+.samsite-scoreboard-link:hover {
+  text-decoration: none;
+  border-bottom-color: #1d4ed8;
+  background-color: rgba(29, 78, 216, 0.08);
+}

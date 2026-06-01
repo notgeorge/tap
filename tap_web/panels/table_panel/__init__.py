@@ -195,7 +195,7 @@ class TablePanelType:
     label = "Table Panel"
     view = "tap_web/panels/table_panel.html"
     editor_view = "tap_web/panels/table_panel_editor.html"
-    css: list[str] = ["tap_web/css/lib/tabulator.min.css"]
+    css: list[str] = ["tap_web/css/lib/tabulator.min.css", "tap_web/css/tabulator-minimal.css"]
     js: list[str] = ["tap_web/js/lib/tabulator.min.js", "tap_web/js/panel-table.js"]
     config_defaults: dict[str, Any] = {
         "column_mode": _DEFAULT_COLUMN_MODE,

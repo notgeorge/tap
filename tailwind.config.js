@@ -14,13 +14,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Warm-neutral off-white page canvas — Tufte "paper, not glare". The
+        // Cool-neutral off-white page canvas — Tufte "paper, not glare". The
         // default app background (set on <html> in base.html); replaces cool
-        // gray-50 / straight white. Deliberately warm-NEUTRAL (only a couple
-        // points of warmth) rather than a saturated cream, so it lifts off
-        // white without clashing with TAP's cool slate UI. White panels/cards
-        // sit on it with subtle separation.
-        canvas: "#f6f5f1",
+        // gray-50 / straight white. A faintly cool grey (B a hair above R/G)
+        // rather than a warm cream, so it sits in the SAME family as TAP's cool
+        // slate UI instead of clashing with it. Still lifts off pure white;
+        // white panels/cards sit on it with subtle separation. Kept lighter
+        // than slate-100 (#f1f5f9, used for hover/selected) so those still read.
+        canvas: "#f4f5f7",
       },
     },
   },

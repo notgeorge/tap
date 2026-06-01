@@ -411,6 +411,11 @@ function initGraph(panelId) {
             icon_url: tapViz.icon_url || "",
             shape: tapViz.shape || "ellipse",
             url_id: tapViz.url_id || "",
+            // Single-tap navigation target, computed server-side from the
+            // panel's nav_rules (graph_panel). Empty string = no navigation.
+            // nav_external opens it in a new tab instead of replacing the page.
+            nav_url: tapViz.nav_url || "",
+            nav_external: !!tapViz.nav_external,
             // Spine dimensions — needed client-side for dimension-equality
             // nesting (spec-viz-nested-projection § dimension_match). Carried
             // shallow on the data dict so cytoscape selectors / runtime code
@@ -964,9 +969,24 @@ function initGraph(panelId) {
             return;
         }
 
+        // Projection-declared navigation: a node carrying nav_url (computed
+        // server-side from the panel's nav_rules) navigates on single-tap.
+        // External targets open in a new tab; internal ones replace the page.
+        // This is the generic primitive plugins/projections opt into for the
+        // single-tap gesture; nodes with no nav_url keep the no-op behavior.
+        var navUrl = node.data("nav_url");
+        if (navUrl) {
+            if (node.data("nav_external")) {
+                window.open(navUrl, "_blank", "noopener");
+            } else {
+                window.location.href = navUrl;
+            }
+            return;
+        }
+
         // Host node tap → manual double-tap detection only. Single-tap on a
-        // host body has no built-in action; plugins/projections own that
-        // gesture for entity types they care about.
+        // host body (with no nav_url) has no built-in action; plugins/projections
+        // own that gesture for entity types they care about.
         var nodeId = node.id();
         var now = Date.now();
         if (nodeId === lastTapNodeId && (now - lastTapTime) < DBL_TAP_WINDOW_MS) {
