@@ -41,7 +41,7 @@ to flex* — so that the capability remains a cheap option rather than an expens
 | 2. | Legible Coupling | Every PostgreSQL-specific dependency is named, located, and given a portable fallback path, so the cost of portability is known rather than discovered. |
 | 3. | Stateless-Process Runtime | The runtime can cold-boot, serve, and exit with no always-on companion process — the database is a file, background work runs inline, and migrations run at provision time, not every boot. |
 | 4. | Proven Parity | Gryphon behaviour on SQLite is *demonstrated equal* to PostgreSQL via the existing Gridkin / `test_gryphon` corpus, not merely assumed from a code read. |
-| 5. | Door-Open Discipline | Future design decisions weigh whether they introduce new PostgreSQL-only coupling, and prefer the portable construct when the cost is comparable. |
+| 5. | Door-Open Discipline | Future design decisions weigh whether they introduce new PostgreSQL-only coupling *or* esoteric client-side rendering that would break the minimal cross-platform webview, and prefer the portable construct when the cost is comparable. |
 
 ## Requirements
 
@@ -54,6 +54,7 @@ to flex* — so that the capability remains a cheap option rather than an expens
 | req-grid-sqlite-regex-function | [SQLite REGEXP Registration](#sqlite-regexp-registration) | Backlog | Gryphon's regex operator needs a registered REGEXP function on SQLite |
 | req-grid-coldstart-stateless-runtime | [Stateless-Process Runtime](#stateless-process-runtime) | Backlog | Worker, migrate-on-boot, secrets, and entrypoint assume always-on |
 | req-grid-coldstart-deployment-shapes | [Compact Deployment Shapes](#compact-deployment-shapes) | Backlog | Scale-to-zero cloud and standalone desktop as named targets |
+| req-grid-coldstart-webview-portability | [Cross-Platform Webview Rendering Discipline](#cross-platform-webview-rendering-discipline) | Backlog | Keep the client surface portable across native webviews so the minimal pywebview shell stays viable |
 | req-grid-sqlite-traversal-cte-seam | [Recursive-CTE Accelerator Seam](#recursive-cte-accelerator-seam) | Backlog | If traversals need CTEs to scale, SQLite supports them too — portable |
 | req-grid-sqlite-parity-validation | [SQLite Parity Validation](#sqlite-parity-validation) | Backlog | Run the graph corpus against SQLite to prove behavioural parity |
 
@@ -288,7 +289,15 @@ decisions have a concrete picture to weigh against.
   hosting for low-utilization personal instances.
 - **Standalone desktop / embedded** — TAP packaged as a native application with the SQLite file as
   its store and no separate database to run. Server-rendered templates + Cytoscape package cleanly
-  into a webview-style shell.
+  into a webview-style shell. The **preferred shell is pywebview** — it keeps TAP pure-Python (no
+  Node, no Rust, no bundled browser): Django runs in-process and a native OS webview renders the UI.
+  Keeping pywebview viable imposes a client-side rendering discipline — see
+  `req-grid-coldstart-webview-portability`. (Survey of alternatives: Electron bundles its own
+  Chromium for identical rendering everywhere but is heavy (~150MB); Tauri is lean but, like
+  pywebview, uses the OS-native webview; a Swift+WKWebView shell is the fully-native but Mac/iOS-only
+  end. The "service you visit" alternative — a background server + menu-bar icon + the user's own
+  browser, the Plex/Home-Assistant shape — needs near-zero packaging and is the right shape if a
+  personal instance is conceptually a service rather than a document you open.)
 - Both shapes target single-user or small-community (e.g. family) utilization. Multi-tenancy remains
   out of scope per the standing Core TAP Rule.
 
@@ -297,6 +306,57 @@ decisions have a concrete picture to weigh against.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-grid-coldstart-deployment-shapes-1 | Shapes Documented | Backlog | The scale-to-zero and desktop/embedded shapes are described with their assumptions and constraints. | |
+
+### Cross-Platform Webview Rendering Discipline
+----
+RID: `req-grid-coldstart-webview-portability`
+Status: `Backlog`
+
+The desktop shape targets **pywebview** — the minimal native-shell option that keeps TAP pure-Python
+(no Node, no Rust, no bundled browser engine). pywebview renders in each OS's *native* webview:
+WKWebView (macOS), WebView2 (Windows, Chromium-based), WebKitGTK (Linux). The only shell that bundles
+its own Chromium for byte-identical rendering everywhere is **Electron**, and it is the heavyweight
+escape hatch this work is deliberately trying *not* to need. Keeping pywebview viable therefore
+imposes a standing discipline: the client-side surface must render correctly across all three native
+webviews without esoteric, engine-specific behaviour.
+
+The point of recording this in a backlog spec is that the constraint is *cheap to honour
+continuously and expensive to recover* — client-side debt that assumes Chromium creeps in invisibly
+and is only discovered when the desktop shape is attempted. TAP has so far avoided it; this
+requirement exists to make sure it does not creep in without the future implications being weighed.
+
+#### Implementation
+- **Preserve the conservative client posture.** TAP's UI is server-rendered Django templates +
+  Cytoscape (canvas/WebGL2), with no esoteric client-side JS. That posture is precisely the property
+  that keeps the minimal pure-Python shell on the table — treat it as load-bearing, not incidental.
+- **WebKit is the de-facto compatibility floor.** Two of the three native engines (WKWebView,
+  WebKitGTK) are WebKit; WebView2 is Chromium and is the permissive one. So "does it work on
+  Safari / WebKit" is the practical proxy for cross-webview portability — the lagging engine sets the
+  bar, not the most capable one.
+- **Weigh new client-side capability before adoption.** Avoid Chromium-only web APIs, bleeding-edge
+  CSS, and JS features not supported on WebKit. Prefer server-rendered HTML and mature,
+  widely-supported client libraries over novel browser features.
+- **Treat a genuine Chromium-only need as an explicit shell-escalation signal.** If a client-side
+  capability truly requires Chromium semantics, that forces the shell up to Electron (bundled
+  Chromium, heaviest footprint) and abandons the pure-Python pywebview goal. That is a legitimate
+  tradeoff — but it must be made deliberately and recorded, never stumbled into via a convenience
+  dependency.
+- **Verify the viz on the native webviews.** Cytoscape's canvas/WebGL2 rendering is expected to work
+  on WebKit, but it should be confirmed on WKWebView and WebKitGTK before the desktop shape is
+  committed (client-surface analogue of `req-grid-sqlite-parity-validation`).
+
+#### Development
+This is a *discipline*, not a feature. Its entire value is being applied at the moment someone reaches
+for an esoteric client-side capability — the gate is "have we considered the cross-webview / pywebview
+implications?", not a blanket ban on client-side richness.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-coldstart-webview-portability-1 | WebKit Floor Honoured | Backlog | New client-side surface renders on WebKit (the WKWebView / WebKitGTK floor), not only on Chromium. | |
+| req-grid-coldstart-webview-portability-2 | Esoteric-JS Is A Recorded Decision | Backlog | Adopting a Chromium-only / bleeding-edge client-side capability is a deliberate, recorded shell-escalation decision, not an incidental one. | |
+| req-grid-coldstart-webview-portability-3 | Viz Verified Cross-Webview | Backlog | The Cytoscape visualization is verified on the native webviews (WKWebView, WebKitGTK) before the desktop shape ships. | |
 
 ### Recursive-CTE Accelerator Seam
 ----
@@ -359,6 +419,11 @@ These are recorded so the research framing does not pretend the open questions a
    and what is the trigger to add a portable index?
 6. How does a compact instance relate to the satellite/outpost vision — is a personal instance an
    outpost, a host for outposts, or both?
+7. Is a personal instance conceptually a *document you open* (favouring the pywebview window) or a
+   *service you visit* (favouring the menu-bar-server + browser shape)? That framing drives the shell
+   choice more than any framework comparison does.
+8. Does Cytoscape (and any future viz dependency) render correctly on WKWebView and WebKitGTK, or does
+   the viz surface end up being the thing that forces a Chromium-bundled (Electron) shell?
 
 ## Status Vocabulary
 
