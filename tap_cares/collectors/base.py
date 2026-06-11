@@ -11,12 +11,13 @@ run().
 #### The accumulator pattern
 
 Collector instances carry three accumulator attributes — `self.results`,
-`self.grift_batches`, `self.summary` — that the collector mutates
+`self._produced_batches`, `self.summary` — that the collector mutates
 during `run()` via helper methods (`record_info` / `record_warn` /
 `record_error` / `submit_grift`). The accumulators live entirely in memory
-during the run. The `run_collector` task body persists the accumulated state
-to `CollectionJob` in a single terminal patch (status + finished_at +
-summary + results + grift_batches) after `run()` returns or raises.
+during the run. After `run()` returns or raises, the `run_collector` task
+body persists `summary` + `results` + `self_test` to `CollectionJob` in a
+single terminal patch and creates one `CollectionJob --PRODUCED_BATCH-->
+Batch` edge per produced batch (`req-tap-cares-collector-grift-import-6`).
 
 This is the structural fix for the v0-pre-refactor multi-writer / staleness
 pattern. The task body is the sole writer to CollectionJob; collector code
@@ -83,9 +84,10 @@ class CollectorBase(ABC):
     Subclasses implement `run()`. They use `self.record_info` / `record_warn` /
     `record_error` to accumulate structured events and `self.submit_grift` to
     push collected data through the GRIFT import surface. The task runtime
-    reads `self.results`, `self.grift_batches`, and `self.summary` after
-    `run()` returns or raises and writes them to `CollectionJob` in a single
-    terminal patch.
+    reads `self.results`, `self._produced_batches`, and `self.summary` after
+    `run()` returns or raises, writes results/summary/self_test to
+    `CollectionJob` in a single terminal patch, and links each produced batch
+    to the job with a `PRODUCED_BATCH` edge.
     """
 
     # Per-collector self-test latency budget (req-tap-cares-collector-self-test-12).
@@ -101,7 +103,13 @@ class CollectorBase(ABC):
         # In-memory accumulators. Populated by record_*/submit_grift during run().
         # The run_collector task body persists them to CollectionJob at terminal state.
         self.results: dict[str, list[dict[str, Any]]] = {"info": [], "warn": [], "error": []}
-        self.grift_batches: dict[str, list[str]] = {"imported": [], "skipped": []}
+        # Produced-batch accumulator (req-tap-cares-collector-grift-import-5):
+        # one (batch_entity_id, disposition) pair per batch this run produced,
+        # disposition ∈ {"imported", "skipped"}. The task body reads this at
+        # terminal state and creates one CollectionJob --PRODUCED_BATCH--> Batch
+        # edge per pair (req-tap-cares-collector-grift-import-6). No mid-run
+        # CollectionJob writes; there is no CollectionJob.grift_batches field.
+        self._produced_batches: list[tuple[str, str]] = []
         # At-a-glance one-line description of what happened on this run.
         # Collectors set this freely on either success or failure. On failure
         # without a collector-set summary, the task body derives a count-based
@@ -220,7 +228,7 @@ class CollectorBase(ABC):
 
     # ------------------------------------------------------------------
     # GRIFT submission — imports through the standard importer and
-    # accumulates resulting batch IDs on self.grift_batches.
+    # accumulates (batch_entity_id, disposition) on self._produced_batches.
     # ------------------------------------------------------------------
 
     def submit_grift(
@@ -234,9 +242,10 @@ class CollectorBase(ABC):
         """Import a GRIFT document as a collector result and accumulate batch IDs.
 
         Wraps `tap_grid.grift.grift_import` with all its validation,
-        idempotency, and service-layer write semantics. Appends imported and
-        skipped batch entity IDs to `self.grift_batches` so the task body can
-        persist the full set to `CollectionJob.grift_batches` at terminal state.
+        idempotency, and service-layer write semantics. Appends a
+        `(batch_entity_id, disposition)` pair per imported/skipped batch to
+        `self._produced_batches` so the task body can create one
+        `PRODUCED_BATCH` edge per batch at terminal state.
 
         Rejection contract (`req-tap-cares-collector-grift-import-9..12`):
         GRIFT validates/applies each batch atomically — one hard error
@@ -267,7 +276,7 @@ class CollectorBase(ABC):
 
         Returns:
             The raw GriftImportResult; callers may inspect counts / errors /
-            warnings directly without going through `self.grift_batches`.
+            warnings directly without going through `self._produced_batches`.
 
         Raises:
             GriftRejectedError: when ``result.errors`` is non-empty and
@@ -283,8 +292,8 @@ class CollectorBase(ABC):
             actor=actor,
         )
 
-        self.grift_batches["imported"].extend(str(b.batch_entity_id) for b in result.imported_batches)
-        self.grift_batches["skipped"].extend(str(b.batch_entity_id) for b in result.skipped_batches)
+        self._produced_batches.extend((str(b.batch_entity_id), "imported") for b in result.imported_batches)
+        self._produced_batches.extend((str(b.batch_entity_id), "skipped") for b in result.skipped_batches)
 
         if result.errors and on_rejection == "abort":
             issues = "; ".join(f"{getattr(i, 'code', '?')}: {getattr(i, 'message', '')}" for i in result.errors[:5])

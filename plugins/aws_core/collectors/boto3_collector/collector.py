@@ -336,7 +336,7 @@ class Boto3Collector(CollectorBase):
             _SITE_GRIFT_SUBMITTED,
             "GRIFT_SUBMITTED",
             "AWS Core GRIFT batch submitted.",
-            message_data={"imported": self.grift_batches["imported"]},
+            message_data={"imported": [str(b.batch_entity_id) for b in result.imported_batches]},
         )
 
         imported = result.counts.batches_imported

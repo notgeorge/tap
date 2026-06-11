@@ -143,13 +143,14 @@ class Command(BaseCommand):
                 f"  errors: {(job.results or {}).get('error')}"
             )
 
-        # Grid-mutation signal is the CollectionJob.grift_batches JSON, NOT a
-        # PRODUCED_BATCH edge. Phase-0 finding: spec-tap-cares-task-backend.md
-        # asserts "no grift_batches field … PRODUCED_BATCH edges"; the running
-        # system has the field and zero PRODUCED_BATCH edges — a real spec/impl
-        # drift logged for the spec-concretization step.
-        grift = job.grift_batches or {}
-        imported = grift.get("imported") or []
+        # Grid-mutation signal is the CollectionJob --PRODUCED_BATCH--> Batch
+        # edges with disposition="imported" (req-grid-edge-produced-batch).
+        # The former Phase-0 drift (grift_batches JSON field, zero edges) is
+        # closed: the CARES runtime now creates these edges at terminal state
+        # and the field is gone.
+        from tap_grid.batch import produced_batches
+
+        imported = produced_batches(job.entity_id)["imported"]
         info_codes = [e.get("message_code") for e in (job.results or {}).get("info", [])]
 
         if imported:
@@ -157,7 +158,8 @@ class Command(BaseCommand):
                 self.style.SUCCESS(
                     f"GATE GREEN: real backend enqueue -> commit -> in-process drain -> "
                     f"terminal SUCCESSFUL, {len(imported)} GRIFT batch(es) imported to the "
-                    f"grid. req-dev-validation-real-backend is buildable AND grid mutation "
+                    f"grid (PRODUCED_BATCH edges, disposition=imported). "
+                    f"req-dev-validation-real-backend is buildable AND grid mutation "
                     f"is positively asserted."
                 )
             )
@@ -171,7 +173,7 @@ class Command(BaseCommand):
             self.style.WARNING(
                 f"MECHANISM PROVEN (no grid mutation this run): real backend enqueue -> "
                 f"commit -> in-process drain -> terminal SUCCESSFUL, but the collector was "
-                f"a no-op (grift_batches.imported empty; info={info_codes}). "
+                f"a no-op (no imported PRODUCED_BATCH edges; info={info_codes}). "
                 f"req-dev-validation-real-backend is buildable; to also exercise a grid "
                 f"mutation, run against a collector/state that imports (e.g. purge the "
                 f"catalog entities first, then re-run)."

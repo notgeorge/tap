@@ -207,7 +207,7 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
 
     # Pipeline completed cleanly: a batch imported, no structured errors.
     assert collector.results["error"] == []
-    assert collector.grift_batches["imported"]
+    assert any(disposition == "imported" for _, disposition in collector._produced_batches)
     assert "Collected" in collector.summary
 
     # The audit ledger drained as exactly one structured run-log entry
@@ -292,7 +292,7 @@ def test_unregistered_custom_fn_is_classified_not_fatal(_stub_aws, monkeypatch):
     )
     collector.run()
     assert collector.results["error"] == []
-    assert collector.grift_batches["imported"]  # run reached submit_grift
+    assert collector._produced_batches  # run reached submit_grift
     skips = [w for w in collector.results["warn"] if w["message_code"] == "ENTRY_SKIPPED"]
     assert any("route53_zones_with_alias_targets" in s["message"] for s in skips)
 
@@ -321,7 +321,7 @@ def test_unregistered_edge_transform_is_classified_not_fatal(_stub_aws, monkeypa
     collector.run()
 
     assert collector.results["error"] == []
-    assert collector.grift_batches["imported"]  # run reached submit_grift
+    assert collector._produced_batches  # run reached submit_grift
     skips = [w for w in collector.results["warn"] if w["message_code"] == "ENTRY_SKIPPED"]
     assert any("s3_bucket_name_from_origin_domain" in s["message"] for s in skips)
 

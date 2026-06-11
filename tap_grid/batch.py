@@ -23,6 +23,8 @@ from tap_grid.history import get_history_user
 from tap_grid.services import create_entity
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from tap_grid.models import Batch, BatchEvent, Entity, User
 
 
@@ -298,3 +300,43 @@ def batch_summary(batch_id: uuid.UUID | str, *, with_counts: bool = True) -> dic
     if with_counts:
         summary["counts"] = batch_counts(str(batch.entity_id), batch=batch)
     return summary
+
+
+def produced_batches_by_producer(
+    producer_entity_ids: Iterable[uuid.UUID | str],
+) -> dict[str, dict[str, list[str]]]:
+    """Bulk PRODUCED_BATCH targets, grouped by producer then disposition.
+
+    One ``Edge`` scan for all producers, so a page listing many runs avoids an
+    N+1. Returns ``{producer_id: {"imported": [...], "skipped": [...]}}`` with
+    an entry for every requested producer (empty lists when it produced
+    nothing). The ``disposition`` edge property (``req-grid-edge-produced-batch``)
+    partitions the targets. Order is newest-edge-first (the ``Edge`` model's
+    default ordering), so a "most recent batch produced" reader can take ``[0]``.
+    """
+    from tap_grid.models import Edge
+
+    ids = [str(p) for p in producer_entity_ids]
+    grouped: dict[str, dict[str, list[str]]] = {pid: {"imported": [], "skipped": []} for pid in ids}
+    if not ids:
+        return grouped
+    rows = Edge.objects.filter(
+        from_entity_id__in=ids,
+        edge_type="PRODUCED_BATCH",
+    ).values_list("from_entity_id", "to_entity_id", "properties")
+    for from_id, to_id, properties in rows:
+        disposition = (properties or {}).get("disposition")
+        bucket = grouped.get(str(from_id))
+        if bucket is not None and disposition in bucket:
+            bucket[disposition].append(str(to_id))
+    return grouped
+
+
+def produced_batches(producer_entity_id: uuid.UUID | str) -> dict[str, list[str]]:
+    """PRODUCED_BATCH targets for one producer, grouped by disposition.
+
+    ``{"imported": [...], "skipped": [...]}`` — the canonical, traversable
+    replacement for the embedded ``CollectionJob.grift_batches`` field. A
+    producer that produced nothing returns empty lists. Newest-edge-first.
+    """
+    return produced_batches_by_producer([producer_entity_id])[str(producer_entity_id)]

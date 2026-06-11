@@ -36,6 +36,7 @@ from tap_cares.models import (
 )
 from tap_cares.registry import get_collector
 from tap_cares.services import run_collection
+from tap_grid.batch import produced_batches_by_producer
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -126,8 +127,8 @@ def _job_rows(collector_entity_id: str) -> list[dict[str, Any]]:
     """Run history rows for the detail page, newest first.
 
     Per req-tap-cares-administrivia-run-observability columns: name, status,
-    enqueued/started/finished, duration, task_result_id, grift_batches counts,
-    summary.
+    enqueued/started/finished, duration, task_result_id, produced-batch counts
+    (from PRODUCED_BATCH edges), summary.
     """
     from tap_grid.models import Edge
 
@@ -142,6 +143,11 @@ def _job_rows(collector_entity_id: str) -> list[dict[str, Any]]:
 
     jobs = list(CollectionJob.objects.filter(entity_id__in=job_ids).order_by("-enqueued_at"))
 
+    # Produced batches are PRODUCED_BATCH edges now, not an embedded field
+    # (req-grid-edge-produced-batch). One bulk scan across every job in this
+    # collector's history keeps the run-history table off an N+1.
+    batches_by_job = produced_batches_by_producer([j.entity_id for j in jobs])
+
     rows: list[dict[str, Any]] = []
     for j in jobs:
         duration: str | None = None
@@ -155,8 +161,9 @@ def _job_rows(collector_entity_id: str) -> list[dict[str, Any]]:
             else:
                 duration = f"{int(total_seconds // 60)}m {int(total_seconds % 60)}s"
 
-        imported = (j.grift_batches or {}).get("imported", []) or []
-        skipped = (j.grift_batches or {}).get("skipped", []) or []
+        produced = batches_by_job[str(j.entity_id)]
+        imported = produced["imported"]
+        skipped = produced["skipped"]
 
         rows.append(
             {

@@ -9,12 +9,14 @@ from tap_grid.batch import (
     get_batch,
     get_batch_events,
     get_entity_batches,
+    produced_batches,
+    produced_batches_by_producer,
     record_batch_event,
 )
 from tap_grid.context import set_batch_id
 from tap_grid.history import set_history_user
 from tap_grid.models import BatchEventType, BatchStatus, User
-from tap_grid.services import create_entity
+from tap_grid.services import create_edge, create_entity
 
 
 @pytest.mark.django_db
@@ -290,3 +292,57 @@ class TestGetEntityBatches:
         batches = get_entity_batches(entity.id)
 
         assert batches == []
+
+
+@pytest.mark.django_db
+class TestProducedBatches:
+    """produced_batches / produced_batches_by_producer over PRODUCED_BATCH edges.
+
+    The canonical replacement for the removed CollectionJob.grift_batches field
+    (req-grid-edge-produced-batch). The disposition edge property partitions the
+    targets into imported vs skipped.
+    """
+
+    def _producer(self, name="run"):
+        return create_entity("concept", name=name)
+
+    def _link(self, producer, batch, disposition):
+        create_edge(
+            from_entity=producer,
+            to_entity=batch.entity,
+            edge_type="PRODUCED_BATCH",
+            properties={"disposition": disposition},
+        )
+
+    def test_groups_by_disposition(self):
+        producer = self._producer()
+        imported = create_batch(source="t:imp")
+        skipped = create_batch(source="t:skip")
+        self._link(producer, imported, "imported")
+        self._link(producer, skipped, "skipped")
+
+        result = produced_batches(producer.id)
+
+        assert result["imported"] == [str(imported.entity_id)]
+        assert result["skipped"] == [str(skipped.entity_id)]
+
+    def test_producer_with_no_edges_returns_empty_lists(self):
+        producer = self._producer()
+
+        assert produced_batches(producer.id) == {"imported": [], "skipped": []}
+
+    def test_bulk_partitions_per_producer(self):
+        p1 = self._producer("run-1")
+        p2 = self._producer("run-2")
+        b1 = create_batch(source="t:1")
+        b2 = create_batch(source="t:2")
+        self._link(p1, b1, "imported")
+        self._link(p2, b2, "skipped")
+
+        out = produced_batches_by_producer([p1.id, p2.id])
+
+        assert out[str(p1.id)] == {"imported": [str(b1.entity_id)], "skipped": []}
+        assert out[str(p2.id)] == {"imported": [], "skipped": [str(b2.entity_id)]}
+
+    def test_bulk_empty_input_returns_empty_dict(self):
+        assert produced_batches_by_producer([]) == {}

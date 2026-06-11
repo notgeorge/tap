@@ -21,16 +21,19 @@ per run:
   - run_collection writes the row at READY (kickoff)
   - this task body writes RUNNING + started_at (task start)
   - this task body writes the terminal SUCCESSFUL or FAILED state +
-    finished_at + summary + results + grift_batches + self_test (task end)
+    finished_at + summary + results + self_test (task end), and creates one
+    `CollectionJob --PRODUCED_BATCH--> Batch` edge per produced batch
+    (req-tap-cares-collector-grift-import-6).
 
-The collector instance accumulates `self.results`, `self.grift_batches`, and
-`self.summary` in memory during run(); the task body reads them at terminal
-state and persists them in the terminal patch alongside the phase-1
-`self_test` result.
+The collector instance accumulates `self.results`, `self._produced_batches`,
+and `self.summary` in memory during run(); the task body reads them at
+terminal state, persists results/summary/self_test in the terminal patch, and
+links each produced batch to the job with a PRODUCED_BATCH edge.
 """
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 from django.tasks import task
@@ -46,10 +49,47 @@ from tap_cares.models import (
 from tap_cares.registry import get_collector
 from tap_grid.services import _patch_node_internal
 
+logger = logging.getLogger(__name__)
+
 _SUMMARY_CAP = 2048
 
 _EMPTY_RESULTS: dict[str, list] = {"info": [], "warn": [], "error": []}
-_EMPTY_GRIFT_BATCHES: dict[str, list] = {"imported": [], "skipped": []}
+
+
+def _link_produced_batches(job: CollectionJob, produced_batches: list[tuple[str, str]]) -> None:
+    """Create one CollectionJob --PRODUCED_BATCH--> Batch edge per produced batch.
+
+    req-tap-cares-collector-grift-import-6. Called at terminal state (success
+    AND failure) by the run_collector body — the sole CollectionJob writer —
+    from the collector instance's `_produced_batches` accumulator, so partial
+    progress on a failed run stays visible.
+
+    PRODUCED_BATCH is run<->batch *correlation*; the batches themselves already
+    landed on the grid via `grift_import` before this runs. A correlation write
+    that fails is therefore logged loudly per-batch and skipped, never crashing
+    an already-committed collection.
+    """
+    if not produced_batches:
+        return
+    from tap_grid.models import Entity
+    from tap_grid.services import create_edge
+
+    for batch_id, disposition in produced_batches:
+        try:
+            batch_entity = Entity.objects.get(id=batch_id)
+            create_edge(
+                from_entity=job.entity,
+                to_entity=batch_entity,
+                edge_type="PRODUCED_BATCH",
+                properties={"disposition": disposition},
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "[f381] PRODUCED_BATCH edge creation failed: job %s -> batch %s (disposition=%s)",
+                job.entity_id,
+                batch_id,
+                disposition,
+            )
 
 
 def _safe_summary(exc: BaseException) -> str:
@@ -131,7 +171,6 @@ def run_collector(
                 "finished_at": datetime.now(UTC).isoformat(),
                 "summary": _safe_summary(exc),
                 "results": dict(_EMPTY_RESULTS),
-                "grift_batches": dict(_EMPTY_GRIFT_BATCHES),
             },
         )
         raise
@@ -161,7 +200,6 @@ def run_collector(
                 "finished_at": datetime.now(UTC).isoformat(),
                 "summary": (readiness.summary or "")[:_SUMMARY_CAP],
                 "results": dict(_EMPTY_RESULTS),
-                "grift_batches": dict(_EMPTY_GRIFT_BATCHES),
                 "self_test": self_test_payload,
             },
         )
@@ -180,7 +218,6 @@ def run_collector(
                 "finished_at": datetime.now(UTC).isoformat(),
                 "summary": "Self-test passed; no collection performed.",
                 "results": dict(_EMPTY_RESULTS),
-                "grift_batches": dict(_EMPTY_GRIFT_BATCHES),
                 "self_test": self_test_payload,
             },
         )
@@ -196,14 +233,14 @@ def run_collector(
     instance = None
     try:
         # Resolve the collector class and instantiate. The instance owns its
-        # own accumulator state (self.results, self.grift_batches, self.summary).
+        # own accumulator state (self.results, self._produced_batches, self.summary).
         cls = get_collector(collector.collector_registry)
         config = CollectorConfig(
             collector_entity_id=collector.entity_id,
             collection_job_entity_id=collection_job_entity_id,
         )
         instance = cls(config)
-        # Run the collector. It accumulates results/grift_batches/summary on
+        # Run the collector. It accumulates results/_produced_batches/summary on
         # itself; nothing it does touches the CollectionJob row.
         instance.run()
     except Exception as exc:
@@ -215,11 +252,9 @@ def run_collector(
         if instance is not None:
             summary = _derive_failure_summary(instance, exc)
             results = instance.results
-            grift_batches = instance.grift_batches
         else:
             summary = _safe_summary(exc)
             results = dict(_EMPTY_RESULTS)
-            grift_batches = dict(_EMPTY_GRIFT_BATCHES)
         _patch_node_internal(
             collection_job_entity_id,
             {
@@ -227,10 +262,14 @@ def run_collector(
                 "finished_at": datetime.now(UTC).isoformat(),
                 "summary": summary,
                 "results": results,
-                "grift_batches": grift_batches,
                 "self_test": self_test_payload,
             },
         )
+        # Link any batches produced before the failure so partial progress
+        # stays visible (req-tap-cares-collector-grift-import-6). Best-effort
+        # and must not mask the original collector failure below.
+        if instance is not None:
+            _link_produced_batches(job, instance._produced_batches)
         # Re-raise so Django Tasks' own failure machinery sees the failure
         # (req-tap-cares-collector-failure-mode-5).
         raise
@@ -245,7 +284,11 @@ def run_collector(
             "finished_at": datetime.now(UTC).isoformat(),
             "summary": (instance.summary or "")[:_SUMMARY_CAP],
             "results": instance.results,
-            "grift_batches": instance.grift_batches,
             "self_test": self_test_payload,
         },
     )
+    # Link each produced batch to the job with a PRODUCED_BATCH edge
+    # (req-tap-cares-collector-grift-import-6). Done after the durable
+    # terminal patch — these are run<->batch correlation, not the sole-writer
+    # state — and best-effort per batch (see _link_produced_batches).
+    _link_produced_batches(job, instance._produced_batches)

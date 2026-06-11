@@ -19,7 +19,7 @@ import json
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
-from tap_grid.batch import batch_summary
+from tap_grid.batch import batch_summary, produced_batches
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -123,12 +123,14 @@ def _build_context(job_entity_id: str) -> dict[str, Any]:
 
     collector = _collector_for(job)
     results = job.results or {}
-    grift = job.grift_batches or {}
+    # Produced batches are a graph relationship now (CollectionJob
+    # --PRODUCED_BATCH--> Batch), not an embedded field (req-grid-edge-produced-batch).
+    grift = produced_batches(job.entity_id)
     info_entries = _entries(results, "info")
     warn_entries = _entries(results, "warn")
     error_entries = _entries(results, "error")
-    imported = grift.get("imported", []) or []
-    skipped = grift.get("skipped", []) or []
+    imported = grift["imported"]
+    skipped = grift["skipped"]
 
     return {
         "job": {

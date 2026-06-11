@@ -108,7 +108,8 @@ class KSICollectorError(Exception):
     Raised from `_abort()` after structured error detail is recorded into
     `self.results["error"]`. The `run_collector` task body catches the
     exception and writes the FAILED terminal patch to `CollectionJob`
-    (status, finished_at, summary, results, grift_batches). The task body
+    (status, finished_at, summary, results, self_test) plus any
+    PRODUCED_BATCH edges for batches produced before the abort. The task body
     derives the failure summary from the recorded errors when this collector
     does not set `self.summary` directly.
     """
@@ -887,7 +888,8 @@ class KSICollector(CollectorBase):
         i_mod = len(diff["indicators_modified"])
         i_rem = len(diff["indicators_removed"])
         # Count batches off the list, not result.counts, so the summary's
-        # batch count agrees with CollectionJob.grift_batches.imported.
+        # batch count agrees with the PRODUCED_BATCH edges the task body
+        # creates (disposition="imported").
         imported = len(result.imported_batches)
         skipped = len(result.skipped_batches)
 

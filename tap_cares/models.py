@@ -130,16 +130,6 @@ def _empty_results_dict() -> dict[str, list]:
     return {"info": [], "warn": [], "error": []}
 
 
-def _empty_grift_batches() -> dict[str, list]:
-    """Default for `CollectionJob.grift_batches`.
-
-    Same pattern as `_empty_results_dict`: the field's shape is always
-    `{"imported": [...], "skipped": [...]}`, even before any GRIFT activity,
-    so consumers don't have to `.get("imported", [])` defensively.
-    """
-    return {"imported": [], "skipped": []}
-
-
 def _empty_self_test() -> dict[str, Any]:
     """Default for `CollectionJob.self_test`.
 
@@ -231,10 +221,10 @@ class CollectionJob(BaseModel):
         "enqueued_at": {"type": ["string", "null"], "format": "date-time"},
         "started_at": {"type": ["string", "null"], "format": "date-time"},
         "finished_at": {"type": ["string", "null"], "format": "date-time"},
-        # Accumulators — written once at terminal state by the task body from
-        # the collector instance's self.results / self.grift_batches.
+        # Accumulator — written once at terminal state by the task body from
+        # the collector instance's self.results. (Produced batches are a graph
+        # relationship: CollectionJob --PRODUCED_BATCH--> Batch, not a field.)
         "results": {"type": "object"},
-        "grift_batches": {"type": "object"},
         # Phase-1 self-test result, written once at terminal state by the
         # task body from the CollectorSelfTestResult (sole-writer invariant,
         # req-tap-cares-collector-self-test-2). Distinct from `results`.
@@ -286,12 +276,11 @@ class CollectionJob(BaseModel):
     enqueued_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
-    # GRIFT batch entity IDs produced by this collection run.
-    # Populated by `tap_cares.grift.submit_collector_grift` from the
-    # GriftImportResult returned by `grift_import()`. Shape:
-    #     {"imported": ["<uuidv7>", ...], "skipped": ["<uuidv7>", ...]}
-    # Per req-tap-cares-collector-grift-import-4 — minimal correlation in v0.
-    grift_batches = models.JSONField(default=_empty_grift_batches, blank=True)
+    # Batches this run produced are NOT stored on the row: at terminal state the
+    # task body creates one CollectionJob --PRODUCED_BATCH--> Batch edge per
+    # produced batch, with a `disposition` ∈ {imported, skipped} property
+    # (req-grid-edge-produced-batch / req-tap-cares-collector-grift-import-6).
+    # Read them via tap_grid.batch.produced_batches(job.entity_id).
     # Structured per-event log for this run; appended by tap_cares.results
     # record_info / record_warn / record_error helpers. Pinned shape lives at
     # tap_cares/schemas/collection_job_results.schema.json. Per

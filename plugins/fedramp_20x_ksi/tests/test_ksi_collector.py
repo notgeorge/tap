@@ -26,6 +26,7 @@ from plugins.fedramp_20x_ksi.collectors.ksi_catalog import (
 from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
 from tap_cares.registry import collector_registry, register_collector
 from tap_cares.services import run_collection
+from tap_grid.batch import produced_batches
 
 _FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "ksi_catalog"
 _CURRENT_FIXTURE = _FIXTURE_DIR / "current.json"
@@ -144,7 +145,7 @@ class TestHappyPathFreshInstall:
         # describing what landed.
         assert "Imported" in job.summary
         assert "indicators" in job.summary
-        assert len(job.grift_batches["imported"]) == 1
+        assert len(produced_batches(job.entity_id)["imported"]) == 1
         codes = [e["message_code"] for e in job.results["info"]]
         assert "RUN_STARTED" in codes
         assert "UPSTREAM_FETCHED" in codes
@@ -170,7 +171,7 @@ class TestHappyPathFreshInstall:
         col = _register_and_fetch(cls)
         job = run_collection(col)
         job.refresh_from_db()
-        batch_id = job.grift_batches["imported"][0]
+        batch_id = produced_batches(job.entity_id)["imported"][0]
         batch = Batch.objects.get(entity_id=batch_id)
         data = batch.description_json["data"]
         assert data["schema_version"] == "v0"
@@ -197,7 +198,7 @@ class TestEmptyDiff:
         second = run_collection(col)
         second.refresh_from_db()
         assert second.status == CollectionJobStatus.SUCCESSFUL
-        assert second.grift_batches["imported"] == []
+        assert produced_batches(second.entity_id)["imported"] == []
         codes = [e["message_code"] for e in second.results["info"]]
         assert "DIFF_EMPTY" in codes
         assert "GRIFT_SUBMITTED" not in codes
@@ -221,7 +222,7 @@ class TestBlockFlags:
         job = run_collection(col)
         job.refresh_from_db()
         assert job.status == CollectionJobStatus.FAILED
-        assert job.grift_batches["imported"] == []
+        assert produced_batches(job.entity_id)["imported"] == []
         codes = [e["message_code"] for e in job.results["error"]]
         assert expected_code in codes, f"Expected {expected_code} in {codes}"
         assert job.summary

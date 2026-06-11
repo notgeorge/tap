@@ -95,4 +95,4 @@ class TestSubmitGriftRejectionContract:
         result = c.submit_grift({"batches": []})
         assert result.counts.batches_imported == 1
         assert c.results["error"] == []
-        assert c.grift_batches["imported"] == ["b-1"]
+        assert c._produced_batches == [("b-1", "imported")]
