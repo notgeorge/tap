@@ -80,9 +80,11 @@ Quick-glance index. Per-step `Timeline Target` is authoritative; this table is i
 
 | Step ID | Name | Timeline Target | Status | Note |
 | --- | --- | --- | :---: | --- |
-| [step-rampart-sam-demo](#step-rampart-sam-demo) | Demo to Sam Aydlette | 2026-06-01 | Active | Fork-and-reproduce his own infra; boto3 collector; static/edge topology |
-| [step-rampart-first-paid-assessment](#step-rampart-first-paid-assessment) | First paid assessment | 2026-06 → 2026-07-07 | Proposed | Pilot scouting runs from 2026-05-17; validates willingness-to-pay |
-| [step-rampart-big-bang](#step-rampart-big-bang) | Public big-bang demo | ~2026-09 | Proposed | Event horizon, not the current planning target |
+| [step-rampart-sam-demo](#step-rampart-sam-demo) | Demo to Sam Aydlette | 2026-06-01 | Completed | Demo landed 2026-05-31 (+ Eric later that week); samsite retained as demo/test target |
+| [step-rampart-first-paid-assessment](#step-rampart-first-paid-assessment) | First paid assessment | 2026-06 → 2026-07-07 | Active | Robco AI-safety startup (verbal, Active 2026-06-10); ongoing monthly advisory; validates willingness-to-pay |
+| [step-rampart-first-paying-customer](#step-rampart-first-paying-customer) | First paying customer | 2026-08-01 | Active | Rampart deployed in a company without direct involvement; AuthN → plugin refactor → boot loader → config → subscription |
+| [step-rampart-self-sufficiency](#step-rampart-self-sufficiency) | Self-sufficiency | 2026-09-15 | Proposed | 3+ customers by mid-Sept → default alive |
+| [step-rampart-big-bang](#step-rampart-big-bang) | Public big-bang demo | ~2026-10 | Proposed | Event horizon, not the current planning target |
 
 **Calendar anchors (non-step):** pilot-partner scouting from 2026-05-17 (feeds the paid assessment); 2026-07-10 → 2026-07-17 Hawaii — rest, no work; 2026-07-17 → 2026-08 expanded use, repeatability, build toward productization.
 
@@ -93,7 +95,7 @@ Quick-glance index. Per-step `Timeline Target` is authoritative; this table is i
 Steps are ordered but may overlap; concurrency is shown by the timeline table, not by ordering.
 
 ### step-rampart-sam-demo
-Status: `Active`
+Status: `Completed`
 Timeline Target: `2026-06-01`
 Objective: Sam sees Rampart assess a faithful, live reproduction of his own samaydlette.com infrastructure and his own FedRAMP-20x compliance machinery, and concludes it is real, useful, and could evolve to work at Cisco scale.
 Done-Test: On a live call, Rampart opens on a legible projection of the reproduced architecture, drills into a real finding, and shows a KSI scoreboard fed from Sam's own `ksi-catalog.json` — and Sam states, unprompted, that he'd want this running inside Cisco. (An outcome — never "demo delivered.")
@@ -149,8 +151,14 @@ Depends-on: `spec-aws-core-v0`; the from-scratch boto3 `aws_core` collector — 
 - audit / logging super detailed internals and affordances in the web ui
 - ai integration in the app
 
+**Completion After Action**
+Demo performed on May 31st and went great.  System worked as expected, was well received, and all features needed were there and demonstrable.  Sets the stage for collaboration in the future, provided validation of the approach and enthusiasm and confirmation that had been a bit lost while so deep into the work that I couldn't see the forest for the trees.
+
+This was followed by a second demo to a colleague later in the week which was also very well received.  Together they demonstrate that I can communicate the capabilities of the system, and that the samsite demo has sufficient heft to actually present what's going on (much better than genericom).  Keeping samsite around as a demo target for the foreseeable future will be useful and to use it as a potential testing target for exercising plugins, etc. makes a lot of sense.  Thanks Sam and Eric!
+
+
 ### step-rampart-first-paid-assessment
-Status: `Proposed`
+Status: `Active`
 Timeline Target: `2026-06 → 2026-07-07`
 Objective: Land and begin one paid white-glove security/compliance/vulnerability assessment of a small–medium enterprise, supported by Rampart, positioned as a leave-behind they can keep live.
 Done-Test: A customer has paid for and started an assessment, Rampart is deployed against their environment producing findings a knowledgeable person agrees are useful — and the engagement has produced a real price point and a willingness-to-pay signal.
@@ -160,9 +168,66 @@ The likely first sale is a white-glove assessment supported by Rampart, sold on 
 
 This step's real job is to validate **willingness-to-pay and price**, not only to find rough edges. Pilot-partner scouting (the hustle to line customers up) runs concurrently from 2026-05-17 — folded into this step rather than its own, since it does not yet need its own fence. Key elements needed working: multiple collection paths (AWS, network scanners); vulnerability-management tooling.
 
+**Status**
+
+This task is Active as of 6/10/2026 with the agreement to consult / advise on Robco - a recently funded AI Safety startup.  The team is currently 1-3 people waiting for first funding to hit the bank at the end of the month.  I've got a verbal agreement with the founder and will send a contract formalizing the agreement.  This will be an ongoing assessment, I'll be advising them as they stand things up, billed monthly, with the understanding that I'll bring Rampart to the part when / where it's appropriate.  The great news is this provides real world signal, a first customer, and creates optionality across multiple dimensions including the ability to level up in "how do you secure AI models / model production", which feels like a growth industry.
+
+Programmatically, this effort will be a source of opportunistic development / implementation based on demand signals.  The team's just getting started so there will be opportunities to integrate capabilities as they develop them, but only in the context of the greater strategy of building Rampart as a stand-alone product.  As we get things rolling, we'll spin up a Robco instance, eventually placing it online so that members of the team can access and view status.  That sets a target for online, self-hosted, persistent deployment capability, which will be a great exercise in keeping an instance alive during active development.
+
+**Development Demands**
+* user authentication - this will wire into the company's iDP, presumably Google, while still allowing me access via criticalsec.com
+* plugin management - ideally have the plugins be based on uv so that we can easily manage versioning (and test versioned upgdates)
+* backups - mechanism to backup the system so that we don't neeed to worry about blowing stuff up once there's production data
+* updates - ability to update the core image as new capabilities come online.
+* paths - as the system under observation comes together, tracking flows of build / deploy will be important
+
+**New Plugins Possibly Needed**
+* Google Workspace / IdP to map users, groups, possibly docs and policies
+* AI-security ??? to map ai models, development, training, paths / flows etc
+
+
+### step-rampart-first-paying-customer
+Status: `Active`  
+Timeline Target:  `2026-08-01`  
+Objective: A customer has launched Rampart in their environment on a subscription.
+Done-Test: The Rampart instance is up in their environment and has been operational for at least one week and is under active use / development.
+Non-Goals: development that is not tied directly to the customer use case (which will be determined as we get the customer).
+
+The Robco assessments gives me an opportunity to leverage Rampart inside a company.  This step is about getting Rampart deployed inside a company without my direct involvement on a monthly subscription that lays the foundation for achieving self-sufficient revenue in the next step.  This is a critical turning point where the system goes from "tool I can use" to "tool others are using".
+
+The exact needs will dial in over time
+
+**Critical Path**  
+These are the must-do, and in the order in which they'll need to be done.  
+
+* AuthN Approach - just bite the bullet and start specing it out with the robots.  That process will highlight the actual things you need to do.  Just do the thing.  This should also help define the shape for AuthZ, which will put dimensions on the board.  
+* Plugin Refactor - also straightforward, have plenty of plugins to work from, should drive towards completing the refactor (and bumping the plugin building skill) to include the backend config and systems necessary to host the existing samsite plugin set.  Should be a fast refactor once the first one’s dialed in, the rest prove it out.  
+* Boot Loader - expand to support plugins, bringing up samsite is sufficiently complex that you can exercise enough aspects of it.  Should get to the point where you have boot profiles that you can load and will be smart enough to start up with all plugins and you’ll need to figure out the auth system and what it means to self-configure (remember all those places where you hardcoded config in secrets files?)  
+* Configuration - process likely integrated with plugins and boot loader, arrives at a point where important settings can be added and set interactively (initially stored as part of the boot profile - possibly driven by cli based on what plugins will be needed up front).
+* Subscription Launch - determine the process for making the system available for launch inside another organization on a metered plan.  AWS Marketplace is likely the first target.
+
+**Parallel Paths**  
+These are to be done along the way in conjunction / parallel with the critical paths above.  They are needed functionlity that must be in the completed product for it to sellable.
+
+* AI Onboard - this is what you meet when the system’s up and initial configuration is completed.  It’s the concierge and assistant.  There’s going to be a lot of complexity and customization added to this over time.  This can be started in parallel as the fun side project while plowing through the mainline nuts and bolts.  It’ll take about that long to get the pieces in place and should land at about the same time.  
+* Paths - another “do the thing” implementation. This is an essential feature and knowing that it’s on the board will drive the total set of capabilities and add to the overall wow factor.  Samsite can be updated to come see the paths inherent to the system.  Gryphon extensions will follow, it’ll be a nice project for an afternoon to, you know, solve complex traversals multiple ways with a few hundred lines of code and some database objects.  
+* Time Travel / Awareness - will likely be needed in some form to track changes to the environments over time to target customers keenly interested in keeping up with the velocity of changes inside their environment.  
+* AuthZ - also something that will get more mature over time, driven by use cases and shaped by the initial AuthN implementation and AI integration.  This will be more than just dimensions by the time we get to AI, since it’ll quickly develop the ability to permute system state, build plugins, (there’s going to be a plugin development plugin i can feel it).  
+* CI/CD - by this point it’ll be time to level up the backend environment to support enterprise (or better) grade development and validation for initial customers.  
+* Docs - How all this stuff fits together for our approaching users
+
+In addition, work will need to be done in licensing and legal agreements to arrive at a good old fashioned software company.
+
+### step-rampart-self-sufficiency
+Status: `Proposed`  
+Timeline Target:  `2026-09-15`  
+
+The first paying customer is just that - the first...of many.  Multiple customers will be pursued in parallel with the target of closing those deals shortly after the first customer is up and running.  The goal is 3+ customers by mid-September (self-sustaining september).  At that point the project is default alive.
+
+
 ### step-rampart-big-bang
 Status: `Proposed`
-Timeline Target: `~2026-09 (event horizon — not the current planning target)`
+Timeline Target: `~2026-10 (event horizon — not the current planning target)`
 Objective: A splashy public demonstration (FedRAMP podcast or similar) showing Rampart take an infrastructure to FedRAMP-20x compliance in ~90 minutes flat, driving awareness and adoption.
 Done-Test: The public demo runs live and converts attention into instance sign-ups / revenue.
 Non-Goals: do not overbuild for this now. Build toward Sam and the first paid assessment; this step clarifies only after those work.
