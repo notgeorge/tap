@@ -10,6 +10,10 @@ class TapVizConfig(AppConfig):
     name = "tap_viz"
     verbose_name = "TAP Visualization"
 
+    # Top-level URL prefix this app mounts (tap/urls.py), reserved against Page
+    # slugs. Collected by tap_web.reserved.get_reserved_url_prefixes().
+    reserved_url_prefixes: list[str] = ["/viz"]
+
     def ready(self) -> None:
         """Register built-in panel types."""
         from tap_viz.panels.graph_panel import GraphPanelType

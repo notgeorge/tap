@@ -1,0 +1,808 @@
+# TAP Auth v0 Specification
+
+## Philosophy
+
+`tap_auth` is TAP's authentication and authorization management plane. It exists because actor identity and permission policy are platform-wide concerns, not graph primitives. `tap_grid` owns the graph/data substrate and service-layer operations; `tap_auth` owns who may perform those operations.
+
+The core doctrine is:
+
+> Authentication is surface-specific. Authorization is service-boundary enforcement. Every authenticated surface resolves to a named TAP actor; every TAP operation is authorized at the service boundary by `tap_auth`.
+
+Human authentication starts with Django and django-allauth, with Google/OIDC as the first real provider path because the first customer signal points at Google Workspace and `criticalsec.com` is also Google-managed. Enterprise SAML remains a supported direction, but the first implementation should not force SAML before demand. Machine and AI actors are deliberately treated as named program users from the beginning so TAP never normalizes anonymous system work.
+
+Authorization starts with Django groups and permissions as the backend substrate, but TAP exposes its own capability vocabulary. Django permissions are storage and evaluation machinery; TAP capabilities are the platform contract. V1 uses coarse operation-level capabilities, then later refines grid access by dimensions, delegation, and resource scope.
+
+No `User=None` actor is permitted at the application/service boundary. If TAP did something, a named TAP actor did it.
+
+## Goals
+
+|   |   |   |
+| :---: | --- | --- |
+| 1. | Named Actors | Every TAP operation is attributable to a durable human or program actor. |
+| 2. | Central Policy | Authorization decisions happen through one auditable `tap_auth` policy surface. |
+| 3. | Django-Native | TAP uses Django users, groups, sessions, permissions, admin, and allauth instead of inventing parallel auth machinery. |
+| 4. | Bootable | Auth providers, capabilities, protected groups, and initial admins are configured through boot profiles. |
+| 5. | Evolvable | V1 supports coarse AuthZ while leaving clean seams for dimension-scoped access, service accounts, and AI delegation. |
+
+## Roadmap Alignment
+
+This spec supports `plan/road-rampart.md` active steps:
+
+- `step-rampart-first-paid-assessment`: Robco deployment needs Google/Workspace-style login while allowing `criticalsec.com` access.
+- `step-rampart-first-paying-customer`: AuthN is the first critical-path item before plugin refactor, boot loader, configuration, and subscription launch.
+
+## Prior Art
+
+This spec follows common patterns rather than inventing new auth machinery:
+
+- Django's standard user/group/permission model is the authorization backend.
+- django-allauth supplies account, social/OIDC, SAML, MFA, session, and provider integration machinery.
+- Grafana and Kubernetes both separate subjects from roles/capabilities and evaluate access at operational boundaries.
+- Auth0 and Keycloak both support multi-identity account linking, but warn that automatic linking can be dangerous; TAP reserves the schema shape but disables account linking in v1.
+- Airflow connection testing and TAP CARES collector self-tests establish the "provider self-test" pattern: static checks plus optional live reachability checks.
+
+## Supersedes
+
+This spec supersedes the user/auth architecture previously parked under `tap_grid`:
+
+- `tap_grid/specs/spec-grid-user-BACKLOG.md`
+- `tap_grid/specs/spec-grid-user-saml-BACKLOG.md`
+- user/auth portions of `tap_grid/specs/spec-grid-user-context-BACKLOG.md` remain relevant only where they describe user-scoped graph view context and should be migrated/reframed later.
+
+`tap_grid` should no longer be treated as the owner of user architecture. `tap_grid` may depend on the configured Django `AUTH_USER_MODEL` generically and call the `tap_auth` policy gate, but provider details, login flows, users, groups, and authorization policy live in `tap_auth`.
+
+## Requirements
+
+| RID | Name | Status | Notes |
+| --- | --- | :---: | --- |
+| req-tap-auth-app | [Auth App Ownership](#auth-app-ownership) | Proposed | `tap_auth` is the platform auth app and management plane |
+| req-tap-auth-user-model | [Canonical User Model](#canonical-user-model) | Proposed | Move canonical user from `tap_grid` to `tap_auth` |
+| req-tap-auth-actor-model | [Named Actor Model](#named-actor-model) | Proposed | No service-boundary `User=None`; human/program actor kinds |
+| req-tap-auth-builtins | [Protected Built-Ins](#protected-built-ins) | Proposed | Built-in users/groups use immutable natural keys |
+| req-tap-auth-capabilities | [Capability Registry](#capability-registry) | Proposed | Code/spec registry hard-syncs to Django permissions |
+| req-tap-auth-policy | [Policy API](#policy-api) | Proposed | One central `authorize()` API; typed errors; denial logging |
+| req-tap-auth-service-boundary | [Service Boundary Enforcement](#service-boundary-enforcement) | Proposed | AuthZ at service boundary; AuthN at edges |
+| req-tap-auth-boot | [Boot Profile Integration](#boot-profile-integration) | Proposed | Auth config is a boot-profile section with owned schema fragment |
+| req-tap-auth-providers | [Provider Framework](#provider-framework) | Proposed | Provider-specific validation/self-tests/settings builders |
+| req-tap-auth-google-oidc | [Google OIDC Provider](#google-oidc-provider) | Proposed | First provider type; allowed domains; verified email; discovery live check |
+| req-tap-auth-local | [Local Password Auth](#local-password-auth) | Proposed | Dev/default recovery path; disable separately from user deactivation |
+| req-tap-auth-external-identity | [External Identity Linkage](#external-identity-linkage) | Proposed | Provider ID + subject; no v1 account linking |
+| req-tap-auth-sessions | [Session Invalidation](#session-invalidation) | Proposed | Separate management operation from disabling login mechanisms |
+| req-tap-auth-logging | [Actor-Aware Logging](#actor-aware-logging) | Proposed | Stdlib contextvars/filter pattern; no structlog dependency |
+| req-tap-auth-ai-placeholder | [AI And Machine Actor Placeholder](#ai-and-machine-actor-placeholder) | Proposed | AI actors are named program actors; delegation deferred |
+
+---
+
+### Auth App Ownership
+----
+RID: `req-tap-auth-app`  
+Status: `Proposed`
+
+`tap_auth` is a first-party Django app that owns TAP authentication, authorization, actor bootstrap, provider configuration, and policy enforcement. It is a platform capability, not a plugin.
+
+#### Implementation
+
+- `tap_auth` owns:
+  - canonical user model
+  - actor kind and built-in actor metadata
+  - protected group metadata
+  - TAP capability registry and sync
+  - allauth integration and provider-specific modules
+  - boot auth schema fragment and boot application logic
+  - authorization policy functions and typed auth errors
+  - auth-aware logging context helpers
+- `tap_grid` owns graph/data mechanics and service operations. It calls `tap_auth.policy.authorize(...)`; it does not know about allauth, Google, SAML, provider secrets, login routes, or boot-profile auth internals.
+- `tap_web`, `tap_api`, `tap_cares`, `tap_plugins`, `tap_viz`, and future `tap_ai` authenticate or resolve actors at their edge, then call service operations with actor context.
+- `tap_auth` routes and adapters may mount under `/auth/`.
+- `tap_web` may provide shared layout/components for auth UI, but `tap_auth` owns auth routes and logic.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-app-1 | Dedicated App | Proposed | TAP has a first-party `tap_auth` app for AuthN/AuthZ. | |
+| req-tap-auth-app-2 | Grid Is Not Auth Owner | Proposed | User/provider/policy ownership is removed from `tap_grid` architecture. | |
+| req-tap-auth-app-3 | `/auth/` Routes | Proposed | Auth routes mount under `/auth/` rather than allauth's default `/accounts/`. | |
+| req-tap-auth-app-4 | Reserved `/auth` Slug | Proposed | `/auth` is added to `tap_web` `reserved_slugs` so Pages/plugins cannot create slugs under the auth prefix, mirroring the existing `/admin` and `/api` reservations. | |
+
+---
+
+### Canonical User Model
+----
+RID: `req-tap-auth-user-model`  
+Status: `Proposed`
+
+`tap_auth.User` is TAP's canonical Django `AUTH_USER_MODEL`.
+
+#### Implementation
+
+- `tap_auth.User` subclasses Django `AbstractUser`.
+- The existing `tap_grid.User` model is moved/superseded by `tap_auth.User`.
+- Because TAP has no production customers yet, a clean destructive migration reset is acceptable and preferred over compatibility shims.
+- `tap_auth.User` includes:
+  - Django `AbstractUser` fields and behavior
+  - `user_kind`: required enum, initially `human` or `program`; default `human`
+  - `description`: backend-managed text field for operator/system context
+  - `description_json`: backend-managed JSON field for structured context, especially program/AI actors
+  - `is_tap_builtin`: boolean
+  - `tap_builtin_key`: nullable immutable unique natural key for platform-managed actors
+  - deactivation metadata: `deactivated_at`, `deactivated_reason`, and `deactivated_by_actor` or equivalent
+- `tap_builtin_key` is TAP's immutable natural key for built-in actors, separate from display name/username.
+- `CallerContext.user` references the configured Django auth user model generically, not `tap_grid.models.User`.
+
+#### Development
+
+The standard pattern behind `tap_builtin_key` is a natural key / system key: a stable identifier independent of DB primary keys and human-facing display fields. Django uses natural keys for objects whose database PKs are not portable; Django permissions use codenames for similar reasons.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-user-model-1 | User In tap_auth | Proposed | `AUTH_USER_MODEL` points to `tap_auth.User`. | |
+| req-tap-auth-user-model-2 | AbstractUser | Proposed | The model subclasses `AbstractUser`. | |
+| req-tap-auth-user-model-3 | Actor Fields | Proposed | User rows carry `user_kind`, `description`, `description_json`, `is_tap_builtin`, and `tap_builtin_key`. | |
+| req-tap-auth-user-model-4 | Deactivation Metadata | Proposed | User deactivation records reason, time, and actor where applicable. | |
+| req-tap-auth-user-model-5 | Generic CallerContext Type | Proposed | Grid caller context does not import a concrete `tap_auth.User` class. | |
+
+---
+
+### Named Actor Model
+----
+RID: `req-tap-auth-actor-model`  
+Status: `Proposed`
+
+Every meaningful TAP operation has a named actor. `User=None` is not valid at the application/service boundary.
+
+#### Implementation
+
+- Supported v1 user kinds:
+  - `human`: a named actual person
+  - `program`: a non-human actor such as a bootloader, test actor, service account, collector, scheduler, plugin runner, or AI actor
+- `CallerContext.user` is mandatory for public service-layer operations.
+- A missing actor raises a typed `missing_actor` error before the operation proceeds.
+- Inactive actors raise typed authorization denial at the service boundary.
+- Low-level migrations and raw table creation are below this contract; they do not define TAP authorization semantics.
+- Tests must use named test actors/fixtures rather than `User=None`.
+- The no-`User=None` contract is implemented in the **first** development round, not retrofitted later. It is a deliberate security stance: making "every operation has a named actor" a structural invariant from the start is far cheaper than paring out anonymous code paths after they have spread, and it underpins the later AI/delegation work where attribution is non-negotiable. Expect the change to touch nearly every service entry point at once — that breadth is the reason to do it first, not last.
+- Sequencing constraint (chicken-and-egg): the named `program` built-in actors that system-initiated work runs as — bootloader, system, scheduler, collector/plugin runners (`req-tap-auth-builtins`) — are a **hard prerequisite** for enabling `missing_actor` enforcement. They must exist and be resolvable before, or in the same atomic step as, the enforcement flip; otherwise the first internal/system write bricks. Auth boot creates these actors early (`req-tap-auth-boot` ordering) precisely so the boundary always has a named actor to attribute system work to.
+- `TAP_TEST_MODE` is the single, explicit signal that "this process is the test runner." Its scope is deliberately narrow:
+  - default `False` in `tap.settings`; `True` only in `tap.test_settings`.
+  - It is **independent of `DEBUG`**. `DEBUG=True` is the normal state of legitimate non-test instances (dev boxes, single-tenant deployments) and is itself a gate on `grid.purge`; it must never imply test mode. Keying test-only behavior on `DEBUG` would mint test-only artifacts into real instances.
+  - Its only v1 effect is to gate the creation/sync of test-only built-ins — chiefly the `tap_test` actor (`req-tap-auth-builtins`). Any boot path that would create a test-only built-in refuses unless `TAP_TEST_MODE=True`.
+  - Any non-test boot running with `TAP_TEST_MODE=True`, or any attempt to create `tap_test` without it, is a hard failure.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-actor-model-1 | No None Actor | Proposed | Service-boundary operations reject missing actors. | |
+| req-tap-auth-actor-model-2 | Human Programmatic Split | Proposed | `human` and `program` are the initial actor kinds. | |
+| req-tap-auth-actor-model-3 | Test Mode Separate | Proposed | `TAP_TEST_MODE` exists and is distinct from `DEBUG`. | |
+| req-tap-auth-actor-model-4 | Inactive Denied | Proposed | Inactive actors are treated as authorization denials at the service boundary. | |
+
+---
+
+### Protected Built-Ins
+----
+RID: `req-tap-auth-builtins`  
+Status: `Proposed`
+
+TAP-managed built-in actors and groups are protected security objects, not ordinary user metadata.
+
+#### Implementation
+
+- V1 protected built-ins:
+  - group: `tap_admin`
+  - program actor: `tap_test`
+- Future built-ins may include:
+  - `tap_bootloader`
+  - `tap_system`
+  - `tap_scheduler`
+  - plugin/collector service actors
+  - AI actors
+- Built-in user keys are short stable values such as `tap_test`, not globally verbose strings.
+- `tap_builtin_key`:
+  - nullable for ordinary users
+  - unique when non-null
+  - set only by `tap_auth` bootstrap/sync code
+  - immutable once set
+  - required when `is_tap_builtin=True`
+- Since Django `Group` is not custom by default, protected group metadata lives in a `tap_auth` table such as `ProtectedGroup` / `BuiltinGroup` with:
+  - one-to-one relation to `auth.Group`
+  - `builtin_key`
+  - `is_protected`
+- Protected groups/users cannot be renamed, deleted, deactivated, or repurposed by ordinary user-management paths.
+- `tap_test`:
+  - is a `program` actor
+  - may be auto-created only when `TAP_TEST_MODE=True`
+  - is illegal in ordinary customer boot unless a future explicit dev/test override is defined
+  - should have both broad admin fixtures and narrower auth-sensitive fixtures available to tests
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-builtins-1 | tap_admin Protected | Proposed | The `tap_admin` group is protected by metadata and policy. | |
+| req-tap-auth-builtins-2 | tap_test Protected | Proposed | `tap_test` is a protected program actor legal only in test mode. | |
+| req-tap-auth-builtins-3 | Builtin Key Constraint | Proposed | DB/app constraints require built-in users to have immutable unique keys. | |
+| req-tap-auth-builtins-4 | Admin Forms Block Protected Mutation | Proposed | Django admin and public forms cannot mutate protected fields or delete protected objects. | |
+
+---
+
+### Capability Registry
+----
+RID: `req-tap-auth-capabilities`  
+Status: `Proposed`
+
+TAP capabilities are the public authorization vocabulary. Django permissions are the backend projection.
+
+#### Implementation
+
+- Capability names use TAP vocabulary such as:
+  - `grid.read`
+  - `grid.write`
+  - `grid.delete`
+  - `grid.import_grift`
+  - `grid.admin`
+  - `grid.purge`
+  - `auth.manage_users`
+  - `auth.manage_providers`
+  - `config.manage`
+  - `plugins.manage`
+  - `cares.run_collectors`
+  - `ai.delegate`
+- Capability checks are operation-level in v1, not model-level.
+- The canonical registry lives in code/spec, reviewable in git.
+- The DB projection is hard-synced from the canonical registry.
+- Capabilities are represented as Django `Permission` rows on a tiny `tap_auth.Capability` model or equivalent content type home. (Every Django `Permission` requires a `content_type` FK to a model; platform capabilities like `grid.read` are not per-model, so they need one placeholder model to anchor to. The idiom is a do-nothing model — `Meta.managed = False` (no table) and `default_permissions = ()` (suppress Django's auto `add_/change_/delete_/view_` permissions) — that exists only to be the content type these capability permissions hang off. This is a recognized Django pattern for "permissions not tied to a real model", not a workaround.)
+- Public TAP vocabulary remains `grid.read`; Django codenames are implementation details such as `tap_auth.grid_read`.
+- Every capability has a description.
+- Capability registry entries may carry risk/classification metadata, especially for high-risk actions such as `grid.purge`.
+- `sync_capabilities()` or equivalent:
+  - is explicit and security-critical
+  - creates/updates/removes capability rows so DB exactly matches the registry
+  - hard-fails on drift
+  - hard-fails if asked to authorize an unknown capability at runtime
+  - never prunes implicitly. Removing a capability (and its permission rows / group references) is destructive, and a lights-out boot cannot stop to ask for confirmation. Instead, pruning is **explicitly declared** in the boot/sync invocation: the operator — or an AI operator that prepared and validated the config against a staging instance — lists exactly which capabilities are expected to be removed. The sync then:
+    - applies only the declared removals;
+    - **hard-fails** on any undeclared drift — a capability present in the DB but absent from the registry and not in the declared prune list. It never silently deletes and never silently keeps.
+    - **hard-fails** when a declared removal does not match reality (declared-but-not-present), so stale prune declarations are caught too.
+  - This keeps standup fully lights-out while making every destructive change a precise, pre-declared, reviewable act. The failure is loud and machine-readable: the error names the exact undeclared-removal set so an AI operator can read it, add those entries to the prune declaration (or correct the registry), and re-run deterministically. We provide the precise path, document it, make the affordance easy to detect — and then demand precision.
+- `tap_admin` receives explicit grants for all v1 capabilities; no hidden implication rules.
+- Direct per-user grants are not part of the v1 TAP path. Group-assigned permissions are preferred.
+- Plugin-declared capabilities are deferred until there is a real demand signal.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-capabilities-1 | TAP Vocabulary | Proposed | Specs/boot/policy use TAP names like `grid.read`, not Django storage names. | |
+| req-tap-auth-capabilities-2 | Code Registry | Proposed | The canonical capability registry lives in code/spec, not as DB-only state. | |
+| req-tap-auth-capabilities-3 | Hard Sync | Proposed | Capability sync makes the DB projection exactly match the registry. | |
+| req-tap-auth-capabilities-4 | Descriptions Required | Proposed | Every capability includes a human-readable description. | |
+| req-tap-auth-capabilities-5 | tap_admin Explicit Grants | Proposed | `tap_admin` is granted each capability explicitly. | |
+| req-tap-auth-capabilities-6 | Unknown Capability Fails | Proposed | Runtime checks for unknown capabilities raise hard errors. | |
+
+---
+
+### Policy API
+----
+RID: `req-tap-auth-policy`  
+Status: `Proposed`
+
+All authorization decisions flow through a central `tap_auth` policy API.
+
+#### Implementation
+
+- `tap_auth.policy.authorize(...)` is the primary API.
+- It checks one capability per call.
+- It accepts operation/resource metadata for logging and future policy refinement:
+
+```python
+authorize(
+    caller_context,
+    "grid.write",
+    operation="create_node",
+    resource_type="grid.node",
+    resource=None,
+)
+```
+
+- It returns `None` on allow.
+- It raises typed exceptions on denial/error:
+  - `missing_actor`
+  - `inactive_actor`
+  - `unknown_capability`
+  - `capability_denied`
+  - `actor_kind_not_allowed`
+- Exceptions live in `tap_auth.errors`.
+- API/web layers translate denials to 403 or appropriate user-facing pages.
+- `is_superuser` may continue to own Django admin behavior, but TAP service authorization requires explicit TAP capabilities. `is_superuser=True` is not a TAP app/service bypass.
+- `tap_admin` is required for TAP admin authorization even when `is_superuser=True`.
+- Django admin's native "superuser sees/does everything" is left intact **by design** — it is the deliberate bottom turtle: the break-glass recovery floor beneath TAP's own authorization. There must always be something under the last turtle. TAP therefore runs two authorization universes on purpose: (1) Django admin, where `is_superuser` is god and operator recovery happens; (2) the TAP service boundary, where only explicit capabilities + `tap_admin` grant access and `is_superuser` means nothing. TAP does **not** attempt to neuter the superuser bypass inside Django admin/DRF — doing so would remove the recovery floor and fight the framework. This split is intentional and documented, not an inconsistency.
+- Denied decisions are logged from day one with structured `message_data` including:
+  - actor
+  - actor kind
+  - requested capability
+  - operation
+  - resource type/resource identifier where safe
+  - reason code
+- Authorization is **on-by-default**, not opt-in. A service operation that completes without having called `authorize()` for the capability it needs is a defect, and the system is built to make that defect loud rather than silent:
+  - the coarse v1 capabilities attach via a `@requires_capability(...)` decorator on public service functions (resolving `CallerContext` from the explicit argument), so the default state of a newly-written service function is "guarded", not "open";
+  - the write pipeline asserts that an authorization decision was recorded for the active `CallerContext`/batch before it commits a mutation; an operation that reached a write without an `authorize()` call fails closed and surfaces the unguarded callsite (hard error under `TAP_TEST_MODE`). This is the Oso-style "authorize-can-be-forgotten" backstop: the gate is enforced structurally, not by reviewer vigilance.
+  - reads get the same structural backstop at their guaranteed chokepoint. Gryphon and Search are TAP's canonical graph read interface (`req-grid-search-canonical-read`), so the read backstop is hardcoded there: a Gryphon/Search execution that runs without a recorded `grid.read` authorization for the active `CallerContext` fails closed (hard error under `TAP_TEST_MODE`). Because all graph reads are meant to funnel through Gryphon/Search, embedding the assertion at that one layer gives reads the same "you cannot read without authorizing" guarantee the write pipeline gives mutations — without scattering checks across every read callsite. The remaining direct read endpoints that still bypass Gryphon today (e.g. the entities/edges API list/get routers) either carry the `@requires_capability("grid.read")` decorator or migrate onto the Gryphon read chokepoint as the canonical-read enforcement work lands; until then the decorator is their interim guard.
+- A boolean `can(caller_context, capability, ...)` predicate complements `authorize()`: same evaluation, but returns `True`/`False` instead of raising — for non-enforcement uses such as hiding a UI control or branching, so read-only checks never have to `try/except` the raising gate. `can()` is never a substitute for the enforcing `authorize()` at a mutation boundary.
+- Successful authorization decisions are not logged individually in v1 except through the operation's own logs/audit trail.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-policy-1 | Single API | Proposed | Authorization callers use `tap_auth.policy.authorize(...)`. | |
+| req-tap-auth-policy-2 | One Capability | Proposed | Each policy check evaluates exactly one required capability. | |
+| req-tap-auth-policy-3 | Typed Errors | Proposed | Denials/errors raise typed `tap_auth.errors` exceptions. | |
+| req-tap-auth-policy-4 | Denial Logs | Proposed | Denials emit structured security logs. | |
+| req-tap-auth-policy-5 | No Superuser Bypass | Proposed | TAP service AuthZ does not treat Django `is_superuser` as a bypass. | |
+| req-tap-auth-policy-6 | Admin Recovery Floor | Proposed | Django admin's superuser-is-god behavior is intentionally preserved as the break-glass recovery floor; TAP does not neuter it. | |
+| req-tap-auth-policy-7 | On By Default | Proposed | Service mutations are structurally enforced to have called `authorize()`; an unguarded mutation fails closed rather than passing silently. A `can()` predicate exists for non-enforcement checks. | |
+
+---
+
+### Service Boundary Enforcement
+----
+RID: `req-tap-auth-service-boundary`  
+Status: `Proposed`
+
+AuthN happens at edges. AuthZ happens at the service boundary.
+
+#### Implementation
+
+- Edge surfaces authenticate:
+  - web sessions
+  - API sessions
+  - future API tokens
+  - allauth Google/OIDC/SAML callbacks
+  - bootloader/runtime actor resolution
+  - future service account tokens
+  - future AI/delegation credentials
+- All edge surfaces collapse to:
+
+```text
+actor -> CallerContext -> service call -> tap_auth policy gate
+```
+
+- Passing request authentication never implies permission to perform a TAP operation.
+- All graph reads require `grid.read`, including:
+  - direct service reads
+  - Gryphon
+  - Search
+  - API read endpoints
+  - page/panel render paths
+- All graph writes require `grid.write` or a more specific operation capability.
+- Deletes require `grid.delete`.
+- GRIFT import has a named `grid.import_grift` capability but is not made stricter than ordinary graph writes in v1 because GRIFT is TAP's standard interchange/write-batch surface.
+- `grid.purge` requires both:
+  - `grid.purge` capability
+  - `DEBUG=True`
+- Public route policy is deferred. V1 protects application/API routes by default, with auth routes, static assets, and basic health carved out as needed.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-service-boundary-1 | Edge AuthN | Proposed | Web/API/provider surfaces authenticate users or actors. | |
+| req-tap-auth-service-boundary-2 | Service AuthZ | Proposed | TAP operations call `tap_auth` at the service boundary. | |
+| req-tap-auth-service-boundary-3 | Reads Protected | Proposed | All graph read surfaces require `grid.read`. | |
+| req-tap-auth-service-boundary-4 | Writes Protected | Proposed | All graph write surfaces require `grid.write` or a specific write capability. | |
+| req-tap-auth-service-boundary-5 | Purge Double Gate | Proposed | Purge requires `grid.purge` and `DEBUG=True`. | |
+
+---
+
+### Boot Profile Integration
+----
+RID: `req-tap-auth-boot`  
+Status: `Proposed`
+
+Auth configuration is a first-class section of the TAP boot profile.
+
+#### Implementation
+
+- Auth config lives under an `auth` section in the larger TAP boot profile.
+- `tap_auth` owns a reusable JSON Schema fragment under `tap_auth/schemas/`.
+- The bootloader composes reusable schema fragments from capability apps rather than copying auth schema into a monolithic boot schema.
+- Boot validates the full auth config before applying auth mutations.
+- A boot dry-run/test command or function is exposed so operators can validate configuration before launch.
+- Auth boot runs early:
+  1. capability sync
+  2. protected group sync
+  3. built-in actor sync
+  4. initial admin add/update
+  5. provider validation/settings build
+  6. provider/domain deactivation handling
+  7. later plugin/collector boot steps
+- Auth bootstrap is explicit through a bootloader/manage.py command, not silent app startup mutation.
+- Boot logs actions now; durable boot reports can come later.
+- Auth boot logs add/update/sync/deactivation decisions with secrets redacted.
+- `tap_admin` membership is add/update-only in v1 to avoid accidental removal by typo.
+- Capability assignment to `tap_admin` is hard-synced.
+- Capability pruning is explicit, not implicit: the auth boot config carries a declared prune list of capabilities expected to be removed. Capability sync applies only declared removals and hard-fails on any undeclared drift (`req-tap-auth-capabilities`). This preserves lights-out standup while keeping destructive capability changes pre-declared and reviewable.
+- Ordinary auth-enabled boot fails if there is no active human `tap_admin`, except future satellite/headless deployments may define an explicit relaxation.
+- If provider/domain removal deactivates every human `tap_admin`, secure lockout is allowed. Recovery happens by boot/config/operator intervention or available local auth.
+
+#### Suggested Implementation Sequence
+
+These phases are guidance for implementation sessions, not a requirement to execute in this exact order:
+
+1. Create `tap_auth`, move/reset canonical `User`, add actor/builtin fields.
+2. Add capability registry, `Capability` home, `sync_capabilities()`, `tap_admin`, `tap_test`.
+3. Add `authorize(...)`, typed errors, denial logging, and test fixtures.
+4. Wire service-boundary checks for grid read/write/delete/purge/import paths.
+5. Add boot schema fragment and auth boot application.
+6. Add allauth and `google_oidc` provider config/self-test/build path.
+7. Add local-auth disable and session invalidation management operations.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-boot-1 | Boot Section | Proposed | Boot profiles include an `auth` section. | |
+| req-tap-auth-boot-2 | Schema Fragment | Proposed | `tap_auth` owns a reusable boot JSON Schema fragment. | |
+| req-tap-auth-boot-3 | Validate Before Apply | Proposed | Auth boot validates before mutating state. | |
+| req-tap-auth-boot-4 | Dry Run | Proposed | Operators can test/dry-run auth boot config. | |
+| req-tap-auth-boot-5 | Early Ordering | Proposed | Auth boot runs before plugin/collector boot paths that require actors. | |
+| req-tap-auth-boot-6 | Explicit Command | Proposed | Auth bootstrap is an explicit command/boot step. | |
+
+---
+
+### Provider Framework
+----
+RID: `req-tap-auth-providers`  
+Status: `Proposed`
+
+Provider-specific login machinery is isolated under `tap_auth/providers/`.
+
+#### Implementation
+
+- Provider entries in boot config are multi-provider from v1.
+- Each provider has:
+  - stable `id`
+  - `type`
+  - `display_name`
+  - provider-specific config
+  - secret references
+  - `critical_for_boot`
+  - auto-provisioning policy
+- Provider IDs are stable natural keys such as `criticalsec-google` and `robco-google`.
+- Provider display names are separate from IDs.
+- Provider secrets are referenced by keys under `TAP_SECRETS_ROOT`; secrets are never embedded in boot profiles or DB rows.
+- Provider implementations expose a common interface or functional equivalent:
+
+```python
+validate_config(provider_config)
+resolve_secrets(provider_config)
+self_test(provider_config, secrets, *, live: bool)
+build_allauth_settings(provider_config, secrets)
+```
+
+- Provider self-tests split into:
+  - `offline`: shape, required settings, secret references, secret presence, local derivations
+  - `live`: network/IdP reachability and metadata checks
+- Self-test result states:
+  - `pass`
+  - `warn`
+  - `fail`
+  - `skip`
+- Self-test results include docs/help links.
+- Provider self-tests are a deliberate first-class investment, not over-engineering. IdPs break the same way collector upstreams break — credential rotation, OIDC discovery-document changes, tenant/domain config drift — and those are exactly the failures that crack a security integration in production. Built-in self-tests give an AI operator / the future Paladin healer a standard, code-free way to probe "what is wrong with auth right now" without writing bespoke diagnostics, mirroring the established `CollectorBase` self-test pattern so the two surfaces feel the same. A check that returns `fail` because the upstream changed is signal, not noise: that same change would have broken the integration regardless, and the self-test surfaces it precisely instead of as a mystery login failure. The knobs go in now; we adapt the specific checks as real IdP failure modes teach us which ones matter.
+- Boot fails on any provider `fail`; `warn` continues with clear logs.
+- Deploy boot defaults to live checks for external providers.
+- Dry-run/offline modes may skip live checks but log loudly.
+- Unknown provider types fail immediately.
+- `critical_for_boot` controls live availability:
+  - `true`: failed live self-test fails deploy boot
+  - `false`: upstream unavailable logs loudly and provider login is unavailable, but boot may continue
+- Malformed static config fails boot even when `critical_for_boot=false`.
+- Provider availability is log-only in v1; durable provider health/status is future UI work.
+- `TAP_BASE_URL` is required when external providers are configured.
+- Provider callback URLs derive from `TAP_BASE_URL` by default, with explicit override only when needed.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-providers-1 | Provider Modules | Proposed | Provider specifics live under `tap_auth/providers/`. | |
+| req-tap-auth-providers-2 | Multi Provider Shape | Proposed | Boot config supports multiple providers from v1. | |
+| req-tap-auth-providers-3 | Secret References | Proposed | Provider secrets are references, never embedded values. | |
+| req-tap-auth-providers-4 | Self-Test Interface | Proposed | Providers expose validation/self-test/settings-builder behavior. | |
+| req-tap-auth-providers-5 | Offline Live Phases | Proposed | Self-tests distinguish offline and live checks. | |
+| req-tap-auth-providers-6 | Criticality | Proposed | `critical_for_boot` controls whether live provider unavailability fails boot. | |
+| req-tap-auth-providers-7 | Base URL Required | Proposed | External providers require `TAP_BASE_URL`. | |
+
+---
+
+### Google OIDC Provider
+----
+RID: `req-tap-auth-google-oidc`  
+Status: `Proposed`
+
+`google_oidc` is the first concrete external provider type.
+
+#### Implementation
+
+- Google/OIDC is first because Robco likely uses Google Workspace and `criticalsec.com` is Google-managed.
+- `criticalsec.com` and Robco are represented as separate `google_oidc` providers.
+- Customer/deploy providers require `allowed_domains`.
+- Providers may optionally declare `allowed_emails`: an explicit allowlist of individual accounts. When present, only those accounts may log in through this provider; absent or empty means domain-only (no per-account restriction). This is how a `criticalsec.com` provider can be pinned to a single operator — e.g. allow only `george@criticalsec.com` even though the whole `criticalsec.com` domain is otherwise eligible.
+  - `allowed_emails` is matched against the provider-asserted **verified** email (`email` with `email_verified=true`), normalized and case-insensitive.
+  - It is an authorization filter, not an identity key. Because email is mutable and `req-tap-auth-external-identity` keeps `sub` as the durable identity, `allowed_emails` is enforced on **every** login, not only at first provisioning. An already-provisioned account whose email drops out of the allowlist is denied at the next login.
+  - `allowed_emails` only ever narrows within `allowed_domains`; both checks apply. It never widens access beyond the allowed domains and never bypasses `email_verified`.
+  - A login from an allowed domain whose verified email is **not** in a configured `allowed_emails` fails closed with a distinct reason code (`account_not_allowlisted`), separate from a domain rejection (`domain_not_allowed`) and from a generic no-capabilities landing. This denial is:
+    - logged as a structured security event (provider id, reason code, verified email where safe, truncated/hashed subject) so an operator can see who was turned away;
+    - returned to the calling AuthN surface (the allauth callback/adapter) as a typed result so it can show the user a *specific* hint — they authenticated correctly with the right domain, but their account is not on this deployment's allowlist and an administrator must add them — rather than an opaque failure.
+  - These login-denial reason codes belong to the `tap_auth.errors` vocabulary alongside the policy errors, so AuthN-edge denials and service-boundary denials draw from one taxonomy.
+- There is no "any Google account" escape hatch. A provider that wants broad access lists the relevant domain(s) in `allowed_domains` explicitly; dev environments use local password auth (`req-tap-auth-local`) or a deliberately broad `allowed_domains`.
+- Auto-provisioning is provider-specific.
+- Auto-provisioning requires:
+  - allowed provider
+  - allowed domain
+  - account present in `allowed_emails` when that allowlist is configured
+  - `email_verified=true`
+- Existing linked human users are blocked from login if Google later returns `email_verified=false`.
+- Allowed domains are enforced using:
+  - Google `hd` claim when present
+  - normalized email-domain fallback when necessary
+- `hd` is preferred; fallback is logged.
+- `google_oidc` live self-test fetches Google's OIDC discovery document.
+- Auto-provisioned users receive no TAP groups unless explicitly configured as initial admins.
+- Authenticated users may have no TAP permissions; they see a generic no-access page.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-google-oidc-1 | Concrete Provider | Proposed | `google_oidc` is the first provider type. | |
+| req-tap-auth-google-oidc-2 | Allowed Domains | Proposed | Customer/deploy Google providers require allowed domains. | |
+| req-tap-auth-google-oidc-3 | Verified Email | Proposed | Auto-provision and continued login require verified email. | |
+| req-tap-auth-google-oidc-4 | Discovery Check | Proposed | Live self-test fetches Google OIDC discovery metadata. | |
+| req-tap-auth-google-oidc-5 | No Default Groups | Proposed | Auto-provisioned users get no groups unless explicitly initial-admin configured. | |
+| req-tap-auth-google-oidc-6 | Named Allowlist | Proposed | Providers may restrict login to an explicit `allowed_emails` allowlist, enforced on every login and only within the allowed domains; there is no any-account escape hatch. | |
+| req-tap-auth-google-oidc-7 | Allowlist Denial Surfaced | Proposed | A domain-allowed but non-allowlisted login fails closed with a distinct `account_not_allowlisted` reason that is logged and returned to the AuthN surface for a specific user-facing hint. | |
+
+---
+
+### Local Password Auth
+----
+RID: `req-tap-auth-local`  
+Status: `Proposed`
+
+Local Django password auth remains available for dev and recovery, but customer deployments should prefer external IdP login.
+
+#### Implementation
+
+- Local password login defaults enabled in dev.
+- Customer boot profiles should disable local password login unless explicitly enabled once IdP integration is ready.
+- Local-only production/on-prem installs are allowed but external IdP is recommended.
+- Disabling local password auth:
+  - blocks password login everywhere, including Django admin
+  - does not deactivate local users
+  - does not invalidate current sessions by itself
+- Session invalidation is a separate management command/operation.
+- `emergency_only` local auth mode is deferred.
+- Spawn/dev currently creates a Django `admin` superuser through `createsuperuser --noinput`; the v1 bridge should add that user to `tap_admin`.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-local-1 | Dev Enabled | Proposed | Local password login is available in dev by default. | |
+| req-tap-auth-local-2 | Customer Explicit | Proposed | Customer boot profiles explicitly choose local login behavior. | |
+| req-tap-auth-local-3 | Admin Covered | Proposed | Disabling local login applies to Django admin too. | |
+| req-tap-auth-local-4 | No Deactivation | Proposed | Disabling local login does not deactivate local users. | |
+| req-tap-auth-local-5 | Spawn Bridge | Proposed | Spawn-created `admin` joins `tap_admin`. | |
+
+---
+
+### External Identity Linkage
+----
+RID: `req-tap-auth-external-identity`  
+Status: `Proposed`
+
+External identity records link provider-authenticated subjects to canonical TAP users.
+
+#### Implementation
+
+- The durable identity key is provider ID + upstream subject:
+  - OIDC: `sub`
+  - SAML: NameID or configured stable subject
+- Email is a profile field and reconciliation hint, not identity.
+- V1 stores explicit columns only, not raw claims or broad `safe_claims_json`.
+- Suggested stored fields:
+  - provider ID
+  - provider type
+  - subject
+  - user FK
+  - email snapshot
+  - display name snapshot
+  - hosted domain/domain snapshot
+  - first seen
+  - last seen
+  - last login
+  - status
+- Raw provider claims/assertions are not stored in v1.
+- Provider-managed email updates the TAP user email on login.
+- External usernames are generated from provider ID + subject-derived stable value and are not intended for display/login.
+- UI shows email/display name, not the generated username.
+- Schema may support multiple external identities per TAP user, but v1 account linking is disabled:
+  - no self-service linking
+  - no automatic email linking
+  - no boot/admin linking unless explicitly added later
+- If a login arrives through a second provider with the same email as an existing TAP user, deny login with an `identity_linking_disabled` style error.
+- Duplicate emails are allowed at DB level because email is not identity.
+- Ambiguous identity resolution fails closed and logs.
+- Full raw subjects are not logged. Admin can see provider ID plus truncated/hashed subject; full subject is hidden unless future explicit debug/admin tooling exposes it.
+- Provider/domain removal deactivates affected external users by default.
+- Re-adding a provider/domain does not automatically reactivate users; reactivation is explicit.
+- User directory/group lifecycle sync from IdP APIs is deferred as backlog security work.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-external-identity-1 | Provider Subject Key | Proposed | External identities are keyed by provider ID + subject. | |
+| req-tap-auth-external-identity-2 | No Raw Claims | Proposed | Raw provider claims/assertions are not stored. | |
+| req-tap-auth-external-identity-3 | Email Not Identity | Proposed | Email is not used as the durable linkage key. | |
+| req-tap-auth-external-identity-4 | Linking Disabled | Proposed | V1 denies second-provider/same-email login rather than linking or shadowing. | |
+| req-tap-auth-external-identity-5 | Deactivation On Policy Removal | Proposed | Provider/domain removal deactivates affected external users. | |
+
+---
+
+### Session Invalidation
+----
+RID: `req-tap-auth-sessions`  
+Status: `Proposed`
+
+Session invalidation is a separate management operation from disabling login mechanisms.
+
+#### Implementation
+
+- TAP exposes session invalidation as an explicit, audited operation (management command and/or service function) at three scopes — the banhammer for auditing and incident response:
+  - **global**: invalidate every active session (full flush of the session store), e.g. mass logout after a suspected platform compromise.
+  - **per-user (banhammer)**: invalidate *all* sessions belonging to one user — the incident-response lever for "get this account out of every browser/device now."
+  - **per-session (surgical)**: invalidate one specific session, identified by its session key or the redacted session handle surfaced in logs (`req-tap-auth-logging`), e.g. killing a single suspicious session while leaving the user's other sessions intact.
+- The mechanism is the boring Django session store, not a parallel system:
+  - global = clear/flush the session backend;
+  - per-user = enumerate active sessions and remove those whose `_auth_user_id` matches the target. The default DB backend has no user→session foreign key, so v1 does a decode-and-match scan of unexpired sessions (acceptable at v0 scale). A durable user↔session index (e.g. `django-user-sessions`) is deferred backlog until a real "active sessions" management UI demands it.
+  - per-session = delete the one session row by key.
+- Every invalidation is a logged security event with structured `message_data`: acting actor, scope, target user and/or session (redacted where appropriate), reason, and count invalidated. The audit trail is the point — the banhammer must always be attributable to a named actor.
+- Session invalidation is capability-gated (`auth.manage_users`, or a dedicated session-management capability) and is never an anonymous / `User=None` operation.
+- Invalidation remains a SEPARATE lever from disabling login mechanisms and from user deactivation. Banning a user during an incident is *composed* from explicit primitives (e.g. deactivate user + per-user invalidate), not a silent side effect of either one. This keeps each lever independently auditable.
+- Disabling local auth, disabling providers, or changing provider config does not silently imply blanket session invalidation unless the specific operation chooses to call it.
+- User/session management UI surfaces are future work; v1 may use Django admin and management commands.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-sessions-1 | Separate Lever | Proposed | Login disablement and session invalidation are separate operations. | |
+| req-tap-auth-sessions-2 | Global Invalidation | Proposed | TAP provides a command/service path to invalidate all active sessions. | |
+| req-tap-auth-sessions-3 | Per-User Banhammer | Proposed | An operation invalidates all sessions for a specific user. | |
+| req-tap-auth-sessions-4 | Per-Session Invalidation | Proposed | An operation invalidates one specific session by key/handle. | |
+| req-tap-auth-sessions-5 | Audited And Attributable | Proposed | Every invalidation is capability-gated and logged with actor, scope, target, reason, and count. | |
+
+---
+
+### Actor-Aware Logging
+----
+RID: `req-tap-auth-logging`  
+Status: `Proposed`
+
+TAP logs carry actor/session/request/task attribution through stdlib logging context, not a third-party logging package.
+
+#### Implementation
+
+- No `structlog` dependency in v1.
+- Use Python stdlib:
+  - `contextvars`
+  - `logging.Filter`
+  - custom formatter fields
+  - existing `dictConfig` in `tap/logging.py`
+- Bind execution context at:
+  - request start
+  - task start
+  - bootloader operation start
+  - collector/scheduler runner start
+  - future AI actor start
+- Clear context at every boundary so actors never leak across requests/tasks.
+- Context fields should be actor-aware:
+  - actor ID
+  - actor username
+  - actor kind
+  - actor display/email where safe
+  - auth session ID or stable redacted session handle
+  - request ID when added
+  - task result ID where present
+  - future delegator/on-behalf-of context
+- Log context is attribution, not authorization.
+- AuthZ denial logs are explicit security messages from `tap_auth.policy`.
+- Existing TAP logging site-token rules remain in force.
+- Future JSON sinks can emit the same enriched fields.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-logging-1 | Stdlib Only | Proposed | V1 uses stdlib logging/contextvars rather than adding `structlog`. | |
+| req-tap-auth-logging-2 | Actor Context | Proposed | Log records are enriched with current actor context when bound. | |
+| req-tap-auth-logging-3 | Boundary Clear | Proposed | Context is cleared at request/task/boot boundaries. | |
+| req-tap-auth-logging-4 | Not AuthZ | Proposed | Logging context never substitutes for authorization checks. | |
+
+---
+
+### AI And Machine Actor Placeholder
+----
+RID: `req-tap-auth-ai-placeholder`  
+Status: `Proposed`
+
+AI and machine execution must use named TAP actors, but detailed AI delegation is deferred.
+
+#### Implementation
+
+- AI actors are `program` users in v0.
+- A delegated AI actor is not the human user.
+- Future delegated AI actions carry explicit `on_behalf_of` / delegator context.
+- Delegated actors receive explicit capability subsets.
+- Delegated actors cannot exceed the delegating user's capabilities.
+- Logs/audit show both actor and delegator when delegation exists.
+- TAP never treats an AI action as anonymous system work or as an unqualified extension of the human user.
+- Real AI mechanics are deferred to future `tap_ai` specs:
+  - task/session model
+  - model identity
+  - tool credentials
+  - prompt/session lifecycle
+  - delegated task scopes
+  - approval workflows
+  - plugin-defined AI actors
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-ai-placeholder-1 | AI Is Programmatic | Proposed | AI actors fit under `user_kind=program` in v0. | |
+| req-tap-auth-ai-placeholder-2 | Delegation Explicit | Proposed | Future delegation is explicit, bounded, and audited. | |
+| req-tap-auth-ai-placeholder-3 | No Anonymous AI | Proposed | AI actions are never represented as `User=None`. | |
+
+## Backlog
+
+- SAML provider implementation.
+- Generic OIDC provider after `google_oidc`.
+- Dynamic IdP group mapping.
+- Group-based access (Google). Gate login and/or map TAP roles by upstream Google Workspace group membership. This is **not** available via Google OIDC ID tokens — unlike Okta/Entra, Google does not emit a `groups` claim — so it requires either the Admin SDK Directory API (a service account with domain-wide delegation + `admin.directory.group.readonly` scope, queried server-side after login) or a SAML provider with group-attribute mapping. Both are separate, heavier integrations with their own credentials and security surface. Until then, `allowed_emails` is the per-account substitute for "let this set of people in."
+- Plugin-declared capabilities and groups.
+- User-facing account/profile/linking UI.
+- Self-service multi-identity account linking.
+- Directory/group lifecycle sync from upstream IdPs.
+- Durable provider health/status model and auth management UI.
+- `emergency_only` local auth mode.
+- Satellite/headless auth rules where no human admin is expected.
+- Dimension-scoped grid authorization.
+- Object/resource-scoped authorization beyond v1 operation-level checks.
+- AI delegation mechanics in `tap_ai`.
+- JSON structured logging sink and OpenTelemetry correlation.
+
+## Approved Dependencies
+
+This spec approves adding django-allauth for the AuthN implementation path, subject to implementation-time version selection and ordinary dependency review.
+
+## Status Vocabulary
+
+| Status States |  |
+| --- | --- |
+| Proposed | Requirement has been designed but not yet accepted for implementation. |
+| Approved for Development | Requirement is accepted and ready to be implemented. |
+| In Development | Actively being worked on. |
+| Implemented | Has been written. |
+| Verified | Has met the acceptance criteria. |
+| Refactoring | In the process of being re-worked. |
+| Deprecating | In the process of being deprecated. |
+| Deprecated | No longer part of the current architecture. |
+

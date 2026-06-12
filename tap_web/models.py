@@ -6,7 +6,6 @@ to keep web artifacts in their own named partition of the graph.
 
 from typing import ClassVar
 
-from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -198,9 +197,15 @@ class LandingPage(BaseModel):
 
 
 def _get_reserved_slugs() -> list[str]:
-    """Return the reserved slug prefixes from TapWebConfig."""
+    """Return the reserved slug prefixes collected across all app configs.
+
+    See tap_web.reserved.get_reserved_url_prefixes() — each app declares the
+    top-level prefixes it mounts via `reserved_url_prefixes`, unioned with the
+    project-level mounts.
+    """
+    from tap_web.reserved import get_reserved_url_prefixes
+
     try:
-        config = apps.get_app_config("tap_web")
-        return list(getattr(config, "reserved_slugs", []))
+        return get_reserved_url_prefixes()
     except Exception:  # noqa: BLE001
         return []
