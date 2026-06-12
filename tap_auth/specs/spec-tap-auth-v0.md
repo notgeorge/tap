@@ -272,6 +272,7 @@ TAP capabilities are the public authorization vocabulary. Django permissions are
     - **hard-fails** when a declared removal does not match reality (declared-but-not-present), so stale prune declarations are caught too.
   - This keeps standup fully lights-out while making every destructive change a precise, pre-declared, reviewable act. The failure is loud and machine-readable: the error names the exact undeclared-removal set so an AI operator can read it, add those entries to the prune declaration (or correct the registry), and re-run deterministically. We provide the precise path, document it, make the affordance easy to detect — and then demand precision.
 - `tap_admin` receives explicit grants for all v1 capabilities; no hidden implication rules.
+- Not every built-in actor gets the full set: the `tap_bootloader` program actor receives an explicit **least-privilege** boot-capability bundle (no `grid.purge`/`grid.delete`), not all capabilities, so a boot bug cannot demolish the grid. See `spec-tap-boot-v0.md` (`req-boot-phases`).
 - Direct per-user grants are not part of the v1 TAP path. Group-assigned permissions are preferred.
 - Plugin-declared capabilities are deferred until there is a real demand signal.
 

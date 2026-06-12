@@ -55,7 +55,7 @@ This spec follows well-trodden declarative-provisioning patterns rather than inv
 | req-boot-profile | [Multi-Section Profile](#multi-section-profile) | Proposed | Config-as-code profile with named sections; supersedes the flat collector profile |
 | req-boot-sections | [App-Registered Section Handlers](#app-registered-section-handlers) | Proposed | Registry-backed handlers; mandatory schema fragment; duplicate section = hard error |
 | req-boot-validate | [Validate Before Apply](#validate-before-apply) | Proposed | Validate every section before applying any; dry-run; fail loud |
-| req-boot-phases | [Fixed Phase Order](#fixed-phase-order) | Proposed | identity → auth → population; auth strictly before actor-attributed work |
+| req-boot-phases | [Fixed Phase Order](#fixed-phase-order) | Proposed | bootstrap → identity → auth → population; bootstrap actor first, auth before population |
 | req-boot-population | [Population Phase](#population-phase) | Proposed | Declared, ordered, interleavable seed-plugin / fire-collector steps |
 | req-boot-identity | [Identity Section](#identity-section) | Proposed | First-class grid identity + instance keystone, guaranteed before population |
 | req-boot-idempotent | [Idempotent Re-Apply](#idempotent-re-apply) | Proposed | Re-applying a profile converges; standup is repeatable |
@@ -78,6 +78,7 @@ A single bootloader command is the canonical path that stands a TAP instance up 
 - The bootloader is an explicit `manage.py` command (e.g. `manage.py boot`), not silent app-startup mutation.
 - It owns: profile resolution and load, full-profile validation, fixed phase sequencing, per-section dispatch to registered handlers, idempotent application, and action logging.
 - It does **not** own provider/auth/collector internals — each is owned by its capability app's section handler (`req-boot-sections`). The bootloader is the orchestrator and the contract enforcer.
+- **Code home: a `tap_boot` app.** The cross-cutting orchestration lives in a first-party `tap_boot` app — the `manage.py boot` command, the profile envelope schema, the boot context (`tap_bootloader` actor resolution + per-run state), phase sequencing, and boot reports/logging. The section-handler **registry primitive** stays in `tap_grid` (its registry home); each capability app owns its own section handler (`tap_auth` the `auth` section, etc.). Same rationale as `tap_auth`: a cross-cutting management plane deserves a named app, not scattered helpers.
 - Database migrations remain in the container entrypoint (idempotent, safe to re-run) and are a precondition of boot, not a boot phase.
 - The bootloader is the canonical standup for **both** dev (`spawn-session.sh`, `req-boot-spawn-bridge`) and customer deployments, so the path is dog-fooded continuously before a customer sees it.
 
@@ -88,6 +89,7 @@ A single bootloader command is the canonical path that stands a TAP instance up 
 | req-boot-app-1 | Explicit Command | Proposed | Boot is an explicit `manage.py` command, not startup-time mutation. | |
 | req-boot-app-2 | Single Orchestrator | Proposed | One bootloader owns sequencing, validation, and dispatch; sections own their internals. | |
 | req-boot-app-3 | Canonical Standup | Proposed | The same bootloader path is used for dev and customer standup. | |
+| req-boot-app-4 | tap_boot Code Home | Proposed | Orchestration/command/envelope-schema/boot-context/reports live in a `tap_boot` app; the section-handler registry primitive stays in `tap_grid`. | |
 
 ---
 
@@ -100,7 +102,9 @@ A boot profile is a single config-as-code document composed of named sections.
 
 #### Implementation
 
-- A profile is a version-controlled file (selected as today: `--profile` flag > `TAP_BOOT_PROFILE` env > none ⇒ clean no-op for outbound work).
+- A profile is a version-controlled file. Selection and the no-profile behavior differ by mode:
+  - **dev / manual:** `--profile` > `TAP_BOOT_PROFILE` > none ⇒ clean no-op for outbound work (the existing opt-in — a bare run reaches out to nothing).
+  - **customer / deploy / entrypoint:** an explicit profile is **required**. Coming up with no profile — empty but apparently healthy — is a failure, not a no-op: deploy boot fails loud unless an explicit `--allow-empty` is passed. A deployment must never silently start empty because `TAP_BOOT_PROFILE` was accidentally omitted.
 - v1 sections: `identity`, `auth`, `population`. The section set is open — any capability app may register a section (`req-boot-sections`).
 - The profile supersedes the flat collector-only profile shape: the existing collector list becomes the `fire-collector` steps of the `population` section (`req-boot-population`).
 - A profile carries only declarative state and secret *references* (`req-boot-secrets`), never secret values.
@@ -115,6 +119,7 @@ A boot profile is a single config-as-code document composed of named sections.
 | req-boot-profile-2 | Supersedes Flat Profile | Proposed | The collector-only profile is absorbed as the population fire-collector steps. | |
 | req-boot-profile-3 | References Not Secrets | Proposed | Profiles contain only declarative state and secret references. | |
 | req-boot-profile-4 | Opt-In Outbound | Proposed | With no population outbound steps selected, standup reaches out to nothing. | |
+| req-boot-profile-5 | Deploy Requires Profile | Proposed | Customer/deploy/entrypoint boot requires an explicit profile (or explicit `--allow-empty`); a missing profile fails loud, never a silent empty-but-healthy start. | |
 
 ---
 
@@ -127,10 +132,10 @@ Each capability app owns its profile section through a registered handler. Apps 
 
 #### Implementation
 
-- A section handler bundles: a stable `section_key`, a **mandatory** JSON Schema fragment for that section's shape, and an `apply(section_data, *, dry_run)` callable.
+- A section handler bundles: a stable `section_key`, a **mandatory** JSON Schema fragment for that section's shape, and a `validate(section_data)` / `plan(section_data)` / `apply(section_data)` interface — not merely a schema plus `apply(dry_run=True)`. `validate` does **semantic pre-resolution** (resolve references, catch impossible config) before any mutation; `plan` reports what would change; `apply` mutates.
 - Handlers register on a `tap_grid` `Registry` (`tap_grid/registry.py`), which **raises `ImproperlyConfigured` on a duplicate key** by default (no `merge_fn`). Two apps registering the same `section_key` is therefore a hard startup error — the immutability is structural, not convention.
 - Registering a handler without a schema fragment is itself a registration error: every section is schema-described or it does not exist.
-- The bootloader passes each handler **only its own section's data**. A handler has no access to other sections' data, so cross-section overwrite is structurally impossible.
+- The bootloader passes each handler **only its own section's data** — this isolates *configuration*: a handler cannot be driven by another section's config, so config-level cross-section coupling is structurally impossible. It is **not** a code sandbox: handler code is trusted Python and can technically query or mutate anything, exactly like all boot code (`req-boot-trust`). The guarantee is honest as **data isolation, not code isolation**.
 - Section ownership in v1: `identity` → `tap_grid` (`req-boot-identity`); `auth` → `tap_auth` (`req-tap-auth-boot`); `population` → bootloader-owned step dispatcher over plugin/collector step-types (`req-boot-population`).
 - The registry is populated at app `ready()` time (read-only registration only, consistent with `req-plugin-load-v0-ready-readonly`); the handlers' `apply` runs only under the explicit boot command.
 
@@ -141,7 +146,7 @@ Each capability app owns its profile section through a registered handler. Apps 
 | req-boot-sections-1 | Registered Handlers | Proposed | Sections are provided by app-registered handlers on a `tap_grid` registry. | |
 | req-boot-sections-2 | Duplicate Section Fails | Proposed | Two handlers for one `section_key` raise `ImproperlyConfigured` at startup. | |
 | req-boot-sections-3 | Schema Mandatory | Proposed | A handler without a JSON Schema fragment cannot register. | |
-| req-boot-sections-4 | Section Isolation | Proposed | A handler receives only its own section's data; cross-section writes are impossible. | |
+| req-boot-sections-4 | Section Data Isolation | Proposed | A handler receives only its own section's *data* (config isolation, no cross-section config coupling); handler *code* remains trusted, not sandboxed. | |
 
 ---
 
@@ -154,9 +159,11 @@ The whole profile is validated before any of it is applied.
 
 #### Implementation
 
-- The bootloader validates **every** present section against its owning handler's schema fragment **before** invoking **any** handler's `apply`. A single invalid section aborts the run before mutation.
-- Unknown section keys and unknown fields within a section fail loud (`additionalProperties: false` discipline at the section level).
-- A `--dry-run` mode validates the full profile and reports the planned actions (which sections, which population steps, in what order) **without mutating** state — the Terraform-`plan` analogue.
+- Validation has **two layers, both before any mutation**:
+  1. **Schema (shape):** every present section validates against its handler's JSON Schema fragment; unknown section keys and unknown fields fail loud (`additionalProperties: false` at the section level).
+  2. **Semantic (pre-resolution):** each handler's `validate` resolves references before any `apply` runs — unknown plugin/collector keys, missing required secret references, unsupported profile version, and impossible/contradictory config (e.g. an auth config that would lock out every admin) are caught up front, not discovered mid-mutation. This generalizes `fire_boot_collectors`' existing "unknown key aborts before any collector fires." Schema alone catches shape, not these.
+- A `--dry-run` / `plan` mode runs both validation layers and reports the planned actions (which sections, which population steps, in what order) **without mutating** state. It is the **best current plan, not a guarantee** — like Terraform's plan, state can drift between plan and apply, so a dry-run is advisory.
+- Dry-run defaults to **offline / no outbound**: schema + semantic validation + local plan only. Live checks (provider reachability, OIDC discovery, upstream probes) are opt-in via an explicit `--live-checks`, never the default.
 - Failures are loud and machine-readable: the error names the offending section/field/step so a zero-touch caller (or an AI operator) can correct the profile and re-run deterministically.
 - Validation is independent of where the profile came from (boot-embedded today; a standalone source later, per `req-tap-auth-config-source`) — the validator operates on the loaded document, not its origin.
 
@@ -166,8 +173,9 @@ The whole profile is validated before any of it is applied.
 | --- | --- | :---: | --- | --- |
 | req-boot-validate-1 | Validate All First | Proposed | All sections validate before any `apply` runs. | |
 | req-boot-validate-2 | Unknown Rejected | Proposed | Unknown section keys / fields fail loud. | |
-| req-boot-validate-3 | Dry Run | Proposed | `--dry-run` validates and reports the plan without mutating. | |
+| req-boot-validate-3 | Dry Run Advisory + Offline | Proposed | `--dry-run`/`plan` validates and reports the best current plan (advisory, may drift) without mutating; defaults offline, live checks opt-in via `--live-checks`. | |
 | req-boot-validate-4 | Loud Machine-Readable Failure | Proposed | Validation errors name the offending location precisely. | |
+| req-boot-validate-5 | Semantic Pre-Resolution | Proposed | Beyond schema shape, handlers semantically validate (unknown plugin/collector/secret-ref, bad version, impossible config) before any `apply` mutates. | |
 
 ---
 
@@ -180,8 +188,12 @@ Boot runs sections in a fixed, code-defined phase order. Profiles cannot reorder
 
 #### Implementation
 
-- Coarse phase order is hardcoded: `identity → auth → population`. It is code, not config.
-- The load-bearing invariant is **auth strictly before any actor-attributed work**: named `program` built-in actors (bootloader/system/scheduler/collector runners) must exist before anything seeds or collects under a named actor (`req-tap-auth-actor-model` sequencing; `req-tap-auth-builtins`). The `auth` phase creates them; the `population` phase consumes them.
+- Coarse phase order is hardcoded: `bootstrap → identity → auth → population`. It is code, not config.
+- **`bootstrap` resolves the boot actor first.** Identity, auth, and population are all service-layer writes, and the auth doctrine forbids `User=None` at the service boundary (`req-tap-auth-actor-model`) — so a named actor must exist before the *first* boot write. The `bootstrap` pre-phase creates-or-resolves the `tap_bootloader` `program` built-in actor (`req-tap-auth-builtins`); every subsequent boot write runs as `tap_bootloader`. The chicken-and-egg of the *first* actor is resolved cleanly: creating it is a low-level bootstrap write *below* the named-actor contract — the same place the auth spec puts migrations / raw table creation — and once it exists, identity/auth/population all go through the service layer as a named actor. This supersedes any "identity is the first phase" reading: identity writes the keystone, which needs the actor, so it cannot be first.
+- **Authority, scoped — not omnipotence.** Boot writes need *authorization*, and capabilities sync in the `auth` phase, so the bootloader actor must be able to write during `identity`. Rather than implicit boot-omnipotence, the `bootstrap` pre-phase grants `tap_bootloader` an **explicit, least-privilege, code-defined boot-capability bundle** — exactly what boot needs (`grid.write`, `grid.import_grift`, the auth/capability/provider-management capabilities, `config.manage`, `cares.run_collectors`) and no more. It deliberately **excludes destructive grid demolition boot never needs** — `grid.purge` (DEBUG-destructive) and `grid.delete` — so a boot *bug* cannot nuke the grid. Boot's own destructive operations (keystone overwrite, capability prune, user deactivation) live in the auth/config/capability domain, not arbitrary grid mutation, so the exclusion costs boot nothing.
+  - This bounds the blast radius of boot *bugs* (anti-footgun, `req-boot-trust`); it is **not** a sandbox against a *malicious* profile. Because the bundle includes capability-management, a malicious trusted profile could self-escalate — accepted, since boot config is code-level-trusted by design. Least-privilege here protects against accidents and documents boot's reach: the right level of defense, not security theater.
+  - The grant is established at `bootstrap` (resolve the actor + grant its scoped bundle) before `identity` — an explicit scoped grant, not a disabled gate. This supersedes the earlier "implicit boot privilege" framing and settles the authz chicken-and-egg cleanly.
+- The load-bearing invariant remains **auth before population**: the remaining `program` built-in actors, capabilities, and grants land in the `auth` phase before `population` seeds or collects under them.
 - Profiles control **what is in** each section and the **intra-population** step order (`req-boot-population`) — never the phase sequence itself.
 - Phase order is intentionally rigid until there is a concrete reason to relax it; new phases are added in code with explicit placement, not declared by profiles.
 
@@ -189,8 +201,10 @@ Boot runs sections in a fixed, code-defined phase order. Profiles cannot reorder
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-phases-1 | Fixed Order | Proposed | Phase order is code-defined; profiles cannot reorder phases. | |
-| req-boot-phases-2 | Auth First | Proposed | Auth (and its built-in actors) is applied before any actor-attributed population work. | |
+| req-boot-phases-1 | Fixed Order | Proposed | Phase order (`bootstrap → identity → auth → population`) is code-defined; profiles cannot reorder phases. | |
+| req-boot-phases-2 | Auth Before Population | Proposed | Auth (capabilities, built-in actors, grants) is applied before any actor-attributed population work. | |
+| req-boot-phases-3 | Bootstrap Actor First | Proposed | A `bootstrap` pre-phase resolves the `tap_bootloader` actor before identity; all boot writes run as it, so no boot write is `User=None`. | |
+| req-boot-phases-4 | Least-Privilege Boot Actor | Proposed | `tap_bootloader` is granted an explicit least-privilege boot-capability bundle (no `grid.purge`/`grid.delete`), not full admin — bounding the blast radius of boot bugs. | |
 
 ---
 
@@ -204,7 +218,7 @@ The population phase brings plugins online and populates them, as an ordered lis
 #### Implementation
 
 - The `population` section is an **ordered** list of steps; each step is one of the v1 step-types:
-  - `seed-plugin`: bring a plugin online — its types/edges/searches are registered (already done at `ready()`), then its GRIFT seed bundles are imported via the `import_plugin_grift` path.
+  - `seed-plugin`: bring a plugin online — its types/edges/searches are registered (already done at `ready()`), then its GRIFT seed bundles are imported via the `import_plugin_grift` path. **Convergence caveat:** GRIFT dedups by batch identity — re-importing an *identical* batch is skipped, so an *edited* bundle does **not** converge on re-boot unless its batch identity changes. Boot resolves this explicitly rather than assuming upsert: the default is **durable version-bumped batches** (a plugin bumps its batch version when content changes, so the new identity converges), with a **DEBUG-only boot force/reimport** mode for dev iteration; production never blind-force-reimports. This decision is named so it is chosen, not silently assumed — the trap is an edited-but-not-bumped bundle that silently skips while boot reports success.
   - `fire-collector`: fire a collector via `run_collection`, with the per-profile `on_failure` and sequential-ordering semantics absorbed from `spec-dev-boot-collectors.md`.
 - Steps run **strictly in declared order, sequentially, no overlap**. The declared order is load-bearing: a collector that reads another collector's output must be ordered after it so its edges mint in one boot pass (the established collector-pipeline dependency, stated generically).
 - v1 default arrangement mirrors today: all `seed-plugin` steps, then `fire-collector` steps. The step model deliberately permits **interleaving** (seed a plugin, fire its collectors, seed the next) so that a plugin whose collector depends on a prior plugin being fully *online and collected* can be expressed without restructuring.
@@ -220,6 +234,7 @@ The population phase brings plugins online and populates them, as an ordered lis
 | req-boot-population-3 | Interleaving Permitted | Proposed | The model allows seed/fire steps to interleave, not only seed-all-then-fire-all. | |
 | req-boot-population-4 | Unknown Key Fails | Proposed | An unknown plugin/collector key aborts before any population step runs. | |
 | req-boot-population-5 | Collector Semantics Absorbed | Proposed | `fire-collector` preserves `run_collection`, `on_failure`, and ordered-firing semantics. | |
+| req-boot-population-6 | GRIFT Convergence Explicit | Proposed | `seed-plugin` convergence is bounded by GRIFT batch identity: version-bumped batches converge; a DEBUG-only force/reimport serves dev; production never blind-force-reimports; edited-but-not-bumped must not silently skip-as-success. | |
 
 ---
 
@@ -236,6 +251,7 @@ The instance's identity — grid identity and its keystone(s) — is a first-cla
 - The keystone is **create-or-update**: applying a keystone that already exists updates it rather than erroring, and the change persists in history (per `req-boot-trust` — boot is privileged and overwrite is allowed by design).
 - The bootloader **guarantees the instance keystone is laid down before the population phase**, so plugins layer onto an already-self-described instance rather than racing to define it.
 - The instance keystone is owned by boot, not seeded incidentally as ordinary plugin GRIFT — elevating the most foundational artifact to a guaranteed, first-class step. (Plugins may still contribute their own keystones via their seed bundles; the *instance* keystone is the boot-owned one.)
+- Identity writes run as the `tap_bootloader` actor resolved in the `bootstrap` pre-phase (`req-boot-phases`), satisfying the no-`User=None` contract. Identity is *not* the first phase — `bootstrap` is — because the keystone write needs a named actor.
 - Identity application is idempotent (`req-boot-idempotent`): re-applying converges the keystone to the declared state, with prior versions retained in history.
 
 #### Acceptance Criteria
@@ -257,17 +273,17 @@ Re-applying a profile converges the instance to the declared state without dupli
 
 #### Implementation
 
-- Boot is safe to re-run: applying the same profile twice yields the same instance state, not duplicated nodes/edges/actors or a hard error.
-- Each section handler is responsible for its own convergence: auth capability sync is a hard-sync, initial-admin is add/update-only (`req-tap-auth-boot`), identity keystone is create-or-update (`req-boot-identity`), `seed-plugin` uses GRIFT upsert semantics, `fire-collector` re-collection converges via the collector's own upsert/OCC behavior.
-- Convergence, not blind replay: a re-apply updates what changed and leaves the rest, rather than re-creating from scratch.
+- Boot is safe to re-run, but idempotency is scoped to **declared domain state**, not operational/audit state. Re-applying the same profile converges the declared resources — no duplicated nodes/edges/actors/keystones, no hard error — but operational records *do* and *should* append: log lines, boot events, `CollectionJob`s, entity history/versions, timestamps, and any FLIP records are an append-only audit trail of each run, not domain state to converge. "Same instance state" means same *declared* state; the audit trail honestly shows that boot ran twice.
+- Each section handler is responsible for its own declared-state convergence: auth capability sync is a hard-sync, initial-admin is add/update-only (`req-tap-auth-boot`), identity keystone is create-or-update (`req-boot-identity`), `seed-plugin` converges only as far as GRIFT batch identity allows (`req-boot-population`), `fire-collector` re-collection converges via the collector's own upsert/OCC behavior.
+- Convergence, not blind replay: a re-apply updates changed declared resources and leaves the rest, rather than re-creating from scratch; it does not suppress the operational append trail.
 - Idempotency is what makes zero-touch standup re-runnable after a partial failure: fix the cause, re-run the same profile.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-idempotent-1 | Converges | Proposed | Re-applying a profile yields the same state, no duplication, no error. | |
-| req-boot-idempotent-2 | Section-Owned | Proposed | Each handler owns its own convergence semantics. | |
+| req-boot-idempotent-1 | Declared State Converges | Proposed | Re-applying converges declared domain state (no duplicated domain objects, no error); operational/audit records (logs, boot events, jobs, history, FLIP) may append. | |
+| req-boot-idempotent-2 | Section-Owned | Proposed | Each handler owns its own declared-state convergence semantics. | |
 
 ---
 
@@ -354,6 +370,7 @@ Boot logs what it did. A durable boot-report artifact is deferred.
 #### Implementation
 
 - The bootloader logs each section/step action — added / updated / synced / fired / skipped — using the standard TAP logging conventions (`spec-tap-logging.md`, site-token discipline).
+- The `tap_bootloader` actor resolved in the `bootstrap` pre-phase (`req-boot-phases`) is also the **logging-context actor** for the boot phase: it is bound at "bootloader operation start" (`req-tap-auth-logging`), so every boot log line — and every Flaw emitted during boot (`spec-tap-flaw-v0.md`) — is attributed to it without extra plumbing. The one actor serves as writer, authorization subject, and log attribution at once.
 - Secret values are redacted in all boot logs (`req-boot-secrets`).
 - Logging is the v1 record of a boot; a durable, queryable boot-report node/model is deferred to backlog.
 - Under failure, logs name the failed section/step and reason so an unattended caller can diagnose and re-run.
@@ -371,11 +388,12 @@ Boot logs what it did. A durable boot-report artifact is deferred.
 
 Guidance for implementation sessions, not a required order:
 
-1. Define the bootloader command + section-handler registry (on the `tap_grid` registry) + the full-profile validate-before-apply loop + `--dry-run`.
-2. Implement the `identity` section (grid identity + instance keystone, create-or-update) and wire it first.
-3. Implement the `population` section step dispatcher, absorbing `fire_boot_collectors` as the `fire-collector` step-type and `import_plugin_grift` as the `seed-plugin` step-type; preserve ordered, sequential firing.
-4. Register `tap_auth`'s `auth` section handler (its internal ordering is `req-tap-auth-boot`); enforce the auth-before-population phase invariant.
-5. Bridge `spawn-session.sh` onto the bootloader; converge the dev standup onto the same path.
+1. Create the `tap_boot` app: the `manage.py boot` command + boot context, the section-handler registry primitive (on the `tap_grid` registry), the two-layer validate-before-apply loop (schema + semantic `validate`/`plan`/`apply`), and `--dry-run` (advisory, offline by default).
+2. Implement the `bootstrap` pre-phase: create-or-resolve the `tap_bootloader` actor; run all subsequent boot writes as it.
+3. Implement the `identity` section (grid identity + instance keystone, create-or-update), running as `tap_bootloader`, before population.
+4. Implement the `population` section step dispatcher, absorbing `fire_boot_collectors` as the `fire-collector` step-type and `import_plugin_grift` as the `seed-plugin` step-type (with the GRIFT batch-identity convergence decision, `req-boot-population-6`); preserve ordered, sequential firing.
+5. Register `tap_auth`'s `auth` section handler (its internal ordering is `req-tap-auth-boot`); enforce the auth-before-population invariant and the customer-requires-profile rule.
+6. Bridge `spawn-session.sh` onto the bootloader; converge the dev standup onto the same path.
 
 ## Backlog
 
