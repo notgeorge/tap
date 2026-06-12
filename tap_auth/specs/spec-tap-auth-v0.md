@@ -119,6 +119,7 @@ Status: `Proposed`
 - `tap_auth.User` subclasses Django `AbstractUser`.
 - The existing `tap_grid.User` model is moved/superseded by `tap_auth.User`.
 - Because TAP has no production customers yet, a clean destructive migration reset is acceptable and preferred over compatibility shims.
+- Custom-user timing discipline (Django warns mid-project `AUTH_USER_MODEL` swaps are painful — it is treated as fixed at initial-migrations time). The destructive reset makes this clean *only if done correctly*: land `tap_auth.User` in `tap_auth`'s **first** migration, point `AUTH_USER_MODEL` at it from the start, and **audit every reference** — model FKs use `settings.AUTH_USER_MODEL` (never `ForeignKey("tap_grid.User")`), runtime code uses `get_user_model()` / `settings.AUTH_USER_MODEL`, and no direct import of the old `tap_grid.User` survives.
 - `tap_auth.User` includes:
   - Django `AbstractUser` fields and behavior
   - `user_kind`: required enum, initially `human` or `program`; default `human`
@@ -143,6 +144,7 @@ The standard pattern behind `tap_builtin_key` is a natural key / system key: a s
 | req-tap-auth-user-model-3 | Actor Fields | Proposed | User rows carry `user_kind`, `description`, `description_json`, `is_tap_builtin`, and `tap_builtin_key`. | |
 | req-tap-auth-user-model-4 | Deactivation Metadata | Proposed | User deactivation records reason, time, and actor where applicable. | |
 | req-tap-auth-user-model-5 | Generic CallerContext Type | Proposed | Grid caller context does not import a concrete `tap_auth.User` class. | |
+| req-tap-auth-user-model-6 | First-Migration Timing | Proposed | `tap_auth.User` lands in `tap_auth`'s first migration; all references use `settings.AUTH_USER_MODEL`/`get_user_model()`, none import the old `tap_grid.User`. | |
 
 ---
 
@@ -253,11 +255,12 @@ TAP capabilities are the public authorization vocabulary. Django permissions are
   - `ai.delegate`
 - Capability checks are operation-level in v1, not model-level.
 - The canonical registry lives in code/spec, reviewable in git.
-- The DB projection is hard-synced from the canonical registry.
-- Capabilities are represented as Django `Permission` rows on a tiny `tap_auth.Capability` model or equivalent content type home. (Every Django `Permission` requires a `content_type` FK to a model; platform capabilities like `grid.read` are not per-model, so they need one placeholder model to anchor to. The idiom is a do-nothing model — `Meta.managed = False` (no table) and `default_permissions = ()` (suppress Django's auto `add_/change_/delete_/view_` permissions) — that exists only to be the content type these capability permissions hang off. This is a recognized Django pattern for "permissions not tied to a real model", not a workaround.)
-- Public TAP vocabulary remains `grid.read`; Django codenames are implementation details such as `tap_auth.grid_read`.
-- Every capability has a description.
-- Capability registry entries may carry risk/classification metadata, especially for high-risk actions such as `grid.purge`.
+- The DB projection is hard-synced from the canonical code/spec registry, which remains the source of truth.
+- Capabilities are stored as a **real `tap_auth.Capability` table** (a managed model with its own table), not a `managed=False` placeholder. Each row carries the capability's public name, a human-readable `description`, and risk/classification metadata (flagging high-risk actions such as `grid.purge`). A backing Django `Permission` is projected from each `Capability` (the `Capability` model serves as the content-type home for those permission rows, or each `Capability` has a one-to-one `Permission`), so Groups still hold standard Django permissions while the capability metadata lives queryably in the DB.
+  - Rationale (chosen 2026-06-12): a real table makes capability descriptions and risk metadata **queryable from the database / service layer**, which is the affordance a future AI/Paladin actor needs — it can be granted DB-level read or a gated service-layer query rather than code access. This matches TAP's declarative-shapes-over-code and satellite-agents-without-code-access direction; a code-only registry would force code access to answer "what does this capability mean / how risky is it." The `managed=False` placeholder approach (descriptions in code only) was considered and rejected for exactly this reason.
+  - Threat posture: the `Capability` table holds capability *definitions* (name/description/risk), which are a **projection** of the code/spec registry and hard-synced at boot. Tampering with a definition row, or injecting a rogue capability, is therefore self-correcting and detectable — the next sync reverts it or hard-fails on undeclared drift (`req-tap-auth-capabilities`), and an unknown capability fails closed at runtime. So DB access to *this table specifically* buys little beyond breaking the system (a denial-of-service against authz, which fails closed), not silent privilege escalation. The sensitive runtime state is the **grants** — Group↔Permission and User↔Group membership — not the definitions; and raw DB write access to those is full compromise in any auth system (one could equally flip `is_superuser` or rewrite a password hash), so it is out of scope for this design rather than made worse by it. Read access to definitions is low-sensitivity by intent — queryability is the whole point.
+- Public TAP vocabulary remains `grid.read`; the projected Django codename is an implementation detail such as `tap_auth.grid_read`.
+- Every capability has a description, stored on its `Capability` row.
 - `sync_capabilities()` or equivalent:
   - is explicit and security-critical
   - creates/updates/removes capability rows so DB exactly matches the registry
@@ -282,6 +285,7 @@ TAP capabilities are the public authorization vocabulary. Django permissions are
 | req-tap-auth-capabilities-4 | Descriptions Required | Proposed | Every capability includes a human-readable description. | |
 | req-tap-auth-capabilities-5 | tap_admin Explicit Grants | Proposed | `tap_admin` is granted each capability explicitly. | |
 | req-tap-auth-capabilities-6 | Unknown Capability Fails | Proposed | Runtime checks for unknown capabilities raise hard errors. | |
+| req-tap-auth-capabilities-7 | Real Capability Table | Proposed | Capabilities are a real `tap_auth.Capability` table with DB-queryable description + risk metadata, projecting a Django `Permission`; not a `managed=False` placeholder. | |
 
 ---
 
@@ -317,6 +321,11 @@ authorize(
   - `actor_kind_not_allowed`
 - Exceptions live in `tap_auth.errors`.
 - API/web layers translate denials to 403 or appropriate user-facing pages.
+- **Defect-class errors are a separate category from denials.** The on-by-default backstop (`req-tap-auth-policy` On By Default) raises a distinct `unguarded_operation` error when a mutation or Gryphon/Search read reaches its commit/return point with **no** `authorize()` decision recorded. This is **not** an authorization denial — it is a code-level flaw (a developer forgot to gate an operation), and the two must never be conflated:
+  - it is classified as an internal defect, surfaced as a 500-class error (not a user-facing 403), because no policy decision was reached — the system itself is mis-wired;
+  - it is logged at a loud, unambiguous level (ERROR/CRITICAL) with the unguarded callsite, deliberately distinct from routine denial logs, so it stands out in telemetry;
+  - it is exactly the class of signal a deployed field instance must route back for investigation and patching. A clear, dedicated alert type is the first step in that loop and feeds the Paladin observe-and-report foundation. If the existing error taxonomy has no home for "internal security-wiring defect," `unguarded_operation` is it — `tap_auth.errors` owns the category.
+  - `unguarded_operation` is the **first concrete `code` Flaw** under `spec-tap-flaw-v0.md`: emitted with `flaw_class=code`, `flaw_tags=[security]`, handled fail-closed-and-continue. The general Flaw mechanism (taxonomy, structured emission, routing axes) is specified there; this requirement is one instance of it, not a parallel mechanism.
 - `is_superuser` may continue to own Django admin behavior, but TAP service authorization requires explicit TAP capabilities. `is_superuser=True` is not a TAP app/service bypass.
 - `tap_admin` is required for TAP admin authorization even when `is_superuser=True`.
 - Django admin's native "superuser sees/does everything" is left intact **by design** — it is the deliberate bottom turtle: the break-glass recovery floor beneath TAP's own authorization. There must always be something under the last turtle. TAP therefore runs two authorization universes on purpose: (1) Django admin, where `is_superuser` is god and operator recovery happens; (2) the TAP service boundary, where only explicit capabilities + `tap_admin` grant access and `is_superuser` means nothing. TAP does **not** attempt to neuter the superuser bypass inside Django admin/DRF — doing so would remove the recovery floor and fight the framework. This split is intentional and documented, not an inconsistency.
@@ -329,8 +338,8 @@ authorize(
   - reason code
 - Authorization is **on-by-default**, not opt-in. A service operation that completes without having called `authorize()` for the capability it needs is a defect, and the system is built to make that defect loud rather than silent:
   - the coarse v1 capabilities attach via a `@requires_capability(...)` decorator on public service functions (resolving `CallerContext` from the explicit argument), so the default state of a newly-written service function is "guarded", not "open";
-  - the write pipeline asserts that an authorization decision was recorded for the active `CallerContext`/batch before it commits a mutation; an operation that reached a write without an `authorize()` call fails closed and surfaces the unguarded callsite (hard error under `TAP_TEST_MODE`). This is the Oso-style "authorize-can-be-forgotten" backstop: the gate is enforced structurally, not by reviewer vigilance.
-  - reads get the same structural backstop at their guaranteed chokepoint. Gryphon and Search are TAP's canonical graph read interface (`req-grid-search-canonical-read`), so the read backstop is hardcoded there: a Gryphon/Search execution that runs without a recorded `grid.read` authorization for the active `CallerContext` fails closed (hard error under `TAP_TEST_MODE`). Because all graph reads are meant to funnel through Gryphon/Search, embedding the assertion at that one layer gives reads the same "you cannot read without authorizing" guarantee the write pipeline gives mutations — without scattering checks across every read callsite. The remaining direct read endpoints that still bypass Gryphon today (e.g. the entities/edges API list/get routers) either carry the `@requires_capability("grid.read")` decorator or migrate onto the Gryphon read chokepoint as the canonical-read enforcement work lands; until then the decorator is their interim guard.
+  - the write pipeline asserts that an authorization decision was recorded for the active `CallerContext`/batch before it commits a mutation; an operation that reached a write without an `authorize()` call **fails closed in every mode** — the mutation does not commit. **Security behavior never depends on test mode.** `TAP_TEST_MODE` only raises the volume: it escalates the fail-closed into a hard error that surfaces the unguarded callsite for CI, whereas production fails closed and logs. This is the Oso-style "authorize-can-be-forgotten" backstop: the gate is enforced structurally, not by reviewer vigilance.
+  - reads get the same structural backstop at their guaranteed chokepoint. Search is TAP's canonical graph read interface (`req-grid-search-canonical-read`), and it dispatches to one of three execution modes — `orm`, `gryphon`, and `module`. The read backstop is implemented at the **single dispatch point above those three modes**, not inside any one of them: the assertion sits at the top of the read decision tree so all three modes are covered by one gate. A read that reaches mode dispatch without a recorded `grid.read` authorization for the active `CallerContext` **fails closed in every mode** — it does not return data; `TAP_TEST_MODE` adds the hard-error-with-callsite diagnostic on top, it does not gate the enforcement. Putting the gate at that one dispatch point gives reads the same "you cannot read without authorizing" guarantee the write pipeline gives mutations, without scattering checks across orm/gryphon/module or across callsites. The remaining direct read endpoints that still bypass Search today (e.g. the entities/edges API list/get routers) either carry the `@requires_capability("grid.read")` decorator or migrate onto the Search dispatch chokepoint as the canonical-read enforcement work lands; until then the decorator is their interim guard.
 - A boolean `can(caller_context, capability, ...)` predicate complements `authorize()`: same evaluation, but returns `True`/`False` instead of raising — for non-enforcement uses such as hiding a UI control or branching, so read-only checks never have to `try/except` the raising gate. `can()` is never a substitute for the enforcing `authorize()` at a mutation boundary.
 - Successful authorization decisions are not logged individually in v1 except through the operation's own logs/audit trail.
 
@@ -344,7 +353,7 @@ authorize(
 | req-tap-auth-policy-4 | Denial Logs | Proposed | Denials emit structured security logs. | |
 | req-tap-auth-policy-5 | No Superuser Bypass | Proposed | TAP service AuthZ does not treat Django `is_superuser` as a bypass. | |
 | req-tap-auth-policy-6 | Admin Recovery Floor | Proposed | Django admin's superuser-is-god behavior is intentionally preserved as the break-glass recovery floor; TAP does not neuter it. | |
-| req-tap-auth-policy-7 | On By Default | Proposed | Service mutations are structurally enforced to have called `authorize()`; an unguarded mutation fails closed rather than passing silently. A `can()` predicate exists for non-enforcement checks. | |
+| req-tap-auth-policy-7 | On By Default | Proposed | Service mutations and Gryphon/Search reads are structurally enforced to have called `authorize()`; an unguarded operation fails closed **in every mode** (test mode only adds diagnostics, never gates enforcement). A `can()` predicate exists for non-enforcement checks. | |
 
 ---
 
@@ -412,6 +421,7 @@ Auth configuration is a first-class section of the TAP boot profile.
 - The bootloader composes reusable schema fragments from capability apps rather than copying auth schema into a monolithic boot schema.
 - Boot validates the full auth config before applying auth mutations.
 - A boot dry-run/test command or function is exposed so operators can validate configuration before launch.
+- Auth-enabled **deploy** boot validates the Django deployment security posture before serving: `SECRET_KEY` set and non-default, `DEBUG=False`, `ALLOWED_HOSTS` set, and the secure-transport settings (`SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, HTTPS/HSTS) appropriate to the deployment. It runs (or echoes) `manage.py check --deploy` and treats the relevant findings as boot failures for a customer/deploy profile. Dev/local boot may relax this, but loudly. (The `TAP_BASE_URL` / HTTPS provider-callback assumptions in `req-tap-auth-providers` depend on this posture being real.)
 - Auth boot runs early:
   1. capability sync
   2. protected group sync
@@ -451,6 +461,7 @@ These phases are guidance for implementation sessions, not a requirement to exec
 | req-tap-auth-boot-4 | Dry Run | Proposed | Operators can test/dry-run auth boot config. | |
 | req-tap-auth-boot-5 | Early Ordering | Proposed | Auth boot runs before plugin/collector boot paths that require actors. | |
 | req-tap-auth-boot-6 | Explicit Command | Proposed | Auth bootstrap is an explicit command/boot step. | |
+| req-tap-auth-boot-7 | Deploy Security Check | Proposed | Auth-enabled deploy boot validates Django deployment security (`check --deploy`: `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, secure cookies/HTTPS) and fails a customer/deploy profile on relevant findings. | |
 
 ---
 
@@ -548,10 +559,10 @@ Status: `Proposed`
   - account present in `allowed_emails` when that allowlist is configured
   - `email_verified=true`
 - Existing linked human users are blocked from login if Google later returns `email_verified=false`.
-- Allowed domains are enforced using:
-  - Google `hd` claim when present
-  - normalized email-domain fallback when necessary
-- `hd` is preferred; fallback is logged.
+- Allowed domains are enforced using the **returned** Google `hd` claim in the ID token — the trustworthy hosted-domain assertion. The request-side `hd` *hint* is never used for access control (Google's own guidance: rely on the returned claim, not the request parameter).
+- Email-domain fallback (matching the verified-email domain when no `hd` is present, e.g. consumer Google accounts) is **opt-in per provider and OFF by default for customer/deploy providers**. A Workspace-backed customer provider (e.g. Robco) requires a returned `hd` match and does **not** silently fall back to email-domain matching.
+  - When a provider explicitly enables email-domain fallback, every fallback decision is logged — the absence of `hd` is itself security-relevant.
+  - `email_verified=true` is still required regardless of which path matched.
 - `google_oidc` live self-test fetches Google's OIDC discovery document.
 - Auto-provisioned users receive no TAP groups unless explicitly configured as initial admins.
 - Authenticated users may have no TAP permissions; they see a generic no-access page.
@@ -567,6 +578,7 @@ Status: `Proposed`
 | req-tap-auth-google-oidc-5 | No Default Groups | Proposed | Auto-provisioned users get no groups unless explicitly initial-admin configured. | |
 | req-tap-auth-google-oidc-6 | Named Allowlist | Proposed | Providers may restrict login to an explicit `allowed_emails` allowlist, enforced on every login and only within the allowed domains; there is no any-account escape hatch. | |
 | req-tap-auth-google-oidc-7 | Allowlist Denial Surfaced | Proposed | A domain-allowed but non-allowlisted login fails closed with a distinct `account_not_allowlisted` reason that is logged and returned to the AuthN surface for a specific user-facing hint. | |
+| req-tap-auth-google-oidc-8 | Returned hd Only | Proposed | Domain enforcement uses the returned `hd` claim, never the request-side hint; email-domain fallback is opt-in per provider and off by default for customer providers. | |
 
 ---
 
@@ -637,6 +649,7 @@ External identity records link provider-authenticated subjects to canonical TAP 
   - no automatic email linking
   - no boot/admin linking unless explicitly added later
 - If a login arrives through a second provider with the same email as an existing TAP user, deny login with an `identity_linking_disabled` style error.
+- These guarantees are enforced by a **TAP-owned allauth social adapter**, not left to allauth defaults. allauth will otherwise auto-connect a social login to an existing local account by verified email; the TAP adapter overrides the relevant hooks — `pre_social_login` (refuse the auto-connect / raise the linking-disabled denial on same-email) and the email-authentication hooks (`authenticate_by_email` / `can_authenticate_by_email`) — and `SOCIALACCOUNT_EMAIL_AUTHENTICATION` is held at its secure default (off). "Linking disabled / deny same-email second-provider" is an explicit adapter responsibility, not an aspiration that depends on allauth's defaults staying favorable.
 - Duplicate emails are allowed at DB level because email is not identity.
 - Ambiguous identity resolution fails closed and logs.
 - Full raw subjects are not logged. Admin can see provider ID plus truncated/hashed subject; full subject is hidden unless future explicit debug/admin tooling exposes it.
@@ -653,6 +666,7 @@ External identity records link provider-authenticated subjects to canonical TAP 
 | req-tap-auth-external-identity-3 | Email Not Identity | Proposed | Email is not used as the durable linkage key. | |
 | req-tap-auth-external-identity-4 | Linking Disabled | Proposed | V1 denies second-provider/same-email login rather than linking or shadowing. | |
 | req-tap-auth-external-identity-5 | Deactivation On Policy Removal | Proposed | Provider/domain removal deactivates affected external users. | |
+| req-tap-auth-external-identity-6 | Adapter Enforces No-Linking | Proposed | A TAP-owned allauth social adapter overrides the email-matching hooks (`pre_social_login`, `authenticate_by_email`/`can_authenticate_by_email`) so linking-disabled / same-email denial is enforced, not left to allauth defaults. | |
 
 ---
 
@@ -785,9 +799,10 @@ AI and machine execution must use named TAP actors, but detailed AI delegation i
 - `emergency_only` local auth mode.
 - Satellite/headless auth rules where no human admin is expected.
 - Secondary, non-boot auth configuration source (`req-tap-auth-config-source`). Auth config is a schema-validated document and the boot profile is one source; support a standalone non-boot config path (single file now; multi-file / DB-or-admin-managed later) without changing the schema fragment or apply logic, so boot-embedded and standalone configs share validation/apply. `spec-tap-boot-v0.md` deliberately keeps the config *source* a thin seam for exactly this.
-- Dimension-scoped grid authorization.
+- Dimension-scoped grid authorization. When built, dimension/object-scoped **read** authorization MUST be pushed into the Gryphon/Search query planning + execution surface (data-filtering at the query layer), never bolted on as a post-fetch filter at page/panel render. Filtering after fetch leaks existence and breaks pagination/aggregation — the Oso "data filtering" lesson, and DRF's explicit warning that object permissions do not filter list endpoints. This is the natural extension of the v1 read backstop that already lives at the Gryphon/Search chokepoint (`req-tap-auth-policy`).
 - Object/resource-scoped authorization beyond v1 operation-level checks.
 - AI delegation mechanics in `tap_ai`.
+- Capability-gated service-layer introspection of internal registries. Once the policy gate exists, TAP's internal registries and "shape" surfaces (capabilities, section handlers, entity/edge/panel registries, provider/collector inventories) can be exposed through gated service-layer read APIs — each behind an appropriate capability (e.g. `auth.read_capabilities`) — so operators and future AI/Paladin actors query system shape through an authorized surface rather than code access. Direct extension of the real-`Capability`-table decision (`req-tap-auth-capabilities`) and the declarative-shapes / satellite-agents-without-code-access direction. Wait for a concrete consumer (management UI, Paladin, satellite agent) before building.
 - JSON structured logging sink and OpenTelemetry correlation.
 
 ## Approved Dependencies
