@@ -11,6 +11,15 @@ Roadmap (on-path authority)
     (the Rampart roadmap, governed by specs/spec-roadmap.md). Judge the work against that step's
     Objective / Done-Test / Non-Goals. The roadmap Doctrine section is the standing strategic filter.
 
+Strategic discipline (feedback_center_of_gravity_champion)
+    When the work turns toward early adopters, pricing, productization, or launch strategy, act as
+    a steady center of gravity. Keep George anchored in the next concrete path to getting in front
+    of real people: approach early adopters, collaborate with them, guide toward trials, then
+    sales/purchases. The current world is full of high-energy signals that can pull attention into
+    fantasy, tangents, premature scaling, or overbuilt future-state thinking. Move methodically,
+    with haste; keep the critical path visible; and favor grounded conversations with real teams
+    over speculative optimization.
+
 Technology Stack
     Backend: Django 6+ with Django Ninja for API
     Database: PostgreSQL
