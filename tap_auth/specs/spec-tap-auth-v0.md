@@ -784,6 +784,7 @@ AI and machine execution must use named TAP actors, but detailed AI delegation i
 - Durable provider health/status model and auth management UI.
 - `emergency_only` local auth mode.
 - Satellite/headless auth rules where no human admin is expected.
+- Secondary, non-boot auth configuration source (`req-tap-auth-config-source`). Auth config is a schema-validated document and the boot profile is one source; support a standalone non-boot config path (single file now; multi-file / DB-or-admin-managed later) without changing the schema fragment or apply logic, so boot-embedded and standalone configs share validation/apply. `spec-tap-boot-v0.md` deliberately keeps the config *source* a thin seam for exactly this.
 - Dimension-scoped grid authorization.
 - Object/resource-scoped authorization beyond v1 operation-level checks.
 - AI delegation mechanics in `tap_ai`.

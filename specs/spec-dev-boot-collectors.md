@@ -1,5 +1,7 @@
 # Dev Boot Collectors
 
+> **Absorbed by `specs/spec-tap-boot-v0.md` (2026-06-12).** The unified TAP bootloader generalizes this spec: collector firing becomes the `fire-collector` step-type inside the boot profile's `population` phase (`req-boot-population`), and the standalone `fire_boot_collectors` framing folds into the bootloader. The mechanics defined here — firing via `run_collection`, sequential ordered firing, per-profile `on_failure`, opt-in selection — remain the detailed contract for *how a collector is fired*; the boot spec owns *when, and in what larger sequence*.
+
 ## Philosophy
 
 A freshly-spawned TAP stack comes up empty of *collected* state. Migrations run,
