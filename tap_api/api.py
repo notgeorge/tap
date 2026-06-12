@@ -7,6 +7,7 @@ from django.apps import apps
 from django.http import HttpRequest
 from ninja import NinjaAPI
 
+from tap.flaws import HANDLING_REFUSE_BOOT, AppFlaw
 from tap_api.auth import session_auth
 from tap_api.routers.edges import router as edges_router
 from tap_api.routers.entities import router as entities_router
@@ -66,11 +67,21 @@ def resolve_plugin_mounts(plugin_configs: Any) -> list[tuple[str, Any, str]]:
 
         prefix = f"/plugins/{app_config.label}/"
         if prefix in seen_prefixes:
-            logger.error(
-                "[e0aa] Duplicate plugin API router mount prefix %s: labels %s and %s collide",
-                prefix,
-                seen_prefixes[prefix],
-                app_config.label,
+            # An `app` Flaw: a plugin broke the unique-mount-prefix contract.
+            # Reported for the structured FLAW signal; the ImproperlyConfigured
+            # raise IS the refuse-boot handling (spec-tap-flaw-v0.md).
+            AppFlaw.report(
+                invariant_id="plugin_mount_collision",
+                tags=["integration"],
+                handling=HANDLING_REFUSE_BOOT,
+                message=(
+                    f"Duplicate plugin API router mount prefix {prefix!r}: plugin labels "
+                    f"{seen_prefixes[prefix]!r} and {app_config.label!r} both resolve to it."
+                ),
+                logger=logger,
+                prefix=prefix,
+                first_label=seen_prefixes[prefix],
+                second_label=app_config.label,
             )
             raise ImproperlyConfigured(
                 f"Duplicate plugin API router mount prefix {prefix!r}: plugin labels "

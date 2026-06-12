@@ -1,0 +1,213 @@
+"""TAP Flaw — the should-never-happen defect signal (spec-tap-flaw-v0.md).
+
+A **Flaw** is a detected violation of an invariant TAP's design guarantees. It is
+categorically distinct from an ordinary error (an *expected* failure — bad input,
+a denied authorization, an upstream timeout) and orthogonal to severity. A Flaw
+says: *something that was supposed to be impossible happened; a human must
+investigate and patch.*
+
+Routing rides three orthogonal, machine-readable axes so a router (eventually an
+AI on-call) never has to read code to dispatch:
+
+- ``flaw_class`` — who must fix it: ``code`` (TAP core's bug), ``app`` (a
+  plugin/app broke a contract), ``instance`` (misconfig / weird instance state).
+- ``flaw_tags`` — which specialty it belongs to, from the registered
+  :data:`FLAW_TAGS` vocabulary (one or more per Flaw).
+- severity — how urgent (the log level), derived here from the Flaw's handling.
+
+Emission rides TAP's structured logging object as the reserved
+``message_code = "FLAW"`` with a ``message_data`` payload
+``{flaw_class, flaw_tags, invariant_id, handling}`` (spec-tap-logging.md). The
+structured logging object is not built yet, so v0 attaches that payload to the
+``LogRecord`` via stdlib ``extra=`` — the data is already structured on the
+record for a future JSON handler — and renders a human-readable text line today.
+When the structured object lands, this becomes a handler/formatter change, not a
+callsite rewrite.
+
+See: spec-tap-flaw-v0.md (req-flaw-concept, req-flaw-classes,
+req-flaw-domain-tags, req-flaw-emission, req-flaw-handling).
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, ClassVar
+
+# ---------------------------------------------------------------------------
+# Domain-tag vocabulary (req-flaw-domain-tags)
+# ---------------------------------------------------------------------------
+#
+# Registered, described — a Flaw's tags must come from this set. Routing reads
+# this vocabulary declaratively; an ad hoc string would defeat code-free routing,
+# so an unknown tag is itself a `code` Flaw (handled in `report`). Extend by
+# adding a registered, described entry here.
+FLAW_TAGS: dict[str, str] = {
+    "security": "Authentication, authorization, secrets, isolation.",
+    "operational": "Runtime, availability, jobs, the platform's own machinery.",
+    "data": "Grid / content integrity and consistency.",
+    "config": "Instance / boot configuration.",
+    "integration": "Collectors, plugins, and upstream systems.",
+}
+
+# ---------------------------------------------------------------------------
+# Handling (req-flaw-handling) — impact handling, recorded with the Flaw.
+# ---------------------------------------------------------------------------
+HANDLING_ABORT_OPERATION = "abort_operation"
+HANDLING_REFUSE_BOOT = "refuse_boot"
+HANDLING_FAIL_CLOSED_CONTINUE = "fail_closed_continue"
+
+_HANDLINGS: frozenset[str] = frozenset({HANDLING_ABORT_OPERATION, HANDLING_REFUSE_BOOT, HANDLING_FAIL_CLOSED_CONTINUE})
+
+# Severity is orthogonal to flaw_class and derived from impact: refusing to boot
+# is CRITICAL; an aborted op or a fail-closed-and-continue is ERROR. A Flaw is
+# identified by message_code=FLAW + flaw_class, never by level alone.
+_HANDLING_LEVEL: dict[str, int] = {
+    HANDLING_REFUSE_BOOT: logging.CRITICAL,
+    HANDLING_ABORT_OPERATION: logging.ERROR,
+    HANDLING_FAIL_CLOSED_CONTINUE: logging.ERROR,
+}
+
+FLAW_MESSAGE_CODE = "FLAW"
+
+
+class Flaw(Exception):
+    """A detected should-never-happen invariant violation.
+
+    `Flaw` is the base; use a concrete subclass (`CodeFlaw`, `AppFlaw`,
+    `InstanceFlaw`) whose `flaw_class` names the remediation owner. Construct and
+    emit through :meth:`report` — the one blessed path — which validates, emits
+    the structured signal, and returns the instance so the caller may ``raise``
+    it (fatal handling) or continue (fail-closed handling).
+    """
+
+    #: The blame-domain class. Set by each concrete subclass; unset on the base.
+    flaw_class: ClassVar[str] = ""
+
+    def __init__(
+        self,
+        *,
+        invariant_id: str,
+        tags: list[str],
+        handling: str,
+        message: str,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.invariant_id = invariant_id
+        self.tags = list(tags)
+        self.handling = handling
+        self.flaw_message = message
+        self.context = dict(context or {})
+
+    def message_data(self) -> dict[str, Any]:
+        """Return the ``message_data`` payload for the ``FLAW`` message code."""
+        return {
+            "flaw_class": self.flaw_class,
+            "flaw_tags": list(self.tags),
+            "invariant_id": self.invariant_id,
+            "handling": self.handling,
+            **({"context": self.context} if self.context else {}),
+        }
+
+    @classmethod
+    def report(
+        cls,
+        *,
+        invariant_id: str,
+        tags: list[str],
+        handling: str,
+        message: str,
+        logger: logging.Logger,
+        **context: Any,
+    ) -> Flaw:
+        """Construct, validate, emit, and return a Flaw (the one emission path).
+
+        Args:
+            invariant_id: Short stable token naming the violated invariant.
+            tags: One or more domain tags from :data:`FLAW_TAGS`.
+            handling: One of the ``HANDLING_*`` constants.
+            message: Human-readable description (no secrets).
+            logger: The calling module's logger, so the record's name is the
+                callsite path per the logging convention.
+            **context: Extra safe (redactable) structured context.
+
+        Returns:
+            The constructed Flaw instance, so the caller may ``raise`` it.
+        """
+        if cls is Flaw:
+            raise TypeError("Report a concrete Flaw subclass (CodeFlaw/AppFlaw/InstanceFlaw), not Flaw itself.")
+
+        problems = _tag_problems(tags) + _handling_problems(handling)
+        if problems:
+            # Misusing the Flaw API (bad tag / handling) is itself a `code` Flaw.
+            # Valid tags here, so this reports exactly once with no further recursion.
+            CodeFlaw.report(
+                invariant_id="flaw_api_misuse",
+                tags=["operational"],
+                handling=HANDLING_FAIL_CLOSED_CONTINUE,
+                message=f"Invalid Flaw report for invariant {invariant_id!r}: {'; '.join(problems)}",
+                logger=logger,
+                offending_invariant_id=invariant_id,
+            )
+
+        flaw = cls(invariant_id=invariant_id, tags=tags, handling=handling, message=message, context=context)
+        _emit(flaw, logger)
+        return flaw
+
+
+class CodeFlaw(Flaw):
+    """TAP core violated its own invariant — the bug is ours."""
+
+    flaw_class: ClassVar[str] = "code"
+
+
+class AppFlaw(Flaw):
+    """A plugin/app broke a platform contract it was required to honor."""
+
+    flaw_class: ClassVar[str] = "app"
+
+
+class InstanceFlaw(Flaw):
+    """The instance is misconfigured or in an inconsistent runtime state."""
+
+    flaw_class: ClassVar[str] = "instance"
+
+
+def _tag_problems(tags: list[str]) -> list[str]:
+    """Return human-readable problems with a tag list (empty list = fine)."""
+    if not tags:
+        return ["a Flaw must carry at least one domain tag"]
+    unknown = [t for t in tags if t not in FLAW_TAGS]
+    if unknown:
+        return [f"unknown flaw tag(s) {unknown}; registered: {sorted(FLAW_TAGS)}"]
+    return []
+
+
+def _handling_problems(handling: str) -> list[str]:
+    """Return human-readable problems with a handling value (empty = fine)."""
+    if handling not in _HANDLINGS:
+        return [f"unknown handling {handling!r}; valid: {sorted(_HANDLINGS)}"]
+    return []
+
+
+def _emit(flaw: Flaw, logger: logging.Logger) -> None:
+    """Emit the Flaw as a structured ``message_code=FLAW`` log record.
+
+    The structured payload rides ``extra=`` so it is already on the record for a
+    future JSON handler; the text line is the human rendering for today's
+    console handler. ``stacklevel`` points the record at the caller of
+    :meth:`Flaw.report`, not at this helper.
+    """
+    level = _HANDLING_LEVEL.get(flaw.handling, logging.ERROR)
+    payload = flaw.message_data()
+    logger.log(
+        level,
+        "[961d] FLAW class=%s invariant=%s tags=%s handling=%s | %s",
+        flaw.flaw_class,
+        flaw.invariant_id,
+        flaw.tags,
+        flaw.handling,
+        flaw.flaw_message,
+        extra={"message_code": FLAW_MESSAGE_CODE, "message_data": payload},
+        stacklevel=3,
+    )
