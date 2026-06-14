@@ -1,0 +1,72 @@
+Alright, while you're churning on that let's turn our attention to ai integration.
+
+One of the massive benefits of building this platform from scratch post March 26 inflection point in AI capabilities is that for the first time since chatgpt smashed into the scene we're beginning to see the shape of what the ai systems can do. Whats been just starting to emerge onto the global tech scene are bottom-up implementations that adequately harness the steam engine of ai into the locomotives of real world progress.
+
+claude code and the apps are a great start, but lack any shape and structure.  they're also painfully single user, their mode of operation is undefined (agents do stuff!), and it's not designed for repeatability, extension to other systems, collective adaptation over time, sharing of capabilities, and cross-connection to other instances to share data, thoughts, actions, etc.
+
+tap is an entry to that discussion, and the grid is the underlying data model.  the challenge before us is to identify how and where to integrate ai into the capabilities of tap (and the grid) so that we can get to market by august with first-class but optional integrated capability.
+
+whoa, what's that you say?  but shouldn't ai be first class full stop? it's, like, the whole new hot thing?  who in their right mind would admit to not making ai the most important, absolutely central, biggest freaking deal, ever?
+
+someone who's not vc funded and has work to do - that's who.  i explain why in the #1 of the implementation section below.
+
+the models today are immensely powerful, but they ship with well-known limitations.  They're not an all-in-one solution in the same way that a steam engine isn't a complete solution, it's a form of power and action, but it's only useful when it's sitting on the appropriate platform - a locomotive, an electric generator (or the electric generator inside a locomotive).  what's critical for that integration is that the platform the engine sits on has to have been custom-built for that engine.  anything short of that and you're strapping a powerhouse onto a previously horse-drawn buggy and hoping for the best.
+
+when we consider the limitations of current AI llm-based models we know that they:
+a) have limited context windows - yeah they're getting bigger al the time, but they still have limits and those limits get fuzzy and flaky as they fill up.  there's still weird behaviors on the tail where things go sideways.  on a large enough, complex enough system it is guaranteed to exceed the context windows capabilities, so there has to be a way for the model to wire in / out data as it's proceeding.  The spotlight of attention is only so big and sets the boundaries for the size / scale / precision variables on which the ai can operate.
+
+b) change all. the. damn. time. - still under heavy development, capabilities changing all the time, expanding, enhancing, and there's lots of competition.  building a static implementation over a dynamic, fast-changing engine is a recipe for disappointment and for openai and their clever consultants to just put out a product that does exactly that.
+
+c) do not persist - the llm models wake up fresh as a super smart baby and get to work. they have to be fed initial context to get started.  that pre-loaded context has to come from somewhere which means you have to have an egg before the chicken.  the better the egg, the better the chicken. and a chicken that can permute the contents of the egg makes it easier / more accurate for the next chicken that comes around.  presumably this will get fixed somehow as things progress, but that capacity will be limited by the speed with which models change (although presumably once they solve it for one they'll solve the method for transferring that pre-baked context into a new model).
+
+d) can be so much more than a chatbot - dear lord we can do so much better.  the apps are pointing the way, and whew do we really need to.  But the current application of agent files and skills is powerful, but uncoordinated.  still being treated as helper to an individual human, when they should be stratified into groups and classes that can then operate and collaborate together within an instance and across instances.  we need a mechanism to organize that, the grid and tap can provide that.
+
+there's plenty more to say, but let's pause there with the big pieces.
+
+what this points to for implementation on tap is the following.
+
+1. tap-ai is an optional core application.  there will be very good reasons for deployments that don't want / need to have ai integration.  these static instances will be the result of ai-driven development, configuration, and deployment (and management and debugging and omg it's going to be fun), but carrying the added code / capabilities / and integrations breaks our core approach of allowing systems to operate in the simplest possible way.
+
+we do build and ship tap_ai it as a native app in the same way that we treat tap_web and tap_api as mechanisms that sit above the grid.  we'll get to the point where people can trim those out of the deployment without breaking things, but building with it baked in up front makes more sense.  so we call it a first-class implementation that's optional and we prepare for a deployment scenario where it's not even shipped, but build it as though it's going to be on the primary / dominant capability path (which it absolutely will be)
+
+from an implementation standpoint we'd extend the bootloader system to support API keys (in secrets) that configure classes for ai models and paths to execution services for local models.  This is do-able as a tap-ai boot-specific configuration which will enable / disable capabilities in the running instance...maybe.
+
+I think it will make sense for tap_ai to define the ways in which agents will interact on the platform through a set of standard api calls, processes, and node / edge types.  having skills be captured as nodes makes sense, as does linkages between skills to build skill trees, etc.  This is probably a point where paths (and loops and branches) will come in and wow it's going to get weird and fun fast.
+
+we'll also need the authN capabilities here, which will follow our "interfaces define authn" service layer implements authz.  having a standard mechanism for ai also gives us standard logging and observability.  this will also allow us to ship specific upstream ai integrations in the same way that we'll eventually have for authN providers, both of which i'm hoping will be sorted out by the uv plugin system to allow more deep linking than per-directory folders in the plugins directory.
+
+2. agents as plugins.
+obviously we'll need to support an agent plugin contract, which can be shipped as their own or as part of other plugins.  once we get into the mix with this the shapes needed will be come obvious.
+
+off the top of my head there's going to be things like:
+* initiating action - what goes bump on the grid that causes an agent to be fired up?
+* agent config - what models, settings, other provider-specific config does the agent come up with.
+* pre-context - what information is gathered to explain to the agent wtf is up, what it's job is
+* authN/Z - user permissions and identity for the agent that determines what it can / can't do.
+* health / duration - how long does the agent live, context window management, avoiding long-lived / mr meeseeks issues / go home agent ur drunk.  this is going to be agent / provider / model / use-case specific.
+* agent discovery and interactions - how do agents find out who else is live on the system, communicate with one another (on the grid) and how do they do it securely
+* actions-facing-users - if we're talking to an agent via the tap_web ui, what is it that we're seeing?  obviously we'll start with a chat window, but allowing the agent to navigate for us will be interesting.
+* agent hub - a centralized interface for tracking which agents are available on the system and operating right now.
+
+there's going to be different types of agents / capabilities:
+* one-off - quickly fired up to help explain, understand, decide what's going on, but not needed for anything beyond that moment.
+* as-needed - triggered on events to take actions to do something.  these agents which retain state / context about the user or system so they can be started and stopped.
+* long-running - always around, long-lived, dependable build & retain context beyond standard windows while being scoped to specific use cases
+
+A few example scenarios that come to mind:
+
+SecSystem / SecUnits - a persistent, integrated security capability that monitors security events across the instance and fires up SecUnit agents as needed to investigate, respond to situations.
+
+User Guide - the instance contains interesting knowledge, users visiting can be guided through the instance to support their understanding of the knowledge.  Interactions with users can persist so that the guide and user behavior is recorded and shaped - you always show back up to the site with a guide that is aware of who you are, what you've done, where you'd like to go.  personalization on the fly, guides can be individualized / scoped to specific types of guidance.
+
+Paladin - self-healing / monitoring agent for the instance capable of detecting errors, flaws, and other concerns and scope / implement fixes locally, raise issues for review, push code changes needed back upstream for review and integration.
+
+Plugin Builder - need to extend the instance? awesome, fire up the plugin builder which knows everything there is to know about building plugins, collectors, pages, etc so that you can get exactly what you want.  plugins can be pushed up to your own repo, made available online, etc.
+
+Managers - an overseer agent for multiple types of agents across multiple instances.  A fleet-wide secsystem coordinating across all the per-instance secsytems.  Paladin coordination, etc.
+
+Collaborative Agents - don't want to trust just one model / agent?  run two or more to evaluate from the same base context, come to agreement on what to do (or surface disagreements).  all the fun of "erm actually" with none of the "copy pasting between chat windows".
+
+this is the last piece of the tap puzzle, and it makes sense that it's being built last.  all of the scaffolding, data models, and internal plumbing was initially designed to be run by humans back in the olden days.  now that we've got ai capabilities it makes sense that this hasn't invalidated the game, we were never really focused on humans, we were focused on mapping systems / the tao.  that mapping and interaction process is the core, who's using / creating / changing the map is a second-order consideration.
+
+that the underlying concepts have survived the ai black swan event (and thrived) speaks to the fundamental challenge of the thing that we're doing here.  That it's also a fundamental challenge facing the new ai systems is the opportunity to get in early, and make some noise.

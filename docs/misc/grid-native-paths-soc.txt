@@ -1,0 +1,83 @@
+First thing first - paths.
+
+Paths are a first-class data construct on the grid, we just haven't bothered to build them yet.  Paths are important because they're what take our graph model and allow us to create systemic-structures, that persist on the graph, opening the door to many many use cases.
+
+two primary methods for storing paths on the grid are proposed:
+
+path-nodes (better title needed)
+a path node entity with "has step" edges to each entity in the path, with ordering information placed on the step edges metadata.  This gives us immediate path identification, no need for traversals, and the ability to still use gryphon to search for paths, etc.
+
+the trick with doing this is that it requires making edges to edges so we can track which path from node to edge to node are part of the path.  the fun thing about building our own graph database layer is that this is actually possible - the only thing keeping us from making edges to edges is a convention we set early on, which we can relax for this specific use case.
+
+embedded paths
+in this approach we create a named path (which would probably be a node object as well), then embed in the entity at the entity table, a paths object which can store information about the entities participation and place in a path.  this would allow us to do fast traversals across the entity table (no need to pull basemodel classes) and the addition of the field on entity is acceptable since paths are one of those things like flip, history, and dimensions that are first-order features.
+
+some additional thoughts
+
+
+Show less
+
+7:11 AM
+
+
+
+
+
+
+You stopped after 3s
+
+
+
+
+
+First thing first - paths.
+
+Paths are a first-class data construct on the grid, we just haven't bothered to build them yet.  Paths are important because they're what take our graph model and allow us to create systemic-structures, that persist on the graph, opening the door to many many use cases.
+
+two primary methods for storing paths on the grid are proposed:
+
+path-nodes (better title needed)
+a path node entity with "has step" edges to each entity in the path, with ordering information placed on the step edges metadata.  This gives us immediate path identification, no need for traversals, and the ability to still use gryphon to search for paths, etc.
+
+the trick with doing this is that it requires making edges to edges so we can track which path from node to edge to node are part of the path.  the fun thing about building our own graph database layer is that this is actually possible - the only thing keeping us from making edges to edges is a convention we set early on, which we can relax for this specific use case.
+
+embedded paths
+in this approach we create a named path (which would probably be a node object as well), then embed in the entity at the entity table, a paths object which can store information about the entities participation and place in a path.  this would allow us to do fast traversals across the entity table (no need to pull basemodel classes) and the addition of the field on entity is acceptable since paths are one of those things like flip, history, and dimensions that are first-order features.
+
+embedded paths could be defined by users or at the model / edge level, this is what would allow us to establish cascading delete semantics for nested objects like app - RUNS_ON -> ec2 instance, where deleting the ec2 instance will delete the associated apps.
+
+traversed paths
+this is closest to the existing ways that paths are found in graph db's where they're the result of a traversal query.  in this model we'd extend the search system (gryphon obviously, orm and modules possibly) to support returning traversal order information when executing a search.  This would allow people to define their query / search and get back a subgraph that contains metadata associated with at what point in the traversal the node / edge was followed.  depending on how we want to play this it would be possible to use the traversal process to then generate / update a node path or an embedded path.  this may be one of the primary ways that paths are created and managed.  the search function can then stored and referenced as a pathfinder / pathmaker query so we know that's what it's doing.
+
+okay - so those are the three approaches that come to mind, a few other odds and ends to get out of my head.
+
+how do we approach branching and circular paths?
+for branches there may be a simple labeling format to come up with that can be used to identify path segments, dotted notation seems like the simplest path.branch:step.branch:step.branch:step.  there's got to be existing approaches out there.
+
+loops are going to be weird, or possibly not if they can be represented using a similar notation for loop:step, so that when we're walking the path we know immediately if we're following something that's going to loop back.
+
+paths on paths
+having the loop and branch information embedded would also allow us to walk both in reverse order, and opens up the potential to then do branch and loop path-specific traversals ala paths on paths, which is probably very powerful and useful in all sorts of ways, I just don't know how yet.
+
+broken paths
+the new flaws implementation we spec'd could be used to identify actions which break paths / paths are broken as a result of some changes to the grid.  depending on how we build out authz it will be possible to add path protection to the graph permutations so that certain paths would protect nodes from deletion / modification, an extension of the dimensionality authZ model.  there are likely places where both need to be supported - non-breaking paths, and notification when someone just hosed the critical path.  
+
+path importance / tagging
+those authz protections could be relatively fine-grained to apply to individual branches and loops, making some paths optional / less protected while still preserving others.  a flexible tagging system would be nice so that teams can decide how they want to classify their paths.
+
+gryphon extensions
+there would need to be mechanisms added to gryphon to support path traversals, it should be possible to have "fetch all parts of this path", then filter, etc.  I don't think that this is currently a part of cypher, maybe in apoc (i can't be the first person who wants this).
+
+actions on path
+paths can be leveraged for graph manipulation processes, like deleting an ec2 instance nukes all the associated applications running on it, etc.  that ability to cascade is critical and likely where embedded paths are going to first earn their keep by standardizing the information on the nodes and edges as they're created using conventions for ownership / reliance that can then be standardized so that we just need to specify cascading behavior / traversals in the model and the service layer will handle it for us.
+
+cross-dimensional paths
+this will be an interesting one where a user may not have permission to follow a path through a given dimension.  how that works with traversals will be...fascinating...but in the path-node and embedded-path model it would actually work okay enough since dimension-gated nodes would just not be returned in the traversal, but they'd still be able to collect the ones that they have access to.
+
+visualization 
+two approaches to visualization come to mind - glowing / highlighting around the borders of nodes and edges and lines overlaid on top of nodes and edges.  glowing only supports a single path representation at a time, lines can be stacked over one another.  there's bound to be others, changing coloring, fade out the background / non-path nodes, etc.  that will be so much fun.
+
+yeah but why though?
+one of the most compact definitions of TAP is that it's a system to map the Tao.  Stupidly simple words, massively complex meaning.  Paths are what makes the statement true by making a map of "the way" possible, standardized, robust, flexible, and a first-order capability.  Without it we have a map of the territory and it's on the reader to decide what to do with it.  With paths we have a way to add a critical layer of depth beyond Vanavar Bush's "it's the connections between things that are important" from as we may think.  He's right of course, but the paths through those connections matter...a lot.
+
+There's no way to know the full extent of the capabilities that paths will unlock inside (and across) the disciplines where the grid can go, but intuition, and the core insight from the 6th century BC indicate that it's a very, very good idea indeed.
