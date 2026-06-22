@@ -24,6 +24,10 @@ import copy
 from tap.settings import *  # noqa: F401, F403
 from tap.settings import LOGGING as _LOGGING
 
+# This process IS the test runner (req-tap-auth-actor-model). The only signal
+# that gates creation of test-only built-ins such as the tap_test actor.
+TAP_TEST_MODE = True
+
 TASKS = {
     "default": {
         "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",

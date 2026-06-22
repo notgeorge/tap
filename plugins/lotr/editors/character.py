@@ -56,12 +56,13 @@ class CharacterEditorDescriptor(EditorDescriptor):
         """
         import uuid
 
+        from django.contrib.auth import get_user_model
+
         from tap_grid.caller_context import CallerContext, set_caller_context
-        from tap_grid.models import User
 
         cleaned = form.cleaned_data
 
-        user = request.user if isinstance(request.user, User) else None
+        user = request.user if isinstance(request.user, get_user_model()) else None
         set_caller_context(CallerContext(user=user, batch_id=str(uuid.uuid7())))
         try:
             obj.name = cleaned["name"]

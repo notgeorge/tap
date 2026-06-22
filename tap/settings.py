@@ -98,6 +98,10 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.postgres",
     # TAP apps (added as we scaffold each one)
+    # tap_auth owns AUTH_USER_MODEL and loads before tap_grid so the swapped
+    # user model is a clean dependency root for every app's first migration
+    # (req-tap-auth-app, req-tap-auth-user-model-6).
+    "tap_auth",
     "tap_grid",
     "tap_plugins",
     # tap_cares — runtime plumbing for collectors/receivers/emitters/actions/schedules.
@@ -242,11 +246,18 @@ DATABASES["search_readonly"] = {
 # =============================================================================
 # Authentication
 # =============================================================================
-# Custom user model - MUST be set before the first migration.
-# This extends AbstractUser so we can add fields later without painful migrations.
-# Changing this after migrations have been created is extremely difficult,
-# which is why we set it up from day one even if the initial model is minimal.
-AUTH_USER_MODEL = "tap_grid.User"
+# Canonical user model — owned by tap_auth (req-tap-auth-user-model). It lands in
+# tap_auth's first migration with AUTH_USER_MODEL pointed here from the start;
+# every FK uses settings.AUTH_USER_MODEL and runtime code uses get_user_model().
+AUTH_USER_MODEL = "tap_auth.User"
+
+# TAP_TEST_MODE — the single explicit "this process is the test runner" signal
+# (req-tap-auth-actor-model). Default False here; tap/test_settings.py flips it
+# True. Deliberately independent of DEBUG: DEBUG=True is the normal state of dev
+# boxes / single-tenant deploys and must never imply test mode. Its v1 effect is
+# to gate creation of test-only built-ins (e.g. the tap_test actor); enforcement
+# behavior never depends on it.
+TAP_TEST_MODE = False
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

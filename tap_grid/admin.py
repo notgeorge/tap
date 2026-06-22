@@ -1,20 +1,21 @@
-"""TAP Core Admin — registers Entity, EntityType, Edge, User, Batch, BatchEvent,
-and Registry inspection views."""
+"""TAP Core Admin — registers Entity, EntityType, Edge, Batch, BatchEvent,
+and Registry inspection views.
+
+The canonical User is owned and registered by tap_auth (req-tap-auth-app);
+tap_grid no longer owns the user model or its admin.
+"""
 
 from typing import Any
 
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
 from django.db import models
 from django.http import Http404, HttpRequest, HttpResponse
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from simple_history.admin import SimpleHistoryAdmin
 
-from tap_grid.models import Batch, BatchEvent, Edge, Entity, EntityType, User
+from tap_grid.models import Batch, BatchEvent, Edge, Entity, EntityType
 from tap_grid.registry import Registry, ScopedRegistry, meta_registry
-
-admin.site.register(User, UserAdmin)
 
 
 @admin.register(Batch)

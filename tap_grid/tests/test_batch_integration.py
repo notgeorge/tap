@@ -8,12 +8,14 @@ from collections.abc import Generator
 from contextlib import contextmanager
 
 import pytest
+from django.contrib.auth import get_user_model
 
 from tap_grid.batch import create_batch
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 from tap_grid.history import get_historical_records, is_history_enabled, set_history_user
-from tap_grid.models import User
 from tap_grid.services import create_entity
+
+User = get_user_model()
 
 
 @contextmanager

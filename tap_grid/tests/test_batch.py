@@ -1,6 +1,7 @@
 """Tests for batch service layer."""
 
 import pytest
+from django.contrib.auth import get_user_model
 
 from tap_grid.batch import (
     close_batch,
@@ -15,8 +16,10 @@ from tap_grid.batch import (
 )
 from tap_grid.context import set_batch_id
 from tap_grid.history import set_history_user
-from tap_grid.models import BatchEventType, BatchStatus, User
+from tap_grid.models import BatchEventType, BatchStatus
 from tap_grid.services import create_edge, create_entity
+
+User = get_user_model()
 
 
 @pytest.mark.django_db

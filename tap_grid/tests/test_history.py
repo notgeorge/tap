@@ -1,6 +1,7 @@
 """Tests for tap_grid history module (context management and history service)."""
 
 import pytest
+from django.contrib.auth import get_user_model
 
 from tap_grid.context import get_batch_id, set_batch_id
 from tap_grid.history import (
@@ -10,7 +11,8 @@ from tap_grid.history import (
     is_history_enabled,
     set_history_user,
 )
-from tap_grid.models import User
+
+User = get_user_model()
 
 
 class TestHistoryUserContext:

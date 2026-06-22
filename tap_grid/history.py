@@ -26,16 +26,18 @@ import contextvars
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from tap_grid.models import User
+    # Generic over AUTH_USER_MODEL — not the concrete tap_auth.User
+    # (req-tap-auth-user-model-5).
+    from django.contrib.auth.models import AbstractUser
 
 
-_history_user: contextvars.ContextVar[User | None] = contextvars.ContextVar(
+_history_user: contextvars.ContextVar[AbstractUser | None] = contextvars.ContextVar(
     "history_user",
     default=None,
 )
 
 
-def _get_history_user(instance: object = None, **kwargs: object) -> User | None:
+def _get_history_user(instance: object = None, **kwargs: object) -> AbstractUser | None:
     """Return the current history user from context.
 
     Signature matches django-simple-history's get_user callback:
@@ -48,7 +50,7 @@ def _get_history_user(instance: object = None, **kwargs: object) -> User | None:
     return _history_user.get()
 
 
-def get_history_user() -> User | None:
+def get_history_user() -> AbstractUser | None:
     """Return the current history user from context.
 
     Public getter for application code (e.g. batch service) that needs the
@@ -57,7 +59,7 @@ def get_history_user() -> User | None:
     return _history_user.get()
 
 
-def set_history_user(user: User | None) -> None:
+def set_history_user(user: AbstractUser | None) -> None:
     """Set the current user for history context.
 
     Call this at the start of authenticated request handling so that

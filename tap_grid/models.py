@@ -9,7 +9,6 @@ from typing import Any, ClassVar
 
 import jsonschema
 from django.conf import settings
-from django.contrib.auth.models import AbstractUser
 from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models, transaction
@@ -184,11 +183,10 @@ def get_default_grid_id() -> uuid.UUID | None:
     return None
 
 
-class User(AbstractUser):
-    """Custom user model — extend as needed without migration pain."""
-
-    class Meta:
-        db_table = "tap_user"
+# The canonical User / AUTH_USER_MODEL moved to tap_auth (req-tap-auth-user-model).
+# tap_grid references the user model generically via settings.AUTH_USER_MODEL on
+# FKs and get_user_model() at runtime; it no longer defines or imports a concrete
+# user class.
 
 
 # ---------------------------------------------------------------------------

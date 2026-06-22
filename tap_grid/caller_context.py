@@ -22,7 +22,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from tap_grid.models import BaseModel, User
+    # Typed against Django's AbstractUser base, not the concrete tap_auth.User —
+    # the grid caller context stays generic over AUTH_USER_MODEL
+    # (req-tap-auth-user-model-5).
+    from django.contrib.auth.models import AbstractUser
+
+    from tap_grid.models import BaseModel
 
 _caller_context: contextvars.ContextVar[CallerContext | None] = contextvars.ContextVar(
     "caller_context",
@@ -42,7 +47,7 @@ class CallerContext:
             layer will generate a new batch_id for this operation.
     """
 
-    user: User | None = None
+    user: AbstractUser | None = None
     batch_id: str | None = None
 
 

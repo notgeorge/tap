@@ -25,12 +25,16 @@ from tap_grid.services import create_entity
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from tap_grid.models import Batch, BatchEvent, Entity, User
+    # Actor is generic over AUTH_USER_MODEL — not the concrete tap_auth.User
+    # (req-tap-auth-user-model-5).
+    from django.contrib.auth.models import AbstractUser
+
+    from tap_grid.models import Batch, BatchEvent, Entity
 
 
 def create_batch(
     source: str = "",
-    actor: User | None = None,
+    actor: AbstractUser | None = None,
     name: str = "",
     description: str = "",
     description_json: dict[str, Any] | None = None,
@@ -135,7 +139,7 @@ def record_batch_event(
     entity: Entity,
     event_type: str,
     model_name: str = "",
-    actor: User | None = None,
+    actor: AbstractUser | None = None,
     metadata: dict[str, Any] | None = None,
     batch_id: str | None = None,
 ) -> BatchEvent | None:

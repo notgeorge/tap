@@ -19,11 +19,10 @@ from django.apps import apps
 
 # Top-level prefixes mounted in tap/urls.py that are not owned by a TAP app
 # config. `/admin` is Django's admin (django.contrib.admin — not a TAP AppConfig
-# we control). `/auth` is a forward reservation for the tap_auth app
-# (req-tap-auth-app-4); when tap_auth becomes a real app it should declare
-# `reserved_url_prefixes = ["/auth"]` on its AppConfig and this entry should be
-# removed so the prefix lives with its owner.
-_PROJECT_RESERVED_PREFIXES: list[str] = ["/admin", "/auth"]
+# we control). `/auth` now lives with its owner: tap_auth's AppConfig declares
+# `reserved_url_prefixes = ["/auth"]` (req-tap-auth-app-4), so it is no longer
+# carried here as a project-level forward reservation.
+_PROJECT_RESERVED_PREFIXES: list[str] = ["/admin"]
 
 
 def normalize_prefix(prefix: str) -> str:
