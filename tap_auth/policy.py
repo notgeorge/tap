@@ -76,6 +76,22 @@ def reset_authorization_ledger() -> None:
     _authorized.set(None)
 
 
+def push_authorization_scope() -> contextvars.Token[set[str] | None]:
+    """Open a fresh, empty ledger scope and return a token to restore the prior one.
+
+    The `@requires_capability` decorator wraps each guarded call in its own scope
+    so an operation's authorization is isolated: a directly-called write/read that
+    did not go through a decorator sees an empty (or prior) scope and fails the
+    backstop. Mirrors the deferred-hotlink token pattern in caller_context.
+    """
+    return _authorized.set(set())
+
+
+def pop_authorization_scope(token: contextvars.Token[set[str] | None]) -> None:
+    """Restore the ledger scope that was active before `push_authorization_scope`."""
+    _authorized.reset(token)
+
+
 # ---------------------------------------------------------------------------
 # Evaluation
 # ---------------------------------------------------------------------------

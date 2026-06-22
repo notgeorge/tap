@@ -66,3 +66,28 @@ class ActorKindNotAllowed(AuthzError):
     """The actor's kind is not permitted for this operation."""
 
     reason = "actor_kind_not_allowed"
+
+
+class UnguardedOperation(Exception):
+    """A mutation or read reached its commit/return point with NO authorize()
+    decision recorded — a code-level defect, NOT an authorization denial.
+
+    This is the on-by-default backstop (req-tap-auth-policy On By Default): the
+    system is structurally enforced so a developer who forgets to gate an
+    operation gets a loud, distinct failure rather than a silent open door. It is
+    deliberately separate from the AuthzError taxonomy because it is an internal
+    wiring flaw (a 500-class defect), not a 403 denial — conflating them would
+    hide a real bug behind a routine denial log.
+
+    It is the first concrete `code` Flaw under spec-tap-flaw-v0 (flaw_class=code,
+    flaw_tags=[security]); full Flaw-mechanism emission is layered in later, but
+    the distinct error type + loud logging is the foundation.
+
+    Behavior is the same in every mode — the operation fails closed (does not
+    commit / does not return data). `TAP_TEST_MODE` only raises the volume by
+    surfacing the unguarded callsite for CI; production fails closed and logs.
+    """
+
+    def __init__(self, message: str, *, callsite: str = "") -> None:
+        self.callsite = callsite
+        super().__init__(message)
