@@ -3,13 +3,14 @@
 `tap_auth.User` is TAP's `AUTH_USER_MODEL` (req-tap-auth-user-model). It is the
 named-actor spine: every meaningful TAP operation resolves to a durable human or
 program actor, and `User=None` is not valid at the service boundary
-(req-tap-auth-actor-model). Protected built-in actors (the bootloader, the test
-actor, future system/scheduler/collector actors) carry an immutable natural key
-`tap_builtin_key` set only by tap_auth bootstrap/sync code (req-tap-auth-builtins).
+(req-tap-auth-actor-model). Protected built-in actors (the bootloader, scheduler,
+collector, and the test actor) carry an immutable natural key `tap_builtin_key`
+written by `tap_auth.sync` (req-tap-auth-builtins).
 
-This phase lands the model + fields only; capability/policy machinery, the
-built-in actors themselves, and service-boundary enforcement arrive in later
-phases. See tap_auth/specs/spec-tap-auth-v0.md.
+This module also holds the `Capability` table (the queryable DB projection of the
+code capability registry) and `ProtectedGroup` metadata. The service-boundary
+*enforcement* that consumes `authorize()` is wired in a later phase; see
+tap_auth/specs/spec-tap-auth-v0.md.
 """
 
 from __future__ import annotations
@@ -69,7 +70,8 @@ class User(AbstractUser):
         unique=True,
         help_text=(
             "Immutable natural key for built-in actors (e.g. 'tap_bootloader'); "
-            "null for ordinary users. Set only by tap_auth bootstrap/sync code."
+            "null for ordinary users. Intended to be set only by tap_auth bootstrap/"
+            "sync code; immutability is enforced at the application/save() layer."
         ),
     )
     deactivated_at = models.DateTimeField(
@@ -94,27 +96,37 @@ class User(AbstractUser):
     class Meta:
         db_table = "tap_user"
         constraints = [
-            # A built-in actor must carry its immutable natural key
-            # (req-tap-auth-builtins-3). Ordinary users leave it null.
+            # Bidirectional: a built-in actor MUST carry its natural key, and an
+            # ordinary user MUST NOT (req-tap-auth-builtins-3). The reverse half
+            # is security-relevant — without it an ordinary user could reserve a
+            # built-in key (e.g. 'tap_bootloader') and be silently adopted into a
+            # privileged built-in by the next bootstrap get_or_create().
             models.CheckConstraint(
-                condition=models.Q(is_tap_builtin=False) | models.Q(tap_builtin_key__isnull=False),
-                name="tap_auth_builtin_requires_key",
+                condition=(
+                    models.Q(is_tap_builtin=True, tap_builtin_key__isnull=False)
+                    | models.Q(is_tap_builtin=False, tap_builtin_key__isnull=True)
+                ),
+                name="tap_auth_builtin_key_iff_builtin",
             ),
         ]
 
     def clean(self) -> None:
-        """App-level mirror of the built-in-key constraint for form/admin paths."""
+        """App-level mirror of the bidirectional built-in-key constraint."""
         super().clean()
         if self.is_tap_builtin and not self.tap_builtin_key:
             raise ValidationError({"tap_builtin_key": "Built-in actors require a tap_builtin_key."})
+        if not self.is_tap_builtin and self.tap_builtin_key:
+            raise ValidationError({"tap_builtin_key": "Only built-in actors may carry a tap_builtin_key."})
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """Enforce `tap_builtin_key` immutability once set (req-tap-auth-builtins).
 
         The key is set-once: a row may go from null to a value (bootstrap minting
-        a built-in), but an existing non-null key can never be changed or cleared
-        by ordinary writes. DB uniqueness backs the per-key invariant; this guards
-        the immutability the database cannot express directly.
+        a built-in), but an existing non-null key can never be changed or cleared.
+        This is an **application-layer** invariant enforced here in save(); a raw
+        ``QuerySet.update()`` or SQL bypasses it, as with any model-level invariant
+        — `tap_auth.sync` is the sole intended writer of built-in keys. DB
+        uniqueness backs the per-key invariant independently.
         """
         if self.pk is not None:
             previous_key = type(self).objects.filter(pk=self.pk).values_list("tap_builtin_key", flat=True).first()
