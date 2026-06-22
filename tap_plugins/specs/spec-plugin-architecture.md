@@ -35,6 +35,7 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-tests | [Testing Requirements](#testing-requirements) | Implemented | Plugins include plugin-specific tests and participate in shared validation |
 | req-plugin-arch-iterative-dev | [Iterative Development](#iterative-development) | Implemented | Canonical patterns for revising GRIFT content during and after initial import |
 | req-plugin-arch-python-deps | [Plugin Python Dependencies](#plugin-python-dependencies) | Implemented | uv workspace seam wired at root; first plugin proof is `github_core` (PyYAML resolves into root `uv.lock`) |
+| req-plugin-arch-isolation | [Plugin Type Ownership & DB Isolation](#plugin-type-ownership--db-isolation) | Proposed | Plugin-refactor pickup: owner-namespaced types + hard-included per-plugin DB guards |
 | req-plugin-arch-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Explicitly deferred concerns |
 
 ### Plugin Scope
@@ -287,6 +288,27 @@ A plugin's *configuration* is part of this boundary. A plugin must not place its
 | req-plugin-arch-runtime-2 | Implementation Still Allowed | Implemented | Plugins may include ordinary implementation code behind the declared contract. | |
 | req-plugin-arch-runtime-3 | Inspectable Load Shape | Implemented | A reviewer can understand the plugin's TAP-facing load shape without reading arbitrary startup logic. | |
 | req-plugin-arch-runtime-4 | Self-Contained Configuration | Implemented | A plugin's configuration does not live in `docker-compose.yml`, core settings, or other shared infrastructure; plugins self-configure through plugin-owned mechanisms (v0: on-disk secrets under `TAP_SECRETS_ROOT`). | Durable on-grid plugin config is future work. |
+
+### Plugin Type Ownership & DB Isolation
+----
+RID: `req-plugin-arch-isolation`
+Status: `Proposed`
+
+The plugin refactor adopts owner-namespaced plugin types **and** hard-includes per-plugin database-level guards built on that naming. This requirement exists so the refactor *picks both up* rather than rediscovering them.
+
+#### Implementation
+
+- **Type ownership (pick up in the refactor).** Every plugin-contributed type carries its owning plugin's slug inside the identifier string — plugin node types and tables prefixed `<slug>__<name>`, plugin edge types suffixed `<NAME>__<slug>`, core types unqualified. The full design — the plugin-slug traction point (slugs are already unique via Django app-label), the placement rationale, collision-as-loud-lint, reuse-by-qualified-reference, display-strip, and the verbose-explicit-names doctrine — is specified in [`spec-plugin-type-ownership-v0.md`](spec-plugin-type-ownership-v0.md). The refactor is the implementing vehicle; this is the load-bearing cross-reference so it is not forgotten.
+- **DB isolation is hard-included, not optional.** The `<slug>__*` table-naming foundation (`req-plugin-type-db-affordance`) MUST be paired in the refactor with actual per-plugin DB-level guards on plugin actions — least-privilege so a malicious or over-reaching plugin cannot directly read/write outside its own namespace and the sanctioned core read surface. This is a deliberate **security edge taken because the cost is near-zero on a surface we are already rewriting** (`spec-security-posture.md`, `req-sec-cheap-edges`): the naming foundation is free during the rename, and it makes per-plugin grants/RLS a configuration concern rather than a future migration. The *naming foundation* is the non-negotiable, build-once part; the *enforcement mechanism* (table-prefix grants/RLS now, Postgres schemas later) may land incrementally, but the refactor must not ship the type rename without laying the guard foundation it enables.
+- This sits alongside the standing reality (`req-plugin-arch-runtime`, `req-plugin-arch-nongoals`) that v0 plugins still have broad in-process execution leeway — an honestly-accepted risk (`spec-security-posture.md`, `req-sec-honest-risk`). The DB guard is one cheap, foundational layer of defense-in-depth against that leeway, not a claim of full plugin sandboxing.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-isolation-1 | Type Ownership Adopted | Proposed | The refactor adopts owner-namespaced plugin types per `spec-plugin-type-ownership-v0.md`. | |
+| req-plugin-arch-isolation-2 | DB Guard Foundation Laid | Proposed | The `<slug>__*` table-naming foundation is laid in the refactor (non-negotiable, build-once). | |
+| req-plugin-arch-isolation-3 | Per-Plugin DB Guards | Proposed | Per-plugin DB-level least-privilege guards are built on that foundation (mechanism may land incrementally; the foundation may not be skipped). | |
 
 ### Testing Requirements
 ----

@@ -20,6 +20,14 @@ Strategic discipline (feedback_center_of_gravity_champion)
     with haste; keep the critical path visible; and favor grounded conversations with real teams
     over speculative optimization.
 
+Security posture (standing filter)
+    specs/spec-security-posture.md is the security-engineering center of gravity. When work touches a
+    surface where a foundational defensive edge could be laid at near-zero marginal cost — especially
+    while already rewriting that surface — lay it, even speculatively: the cost is asymmetric (cheap
+    now, expensive/impossible to retrofit later) and over-restriction relaxes cheaply while omission
+    retrofits expensively. Take the cheap, foundational, build-once edges; let the expensive ones wait
+    for demand; and name the risks deliberately left open rather than implying completeness.
+
 Technology Stack
     Backend: Django 6+ with Django Ninja for API
     Database: PostgreSQL
