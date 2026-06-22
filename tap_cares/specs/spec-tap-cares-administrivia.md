@@ -4,7 +4,7 @@
 
 tap-cares's administrivia surface gives humans a clear control surface for observing and operating CARES capabilities. The first target is collectors: users should be able to see which collectors exist, whether their runner code is available, what happened during recent runs, and manually execute the FedRAMP 20x KSI collector from a TAP-native page.
 
-The canonical CARES runtime concepts remain owned by `tap_cares`: `Collector`, `CollectionJob`, `HAS_JOB`, collector registry resolution, Django Tasks execution, and GRIFT batch correlation. The pages and panels that surface these concepts live in the Administrivia plugin under `plugins/administrivia/tap_cares/` because Administrivia is TAP's first-party host for internal operator pages — every spec describing one of those pages is filenamed `spec-...-administrivia.md` so the operator-page surface is trivially grep-able as a class.
+The canonical CARES runtime concepts remain owned by `tap_cares`: `Collector`, `CollectionJob`, `HAS_COLLECTION_JOB`, collector registry resolution, Django Tasks execution, and GRIFT batch correlation. The pages and panels that surface these concepts live in the Administrivia plugin under `plugins/administrivia/tap_cares/` because Administrivia is TAP's first-party host for internal operator pages — every spec describing one of those pages is filenamed `spec-...-administrivia.md` so the operator-page surface is trivially grep-able as a class.
 
 This surface is intentionally human-triggered. Pressing a Run button is explicit user intent to execute an existing on-grid collector capability. This spec does not introduce autonomous actions, scheduler policy, or a new write path around the CARES service layer.
 
@@ -55,7 +55,7 @@ The administrivia surface must use existing CARES services and models:
 
 - `Collector` for on-grid collector capability rows
 - `CollectionJob` for run history
-- `HAS_JOB` for collector-to-run provenance
+- `HAS_COLLECTION_JOB` for collector-to-run provenance
 - `tap_cares.registry.get_collector()` or equivalent registry inspection for runner availability
 - `tap_cares.services.run_collection()` for manual execution and for Self-test-only runs (via its `run_mode` argument — `full` vs `self_test_only`, per `tap_cares/specs/spec-tap-cares-collector.md` `req-tap-cares-collector-self-test-16`)
 - `CollectionJob.self_test` for the persisted phase-1 readiness result (the surface reads the latest job's value; readiness is never written to the `Collector` node)
@@ -219,7 +219,7 @@ The Run action is a human-triggered POST. It must:
 
 The Run button may guard against obvious duplicate manual runs, such as a collector already showing a `RUNNING` job, but the general collector concurrency policy is Backlog until the enqueue path and scheduler behavior are specified together. The future service-layer concurrency policy is tracked in `tap_cares/specs/spec-tap-cares-collector.md` (`req-tap-cares-collector-concurrency`).
 
-The UI handler must not create `CollectionJob` nodes or `HAS_JOB` edges directly. It is an adapter from a browser POST into the CARES execution service. `run_collection()` owns job creation, edge creation, task enqueueing, and concurrency enforcement, and that service must route TAP-managed node and edge creation through the grid service layer.
+The UI handler must not create `CollectionJob` nodes or `HAS_COLLECTION_JOB` edges directly. It is an adapter from a browser POST into the CARES execution service. `run_collection()` owns job creation, edge creation, task enqueueing, and concurrency enforcement, and that service must route TAP-managed node and edge creation through the grid service layer.
 
 **Current Deviation (v0).** The eventual flow inserts the scheduler subsystem between the Administrivia POST and `run_collection`: the Administrivia panel handler creates a `ScheduledCollection` (or run-now trigger) and the scheduler picks it up and calls `run_collection`. The scheduler subsystem is not yet specced or built. Until it lands, the Administrivia panel handler calls `run_collection` directly. This is documented in the collector spec at `req-tap-cares-collector-run-collection` and is the same temporary state described there.
 
@@ -232,7 +232,7 @@ The UI handler must not create `CollectionJob` nodes or `HAS_JOB` edges directly
 | req-tap-cares-administrivia-manual-run-3 | Uses run_collection | Implemented | Manual execution calls `tap_cares.services.run_collection()`. | |
 | req-tap-cares-administrivia-manual-run-4 | Job Visible | Implemented | The resulting `CollectionJob` is visible after the action completes. | |
 | req-tap-cares-administrivia-manual-run-5 | Duplicate Running Guard | Implemented | UI may prevent or warn against starting a second manual run when the collector already has a `RUNNING` job. | Full concurrency policy is Backlog; cross-ref `req-tap-cares-collector-concurrency`. |
-| req-tap-cares-administrivia-manual-run-6 | No Direct Node Creation In UI | Implemented | The UI handler does not directly create `CollectionJob` nodes or `HAS_JOB` edges. | Creation belongs to CARES services and the grid service layer. |
+| req-tap-cares-administrivia-manual-run-6 | No Direct Node Creation In UI | Implemented | The UI handler does not directly create `CollectionJob` nodes or `HAS_COLLECTION_JOB` edges. | Creation belongs to CARES services and the grid service layer. |
 | req-tap-cares-administrivia-manual-run-7 | Readiness Courtesy Check | Proposed | UI reads the latest `CollectionJob.self_test` and refuses the click for a non-runnable last-known status, surfacing the self-test summary/docs links. This is a courtesy gate only; phase-1 of the run is authoritative. | Cross-ref `req-tap-cares-collector-self-test-9` (courtesy) and `-10` (authoritative). |
 
 ### HTMX Trigger Surface

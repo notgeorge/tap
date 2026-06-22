@@ -2,7 +2,7 @@
 
 `run_collection` is the public entry point for starting a collector run. It
 creates the on-grid CollectionJob via `_create_node_internal` (CollectionJob
-is INTERNAL_ONLY), links it to the Collector via HAS_JOB through the standard
+is INTERNAL_ONLY), links it to the Collector via HAS_COLLECTION_JOB through the standard
 service-layer `create_edge`, then enqueues the Django Task that will execute
 the registered collector class.
 
@@ -171,7 +171,7 @@ def run_collection(
          (CollectionJob is INTERNAL_ONLY), persisting `manual_run`,
          `manual_run_source`, and `run_mode` on the row
          (req-tap-cares-collector-run-collection-9).
-      2. Creates a HAS_JOB edge from collector.entity to the new job via
+      2. Creates a HAS_COLLECTION_JOB edge from collector.entity to the new job via
          `tap_grid.services.create_edge`.
       3. Enqueues the `run_collector` Django Task with the JSON-safe
          collector + job entity IDs.
@@ -232,7 +232,7 @@ def run_collection(
     create_edge(
         from_entity=collector.entity,
         to_entity=job.entity,
-        edge_type="HAS_JOB",
+        edge_type="HAS_COLLECTION_JOB",
         caller_context=ctx,
     )
 

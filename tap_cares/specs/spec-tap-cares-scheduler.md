@@ -4,7 +4,7 @@
 
 The tap-cares scheduler is TAP's on-grid recurring trigger system.
 
-The scheduler decides when a collector should run. It does not own collector execution. Once a schedule determines that a collector should run, it calls `run_collection(...)` and lets the collector runtime create the `CollectionJob`, create the `HAS_JOB` edge, enqueue the task, and manage the job lifecycle.
+The scheduler decides when a collector should run. It does not own collector execution. Once a schedule determines that a collector should run, it calls `run_collection(...)` and lets the collector runtime create the `CollectionJob`, create the `HAS_COLLECTION_JOB` edge, enqueue the task, and manage the job lifecycle.
 
 Steady Queue's recurring-task scheduler is the v0 clock that wakes once per minute and dispatches a tick task on the dedicated `scheduler` queue. The tick task calls `tap_cares.scheduler.evaluate_tick()`. TAP schedule nodes remain the source of truth — Steady Queue is replaceable infrastructure under the on-grid scheduling model. See `spec-tap-cares-task-backend.md` for the task backend choice; this spec covers the TAP-level scheduler service that runs on top of it.
 
@@ -51,7 +51,7 @@ The scheduler is a trigger system. It must not:
 - import collector implementation modules directly
 - enqueue `run_collector` directly
 - create `CollectionJob` rows directly
-- create `HAS_JOB` edges directly
+- create `HAS_COLLECTION_JOB` edges directly
 - mutate collector output or GRIFT batches
 
 When a schedule fires successfully, it invokes `tap_cares.services.run_collection(...)` for the target `Collector`.
@@ -244,14 +244,14 @@ All three edges are **naked** in v0 — no `property_schema` is declared on the 
 The existing collector edge remains unchanged:
 
 ```text
-Collector --HAS_JOB--> CollectionJob
+Collector --HAS_COLLECTION_JOB--> CollectionJob
 ```
 
 This means a scheduled collection job is reachable in two useful ways:
 
 ```text
 Schedule --HAS_FIRED--> ScheduleFire --TRIGGERED_JOB--> CollectionJob
-Collector --HAS_JOB--> CollectionJob
+Collector --HAS_COLLECTION_JOB--> CollectionJob
 ```
 
 **Internal-state edges and `INTERNAL_ONLY` enforcement.** `HAS_FIRED` and `TRIGGERED_JOB` materially carry scheduler state — they are the bridge between a scheduler decision (`ScheduleFire`) and a collector run (`CollectionJob`). Today `INTERNAL_ONLY` is enforced on node creation but does not necessarily prevent user code from creating edges that point to internal-only nodes. Allowing user code to write a `HAS_FIRED` or `TRIGGERED_JOB` would let it inject phantom decisions or repoint trigger lineage. Extending `INTERNAL_ONLY` enforcement to scheduler-owned edges is tracked in the backlog and should be revisited before public API surfaces grow.
@@ -264,7 +264,7 @@ Collector --HAS_JOB--> CollectionJob
 | req-tap-cares-scheduler-edges-2 | One Target Per Schedule | Implemented | v0 requires exactly one `SCHEDULED_TARGET` edge per Schedule. | Multiple targets with ordering are backlog. |
 | req-tap-cares-scheduler-edges-3 | HAS_FIRED Edge | Implemented | tap-cares declares `HAS_FIRED` from `Schedule` to `ScheduleFire`. | |
 | req-tap-cares-scheduler-edges-4 | TRIGGERED_JOB Edge | Implemented | tap-cares declares `TRIGGERED_JOB` from `ScheduleFire` to `CollectionJob`. | Only present for triggered fires. |
-| req-tap-cares-scheduler-edges-5 | HAS_JOB Preserved | Implemented | Scheduled collection still creates the existing `Collector --HAS_JOB--> CollectionJob` edge through `run_collection(...)`. | |
+| req-tap-cares-scheduler-edges-5 | HAS_COLLECTION_JOB Preserved | Implemented | Scheduled collection still creates the existing `Collector --HAS_COLLECTION_JOB--> CollectionJob` edge through `run_collection(...)`. | |
 | req-tap-cares-scheduler-edges-6 | Edges Naked | Implemented | `SCHEDULED_TARGET`, `HAS_FIRED`, and `TRIGGERED_JOB` declare no `property_schema` in v0. | |
 
 ## Cron Semantics
@@ -388,7 +388,7 @@ except Exception as exc:
 - **Multi-worker safe.** Two workers racing on the same slot produce at most one `ScheduleFire`; the loser sees rowcount 0 and exits before creating a fire row. This is the property that lets v0's single-worker assumption (`req-tap-cares-scheduler-tick-4`) be relaxed later without redesigning dedupe.
 - **Replay safe.** A retried tick task is also a duplicate slot for the schedule, and the same exclusion logic short-circuits it.
 - **Dispatch outside the claim.** `run_collection(...)` runs after Stage 1 commits, so a synchronous task backend (e.g. ImmediateBackend in tests) does not execute the collector body before the fire row is durable. It also means the claim row lock is not held while the collector runs.
-- **`ScheduleFire` has no denormalized `schedule` FK.** The canonical graph relationship is `Schedule --HAS_FIRED--> ScheduleFire`, matching the `Collector --HAS_JOB--> CollectionJob` pattern. v0 enforces "one fire per slot" with the atomic claim plus `INTERNAL_ONLY` on `ScheduleFire`; no DB-level unique constraint is added. If a third defense layer is wanted later, a denormalized `schedule` column + `UniqueConstraint(schedule, scheduled_for)` is a backlog-eligible addition.
+- **`ScheduleFire` has no denormalized `schedule` FK.** The canonical graph relationship is `Schedule --HAS_FIRED--> ScheduleFire`, matching the `Collector --HAS_COLLECTION_JOB--> CollectionJob` pattern. v0 enforces "one fire per slot" with the atomic claim plus `INTERNAL_ONLY` on `ScheduleFire`; no DB-level unique constraint is added. If a third defense layer is wanted later, a denormalized `schedule` column + `UniqueConstraint(schedule, scheduled_for)` is a backlog-eligible addition.
 - **Status transitions are not atomic with the claim.** Fire status moves from its initial value (set at creation) to `triggered`, `skipped`, or `failed` in Stage 2. This is acceptable because the fire row exists from Stage 1 and observers see a row whose status converges shortly after.
 
 ### Acceptance Criteria

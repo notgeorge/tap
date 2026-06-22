@@ -79,7 +79,7 @@ surface and takes only the Actions plumbing path needed for samsite.
 | req-github-core-grid-links | [Existing Grid Links](#existing-grid-links) | Implemented | Enrichment phase + exact-only + warn-only failures + Gryphon read path (via `=~` regex operator); OIDC link verified end-to-end against samsite + AWS |
 | req-github-core-python-deps | [Plugin Python Dependency](#plugin-python-dependency) | Implemented | `PyYAML` is plugin-owned via root uv workspace; first proof of `req-plugin-arch-python-deps` |
 | req-github-core-backlog-references | [Variables And Secret References (Backlog)](#variables-and-secret-references-backlog) | Backlog | Two-source-of-truth model, hotlink contract implication, provenance shape; pick up when critical path |
-| req-github-core-backlog-run-attempts | [Multi-Attempt Run Observation (Backlog)](#multi-attempt-run-observation-backlog) | Backlog | Per-attempt run + job fan-out, re-run-failed-jobs subtlety, HAS_JOB lifecycle; pick up when critical path |
+| req-github-core-backlog-run-attempts | [Multi-Attempt Run Observation (Backlog)](#multi-attempt-run-observation-backlog) | Backlog | Per-attempt run + job fan-out, re-run-failed-jobs subtlety, HAS_ACTIONS_JOB lifecycle; pick up when critical path |
 | req-github-core-backlog-grid-vocab-links | [Grid-Vocabulary Reference Resolution (Backlog)](#grid-vocabulary-reference-resolution-backlog) | Backlog | Replace the parser's regex shape-guessing with matching against the known grid vocabulary (regions/zones/dist-ids); removes junk refs, recovers `${{ }}`-embedded matches, needs confidence markers |
 | req-github-core-backlog-app-relationships | [GitHub App Relationships (Backlog)](#github-app-relationships-backlog) | Backlog | Model what apps *do* beyond being enabled — e.g. Dependabot opens dependency-bump PRs against the repo, code scanning posts alerts. Edges like `OPENS_PR` / `RAISES_ALERT` once there's a consumer |
 | req-github-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Full GitHub inventory, Sigstore/Rekor, deletion/reaping, schedules, references, multi-attempt runs — boundaries hold |
@@ -208,7 +208,7 @@ V0 edge types:
 | `OWNS_REPO` | `github_account` -> `github_repository` | Account owns repo. |
 | `DEFINES_WORKFLOW` | `github_repository` -> `github_workflow` | Repo contains workflow definition. |
 | `EXECUTES_WORKFLOW` | `github_actions_run` -> `github_workflow` | Run executes workflow. |
-| `HAS_JOB` | `github_actions_run` -> `github_actions_job` | Run contains job. v0 reflects the latest-attempt job set; multi-attempt tracking deferred. |
+| `HAS_ACTIONS_JOB` | `github_actions_run` -> `github_actions_job` | Run contains job. v0 reflects the latest-attempt job set; multi-attempt tracking deferred. |
 | `EXECUTED_ON` | `github_actions_job` -> `github_runner` | Job executed on a durable runner node when matchable. (Distinct from `computing_core.RUNS_ON`, which models program-on-compute-environment.) |
 | `REFERENCES_RESOURCE` | GitHub node -> external grid node | Conservative exact-match link to existing AWS nodes (resolved in the enrichment phase). |
 | `FEDERATES_VIA` | `github_repository` -> `aws_iam_oidc_provider` | Repo federates into AWS through the GitHub Actions OIDC provider (URL `token.actions.githubusercontent.com`). Chains with the AWS-side `FEDERATES_INTO` (provider -> deploy role). Derived link resolved in the enrichment phase. |
@@ -226,7 +226,7 @@ ownership, or runtime control.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-github-core-edges-1 | Containment + Execution Spine | Implemented | The platform/account/repo/workflow/run/job/runner edges (`HOSTS_ACCOUNT`, `OWNS_REPO`, `DEFINES_WORKFLOW`, `EXECUTES_WORKFLOW`, `HAS_JOB`, `EXECUTED_ON`) are declared and constrained. | `HOSTS_ACCOUNT` is the top-of-tree containment edge synthesized with the platform singleton. |
+| req-github-core-edges-1 | Containment + Execution Spine | Implemented | The platform/account/repo/workflow/run/job/runner edges (`HOSTS_ACCOUNT`, `OWNS_REPO`, `DEFINES_WORKFLOW`, `EXECUTES_WORKFLOW`, `HAS_ACTIONS_JOB`, `EXECUTED_ON`) are declared and constrained. | `HOSTS_ACCOUNT` is the top-of-tree containment edge synthesized with the platform singleton. |
 | req-github-core-edges-2 | Cross-Grid Edges | Implemented | The v0 cross-grid edges are `REFERENCES_RESOURCE` (conservative resource reference), `FEDERATES_VIA` (repo -> AWS OIDC provider federation), and `TRUSTS_ISSUER` (AWS OIDC provider -> oidc_issuer). All resolve in the enrichment phase. | Secret/variable reference edges deferred. |
 | req-github-core-edges-3 | Conservative Resource Semantics | Implemented | `REFERENCES_RESOURCE` is used only for exact, unambiguous matches and does not overstate deployment semantics. | Enforced by the link-manifest schema (`match_mode: exact`-only enum) and the resolver's one-candidate-only emission rule. |
 
@@ -398,7 +398,7 @@ Collection policy:
 - v0 does not model multiple run attempts. The collector uses GitHub's default
   jobs endpoint (`GET /runs/{run_id}/jobs`, not `/attempts/{n}/jobs`), which
   returns the latest-attempt snapshot. If a re-run happens between collections,
-  the run node is upserted with the latest state and HAS_JOB reflects the
+  the run node is upserted with the latest state and HAS_ACTIONS_JOB reflects the
   newest job set — but old job nodes from the prior attempt persist (per the
   no-deletion rule) and can produce graph clutter. Multi-attempt tracking is
   deferred to `req-github-core-backlog-run-attempts`.
@@ -837,7 +837,7 @@ GitHub workflow runs can be re-run, producing multiple "attempts" — each
 attempt has its own job_ids (GitHub mints new job_ids per attempt) and its
 own per-job lifecycle. v0 collapses this to a single observation per `run_id`
 because the Sam demo path doesn't involve re-runs, and modeling attempts
-adds non-trivial complexity around HAS_JOB lifecycle, "re-run failed jobs"
+adds non-trivial complexity around HAS_ACTIONS_JOB lifecycle, "re-run failed jobs"
 semantics, and orphan handling.
 
 Pick this up when re-run visibility becomes critical path — most likely
@@ -853,7 +853,7 @@ The end state models each attempt as a distinct execution observation:
 - `github_actions_job` natural key remains `owner/repo + job_id` (job_ids
   are per-attempt at GitHub source, so they're naturally distinct without
   TAP-side synthesis)
-- Each per-attempt run node has its own `HAS_JOB` fan-out to its own per-
+- Each per-attempt run node has its own `HAS_ACTIONS_JOB` fan-out to its own per-
   attempt job nodes
 - Same logical-job-across-attempts query pattern via `job.name + run.run_id`
   (e.g., "all attempts of the deploy job for this run")
@@ -886,8 +886,8 @@ DESC LIMIT 1 per name`), not a model concern.
 - `GET /runs/{run_id}/attempts/{n}/jobs` — returns that specific attempt's
   jobs (what the multi-attempt model uses per attempt)
 
-**HAS_JOB lifecycle on re-collection.** With per-attempt run nodes, each
-attempt's HAS_JOB edges are static — once observed, the attempt and its
+**HAS_ACTIONS_JOB lifecycle on re-collection.** With per-attempt run nodes, each
+attempt's HAS_ACTIONS_JOB edges are static — once observed, the attempt and its
 jobs don't change. There's no "swap the edge set on re-run" problem because
 each attempt is its own run node. This is structurally simpler than the v0
 shape, which has the messy edge-clutter issue described in
@@ -901,7 +901,7 @@ concern, not model.
 
 **v0's documented gap.** Under v0, a re-run between collections leaves the
 graph in a slightly confusing state: the run node is upserted with the
-latest-attempt status, HAS_JOB picks up the new attempt's jobs, but old
+latest-attempt status, HAS_ACTIONS_JOB picks up the new attempt's jobs, but old
 attempt-1 jobs persist (no deletion). The operator sees a run with more jobs
 than ran in any single attempt. This is a known limitation, not a bug —
 the demo doesn't hit it, and the fix lives here.
@@ -917,9 +917,9 @@ the demo doesn't hit it, and the fix lives here.
   `req-github-core-collector-6` (no deletion semantics). History matters
   for compliance / audit use cases — successful and failed attempts are
   both load-bearing observations.
-- **"Build cross-attempt HAS_JOB edges so the run node fan-outs to all
+- **"Build cross-attempt HAS_ACTIONS_JOB edges so the run node fan-outs to all
   attempts' jobs."** Rejected for the per-attempt-run-node model: each
-  attempt is its own run node, so HAS_JOB is naturally scoped. Cross-
+  attempt is its own run node, so HAS_ACTIONS_JOB is naturally scoped. Cross-
   attempt navigation is a query, not a structural edge.
 
 #### Acceptance Criteria
@@ -927,11 +927,11 @@ the demo doesn't hit it, and the fix lives here.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-github-core-backlog-run-attempts-1 | Per-Attempt Run Nodes | Backlog | `github_actions_run` natural key includes `run_attempt`; each attempt is a distinct node. | |
-| req-github-core-backlog-run-attempts-2 | Per-Attempt Job Fan-Out | Backlog | Each per-attempt run node has its own `HAS_JOB` edges to that attempt's job nodes. | Job natural key stays `owner/repo + job_id`; GitHub job_ids are per-attempt. |
+| req-github-core-backlog-run-attempts-2 | Per-Attempt Job Fan-Out | Backlog | Each per-attempt run node has its own `HAS_ACTIONS_JOB` edges to that attempt's job nodes. | Job natural key stays `owner/repo + job_id`; GitHub job_ids are per-attempt. |
 | req-github-core-backlog-run-attempts-3 | Attempts Endpoint | Backlog | Collector queries `GET /runs/{run_id}/attempts/{n}/jobs` per attempt instead of the default jobs endpoint. | |
 | req-github-core-backlog-run-attempts-4 | Re-Run Failed Semantics | Backlog | The collector records exactly what each attempt's endpoint returns; no synthesis to fill in successful jobs from earlier attempts. | "Latest full state" is a derived query, not a stored shape. |
-| req-github-core-backlog-run-attempts-5 | Static Per-Attempt Edges | Backlog | Once an attempt's HAS_JOB edges land, they are not modified by re-collection of that attempt. | Each attempt is immutable once terminal. |
-| req-github-core-backlog-run-attempts-6 | v0 Graph Clutter Resolved | Backlog | Implementing this requirement resolves the documented v0 limitation in `req-github-core-collector-8` where re-runs cause HAS_JOB to span attempts. | |
+| req-github-core-backlog-run-attempts-5 | Static Per-Attempt Edges | Backlog | Once an attempt's HAS_ACTIONS_JOB edges land, they are not modified by re-collection of that attempt. | Each attempt is immutable once terminal. |
+| req-github-core-backlog-run-attempts-6 | v0 Graph Clutter Resolved | Backlog | Implementing this requirement resolves the documented v0 limitation in `req-github-core-collector-8` where re-runs cause HAS_ACTIONS_JOB to span attempts. | |
 
 ### Grid-Vocabulary Reference Resolution (Backlog)
 ----

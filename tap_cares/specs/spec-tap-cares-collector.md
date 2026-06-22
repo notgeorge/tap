@@ -6,7 +6,7 @@ Collectors are tap-cares capabilities that gather data from a source and prepare
 
 - an on-grid `Collector` node that represents the capability TAP can inspect, schedule, and manage — declared as a dual-existence capability per `tap_grid/specs/spec-grid-dual-existence.md`
 - a `collector_registry` that maps the collector node's stable registry key to trusted Python code registered at startup
-- a public entry point `run_collection(collector)` that owns the entire execution path: CollectionJob creation, HAS_JOB linking, task enqueueing, and lifecycle bookkeeping
+- a public entry point `run_collection(collector)` that owns the entire execution path: CollectionJob creation, HAS_COLLECTION_JOB linking, task enqueueing, and lifecycle bookkeeping
 
 `run_collection` is the only legal way to start a collection. The scheduler subsystem — now implemented, specified in `tap_cares/specs/spec-tap-cares-scheduler.md` — is the steady-state caller: it decides *when* a collection runs and invokes `run_collection`. The scheduler does not reach behind `run_collection` to create CollectionJobs, manipulate Django Tasks, or coordinate Collector identity. This is the **scheduler boundary**: scheduling is trigger; collection is everything from trigger onward. The scheduler's internals stay in its own spec.
 
@@ -36,13 +36,13 @@ Status messages and richer event records remain backlog (`req-tap-cares-collecto
 | req-tap-cares-collector-packaging | [Collector Packaging](#collector-packaging) | Refactoring | Each collector is a self-contained `collectors/<name>_collector/` package |
 | req-tap-cares-collector-config | [CollectorConfig](#collectorconfig) | Implemented | JSON-safe collector configuration object |
 | req-tap-cares-collector-self-test | [Collector Self-Test And Readiness](#collector-self-test-and-readiness) | Approved for Development | Synchronous readiness diagnostic run as collection phase 1; result stored on `CollectionJob.self_test`; `full` vs `self_test_only` run modes; failed self-test = standard failure mode |
-| req-tap-cares-collector-run-collection | [Run Collection Entry Point](#run-collection-entry-point) | Proposed | Public callable `run_collection(collector)` owns CollectionJob creation, HAS_JOB linking, and task enqueueing |
+| req-tap-cares-collector-run-collection | [Run Collection Entry Point](#run-collection-entry-point) | Proposed | Public callable `run_collection(collector)` owns CollectionJob creation, HAS_COLLECTION_JOB linking, and task enqueueing |
 | req-tap-cares-collector-task-execution | [Collector Task Execution](#collector-task-execution) | Refactoring | Django Tasks worker-process execution boundary; tasks fire only via `run_collection` |
 | req-tap-cares-collector-read-boundary | [Collector Read Boundary](#collector-read-boundary) | Refactoring | Collector modules read through approved search/read surfaces and only submit result mutations through GRIFT import |
 | req-tap-cares-collector-grift-import | [Collector GRIFT Import Surface](#collector-grift-import-surface) | Refactoring | Collector result grid mutations route through the GRIFT importer; batch tracking accumulates on the collector instance |
 | req-tap-cares-collector-job-model | [CollectionJob Model](#collectionjob-model) | Refactoring | INTERNAL_ONLY execution record; `results` + `self_test` accumulators; produced batches via `PRODUCED_BATCH` edges |
 | req-tap-cares-collector-job-sole-writer | [CollectionJob Sole-Writer Invariant](#collectionjob-sole-writer-invariant) | Proposed | Only `run_collection` and the task body write to CollectionJob; helpers accumulate in-memory |
-| req-tap-cares-collector-job-edge | [Collector HAS_JOB Edge](#collector-has_job-edge) | Implemented | Graph relationship from Collector root node to its CollectionJob nodes |
+| req-tap-cares-collector-job-edge | [Collector HAS_COLLECTION_JOB Edge](#collector-has_job-edge) | Implemented | Graph relationship from Collector root node to its CollectionJob nodes |
 | req-tap-cares-collector-job-lifecycle | [CollectionJob Lifecycle Status](#collectionjob-lifecycle-status) | Implemented | Job status reflects Django Tasks lifecycle states |
 | req-tap-cares-collector-failure-mode | [Collector Failure Mode](#collector-failure-mode) | Proposed | Framework convention for how a collector signals failure; KSI and other collectors follow this protocol rather than re-specifying it |
 | req-tap-cares-collector-job-logs | [Collection Job Status Messages And Logs](#collection-job-status-messages-and-logs) | Backlog | Deferred richer in-process status/log/event stream |
@@ -265,7 +265,7 @@ max_concurrent_runs = models.PositiveIntegerField(default=1)
 
 This requirement is intentionally Backlog until the collector enqueue path, scheduler behavior, and future API trigger surface are untangled together. Concurrency touches all three: manual runs, scheduled runs, and any future externally-triggered collection request need one authoritative policy.
 
-The likely shape is a field stored on the on-grid `Collector` node. Concurrency would be evaluated per `Collector` entity: before enqueuing a new collection job, tap-cares would count active `CollectionJob` records linked from that collector through `HAS_JOB` whose status is `RUNNING`. If the active count is greater than or equal to `Collector.max_concurrent_runs`, the service layer would refuse to enqueue another job.
+The likely shape is a field stored on the on-grid `Collector` node. Concurrency would be evaluated per `Collector` entity: before enqueuing a new collection job, tap-cares would count active `CollectionJob` records linked from that collector through `HAS_COLLECTION_JOB` whose status is `RUNNING`. If the active count is greater than or equal to `Collector.max_concurrent_runs`, the service layer would refuse to enqueue another job.
 
 The expected default is `1` because most collectors are safer as singleton execution paths until a concrete need for parallel collection exists. The FedRAMP 20x KSI catalog collector should remain singleton; there is no useful reason to refresh the same catalog source multiple times at once.
 
@@ -662,7 +662,7 @@ Whether a high-frequency scheduled fire reuses a recent `CollectionJob.self_test
 RID: `req-tap-cares-collector-run-collection`
 Status: `Proposed`
 
-`run_collection(collector)` is the public callable that the collection system exposes for starting a collection. It is the **scheduler boundary**: callers (the Administrivia HTMX handler for manual runs; the now-implemented scheduler for automated runs) invoke `run_collection` and the collection system owns everything from that point — CollectionJob creation, HAS_JOB linking, Django Task enqueueing, CollectorConfig assembly, and lifecycle bookkeeping.
+`run_collection(collector)` is the public callable that the collection system exposes for starting a collection. It is the **scheduler boundary**: callers (the Administrivia HTMX handler for manual runs; the now-implemented scheduler for automated runs) invoke `run_collection` and the collection system owns everything from that point — CollectionJob creation, HAS_COLLECTION_JOB linking, Django Task enqueueing, CollectorConfig assembly, and lifecycle bookkeeping.
 
 #### Signature
 
@@ -681,7 +681,7 @@ def run_collection(
     2. Create a CollectionJob node via _create_node_internal
        (since CollectionJob is INTERNAL_ONLY), persisting `manual_run` and
        `manual_run_source` on the row.
-    3. Create a HAS_JOB edge from collector.entity to the new job
+    3. Create a HAS_COLLECTION_JOB edge from collector.entity to the new job
        via the service-layer create_edge.
     4. Build a CollectorConfig from the collector and job entity IDs.
     5. Enqueue the run_collector Django Task with the JSON-safe IDs.
@@ -711,7 +711,7 @@ Both fields are durable on `CollectionJob`. They are not passed as transient tas
 
 - CollectionJob node creation (via `_create_node_internal` since `CollectionJob.INTERNAL_ONLY = True`).
 - Persisting `manual_run` / `manual_run_source` on the CollectionJob.
-- HAS_JOB edge creation (via `tap_grid.services.create_edge`).
+- HAS_COLLECTION_JOB edge creation (via `tap_grid.services.create_edge`).
 - Django Task enqueueing.
 - Returning the job in its post-enqueue state.
 
@@ -736,9 +736,9 @@ The intended steady-state caller is the future scheduler subsystem. Until that s
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-collector-run-collection-1 | Public Entry Point | Proposed | `run_collection(collector, *, caller_context=None, manual_run=False, manual_run_source="") -> CollectionJob` is the sole public callable for starting a collection. | Replaces the v0 internal `enqueue_collection` name. |
-| req-tap-cares-collector-run-collection-2 | Service-Layer Routing | Proposed | All grid mutations performed by `run_collection` (CollectionJob create, HAS_JOB create) route through the service layer or the trusted-internal create helper. No direct ORM writes for grid-managed types. | |
+| req-tap-cares-collector-run-collection-2 | Service-Layer Routing | Proposed | All grid mutations performed by `run_collection` (CollectionJob create, HAS_COLLECTION_JOB create) route through the service layer or the trusted-internal create helper. No direct ORM writes for grid-managed types. | |
 | req-tap-cares-collector-run-collection-3 | CollectionJob Internal Create | Proposed | `run_collection` is the sole legal creator of CollectionJob rows, using `_create_node_internal` (since CollectionJob is INTERNAL_ONLY). | |
-| req-tap-cares-collector-run-collection-4 | Edge Through Service Layer | Proposed | The HAS_JOB edge is created via `tap_grid.services.create_edge`. | |
+| req-tap-cares-collector-run-collection-4 | Edge Through Service Layer | Proposed | The HAS_COLLECTION_JOB edge is created via `tap_grid.services.create_edge`. | |
 | req-tap-cares-collector-run-collection-5 | Concurrency Chokepoint | Proposed | `run_collection` is where the future concurrency guard (`req-tap-cares-collector-concurrency`) fires; manual, scheduled, and future API triggers all share it. | |
 | req-tap-cares-collector-run-collection-6 | Scheduler Is Caller, Not Owner | Proposed | The future scheduler subsystem invokes `run_collection`; it does not reach behind it to create CollectionJobs or enqueue tasks directly. | |
 | req-tap-cares-collector-run-collection-7 | Administrivia Caller Permitted In v0 | Proposed | The Administrivia HTMX panel handler is the permitted v0 caller. The path migrates to scheduler-mediated triggering when the scheduler spec lands; `run_collection`'s contract does not change. | See `spec-tap-cares-administrivia.md` `req-tap-cares-administrivia-manual-run`. |
@@ -752,7 +752,7 @@ Status: `Refactoring`
 
 Collector execution uses Django's Tasks API as the v0 execution contract.
 
-The `run_collector` Django Task is enqueued **only** by `run_collection` (see [Run Collection Entry Point](#run-collection-entry-point)). No other code path in `tap_cares` or in plugins is permitted to call `run_collector.enqueue(...)` directly. The `run_collection` entry point is the chokepoint that owns CollectionJob creation and HAS_JOB linking before the task is dispatched; bypassing it would create a CollectionJob-less task that has nowhere to record its lifecycle.
+The `run_collector` Django Task is enqueued **only** by `run_collection` (see [Run Collection Entry Point](#run-collection-entry-point)). No other code path in `tap_cares` or in plugins is permitted to call `run_collector.enqueue(...)` directly. The `run_collection` entry point is the chokepoint that owns CollectionJob creation and HAS_COLLECTION_JOB linking before the task is dispatched; bypassing it would create a CollectionJob-less task that has nowhere to record its lifecycle.
 
 A task worker process executes the task outside the request-response lifecycle. The task resolves the on-grid `Collector`, resolves the registered collector class from `collector_registry`, builds `CollectorConfig`, instantiates the class, and calls `run()`. The task body owns CollectionJob lifecycle transitions — RUNNING at task start, SUCCESSFUL/FAILED at task end (see `req-tap-cares-collector-job-sole-writer`).
 
@@ -833,7 +833,7 @@ def submit_grift(self, document) -> GriftImportResult:
     return result
 ```
 
-`self._produced_batches` is an instance-level accumulator (attribute name is an implementation detail). At terminal state the task body — the sole `CollectionJob` writer — creates one `CollectionJob --PRODUCED_BATCH--> Batch` edge per accumulated batch via the canonical `create_edge()` service path, stamping `disposition` on each edge. This mirrors how `run_collection` creates the `Collector --HAS_JOB--> CollectionJob` edge. There is **no `CollectionJob.grift_batches` field**: produced batches are a graph relationship (`tap_grid/specs/spec-grid-edge.md` `req-grid-edge-produced-batch`), traversable rather than embedded.
+`self._produced_batches` is an instance-level accumulator (attribute name is an implementation detail). At terminal state the task body — the sole `CollectionJob` writer — creates one `CollectionJob --PRODUCED_BATCH--> Batch` edge per accumulated batch via the canonical `create_edge()` service path, stamping `disposition` on each edge. This mirrors how `run_collection` creates the `Collector --HAS_COLLECTION_JOB--> CollectionJob` edge. There is **no `CollectionJob.grift_batches` field**: produced batches are a graph relationship (`tap_grid/specs/spec-grid-edge.md` `req-grid-edge-produced-batch`), traversable rather than embedded.
 
 #### Rejection contract (abort-by-default)
 
@@ -954,7 +954,7 @@ CollectionJob-specific model requirements:
 - The `CollectionJob` display projection emits both the raw `status` value and a `status_display` field carrying the human-readable label (via Django's auto-generated `get_status_display()`).
 - The v0 default dimension is `{"tap_cares": "collection_job"}`.
 
-The job does not snapshot `Collector.collector_registry` in v0. The job's collector provenance comes from the `Collector --HAS_JOB--> CollectionJob` edge. If immutable runner snapshots become necessary, that should be added as a separate requirement.
+The job does not snapshot `Collector.collector_registry` in v0. The job's collector provenance comes from the `Collector --HAS_COLLECTION_JOB--> CollectionJob` edge. If immutable runner snapshots become necessary, that should be added as a separate requirement.
 
 ### CollectionJob Results Log
 
@@ -1087,7 +1087,7 @@ Exactly one piece of code mutates a `CollectionJob` row in a given run, and it d
 | Task failure | `run_collector` task body | one patch | `status` (`FAILED`), `finished_at`, `summary`, `results`, `self_test` |
 | Terminal (either) | `run_collector` task body | `create_edge()` per produced batch | `CollectionJob --PRODUCED_BATCH--> Batch` edges, each stamped with `disposition` |
 
-Three `CollectionJob`-row patches per run, total — none race. The task body holds no long-lived ORM instance across `collector.run()`; each patch is a fresh service-layer call. Terminal `PRODUCED_BATCH` edge creation is a separate service-layer operation by the same owner (`create_edge()`), not a `CollectionJob` row write — exactly as `run_collection`'s `HAS_JOB` edge creation is not a row write.
+Three `CollectionJob`-row patches per run, total — none race. The task body holds no long-lived ORM instance across `collector.run()`; each patch is a fresh service-layer call. Terminal `PRODUCED_BATCH` edge creation is a separate service-layer operation by the same owner (`create_edge()`), not a `CollectionJob` row write — exactly as `run_collection`'s `HAS_COLLECTION_JOB` edge creation is not a row write.
 
 #### What's not a writer
 
@@ -1118,7 +1118,7 @@ If the task itself dies hard (segfault, OOM, `kill -9`), neither terminal patch 
 | req-tap-cares-collector-job-sole-writer-6 | No Long-Lived Stale Instance | Proposed | The task body does not hold a `CollectionJob` ORM instance across `collector.run()`. Each patch operates on a fresh service-layer round trip. | |
 | req-tap-cares-collector-job-sole-writer-7 | Stuck-Job Reaping Out Of Scope | Proposed | Uncatchable task death (segfault, OOM, kill -9) is acknowledged as an unsolved case; a separate stuck-job sweep is the right fix and is out of scope. | |
 
-## Collector HAS_JOB Edge
+## Collector HAS_COLLECTION_JOB Edge
 ----
 RID: `req-tap-cares-collector-job-edge`
 Status: `Implemented`
@@ -1126,21 +1126,21 @@ Status: `Implemented`
 The relationship between a collector capability and a collection job is represented as:
 
 ```text
-Collector --HAS_JOB--> CollectionJob
+Collector --HAS_COLLECTION_JOB--> CollectionJob
 ```
 
 This edge preserves the philosophical shape of the collector subsystem: `Collector` is the root capability node, and collection jobs are run instances owned by that collector.
 
-tap-cares collector execution creates the `CollectionJob` node and the `HAS_JOB` edge when it starts a collector run. Collector modules do not create this edge directly.
+tap-cares collector execution creates the `CollectionJob` node and the `HAS_COLLECTION_JOB` edge when it starts a collector run. Collector modules do not create this edge directly.
 
-The `HAS_JOB` edge should be a normal TAP edge type declared by tap-cares, with appropriate constraints so its source is `collector` and its target is `collection_job`.
+The `HAS_COLLECTION_JOB` edge should be a normal TAP edge type declared by tap-cares, with appropriate constraints so its source is `collector` and its target is `collection_job`.
 
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-job-edge-1 | HAS_JOB Edge Type | Implemented | tap-cares declares a `HAS_JOB` edge type for Collector to CollectionJob relationships. | Registered programmatically in `TapCaresConfig.ready()` via `register_edge_type_constraints` (first-party apps don't use the plugin manifest). |
-| req-tap-cares-collector-job-edge-2 | Direction | Implemented | The edge direction is `Collector --HAS_JOB--> CollectionJob`. | |
+| req-tap-cares-collector-job-edge-1 | HAS_COLLECTION_JOB Edge Type | Implemented | tap-cares declares a `HAS_COLLECTION_JOB` edge type for Collector to CollectionJob relationships. | Registered programmatically in `TapCaresConfig.ready()` via `register_edge_type_constraints` (first-party apps don't use the plugin manifest). |
+| req-tap-cares-collector-job-edge-2 | Direction | Implemented | The edge direction is `Collector --HAS_COLLECTION_JOB--> CollectionJob`. | |
 | req-tap-cares-collector-job-edge-3 | Runtime Owned | Implemented | tap-cares collector execution creates the edge; collector modules do not create it directly. | Edge creation site lands with the orchestration service in Phase 5. |
 | req-tap-cares-collector-job-edge-4 | Constrained Endpoints | Implemented | The edge type constrains source to `collector` and target to `collection_job`. | Strict rejection of disallowed endpoints depends on `tap_grid`'s Permission Union model: target node types must opt into `INBOUND_EDGES` constraints to actively block. The edge-type registration documents intended endpoints. |
 

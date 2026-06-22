@@ -59,7 +59,7 @@ def _runner_available(registry_key: str) -> bool:
 def _row_for_collector(collector: Collector) -> dict[str, Any]:
     """Build one table-row dict for the collector listing.
 
-    Aggregates the latest CollectionJob per collector via the HAS_JOB edge —
+    Aggregates the latest CollectionJob per collector via the HAS_COLLECTION_JOB edge —
     we look up the edge set to find connected jobs and pick the most recently
     enqueued one. Empty/none for never-run collectors.
     """
@@ -68,7 +68,7 @@ def _row_for_collector(collector: Collector) -> dict[str, Any]:
     job_ids = list(
         Edge.objects.filter(
             from_entity_id=collector.entity_id,
-            edge_type="HAS_JOB",
+            edge_type="HAS_COLLECTION_JOB",
         ).values_list("to_entity_id", flat=True)
     )
 

@@ -1,4 +1,4 @@
-"""Tests for the CollectionJob model and HAS_JOB edge.
+"""Tests for the CollectionJob model and HAS_COLLECTION_JOB edge.
 
 Covers:
   req-tap-cares-collector-job-model
@@ -195,7 +195,7 @@ class TestLifecycleTimestamps:
 
 
 # ---------------------------------------------------------------------------
-# HAS_JOB edge — req-tap-cares-collector-job-edge
+# HAS_COLLECTION_JOB edge — req-tap-cares-collector-job-edge
 # ---------------------------------------------------------------------------
 
 
@@ -204,17 +204,21 @@ class TestHasJobEdge:
     def test_has_job_edge_type_is_registered(self):
         from tap_grid.constraints import get_edge_type_constraints
 
-        c = get_edge_type_constraints("HAS_JOB")
+        c = get_edge_type_constraints("HAS_COLLECTION_JOB")
         assert c is not None
         assert c.sources == {"collector"}
         assert c.targets == {"collection_job"}
 
     def test_outbound_declared_on_collector(self):
-        assert any(entry.get("edges") and entry["edges"][0]["type"] == "HAS_JOB" for entry in Collector.OUTBOUND_EDGES)
+        assert any(
+            entry.get("edges") and entry["edges"][0]["type"] == "HAS_COLLECTION_JOB"
+            for entry in Collector.OUTBOUND_EDGES
+        )
 
     def test_inbound_declared_on_collection_job(self):
         assert any(
-            entry.get("edges") and entry["edges"][0]["type"] == "HAS_JOB" for entry in CollectionJob.INBOUND_EDGES
+            entry.get("edges") and entry["edges"][0]["type"] == "HAS_COLLECTION_JOB"
+            for entry in CollectionJob.INBOUND_EDGES
         )
 
     def test_allowed_endpoints_create(self):
@@ -226,16 +230,16 @@ class TestHasJobEdge:
         edge = create_edge(
             from_entity=col.entity,
             to_entity=job.entity,
-            edge_type="HAS_JOB",
+            edge_type="HAS_COLLECTION_JOB",
             caller_context=CallerContext(),
         )
         assert edge is not None
-        assert edge.edge_type == "HAS_JOB"
+        assert edge.edge_type == "HAS_COLLECTION_JOB"
 
     # Note: tap_grid uses Permission Union (constraints.py:419 validate_edge) —
     # an edge is allowed if EITHER node OR edge constraints permit it. Collector
-    # has no INBOUND_EDGES, so a collector → collector HAS_JOB edge is *not*
+    # has no INBOUND_EDGES, so a collector → collector HAS_COLLECTION_JOB edge is *not*
     # rejected even though the edge type's targets={"collection_job"} alone
     # would suggest it should be. Explicit rejection requires the target node
     # type to opt into INBOUND_EDGES constraints. The edge-type registration
-    # is still the right place to document HAS_JOB's intended source/target.
+    # is still the right place to document HAS_COLLECTION_JOB's intended source/target.

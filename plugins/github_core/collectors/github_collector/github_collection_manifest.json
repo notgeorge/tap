@@ -66,7 +66,7 @@
     {"slug": "OWNS_REPO", "source": "github_account", "target": "github_repository"},
     {"slug": "DEFINES_WORKFLOW", "source": "github_repository", "target": "github_workflow"},
     {"slug": "EXECUTES_WORKFLOW", "source": "github_actions_run", "target": "github_workflow"},
-    {"slug": "HAS_JOB", "source": "github_actions_run", "target": "github_actions_job"},
+    {"slug": "HAS_ACTIONS_JOB", "source": "github_actions_run", "target": "github_actions_job"},
     {"slug": "EXECUTED_ON", "source": "github_actions_job", "target": "github_runner", "condition": "job.runner_id matches runner.runner_id"}
   ]
 }

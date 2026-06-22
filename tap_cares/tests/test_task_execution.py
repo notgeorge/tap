@@ -85,7 +85,7 @@ class TestHappyPath:
         edges = Edge.objects.filter(
             from_entity=col.entity,
             to_entity=job.entity,
-            edge_type="HAS_JOB",
+            edge_type="HAS_COLLECTION_JOB",
         )
         assert edges.count() == 1
 

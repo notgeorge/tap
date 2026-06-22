@@ -139,7 +139,7 @@ Status: `Proposed`
 
 #### Implementation
 
-- `entity_id` is the canonical UUID of the record's **subject** — the run / job / capability node the record is about (e.g. the `CollectionJob`), not every entity the operation touched. Fan-out to touched nodes is the grid's job via edges (`HAS_JOB`, GRIFT batch links).
+- `entity_id` is the canonical UUID of the record's **subject** — the run / job / capability node the record is about (e.g. the `CollectionJob`), not every entity the operation touched. Fan-out to touched nodes is the grid's job via edges (`HAS_COLLECTION_JOB`, GRIFT batch links).
 - At most one `entity_id` per record. A record with no grid subject omits the field; producers do not synthesize one.
 - It is an envelope field, the navigational counterpart to `req-tap-logging-no-grid-mutation`: logs *point at* grid entities, they never *write* them.
 

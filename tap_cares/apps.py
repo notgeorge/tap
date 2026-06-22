@@ -26,7 +26,7 @@ class TapCaresConfig(AppConfig):
         from tap_grid.constraints import register_edge_type_constraints
 
         register_edge_type_constraints(
-            "HAS_JOB",
+            "HAS_COLLECTION_JOB",
             sources=[{"type": "collector"}],
             targets=[{"type": "collection_job"}],
         )

@@ -15,7 +15,7 @@ collector runs.
 
 The Collector model is the on-grid representation of a tap_cares collector
 capability. The CollectionJob model is the run record for one attempted
-execution of a collector. Collector --HAS_JOB--> CollectionJob ties the two
+execution of a collector. Collector --HAS_COLLECTION_JOB--> CollectionJob ties the two
 together. Status mirrors Django's TaskResultStatus for v0; future TAP-specific
 states extend the local TextChoices rather than the upstream Django enum.
 """
@@ -52,7 +52,7 @@ class Collector(BaseModel):
     INTERNAL_ONLY: ClassVar[bool] = True
 
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "collection_job"}], "edges": [{"type": "HAS_JOB"}]},
+        {"nodes": [{"type": "collection_job"}], "edges": [{"type": "HAS_COLLECTION_JOB"}]},
     ]
     INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
         {"nodes": [{"type": "schedule"}], "edges": [{"type": "SCHEDULED_TARGET"}]},
@@ -196,7 +196,7 @@ class CollectionJob(BaseModel):
     INTERNAL_ONLY: ClassVar[bool] = True
 
     INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "collector"}], "edges": [{"type": "HAS_JOB"}]},
+        {"nodes": [{"type": "collector"}], "edges": [{"type": "HAS_COLLECTION_JOB"}]},
         {"nodes": [{"type": "schedule_fire"}], "edges": [{"type": "TRIGGERED_JOB"}]},
     ]
 
@@ -466,7 +466,7 @@ class ScheduleFire(BaseModel):
     (req-tap-cares-scheduler-fire-model-2).
 
     The relationship back to `Schedule` is the canonical `HAS_FIRED` edge,
-    matching the `Collector --HAS_JOB--> CollectionJob` pattern. "One fire per
+    matching the `Collector --HAS_COLLECTION_JOB--> CollectionJob` pattern. "One fire per
     slot" is enforced by the atomic claim on `Schedule.last_schedule_fired`
     plus `INTERNAL_ONLY` (req-tap-cares-scheduler-dedupe-3); no denormalized
     `schedule` FK is needed for v0.

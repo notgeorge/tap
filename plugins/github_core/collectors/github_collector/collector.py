@@ -571,7 +571,7 @@ class GithubCollector(CollectorBase):
                         },
                     )
                 )
-                edges.append(self._edge("HAS_JOB", run_uuid, j_uuid, observation_dims))
+                edges.append(self._edge("HAS_ACTIONS_JOB", run_uuid, j_uuid, observation_dims))
 
         # runners (graceful-degrade on 403 per req-github-core-collector-5)
         try:

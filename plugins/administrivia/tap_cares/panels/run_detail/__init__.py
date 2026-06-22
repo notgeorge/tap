@@ -99,11 +99,11 @@ def _entries(results: dict[str, Any] | None, level: str) -> list[dict[str, Any]]
 
 
 def _collector_for(job: CollectionJob) -> Collector | None:
-    """Resolve the Collector that produced `job` via the HAS_JOB inverse."""
+    """Resolve the Collector that produced `job` via the HAS_COLLECTION_JOB inverse."""
     from tap_grid.models import Edge
 
     collector_id = (
-        Edge.objects.filter(to_entity_id=job.entity_id, edge_type="HAS_JOB")
+        Edge.objects.filter(to_entity_id=job.entity_id, edge_type="HAS_COLLECTION_JOB")
         .values_list("from_entity_id", flat=True)
         .first()
     )

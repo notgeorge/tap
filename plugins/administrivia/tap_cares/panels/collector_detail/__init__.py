@@ -135,7 +135,7 @@ def _job_rows(collector_entity_id: str) -> list[dict[str, Any]]:
     job_ids = list(
         Edge.objects.filter(
             from_entity_id=collector_entity_id,
-            edge_type="HAS_JOB",
+            edge_type="HAS_COLLECTION_JOB",
         ).values_list("to_entity_id", flat=True)
     )
     if not job_ids:
@@ -203,7 +203,7 @@ def _latest_self_test(collector_entity_id: str) -> dict[str, Any] | None:
     job_ids = list(
         Edge.objects.filter(
             from_entity_id=collector_entity_id,
-            edge_type="HAS_JOB",
+            edge_type="HAS_COLLECTION_JOB",
         ).values_list("to_entity_id", flat=True)
     )
     if not job_ids:
