@@ -94,6 +94,7 @@ Status: `Proposed`
 - `tap_grid` owns graph/data mechanics and service operations. It calls `tap_auth.policy.authorize(...)`; it does not know about allauth, Google, SAML, provider secrets, login routes, or boot-profile auth internals.
 - `tap_web`, `tap_api`, `tap_cares`, `tap_plugins`, `tap_viz`, and future `tap_ai` authenticate or resolve actors at their edge, then call service operations with actor context.
 - `tap_auth` routes and adapters may mount under `/auth/`.
+- `/auth` is reserved through the `reserved_url_prefixes` AppConfig registry (`tap_web/reserved.py`) — `tap_auth`'s AppConfig declares `reserved_url_prefixes = ["/auth"]`, and the interim `/auth` entry in `tap_web.reserved._PROJECT_RESERVED_PREFIXES` is removed so the reservation lives with its owner. This is the registry mechanism, not a hand-maintained slug list.
 - `tap_web` may provide shared layout/components for auth UI, but `tap_auth` owns auth routes and logic.
 
 #### Acceptance Criteria
@@ -103,7 +104,7 @@ Status: `Proposed`
 | req-tap-auth-app-1 | Dedicated App | Proposed | TAP has a first-party `tap_auth` app for AuthN/AuthZ. | |
 | req-tap-auth-app-2 | Grid Is Not Auth Owner | Proposed | User/provider/policy ownership is removed from `tap_grid` architecture. | |
 | req-tap-auth-app-3 | `/auth/` Routes | Proposed | Auth routes mount under `/auth/` rather than allauth's default `/accounts/`. | |
-| req-tap-auth-app-4 | Reserved `/auth` Slug | Proposed | `/auth` is added to `tap_web` `reserved_slugs` so Pages/plugins cannot create slugs under the auth prefix, mirroring the existing `/admin` and `/api` reservations. | |
+| req-tap-auth-app-4 | Reserved `/auth` Prefix | Proposed | `tap_auth`'s AppConfig declares `reserved_url_prefixes = ["/auth"]` (the `tap_web/reserved.py` registry mechanism), and the interim `/auth` entry in `_PROJECT_RESERVED_PREFIXES` is removed so the reservation lives with its owner — Pages/plugins cannot create slugs under the auth prefix, mirroring `/admin`. | |
 
 ---
 
@@ -195,13 +196,13 @@ TAP-managed built-in actors and groups are protected security objects, not ordin
 
 - V1 protected built-ins:
   - group: `tap_admin`
+  - program actor: `tap_bootloader`
   - program actor: `tap_test`
+- `tap_bootloader` is v1, **not future**: the boot spec runs *every* boot service-layer write as it (`spec-tap-boot-v0.md`, `req-boot-phases`), and the named-actor sequencing constraint ([Named Actor Model](#named-actor-model)) makes the system program actors a hard prerequisite for `missing_actor` enforcement. It is created/resolved in the boot `bootstrap` pre-phase and granted an explicit least-privilege boot-capability bundle (`req-tap-auth-capabilities`, `req-boot-phases`) — no `grid.purge`/`grid.delete` — not the full `tap_admin` set.
+- Enforcement-coupled built-ins (promoted to v1 **in lockstep with the `missing_actor` enforcement flip**, not minted speculatively ahead of the enforcement that requires them):
+  - `tap_system`, `tap_scheduler`, plugin/collector service actors — added when enforcement lands, enumerated by the actual unattended write paths that exist at that point (scheduler runs, collector runs outside boot, GRIFT import).
 - Future built-ins may include:
-  - `tap_bootloader`
-  - `tap_system`
-  - `tap_scheduler`
-  - plugin/collector service actors
-  - AI actors
+  - AI actors.
 - Built-in user keys are short stable values such as `tap_test`, not globally verbose strings.
 - `tap_builtin_key`:
   - nullable for ordinary users
@@ -228,6 +229,7 @@ TAP-managed built-in actors and groups are protected security objects, not ordin
 | req-tap-auth-builtins-2 | tap_test Protected | Proposed | `tap_test` is a protected program actor legal only in test mode. | |
 | req-tap-auth-builtins-3 | Builtin Key Constraint | Proposed | DB/app constraints require built-in users to have immutable unique keys. | |
 | req-tap-auth-builtins-4 | Admin Forms Block Protected Mutation | Proposed | Django admin and public forms cannot mutate protected fields or delete protected objects. | |
+| req-tap-auth-builtins-5 | Bootloader Is v1 | Proposed | `tap_bootloader` is a v1 protected `program` built-in (boot writes run as it); `tap_system`/`tap_scheduler`/collector actors are promoted in lockstep with the `missing_actor` enforcement flip. | |
 
 ---
 
@@ -330,6 +332,7 @@ authorize(
 - `is_superuser` may continue to own Django admin behavior, but TAP service authorization requires explicit TAP capabilities. `is_superuser=True` is not a TAP app/service bypass.
 - `tap_admin` is required for TAP admin authorization even when `is_superuser=True`.
 - Django admin's native "superuser sees/does everything" is left intact **by design** — it is the deliberate bottom turtle: the break-glass recovery floor beneath TAP's own authorization. There must always be something under the last turtle. TAP therefore runs two authorization universes on purpose: (1) Django admin, where `is_superuser` is god and operator recovery happens; (2) the TAP service boundary, where only explicit capabilities + `tap_admin` grant access and `is_superuser` means nothing. TAP does **not** attempt to neuter the superuser bypass inside Django admin/DRF — doing so would remove the recovery floor and fight the framework. This split is intentional and documented, not an inconsistency.
+- **The recovery floor must stay reachable.** Django-admin-superuser-is-god only helps if an operator can actually reach a login, and local password auth can be disabled everywhere *including admin* (`req-tap-auth-local`) — so the *stated* Django-admin floor can itself be configured away (if external IdP is simultaneously broken, there is no way in). The real bottom turtle in v0 is therefore **host/container shell + management-command access**: an operator with shell can always re-enable local auth, mint a superuser, or reset a password out-of-band. v0/v1 single-tenant deployments are operated with exactly that access, so it is the dependable floor. The standing invariant is that no boot/config may converge to *no reachable admin path* — a live Django-admin login **or** out-of-band management-command access must always remain. `emergency_only` local auth (Backlog) is the promotion path the moment a genuinely no-shell-access customer deployment is real; it is the floor for that future shape, not needed while the operator holds the shell.
 - Denied decisions are logged from day one with structured `message_data` including:
   - actor
   - actor kind
@@ -353,7 +356,7 @@ authorize(
 | req-tap-auth-policy-3 | Typed Errors | Proposed | Denials/errors raise typed `tap_auth.errors` exceptions. | |
 | req-tap-auth-policy-4 | Denial Logs | Proposed | Denials emit structured security logs. | |
 | req-tap-auth-policy-5 | No Superuser Bypass | Proposed | TAP service AuthZ does not treat Django `is_superuser` as a bypass. | |
-| req-tap-auth-policy-6 | Admin Recovery Floor | Proposed | Django admin's superuser-is-god behavior is intentionally preserved as the break-glass recovery floor; TAP does not neuter it. | |
+| req-tap-auth-policy-6 | Admin Recovery Floor | Proposed | Django admin's superuser-is-god behavior is intentionally preserved as the break-glass recovery floor; TAP does not neuter it. The floor must stay *reachable* — since local auth can be disabled including admin, the dependable v0 floor is out-of-band shell/management-command access, and no boot/config may converge to no reachable admin path. | |
 | req-tap-auth-policy-7 | On By Default | Proposed | Service mutations and Gryphon/Search reads are structurally enforced to have called `authorize()`; an unguarded operation fails closed **in every mode** (test mode only adds diagnostics, never gates enforcement). A `can()` predicate exists for non-enforcement checks. | |
 
 ---
@@ -437,8 +440,9 @@ Auth configuration is a first-class section of the TAP boot profile.
 - `tap_admin` membership is add/update-only in v1 to avoid accidental removal by typo.
 - Capability assignment to `tap_admin` is hard-synced.
 - Capability pruning is explicit, not implicit: the auth boot config carries a declared prune list of capabilities expected to be removed. Capability sync applies only declared removals and hard-fails on any undeclared drift (`req-tap-auth-capabilities`). This preserves lights-out standup while keeping destructive capability changes pre-declared and reviewable.
-- Ordinary auth-enabled boot fails if there is no active human `tap_admin`, except future satellite/headless deployments may define an explicit relaxation.
-- If provider/domain removal deactivates every human `tap_admin`, secure lockout is allowed. Recovery happens by boot/config/operator intervention or available local auth.
+- **Last-admin invariant.** Ordinary auth-enabled customer boot must never converge to zero active human `tap_admin`. Boot fails loud if applying the profile would leave no active human admin — *including* the case where provider/domain removal would deactivate the last human admin (`req-tap-auth-external-identity`). This is the default and is not silently overridable.
+- The **only** way boot may proceed into an admin-lockout state is an explicit break-glass declaration in the profile — an `allow_admin_lockout`-style flag, the same explicit-destructive-declaration pattern as capability pruning (`req-tap-auth-capabilities`) — **plus** a documented recovery path. Absent that declaration, a profile that would lock out every admin is a hard boot failure, not a silent secure-lockout. The declared-but-not-actually-lockout case need not fail.
+- When `allow_admin_lockout` is declared, secure lockout is permitted by design; recovery then happens via the out-of-band floor (management-command / shell access — see [Policy API](#policy-api) recovery floor) or available local auth. Satellite/headless deployments that expect no human admin are a future explicit relaxation of this invariant, not the default.
 
 #### Suggested Implementation Sequence
 
@@ -600,7 +604,7 @@ Local Django password auth remains available for dev and recovery, but customer 
   - does not deactivate local users
   - does not invalidate current sessions by itself
 - Session invalidation is a separate management command/operation.
-- `emergency_only` local auth mode is deferred.
+- Disabling local password auth must not make the instance unrecoverable. Because disabling covers Django admin too, the dependable recovery floor is the out-of-band management-command / shell access described in [Policy API](#policy-api) (recovery floor) — not a live admin login. `emergency_only` local auth mode is deferred to Backlog and is the promotion path once a genuinely no-shell-access deployment exists.
 - Spawn/dev currently creates a Django `admin` superuser through `createsuperuser --noinput`; the v1 bridge should add that user to `tap_admin`.
 
 #### Acceptance Criteria
@@ -651,6 +655,9 @@ External identity records link provider-authenticated subjects to canonical TAP 
   - no boot/admin linking unless explicitly added later
 - If a login arrives through a second provider with the same email as an existing TAP user, deny login with an `identity_linking_disabled` style error.
 - These guarantees are enforced by a **TAP-owned allauth social adapter**, not left to allauth defaults. allauth will otherwise auto-connect a social login to an existing local account by verified email; the TAP adapter overrides the relevant hooks — `pre_social_login` (refuse the auto-connect / raise the linking-disabled denial on same-email) and the email-authentication hooks (`authenticate_by_email` / `can_authenticate_by_email`) — and `SOCIALACCOUNT_EMAIL_AUTHENTICATION` is held at its secure default (off). "Linking disabled / deny same-email second-provider" is an explicit adapter responsibility, not an aspiration that depends on allauth's defaults staying favorable.
+- The same posture **pins** the related allauth login-safety settings explicitly rather than relying on defaults staying favorable:
+  - `SOCIALACCOUNT_LOGIN_ON_GET = False` — POST-only login initiation, allauth's recommended guard against login-CSRF / drive-by social login (a GET-triggered login can be forced by a crafted link).
+  - The TAP adapter runs all domain / `hd` / `allowed_emails` allowlist and `email_verified` checks (`req-tap-auth-google-oidc`) **before** any allauth auto-signup/provisioning — `pre_social_login` is the chokepoint, so a disallowed account is denied before a TAP user is ever created, never after.
 - Duplicate emails are allowed at DB level because email is not identity.
 - Ambiguous identity resolution fails closed and logs.
 - Full raw subjects are not logged. Admin can see provider ID plus truncated/hashed subject; full subject is hidden unless future explicit debug/admin tooling exposes it.
