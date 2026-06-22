@@ -20,7 +20,7 @@ Backward-compatible low-level helpers (kept for existing callers):
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import jsonschema
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -38,6 +38,7 @@ from tap_grid.caller_context import (
 )
 from tap_grid.constraints import validate_edge as _validate_edge_constraint
 from tap_grid.exceptions import (
+    EdgePropertyValidationError,
     InvalidEdgeError,
     ServiceAuthzError,
     ServiceConflictError,
@@ -1771,19 +1772,17 @@ def create_edge(
     Raises EdgePropertyValidationError (via Edge.save()) if properties fail
     the registered schema for this edge type.
 
-    Provenance: emits a ``link``-type BatchEvent on success, mirroring the
-    pipeline's `_record_provenance` for ``create_edge`` ops. Recording is
-    best-effort and requires an active batch context (either an explicit
-    ``caller_context.batch_id`` or one already in the ContextVar). Calls
-    outside any batch context proceed without an event.
-
-    Future: this function predates the typed write pipeline and currently
-    bypasses ``_execute_write_pipeline``. A future refactor should route
-    through ``write_batch`` for full pipeline parity (FLIP propagation,
-    OCC support, unified validation) — the legacy direct-create path is
-    kept for the 100+ existing callers; migration is a separate concern.
+    Routing: this compatibility wrapper routes through ``write_batch`` (the
+    ``create_edge`` verb), so the edge lands through the one write chokepoint
+    like every other mutation — single transaction, unified validation, FLIP
+    propagation, and the ``link`` provenance recorded by the pipeline's
+    ``_record_provenance`` (no separate best-effort BatchEvent). The topology and
+    edge-constraint pre-checks below run first so the legacy ``InvalidEdgeError``
+    contract is preserved for callers (e.g. the edges API) that catch it; the
+    nono (edge-as-endpoint) check precedes constraint validation.
     """
-    # Edges cannot connect to other edges (req-grid-edge-nono)
+    # Edges cannot connect to other edges (req-grid-edge-nono) — pre-checked here
+    # to raise InvalidEdgeError (the pipeline would raise ServiceConstraintError).
     if from_entity.entity_type == "edge":
         raise InvalidEdgeError("Edges cannot have other edges as endpoints (from_entity is an edge).")
     if to_entity.entity_type == "edge":
@@ -1791,35 +1790,29 @@ def create_edge(
 
     _validate_edge_constraint(from_entity.entity_type, to_entity.entity_type, edge_type)
 
-    edge = Edge.objects.create(
-        from_entity=from_entity,
-        to_entity=to_entity,
+    payload: dict[str, Any] = {}
+    if properties:
+        payload["properties"] = properties
+
+    op = WriteOperation(
+        verb="create_edge",
+        from_target=str(from_entity.id),
+        to_target=str(to_entity.id),
         edge_type=edge_type,
-        properties=properties or {},
+        payload=payload,
     )
+    batch_result = write_batch([op], caller_context=caller_context)
+    result = batch_result.results[0] if batch_result.results else None
+    if result is None or not result.success or result.entity_id is None:
+        errors = result.errors if result is not None else batch_result.errors
+        detail = "; ".join(e.message for e in errors) or "edge creation failed"
+        raise EdgePropertyValidationError(detail)
+
+    edge = cast(Edge, Edge.objects.select_related("entity").get(entity_id=result.entity_id))
 
     if name:
         edge.entity.name = name
         edge.entity.save(update_fields=["name", "updated_at"])
-
-    # Provenance: record a BatchEvent so this bare-helper path produces the
-    # same audit trail the pipeline-routed `WriteOperation(verb="create_edge")`
-    # produces via `_record_provenance`. No-ops cleanly if no batch context is
-    # active (record_batch_event resolves batch_id from CallerContext.batch_id
-    # or returns None). Wrapped in a try/except so a provenance failure never
-    # breaks the edge create itself.
-    from tap_grid.batch import record_batch_event
-
-    try:
-        record_batch_event(
-            entity=edge.entity,
-            event_type="link",
-            model_name="Edge",
-            actor=caller_context.user if caller_context is not None else None,
-            batch_id=caller_context.batch_id if caller_context is not None else None,
-        )
-    except Exception:
-        logger.exception("[e1c4] Best-effort BatchEvent emission failed for create_edge entity_id=%s", edge.entity_id)
 
     return edge
 
