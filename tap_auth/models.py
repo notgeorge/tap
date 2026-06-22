@@ -121,3 +121,85 @@ class User(AbstractUser):
             if previous_key is not None and previous_key != self.tap_builtin_key:
                 raise ValidationError({"tap_builtin_key": "tap_builtin_key is immutable once set."})
         super().save(*args, **kwargs)
+
+
+class Capability(models.Model):
+    """A TAP capability — the queryable DB projection of the code registry.
+
+    The canonical source of truth is `tap_auth.capabilities.CAPABILITIES`; this
+    table is hard-synced from it (req-tap-auth-capabilities-3). It is a real table
+    (not a managed=False placeholder) so capability descriptions + risk metadata
+    are queryable from the DB/service layer — the affordance a future AI/Paladin
+    actor needs (req-tap-auth-capabilities-7).
+
+    Each Capability projects a backing Django `auth.Permission` (the Capability
+    model is that permission's content-type home), so Groups still hold standard
+    Django permissions while the capability metadata lives queryably here. TAP
+    authorization resolves by the public `name`; the Permission is the storage
+    Groups attach to.
+    """
+
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Public TAP capability name, e.g. 'grid.read'.",
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="Human-readable meaning of this capability.",
+    )
+    risk = models.CharField(
+        max_length=16,
+        default="medium",
+        help_text="Risk/classification (low|medium|high|critical) from the registry.",
+    )
+    permission = models.OneToOneField(
+        "auth.Permission",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="tap_capability",
+        help_text="The projected Django permission this capability is stored as.",
+    )
+
+    class Meta:
+        db_table = "tap_capability"
+        ordering = ["name"]
+        verbose_name_plural = "capabilities"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class ProtectedGroup(models.Model):
+    """Metadata marking a Django `auth.Group` as a TAP-managed protected group.
+
+    Django `Group` is not custom, so protected-group metadata lives here
+    (req-tap-auth-builtins): a one-to-one to `auth.Group` plus an immutable
+    natural `builtin_key` and an `is_protected` flag. Protected groups cannot be
+    renamed/deleted/repurposed by ordinary user-management paths.
+    """
+
+    group = models.OneToOneField(
+        "auth.Group",
+        on_delete=models.CASCADE,
+        related_name="tap_protected",
+        help_text="The Django group this metadata protects.",
+    )
+    builtin_key = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text="Immutable natural key for the protected group, e.g. 'tap_admin'.",
+    )
+    is_protected = models.BooleanField(
+        default=True,
+        help_text="When true, the group is shielded from ordinary mutation/deletion.",
+    )
+
+    class Meta:
+        db_table = "tap_protected_group"
+        ordering = ["builtin_key"]
+
+    def __str__(self) -> str:
+        return self.builtin_key
