@@ -59,10 +59,16 @@ class TestRequiresCapability:
             guarded_write(caller_context=_no_caps_ctx())
 
     def test_missing_actor(self, synced):
+        from tap_grid.caller_context import set_caller_context
+
         @requires_capability("grid.write")
         def guarded_write(*, caller_context: CallerContext | None = None) -> str:
             return "ok"
 
+        # Clear the ambient actor so there is genuinely no one to inherit — an
+        # actor-less call must fail closed (the autouse fixture otherwise binds
+        # tap_test, which an explicit user=None ctx would inherit).
+        set_caller_context(None)
         with pytest.raises(MissingActor):
             guarded_write(caller_context=CallerContext(user=None))
 

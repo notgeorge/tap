@@ -24,7 +24,7 @@ def _batch_ctx(source: str = "test") -> Generator[str]:
     batch = create_batch(source=source)
     batch_id = str(batch.entity.id)
     prev = get_caller_context()
-    set_caller_context(CallerContext(user=None, batch_id=batch_id))
+    set_caller_context(CallerContext(user=get_caller_context().user, batch_id=batch_id))
     try:
         yield batch_id
     finally:
@@ -132,7 +132,7 @@ class TestBatchIdFieldExists:
             character = Character.objects.create(entity=entity, bio="Test")
 
         second_batch_id = str(uuid.uuid7())
-        set_caller_context(CallerContext(user=None, batch_id=second_batch_id))
+        set_caller_context(CallerContext(user=get_caller_context().user, batch_id=second_batch_id))
         try:
             character.bio = "Updated"
             character.save()

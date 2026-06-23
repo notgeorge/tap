@@ -139,7 +139,7 @@ class TestHistoryServiceRawRecords:
             batch = create_batch(source=source)
             batch_id = str(batch.entity.id)
             prev = get_caller_context()
-            set_caller_context(CallerContext(user=None, batch_id=batch_id))
+            set_caller_context(CallerContext(user=get_caller_context().user, batch_id=batch_id))
             try:
                 yield batch_id
             finally:

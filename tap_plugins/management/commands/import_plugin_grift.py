@@ -269,12 +269,17 @@ class Command(BaseCommand):
         sweep_strict: bool = False,
         purge: bool = False,
     ) -> object:
+        from tap_auth.actors import BOOTLOADER, get_builtin_actor
         from tap_grid.grift import grift_import
 
+        # Seed import is a standup/bootstrap operation; it runs as the named
+        # tap_bootloader program actor (req-tap-auth-actor-model: no User=None at
+        # the service boundary). The bootloader's least-privilege bundle includes
+        # grid.import_grift + grid.write.
         return grift_import(
             document,
             dangling_edge_mode="warn",
-            actor=None,
+            actor=get_builtin_actor(BOOTLOADER),
             force_batches=force_batches or None,
             sweep_strict=sweep_strict,
             purge=purge,

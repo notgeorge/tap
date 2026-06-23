@@ -27,7 +27,9 @@ class TestSyncCapabilities:
         result = sync.sync_capabilities()
         assert Capability.objects.count() == len(ALL_CAPABILITY_NAMES)
         assert Capability.objects.exclude(permission=None).count() == len(ALL_CAPABILITY_NAMES)
-        assert result["created"] == len(ALL_CAPABILITY_NAMES)
+        # created+updated covers the full registry regardless of whether the
+        # session-level auth seed already created the rows (conftest).
+        assert result["created"] + result["updated"] == len(ALL_CAPABILITY_NAMES)
 
     def test_idempotent(self):
         sync.sync_capabilities()

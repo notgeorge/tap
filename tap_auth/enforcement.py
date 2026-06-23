@@ -24,10 +24,11 @@ mode.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import logging
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from tap_auth import capabilities as caps
@@ -43,14 +44,27 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 
 def _resolve_caller_context(kwargs: dict[str, Any]) -> CallerContext | None:
-    """Resolve the active CallerContext: explicit `caller_context` kwarg first,
-    then the contextvar (set by a request/task/boot boundary)."""
-    ctx = kwargs.get("caller_context")
-    if ctx is not None:
-        return ctx  # type: ignore[no-any-return]
+    """Resolve the active CallerContext for authorization.
+
+    An explicit `caller_context` kwarg with an actor wins. If there is no kwarg,
+    fall back to the contextvar (set at a request/task/boot/test boundary). If the
+    kwarg carries a batch scope but *no* actor, inherit the ambient actor while
+    keeping the caller's batch scope — "set a batch_id, run as the current actor."
+    """
+    explicit = kwargs.get("caller_context")
+    if explicit is not None and explicit.user is not None:
+        return explicit  # type: ignore[no-any-return]
+
     from tap_grid.caller_context import get_caller_context
 
-    return get_caller_context()
+    ambient = get_caller_context()
+    if explicit is None:
+        return ambient
+    if ambient is not None and ambient.user is not None:
+        from tap_grid.caller_context import CallerContext
+
+        return CallerContext(user=ambient.user, batch_id=explicit.batch_id)
+    return explicit  # type: ignore[no-any-return]
 
 
 def requires_capability(capability: str, *, operation: str = "") -> Callable[[F], F]:
@@ -78,6 +92,37 @@ def requires_capability(capability: str, *, operation: str = "") -> Callable[[F]
     return decorator
 
 
+@contextlib.contextmanager
+def authorized(
+    caller_context: CallerContext | None,
+    capability: str,
+    *,
+    operation: str = "",
+    resource_type: str = "",
+    resource: Any = None,
+) -> Iterator[None]:
+    """Open an isolated authorization scope, authorize `capability`, run the body.
+
+    The decorator form (`@requires_capability`) is preferred for plain functions
+    that take a `caller_context`. This context-manager form is for entry points
+    that resolve their actor differently — e.g. `grift_import`, which takes an
+    `actor` argument rather than a `caller_context`. Inside the `with`, the
+    write/read backstops see the recorded decision.
+    """
+    token = policy.push_authorization_scope()
+    try:
+        policy.authorize(
+            caller_context,
+            capability,
+            operation=operation,
+            resource_type=resource_type,
+            resource=resource,
+        )
+        yield
+    finally:
+        policy.pop_authorization_scope(token)
+
+
 def _callsite(skip: int = 2) -> str:
     """Best-effort callsite of the code that reached the unguarded chokepoint."""
     stack = traceback.extract_stack()
@@ -99,6 +144,10 @@ def _raise_unguarded(kind: str, caller_context: CallerContext | None, detail: st
         callsite,
         getattr(user, "username", None),
         detail,
+        # stack_info attaches the full call path that reached this
+        # should-never-happen backstop — the defect is a forgotten gate
+        # somewhere up that stack, so the trace IS the debugging signal.
+        stack_info=True,
         extra={
             "message_data": {
                 "flaw_class": "code",

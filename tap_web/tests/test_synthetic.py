@@ -261,7 +261,7 @@ class TestRenderSyntheticPage:
         entity = Entity.objects.create(entity_type="character", name="Gandalf")
         batch = create_batch(source="test")
         prev = get_caller_context()
-        set_caller_context(CallerContext(user=None, batch_id=str(batch.entity.id)))
+        set_caller_context(CallerContext(user=get_caller_context().user, batch_id=str(batch.entity.id)))
         try:
             Character.objects.create(entity=entity, name="Gandalf", bio="A wizard.")
         finally:

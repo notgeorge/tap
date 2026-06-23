@@ -806,7 +806,7 @@ class TestGriftForceReimport:
     def test_sweep_skips_externally_written_entity(self):
         """Guardrail A — an entity touched by a different batch is skipped."""
         from tap_grid.batch import create_batch
-        from tap_grid.caller_context import CallerContext
+        from tap_grid.caller_context import CallerContext, get_caller_context
         from tap_grid.service_types import WriteOperation
         from tap_grid.services import write_batch
 
@@ -816,7 +816,7 @@ class TestGriftForceReimport:
 
         # Another batch updates the node after initial import.
         other_batch = create_batch(name="other")
-        ctx = CallerContext(user=None, batch_id=str(other_batch.entity_id))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(other_batch.entity_id))
         write_batch(
             [WriteOperation(verb="replace_node", target=nid, payload={"name": "Touched", "bio": "By other"})],
             caller_context=ctx,
@@ -893,7 +893,7 @@ class TestGriftForceReimport:
     def test_sweep_strict_aborts_on_guardrail_miss(self):
         """--sweep-strict aborts the entire force re-import if any candidate fails."""
         from tap_grid.batch import create_batch
-        from tap_grid.caller_context import CallerContext
+        from tap_grid.caller_context import CallerContext, get_caller_context
         from tap_grid.service_types import WriteOperation
         from tap_grid.services import write_batch
 
@@ -904,7 +904,7 @@ class TestGriftForceReimport:
 
         # Another batch touches nid_drop so it fails Guardrail A.
         other_batch = create_batch(name="external")
-        ctx = CallerContext(user=None, batch_id=str(other_batch.entity_id))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(other_batch.entity_id))
         write_batch(
             [WriteOperation(verb="replace_node", target=nid_drop, payload={"name": "Touched", "bio": "X"})],
             caller_context=ctx,

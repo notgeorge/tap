@@ -188,7 +188,20 @@ def run_collection(
     backend the job will be READY or RUNNING depending on worker pickup
     latency.
     """
-    ctx = caller_context or CallerContext()
+    # Collection ALWAYS runs as the least-privilege tap_collector program actor —
+    # never as the human or schedule that triggered it (model 2: own service
+    # identity, like a Kubernetes CronJob's ServiceAccount). The trigger is
+    # recorded as metadata (manual_run / manual_run_source; the schedule's
+    # HAS_FIRED/TRIGGERED_JOB provenance), not as the runtime principal, so the
+    # collector's blast radius is bounded regardless of who set it up. We keep any
+    # batch scope the caller supplied. (req-tap-auth-actor-model; the on-behalf-of
+    # delegation alternative is deferred — req-tap-auth-ai-placeholder.)
+    from tap_auth.actors import COLLECTOR, get_builtin_actor
+
+    ctx = CallerContext(
+        user=get_builtin_actor(COLLECTOR),
+        batch_id=caller_context.batch_id if caller_context is not None else None,
+    )
     now = datetime.now(UTC)
 
     if run_mode not in CollectionJobRunMode.values:

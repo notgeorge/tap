@@ -48,6 +48,24 @@ from tap_grid.services import (
 logger = logging.getLogger(__name__)
 
 
+def _scheduler_ctx(caller_context: CallerContext | None) -> CallerContext:
+    """Resolve the acting context for scheduler writes.
+
+    A caller that supplies its own named actor keeps it; otherwise scheduler
+    bookkeeping (Schedule/ScheduleFire nodes + edges, and the automated tick)
+    runs as the named tap_scheduler program actor — never User=None at the
+    service boundary (req-tap-auth-actor-model).
+    """
+    if caller_context is not None and caller_context.user is not None:
+        return caller_context
+    from tap_auth.actors import SCHEDULER, get_builtin_actor
+
+    return CallerContext(
+        user=get_builtin_actor(SCHEDULER),
+        batch_id=caller_context.batch_id if caller_context is not None else None,
+    )
+
+
 class SchedulerError(RuntimeError):
     """Raised when the scheduler service hits an unrecoverable internal state."""
 
@@ -116,13 +134,10 @@ def _target_collector(schedule: Schedule) -> Collector:
         )
     )
     if not edges:
-        raise SchedulerError(
-            f"Schedule {schedule.entity_id} has no SCHEDULED_TARGET edge"
-        )
+        raise SchedulerError(f"Schedule {schedule.entity_id} has no SCHEDULED_TARGET edge")
     if len(edges) > 1:
         raise SchedulerError(
-            f"Schedule {schedule.entity_id} has {len(edges)} SCHEDULED_TARGET "
-            "edges; v0 requires exactly one"
+            f"Schedule {schedule.entity_id} has {len(edges)} SCHEDULED_TARGET " "edges; v0 requires exactly one"
         )
     return Collector.objects.get(entity_id=edges[0].to_entity_id)
 
@@ -171,7 +186,7 @@ def create_schedule(
     (req-tap-cares-scheduler-model-8); not passed in the payload because the
     field is scheduler-owned and intentionally absent from FIELD_CRUD_SCHEMA.
     """
-    ctx = caller_context or CallerContext()
+    ctx = _scheduler_ctx(caller_context)
 
     payload: dict[str, Any] = {
         "name": name,
@@ -183,9 +198,7 @@ def create_schedule(
 
     result = create_node("schedule", payload, caller_context=ctx)
     if not result.success:
-        raise SchedulerError(
-            f"create_schedule failed: {[(e.code, e.message) for e in result.errors]}"
-        )
+        raise SchedulerError(f"create_schedule failed: {[(e.code, e.message) for e in result.errors]}")
 
     schedule = Schedule.objects.get(entity_id=result.entity_id)
     create_edge(
@@ -216,22 +229,15 @@ def set_schedule_enabled(
     the atomic claim). The two writes are wrapped in one transaction so a
     failure between them doesn't leave the schedule with a stale cursor.
     """
-    ctx = caller_context or CallerContext()
+    ctx = _scheduler_ctx(caller_context)
     transitioning = enabled and not schedule.enabled
 
     with transaction.atomic():
-        result = patch_node(
-            schedule.entity_id, {"enabled": enabled}, caller_context=ctx
-        )
+        result = patch_node(schedule.entity_id, {"enabled": enabled}, caller_context=ctx)
         if not result.success:
-            raise SchedulerError(
-                f"set_schedule_enabled failed: "
-                f"{[(e.code, e.message) for e in result.errors]}"
-            )
+            raise SchedulerError(f"set_schedule_enabled failed: " f"{[(e.code, e.message) for e in result.errors]}")
         if transitioning:
-            Schedule.objects.filter(pk=schedule.pk).update(
-                enabled_at=datetime.now(UTC)
-            )
+            Schedule.objects.filter(pk=schedule.pk).update(enabled_at=datetime.now(UTC))
     schedule.refresh_from_db()
     return schedule
 
@@ -251,10 +257,7 @@ def _claim_and_create_fire(
     with transaction.atomic():
         claimed = (
             Schedule.objects.filter(pk=schedule.pk)
-            .filter(
-                Q(last_schedule_fired__lt=current_slot)
-                | Q(last_schedule_fired__isnull=True)
-            )
+            .filter(Q(last_schedule_fired__lt=current_slot) | Q(last_schedule_fired__isnull=True))
             .update(last_schedule_fired=current_slot)
         )
         if claimed == 0:
@@ -265,8 +268,7 @@ def _claim_and_create_fire(
             {
                 "name": f"{schedule.name} fire {current_slot.isoformat()}",
                 "description": (
-                    f"Scheduler decision for {schedule.name!r} at cron "
-                    f"slot {current_slot.isoformat()}."
+                    f"Scheduler decision for {schedule.name!r} at cron " f"slot {current_slot.isoformat()}."
                 ),
                 "scheduled_for": current_slot.isoformat(),
                 "fired_at": fired_at.isoformat(),
@@ -277,10 +279,7 @@ def _claim_and_create_fire(
             caller_context=caller_context,
         )
         if not fire_result.success:
-            raise SchedulerError(
-                f"ScheduleFire create failed: "
-                f"{[(e.code, e.message) for e in fire_result.errors]}"
-            )
+            raise SchedulerError(f"ScheduleFire create failed: " f"{[(e.code, e.message) for e in fire_result.errors]}")
         fire = ScheduleFire.objects.get(entity_id=fire_result.entity_id)
 
         create_edge(
@@ -348,8 +347,7 @@ def _finalize_fire_triggered(
         )
         if not result.success:
             raise SchedulerError(
-                f"TRIGGERED patch failed for fire {fire.entity_id}: "
-                f"{[(e.code, e.message) for e in result.errors]}"
+                f"TRIGGERED patch failed for fire {fire.entity_id}: " f"{[(e.code, e.message) for e in result.errors]}"
             )
         create_edge(
             from_entity=fire.entity,
@@ -374,7 +372,7 @@ def evaluate_tick(
     Caller (Huey periodic task) invokes this once per minute. Multiple workers
     may race: the atomic claim in Stage 1 guarantees one fire per slot.
     """
-    ctx = caller_context or CallerContext()
+    ctx = _scheduler_ctx(caller_context)
     wallclock = now if now is not None else datetime.now(UTC)
     current_slot = _floor_to_minute(wallclock)
 

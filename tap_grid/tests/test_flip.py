@@ -17,7 +17,7 @@ def _batch_ctx(source: str = "test") -> Generator[str]:
     batch = create_batch(source=source)
     batch_id = str(batch.entity.id)
     prev = get_caller_context()
-    set_caller_context(CallerContext(user=None, batch_id=batch_id))
+    set_caller_context(CallerContext(user=get_caller_context().user, batch_id=batch_id))
     try:
         yield batch_id
     finally:
@@ -44,9 +44,15 @@ def make_instance(schemas=None, internal_only=False):
 
 @pytest.fixture(autouse=True)
 def reset_context():
-    """Clear batch context between tests."""
+    """Clear the batch scope between tests, keeping the (test) actor.
+
+    FLIP tests need a clean batch context, but service writes (e.g. create_batch
+    in _batch_ctx) still require a named actor under the on-by-default enforcement,
+    so we preserve the actor the root fixture bound and only drop the batch_id.
+    """
     prev = get_caller_context()
-    set_caller_context(None)
+    actor = prev.user if prev is not None else None
+    set_caller_context(CallerContext(user=actor, batch_id=None))
     yield
     set_caller_context(prev)
 

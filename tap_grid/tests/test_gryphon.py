@@ -227,10 +227,10 @@ class TestGryphonExecutor:
         """Hub-and-spoke traversal returns hub + one-hop neighbors and edges."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         hub = Entity.objects.create(entity_type="character", name="Frodo")
@@ -259,10 +259,10 @@ class TestGryphonExecutor:
         """Outbound-only pattern excludes inbound-only neighbors."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         hub = Entity.objects.create(entity_type="character", name="Frodo")
@@ -342,10 +342,10 @@ class TestGryphonExecutor:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         for name in ("Frodo", "Sam"):
@@ -374,10 +374,10 @@ class TestGryphonExecutor:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         entity = Entity.objects.create(entity_type="character", name="Gandalf")
@@ -435,10 +435,10 @@ class TestGryphonEnvelopePaths:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         out = []
         for name, bio in (("Frodo", "A hobbit."), ("Sam", "Gardener.")):
@@ -541,10 +541,10 @@ class TestGryphonTypeScanWhere:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         out = []
         for name, bio in (("Frodo", "A hobbit."), ("Sam", "Gardener."), ("Aragorn", "King.")):
@@ -606,10 +606,10 @@ class TestGryphonTypeScanWhere:
         """
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         self._make_characters()
         # A different entity type that won't be touched by the WHERE.
@@ -647,10 +647,10 @@ class TestGryphonDimensionsMultiStep:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         results = []
         for name, realm in (("Frodo", "shire"), ("Sam", "shire"), ("Aragorn", "gondor")):
@@ -679,10 +679,10 @@ class TestGryphonDimensionsMultiStep:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         entity = Entity.objects.create(
             entity_type="character",
@@ -763,10 +763,10 @@ class TestSearchServiceGryphon:
         """req-grid-traversal-exec-pipeline-4: results normalized into canonical envelope."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         hub = Entity.objects.create(entity_type="character", name="Bilbo")
@@ -807,10 +807,10 @@ class TestGryphonEdgeTypeScan:
         """Create realm→location CONTAINS edges for testing."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         realm = Entity.objects.create(entity_type="realm", name="Middle-earth")
@@ -904,10 +904,10 @@ class TestGryphonUnion:
         """Create a small graph with realm, locations, characters, and artifacts."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         realm = Entity.objects.create(entity_type="realm", name="Middle-earth")
@@ -1060,10 +1060,10 @@ class TestGryphonV2Executor:
         """Three characters wielding artifacts (some multi-wielders), for GROUP BY tests."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         frodo = Entity.objects.create(entity_type="character", name="Frodo")
@@ -1165,10 +1165,10 @@ class TestGryphonV2Executor:
         """Characters own realms which contain locations — a 3-layer chain."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         frodo = Entity.objects.create(entity_type="character", name="Frodo")
@@ -1309,13 +1309,13 @@ class TestGryphonV2Executor:
         """req-grid-gryphon-not-exists: NOT EXISTS correlated on a variable from a 2-hop outer."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
         e = self._setup_three_layer_chain()
 
         # Flag one location as "restricted" via an edge from a separate guard entity.
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         guard = Entity.objects.create(entity_type="character", name="Guard")
         Edge.objects.create(
@@ -1350,13 +1350,13 @@ class TestGryphonV2Executor:
         """req-grid-gryphon-not-exists: NOT EXISTS inner pattern itself is multi-hop."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
         e = self._setup_three_layer_chain()
 
         # Set up a 2-hop restriction chain: one guard → restriction → minas tirith.
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         high_guard = Entity.objects.create(entity_type="character", name="HighGuard")
         restriction = Entity.objects.create(entity_type="realm", name="Restriction Seal")
@@ -1531,10 +1531,10 @@ class TestGryphonInlineEdgePropertyFilter:
         different `relationship_type` property value."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         host = Entity.objects.create(entity_type="host", name="web-1")
@@ -1740,10 +1740,10 @@ class TestGryphonOrderByLimitExecutor:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         for name in ("Eowyn", "Aragorn", "Denethor", "Boromir", "Celeborn"):
@@ -2029,10 +2029,10 @@ class TestGryphonInListExecutor:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         made = {}
@@ -2133,10 +2133,10 @@ class TestGryphonOptionalMatchExecutor:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         chars = {}
@@ -2233,10 +2233,10 @@ class TestGryphonCombinatorsExecutor:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         for name in ("Frodo", "Sam", "Merry", "Pippin"):
             entity = Entity.objects.create(entity_type="character", name=name)
@@ -2323,10 +2323,10 @@ class TestGryphonStringMatchExecutor:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         for name, bio in specs:
             entity = Entity.objects.create(entity_type="character", name=name)
@@ -2373,10 +2373,10 @@ class TestGryphonBareMatchExecutor:
 
         from plugins.gryphon_playground.models import PgNode
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         made = {}
         for name in ("Frodo", "Sam"):
@@ -2449,10 +2449,10 @@ class TestGryphonTypelessEdgeScanExecutor:
         """Frodo WIELDS the Ring and OWNS the Shire — two edges of different types."""
         import uuid
 
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         frodo = Entity.objects.create(entity_type="character", name="Frodo")
         ring = Entity.objects.create(entity_type="artifact", name="One Ring")
@@ -2566,10 +2566,10 @@ class TestGryphonIsNullExecutor:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
         # Four characters with bios.
@@ -2707,10 +2707,10 @@ class TestGryphonRegexExecutor:
         import uuid
 
         from plugins.lotr.models import Character
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
-        ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+        ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         for name, bio in specs:
             entity = Entity.objects.create(entity_type="character", name=name)

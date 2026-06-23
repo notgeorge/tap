@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, cast
 import jsonschema  # type: ignore[import-untyped]
 from django.core.exceptions import ValidationError
 
+from tap_auth.enforcement import requires_capability
 from tap_grid.exceptions import SearchExecutionError
 from tap_grid.grift.subgraph import SubgraphLayer
 
@@ -30,6 +31,7 @@ _SEARCH_DB_ALIAS = "search_readonly"
 _ENVELOPE_KEYS = frozenset({"nodes", "edges"})
 
 
+@requires_capability("grid.read", operation="execute_search")
 def execute_search(
     search: Search,
     inputs: dict[str, Any] | None = None,
@@ -39,6 +41,12 @@ def execute_search(
     layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Execute a Search and return the canonical 4-key graph envelope.
+
+    Read enforcement (req-tap-auth-service-boundary): Search is TAP's canonical
+    graph read interface, and this is the single dispatch point above the orm/
+    gryphon/module execution modes. `grid.read` is authorized here for the active
+    CallerContext (resolved from the contextvar) before any mode runs, so every
+    read goes through one gate. An unauthorized/absent actor fails closed.
 
     Args:
         search:  The Search model instance to execute.

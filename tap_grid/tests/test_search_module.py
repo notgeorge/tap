@@ -118,6 +118,7 @@ class TestRunnerResolution:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.django_db
 class TestRunnerInvocation:
     def test_runner_receives_search_and_inputs(self):
         received = {}
@@ -172,6 +173,7 @@ class TestRunnerInvocation:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.django_db
 class TestModuleResultNormalization:
     def test_partial_envelope_completed(self):
         register_search_runner("partial", _make_partial_runner(), scope="fake.scope")

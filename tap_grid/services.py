@@ -28,6 +28,7 @@ from django.db import models as django_models
 from django.db import transaction
 from django.utils import timezone
 
+from tap_auth.enforcement import assert_write_authorized, requires_capability
 from tap_grid.caller_context import (
     CallerContext,
     drain_deferred_hotlink_checks,
@@ -669,7 +670,23 @@ def write_batch(
     Returns:
         BatchWriteResult with per-operation results and overall success flag.
     """
+    # Resolve the acting context: inherit the ambient request/task/test actor
+    # when the caller passed no context, or passed a batch scope without an actor,
+    # so the batch is always attributed to a named actor (no User=None). Mirrors
+    # the decorator's _resolve_caller_context.
+    if caller_context is None:
+        caller_context = get_caller_context()
+    elif caller_context.user is None:
+        _ambient = get_caller_context()
+        if _ambient is not None and _ambient.user is not None:
+            caller_context = CallerContext(user=_ambient.user, batch_id=caller_context.batch_id)
     user = caller_context.user if caller_context else None
+
+    # On-by-default write backstop (req-tap-auth-policy): a mutation must not
+    # reach commit without an authorize() decision recorded for the active scope.
+    # Decorated public verbs and the grift authorized() scope populate the ledger
+    # before reaching here; an unguarded path fails closed (UnguardedOperation).
+    assert_write_authorized(caller_context)
 
     # Resolve or create a batch_id.
     if caller_context and caller_context.batch_id:
@@ -743,6 +760,7 @@ def write_batch(
     )
 
 
+@requires_capability("grid.write", operation="create_node")
 def create_node(
     type_slug: str,
     payload: dict[str, Any],
@@ -772,6 +790,7 @@ def create_node(
     )
 
 
+@requires_capability("grid.write", operation="patch_node")
 def patch_node(
     target: str | uuid.UUID,
     payload: dict[str, Any],
@@ -813,6 +832,7 @@ def patch_node(
     )
 
 
+@requires_capability("grid.write", operation="replace_node")
 def replace_node(
     target: str | uuid.UUID,
     payload: dict[str, Any],
@@ -854,6 +874,7 @@ def replace_node(
     )
 
 
+@requires_capability("grid.delete", operation="delete_node")
 def delete_node(
     target: str | uuid.UUID,
     *,
@@ -891,6 +912,7 @@ def delete_node(
     )
 
 
+@requires_capability("grid.write", operation="patch_edge")
 def patch_edge(
     target: str | uuid.UUID,
     payload: dict[str, Any],
@@ -931,6 +953,7 @@ def patch_edge(
     )
 
 
+@requires_capability("grid.write", operation="replace_edge")
 def replace_edge(
     target: str | uuid.UUID,
     payload: dict[str, Any],
@@ -971,6 +994,7 @@ def replace_edge(
     )
 
 
+@requires_capability("grid.delete", operation="delete_edge_by_entity")
 def delete_edge_by_entity(
     target: str | uuid.UUID,
     *,
@@ -1047,6 +1071,7 @@ def _assert_debug_for_purge(verb_name: str = "purge_node") -> None:
         )
 
 
+@requires_capability("grid.purge", operation="purge_node")
 def purge_node(
     entity_id: str | uuid.UUID,
     *,
@@ -1203,6 +1228,7 @@ def purge_node(
     )
 
 
+@requires_capability("grid.purge", operation="purge_edge")
 def purge_edge(
     entity_id: str | uuid.UUID,
     *,
@@ -1342,6 +1368,7 @@ def purge_edge(
 # ---------------------------------------------------------------------------
 
 
+@requires_capability("grid.write", operation="_create_node_internal")
 def _create_node_internal(
     type_slug: str,
     payload: dict[str, Any],
@@ -1388,6 +1415,7 @@ def _create_node_internal(
     )
 
 
+@requires_capability("grid.write", operation="_patch_node_internal")
 def _patch_node_internal(
     target: str | uuid.UUID,
     payload: dict[str, Any],
@@ -1714,6 +1742,7 @@ def describe_service_capabilities() -> ServiceCapabilities:
 # ---------------------------------------------------------------------------
 
 
+@requires_capability("grid.write", operation="create_entity")
 def create_entity(
     entity_type: str,
     name: str = "",
@@ -1736,6 +1765,7 @@ def create_entity(
     )
 
 
+@requires_capability("grid.write", operation="update_entity")
 def update_entity(entity: Entity, *, caller_context: CallerContext | None = None, **kwargs: Any) -> Entity:
     """Update an existing Entity's fields.
 
@@ -1748,11 +1778,13 @@ def update_entity(entity: Entity, *, caller_context: CallerContext | None = None
     return entity
 
 
+@requires_capability("grid.delete", operation="delete_entity")
 def delete_entity(entity: Entity, *, caller_context: CallerContext | None = None) -> None:
     """Delete an Entity. Cascades to edges and domain objects."""
     entity.delete()
 
 
+@requires_capability("grid.write", operation="create_edge")
 def create_edge(
     from_entity: Entity,
     to_entity: Entity,
@@ -1817,6 +1849,7 @@ def create_edge(
     return edge
 
 
+@requires_capability("grid.write", operation="update_edge_properties")
 def update_edge_properties(edge: Edge, properties: dict[str, Any]) -> Edge:
     """Update an Edge's properties payload.
 
@@ -1836,6 +1869,7 @@ def update_edge_properties(edge: Edge, properties: dict[str, Any]) -> Edge:
     return edge
 
 
+@requires_capability("grid.delete", operation="delete_edge")
 def delete_edge(edge: Edge, *, caller_context: CallerContext | None = None) -> None:
     """Delete an Edge and its backing Entity."""
     # Deleting the backing Entity cascades to the Edge via OneToOne,

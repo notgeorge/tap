@@ -3101,6 +3101,44 @@ def grift_import(
     sweep_strict: bool = False,
     purge: bool = False,
 ) -> GriftImportResult:
+    """Authorize, then import a GRIFT v0 document (req-tap-auth-service-boundary).
+
+    GRIFT import requires `grid.import_grift`; a force-reimport `purge`
+    additionally requires `grid.purge` (and DEBUG, enforced downstream). `actor`
+    defaults to the active CallerContext actor when not passed explicitly, so
+    callers that already set the context (tests, web/API) need not re-pass it;
+    the import command passes `tap_bootloader`. Delegates to `_grift_import_impl`.
+    """
+    from tap_auth import policy
+    from tap_auth.enforcement import authorized
+    from tap_grid.caller_context import CallerContext, get_caller_context
+
+    if actor is None:
+        _active = get_caller_context()
+        actor = _active.user if _active is not None else None
+    _auth_ctx = CallerContext(user=actor)
+    with authorized(_auth_ctx, "grid.import_grift", operation="grift_import"):
+        if purge:
+            policy.authorize(_auth_ctx, "grid.purge", operation="grift_import_purge")
+        return _grift_import_impl(
+            document,
+            dangling_edge_mode=dangling_edge_mode,
+            actor=actor,
+            force_batches=force_batches,
+            sweep_strict=sweep_strict,
+            purge=purge,
+        )
+
+
+def _grift_import_impl(
+    document: dict[str, Any] | str | bytes,
+    *,
+    dangling_edge_mode: Literal["strict", "permissive"] = "strict",
+    actor: Any = None,
+    force_batches: list[str] | set[str] | None = None,
+    sweep_strict: bool = False,
+    purge: bool = False,
+) -> GriftImportResult:
     """Import a GRIFT v0 document into the local TAP grid.
 
     Validates the full document before any mutation (preflight), then executes

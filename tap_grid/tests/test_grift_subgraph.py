@@ -32,10 +32,10 @@ from tap_grid.grift.subgraph import (
 
 
 def _make_character(name="Frodo", bio="A hobbit"):
-    from tap_grid.caller_context import CallerContext, set_caller_context
+    from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
     from tap_grid.models import Entity
 
-    ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+    ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
     set_caller_context(ctx)
 
     from plugins.lotr.models import Character
@@ -46,10 +46,10 @@ def _make_character(name="Frodo", bio="A hobbit"):
 
 
 def _make_edge(from_entity, to_entity, edge_type="KNOWS"):
-    from tap_grid.caller_context import CallerContext, set_caller_context
+    from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
     from tap_grid.models import Edge, Entity
 
-    ctx = CallerContext(user=None, batch_id=str(uuid.uuid4()))
+    ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
     set_caller_context(ctx)
 
     edge_entity = Entity.objects.create(entity_type="edge", name=edge_type)
