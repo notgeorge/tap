@@ -166,3 +166,42 @@ class TestHistoryEnabledForAllModels:
 
         assert hasattr(Character, "history")
         assert hasattr(Location, "history")
+
+
+@pytest.mark.django_db
+class TestPerOperationCapability:
+    """A write capability does not carry a delete (req-tap-auth-policy per-op).
+
+    End-to-end (through the real `delete_node` verb, not the backstop primitive):
+    an actor holding `grid.write` but not `grid.delete` is denied a delete. This
+    proves the per-op split is enforced at the service boundary, and that the
+    denial is delete-specific — the same actor IS authorized to write.
+    """
+
+    def _write_only_user(self) -> object:
+        from django.contrib.auth.models import Group, Permission
+
+        from tap_auth import sync
+
+        sync.sync_auth()
+        group, _ = Group.objects.get_or_create(name="test_write_only")
+        group.permissions.set([Permission.objects.get(codename="grid_write")])
+        user = User.objects.create_user(username="write-only", password="x")
+        user.groups.add(group)
+        return user
+
+    def test_write_only_actor_is_denied_delete(self):
+        from tap_auth import policy
+        from tap_auth.errors import CapabilityDenied
+        from tap_grid.services import delete_node
+
+        ctx = CallerContext(user=self._write_only_user())
+        # Sanity: the actor genuinely holds write but not delete — so a delete
+        # denial below is about the operation class, not a blanket no-caps actor.
+        assert policy.can(ctx, "grid.write") is True
+        assert policy.can(ctx, "grid.delete") is False
+
+        # The denial fires in the decorator's authorize(), before any DB work, so
+        # a real seeded node is unnecessary — the gate never reaches the body.
+        with pytest.raises(CapabilityDenied):
+            delete_node(uuid.uuid4(), caller_context=ctx)

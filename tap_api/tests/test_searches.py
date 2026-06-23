@@ -54,6 +54,31 @@ class TestExecuteSearch:
         body = response.json()
         assert len(body["nodes"]) >= 1
 
+    def test_no_cap_existing_search_denied_403(self, no_cap_client):
+        """An authenticated caller without `grid.read` is denied on an EXISTING
+        search — authorization runs before the Search is loaded."""
+        search = _orm_character_search()
+        response = no_cap_client.post(
+            f"/api/v1/searches/{search.entity_id}/execute",
+            data={},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+        assert response.json()["reason"] == "capability_denied"
+
+    def test_no_cap_missing_search_also_403_no_existence_leak(self, no_cap_client):
+        """A no-cap caller gets the SAME 403 for a non-existent search id as for
+        an existing one — the read gate wins before the lookup, so a denied caller
+        cannot distinguish 404 (missing) from 200 (exists). No existence leak
+        (req-tap-auth-service-boundary)."""
+        response = no_cap_client.post(
+            f"/api/v1/searches/{uuid.uuid4()}/execute",
+            data={},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+        assert response.json()["reason"] == "capability_denied"
+
     def test_input_validation_failure(self, logged_in_client):
         search = Search.objects.create(
             name="With Schema",
@@ -75,14 +100,15 @@ class TestExecuteSearch:
         assert response.json()["error"] == "input_validation_failed"
 
     def test_anonymous_access_denied(self, client):
-        """Graph reads require grid.read (req-tap-auth-service-boundary-3): an
-        anonymous request resolves to no actor and is denied with a 403. This
-        supersedes the former public-read behavior — reads are protected by
-        default under the on-by-default enforcement."""
+        """Graph reads require login (req-tap-auth-service-boundary-3): the search
+        execute route is session-authenticated, so an anonymous request is
+        rejected at the edge with 401 — superseding the former public-read
+        behavior. (An authenticated caller lacking grid.read gets 403, authorized
+        before the Search is loaded, so existence is not leaked.)"""
         search = _orm_character_search()
         response = client.post(
             f"/api/v1/searches/{search.entity_id}/execute",
             data={},
             content_type="application/json",
         )
-        assert response.status_code == 403
+        assert response.status_code == 401

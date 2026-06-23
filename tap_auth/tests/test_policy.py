@@ -125,3 +125,50 @@ class TestDecisionLedger:
         with pytest.raises(CapabilityDenied):
             policy.authorize(ctx, "grid.read")
         assert "grid.read" not in policy.authorized_capabilities()
+
+
+def _user_in(group_name: str) -> User:
+    user = User.objects.create_user(username=f"u-{group_name}", password="x")
+    user.groups.add(Group.objects.get(name=group_name))
+    return user
+
+
+# (group, allowed representative cap, forbidden representative cap). One allowed +
+# one forbidden per built-in bundle pins the bundle's boundary: a future edit that
+# accidentally widens a bundle (e.g. grants the collector `auth.manage_users`, or
+# the bootloader `grid.purge`) flips the forbidden assertion red. The forbidden
+# caps are chosen to be the dangerous ones each bundle deliberately excludes.
+_BUNDLE_MATRIX = [
+    # tap_admin holds everything — its "forbidden" slot asserts no real cap is
+    # missing by checking the highest-risk one is present (allowed twice).
+    ("tap_admin", "grid.purge", None),
+    # bootloader: boot powers, but NEVER destructive grid demolition or delegation.
+    ("tap_bootloader", "grid.write", "grid.purge"),
+    ("tap_bootloader", "config.manage", "grid.delete"),
+    ("tap_bootloader", "plugins.manage", "ai.delegate"),
+    # collector: read + write/import its batches; NEVER user/provider administration
+    # or destructive deletes.
+    ("tap_collector", "grid.import_grift", "auth.manage_users"),
+    ("tap_collector", "grid.read", "grid.delete"),
+    # scheduler: bookkeeping writes + trigger collectors; NEVER import or delete.
+    ("tap_scheduler", "cares.run_collectors", "grid.import_grift"),
+    ("tap_scheduler", "grid.write", "grid.delete"),
+]
+
+
+@pytest.mark.django_db
+class TestBundleMatrix:
+    """Per-bundle allowed/forbidden capability matrix (catches bundle widening)."""
+
+    @pytest.mark.parametrize(("group", "allowed", "forbidden"), _BUNDLE_MATRIX)
+    def test_bundle_boundary(self, synced, group, allowed, forbidden):
+        ctx = CallerContext(user=_user_in(group))
+        assert policy.can(ctx, allowed) is True, f"{group} should hold {allowed}"
+        if forbidden is not None:
+            assert policy.can(ctx, forbidden) is False, f"{group} must NOT hold {forbidden}"
+
+    def test_ordinary_user_holds_nothing(self, synced):
+        """A user in no group has no capabilities at all — the default-deny floor."""
+        ctx = CallerContext(user=_no_caps_user())
+        for cap in ("grid.read", "grid.write", "grid.delete", "cares.run_collectors", "auth.manage_users"):
+            assert policy.can(ctx, cap) is False

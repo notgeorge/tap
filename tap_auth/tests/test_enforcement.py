@@ -122,6 +122,19 @@ class TestWriteBackstop:
         finally:
             policy.pop_authorization_scope(token)
 
+    def test_write_cap_alone_does_not_authorize_delete(self, synced):
+        """grid.write authorizes a write op but NOT a delete op — a delete batch
+        requires grid.delete (per-op granularity, Codex P2)."""
+        ctx = _admin_ctx()
+        token = policy.push_authorization_scope()
+        try:
+            policy.record_authorization("grid.write")
+            assert_write_authorized(ctx, needs_write=True, needs_delete=False)  # ok
+            with pytest.raises(UnguardedOperation, match="unguarded delete"):
+                assert_write_authorized(ctx, needs_write=False, needs_delete=True)
+        finally:
+            policy.pop_authorization_scope(token)
+
 
 class TestReadBackstop:
     def test_unguarded_read_fails_closed(self, synced):

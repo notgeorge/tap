@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from tap_auth.enforcement import requires_capability
 from tap_grid.exceptions import SearchExecutionError
 from tap_grid.grift.subgraph import (
     SubgraphLayer,
@@ -106,6 +107,7 @@ def execute_gryphon(
     return execute_gryphon_raw(query, inputs, db_alias=db_alias, layer=layer)
 
 
+@requires_capability("grid.read", operation="execute_gryphon_raw")
 def execute_gryphon_raw(
     query: str,
     inputs: dict[str, Any],
@@ -115,9 +117,20 @@ def execute_gryphon_raw(
 ) -> dict[str, Any]:
     """Execute a raw gryphon query string and return the canonical graph envelope.
 
+    Read enforcement (req-tap-auth-service-boundary): this is the second graph-read
+    chokepoint besides execute_search — the raw-query path used by the gryphon API,
+    panels, and batch_counts. It is gated on `grid.read` (resolved from the active
+    CallerContext) so a raw read cannot bypass the stored-Search gate. An
+    unauthorized/absent actor fails closed.
+
     Unlike execute_gryphon(), this does not require a stored Search entity.
     Used by the arrangement runtime and other consumers that hold inline
     gryphon query strings.
+
+    The gate lives on this thin wrapper rather than on the impl so the
+    authorization query runs *outside* any SQL-capture window opened by a
+    caller (``explain_gryphon_raw`` records the executor's SQL; the cross-cutting
+    permission check is not part of the query plan and must not pollute it).
 
     Args:
         query: A gryphon query string.
@@ -130,6 +143,25 @@ def execute_gryphon_raw(
 
     Raises:
         SearchExecutionError: If the query is malformed, unsupported, or execution fails.
+    """
+    return _execute_gryphon_raw_impl(query, inputs, db_alias=db_alias, layer=layer)
+
+
+def _execute_gryphon_raw_impl(
+    query: str,
+    inputs: dict[str, Any],
+    *,
+    db_alias: str = "default",
+    layer: SubgraphLayer = "full",
+) -> dict[str, Any]:
+    """Raw-query execution body, without the read gate.
+
+    Separated from ``execute_gryphon_raw`` so authorized callers that record the
+    executor's SQL (``explain_gryphon_raw``) can gate once and then run the
+    executor inside their capture window without the authorization query being
+    recorded as part of the query plan. Not a public entry point — every external
+    caller goes through ``execute_gryphon_raw`` (gated) or ``explain_gryphon_raw``
+    (gated).
     """
     if not query:
         raise SearchExecutionError("Gryphon query string is empty.")
@@ -175,6 +207,7 @@ def execute_gryphon_raw(
     return _execute_ast(ast, inputs, db_alias=db_alias, layer=layer)
 
 
+@requires_capability("grid.read", operation="explain_gryphon_raw")
 def explain_gryphon_raw(
     query: str,
     inputs: dict[str, Any],
@@ -218,8 +251,12 @@ def explain_gryphon_raw(
        ``explain_gryphon_raw`` runs a query and returns both the canonical
        envelope and the ordered, stage-labelled SQL the executor issued.
     """
+    # Gate runs in this function's own decorator (above), so the authorization
+    # query is already done before the capture window opens. Call the impl
+    # directly — routing through the gated execute_gryphon_raw would record a
+    # second, redundant authz query inside the capture.
     with capture_sql() as capture:
-        envelope = execute_gryphon_raw(query, inputs, db_alias=db_alias, layer=layer)
+        envelope = _execute_gryphon_raw_impl(query, inputs, db_alias=db_alias, layer=layer)
     return {"envelope": envelope, "sql": capture}
 
 

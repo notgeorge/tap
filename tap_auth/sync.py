@@ -174,7 +174,14 @@ def sync_protected_groups() -> None:
 
 
 def _ensure_program_actor(builtin_key: str, group_key: str) -> None:
-    """Create-or-update a protected program actor and ensure its group membership."""
+    """Create-or-authoritatively-repair a protected program actor + its membership.
+
+    This is a HARD sync, not additive: the actor's managed fields are repaired to
+    their canonical values and its group membership is set to *exactly* the one
+    intended group (`groups.set`, not `groups.add`). A built-in actor therefore
+    cannot drift — e.g. be demoted to `human`, deactivated, or accumulate a stray
+    privileged group like `tap_admin` — across re-syncs (req-tap-auth-builtins).
+    """
     user_model = get_user_model()
     user, created = user_model.objects.get_or_create(
         tap_builtin_key=builtin_key,
@@ -188,10 +195,26 @@ def _ensure_program_actor(builtin_key: str, group_key: str) -> None:
     if created:
         # Program actors never log in with a password.
         user.set_unusable_password()
-        user.save(update_fields=["password"])
         logger.info("[8693] built-in program actor created: %s", builtin_key)
-    group = Group.objects.get(name=group_key)
-    user.groups.add(group)
+
+    # Repair drifted managed fields back to canonical (tap_builtin_key is left
+    # untouched — it is immutable; save() enforces that). A usable password on a
+    # program actor is also drift: these identities are never password-login
+    # surfaces, so a usable password is repaired back to unusable rather than left
+    # as a standing credential (req-tap-auth-builtins).
+    fields = {"user_kind": "program", "is_tap_builtin": True, "is_active": True}
+    password_drifted = not created and user.has_usable_password()
+    if password_drifted:
+        user.set_unusable_password()
+        logger.warning("[1d56] repaired usable password on built-in program actor: %s", builtin_key)
+    drifted = created or password_drifted or any(getattr(user, name) != value for name, value in fields.items())
+    if drifted:
+        for name, value in fields.items():
+            setattr(user, name, value)
+        user.save()
+
+    # Authoritative membership: exactly this one group, no strays.
+    user.groups.set([Group.objects.get(name=group_key)])
 
 
 def sync_builtin_actors() -> None:

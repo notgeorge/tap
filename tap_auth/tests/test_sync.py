@@ -108,3 +108,33 @@ class TestSyncGroupsAndActors:
         sync.sync_auth()
         assert User.objects.filter(tap_builtin_key="tap_bootloader").count() == 1
         assert ProtectedGroup.objects.count() == 4
+
+    def test_actor_membership_is_authoritative(self):
+        """Re-sync removes a stray privileged group from a built-in actor and
+        repairs drifted managed fields (hard-sync, not additive — Codex P2)."""
+        sync.sync_auth()
+        bootloader = User.objects.get(tap_builtin_key="tap_bootloader")
+        # Drift: stray tap_admin membership + demoted/deactivated fields.
+        bootloader.groups.add(Group.objects.get(name="tap_admin"))
+        User.objects.filter(pk=bootloader.pk).update(user_kind="human", is_active=False)
+
+        sync.sync_builtin_actors()
+
+        bootloader.refresh_from_db()
+        assert list(bootloader.groups.values_list("name", flat=True)) == ["tap_bootloader"]
+        assert bootloader.user_kind == "program"
+        assert bootloader.is_active is True
+
+    def test_usable_password_on_program_actor_is_repaired(self):
+        """A program actor is never a password-login surface — a usable password
+        set on one is drift, repaired back to unusable by re-sync (Codex P2)."""
+        sync.sync_auth()
+        bootloader = User.objects.get(tap_builtin_key="tap_bootloader")
+        bootloader.set_password("a-real-password")
+        bootloader.save()
+        assert bootloader.has_usable_password()
+
+        sync.sync_builtin_actors()
+
+        bootloader.refresh_from_db()
+        assert not bootloader.has_usable_password()

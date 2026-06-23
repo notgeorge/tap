@@ -80,13 +80,13 @@ CAPABILITIES: tuple[CapabilitySpec, ...] = (
 
 ALL_CAPABILITY_NAMES: tuple[str, ...] = tuple(c.name for c in CAPABILITIES)
 
-# Capabilities whose authorization permits a graph MUTATION to commit. The write
-# backstop (req-tap-auth-policy On By Default) passes iff the decision ledger
-# holds at least one of these for the active context; an empty intersection means
-# the mutation reached commit with no authorize() call → unguarded_operation.
-WRITE_CAPABILITIES: frozenset[str] = frozenset(
-    {"grid.write", "grid.delete", "grid.purge", "grid.import_grift", "grid.admin"}
-)
+# Per-op authorizing sets for the write backstop (req-tap-auth-policy On By
+# Default). A create/update op is authorized by WRITE_CAPABILITIES; a delete op
+# requires DELETE_CAPABILITIES — so a plain grid.write authorization cannot carry
+# a delete batch. grid.import_grift and grid.admin are broad covers (a GRIFT
+# import legitimately creates, updates, and sweep-tombstones within one import).
+WRITE_CAPABILITIES: frozenset[str] = frozenset({"grid.write", "grid.import_grift", "grid.admin"})
+DELETE_CAPABILITIES: frozenset[str] = frozenset({"grid.delete", "grid.import_grift", "grid.admin"})
 
 # The single capability every graph READ requires (the read backstop checks for
 # exactly this on the Search dispatch chokepoint).

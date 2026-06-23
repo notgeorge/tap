@@ -17,3 +17,18 @@ def logged_in_client(client, db):
     user.groups.add(Group.objects.get(name="tap_admin"))
     client.force_login(user)
     return client
+
+
+@pytest.fixture
+def no_cap_client(client, db):
+    """Authenticated client whose user holds NO capability bundle (no groups).
+
+    Passes the API's session authentication at the edge but fails the
+    service-boundary authorization (no `grid.read`): the proof that "passing
+    request authentication never implies permission" (req-tap-auth-service-boundary).
+    Used to assert authenticated-but-unauthorized callers get 403, distinct from
+    the anonymous 401.
+    """
+    user = get_user_model().objects.create_user(username="nocap", password="x")
+    client.force_login(user)
+    return client

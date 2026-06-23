@@ -684,9 +684,16 @@ def write_batch(
 
     # On-by-default write backstop (req-tap-auth-policy): a mutation must not
     # reach commit without an authorize() decision recorded for the active scope.
-    # Decorated public verbs and the grift authorized() scope populate the ledger
-    # before reaching here; an unguarded path fails closed (UnguardedOperation).
-    assert_write_authorized(caller_context)
+    # Checked per op-class so a delete op requires a delete-authorizing capability,
+    # not merely any write cap. Decorated verbs / the grift authorized() scope
+    # populate the ledger; an unguarded path fails closed (UnguardedOperation).
+    _delete_verbs = {"delete_node", "delete_edge"}
+    _batch_verbs = {op.verb for op in operations}
+    assert_write_authorized(
+        caller_context,
+        needs_write=bool(_batch_verbs - _delete_verbs),
+        needs_delete=bool(_batch_verbs & _delete_verbs),
+    )
 
     # Resolve or create a batch_id.
     if caller_context and caller_context.batch_id:

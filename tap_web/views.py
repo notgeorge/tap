@@ -3,7 +3,7 @@
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -13,6 +13,7 @@ from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
+from tap_auth.errors import AuthzError
 from tap_web.models import Page
 from tap_web.navigation import build_breadcrumb
 from tap_web.page import get_landing_page, get_page_by_slug, get_page_panels, parse_panel_url_id
@@ -107,6 +108,11 @@ def panel_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
                 **extra_ctx,
             },
         )
+    except AuthzError:
+        # An authorization denial must NOT be swallowed into a 200 error fragment
+        # (that would hide a real access denial as "panel render failed"). Let it
+        # propagate to CallerContextMiddleware.process_exception → 403.
+        raise
     except Exception as exc:  # noqa: BLE001
         logger.exception("[1899] Error rendering panel %s (view=%s)", entity_uuid, panel.view)
         return _panel_error(request, str(exc))
@@ -210,7 +216,14 @@ def object_edit_view(request: HttpRequest, entity_type: str, object_url_id: str)
     when using persisted pages; for synthetic pages, POST falls back to the
     legacy editor path since synthetic panels are rendered inline.
     """
+    from tap_auth import policy
+    from tap_grid.caller_context import get_caller_context
     from tap_grid.registry import get_model_class
+
+    # Gate the direct graph read below (req-tap-auth-service-boundary): authorize
+    # before resolving the object so existence is not leaked to an unauthorized
+    # caller. AuthzError is translated to 403 by CallerContextMiddleware.
+    policy.authorize(get_caller_context(), "grid.read", operation="object_edit_view")
 
     entity_uuid = parse_panel_url_id(object_url_id)
     if entity_uuid is None:
@@ -219,12 +232,12 @@ def object_edit_view(request: HttpRequest, entity_type: str, object_url_id: str)
     try:
         model_cls = get_model_class(entity_type)
     except KeyError:
-        raise Http404(f"Unknown entity type '{entity_type}'.")
+        raise Http404(f"Unknown entity type '{entity_type}'.") from None
 
     try:
         obj = model_cls.objects.select_related("entity").get(entity__pk=entity_uuid)
     except model_cls.DoesNotExist:
-        raise Http404(f"{entity_type} '{entity_uuid}' not found.")
+        raise Http404(f"{entity_type} '{entity_uuid}' not found.") from None
 
     # POST: handle form submission directly (synthetic panels render inline,
     # so the editor panel's HTMX post targets the object edit URL).
@@ -253,7 +266,13 @@ def object_view(request: HttpRequest, entity_type: str, object_url_id: str) -> H
     Renders via the synthetic page builder using the entity-viewer GRIFT
     subgraph in tap_web/data/.
     """
+    from tap_auth import policy
+    from tap_grid.caller_context import get_caller_context
     from tap_grid.registry import get_model_class
+
+    # Authorize before the direct graph read below (no existence leak); AuthzError
+    # → 403 via CallerContextMiddleware (req-tap-auth-service-boundary).
+    policy.authorize(get_caller_context(), "grid.read", operation="object_view")
 
     entity_uuid = parse_panel_url_id(object_url_id)
     if entity_uuid is None:
@@ -262,12 +281,12 @@ def object_view(request: HttpRequest, entity_type: str, object_url_id: str) -> H
     try:
         model_cls = get_model_class(entity_type)
     except KeyError:
-        raise Http404(f"Unknown entity type '{entity_type}'.")
+        raise Http404(f"Unknown entity type '{entity_type}'.") from None
 
     try:
         model_cls.objects.select_related("entity").get(entity__pk=entity_uuid)
     except model_cls.DoesNotExist:
-        raise Http404(f"{entity_type} '{entity_uuid}' not found.")
+        raise Http404(f"{entity_type} '{entity_uuid}' not found.") from None
 
     from tap_web.synthetic import load_subgraph, render_synthetic_page
 
@@ -425,6 +444,10 @@ def _get_neighborhood_context(entity_id: object) -> dict[str, Any]:
         envelope = result.get("results", result)
         nodes_raw = envelope.get("nodes", [])
         edges_raw = envelope.get("edges", [])
+    except AuthzError:
+        # An authorization denial must surface as a 403/no-access (translated by
+        # CallerContextMiddleware), not be swallowed into a graph-data error.
+        raise
     except Exception as exc:  # noqa: BLE001
         logger.exception("[f200] hub-and-spoke search failed for entity %s", entity_id)
         return {
@@ -721,15 +744,13 @@ def nav_index_view(request: HttpRequest) -> JsonResponse:
                 "name": page.name,
                 "description": page.description or "",
                 "nav_weight": page.nav_weight,
-                "breadcrumb": [
-                    {"label": seg.label, "url": seg.url} for seg in breadcrumb
-                ],
+                "breadcrumb": [{"label": seg.label, "url": seg.url} for seg in breadcrumb],
             }
         )
     return JsonResponse(
         {
             "version": "0",
-            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "pages": entries,
         },
         json_dumps_params={"indent": 2},

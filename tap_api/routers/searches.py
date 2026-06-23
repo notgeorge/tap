@@ -10,6 +10,8 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
+from tap_auth import policy
+from tap_grid.caller_context import get_caller_context
 from tap_grid.exceptions import SearchExecutionError
 from tap_grid.grift.subgraph import SubgraphLayer
 from tap_grid.models import Search
@@ -25,7 +27,7 @@ class ExecuteSearchIn(Schema):
     layer: SubgraphLayer | None = None
 
 
-@router.post("/{search_id}/execute", response={200: dict, 422: dict, 500: dict}, auth=None)
+@router.post("/{search_id}/execute", response={200: dict, 422: dict, 500: dict})
 def execute_search_endpoint(
     request: HttpRequest,
     search_id: uuid.UUID,
@@ -33,11 +35,13 @@ def execute_search_endpoint(
 ) -> tuple[int, dict[str, Any]]:
     """Execute a stored Search and return the canonical graph envelope.
 
-    Body is POST-shaped because `inputs` is a nested JSON object that would
-    be awkward and URL-length-limited as query params. The operation itself
-    is read-only; read-only enforcement is at the DB alias level, and access
-    matches the public read-only policy of graph panel HTML rendering.
+    Body is POST-shaped because `inputs` is a nested JSON object that would be
+    awkward and URL-length-limited as query params. Read enforcement: the request
+    must hold `grid.read`, authorized BEFORE the Search is loaded so a denied
+    caller cannot distinguish a missing search (404) from an existing one
+    (existence leak); both return the same 403 (req-tap-auth-service-boundary).
     """
+    policy.authorize(get_caller_context(), "grid.read", operation="execute_search_endpoint")
     search = get_object_or_404(Search, entity_id=search_id)
     try:
         result = execute_search(
@@ -48,7 +52,10 @@ def execute_search_endpoint(
             layer=payload.layer or "full",
         )
     except ValidationError as exc:
-        return 422, {"error": "input_validation_failed", "detail": exc.message_dict if hasattr(exc, "message_dict") else exc.messages}
+        return 422, {
+            "error": "input_validation_failed",
+            "detail": exc.message_dict if hasattr(exc, "message_dict") else exc.messages,
+        }
     except SearchExecutionError as exc:
         return 500, {"error": "search_execution_failed", "detail": str(exc)}
     return 200, result

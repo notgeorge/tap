@@ -161,16 +161,25 @@ def _raise_unguarded(kind: str, caller_context: CallerContext | None, detail: st
     raise UnguardedOperation(f"unguarded {kind}: no authorization decision recorded before {detail}", callsite=callsite)
 
 
-def assert_write_authorized(caller_context: CallerContext | None) -> None:
-    """Backstop at the write-pipeline commit chokepoint.
+def assert_write_authorized(
+    caller_context: CallerContext | None,
+    *,
+    needs_write: bool = True,
+    needs_delete: bool = False,
+) -> None:
+    """Backstop at the write-pipeline commit chokepoint, per op-class.
 
-    Passes iff the active scope recorded at least one write-class capability
-    (`WRITE_CAPABILITIES`). Otherwise the mutation reached commit without an
-    `authorize()` call — fail closed.
+    A batch containing create/update ops requires a write-authorizing capability;
+    a batch containing delete ops *additionally* requires a delete-authorizing
+    capability — so a plain `grid.write` authorization cannot carry a delete
+    (req-tap-auth-policy On By Default). Either gap means the mutation reached
+    commit without the right `authorize()` call — fail closed.
     """
-    if caps.WRITE_CAPABILITIES & policy.authorized_capabilities():
-        return
-    _raise_unguarded("write", caller_context, "write_batch commit")
+    ledger = policy.authorized_capabilities()
+    if needs_write and not (caps.WRITE_CAPABILITIES & ledger):
+        _raise_unguarded("write", caller_context, "write_batch commit")
+    if needs_delete and not (caps.DELETE_CAPABILITIES & ledger):
+        _raise_unguarded("delete", caller_context, "write_batch delete op")
 
 
 def assert_read_authorized(caller_context: CallerContext | None) -> None:

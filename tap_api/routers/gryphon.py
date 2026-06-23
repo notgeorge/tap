@@ -20,7 +20,7 @@ class GryphonQueryIn(Schema):
     layer: SubgraphLayer | None = None
 
 
-@router.post("/execute", response={200: dict, 422: dict, 500: dict}, auth=None)
+@router.post("/execute", response={200: dict, 422: dict, 500: dict})
 def execute_gryphon_endpoint(
     request: HttpRequest,
     payload: GryphonQueryIn,

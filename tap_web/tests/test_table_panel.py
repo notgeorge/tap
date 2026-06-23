@@ -15,6 +15,8 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.test import Client
 
@@ -29,6 +31,17 @@ from tap_web.panels.table_panel import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _admin_client() -> Client:
+    """Test client logged in as a tap_admin member, so the graph-backed editor
+    shell render is authorized under on-by-default enforcement (tap_admin from
+    the session auth seed)."""
+    user = get_user_model().objects.create_user(username="table-admin", password="x")
+    user.groups.add(Group.objects.get(name="tap_admin"))
+    client = Client()
+    client.force_login(user)
+    return client
 
 
 def _create_table_panel(**kwargs) -> Panel:
@@ -578,19 +591,19 @@ class TestTablePanelEditView:
 
     def test_get_returns_200(self):
         panel = _create_table_panel()
-        response = Client().get(_edit_url(panel))
+        response = _admin_client().get(_edit_url(panel))
         assert response.status_code == 200
 
     def test_get_includes_editor_template(self):
         panel = _create_table_panel()
-        response = Client().get(_edit_url(panel))
+        response = _admin_client().get(_edit_url(panel))
         template_names = [t.name for t in response.templates]
         assert "tap_web/panels/table_panel_editor.html" in template_names
 
     def test_post_saves_and_redirects(self):
         panel = _create_table_panel()
         search = _create_search()
-        response = Client().post(
+        response = _admin_client().post(
             _edit_url(panel),
             {
                 "name": "Updated",
@@ -604,7 +617,7 @@ class TestTablePanelEditView:
 
     def test_post_empty_name_rerenders_with_errors(self):
         panel = _create_table_panel()
-        response = Client().post(
+        response = _admin_client().post(
             _edit_url(panel),
             {
                 "name": "",

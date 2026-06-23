@@ -27,6 +27,7 @@ def _admin_client() -> Client:
     c.force_login(user)
     return c
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -133,23 +134,23 @@ class TestTextPanelEditView:
 
     def test_get_returns_200(self):
         panel = _create_text_panel()
-        response = Client().get(_edit_url(panel))
+        response = _admin_client().get(_edit_url(panel))
         assert response.status_code == 200
 
     def test_get_uses_panel_edit_template(self):
         panel = _create_text_panel()
-        response = Client().get(_edit_url(panel))
+        response = _admin_client().get(_edit_url(panel))
         assert "tap_web/editor.html" in [t.name for t in response.templates]
 
     def test_get_includes_text_panel_editor_template(self):
         panel = _create_text_panel()
-        response = Client().get(_edit_url(panel))
+        response = _admin_client().get(_edit_url(panel))
         template_names = [t.name for t in response.templates]
         assert "tap_web/panels/text_panel_editor.html" in template_names
 
     def test_get_shows_current_body_text(self):
         panel = _create_text_panel(config={"text": "Current content."})
-        response = Client().get(_edit_url(panel))
+        response = _admin_client().get(_edit_url(panel))
         assert b"Current content." in response.content
 
     def test_post_saves_title(self):
@@ -198,7 +199,7 @@ class TestTextPanelEditView:
     def test_generic_json_editor_not_shown_for_text_panel(self):
         # The typed editor replaces the generic JSON config editor.
         panel = _create_text_panel()
-        response = Client().get(_edit_url(panel))
+        response = _admin_client().get(_edit_url(panel))
         assert b'name="config"' not in response.content
 
 
