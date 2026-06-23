@@ -1,7 +1,12 @@
 """CallerContext — the typed carrier for actor identity and batch scope.
 
 Every public service-layer function accepts a CallerContext. It carries:
-  - user: the acting User (None for system/internal callers)
+  - user: the acting named actor. Under the on-by-default service-boundary
+    enforcement (req-tap-auth-policy), a public read/write requires a named actor;
+    `user=None` is rejected (MissingActor). System-initiated work runs as a named
+    program actor (tap_bootloader / tap_collector / tap_scheduler), never None.
+    The field may be None only below the service boundary (model-level saves,
+    migrations) and is resolved/inherited from the active context where possible.
   - batch_id: an existing batch scope to join (None means the service layer generates one)
 
 A module-level ContextVar holds the active CallerContext so that BaseModel.save()
@@ -42,7 +47,10 @@ class CallerContext:
     Frozen to prevent accidental mutation inside the write pipeline.
 
     Attributes:
-        user: The acting user. None indicates a system or internal caller.
+        user: The acting named actor. A public service read/write requires a
+            non-None actor under the on-by-default enforcement; `None` is rejected
+            at the boundary (system work uses a named program actor). None remains
+            valid only below the service layer (model-level saves).
         batch_id: An existing batch scope to join. None means the service
             layer will generate a new batch_id for this operation.
     """

@@ -9,10 +9,23 @@ Covers:
 """
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.test import Client
 
 from tap_web.models import Panel
 from tap_web.panels.text_panel import TextPanelEditForm, TextPanelType
+
+
+def _admin_client() -> Client:
+    """Test client logged in as a tap_admin member, so panel writes are
+    authorized under the on-by-default enforcement (tap_admin from the session
+    auth seed in the root conftest)."""
+    user = get_user_model().objects.create_user(username="textadmin", password="x")
+    user.groups.add(Group.objects.get(name="tap_admin"))
+    c = Client()
+    c.force_login(user)
+    return c
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -141,44 +154,44 @@ class TestTextPanelEditView:
 
     def test_post_saves_title(self):
         panel = _create_text_panel(name="Old")
-        Client().post(_edit_url(panel), {"name": "New Title", "description": "", "text": "body"})
+        _admin_client().post(_edit_url(panel), {"name": "New Title", "description": "", "text": "body"})
         panel.refresh_from_db()
         assert panel.name == "New Title"
 
     def test_post_saves_description(self):
         panel = _create_text_panel()
-        Client().post(_edit_url(panel), {"name": panel.name, "description": "Meta note.", "text": "body"})
+        _admin_client().post(_edit_url(panel), {"name": panel.name, "description": "Meta note.", "text": "body"})
         panel.refresh_from_db()
         assert panel.description == "Meta note."
 
     def test_post_saves_text_to_config(self):
         panel = _create_text_panel(config={"text": "old"})
-        Client().post(_edit_url(panel), {"name": panel.name, "description": "", "text": "Updated body."})
+        _admin_client().post(_edit_url(panel), {"name": panel.name, "description": "", "text": "Updated body."})
         panel.refresh_from_db()
         assert panel.config["text"] == "Updated body."
 
     # req-web-panel-edit-form.sec-2 — server-side sanitization via Django Form strip
     def test_post_strips_whitespace_from_title(self):
         panel = _create_text_panel()
-        Client().post(_edit_url(panel), {"name": "  Trimmed  ", "description": "", "text": "body"})
+        _admin_client().post(_edit_url(panel), {"name": "  Trimmed  ", "description": "", "text": "body"})
         panel.refresh_from_db()
         assert panel.name == "Trimmed"
 
     def test_post_strips_whitespace_from_text(self):
         panel = _create_text_panel()
-        Client().post(_edit_url(panel), {"name": panel.name, "description": "", "text": "  content  "})
+        _admin_client().post(_edit_url(panel), {"name": panel.name, "description": "", "text": "  content  "})
         panel.refresh_from_db()
         assert panel.config["text"] == "content"
 
     def test_post_empty_title_rerenders_with_errors(self):
         panel = _create_text_panel()
-        response = Client().post(_edit_url(panel), {"name": "", "description": "", "text": "body"})
+        response = _admin_client().post(_edit_url(panel), {"name": "", "description": "", "text": "body"})
         assert response.status_code == 200
         assert b"tap_web/editor.html" in bytes(str([t.name for t in response.templates]), "utf-8")
 
     def test_post_redirects_to_edit_page_on_success(self):
         panel = _create_text_panel()
-        response = Client().post(_edit_url(panel), {"name": "Title", "description": "", "text": "body"})
+        response = _admin_client().post(_edit_url(panel), {"name": "Title", "description": "", "text": "body"})
         assert response.status_code == 302
         assert response["Location"] == _edit_url(panel)
 

@@ -14,6 +14,7 @@ from tap_api.routers.entities import router as entities_router
 from tap_api.routers.entity_types import router as entity_types_router
 from tap_api.routers.gryphon import router as gryphon_router
 from tap_api.routers.searches import router as searches_router
+from tap_auth.errors import AuthzError
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,16 @@ api.add_router("/edges/", edges_router, tags=["Edges"], auth=session_auth)
 api.add_router("/entity-types/", entity_types_router, tags=["Entity Types"], auth=session_auth)
 api.add_router("/searches/", searches_router, tags=["Searches"], auth=session_auth)
 api.add_router("/gryphon/", gryphon_router, tags=["Gryphon"], auth=session_auth)
+
+
+@api.exception_handler(AuthzError)
+def _authz_denied(request: HttpRequest, exc: AuthzError) -> Any:
+    """Translate a tap_auth authorization denial to a 403 (req-tap-auth-policy:
+    edge layers translate denials to 403). Covers missing/inactive actor,
+    unknown capability, capability denied, and actor-kind errors. The
+    `unguarded_operation` defect is NOT an AuthzError and remains a 500 — it is
+    an internal wiring flaw, not a denial."""
+    return api.create_response(request, {"detail": str(exc), "reason": exc.reason}, status=403)
 
 
 @api.get("/", auth=None, tags=["Meta"])

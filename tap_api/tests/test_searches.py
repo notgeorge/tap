@@ -74,13 +74,15 @@ class TestExecuteSearch:
         assert response.status_code == 422
         assert response.json()["error"] == "input_validation_failed"
 
-    def test_anonymous_access_allowed(self, client):
-        """Read-only search execution is anonymous-accessible to match the
-        public read-only policy of graph panel HTML rendering."""
+    def test_anonymous_access_denied(self, client):
+        """Graph reads require grid.read (req-tap-auth-service-boundary-3): an
+        anonymous request resolves to no actor and is denied with a 403. This
+        supersedes the former public-read behavior — reads are protected by
+        default under the on-by-default enforcement."""
         search = _orm_character_search()
         response = client.post(
             f"/api/v1/searches/{search.entity_id}/execute",
             data={},
             content_type="application/json",
         )
-        assert response.status_code == 200
+        assert response.status_code == 403

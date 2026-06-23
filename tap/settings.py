@@ -188,6 +188,10 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Bind a TAP CallerContext from request.user (after AuthenticationMiddleware
+    # populates it) so the service boundary can authorize the request actor
+    # (req-tap-auth-service-boundary). Must precede any view that reads the grid.
+    "tap_auth.middleware.CallerContextMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]

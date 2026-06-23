@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 
 from tap_api.schemas import EdgeIn, EdgeOut, ErrorOut
+from tap_auth import policy
 from tap_grid.caller_context import CallerContext
 from tap_grid.exceptions import InvalidEdgeError
 from tap_grid.models import Edge, Entity
@@ -30,6 +31,8 @@ def list_edges(
     limit: int = 100,
     offset: int = 0,
 ) -> list[Edge]:
+    # Direct read bypasses Search; interim grid.read gate (req-tap-auth-policy).
+    policy.authorize(_caller_ctx(request), "grid.read", operation="list_edges")
     qs = Edge.objects.select_related("entity").all()
     if from_entity_id:
         qs = qs.filter(from_entity_id=from_entity_id)
@@ -42,6 +45,7 @@ def list_edges(
 
 @router.get("/{entity_id}/", response=EdgeOut)
 def get_edge(request: HttpRequest, entity_id: uuid.UUID) -> Edge:
+    policy.authorize(_caller_ctx(request), "grid.read", operation="get_edge")
     return get_object_or_404(Edge.objects.select_related("entity"), entity__pk=entity_id)
 
 

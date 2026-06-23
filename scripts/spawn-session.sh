@@ -504,6 +504,17 @@ done
 echo
 
 # ============================================================================
+# Step 5.9: Auth bootstrap (sync capabilities, protected groups, built-in actors)
+#
+# Must run BEFORE seeding and collectors: under the on-by-default service-boundary
+# enforcement, the seed import runs as the tap_bootloader actor and collectors run
+# as tap_collector, both created here (req-tap-auth-boot, req-boot-phases). This
+# interim shell step is what the bootloader's auth section handler will absorb.
+# ============================================================================
+bold "Step 5.9: Syncing auth bootstrap"
+scripts/dc exec web uv run python manage.py sync_auth
+
+# ============================================================================
 # Step 6: Seed plugin data
 #
 # Each isolated stack is a separate TAP installation; spawn seeds it so the
@@ -574,7 +585,18 @@ scripts/dc exec \
   -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL" \
   web uv run python manage.py createsuperuser --noinput
 
-info "Superuser created. Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
+# Spawn bridge (req-tap-auth-local-5): the Django superuser is_superuser is NOT a
+# TAP-service bypass, so the admin must join tap_admin to operate the grid through
+# the service boundary. Interim shell step; folds into boot's auth section later.
+scripts/dc exec web uv run python manage.py shell -c "
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+u = get_user_model().objects.get(username='admin')
+u.groups.add(Group.objects.get(name='tap_admin'))
+print('admin joined tap_admin')
+"
+
+info "Superuser created (and joined tap_admin). Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
 
 # ============================================================================
 # Final: record the session in the registry

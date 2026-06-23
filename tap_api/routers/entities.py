@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 
 from tap_api.schemas import EntityIn, EntityOut, EntityUpdate
+from tap_auth import policy
 from tap_grid.caller_context import CallerContext
 from tap_grid.models import Entity
 from tap_grid.services import create_entity, delete_entity, update_entity
@@ -28,6 +29,9 @@ def list_entities(
     limit: int = 100,
     offset: int = 0,
 ) -> list[Entity]:
+    # Direct read bypasses Search, so it carries its own grid.read gate (interim,
+    # req-tap-auth-policy) until it migrates onto the Search dispatch chokepoint.
+    policy.authorize(_caller_ctx(request), "grid.read", operation="list_entities")
     qs = Entity.objects.all()
     if entity_type:
         qs = qs.filter(entity_type=entity_type)
@@ -36,6 +40,7 @@ def list_entities(
 
 @router.get("/{entity_id}/", response=EntityOut)
 def get_entity(request: HttpRequest, entity_id: uuid.UUID) -> Entity:
+    policy.authorize(_caller_ctx(request), "grid.read", operation="get_entity")
     return get_object_or_404(Entity, pk=entity_id)
 
 

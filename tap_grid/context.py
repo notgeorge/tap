@@ -13,8 +13,10 @@ from tap_grid.caller_context import CallerContext, get_caller_context, set_calle
 def set_batch_id(batch_id: str | None) -> None:
     """Set the batch_id in the active CallerContext.
 
-    If a CallerContext is already active, its user is preserved. If none
-    exists, a system CallerContext (user=None) is created.
+    If a CallerContext is already active, its actor is preserved. If none
+    exists, an actor-less context is created — but note that under the
+    on-by-default enforcement a public service read/write then requires the
+    actor to be resolved (a None actor is rejected at the boundary).
     """
     current = get_caller_context()
     user = current.user if current else None
