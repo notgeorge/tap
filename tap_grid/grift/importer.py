@@ -2963,11 +2963,16 @@ def _apply_sweep_tombstone(
     for eid, etype in cleared:
         verb = "delete_edge" if etype == "edge" else "delete_node"
         ops.append(WriteOperation(verb=verb, target=eid))
-    # Gated by grift_import's authorized('grid.import_grift') scope (_apply_sweep_tombstone
-    # runs inside the import); the per-function authz-coverage scanner cannot see the gate
-    # across the call, so it is marked rather than baselined.
     if ops:
-        write_batch(ops, caller_context=caller_ctx)  # TAP-AUTHZ-COV: gated by grift_import (sweep)
+        # A sweep tombstones nodes/edges, so authorize grid.delete explicitly here — grift_import's
+        # scope only authorizes grid.import_grift, so without this an actor lacking grid.delete
+        # (tap_bootloader / cares.collector) would trip the write_batch delete backstop as an
+        # UnguardedOperation instead of a clean denial. Symmetric with the imperative-removal path.
+        # The marker exempts the write_batch call (the scanner can't see a bare authorize).
+        from tap_auth import policy
+
+        policy.authorize(caller_ctx, "grid.delete", operation="grift_sweep_tombstone")
+        write_batch(ops, caller_context=caller_ctx)  # TAP-AUTHZ-COV: explicit grid.delete authorize above
 
     return [
         GriftSweptEntity(

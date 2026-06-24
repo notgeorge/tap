@@ -56,7 +56,7 @@ def test_authz_coverage_ratchet() -> None:
             "A call to write_batch / grift_import / a Search-Gryphon executor / a _*_internal write "
             "helper must sit inside a @requires_capability function or an authorized() block. Gate "
             "the enclosing function; if it is provably gated by a caller the per-function scanner "
-            "cannot see, annotate the call `# noqa: TAP-AUTHZ-COV <reason>`. Only as a last resort "
+            "cannot see, annotate the call `# TAP-AUTHZ-COV: <reason>`. Only as a last resort "
             "append the entries to tap/tests/_authz_coverage_baseline.txt."
         )
     if stale_entries:

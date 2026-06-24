@@ -1377,6 +1377,21 @@ class TestGriftRemovalExecution:
         # Fails closed: the target is still live (never tombstoned).
         assert Entity.objects.filter(pk=uuid.UUID(nid), deleted_at__isnull=True).exists()
 
+    def test_sweep_tombstone_requires_grid_delete(self):
+        """The force-reimport sweep tombstone authorizes grid.delete explicitly (symmetric with
+        the imperative-removal path), so an actor lacking it gets a clean CapabilityDenied — not an
+        UnguardedOperation — and nothing is tombstoned."""
+        from tap_auth.actors import get_builtin_actor
+        from tap_auth.errors import CapabilityDenied
+        from tap_grid.caller_context import CallerContext
+        from tap_grid.grift.importer import _apply_sweep_tombstone
+
+        nid = self._seed_one_character()
+        bootloader = get_builtin_actor("tap_bootloader")
+        with pytest.raises(CapabilityDenied):
+            _apply_sweep_tombstone([(nid, "character")], CallerContext(user=bootloader))
+        assert Entity.objects.filter(pk=uuid.UUID(nid), deleted_at__isnull=True).exists()
+
     def test_delete_missing_target_on_missing_error_fails(self):
         bid = _batch_entity_id()
         missing_id = _node_entity_id()
