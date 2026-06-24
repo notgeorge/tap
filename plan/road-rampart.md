@@ -10,6 +10,18 @@ This is the demand/intent layer above specs: which work matters, in what order, 
 
 Standing, cross-cutting guidance. Stable; read this to know how to judge whether work is on-path. (This section currently lives here per `req-roadmap-doctrine`; it extracts to a `plan/plan.md` meta-doc only when a second roadmap appears.)
 
+### Strategic posture (2026-06-24)
+
+The near-term shift is toward a **presentable, deployable Rampart** we can put in front of partners and customers. The core samsite system already tells a convincing FedRAMP 20x story; the gap to "deployable product" is **auth and boot dialed in**, then plugin refactor (rapid per-customer iteration) and AI (the customer-facing, user-simulating guides). Build order to mid-July, in priority:
+
+1. **Auth** — demo-able: user logins + enough internal controls to claim a real (if coarse-grained) authZ capability; web-layer warts acceptable.
+2. **Boot** — repeatable instance bring-up; the critical path to standing instances up for demos and field deployments.
+3. **Plugin refactor** — plugins as installable code: per-customer customization, product-suite composition, and focused work / testing / refactor.
+4. **AI integration (first cut)** — the customer-facing, user-simulating guides: a real, integrated, useful "has-AI" capability and a genuine wow-factor in customer conversations. Deeper/agentic AI comes later.
+5. **CI/CD / deployment** — the machinery to keep field deployments online through updates.
+
+Items 1–4 are the **mid-July target** (`step-rampart-launch-ready`): with auth, boot, installable plugins, and a first AI integration in place, **TAP is functionally complete** — presentable for customer conversations and self-deployable. Sequencing: auth → boot, then plugin (3) and the first AI integration (4) **in parallel** — both depend on boot, not on each other, and that fork is what makes the push feasible. It will be a push to get there. CI/CD + deployment (5) is the post-July hardening that makes it stay-online deployable inside customer environments. The product + go-to-market shape this serves — the product lines (Rampart, Semaphore), solution-sets, plugin-sets, and the Self → Customer → Partnership deployment models — lives in [`product-map.md`](product-map.md), the standing companion to this roadmap.
+
 ### Strategic Rule
 
 When evaluating any work, ask:
@@ -66,7 +78,7 @@ Prefer: a feature that helps a human understand a real system → over: a featur
 
 ### Product Needs (standing productization context)
 
-What a product other people can use actually needs: defined scope with real-world usability; extensibility from inside the app; documentation; an installation process; security; bug fixes; in-place updates that don't break their stuff; beta users to make it real. Not all required now — tracked here so step scoping stays honest about the distance to a product.
+What a product other people can use actually needs: defined scope with real-world usability; extensibility from inside the app; documentation; an installation process; security; bug fixes; in-place updates that don't break their stuff; beta users to make it real. Not all required now — tracked here so step scoping stays honest about the distance to a product. The product-line / solution-set / plugin-set and deployment-model taxonomy this feeds is in [`product-map.md`](product-map.md).
 
 ### AI Thread Instructions
 
@@ -81,8 +93,9 @@ Quick-glance index. Per-step `Timeline Target` is authoritative; this table is i
 | Step ID | Name | Timeline Target | Status | Note |
 | --- | --- | --- | :---: | --- |
 | [step-rampart-sam-demo](#step-rampart-sam-demo) | Demo to Sam Aydlette | 2026-06-01 | Completed | Demo landed 2026-05-31 (+ Eric later that week); samsite retained as demo/test target |
-| [step-rampart-first-paid-assessment](#step-rampart-first-paid-assessment) | First paid assessment | 2026-06 → 2026-07-07 | Active | Robco AI-safety startup (verbal, Active 2026-06-10); ongoing monthly advisory; validates willingness-to-pay |
-| [step-rampart-first-paying-customer](#step-rampart-first-paying-customer) | First paying customer | 2026-08-01 | Active | Rampart deployed in a company without direct involvement; AuthN → plugin refactor → boot loader → config → subscription |
+| [step-rampart-launch-ready](#step-rampart-launch-ready) | Launch-ready Rampart | 2026-07-18 | Active | TAP functionally complete + presentable for partner/customer talks; mid-July = auth → boot → (plugin ‖ first-AI); CI/CD post-July ([`product-map.md`](product-map.md)) |
+| [step-rampart-first-paid-assessment](#step-rampart-first-paid-assessment) | First paid assessment | 2026-06 → 2026-07-07 | Active | Robco (the Self deployment model — first contracted Rampart deployment); their infra is weeks out / slow; value = prove the solo use case + field-harden the platform |
+| [step-rampart-first-paying-customer](#step-rampart-first-paying-customer) | First paying customer | 2026-08-01 | Active | The Customer deployment model — Rampart deployed in a company, customer-managed; needs the stay-online machinery (boot, CI/CD, plugin refactor) |
 | [step-rampart-self-sufficiency](#step-rampart-self-sufficiency) | Self-sufficiency | 2026-09-15 | Proposed | 3+ customers by mid-Sept → default alive |
 | [step-rampart-big-bang](#step-rampart-big-bang) | Public big-bang demo | ~2026-10 | Proposed | Event horizon, not the current planning target |
 
@@ -155,6 +168,25 @@ Depends-on: `spec-aws-core-v0`; the from-scratch boto3 `aws_core` collector — 
 Demo performed on May 31st and went great.  System worked as expected, was well received, and all features needed were there and demonstrable.  Sets the stage for collaboration in the future, provided validation of the approach and enthusiasm and confirmation that had been a bit lost while so deep into the work that I couldn't see the forest for the trees.
 
 This was followed by a second demo to a colleague later in the week which was also very well received.  Together they demonstrate that I can communicate the capabilities of the system, and that the samsite demo has sufficient heft to actually present what's going on (much better than genericom).  Keeping samsite around as a demo target for the foreseeable future will be useful and to use it as a potential testing target for exercising plugins, etc. makes a lot of sense.  Thanks Sam and Eric!
+
+
+### step-rampart-launch-ready
+Status: `Active`
+Timeline Target: `2026-07-18`
+Objective: TAP/Rampart is functionally complete and presentable for real partner/customer conversations — auth (user logins + enforced coarse authZ), boot (clean instance bring-up), installable plugins, and a first AI integration all in place — so a fresh instance stands up, enforces auth, and demos the samsite FedRAMP 20x story with an AI guide walking it.
+Done-Test: On demand you can bring up a fresh Rampart instance, log in as a named user, present the 20x samsite story with auth enforced and a working first AI integration (the user-simulating guide), and the plugin system is in its installable-code form (the per-customer customization path); a knowledgeable viewer accepts it as a functionally-complete, deployable product — not a dev rig — and it is ready for the post-July deployment-hardening.
+Non-Goals: the CI/CD + field-deployment machinery (post-July: stay-online updates, backups); fine-grained per-page/per-row authZ (web-layer warts acceptable for this step); deeper / agentic AI beyond the first user-simulating guide; multi-tenant polish; productization solution-sets beyond the 20x/samsite story.
+
+The **launch gate** beneath every paid deployment in [`product-map.md`](product-map.md). The samsite system already tells the 20x story; this step closes the gap to "functionally complete + something we deploy and demo on purpose." Build order: auth → boot → then **plugin refactor and the first AI integration in parallel** (both depend on boot, not on each other) — that fork is what makes the mid-July push feasible. CI/CD is the post-July follow-on. **This step's done-test is the first four** (TAP functionally complete):
+
+- **Auth (demo-able + coarse authZ).** Real user logins (wiring toward a customer IdP, e.g. Google, while preserving criticalsec.com access) and enough internal capability controls to honestly claim an authZ capability. The multi-session program-actor + service-boundary work landing now is this foundation; the web-layer read-as-user pass is a known, acceptable wart for the gate.
+- **Boot (repeatable instance bring-up).** The `tap_boot` path that stands an instance up from a fresh database to a populated, usable system without hand-holding — the critical path for demoing to and deploying for customers, and the **fork point**: once boot works, plugin and AI proceed in parallel.
+- **Plugin refactor (installable plugins).** Plugins as installable (uv-based) code — versioned, testable, per-customer composable. What lets Rampart be *tailored* per engagement and lets plugin-sets compose into solution-sets (`product-map.md`); functionally-complete TAP means the plugin model is in its real form, not the built-in stopgap.
+- **First AI integration (the demo wow).** The customer-facing, user-simulating guide — a `tap_ai` read-only surface over the graph: real, integrated, genuinely useful, the capability that lets a customer conversation include "and here's the AI walking you through it." Reads the existing graph, so it does *not* depend on the plugin refactor — hence the parallelism above.
+
+CI/CD + deployment (item 5) is the post-July follow-on: stay-online updates and backups that make Rampart deployable in *customer* environments (the Customer/Partnership models). It is *not* gating for mid-July functional-completeness or the Self-deployment demo.
+
+Concurrency: runs alongside the Robco engagement (`step-rampart-first-paid-assessment`) — Robco is the first place this capability gets deployed for real, and Robco's slow infra standup buys time. The Hawaii break (2026-07-10 → 2026-07-17) sits in this window; auth + boot are the pre-break push, with plugin + AI parallelizing after.
 
 
 ### step-rampart-first-paid-assessment

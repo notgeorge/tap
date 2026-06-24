@@ -59,6 +59,7 @@ RID: `req-roadmap-naming`
 Status: `Implemented`
 
 - **Roadmap files:** `plan/road-<scope>.md` — kebab-case, `road-` **prefix** marks the file as a roadmap (e.g. `plan/road-rampart.md`). `road-` is a file prefix only, like `spec-`. It is **not** a referenceable ID; a roadmap is cited by filename.
+- **Companion docs:** `plan/` may also hold non-roadmap demand-layer companions — e.g. the standing product / go-to-market map (`plan/product-map.md`): the stable *shape* (what we sell, to whom, how it's packaged) a roadmap references but that carries no steps or timeline of its own. Companions use plain descriptive names; the `road-` prefix is reserved for roadmaps.
 - **Steps:** `step-<roadmap>-<name>` is the referenceable ID (e.g. `step-rampart-sam-demo`), the roadmap-layer analogue of a `req-` ID. The parent roadmap is embedded in the ID for free at-a-glance traceability, mirroring the `req-<app>-<spec>-<feature>` house style.
 
 Moving a **tracked** file into `plan/` uses `git mv` so its history follows the rename — the docs system derives `last-edited`/`version` from `git log`, so a plain move would orphan that history. Moving an **untracked** file uses a plain `mv`: `git mv` fails on a file git does not track, and there is no history to preserve.
@@ -67,7 +68,7 @@ Moving a **tracked** file into `plan/` uses `git mv` so its history follows the 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-roadmap-naming-1 | Roadmap filenames follow pattern | Implemented | Every file in `plan/` matches `road-<scope>.md`. | |
+| req-roadmap-naming-1 | Roadmap filenames follow pattern | Implemented | Every **roadmap** file in `plan/` matches `road-<scope>.md`; `plan/` may also hold non-roadmap demand-layer companion docs (e.g. `product-map.md`). | |
 | req-roadmap-naming-2 | Step IDs follow pattern | Implemented | Every step ID matches `step-<roadmap>-<name>` and embeds its parent roadmap. | |
 
 ### Single `step` Primitive
