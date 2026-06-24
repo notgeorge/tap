@@ -25,10 +25,19 @@ Gryphon, before the service layer, before authZ existed at all). The thesis: aut
 **per-app standard** fitted to how each app binds an actor and reaches graph state. Trying to
 apply one identical approach across all apps is what produced whack-a-mole.
 
-**Status: draft for review.** Each app section is self-contained so it can be reviewed
-independently (Codex review + a per-app confirmation pass). Nothing here is implemented yet;
-this is the contract we agree on *before* the tightening pass. Decisions that are genuinely
-open are collected in [Open Decisions](#open-decisions).
+**Status: draft for review; core partially landed.** Each app section is self-contained so it can
+be reviewed independently. The **core** tightening pass has landed (`req-tap-auth-policy` stateless
+backstop + the `{grid.delete}` split + empty-batch + `is_actor_active`, plus the Rule-A coverage
+lint; commits `66ff0f2`/`88dd555`); the per-app passes (tap_cares, tap_web, tap_boot, plugins) are
+still ahead. Decisions that are genuinely open are collected in [Open Decisions](#open-decisions).
+
+> **Post-backout note (read first).** The contextvar **decision ledger was removed** — the backstop
+> is now a direct `policy.can(actor, needed_cap)` re-check (`req-tap-auth-policy-8`). Any mention
+> below of a "ledger", `record_authorization`, "ledger isolation", or "ledger lifecycle" describes
+> the *superseded pre-backout* analysis. The forward-looking standards in this doc have been updated
+> to the stateless model; the ledger-leak, empty-batch, and cover-cap classes are now closed **by
+> construction**. Build-time gate coverage comes from the authz-coverage lint (`req-tap-auth-policy-9`,
+> Rule A live). **Do not reintroduce ledger machinery** in the per-app passes.
 
 This is **capability-centric, not surface-centric.** The heavier per-surface assurance model
 (a la Cedar/surface-identity) was deliberately rejected for this scale — every real issue
@@ -44,11 +53,13 @@ positive** — `except A, B:` is valid Python 3.14 via PEP 758, which the projec
 each claim here was verified against source; the file:line anchors are corroborated.
 
 One **meta-finding** runs through several apps: the autouse `conftest` fixture
-(`default_caller_context`) binds a privileged ambient actor + a pre-authorized ledger for
-*every* DB test. That structurally hides two whole classes — the ambient-actor class
-(tap_cares/tap_boot broken in prod, green in CI) and the ledger-leak class. Our test harness
-is blind to exactly the classes we keep shipping. Fixing test-realism is itself a standard
-(see tap_cares / tap_boot enforcement and [Open Decisions](#open-decisions)).
+(`default_caller_context`) binds a privileged ambient actor for *every* DB test, which structurally
+hides the **ambient-actor class** (tap_cares/tap_boot broken in prod, green in CI) — the test
+harness is blind to exactly the class we keep shipping. (The fixture used to *also* pre-authorize a
+ledger, masking a now-removed ledger-leak class; that pre-auth went with the backout — the
+ambient-actor masking remains and is the load-bearing one for the tap_cares pass.) Fixing
+test-realism is itself a standard (see tap_cares / tap_boot enforcement and
+[Open Decisions](#open-decisions)).
 
 ---
 
@@ -60,18 +71,18 @@ other app **inherits** it unchanged. Five invariants:
 1. **Named actor.** A `CallerContext` carries the acting user or program-actor. No
    anonymous / `User=None` at a protected boundary. Passing authentication is never permission.
 2. **Capability gate.** `policy.authorize(ctx, cap)` evaluates actor → Django group →
-   permission → capability (**not** `has_perm`, so `is_superuser` is not a service bypass),
-   raises typed `AuthzError` on denial, records the decision into the ledger on allow.
+   permission → capability (**not** `has_perm`, so `is_superuser` is not a service bypass) and
+   raises typed `AuthzError` on denial (no decision ledger — see the post-backout note).
    Vocabulary is fixed: `grid.read/write/delete/import_grift/admin/purge`,
    `cares.run_collectors`, `auth.manage_*`, `config.manage`, `plugins.manage`.
 3. **Service layer is the only sanctioned graph path.** Reads via the
    `@requires_capability('grid.read')`-decorated Search/Gryphon executors; writes via
    `write_batch` / `assert_write_authorized`. Direct ORM on `Entity`/`Edge`/graph-managed
    `BaseModel` is a bypass except for migrations / intentional low-level.
-4. **Structural backstop.** `@requires_capability` / `authorized()` push an *isolated* per-op
-   ledger scope and authorize before the body; `assert_write/read_authorized` **fail closed**
-   with `UnguardedOperation` (a loud 500-class Flaw) if commit/return is reached with no
-   recorded decision.
+4. **Structural backstop (stateless).** `@requires_capability` / `authorized()` authorize before
+   the body; `assert_write/read_authorized` **fail closed** with `UnguardedOperation` (a loud
+   500-class Flaw) via a direct `policy.can(actor, needed_cap)` re-check if commit/return is
+   reached with an actor that lacks the capability the op requires (or no actor).
 5. **Edge translation.** `AuthzError` → 403; `UnguardedOperation` stays a loud 500.
 
 > **The load-bearing structural fact:** the backstop has reach **only over operations that
@@ -126,11 +137,11 @@ are that retrofit seam.
 
 **The standard:**
 
-1. **Ledger isolation.** Every `authorize()` that exists to satisfy a backstop runs inside an
-   isolated scope. A bare edge `authorize()` is a UI/early-denial check **only** and never
-   satisfies a downstream backstop.
-2. **Ledger lifecycle.** The ambient ledger is reset at every request/task/boot boundary,
-   symmetric with `CallerContext`.
+1. **Stateless backstop (no ledger).** Every backstop check is a direct `policy.can(actor,
+   needed_cap)` re-check; it never depends on whether `authorize()` ran. A bare edge `authorize()`
+   is a UI/early-denial check the backstop neither needs nor consults.
+2. **No ambient authorization state.** There is no per-request/-op authorization scope to push,
+   pop, reset, or leak — the prior ledger and its scope machinery are removed (`req-tap-auth-policy-8`).
 3. **One gated read chokepoint.** Every TAP-managed read goes through a
    `@requires_capability('grid.read')` function that reaches `assert_read_authorized`;
    undecorated read helpers and direct-ORM edge reads are eliminated or gated.
@@ -143,9 +154,9 @@ are that retrofit seam.
 
 **Class-eliminating moves:**
 
-- **Boundary-scope the ledger** (low): `CallerContextMiddleware` (and one task/boot helper)
-  push/pop a fresh ledger scope per request — exactly as it already does for `CallerContext`.
-  Kills the leak class *and* the thread-reuse class at one site.
+- **Delete the ledger → stateless backstop** (DONE, `req-tap-auth-policy-8`): removing the
+  contextvar ledger killed the leak class *and* the thread-reuse class by construction — no ambient
+  authorization state remains to leak. (Supersedes the earlier "boundary-scope the ledger" move.)
 - **Split cover semantics from backstop semantics** (low): DELETE backstop = `{grid.delete}`,
   PURGE = `{grid.purge}`; the grift importer authorizes `grid.delete` explicitly in its own
   scope. Makes "boot cannot tombstone" literally true.
@@ -547,8 +558,8 @@ the host *forces* untrusted extensions through it.
 ## Sequencing
 
 1. **Core first** (tap_grid + tap_auth) — non-negotiable; every per-app standard is only as
-   strong as the core. Boundary-scoped ledger, `{grid.delete}`-only delete backstop, single
-   `is_actor_active`, empty-batch seal. Mostly low-cost.
+   strong as the core. Stateless backstop (ledger removed), `{grid.delete}`-only delete backstop,
+   single `is_actor_active`, empty-batch seal. Mostly low-cost.
 2. **tap_web** — loosest, broadest exposure, and host for plugins. The single host-side
    `grid.read` scope at `panel_view` + the PanelType base class close tap_web's central class
    **and most of plugins'** at once.

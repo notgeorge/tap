@@ -1,5 +1,16 @@
 # TAP Auth Assurance v0 Specification
 
+> **Status — superseded / needs reconciliation (2026-06-23). Do not implement as-is.** This spec
+> predates two decisions that reshaped v1 auth: (1) the backstop is **stateless** — the contextvar
+> **decision ledger was removed** (`spec-tap-auth-v0.md` `req-tap-auth-policy-8`), so any "decision
+> ledger" language here (including the delegation-ledger keys below) describes a **future delegation
+> record or the rejected surface-centric model, NOT the v1 runtime backstop**; and (2) v1 auth is
+> deliberately **capability-centric, not surface-centric** — the Cedar/surface-identity apparatus in
+> this spec was evaluated and **rejected at this scale** (every real issue was a forgotten/bypassed
+> *capability* gate). A reconciliation pass is required before any of this is treated as the
+> contract; until then `spec-tap-auth-v0.md` + `docs/misc/doc-auth-per-app-standards.md` are
+> authoritative.
+
 ## Philosophy
 
 Authentication and authorization cannot be validated by informal review alone. TAP needs an
