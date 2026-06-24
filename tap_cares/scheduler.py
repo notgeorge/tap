@@ -263,7 +263,7 @@ def _claim_and_create_fire(
         if claimed == 0:
             return None
 
-        fire_result = _create_node_internal(
+        fire_result = _create_node_internal(  # TAP-AUTHZ-COV: bound tap_cares.scheduler via _scheduler_ctx; grid.write re-checked at the write backstop
             "schedule_fire",
             {
                 "name": f"{schedule.name} fire {current_slot.isoformat()}",
@@ -297,7 +297,7 @@ def _finalize_fire_skipped(
     caller_context: CallerContext,
 ) -> None:
     """Stage 2 SKIPPED transition. PENDING -> SKIPPED with a summary."""
-    result = _patch_node_internal(
+    result = _patch_node_internal(  # TAP-AUTHZ-COV: bound tap_cares.scheduler via _scheduler_ctx; grid.write re-checked at the write backstop
         fire.entity_id,
         {"status": ScheduleFireStatus.SKIPPED.value, "summary": summary},
         caller_context=caller_context,
@@ -316,7 +316,7 @@ def _finalize_fire_failed(
     caller_context: CallerContext,
 ) -> None:
     """Stage 2 FAILED transition. PENDING -> FAILED with a summary."""
-    result = _patch_node_internal(
+    result = _patch_node_internal(  # TAP-AUTHZ-COV: bound tap_cares.scheduler via _scheduler_ctx; grid.write re-checked at the write backstop
         fire.entity_id,
         {"status": ScheduleFireStatus.FAILED.value, "summary": summary},
         caller_context=caller_context,
@@ -340,7 +340,7 @@ def _finalize_fire_triggered(
     Wrapped in one transaction so the status and the edge cannot diverge.
     """
     with transaction.atomic():
-        result = _patch_node_internal(
+        result = _patch_node_internal(  # TAP-AUTHZ-COV: bound tap_cares.scheduler via _scheduler_ctx; grid.write re-checked at the write backstop
             fire.entity_id,
             {"status": ScheduleFireStatus.TRIGGERED.value, "summary": summary},
             caller_context=caller_context,

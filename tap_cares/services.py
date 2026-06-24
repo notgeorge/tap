@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 
 from django.db import transaction
 
+from tap_auth.enforcement import requires_capability
 from tap_cares.collectors.readiness import (
     CollectorReadinessStatus,
     CollectorSelfTestResult,
@@ -149,6 +150,7 @@ def self_test_collector(collector: Collector) -> CollectorSelfTestResult:
     return result
 
 
+@requires_capability("cares.run_collectors")
 def run_collection(
     collector: Collector,
     *,
@@ -158,6 +160,20 @@ def run_collection(
     run_mode: str = CollectionJobRunMode.FULL,
 ) -> CollectionJob:
     """Start a collection run for the given Collector.
+
+    Two authorization decisions, never collapsed (req-tap-auth-actor-model):
+
+      1. **Trigger gate** — `@requires_capability("cares.run_collectors")` checks
+         the *triggering* actor: the request user (passed through from tap_web's
+         middleware-bound `CallerContext`), the `tap_cares.scheduler` on a tick, or
+         the `tap_bootloader` firing boot collectors. tap_web is a pure pass-through
+         here — it adds no actor of its own; it hands its request context to this
+         service, which confirms that actor may run collectors.
+      2. **Execution identity** — the collection itself then runs as the
+         least-privilege `tap_cares.collector` program actor (the swap below), never
+         as the triggering actor, so the collector's blast radius is bounded
+         regardless of who triggered it (the Kubernetes-CronJob ServiceAccount
+         model).
 
     `run_collection` is the sole creator of `CollectionJob` rows
     (req-tap-cares-collector-job-model-18). `run_mode` selects the vehicle:
@@ -268,7 +284,12 @@ def run_collection(
     def _enqueue_and_record_task_id() -> None:
         task_result = run_collector.enqueue(collector_entity_id, job_entity_id)
         if task_result.id:
-            _patch_node_internal(job_entity_id, {"task_result_id": task_result.id})
+            # This on-commit callback fires after the request/task context has
+            # been torn down, so the ambient actor is gone. Pass the resolved
+            # tap_cares.collector ctx explicitly so this bookkeeping write still
+            # binds a named actor (the on-commit analogue of the prod-break the
+            # task-body acting_as binding closes).
+            _patch_node_internal(job_entity_id, {"task_result_id": task_result.id}, caller_context=ctx)
 
     transaction.on_commit(_enqueue_and_record_task_id)
 

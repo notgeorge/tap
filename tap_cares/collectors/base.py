@@ -235,7 +235,6 @@ class CollectorBase(ABC):
         self,
         document: dict[str, Any] | str | bytes,
         *,
-        actor: Any = None,
         dangling_edge_mode: str = "strict",
         on_rejection: str = "abort",
     ) -> Any:
@@ -268,9 +267,16 @@ class CollectorBase(ABC):
           collectors wanting partial-success (GRIFT rejects per *batch*).
           The unsafe path is opt-in, never the default.
 
+        The run executes as the named ``tap_cares.collector`` program actor, bound
+        once at the `run_collector` task boundary via `acting_as`
+        (req-tap-auth-actor-model). `submit_grift` deliberately takes no ``actor``
+        argument: a collector cannot name its own writer and so cannot escalate
+        past the least-privilege collector bundle. `grift_import` resolves the
+        ambient bound actor from the `CallerContext` and self-authorizes
+        ``grid.import_grift`` in its own scope.
+
         Args:
             document: GRIFT document (parsed dict, JSON string, or bytes).
-            actor: Optional User passed through to `grift_import`.
             dangling_edge_mode: Passed through to `grift_import`.
             on_rejection: ``"abort"`` (default) | ``"return"`` — see above.
 
@@ -286,10 +292,9 @@ class CollectorBase(ABC):
         # tests that don't need it.
         from tap_grid.grift import grift_import
 
-        result = grift_import(
+        result = grift_import(  # TAP-AUTHZ-COV: grift_import self-authorizes grid.import_grift; runs as bound tap_cares.collector
             document,
             dangling_edge_mode=dangling_edge_mode,  # type: ignore[arg-type]
-            actor=actor,
         )
 
         self._produced_batches.extend((str(b.batch_entity_id), "imported") for b in result.imported_batches)

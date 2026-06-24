@@ -12,11 +12,13 @@
 # test_authz_coverage.py fails on any NEW entry and any STALE entry, so a fix must
 # delete its line here. Do not add rows except as a deliberate, reviewed last
 # resort: prefer a @requires_capability/authorized() gate, or a
-# `# noqa: TAP-AUTHZ-COV <reason>` when the call is provably gated by a caller the
-# per-function scanner cannot see.
+# `# TAP-AUTHZ-COV: <reason>` comment when the call is provably gated by a caller
+# the per-function scanner cannot see (a plain comment, NOT a noqa code — ruff
+# rejects the hyphenated token).
 #
 # Clusters (each is a per-app standard still to land):
-#   tap_cares/*              — bind a named program actor at the task/scheduler/registry boundary
+#   tap_cares/registry.py    — collector upsert in ready(); defers to the tap_bootloader boot increment
+#                              (task + scheduler boundaries now bound via acting_as / _scheduler_ctx)
 #   tap_web/* + tap_viz/*    — host-gate grid.read at panel_view (the render-read contract)
 #   plugins/*/panels/*       — ride the tap_web host-gate
 #   plugins/*/collectors/*   — collector-runtime actor binding
@@ -45,21 +47,8 @@ plugins/samsite/panels/ksi_signal_workbench/__init__.py:39
 plugins/samsite/panels/vdr_report_workbench/__init__.py:34
 tap_api/routers/gryphon.py:34
 tap_api/routers/searches.py:47
-tap_cares/collectors/base.py:289
 tap_cares/registry.py:157
 tap_cares/registry.py:194
-tap_cares/scheduler.py:266
-tap_cares/scheduler.py:300
-tap_cares/scheduler.py:319
-tap_cares/scheduler.py:343
-tap_cares/services.py:225
-tap_cares/services.py:271
-tap_cares/tasks.py:151
-tap_cares/tasks.py:167
-tap_cares/tasks.py:196
-tap_cares/tasks.py:214
-tap_cares/tasks.py:258
-tap_cares/tasks.py:280
 tap_grid/batch.py:254
 tap_grid/gryphon/executor.py:107
 tap_grid/services.py:1492

@@ -78,7 +78,8 @@ class Command(BaseCommand):
             )
         self.stdout.write(f"backend: {backend}")
 
-        from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
+        from tap_auth.actors import BOOTLOADER, acting_as, get_builtin_actor
+        from tap_cares.models import CollectionJobStatus, Collector
         from tap_cares.services import run_collection
 
         key: str = options["collector"]
@@ -95,11 +96,15 @@ class Command(BaseCommand):
 
         self.stdout.write(f"collector: {collector.name} ({key})")
 
-        job = run_collection(
-            collector,
-            manual_run=True,
-            manual_run_source="dev_validation_spike",
-        )
+        # CLI dev spike has no request middleware to bind an actor; run_collection's
+        # trigger gate (cares.run_collectors) requires a named one. Fire as
+        # tap_bootloader (holds the cap); the run still executes as tap_cares.collector.
+        with acting_as(get_builtin_actor(BOOTLOADER)):
+            job = run_collection(
+                collector,
+                manual_run=True,
+                manual_run_source="dev_validation_spike",
+            )
         job_id = job.entity_id
         job.refresh_from_db()
         self.stdout.write(f"enqueued: CollectionJob {job_id} status={job.status}")

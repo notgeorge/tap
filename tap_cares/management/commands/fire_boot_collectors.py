@@ -32,6 +32,8 @@ import jsonschema
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from tap_auth.actors import BOOTLOADER, acting_as, get_builtin_actor
+
 # tap_cares/management/commands/fire_boot_collectors.py -> tap_cares/schemas/...
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent.parent / "schemas" / "boot-profile.schema.json"
 
@@ -107,17 +109,23 @@ class Command(BaseCommand):
             self.style.WARNING(f"Firing boot profile '{profile}' — {len(plan)} collector(s), on_failure={on_failure}.")
         )
 
+        # Boot fires collectors as the named tap_bootloader program actor: a CLI
+        # boot process has no request middleware to bind one, and run_collection's
+        # trigger gate (cares.run_collectors) requires a named triggering actor.
+        # tap_bootloader holds cares.run_collectors; the runs themselves still
+        # execute as tap_cares.collector (run_collection's internal swap).
         failures: list[str] = []
-        for index, (entry, collector) in enumerate(plan):
-            if self._fire_one(collector, entry, timeout):
-                continue
-            failures.append(entry["key"])
-            if on_failure == "abort":
-                remaining = len(plan) - index - 1
-                raise CommandError(
-                    f"Collector '{entry['key']}' did not succeed; on_failure=abort — stopping. "
-                    f"{remaining} collector(s) not run."
-                )
+        with acting_as(get_builtin_actor(BOOTLOADER)):
+            for index, (entry, collector) in enumerate(plan):
+                if self._fire_one(collector, entry, timeout):
+                    continue
+                failures.append(entry["key"])
+                if on_failure == "abort":
+                    remaining = len(plan) - index - 1
+                    raise CommandError(
+                        f"Collector '{entry['key']}' did not succeed; on_failure=abort — stopping. "
+                        f"{remaining} collector(s) not run."
+                    )
 
         if failures:
             raise CommandError(

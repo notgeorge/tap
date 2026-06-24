@@ -35,9 +35,11 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from django.tasks import task
 
+from tap_auth.actors import COLLECTOR, acting_as, get_builtin_actor
 from tap_cares.collectors.config import CollectorConfig
 from tap_cares.exceptions import CollectorNotReadyError
 from tap_cares.models import (
@@ -54,6 +56,23 @@ logger = logging.getLogger(__name__)
 _SUMMARY_CAP = 2048
 
 _EMPTY_RESULTS: dict[str, list] = {"info": [], "warn": [], "error": []}
+
+
+def _patch_job(job_entity_id: str, fields: dict[str, Any]) -> None:
+    """Patch the CollectionJob row — the sole-writer's single write primitive.
+
+    The `run_collector` task body is the sole writer to CollectionJob after row
+    creation (req-tap-cares-collector-job-sole-writer); every one of its terminal
+    and transition writes funnels through here. The task body runs under
+    `acting_as(get_builtin_actor(COLLECTOR))`, so this inherits the named
+    `tap_cares.collector` program actor from the contextvar — a no-request worker
+    has no middleware to bind one (req-tap-auth-actor-model). The write backstop
+    independently re-checks the bound actor holds `grid.write`.
+    """
+    _patch_node_internal(  # TAP-AUTHZ-COV: bound tap_cares.collector via acting_as; grid.write re-checked at the write backstop
+        job_entity_id,
+        fields,
+    )
 
 
 def _link_produced_batches(job: CollectionJob, produced_batches: list[tuple[str, str]]) -> None:
@@ -129,7 +148,16 @@ def run_collector(
     collector_entity_id: str,
     collection_job_entity_id: str,
 ) -> None:
-    """Execute one collector run.
+    """Execute one collector run as the named tap_cares.collector program actor.
+
+    A no-request Django-Tasks worker has no middleware to bind an actor onto the
+    `CallerContext`, so the task binds its own named `tap_cares.collector` program
+    actor at entry; every downstream service-layer write — the CollectionJob
+    transition/terminal patches and the collector's `submit_grift` GRIFT import —
+    inherits it from the contextvar (req-tap-auth-actor-model). This boundary is
+    what closes the "green in CI, denied in prod" class: CI runs under an ambient
+    test actor, a real worker thread has none, and an unbound write fails closed
+    at the backstop. The run itself is `_run_collection_job` below.
 
     Args:
         collector_entity_id: UUIDv7 of the Collector node (as string).
@@ -144,11 +172,27 @@ def run_collector(
     (see `tap_cares.services.run_collection`). Restore `takes_context=True`
     once upstream gains support.
     """
+    with acting_as(get_builtin_actor(COLLECTOR)):
+        _run_collection_job(collector_entity_id, collection_job_entity_id)
+
+
+def _run_collection_job(
+    collector_entity_id: str,
+    collection_job_entity_id: str,
+) -> None:
+    """Run the two collector phases under the caller-bound program actor.
+
+    Split out from `run_collector` so the actor-binding boundary stays a single
+    visible line. This body assumes the `tap_cares.collector` context is already
+    bound (see `run_collector`); its CollectionJob writes funnel through
+    `_patch_job` and its GRIFT import through the collector's `submit_grift`, both
+    of which inherit that actor from the contextvar.
+    """
     # Task start: RUNNING transition. Patches status + started_at; the
     # task_result_id is set on the enqueue side in run_collection so this
     # task body doesn't depend on backend-specific context plumbing.
     now = datetime.now(UTC)
-    _patch_node_internal(
+    _patch_job(
         collection_job_entity_id,
         {
             "status": CollectionJobStatus.RUNNING.value,
@@ -164,7 +208,7 @@ def run_collector(
     try:
         collector = Collector.objects.get(entity_id=collector_entity_id)
     except Collector.DoesNotExist as exc:
-        _patch_node_internal(
+        _patch_job(
             collection_job_entity_id,
             {
                 "status": CollectionJobStatus.FAILED.value,
@@ -193,7 +237,7 @@ def run_collector(
         # (req-tap-cares-collector-failure-mode): one terminal FAILED patch
         # carrying the self-test summary and the full self_test detail; no
         # phase-2 work, no GRIFT, no partial writes.
-        _patch_node_internal(
+        _patch_job(
             collection_job_entity_id,
             {
                 "status": CollectionJobStatus.FAILED.value,
@@ -211,7 +255,7 @@ def run_collector(
     if job.run_mode == CollectionJobRunMode.SELF_TEST_ONLY:
         # self_test_only ⇒ phase 1 passed; stop here SUCCESSFUL with no
         # collection performed (req-tap-cares-collector-self-test-16).
-        _patch_node_internal(
+        _patch_job(
             collection_job_entity_id,
             {
                 "status": CollectionJobStatus.SUCCESSFUL.value,
@@ -255,7 +299,7 @@ def run_collector(
         else:
             summary = _safe_summary(exc)
             results = dict(_EMPTY_RESULTS)
-        _patch_node_internal(
+        _patch_job(
             collection_job_entity_id,
             {
                 "status": CollectionJobStatus.FAILED.value,
@@ -277,7 +321,7 @@ def run_collector(
     # Terminal write: SUCCESSFUL. One patch carries the full accumulator,
     # including whatever the collector wrote to self.summary, plus the
     # phase-1 self_test result.
-    _patch_node_internal(
+    _patch_job(
         collection_job_entity_id,
         {
             "status": CollectionJobStatus.SUCCESSFUL.value,
