@@ -16,12 +16,13 @@ from django.contrib.contenttypes.models import ContentType
 from tap_auth import capabilities as caps
 from tap_auth import policy, sync
 from tap_auth.enforcement import (
+    assert_program_actor,
     assert_read_authorized,
     assert_write_authorized,
     requires_capability,
 )
 from tap_auth.errors import CapabilityDenied, MissingActor, UnguardedOperation
-from tap_auth.models import Capability, User
+from tap_auth.models import Capability, User, UserKind
 from tap_grid.caller_context import CallerContext
 
 pytestmark = pytest.mark.django_db
@@ -162,3 +163,22 @@ class TestReadBackstop:
     def test_unguarded_read_fails_closed(self, synced):
         with pytest.raises(UnguardedOperation, match="unguarded read"):
             assert_read_authorized(_no_caps_ctx())
+
+
+class TestProgramActorGuard:
+    """The INTERNAL_ONLY write bypass is a program-actor-only door: `assert_program_actor`
+    passes a program actor and fails closed for a human or no actor (req-tap-auth-actor-model)."""
+
+    def test_allows_program_actor(self):
+        prog = User.objects.create_user(username="prog", password="x", user_kind=UserKind.PROGRAM)
+        # No raise — a program actor may use the bypass.
+        assert assert_program_actor(CallerContext(user=prog), operation="INTERNAL_ONLY write bypass") is None
+
+    def test_refuses_human_actor(self):
+        # A human actor (even one that holds grid.write) must never reach the bypass.
+        with pytest.raises(UnguardedOperation):
+            assert_program_actor(_no_caps_ctx(), operation="INTERNAL_ONLY write bypass")
+
+    def test_refuses_no_actor(self):
+        with pytest.raises(UnguardedOperation):
+            assert_program_actor(None, operation="INTERNAL_ONLY write bypass")

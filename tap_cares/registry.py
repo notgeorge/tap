@@ -24,7 +24,6 @@ import uuid
 from typing import Final
 
 from django.core.exceptions import ImproperlyConfigured
-from django.db.utils import OperationalError, ProgrammingError
 
 from tap_cares.collectors.base import CollectorBase
 from tap_cares.exceptions import (
@@ -65,6 +64,14 @@ collector_registry: ScopedRegistry[type[CollectorBase]] = ScopedRegistry(
     description="Scoped registry of registered tap_cares collector classes.",
 )
 
+# Node-descriptor metadata captured at registration (app `ready()` time) and
+# consumed by `reconcile_collector_nodes()`. Keyed by qualified `scope:key`.
+# `register_collector` stashes here INSTEAD OF writing the grid, so `ready()` stays
+# read-only w.r.t. graph state (req-plugin-load-v0-ready-readonly); the Collector
+# node is materialized later by an explicit reconcile, under whatever actor its
+# caller has bound.
+_COLLECTOR_NODE_METADATA: dict[str, dict[str, str]] = {}
+
 
 def register_collector(
     key: str,
@@ -74,13 +81,22 @@ def register_collector(
     description: str,
     scope: str | None = None,
 ) -> None:
-    """Register a collector capability — both halves of the dual-existence pattern.
+    """Register a collector capability — the read-only half of dual existence.
 
-    Performs two coupled actions:
+    Runs at app `ready()` and performs NO graph write (req-plugin-load-v0-ready-readonly):
+
       1. Registers `cls` in `collector_registry` under `scope:key`. If `scope`
          is omitted, it is inferred from `cls.__module__`.
-      2. Upserts the on-grid `Collector` node with deterministic identity:
-         entity_id = uuid5(NAMESPACE_COLLECTOR, f"{scope}:{key}").
+      2. Records the on-grid node descriptor (`name`/`description`) in
+         `_COLLECTOR_NODE_METADATA` for later materialization.
+
+    The on-grid `Collector` node (deterministic identity
+    `uuid5(NAMESPACE_COLLECTOR, "{scope}:{key}")`) is upserted separately by
+    `reconcile_collector_nodes()` — an explicit reconcile its caller runs under a
+    bound actor (boot today; plugin install/configure conceivably later). Splitting
+    the two halves keeps `ready()` from writing the grid before a named actor exists:
+    a fresh standup that wrote at `ready()` would either fail closed (no actor) or be
+    silently masked, leaving an empty Collector inventory.
 
     Rejects anything that is not a CollectorBase subclass
     (req-tap-cares-collector-module-class-6). `name` and `description` are
@@ -92,111 +108,118 @@ def register_collector(
     if not (isinstance(cls, type) and issubclass(cls, CollectorBase)):
         raise ImproperlyConfigured(f"register_collector: {cls!r} must be a subclass of CollectorBase.")
 
-    # Phase 1: sub-grid registration of the runner class.
+    # In-memory registration of the runner class (validates the token format and
+    # raises on a duplicate before anything is recorded).
     collector_registry.register(key, cls, scope=scope)
 
-    # Phase 2: grid-side upsert of the Collector node.
+    # Record the node descriptor for the deferred grid-side materialization.
     effective_scope = scope or cls.__module__
     qualified_key = f"{effective_scope}:{key}"
-    _ensure_collector_node(qualified_key, name=name, description=description)
+    _COLLECTOR_NODE_METADATA[qualified_key] = {"name": name, "description": description}
 
 
-def _ensure_collector_node(
-    qualified_key: str,
-    *,
-    name: str,
-    description: str,
-) -> None:
-    """Upsert the on-grid Collector node for a registered runner.
+def reconcile_collector_nodes() -> dict[str, int]:
+    """Materialize the on-grid Collector node for every registered collector, in one batch.
 
-    Identity is `uuid5(NAMESPACE_COLLECTOR, qualified_key)`. On first
-    registration creates the row via `_create_node_internal` (Collector is
-    INTERNAL_ONLY so the generic service layer would reject it). On subsequent
-    registrations updates `name` and/or `description` if they have drifted;
-    otherwise no-op.
+    The deferred grid-side half of dual-existence registration
+    (spec-grid-dual-existence): `register_collector` records the runner class and
+    node descriptor in memory at app `ready()` (read-only,
+    req-plugin-load-v0-ready-readonly); this creates or updates the matching grid
+    node. Splitting the two keeps `ready()` from writing before a named actor exists.
 
-    Concurrent-safe: the dual-existence pattern (spec-grid-dual-existence) runs
-    this from app `ready()`, and the web + steady_queue processes start at the
-    same time, so on a fresh DB two processes can hit the create path at once.
-    A create that loses the primary-key race re-reads and falls through to the
-    patch path instead of crashing — the get_or_create race-safety pattern.
+    Actor: runs under whatever actor the **caller** has bound — this function takes
+    no actor and imports no built-in, so tap_cares carries no caller-specific
+    config; the write inherits the ambient context like any other service call.
+    Whoever calls it creates the nodes as their own actor. Today that caller is the
+    boot orchestrator (the `reconcile_collectors` command binds `tap_bootloader`); a
+    plugin install/configure flow could run the same reconcile under a different
+    actor in future.
 
-    If the database is not yet ready (e.g. during `makemigrations` before
-    migrations have been applied), this function silently skips and returns.
-    Subsequent app.ready() runs will retry once the DB is usable. This keeps
-    Django management commands working during fresh-install bootstrap without
-    forcing a separate post-migrate hook.
+    Idempotent: re-running converges — creates missing nodes, patches drifted
+    `name`/`description`, no-ops the rest — so it is safe to re-apply. Returns counts
+    keyed `created` / `updated` / `unchanged`.
     """
-    # Local imports keep this module importable before Django apps are fully
-    # set up (e.g. during settings evaluation in some test harnesses).
     from tap_cares.models import Collector
-    from tap_grid.services import _create_node_internal, _patch_node_internal
+    from tap_grid.service_types import WriteOperation
+    from tap_grid.services import write_batch
 
-    entity_id = uuid.uuid5(NAMESPACE_COLLECTOR, qualified_key)
+    summary = {"created": 0, "updated": 0, "unchanged": 0}
+    registered = collector_registry.keys()  # sorted fully-qualified "scope:key"
+    if not registered:
+        return summary
 
-    try:
-        existing = Collector.objects.filter(entity_id=entity_id).first()
-    except OperationalError, ProgrammingError:
-        # DB not migrated yet, or tap_cares tables don't exist.
-        # Silent skip; the next app.ready() will pick it up after migrate.
-        logger.debug("[ae7c] Collector grid-node upsert skipped (DB not ready): %s", qualified_key)
-        return
-    except Exception:
-        # Catch-all for other DB-access blockers — e.g. pytest-django's
-        # "Database access not allowed" guard for tests that don't mark
-        # themselves with @pytest.mark.django_db. The runner registration
-        # still succeeded; the on-grid upsert can wait for a context that
-        # actually has a database available.
-        logger.debug(
-            "[df83] Collector grid-node upsert skipped (DB access blocked): %s",
-            qualified_key,
-        )
-        return
-
-    if existing is None:
-        result = _create_node_internal(
-            "collector",
-            {
-                "name": name,
-                "description": description,
-                "collector_registry": qualified_key,
-            },
-            entity_id=entity_id,
-        )
-        if result.success:
-            return
-        # Create failed. The web and steady_queue processes both run app
-        # ready() concurrently at startup; on a fresh DB both reach this create
-        # path and one loses the race on the Entity primary key, surfacing as a
-        # failed WriteResult. Re-read: if the node now exists, another process
-        # won the create — fall through to the patch path rather than crashing.
-        # This is the get_or_create race-safety pattern (Django docs, "Get or
-        # create": create, and on a conflicting unique constraint re-fetch).
-        # A create that genuinely left no row behind is still fatal.
-        existing = Collector.objects.filter(entity_id=entity_id).first()
-        if existing is None:
-            raise ImproperlyConfigured(
-                f"_ensure_collector_node({qualified_key!r}) create failed: "
-                f"{[(e.code, e.message) for e in result.errors]}"
+    # Resolve the desired node descriptors, then read the existing rows in one
+    # query so the diff (create vs. patch vs. no-op) is computed in memory.
+    desired: list[tuple[str, uuid.UUID, dict[str, str]]] = []
+    for qualified_key in registered:
+        meta = _COLLECTOR_NODE_METADATA.get(qualified_key)
+        if meta is None:
+            # Registered with no recorded descriptor — should not happen
+            # (register_collector records both together); surface it rather than
+            # silently materializing a half-identified node.
+            logger.warning(
+                "[605d] reconcile_collector_nodes: no node descriptor for registered "
+                "collector %s; skipping its grid node",
+                qualified_key,
             )
-        # else: lost the concurrent-create race — fall through to patch below.
+            continue
+        desired.append((qualified_key, uuid.uuid5(NAMESPACE_COLLECTOR, qualified_key), meta))
 
-    # Existing row — patch only the mutable descriptive fields if they have
-    # drifted. collector_registry is identity-bearing and not patched here.
-    drift: dict[str, str] = {}
-    if existing.name != name:
-        drift["name"] = name
-    if existing.description != description:
-        drift["description"] = description
-    if not drift:
-        return
+    existing_by_id = {c.entity_id: c for c in Collector.objects.filter(entity_id__in=[eid for _, eid, _ in desired])}
 
-    result = _patch_node_internal(entity_id, drift)
+    # Diff every registered collector against the grid, accumulating one
+    # WriteOperation per node that needs a create or a patch.
+    ops: list[WriteOperation] = []
+    for qualified_key, entity_id, meta in desired:
+        existing = existing_by_id.get(entity_id)
+        if existing is None:
+            ops.append(
+                WriteOperation(
+                    verb="create_node",
+                    type_slug="collector",
+                    payload={
+                        "name": meta["name"],
+                        "description": meta["description"],
+                        "collector_registry": qualified_key,
+                    },
+                    entity_id=entity_id,
+                )
+            )
+            summary["created"] += 1
+            continue
+        # collector_registry is identity-bearing and never patched here.
+        drift: dict[str, str] = {}
+        if existing.name != meta["name"]:
+            drift["name"] = meta["name"]
+        if existing.description != meta["description"]:
+            drift["description"] = meta["description"]
+        if drift:
+            ops.append(WriteOperation(verb="patch_node", target=entity_id, payload=drift))
+            summary["updated"] += 1
+        else:
+            summary["unchanged"] += 1
+
+    if not ops:
+        return summary
+
+    # One batch for the whole reconcile: every collector node lands together under a
+    # single batch_id — one visible, atomic operation on the grid (all converge or
+    # none do; an idempotent re-apply heals a transient failure). Runs under whatever
+    # actor the caller bound upstream (e.g. the reconcile_collectors boot command);
+    # write_batch inherits it from the ambient context. INTERNAL_ONLY would block the
+    # public batch path, so this uses the trusted-internal `_internal_only_bypass` —
+    # the same escape hatch `_create_node_internal` wraps, now over N ops at once.
+    result = write_batch(  # TAP-AUTHZ-COV: runs under the caller-bound program actor; grid.write re-checked at the write backstop
+        ops,
+        _internal_only_bypass=True,
+    )
     if not result.success:
+        failed = [(r.operation, [(e.code, e.message) for e in r.errors]) for r in result.results if not r.success]
         raise ImproperlyConfigured(
-            f"_ensure_collector_node({qualified_key!r}) patch failed: "
-            f"{[(e.code, e.message) for e in result.errors]}"
+            f"reconcile_collector_nodes: batch of {len(ops)} op(s) failed "
+            f"(batch errors={[(e.code, e.message) for e in result.errors]}; op errors={failed})"
         )
+    return summary
 
 
 def get_collector(collector_key: str) -> type[CollectorBase]:

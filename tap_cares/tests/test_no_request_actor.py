@@ -36,7 +36,7 @@ from tap_cares.models import (
     Schedule,
     ScheduleFireStatus,
 )
-from tap_cares.registry import collector_registry, register_collector
+from tap_cares.registry import collector_registry, reconcile_collector_nodes, register_collector
 from tap_cares.scheduler import create_schedule, evaluate_tick
 from tap_cares.services import run_collection
 from tap_cares.tasks import run_collector
@@ -70,6 +70,7 @@ def _collector(*, scope: str = "tap_cares.tests.fakes", key: str = "happy") -> C
         name="No-request test collector",
         description="Fixture collector for tap_cares.tests.test_no_request_actor.",
     )
+    reconcile_collector_nodes()  # materialize the on-grid node (register is read-only)
     return Collector.objects.get(collector_registry=f"{scope}:{key}")
 
 

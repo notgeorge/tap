@@ -8,23 +8,29 @@ Covers:
 
 import dataclasses
 import uuid
-from unittest import mock
 from uuid import UUID, uuid4
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
 
+from tap_auth.errors import UnguardedOperation
 from tap_cares.collectors import CollectorBase, CollectorConfig
 from tap_cares.exceptions import (
     CollectorNotFoundError,
     InvalidCollectorRegistryKeyError,
 )
+from tap_cares.models import Collector
 from tap_cares.registry import (
+    NAMESPACE_COLLECTOR,
     _validate_collector_token,
     collector_registry,
     get_collector,
+    reconcile_collector_nodes,
     register_collector,
 )
+
+User = get_user_model()
 
 # ---------------------------------------------------------------------------
 # Fixtures + helpers
@@ -56,9 +62,12 @@ def _register(key, cls, **kwargs):
     """Test-only wrapper that supplies default name and description.
 
     register_collector requires name and description per
-    req-tap-cares-collector-registration-3, but these registry-mechanics
-    tests only care about the sub-grid (ScopedRegistry) side. The on-grid
-    upsert silently skips when the DB isn't available (no @pytest.mark.django_db).
+    req-tap-cares-collector-registration-3, but these registry-mechanics tests
+    only care about the in-memory (ScopedRegistry) side. register_collector is
+    read-only at runtime now (req-plugin-load-v0-ready-readonly): it records the
+    node descriptor but writes no grid node, so these tests need no DB. The on-grid
+    node is materialized separately by reconcile_collector_nodes (see
+    TestReconcileCollectorNodes).
     """
     return register_collector(
         key=key,
@@ -236,41 +245,76 @@ class TestRegisterCollector:
             pass
         assert collector_registry.keys() == []
 
-    @pytest.mark.django_db
-    def test_ensure_node_survives_concurrent_create_race(self):
-        """A grid-node create that loses the fresh-DB startup race re-reads and
-        patches instead of crashing (the get_or_create pattern).
 
-        Regression for the spawn-time supervisor crash: the web and steady_queue
-        processes both run app ready() at once, and on a fresh DB both reached
-        the create path; the loser raised ImproperlyConfigured and killed the
-        Steady Queue supervisor, so collector jobs sat READY forever.
-        """
-        from tap_cares.models import Collector
-        from tap_cares.registry import NAMESPACE_COLLECTOR, _ensure_collector_node
-        from tap_grid import services as svc
-        from tap_grid.service_types import ServiceError, WriteResult
+# ---------------------------------------------------------------------------
+# reconcile_collector_nodes — the deferred grid-side half of dual existence
+# (req-plugin-load-v0-ready-readonly, req-tap-auth-actor-model)
+# ---------------------------------------------------------------------------
 
-        qualified_key = "tap_cares.tests.race:loser"
-        entity_id = uuid.uuid5(NAMESPACE_COLLECTOR, qualified_key)
-        real_create = svc._create_node_internal
 
-        def racing_create(type_slug, data, **kwargs):
-            # Simulate the winning process creating the row first, then our own
-            # create losing the Entity primary-key race.
-            real_create(type_slug, data, **kwargs)
-            return WriteResult(
-                success=False,
-                batch_id="",
-                operation="create_node",
-                errors=[ServiceError(code="internal_error", message="duplicate key value ...")],
-            )
+@pytest.mark.django_db
+class TestReconcileCollectorNodes:
+    """register_collector is read-only; reconcile_collector_nodes materializes the
+    grid node(s) in one batch under the caller-bound (program) actor."""
 
-        with mock.patch.object(svc, "_create_node_internal", side_effect=racing_create):
-            # Must NOT raise — the loser re-reads and falls through to patch.
-            _ensure_collector_node(qualified_key, name="Racer", description="d")
+    def test_register_writes_no_grid_node(self):
+        # ready-readonly: registration records the descriptor, never touches the grid.
+        cls = _make_collector_class(module="recon.scope")
+        _register("readonly", cls)
+        entity_id = uuid.uuid5(NAMESPACE_COLLECTOR, "recon.scope:readonly")
+        assert not Collector.objects.filter(entity_id=entity_id).exists()
 
-        assert Collector.objects.filter(entity_id=entity_id).count() == 1
+    def test_reconcile_creates_then_is_idempotent(self):
+        cls = _make_collector_class(module="recon.scope")
+        _register("happy", cls, name="Recon Happy", description="d1")
+
+        first = reconcile_collector_nodes()
+        assert first["created"] == 1
+        node = Collector.objects.get(entity_id=uuid.uuid5(NAMESPACE_COLLECTOR, "recon.scope:happy"))
+        assert node.name == "Recon Happy"
+
+        # Re-apply converges: nothing new to write.
+        second = reconcile_collector_nodes()
+        assert second == {"created": 0, "updated": 0, "unchanged": 1}
+
+    def test_reconcile_patches_drifted_descriptor(self):
+        cls = _make_collector_class(module="recon.scope")
+        _register("drift", cls, name="Old Name", description="old")
+        reconcile_collector_nodes()
+
+        # Re-register the same key with a new descriptor (overwrites the metadata).
+        collector_registry._reset_for_testing()
+        _register("drift", cls, name="New Name", description="new")
+
+        summary = reconcile_collector_nodes()
+        assert summary["updated"] == 1
+        node = Collector.objects.get(entity_id=uuid.uuid5(NAMESPACE_COLLECTOR, "recon.scope:drift"))
+        assert node.name == "New Name"
+        assert node.description == "new"
+
+    def test_reconcile_under_human_actor_is_refused(self):
+        # The batch writes INTERNAL_ONLY nodes via the bypass — a program-actor-only
+        # door. A human reconcile is refused even holding grid.write (so it is the
+        # program-actor guard firing, not the write backstop): belt-and-suspenders.
+        from django.contrib.auth.models import Group, Permission
+        from django.contrib.contenttypes.models import ContentType
+
+        from tap_auth import capabilities as caps
+        from tap_auth.models import Capability
+        from tap_grid.caller_context import CallerContext, set_caller_context
+
+        cls = _make_collector_class(module="recon.scope")
+        _register("human", cls)
+        content_type = ContentType.objects.get_for_model(Capability)
+        group = Group.objects.create(name="recon-human-writers")
+        group.permissions.add(
+            Permission.objects.get(content_type=content_type, codename=caps.codename_for("grid.write"))
+        )
+        human = User.objects.create_user(username="reconciler", password="x")  # user_kind defaults to human
+        human.groups.add(group)
+        set_caller_context(CallerContext(user=human))
+        with pytest.raises(UnguardedOperation):
+            reconcile_collector_nodes()
 
 
 # ---------------------------------------------------------------------------

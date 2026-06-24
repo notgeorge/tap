@@ -24,7 +24,7 @@ from tap_cares.models import (
     ScheduleFire,
     ScheduleFireStatus,
 )
-from tap_cares.registry import collector_registry, register_collector
+from tap_cares.registry import collector_registry, reconcile_collector_nodes, register_collector
 from tap_cares.scheduler import (
     SchedulerError,
     _missed_count,
@@ -53,6 +53,7 @@ def collector(isolate_collector_registry) -> Collector:
         name="Test Happy Collector",
         description="Test fixture for scheduler tests.",
     )
+    reconcile_collector_nodes()  # materialize the on-grid node (register is read-only)
     return Collector.objects.get(collector_registry="tap_cares.tests.fakes:happy")
 
 
@@ -65,6 +66,7 @@ def boom_collector(isolate_collector_registry) -> Collector:
         name="Test Boom Collector",
         description="Test fixture: always-raising collector.",
     )
+    reconcile_collector_nodes()  # materialize the on-grid node (register is read-only)
     return Collector.objects.get(collector_registry="tap_cares.tests.fakes:boom")
 
 
@@ -223,8 +225,7 @@ class TestCreateSchedule:
         )
         assert result.success is False
         assert any(
-            "enabled_at" in (e.message or "") or "enabled_at" == (e.field or "")
-            for e in result.errors
+            "enabled_at" in (e.message or "") or "enabled_at" == (e.field or "") for e in result.errors
         ), f"expected enabled_at rejection, got {result.errors}"
 
 
@@ -403,9 +404,7 @@ class TestEvaluateTickSkipped:
             max_active_runs=1,
         )
         _pin_enabled_at_before(schedule, slot)
-        with patch(
-            "tap_cares.scheduler._active_run_count", return_value=1
-        ):
+        with patch("tap_cares.scheduler._active_run_count", return_value=1):
             fires = evaluate_tick(now=slot)
         assert len(fires) == 1
         fire = fires[0]
@@ -413,12 +412,7 @@ class TestEvaluateTickSkipped:
         assert fire.status == ScheduleFireStatus.SKIPPED.value
         assert "max_active_runs" in fire.summary
         # No TRIGGERED_JOB edge for skipped fires.
-        assert (
-            Edge.objects.filter(
-                from_entity_id=fire.entity_id, edge_type="TRIGGERED_JOB"
-            ).count()
-            == 0
-        )
+        assert Edge.objects.filter(from_entity_id=fire.entity_id, edge_type="TRIGGERED_JOB").count() == 0
 
 
 # ---------------------------------------------------------------------------
@@ -449,12 +443,7 @@ class TestEvaluateTickFailed:
         assert "Scheduler error" in fire.summary
         assert "simulated dispatch failure" in fire.summary
         # No TRIGGERED_JOB edge for failed fires.
-        assert (
-            Edge.objects.filter(
-                from_entity_id=fire.entity_id, edge_type="TRIGGERED_JOB"
-            ).count()
-            == 0
-        )
+        assert Edge.objects.filter(from_entity_id=fire.entity_id, edge_type="TRIGGERED_JOB").count() == 0
 
 
 # ---------------------------------------------------------------------------
@@ -488,9 +477,7 @@ class TestEvaluateTickMissedCount:
         # Pin enabled_at just before the first slot so it doesn't gate the lower bound.
         slot_a = datetime(2099, 1, 1, 12, 0, tzinfo=UTC)
         slot_b = datetime(2099, 1, 1, 12, 5, tzinfo=UTC)
-        Schedule.objects.filter(pk=schedule.pk).update(
-            enabled_at=slot_a - timedelta(minutes=1)
-        )
+        Schedule.objects.filter(pk=schedule.pk).update(enabled_at=slot_a - timedelta(minutes=1))
         evaluate_tick(now=slot_a)
         fires = evaluate_tick(now=slot_b)
         assert len(fires) == 1
@@ -519,9 +506,7 @@ class TestSchedulerErrors:
             collector=collector,
         )
         _pin_enabled_at_before(schedule, slot)
-        Edge.objects.filter(
-            from_entity_id=schedule.entity_id, edge_type="SCHEDULED_TARGET"
-        ).delete()
+        Edge.objects.filter(from_entity_id=schedule.entity_id, edge_type="SCHEDULED_TARGET").delete()
         fires = evaluate_tick(now=slot)
         assert len(fires) == 1
         fires[0].refresh_from_db()

@@ -30,7 +30,7 @@ from tap_cares.collectors import (
     check_fail,
 )
 from tap_cares.models import CollectionJob, CollectionJobRunMode, Collector
-from tap_cares.registry import collector_registry, register_collector
+from tap_cares.registry import collector_registry, reconcile_collector_nodes, register_collector
 from tap_cares.services import run_collection
 from tap_web.models import Panel
 
@@ -69,6 +69,7 @@ def _register() -> Collector:
         name="Unconfigured test collector",
         description="Fixture collector for self-test UI.",
     )
+    reconcile_collector_nodes()  # materialize the on-grid node (register is read-only)
     return Collector.objects.get(collector_registry="plugins.administrivia.tests:unconfigured")
 
 

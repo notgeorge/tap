@@ -281,9 +281,14 @@ on-commit callback, `submit_grift`, and the human-trigger gate are done via the
 every surface, incl. the boot mgmt commands now binding `acting_as(BOOTLOADER)`,
 routes through it); `submit_grift` dropped its `actor=` param. The
 production-realism fixture + human-trigger denial test ship in
-`tap_cares/tests/test_no_request_actor.py`. **Remaining: standard 5** — the
-`registry.py` collector upsert in `ready()` (the 2 residual authz-coverage rows),
-deferred to the tap_boot increment.
+`tap_cares/tests/test_no_request_actor.py`. **Standard 5 now LANDED too** (2026-06-24):
+`register_collector` is read-only at `ready()` (in-memory + a stashed node descriptor)
+and the on-grid upsert moved into `reconcile_collector_nodes()` — one `write_batch`
+under the caller-bound bootloader (the `reconcile_collectors` command, run from the
+spawn sequence after `sync_auth`). The cares authz-coverage cluster is now **zero**.
+Paired hardening: the INTERNAL_ONLY write bypass now asserts a **program** actor
+(`assert_program_actor` in `tap_auth.enforcement`, checked at the `write_batch`
+chokepoint) — a human can no longer write an INTERNAL_ONLY node by any path.
 
 **Operational construction.** Entry points run with **no** `request.user`, so the
 request-binding middleware never fires. Four entry kinds that do **not** share an actor source:
@@ -417,8 +422,12 @@ boot` phase sequencer are entirely *Proposed*.
 
 **Class-eliminating moves:**
 
-- **Move the Collector upsert out of `ready()`** (med) into a `reconcile_collector_nodes()` boot
-  step under `tap_bootloader`; keep only in-memory `register()` at `ready()`; narrow the catch-all.
+- **Move the Collector upsert out of `ready()`** ✅ LANDED (2026-06-24): `register_collector` is
+  read-only (in-memory `register()` + a stashed descriptor); `reconcile_collector_nodes()` does the
+  on-grid upsert in one `write_batch` under the caller-bound bootloader (the `reconcile_collectors`
+  command, run from the spawn sequence after `sync_auth`); the DB-not-ready catch-all is gone
+  (reconcile runs when the DB is ready, so failures are loud). The full `tap_boot` app/profile still
+  absorbs this command later.
 - **A `boot_actor_context()` write chokepoint** (med): the only sanctioned way to mutate graph
   state during boot — makes "forgot to bind the boot actor" structurally impossible.
 - **Code-defined phases** (high, *future* — the `tap_boot` capstone): "auth before population"

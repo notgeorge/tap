@@ -526,6 +526,18 @@ bold "Step 6: Seeding plugin data"
 scripts/dc exec web uv run python manage.py import_plugin_grift --all
 
 # ============================================================================
+# Step 6.1: Reconcile collector nodes
+#
+# App ready() registers each collector runner in memory only (read-only,
+# req-plugin-load-v0-ready-readonly); this materializes the matching on-grid
+# Collector node as tap_bootloader (created by sync_auth above). Must run BEFORE
+# fire_boot_collectors, which needs the Collector nodes to exist. Idempotent.
+# Interim boot step the tap_boot population phase will absorb (spec-tap-boot-v0).
+# ============================================================================
+bold "Step 6.1: Reconciling collector nodes"
+scripts/dc exec web uv run python manage.py reconcile_collectors
+
+# ============================================================================
 # Step 6.5: Fire boot collectors
 #
 # Populate the freshly-seeded grid from the outside world (AWS, GitHub,

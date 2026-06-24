@@ -28,7 +28,7 @@ from django.db import models as django_models
 from django.db import transaction
 from django.utils import timezone
 
-from tap_auth.enforcement import assert_write_authorized, requires_capability
+from tap_auth.enforcement import assert_program_actor, assert_write_authorized, requires_capability
 from tap_grid.caller_context import (
     CallerContext,
     drain_deferred_hotlink_checks,
@@ -707,6 +707,14 @@ def write_batch(
         needs_write=bool(_batch_verbs - _delete_verbs),
         needs_delete=bool(_batch_verbs & _delete_verbs),
     )
+
+    # The INTERNAL_ONLY write bypass is a program-actor-only door: the public path
+    # rejects INTERNAL_ONLY node types, and the trusted-internal bypass that writes
+    # them is bound to program identity by construction (a human reaching it means a
+    # forgotten upstream swap). Belt-and-suspenders to the type-level gate; a future
+    # refinement narrows it to which entity types each actor may create.
+    if _internal_only_bypass:
+        assert_program_actor(caller_context, operation="INTERNAL_ONLY write bypass")
 
     # Resolve or create a batch_id.
     if caller_context and caller_context.batch_id:

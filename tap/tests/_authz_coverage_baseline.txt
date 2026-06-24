@@ -17,8 +17,8 @@
 # rejects the hyphenated token).
 #
 # Clusters (each is a per-app standard still to land):
-#   tap_cares/registry.py    — collector upsert in ready(); defers to the tap_bootloader boot increment
-#                              (task + scheduler boundaries now bound via acting_as / _scheduler_ctx)
+#   tap_cares/*              — DONE: task/scheduler bound via acting_as/_scheduler_ctx; the collector
+#                              upsert moved out of ready() into reconcile_collector_nodes (boot-bound)
 #   tap_web/* + tap_viz/*    — host-gate grid.read at panel_view (the render-read contract)
 #   plugins/*/panels/*       — ride the tap_web host-gate
 #   plugins/*/collectors/*   — collector-runtime actor binding
@@ -47,12 +47,10 @@ plugins/samsite/panels/ksi_signal_workbench/__init__.py:39
 plugins/samsite/panels/vdr_report_workbench/__init__.py:34
 tap_api/routers/gryphon.py:34
 tap_api/routers/searches.py:47
-tap_cares/registry.py:157
-tap_cares/registry.py:194
 tap_grid/batch.py:254
 tap_grid/gryphon/executor.py:107
-tap_grid/services.py:1492
-tap_grid/services.py:1511
+tap_grid/services.py:1500
+tap_grid/services.py:1519
 tap_plugins/management/commands/import_plugin_grift.py:279
 tap_plugins/validate/service.py:812
 tap_viz/panels/graph_panel/__init__.py:188

@@ -24,7 +24,7 @@ from plugins.fedramp_20x_ksi.collectors.ksi_catalog import (
     KSICollector,
 )
 from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
-from tap_cares.registry import collector_registry, register_collector
+from tap_cares.registry import collector_registry, reconcile_collector_nodes, register_collector
 from tap_cares.services import run_collection
 from tap_grid.batch import produced_batches
 
@@ -74,7 +74,9 @@ def _make_collector_with_fixture(doc: dict | None = None):
 _TEST_REGISTRY_KEY = "plugins.fedramp_20x_ksi.tests.fixtures.injected:ksi-catalog-test"
 
 
-def _register_and_fetch(cls, *, name: str = "KSI Catalog (test)", description: str = "Fixture-driven KSI collector under test.") -> Collector:
+def _register_and_fetch(
+    cls, *, name: str = "KSI Catalog (test)", description: str = "Fixture-driven KSI collector under test."
+) -> Collector:
     """Register `cls` under the test scope:key AND return the on-grid Collector.
 
     After the dual-existence refactor, register_collector creates the on-grid
@@ -87,6 +89,7 @@ def _register_and_fetch(cls, *, name: str = "KSI Catalog (test)", description: s
         name=name,
         description=description,
     )
+    reconcile_collector_nodes()  # materialize the on-grid node (register is read-only)
     return Collector.objects.get(collector_registry=_TEST_REGISTRY_KEY)
 
 
@@ -175,7 +178,10 @@ class TestHappyPathFreshInstall:
         batch = Batch.objects.get(entity_id=batch_id)
         data = batch.description_json["data"]
         assert data["schema_version"] == "v0"
-        assert data["source"]["url"] == "https://raw.githubusercontent.com/FedRAMP/rules/main/fedramp-consolidated-rules.json"
+        assert (
+            data["source"]["url"]
+            == "https://raw.githubusercontent.com/FedRAMP/rules/main/fedramp-consolidated-rules.json"
+        )
         assert data["changes"]["catalog_size_before"] == 0  # fresh install
         assert data["changes"]["indicators_new"] >= 1
 
@@ -348,6 +354,7 @@ def test_live_fetch_round_trip(isolate_collector_registry):
         name="KSI Catalog (live test)",
         description="Live-network KSI collector test.",
     )
+    reconcile_collector_nodes()  # materialize the on-grid node (register is read-only)
     live_key = "plugins.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog-test"
     col = Collector.objects.get(collector_registry=live_key)
     # We don't assert on diff shape (upstream changes). The immediate backend

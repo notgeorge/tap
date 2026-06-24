@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from tap_auth import capabilities as caps
 from tap_auth import policy
 from tap_auth.errors import UnguardedOperation
+from tap_auth.models import UserKind
 
 if TYPE_CHECKING:
     from tap_grid.caller_context import CallerContext
@@ -191,3 +192,51 @@ def assert_read_authorized(caller_context: CallerContext | None) -> None:
     if policy.can(caller_context, caps.READ_CAPABILITY):
         return
     _raise_unguarded("read", caller_context, "search dispatch")
+
+
+def assert_program_actor(caller_context: CallerContext | None, *, operation: str) -> None:
+    """Backstop: `operation` may run only under a named PROGRAM actor, not a human.
+
+    Guards the INTERNAL_ONLY write bypass (`write_batch(..., _internal_only_bypass=
+    True)`) — the trusted-internal door that writes INTERNAL_ONLY node types
+    (CollectionJob, Collector, ScheduleFire, Batch, ...) the public service path
+    rejects. With named program actors now first-class (req-tap-auth-actor-model),
+    that door is bound to them by construction: every legitimate user of the bypass
+    runs as a program actor (the collector/scheduler runtimes, boot), so a human
+    actor — or none — reaching it means an upstream program-actor swap was forgotten.
+    That is a defect, not a denial, so it fails closed in every mode like the
+    write/read backstops, and `TAP_TEST_MODE` only raises the volume.
+
+    Belt-and-suspenders to the type-level INTERNAL_ONLY gate: the gate stops the
+    public path, this binds the trusted bypass to program identity. A future
+    refinement narrows it further — which entity *types* each actor may create —
+    once that per-actor model exists.
+    """
+    user = caller_context.user if caller_context is not None else None
+    if user is not None and getattr(user, "user_kind", None) == UserKind.PROGRAM:
+        return
+
+    callsite = _callsite()
+    actor_kind = getattr(user, "user_kind", None)
+    logger.error(
+        "[db93] UNGUARDED internal-only write — %s requires a program actor; actor=%s kind=%s. "
+        "Failing closed; an upstream program-actor swap was likely forgotten. callsite=%s",
+        operation,
+        getattr(user, "username", None),
+        actor_kind,
+        callsite,
+        stack_info=True,
+        extra={
+            "message_data": {
+                "flaw_class": "code",
+                "flaw_tags": ["security"],
+                "operation": operation,
+                "actor_kind": actor_kind,
+                "callsite": callsite,
+            }
+        },
+    )
+    raise UnguardedOperation(
+        f"{operation} requires a program actor; got actor kind {actor_kind!r}",
+        callsite=callsite,
+    )

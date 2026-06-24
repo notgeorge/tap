@@ -15,7 +15,7 @@ import pytest
 
 from tap_cares.collectors.config import CollectorConfig
 from tap_cares.models import CollectionJobStatus, Collector
-from tap_cares.registry import collector_registry, register_collector
+from tap_cares.registry import collector_registry, reconcile_collector_nodes, register_collector
 from tap_cares.services import run_collection
 from tap_cares.tests.fakes import BoomCollector, HappyCollector
 
@@ -50,6 +50,9 @@ def _register_and_fetch(key: str, cls, scope: str, *, name: str = "Test Collecto
         name=name,
         description="Fixture collector for tap_cares.tests.test_task_execution.",
     )
+    # register_collector is read-only at runtime (ready-readonly); the on-grid node
+    # is materialized by the boot reconcile step, so tests trigger it explicitly.
+    reconcile_collector_nodes()
     return Collector.objects.get(collector_registry=f"{scope}:{key}")
 
 
