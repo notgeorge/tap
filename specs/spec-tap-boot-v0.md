@@ -70,7 +70,8 @@ This spec follows well-trodden declarative-provisioning patterns rather than inv
 | req-boot-sections | [App-Registered Section Handlers](#app-registered-section-handlers) | Proposed | **Deferred** to first consumer (authN Google OIDC config); handlers/registry live in `tap_boot` |
 | req-boot-validate | [Validate Before Apply](#validate-before-apply) | Proposed | **Deferred** with `req-boot-sections`. v0 keeps only: schema shape + unknown plugin/collector key fails loud |
 | req-boot-phases | [Fixed Phase Order](#fixed-phase-order) | Implemented | **v0: auth → population** (bootloader resolved in auth, bound for population); fuller order is future |
-| req-boot-population | [Population Phase](#population-phase) | Implemented | **v0.** Ordered seed-plugin / fire-collector; unknown key aborts first |
+| req-boot-population | [Population Phase](#population-phase) | Implemented | **v0.** Ordered seed-plugin / fire-collector; unknown plugin/collector/bundle aborts before any mutation |
+| req-boot-collector-timeout | [Collector Await Timeout](#collector-await-timeout) | Implemented | **v0.** Per-`fire-collector`-step `timeout_seconds` (default 90s); per-collector default is backlog |
 | req-boot-identity | [Identity Section](#identity-section) | Proposed | **Backlog, not critical path.** Generate a keystone only if none exists; v0 keystone comes from plugin GRIFT |
 | req-boot-idempotent | [Idempotent Re-Apply](#idempotent-re-apply) | Implemented | **v0 principle** (ops are idempotent; seed + admin re-apply tested); formal convergence contract deferred |
 | req-boot-trust | [Config-As-Code Trust Model](#config-as-code-trust-model) | Implemented | **v0.** Boot config is code-level-trusted; guards are anti-footgun, not anti-operator |
@@ -118,9 +119,7 @@ A boot profile is a single config-as-code document composed of named sections.
 
 > **v0 (minimal):** the profile drives standup with the plugins to seed + collectors to fire (≈ today's flat `boot/<id>.json`, e.g. `boot/samsite.json`) plus minimal admin info. Named, app-owned sections composed from per-app JSON-Schema fragments (below) are the planned shape but are **deferred** to their first consumer (`req-boot-sections`); v0 does not compose per-app schemas.
 
-- A profile is a version-controlled file. Selection and the no-profile behavior differ by mode:
-  - **dev / manual:** `--profile` > `TAP_BOOT_PROFILE` > none ⇒ clean no-op for outbound work (the existing opt-in — a bare run reaches out to nothing).
-  - **customer / deploy / entrypoint:** an explicit profile is **required**. Coming up with no profile — empty but apparently healthy — is a failure, not a no-op: deploy boot fails loud unless an explicit `--allow-empty` is passed. A deployment must never silently start empty because `TAP_BOOT_PROFILE` was accidentally omitted.
+- A profile is a version-controlled file, selected `--profile` > `TAP_BOOT_PROFILE`. **A profile is required by default**: a missing one fails loud, so a deployment never silently starts empty-but-apparently-healthy because `TAP_BOOT_PROFILE` was accidentally omitted. The single escape hatch is an explicit `--allow-empty`, an opt-in to an auth-only, no-outbound standup. (This collapses the earlier two-mode framing — dev no-op vs deploy-required — into one rule: requiring a profile is the safe default *everywhere*, and an intentional empty standup is always explicit. One flag, no inverted `--require-profile`.)
 - v1 sections: `identity`, `auth`, `population`. The section set is open — any capability app may register a section (`req-boot-sections`).
 - The profile supersedes the flat collector-only profile shape: the existing collector list becomes the `fire-collector` steps of the `population` section (`req-boot-population`).
 - A profile carries only declarative state and secret *references* (`req-boot-secrets`), never secret values.
@@ -134,8 +133,8 @@ A boot profile is a single config-as-code document composed of named sections.
 | req-boot-profile-1 | Named Sections | Proposed | A profile is a document of named sections, not a flat list. | |
 | req-boot-profile-2 | Supersedes Flat Profile | Proposed | The collector-only profile is absorbed as the population fire-collector steps. | |
 | req-boot-profile-3 | References Not Secrets | Proposed | Profiles contain only declarative state and secret references. | |
-| req-boot-profile-4 | Opt-In Outbound | Proposed | With no population outbound steps selected, standup reaches out to nothing. | |
-| req-boot-profile-5 | Deploy Requires Profile | Proposed | Customer/deploy/entrypoint boot requires an explicit profile (or explicit `--allow-empty`); a missing profile fails loud, never a silent empty-but-healthy start. | |
+| req-boot-profile-4 | Opt-In Outbound | Implemented | An explicit `--allow-empty` (no profile) is an auth-only standup that reaches out to nothing. | |
+| req-boot-profile-5 | Profile Required By Default | Implemented | Boot requires an explicit profile by default; a missing profile fails loud (single escape hatch: `--allow-empty`), never a silent empty-but-healthy start. No inverted `--require-profile` flag. | |
 
 ---
 
@@ -247,7 +246,7 @@ The population phase brings plugins online and populates them, as an ordered lis
 - Steps run **strictly in declared order, sequentially, no overlap**. The declared order is load-bearing: a collector that reads another collector's output must be ordered after it so its edges mint in one boot pass (the established collector-pipeline dependency, stated generically).
 - v1 default arrangement mirrors today: all `seed-plugin` steps, then `fire-collector` steps. The step model deliberately permits **interleaving** (seed a plugin, fire its collectors, seed the next) so that a plugin whose collector depends on a prior plugin being fully *online and collected* can be expressed without restructuring.
 - **Open seam (let samsite teach us):** whether `fire-collector` stays a top-level population step or migrates into a plugin-owned "after I am online, fire these" hook is deferred. The step model is chosen so either outcome is a later refinement, not a rewrite. v1 does not require plugin-owned collector hooks; it only refuses to foreclose them.
-- A `seed-plugin` or `fire-collector` step naming an unknown plugin/collector key fails loud before any population step runs (pre-resolution, as `fire_boot_collectors` does today).
+- A `seed-plugin` step naming an unknown plugin slug or an unknown `bundle`, or a `fire-collector` step naming an unknown collector key, fails loud in **pre-resolution** — which runs against in-memory registries (the plugin manifest, the `tap_cares` collector registry) **before any grid mutation, including the collector-node reconcile**. A malformed profile therefore aborts without writing or updating a single node (`req-boot-population-4`). An unknown `bundle` is a hard error rather than a silent zero-bundle no-op, so a typo in boot config cannot become a green boot with missing seed data.
 
 #### Acceptance Criteria
 
@@ -256,9 +255,32 @@ The population phase brings plugins online and populates them, as an ordered lis
 | req-boot-population-1 | Ordered Steps | Proposed | Population is an ordered list of steps applied strictly in order, sequentially. | |
 | req-boot-population-2 | Two Step-Types | Proposed | v1 step-types are `seed-plugin` and `fire-collector`. | |
 | req-boot-population-3 | Interleaving Permitted | Proposed | The model allows seed/fire steps to interleave, not only seed-all-then-fire-all. | |
-| req-boot-population-4 | Unknown Key Fails | Proposed | An unknown plugin/collector key aborts before any population step runs. | |
+| req-boot-population-4 | Unknown Key Fails | Implemented | An unknown plugin slug, collector key, or `bundle` name aborts in pre-resolution — before any grid mutation, including the collector-node reconcile. | |
 | req-boot-population-5 | Collector Semantics Absorbed | Proposed | `fire-collector` preserves `run_collection`, `on_failure`, and ordered-firing semantics. | |
 | req-boot-population-6 | GRIFT Convergence Explicit | Proposed | `seed-plugin` convergence is bounded by GRIFT batch identity: version-bumped batches converge; a DEBUG-only force/reimport serves dev; production never blind-force-reimports; edited-but-not-bumped must not silently skip-as-success. | |
+
+---
+
+### Collector Await Timeout
+----
+RID: `req-boot-collector-timeout`  
+Status: `Implemented`
+
+A `fire-collector` step awaits its collector's job to a terminal state for a bounded time; the bound is configurable per step.
+
+#### Implementation
+
+- Each `fire-collector` step may declare an optional integer `timeout_seconds`; the bootloader passes it to `tap_cares.services.fire_collector_and_await`. A collector that does not reach a terminal state within the bound is a step failure (subject to the population `on_failure`), not an indefinite hang.
+- When a step omits `timeout_seconds`, the bootloader applies a single default (`DEFAULT_COLLECTOR_TIMEOUT_SECONDS`, 90s) — deliberately short so snappy collectors finish well inside it; a slow collector (a full cloud pull) declares a higher value on its step (e.g. `boot/samsite.json` gives boto3 / samsite-compliance 300s).
+- **Backlog:** the better long-term home for the *default* is the collector itself — a per-collector `COLLECTION_TIMEOUT_SECONDS` class default on `CollectorBase` (mirroring the existing `SELF_TEST_LIVE_CHECK_TIMEOUT_SECONDS`) that the step-level `timeout_seconds` overrides. v0 uses the single bootloader fallback; the per-collector default is deferred until a collector needs it.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-boot-collector-timeout-1 | Per-Step Timeout | Implemented | A `fire-collector` step's optional `timeout_seconds` bounds the await; exceeding it is a step failure, not a hang. | |
+| req-boot-collector-timeout-2 | Default When Unset | Implemented | A step with no `timeout_seconds` uses the bootloader default (90s). | |
+| req-boot-collector-timeout-3 | Per-Collector Default | Proposed | A per-collector `COLLECTION_TIMEOUT_SECONDS` default that the step overrides. | Backlog |
 
 ---
 
@@ -396,7 +418,7 @@ Boot logs what it did. A durable boot-report artifact is deferred.
 #### Implementation
 
 - The bootloader logs each section/step action — added / updated / synced / fired / skipped — using the standard TAP logging conventions (`spec-tap-logging.md`, site-token discipline).
-- The `tap_bootloader` actor resolved in the `bootstrap` pre-phase (`req-boot-phases`) is also the **logging-context actor** for the boot phase: it is bound at "bootloader operation start" (`req-tap-auth-logging`), so every boot log line — and every Flaw emitted during boot (`spec-tap-flaw-v0.md`) — is attributed to it without extra plumbing. The one actor serves as writer, authorization subject, and log attribution at once.
+- **v0 honest scope:** the `tap_bootloader` actor is bound (`acting_as`) only around the **population** phase, so population log lines — and Flaws emitted there (`spec-tap-flaw-v0.md`) — are attributed to it without extra plumbing. The **auth/bootstrap** phase runs *before* the actor exists (v0 mints `tap_bootloader` inside `sync_auth`, the chicken-and-egg the phase order notes), so its log lines are **not** actor-attributed — there is no actor yet to attribute them to. Full-phase attribution (one actor as writer, authorization subject, and log attribution at once) is the **future** shape that arrives with the `bootstrap` pre-phase resolving the actor first (`req-boot-phases`); v0 does not and cannot claim it for auth/bootstrap logs.
 - Secret values are redacted in all boot logs (`req-boot-secrets`).
 - Logging is the v1 record of a boot; a durable, queryable boot-report node/model is deferred to backlog.
 - Under failure, logs name the failed section/step and reason so an unattended caller can diagnose and re-run.

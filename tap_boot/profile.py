@@ -51,6 +51,10 @@ class FireCollectorStep:
     key: str
     enabled: bool
     run_mode: str = "full"
+    # Seconds to await this collector's job to a terminal state. None ⇒ the
+    # bootloader's default (DEFAULT_COLLECTOR_TIMEOUT_SECONDS). Slow collectors
+    # (a full cloud pull) declare a higher value here.
+    timeout_seconds: int | None = None
     note: str = ""
 
     type: str = "fire-collector"
@@ -140,6 +144,7 @@ def _parse(profile_id: str, data: dict[str, Any]) -> BootProfile:
                     key=raw["key"],
                     enabled=raw["enabled"],
                     run_mode=raw.get("run_mode", "full"),
+                    timeout_seconds=raw.get("timeout_seconds"),
                     note=raw.get("note", ""),
                 )
             )

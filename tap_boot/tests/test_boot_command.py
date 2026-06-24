@@ -1,4 +1,4 @@
-"""manage.py boot — profile resolution + deploy guard (req-boot-profile)."""
+"""manage.py boot — profile resolution + required-by-default guard (req-boot-profile)."""
 
 from __future__ import annotations
 
@@ -14,26 +14,19 @@ def _no_ambient_profile(monkeypatch):
 
 
 @pytest.mark.django_db
-def test_require_profile_without_profile_fails():
-    with pytest.raises(CommandError, match="requires an explicit profile"):
-        call_command("boot", "--require-profile")
+def test_missing_profile_fails_without_allow_empty():
+    # A profile is required by default — no inverted --require-profile flag.
+    with pytest.raises(CommandError, match="profile is required"):
+        call_command("boot")
 
 
 @pytest.mark.django_db
-def test_require_profile_with_allow_empty_runs_auth_only():
-    # No raise: an explicit allow-empty deploy boot is a valid auth-only standup.
-    call_command("boot", "--require-profile", "--allow-empty")
+def test_allow_empty_runs_auth_only():
+    # The single escape hatch: an intentional auth-only standup, no raise.
+    call_command("boot", "--allow-empty")
 
 
 @pytest.mark.django_db
 def test_unknown_profile_fails_loud():
     with pytest.raises(CommandError, match="not found"):
         call_command("boot", "--profile", "no-such-profile")
-
-
-@pytest.mark.django_db
-def test_list_shows_known_profiles(capsys):
-    call_command("boot", "--list")
-    out = capsys.readouterr().out
-    assert "samsite" in out
-    assert "base" in out

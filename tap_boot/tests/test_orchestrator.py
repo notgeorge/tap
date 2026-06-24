@@ -76,9 +76,24 @@ def test_unknown_plugin_aborts_before_any_seed():
 
 
 @pytest.mark.django_db
-def test_unknown_collector_key_aborts():
+def test_unknown_collector_key_aborts_before_reconcile():
+    from tap_cares.models import Collector
+
+    before = Collector.objects.count()
     profile = _profile(FireCollectorStep(key="plugins.nope:missing", enabled=True))
     with pytest.raises(BootError, match="unknown collector key"):
+        run_boot(profile)
+    # Pre-resolution validates collector keys against the in-memory registry and
+    # aborts BEFORE reconcile_collector_nodes() runs — so no Collector grid node
+    # was created/updated (req-boot-population-4, the P1 mutation-ordering fix).
+    assert Collector.objects.count() == before
+
+
+@pytest.mark.django_db
+def test_unknown_bundle_name_aborts():
+    # A typo'd bundle must fail loud, not become a green boot with missing data.
+    profile = _profile(SeedPluginStep(plugin="computing_core", enabled=True, bundle="no-such-bundle"))
+    with pytest.raises(BootError, match="unknown bundle"):
         run_boot(profile)
 
 
@@ -101,6 +116,21 @@ def test_fire_collector_step_success(monkeypatch):
     run_boot(_profile(FireCollectorStep(key=_KSI_COLLECTOR, enabled=True, run_mode="full")))
     assert len(calls) == 1
     assert calls[0]["run_mode"] == "full"
+    # No per-step timeout declared -> bootloader default (90s).
+    assert calls[0]["timeout_seconds"] == 90.0
+
+
+@pytest.mark.django_db
+def test_fire_collector_step_uses_declared_timeout(monkeypatch):
+    calls = []
+
+    def fake_fire(collector, **kwargs):
+        calls.append(kwargs)
+        return True, _FakeJob()
+
+    monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
+    run_boot(_profile(FireCollectorStep(key=_KSI_COLLECTOR, enabled=True, timeout_seconds=222)))
+    assert calls[0]["timeout_seconds"] == 222
 
 
 @pytest.mark.django_db

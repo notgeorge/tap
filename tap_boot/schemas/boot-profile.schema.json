@@ -79,6 +79,11 @@
                     "type": "string",
                     "enum": ["full", "self_test_only"]
                   },
+                  "timeout_seconds": {
+                    "description": "Seconds to await this collector's job to a terminal state. Omit for the bootloader default (90s); set higher for slow collectors (a full cloud pull). Per-collector default timeouts are a backlog item (req-boot-collector-timeout).",
+                    "type": "integer",
+                    "minimum": 1
+                  },
                   "enabled": {
                     "description": "false skips the step without removing it (the 'comment it out' affordance).",
                     "type": "boolean"

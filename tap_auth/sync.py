@@ -306,6 +306,17 @@ def ensure_initial_admin() -> User | None:
     email = (os.environ.get("DJANGO_SUPERUSER_EMAIL") or "").strip()
     password = os.environ.get("DJANGO_SUPERUSER_PASSWORD") or ""
 
+    # A username with no password is almost always a misconfigured standup — and a
+    # superuser created without one gets an unusable password (a half-formed admin
+    # nobody can log in as). Refuse it loudly rather than booting in that state.
+    # There is no DEBUG blank-password exception: an unauthenticatable admin is not
+    # worth the footgun even in dev (req-tap-auth-boot).
+    if not password:
+        raise AuthSyncError(
+            f"DJANGO_SUPERUSER_USERNAME='{username}' is set but DJANGO_SUPERUSER_PASSWORD is empty. "
+            "Refusing to create an initial admin with no usable password — set both, or set neither."
+        )
+
     user_model = get_user_model()
     with transaction.atomic():
         user, created = user_model.objects.get_or_create(
@@ -322,9 +333,8 @@ def ensure_initial_admin() -> User | None:
         if email and user.email != email:
             user.email = email
             changed = True
-        if password:
-            user.set_password(password)
-            changed = True
+        user.set_password(password)
+        changed = True
         if changed or created:
             user.save()
 

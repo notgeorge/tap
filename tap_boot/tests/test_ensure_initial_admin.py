@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from django.contrib.auth import get_user_model
 
-from tap_auth.sync import GROUP_ADMIN, ensure_initial_admin
+from tap_auth.sync import GROUP_ADMIN, AuthSyncError, ensure_initial_admin
 
 
 @pytest.fixture
@@ -41,3 +41,16 @@ def test_noop_without_username(monkeypatch):
     before = User.objects.count()
     assert ensure_initial_admin() is None
     assert User.objects.count() == before
+
+
+@pytest.mark.django_db
+def test_username_without_password_fails_loud(monkeypatch):
+    monkeypatch.setenv("DJANGO_SUPERUSER_USERNAME", "halfadmin")
+    monkeypatch.delenv("DJANGO_SUPERUSER_PASSWORD", raising=False)
+    User = get_user_model()
+    before = User.objects.count()
+    with pytest.raises(AuthSyncError, match="PASSWORD is empty"):
+        ensure_initial_admin()
+    # No half-formed, unauthenticatable admin left behind.
+    assert User.objects.count() == before
+    assert not User.objects.filter(username="halfadmin").exists()

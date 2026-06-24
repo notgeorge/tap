@@ -9,9 +9,10 @@ req-boot-spawn-bridge) and customer deployments. It runs the v0 phase order
   actor is resolved here, *after* `sync_auth` mints it (the v0 collapse of the
   fuller `bootstrap` pre-phase: nothing writes through the service layer before
   auth, so no earlier actor is needed — spec v0 Scope).
-- **population** — bound `acting_as(tap_bootloader)`: reconcile collector grid
-  nodes, pre-resolve every step (unknown plugin/collector key fails loud before
-  any mutation), then apply the ordered `seed-plugin` / `fire-collector` steps.
+- **population** — bound `acting_as(tap_bootloader)`: pre-resolve every enabled
+  step against in-memory registries (unknown plugin/collector/bundle aborts before
+  ANY grid mutation, req-boot-population-4), *then* reconcile collector grid nodes,
+  then apply the ordered `seed-plugin` / `fire-collector` steps.
 
 Phases are plain functions so each becomes a registered section-handler body when
 that framework lands (req-boot-sections) — an additive refactor, not a rewrite.
@@ -26,7 +27,7 @@ from collections.abc import Callable
 
 from tap_auth.actors import BOOTLOADER, acting_as, get_builtin_actor
 from tap_auth.sync import ensure_initial_admin, sync_auth
-from tap_boot.profile import BootProfile, FireCollectorStep, SeedPluginStep
+from tap_boot.profile import BootProfile, FireCollectorStep, PopulationStep, SeedPluginStep
 
 logger = logging.getLogger(__name__)
 
@@ -34,22 +35,24 @@ logger = logging.getLogger(__name__)
 Echo = Callable[[str], None]
 _SILENT: Echo = lambda _msg: None  # noqa: E731
 
+# Default per-collector await timeout when a fire-collector step does not set its
+# own `timeout_seconds`. Deliberately short — snappy collectors should finish well
+# inside it; a slow collector (a full cloud pull) declares a higher value on its
+# step. The better long-term home is a per-collector default the step overrides
+# (see backlog req-boot-collector-timeout); v0 uses this single fallback.
+DEFAULT_COLLECTOR_TIMEOUT_SECONDS = 90.0
+
 
 class BootError(Exception):
     """Raised when a phase cannot complete; the command maps it to a non-zero exit."""
 
 
-def run_boot(
-    profile: BootProfile | None,
-    *,
-    timeout_seconds: float = 600.0,
-    echo: Echo | None = None,
-) -> None:
+def run_boot(profile: BootProfile | None, *, echo: Echo | None = None) -> None:
     """Stand the instance up: auth phase, then (if the profile has steps) population.
 
-    `profile` is None for an auth-only standup (no profile selected, the dev
-    no-outbound default — req-boot-profile-4). Raises `BootError` on any phase
-    failure, after logging the offending section/step (req-boot-report).
+    `profile` is None for an auth-only standup (an intentional `--allow-empty`
+    run, req-boot-profile-4). Raises `BootError` on any phase failure, after
+    logging the offending section/step (req-boot-report).
     """
     say = echo or _SILENT
     profile_label = profile.profile_id if profile else "(none — auth only)"
@@ -67,7 +70,7 @@ def run_boot(
     # population write (req-boot-phases-3: no boot write is User=None).
     bootloader = get_builtin_actor(BOOTLOADER)
     with acting_as(bootloader):
-        _phase_population(profile, bootloader, timeout_seconds, say)
+        _phase_population(profile, bootloader, say)
 
     logger.info("[9e9b] boot complete: profile=%s", profile_label)
     say("Boot complete.")
@@ -86,26 +89,22 @@ def _phase_auth(say: Echo) -> None:
         say("Auth phase: no DJANGO_SUPERUSER_USERNAME set; skipped initial-admin bootstrap.")
 
 
-def _phase_population(
-    profile: BootProfile,
-    bootloader: object,
-    timeout_seconds: float,
-    say: Echo,
-) -> None:
-    """population phase: reconcile collector nodes, pre-resolve, apply ordered steps."""
+def _phase_population(profile: BootProfile, bootloader: object, say: Echo) -> None:
+    """population phase: pre-resolve (no mutation), reconcile, apply ordered steps."""
     from tap_cares.registry import reconcile_collector_nodes
+
+    # Pre-resolution happens FIRST, against in-memory registries only — so an
+    # unknown plugin slug / collector key / bundle name aborts before ANY grid
+    # mutation, including the collector-node reconcile below (req-boot-population-4).
+    plan = _resolve_steps(profile, say)
 
     logger.info("[f193] boot population phase: reconciling collector nodes")
     say("Population phase: reconciling collector grid nodes ...")
     reconcile_collector_nodes()
 
-    # Pre-resolution: every enabled step's plugin/collector key is resolved before
-    # ANY step mutates the grid, so an unknown key aborts cleanly (req-boot-population-4).
-    plan = _resolve_steps(profile, say)
-
     failures: list[str] = []
-    for step, resolved in plan:
-        ok = _apply_step(step, resolved, bootloader, timeout_seconds, say)
+    for step in plan:
+        ok = _apply_step(step, bootloader, say)
         if ok:
             continue
         label = _step_label(step)
@@ -120,62 +119,79 @@ def _phase_population(
     logger.info("[cc13] boot population phase complete: %d step(s)", len(plan))
 
 
-def _resolve_steps(profile: BootProfile, say: Echo) -> list[tuple[object, object]]:
-    """Resolve each enabled step to its target object; fail loud on an unknown key."""
-    from tap_cares.models import Collector
+def _resolve_steps(profile: BootProfile, say: Echo) -> list[PopulationStep]:
+    """Validate every enabled step against in-memory registries; fail loud on any miss.
+
+    Resolves with ZERO grid mutation (collector keys are checked against the
+    in-memory collector registry, not by reading/creating grid nodes), so a
+    malformed profile aborts before the population phase touches the grid.
+    """
+    from tap_cares.exceptions import CollectorNotFoundError
+    from tap_cares.registry import get_collector
     from tap_plugins.seeding import PluginNotFound, resolve_tap_plugin
 
-    plan: list[tuple[object, object]] = []
     for step in profile.enabled_steps:
         if isinstance(step, SeedPluginStep):
             try:
-                resolved: object = resolve_tap_plugin(step.plugin)
+                config = resolve_tap_plugin(step.plugin)
             except PluginNotFound as exc:
                 raise BootError(f"seed-plugin: {exc} Aborting before any population step runs.") from exc
+            if step.bundle is not None:
+                declared = {b.name for b in (config.manifest.grift if config.manifest else [])}
+                if step.bundle not in declared:
+                    raise BootError(
+                        f"seed-plugin '{step.plugin}': unknown bundle '{step.bundle}'. "
+                        f"Declared bundles: {sorted(declared) or '(none)'}. "
+                        "Aborting before any population step runs."
+                    )
         elif isinstance(step, FireCollectorStep):
             try:
-                resolved = Collector.objects.get(collector_registry=step.key)
-            except Collector.DoesNotExist:
+                get_collector(step.key)
+            except CollectorNotFoundError as exc:
                 raise BootError(
                     f"fire-collector: unknown collector key '{step.key}' — not registered. "
                     "Aborting before any population step runs."
-                ) from None
+                ) from exc
         else:  # pragma: no cover - schema guards the type set
             raise BootError(f"Unknown population step type: {step!r}")
-        plan.append((step, resolved))
 
     skipped = len(profile.steps) - len(profile.enabled_steps)
+    plan = list(profile.enabled_steps)
     logger.info("[8e0f] boot population plan: %d step(s) (%d disabled, skipped)", len(plan), skipped)
     say(f"Population plan: {len(plan)} step(s) to apply ({skipped} disabled).")
     return plan
 
 
-def _apply_step(
-    step: object,
-    resolved: object,
-    bootloader: object,
-    timeout_seconds: float,
-    say: Echo,
-) -> bool:
+def _apply_step(step: object, bootloader: object, say: Echo) -> bool:
     if isinstance(step, SeedPluginStep):
-        return _apply_seed_plugin(step, resolved, bootloader, say)
+        return _apply_seed_plugin(step, bootloader, say)
     if isinstance(step, FireCollectorStep):
-        return _apply_fire_collector(step, resolved, timeout_seconds, say)
+        return _apply_fire_collector(step, say)
     return False  # pragma: no cover
 
 
-def _apply_seed_plugin(step: SeedPluginStep, config: object, bootloader: object, say: Echo) -> bool:
-    from tap_plugins.seeding import seed_plugin
+def _apply_seed_plugin(step: SeedPluginStep, bootloader: object, say: Echo) -> bool:
+    from tap_plugins.seeding import resolve_tap_plugin, seed_plugin
 
     say(f"  [seed-plugin] {step.plugin} ...")
-    outcomes = seed_plugin(config, actor=bootloader, bundle_name=step.bundle)  # type: ignore[arg-type]
+    config = resolve_tap_plugin(step.plugin)  # validated in _resolve_steps; cheap in-memory lookup
+    outcomes = seed_plugin(config, actor=bootloader, bundle_name=step.bundle)
+
+    if not outcomes:
+        # No bundles imported. A bad bundle name was already rejected in
+        # pre-resolution, so this only happens for a plugin that declares no GRIFT
+        # — report it honestly (it is a no-op, not "seeded data").
+        logger.info("[5f47] seed-plugin %s: no GRIFT bundles to import", step.plugin)
+        say(f"    OK — {step.plugin}: no GRIFT bundles to import (no-op).")
+        return True
+
     failed = [o for o in outcomes if not o.ok]
     for o in outcomes:
         if o.ok:
-            logger.info("[5f47] seeded %s/%s", o.slug, o.bundle_name)
+            logger.info("[e79e] seeded %s/%s", o.slug, o.bundle_name)
         else:
             detail = o.read_error if o.read_error is not None else "import failed (see grift result)"
-            logger.error("[e79e] seed failed %s/%s: %s", o.slug, o.bundle_name, detail)
+            logger.error("[916b] seed failed %s/%s: %s", o.slug, o.bundle_name, detail)
     if failed:
         say(f"    FAILED — {step.plugin}: {len(failed)} bundle(s) did not import.")
         return False
@@ -183,15 +199,21 @@ def _apply_seed_plugin(step: SeedPluginStep, config: object, bootloader: object,
     return True
 
 
-def _apply_fire_collector(step: FireCollectorStep, collector: object, timeout_seconds: float, say: Echo) -> bool:
+def _apply_fire_collector(step: FireCollectorStep, say: Echo) -> bool:
+    from tap_cares.models import Collector
     from tap_cares.services import fire_collector_and_await
 
-    say(f"  [fire-collector] {step.key} (run_mode={step.run_mode}) ...")
+    # The Collector grid node exists now (reconcile ran after pre-resolution); the
+    # key was validated against the registry in _resolve_steps.
+    collector = Collector.objects.get(collector_registry=step.key)
+    timeout = step.timeout_seconds if step.timeout_seconds is not None else DEFAULT_COLLECTOR_TIMEOUT_SECONDS
+
+    say(f"  [fire-collector] {step.key} (run_mode={step.run_mode}, timeout={timeout:g}s) ...")
     ok, job = fire_collector_and_await(
-        collector,  # type: ignore[arg-type]
+        collector,
         run_mode=step.run_mode,
         manual_run_source="boot",
-        timeout_seconds=timeout_seconds,
+        timeout_seconds=timeout,
     )
     if ok:
         logger.info("[75b3] fired collector %s: %s", step.key, job.summary or "successful")

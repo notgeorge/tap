@@ -5,15 +5,14 @@ instance by applying a boot profile in fixed phases (auth → population). It is
 same path in dev (`spawn-session.sh`, req-boot-spawn-bridge) and in a customer
 deployment — dog-fooded continuously before any customer relies on it.
 
-Profile resolution: ``--profile`` > ``$TAP_BOOT_PROFILE``.
-- dev / manual (default): no profile ⇒ a clean auth-only standup that reaches out
-  to nothing (req-boot-profile-4).
-- deploy / entrypoint (``--require-profile``): a missing profile fails loud unless
-  ``--allow-empty`` is given — a deployment must never silently start empty
-  (req-boot-profile-5).
+Profile resolution: ``--profile`` > ``$TAP_BOOT_PROFILE``. A profile is **required
+by default** — a missing one fails loud, so a deployment never silently starts
+empty (req-boot-profile-5). The single escape hatch is ``--allow-empty``, an
+explicit opt-in to an auth-only, no-outbound standup (req-boot-profile-4).
 
 Boot is zero-touch: no prompts, ever (req-boot-trust). Migrations are a precondition
-(run by the container entrypoint), not a boot phase.
+(run by the container entrypoint), not a boot phase. Per-collector await timeouts
+are declared on each fire-collector step (default 90s).
 
 Spec: specs/spec-tap-boot-v0.md.
 """
@@ -26,12 +25,11 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError
 
+from tap_auth.sync import AuthSyncError
 from tap_boot.orchestrator import BootError, run_boot
-from tap_boot.profile import BootProfileError, load_profile, profile_ids
+from tap_boot.profile import BootProfileError, load_profile
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_TIMEOUT_SECONDS = 600
 
 
 class Command(BaseCommand):
@@ -44,36 +42,14 @@ class Command(BaseCommand):
             help="Profile id (basename of boot/<id>.json). Overrides $TAP_BOOT_PROFILE.",
         )
         parser.add_argument(
-            "--require-profile",
-            action="store_true",
-            default=False,
-            help="Deploy mode: a missing profile fails loud unless --allow-empty (req-boot-profile-5).",
-        )
-        parser.add_argument(
             "--allow-empty",
             action="store_true",
             default=False,
-            help="Permit an empty (auth-only) standup under --require-profile.",
-        )
-        parser.add_argument(
-            "--list",
-            dest="list_profiles",
-            action="store_true",
-            default=False,
-            help="List available profiles (id + description) and exit.",
-        )
-        parser.add_argument(
-            "--timeout",
-            type=int,
-            default=_DEFAULT_TIMEOUT_SECONDS,
-            help=f"Seconds to await each fire-collector step's terminal state (default {_DEFAULT_TIMEOUT_SECONDS}).",
+            help="Permit an auth-only standup with no profile (req-boot-profile-4). "
+            "Without it, a missing profile fails loud (req-boot-profile-5).",
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
-        if options["list_profiles"]:
-            self._list_profiles()
-            return
-
         profile_id = (options["profile"] or os.environ.get("TAP_BOOT_PROFILE") or "").strip()
 
         profile = None
@@ -83,29 +59,17 @@ class Command(BaseCommand):
             except BootProfileError as exc:
                 logger.error("[f750] boot profile load failed: %s", exc)
                 raise CommandError(str(exc)) from exc
-        elif options["require_profile"] and not options["allow_empty"]:
+        elif not options["allow_empty"]:
             raise CommandError(
-                "Deploy boot requires an explicit profile (--profile / $TAP_BOOT_PROFILE) or --allow-empty; "
-                "refusing to start empty-but-apparently-healthy (req-boot-profile-5)."
+                "A boot profile is required: pass --profile <id> or set $TAP_BOOT_PROFILE. "
+                "To stand up auth-only with no profile on purpose, pass --allow-empty "
+                "(refusing to start empty-but-apparently-healthy by default — req-boot-profile-5)."
             )
 
         try:
-            run_boot(profile, timeout_seconds=float(options["timeout"]), echo=self.stdout.write)
-        except BootError as exc:
+            run_boot(profile, echo=self.stdout.write)
+        except (BootError, AuthSyncError) as exc:
             logger.error("[916b] boot failed: %s", exc)
             raise CommandError(str(exc)) from exc
 
         self.stdout.write(self.style.SUCCESS("boot complete"))
-
-    def _list_profiles(self) -> None:
-        ids = profile_ids()
-        if not ids:
-            self.stdout.write("No boot profiles found.")
-            return
-        self.stdout.write("Boot profiles:")
-        for pid in ids:
-            try:
-                desc = load_profile(pid).description
-            except BootProfileError:
-                desc = "(unreadable / invalid)"
-            self.stdout.write(f"  {pid} — {desc}" if desc else f"  {pid}")
