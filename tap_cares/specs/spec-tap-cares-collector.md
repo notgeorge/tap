@@ -30,7 +30,7 @@ Status messages and richer event records remain backlog (`req-tap-cares-collecto
 | --- | --- | :---: | --- |
 | req-tap-cares-collector-model | [Collector Model](#collector-model) | Refactoring | On-grid dual-existence capability node; INTERNAL_ONLY |
 | req-tap-cares-collector-registry | [Collector Registry](#collector-registry) | Implemented | Scoped registry mapping collector keys to registered runner code |
-| req-tap-cares-collector-registration | [Collector Registration](#collector-registration) | Proposed | `register_collector(key, cls, *, name, description)` creates both the runner registry entry and the on-grid Collector node |
+| req-tap-cares-collector-registration | [Collector Registration](#collector-registration) | Proposed | `register_collector(...)` registers the runner read-only at `ready()`; `reconcile_collector_nodes()` materializes the on-grid Collector node under a bound actor |
 | req-tap-cares-collector-concurrency | [Collector Concurrency Policy](#collector-concurrency-policy) | Backlog | Future per-collector maximum simultaneous run count |
 | req-tap-cares-collector-module-class | [Collector Module Class](#collector-module-class) | Implemented | Registered collector classes instantiated by tap-cares |
 | req-tap-cares-collector-packaging | [Collector Packaging](#collector-packaging) | Refactoring | Each collector is a self-contained `collectors/<name>_collector/` package |
@@ -58,7 +58,7 @@ Status: `Refactoring`
 
 `Collector` must be implemented as a standard TAP-managed `BaseModel` node using the model-building skill at `tap_grid/skills/add-model/SKILL.md`. The model should follow ordinary TAP model conventions rather than re-specifying boilerplate in this requirement. Those conventions include entity-spine backing, `ENTITY_TYPE`, display metadata, `FIELD_CRUD_SCHEMA`, `FIELD_VALIDATION_SCHEMA`, `CREATE_REQUIRED`, `get_name()`, history behavior, and tests for creation, validation, display projection, and dimensions.
 
-`Collector` declares `INTERNAL_ONLY: ClassVar[bool] = True` per `req-grid-entity-internal`. The generic service-layer CRUD verbs and the GRIFT importer cannot create, patch, replace, or delete `Collector` rows. The sole legal creation path is `register_collector(...)` (see [Collector Registration](#collector-registration)), which uses `_create_node_internal` from `tap_grid.services` (see `req-grid-service-write-internal-create` in `spec-grid-service-write.md`) to construct the node while preserving the full write pipeline.
+`Collector` declares `INTERNAL_ONLY: ClassVar[bool] = True` per `req-grid-entity-internal`. The generic service-layer CRUD verbs and the GRIFT importer cannot create, patch, replace, or delete `Collector` rows. The sole legal creation path is `reconcile_collector_nodes()` (see [Collector Registration](#collector-registration)), which writes through `write_batch(..., _internal_only_bypass=True)` from `tap_grid.services` (the trusted-internal escape hatch over the same pipeline `_create_node_internal` wraps; see `req-grid-service-write-internal-create` in `spec-grid-service-write.md`) to materialize the node while preserving the full write pipeline. `register_collector(...)` itself writes no grid node.
 
 The collector node must not store arbitrary filesystem paths, dynamic import paths, or executable code. It stores a fully qualified registry key. The registry is the controlled intermediary between grid data and executable code.
 
@@ -92,7 +92,7 @@ The scheduler will use `Collector` nodes to determine which collector capability
 | req-tap-cares-collector-model-8 | v0 Field Set | Implemented | v0 `Collector` exposes only `name`, `description`, and `collector_registry`. Per-instance configuration fields are deferred. | |
 | req-tap-cares-collector-model-9 | INTERNAL_ONLY | Proposed | `Collector.INTERNAL_ONLY = True`. Generic `create_node` / `patch_node` / `replace_node` / `delete_node` and GRIFT import all reject the `collector` entity type. | |
 | req-tap-cares-collector-model-10 | Deterministic Entity ID | Proposed | A Collector's `entity_id` is `uuid5(NAMESPACE_COLLECTOR, collector_registry)`. The same `scope:key` always yields the same `entity_id` across reloads and across grids. | `NAMESPACE_COLLECTOR` is a module-level UUID constant in `tap_cares/registry.py`. |
-| req-tap-cares-collector-model-11 | Registration Is Sole Creator | Proposed | The only legal path that creates a `Collector` row is `register_collector(...)` (see [Collector Registration](#collector-registration)), which uses `_create_node_internal` from `tap_grid.services`. | |
+| req-tap-cares-collector-model-11 | Reconcile Is Sole Creator | Proposed | The only legal path that creates a `Collector` row is `reconcile_collector_nodes()` (see [Collector Registration](#collector-registration)), which writes through `write_batch(..., _internal_only_bypass=True)` from `tap_grid.services`; `register_collector(...)` writes no grid node. | |
 
 ## Collector Registry
 ----
@@ -130,11 +130,14 @@ collector_registry: ScopedRegistry[type[CollectorBase]] = ScopedRegistry(
     validate_scope=_validate_collector_key,
 )
 
-def register_collector(key: str, cls: type[CollectorBase], scope: str | None = None) -> None: ...
+def register_collector(
+    key: str, cls: type[CollectorBase], *, name: str, description: str, scope: str | None = None
+) -> None: ...
+def reconcile_collector_nodes() -> dict[str, int]: ...
 def get_collector(collector_key: str) -> type[CollectorBase]: ...
 ```
 
-`register_collector` and `get_collector` are the public surface; plugin code should call the helpers rather than the registry instance directly so the type narrowing and `CollectorBase` subclass check ([req-tap-cares-collector-module-class](#collector-module-class)) stay enforced.
+`register_collector` and `get_collector` are the public plugin surface; `reconcile_collector_nodes()` is the public materialization surface (called by boot, not plugins). Plugin code should call the helpers rather than the registry instance directly so the type narrowing and `CollectorBase` subclass check ([req-tap-cares-collector-module-class](#collector-module-class)) stay enforced.
 
 The collector registry uses the `validate_key` / `validate_scope` callbacks introduced by `req-grid-registry-scope-validators` (see `tap_grid/specs/spec-grid-registry.md`). That registry requirement is an implementation dependency for the collector registry. Both halves of the `scope:key` pair must match the format:
 
@@ -157,7 +160,7 @@ Validation runs on both `register()` and `get()`, so malformed runner registrati
 | req-tap-cares-collector-registry-5 | Duplicate Guard | Implemented | Duplicate registration of the same `(scope, key)` pair is a configuration error. | |
 | req-tap-cares-collector-registry-6 | No Dynamic Code Loading | Implemented | Collector execution never imports modules, reads filesystem paths, or evaluates code based on Collector node data. | |
 | req-tap-cares-collector-registry-7 | Provenance By Scope | Implemented | Fully qualified keys preserve the runner's registration provenance through the scope portion of `scope:key`. | |
-| req-tap-cares-collector-registry-8 | Public Helpers | Implemented | `tap_cares/registry.py` exposes `register_collector(key, cls, scope=None)` and `get_collector(collector_key)` as the public registration and lookup surface, mirroring `tap_grid.registry.register_search_runner` / `get_search_runner`. | |
+| req-tap-cares-collector-registry-8 | Public Helpers | Implemented | `tap_cares/registry.py` exposes `register_collector(key, cls, *, name, description, scope=None)`, `reconcile_collector_nodes()`, and `get_collector(collector_key)` as the public registration, materialization, and lookup surface, mirroring `tap_grid.registry.register_search_runner` / `get_search_runner`. | |
 | req-tap-cares-collector-registry-9 | Resilient Runner Resolution Seam Named | Backlog | The process/registration-drift hardening seam is named here, constrained to stay inside `req-tap-cares-collector-registry-6` (no grid-data code loading). Shipped interim: the loud self-diagnosing `RUNNER_UNAVAILABLE` message (`tap_cares/services.py`). Deferred (demand-signal-gated): enqueue-time preflight in `run_collection`, optional registration-generation stamp. Pairs with `req-tap-cares-task-backend-backlog-3`. | Discovered 2026-05-19: a 28h-stale Steady Queue supervisor surfaced a correctly-registered collector as a confusing mid-job failure on a collector that ran fine from a fresh `manage.py` process. |
 | req-tap-cares-collector-registry-9 | Format Validators | Implemented | `collector_registry` is constructed with `validate_key` and `validate_scope` callbacks (per `req-grid-registry-scope-validators`) that enforce `^[A-Za-z0-9][A-Za-z0-9_.\-]*$` on each half of `scope:key`. | |
 | req-tap-cares-collector-registry-10 | Shared Validator Helper | Implemented | The same validator function used by the registry is reused by `Collector.validate()` so format rules cannot drift between model-side and registry-side enforcement. | Validator helper now defined; Collector.validate() call site lands with the model in Phase 3. |
@@ -167,11 +170,16 @@ Validation runs on both `register()` and `get()`, so malformed runner registrati
 RID: `req-tap-cares-collector-registration`
 Status: `Proposed`
 
-`register_collector(...)` is the dual-existence registration entry point for collectors. It performs two coupled actions in one call: it registers the runner class in `collector_registry`, and it upserts the on-grid `Collector` node.
+Collector dual-existence registration is **split across two phases** so that app `ready()` stays read-only with respect to graph state (`req-plugin-load-v0-ready-readonly`):
 
-This is the **sole legal path** for creating a `Collector` row. Generic `create_node`, GRIFT seeds, and direct ORM are all closed by `Collector.INTERNAL_ONLY = True`.
+- **`register_collector(...)`** runs at app `ready()` and performs **no graph write**. It registers the runner class in `collector_registry` and records the on-grid node descriptor (`name` / `description`) in memory, keyed by `scope:key`, for later materialization.
+- **`reconcile_collector_nodes()`** is the deferred grid-side half — the **sole legal path that creates or updates an on-grid `Collector` node**. It runs under whatever actor its caller has bound (the boot orchestrator today) and materializes every registered collector's node in one `write_batch`.
 
-#### Signature
+A `Collector` row is therefore never written at `ready()`, and never by generic `create_node`, GRIFT seeds, or direct ORM — all closed by `Collector.INTERNAL_ONLY = True`. The only writer is `reconcile_collector_nodes()`, via the trusted-internal batch path.
+
+Splitting the two halves is what lets `ready()` avoid writing the grid before a named actor exists: a fresh standup that wrote at `ready()` would either fail closed (no actor) or be silently masked, leaving an empty Collector inventory.
+
+#### Signatures
 
 ```python
 def register_collector(
@@ -182,21 +190,29 @@ def register_collector(
     description: str,
     scope: str | None = None,
 ) -> None:
-    """Register a collector capability.
+    """Register a collector capability — the read-only half of dual existence.
 
-    Performs two coupled actions:
+    Runs at app `ready()` and performs NO graph write:
     1. Registers `cls` in `collector_registry` under `scope:key`.
        If `scope` is omitted, it is inferred from `cls.__module__`.
-    2. Upserts the on-grid `Collector` node with:
-       - entity_id = uuid5(NAMESPACE_COLLECTOR, f"{scope}:{key}")
-       - collector_registry = f"{scope}:{key}"
-       - name = name
-       - description = description
+    2. Records the on-grid node descriptor (`name` / `description`) in
+       `_COLLECTOR_NODE_METADATA`, keyed by `scope:key`, for later
+       materialization by `reconcile_collector_nodes()`.
+    """
 
-    The Collector node upsert uses `_create_node_internal` from
-    `tap_grid.services` for new rows, or `_patch_node_internal` (or the
-    equivalent service-layer call) for existing rows. Both paths preserve
-    the write pipeline.
+
+def reconcile_collector_nodes() -> dict[str, int]:
+    """Materialize the on-grid Collector node for every registered collector.
+
+    The deferred grid-side half. Under the caller-bound actor, in one
+    `write_batch`: creates missing nodes, patches drifted name/description,
+    no-ops the rest. Returns {created, updated, unchanged} counts. For each:
+      - entity_id = uuid5(NAMESPACE_COLLECTOR, f"{scope}:{key}")
+      - collector_registry = f"{scope}:{key}"
+
+    A collector registered with no recorded descriptor is an internal-
+    consistency violation and raises ImproperlyConfigured (never a silent
+    skip) — boot relies on this reconcile to create Collector nodes.
     """
 ```
 
@@ -219,7 +235,7 @@ class <Plugin>Config(TapPluginConfig):
         )
 ```
 
-The first call on a fresh install creates the on-grid `Collector` node. Subsequent calls (every app restart, every plugin reload) upsert: identity stays stable because `entity_id` is deterministic; `name` and `description` refresh with whatever the plugin currently declares.
+`register_collector` at `ready()` only records the runner and its descriptor — it writes nothing to the grid. The on-grid `Collector` node is created (and thereafter converged) by `reconcile_collector_nodes()`, which the boot orchestrator runs under a bound actor after `ready()`. Identity stays stable across reconciles because `entity_id` is deterministic; `name` and `description` converge to whatever the plugin currently declares.
 
 #### Identity derivation
 
@@ -231,24 +247,25 @@ entity_id = uuid.uuid5(NAMESPACE_COLLECTOR, f"{scope}:{key}")
 
 `NAMESPACE_COLLECTOR` is a module-level UUID constant in `tap_cares/registry.py`. Once set, it is immutable — changing it would re-identify every Collector node on every grid.
 
-#### Helper colocation
+#### Materialization
 
-In v0 the trusted-internal helper `_ensure_collector_node(...)` lives alongside `register_collector` in `tap_cares/registry.py`. The helper is private (leading underscore) and is not re-exported from any tap_cares public surface. It calls `_create_node_internal` (or the patch variant) to do the actual write.
+`reconcile_collector_nodes()` is the public materialization surface — it lives alongside `register_collector` in `tap_cares/registry.py` and is the function the boot orchestrator calls under a bound actor. It writes through `write_batch(..., _internal_only_bypass=True)` (the trusted-internal escape hatch that `Collector.INTERNAL_ONLY` otherwise closes), so the full write pipeline runs for every collector node in one batch.
 
-When the dual-existence pattern lands a second concrete consumer (Emitter, Action, or Receiver), the helper is a candidate for consolidation into a shared registration mechanism per `req-grid-dual-existence-consolidation` in `spec-grid-dual-existence.md`.
+When the dual-existence pattern lands a second concrete consumer (Emitter, Action, or Receiver), this materialization step is a candidate for consolidation into a shared registration mechanism per `req-grid-dual-existence-consolidation` in `spec-grid-dual-existence.md`.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-collector-registration-1 | Single Entry Point | Proposed | `register_collector(key, cls, *, name, description, scope=None)` is the sole legal path for creating an on-grid `Collector` row. | |
-| req-tap-cares-collector-registration-2 | Two Coupled Actions | Proposed | One call registers the runner class in `collector_registry` AND upserts the on-grid `Collector` node. | |
+| req-tap-cares-collector-registration-1 | Split Registration Surface | Proposed | `register_collector(key, cls, *, name, description, scope=None)` registers the runner read-only at `ready()`; `reconcile_collector_nodes()` is the sole legal path that creates an on-grid `Collector` row. | |
+| req-tap-cares-collector-registration-2 | Read-Only Registration | Proposed | `register_collector` performs no graph write: it registers the runner class in `collector_registry` and records the on-grid node descriptor in memory for later materialization (`req-plugin-load-v0-ready-readonly`). | |
 | req-tap-cares-collector-registration-3 | Required Display Metadata | Proposed | `name` and `description` are required keyword arguments. No default values or implicit fallbacks. | |
 | req-tap-cares-collector-registration-4 | Deterministic Identity | Proposed | The on-grid `entity_id` is `uuid5(NAMESPACE_COLLECTOR, f"{scope}:{key}")`. | |
-| req-tap-cares-collector-registration-5 | Idempotent Reload | Proposed | Repeated calls with the same `scope:key` upsert the node; identity stays stable; `name` and `description` refresh to the latest values. | |
-| req-tap-cares-collector-registration-6 | Trusted-Internal Create | Proposed | New Collector rows are created via `_create_node_internal` from `tap_grid.services` so the full write pipeline runs. | See `req-grid-service-write-internal-create`. |
-| req-tap-cares-collector-registration-7 | Private Helper Colocation | Proposed | `_ensure_collector_node` lives in `tap_cares/registry.py` alongside `register_collector` and is not re-exported. | Migration candidate for the shared mechanism in `req-grid-dual-existence-consolidation`. |
+| req-tap-cares-collector-registration-5 | Idempotent Reconcile | Proposed | Repeated `reconcile_collector_nodes()` calls converge: create missing nodes, patch drifted `name`/`description`, no-op the rest; identity stays stable. | |
+| req-tap-cares-collector-registration-6 | Trusted-Internal Batch Write | Proposed | `reconcile_collector_nodes()` materializes nodes via `write_batch(..., _internal_only_bypass=True)` from `tap_grid.services` so the full write pipeline runs. | See `req-grid-service-write-internal-create`. |
+| req-tap-cares-collector-registration-7 | Materialization Colocation | Proposed | `reconcile_collector_nodes()` lives in `tap_cares/registry.py` alongside `register_collector` as the public materialization surface. | Migration candidate for the shared mechanism in `req-grid-dual-existence-consolidation`. |
 | req-tap-cares-collector-registration-8 | Namespace UUID Stable | Proposed | `NAMESPACE_COLLECTOR` in `tap_cares/registry.py` is a module-level constant; changing it is a grid-wide identity break and not permitted. | |
+| req-tap-cares-collector-registration-9 | Missing Descriptor Fails Loud | Proposed | `reconcile_collector_nodes()` raises `ImproperlyConfigured` if a registered collector has no recorded descriptor; it never partially reconciles by skipping the node. | Boot depends on this reconcile to create Collector nodes. |
 
 ## Collector Concurrency Policy
 ----

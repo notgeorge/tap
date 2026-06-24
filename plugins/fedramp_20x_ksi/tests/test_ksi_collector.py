@@ -157,6 +157,22 @@ class TestHappyPathFreshInstall:
         assert "RUN_COMPLETED" in codes
         assert job.results["error"] == []
 
+    def test_ctl_section_is_tolerated(self, isolate_collector_registry):
+        # FedRAMP added a top-level CTL (organization-defined-parameter baseline)
+        # section to the consolidated rules upstream 2026-06. It is orthogonal to
+        # the KSI catalog this collector ingests, so the pinned subset schema
+        # tolerates it as opaque sibling data rather than blocking on drift
+        # (req-fedramp-20x-ksi-collector-validation-scope). Genuinely-unknown keys
+        # are still rejected — see test_unknown_field.
+        doc = _load_fixture()
+        doc["CTL"] = {"AC": {"AC-06-01": {"parameters": [{"parameterId": "ac-06.01_odp.02", "value": "x"}]}}}
+        cls = _make_collector_with_fixture(doc)
+        col = _register_and_fetch(cls)
+        job = run_collection(col)
+        job.refresh_from_db()
+        assert job.status == CollectionJobStatus.SUCCESSFUL
+        assert job.results["error"] == []
+
     def test_themes_and_indicators_land_on_grid(self, isolate_collector_registry):
         from plugins.fedramp_20x_ksi.models import KsiIndicator, KsiTheme
 

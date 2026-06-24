@@ -14,6 +14,19 @@ related_specs:
 
 # tap_boot Implementation — Session Handoff
 
+> **✅ LANDED (2026-06-24).** tap_boot v0 is implemented, tested, and bridged into `spawn-session.sh`.
+> See the "Status — v0 landed" note in **`specs/spec-tap-boot-v0.md`** for the as-built summary
+> (command, ordered-steps profile, reused/new ops, tests, live samsite proof). This handoff is now a
+> historical planning artifact.
+
+> **⚠️ SUPERSEDED (2026-06-24).** This handoff's *layering* is wrong: it places the boot section
+> primitive + identity handler in `tap_grid`. The corrected design is **`tap_boot` owns ALL boot
+> logic** (domain apps stay boot-agnostic and merely expose ops boot calls), and v0 scope is
+> downsized to **minimal-useful**. Follow the corrected **`specs/spec-tap-boot-v0.md`** (its "v0
+> Scope" section) and the `tap-boot-architecture` memory — **not** this document's layering/scope.
+> Retained only for its still-accurate reuse-point inventory (existing ops, signatures, and which
+> logic is trapped in management commands).
+
 Build the `tap_boot` app: one declarative `manage.py boot` that stands a TAP instance up from a
 fresh DB to a populated, usable system — superseding the ordered bash steps in
 `spawn-session.sh`. This is **item 2 of `step-rampart-launch-ready`** (mid-July, TAP functionally

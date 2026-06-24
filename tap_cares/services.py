@@ -16,6 +16,7 @@ Spec: req-tap-cares-collector-run-collection (spec-tap-cares-collector.md).
 from __future__ import annotations
 
 import logging
+import time
 from datetime import UTC, datetime
 
 from django.db import transaction
@@ -300,3 +301,44 @@ def run_collection(
     # sole-writer invariant (req-tap-cares-collector-job-sole-writer).
     job.refresh_from_db()
     return job
+
+
+def fire_collector_and_await(
+    collector: Collector,
+    *,
+    run_mode: str = CollectionJobRunMode.FULL,
+    manual_run_source: str = "boot",
+    timeout_seconds: float = 600.0,
+    poll_interval_seconds: float = 2.0,
+) -> tuple[bool, CollectionJob]:
+    """Fire one collector via `run_collection` and block until its job is terminal.
+
+    The reusable fire-collector mechanic shared by `tap_boot`'s population phase
+    (`fire-collector` step, req-boot-population) and the dev `fire_boot_collectors`
+    command. A real Steady Queue worker drains the job out-of-process, so this
+    polls `CollectionJob.status` to a terminal state rather than reading an inline
+    result; under ImmediateBackend the first check already sees the terminal state.
+
+    Boot-agnostic: it inherits the ambient actor context the caller bound (the
+    trigger gate checks that actor; the collection itself swaps to
+    `tap_cares.collector` inside `run_collection`). Returns `(succeeded, job)` —
+    `succeeded` is True iff the job reached SUCCESSFUL within `timeout_seconds`.
+    """
+    job = run_collection(
+        collector,
+        manual_run=True,
+        manual_run_source=manual_run_source,
+        run_mode=run_mode,
+    )
+
+    terminal = (CollectionJobStatus.SUCCESSFUL.value, CollectionJobStatus.FAILED.value)
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        job.refresh_from_db()
+        if job.status in terminal:
+            break
+        if time.monotonic() >= deadline:
+            return False, job
+        time.sleep(poll_interval_seconds)
+
+    return job.status == CollectionJobStatus.SUCCESSFUL.value, job

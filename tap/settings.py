@@ -98,6 +98,12 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.postgres",
     # TAP apps (added as we scaffold each one)
+    # tap_boot is the bootloader and the cross-cutting management plane; it owns
+    # all boot logic and sits FIRST so nothing below it imports the (deferred)
+    # section-handler registry. It has no models/migrations, so leading the list
+    # does not disturb the AUTH_USER_MODEL dependency root below
+    # (spec-tap-boot-v0, req-boot-app-4).
+    "tap_boot",
     # tap_auth owns AUTH_USER_MODEL and loads before tap_grid so the swapped
     # user model is a clean dependency root for every app's first migration
     # (req-tap-auth-app, req-tap-auth-user-model-6).

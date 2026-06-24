@@ -288,7 +288,6 @@ as:
 - `tap_grid/grift/importer.py` - several `except ValueError, ...:` handlers.
 - `tap_web/panels/editor_panel/__init__.py` - `except KeyError, Exception:`
 - `tap_web/panels/table_panel/__init__.py` - `except TypeError, ValueError:`
-- `tap_cares/management/commands/fire_boot_collectors.py`
 - Several plugin modules under `plugins/github_core`, `plugins/sigstore_core`,
   and `plugins/samsite`.
 

@@ -21,6 +21,7 @@ silent app-startup mutation.
 from __future__ import annotations
 
 import logging
+import os
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -29,7 +30,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
 from tap_auth import capabilities as caps
-from tap_auth.models import Capability, ProtectedGroup
+from tap_auth.models import Capability, ProtectedGroup, User
 
 logger = logging.getLogger(__name__)
 
@@ -273,3 +274,68 @@ def sync_auth(*, declared_prune: tuple[str, ...] = ()) -> None:
     sync_protected_groups()
     sync_builtin_actors()
     logger.info("[4279] auth sync complete")
+
+
+def ensure_initial_admin() -> User | None:
+    """Create-or-update the initial human admin from ``DJANGO_SUPERUSER_*`` env.
+
+    The boot-agnostic op behind the bootloader's auth phase (req-tap-auth-boot
+    step 4): it absorbs spawn's `createsuperuser --noinput` **and** the follow-up
+    `tap_admin` group-join into one idempotent call. Credentials come from the
+    environment (`DJANGO_SUPERUSER_USERNAME` / `_PASSWORD` / `_EMAIL`), Django's
+    own unattended-superuser convention — never from the boot profile, so no
+    secret value lives in config-as-code (req-boot-secrets).
+
+    Add/update-only and idempotent: it creates the user if absent, repairs
+    `is_staff`/`is_superuser`/`email`, sets the password when one is supplied,
+    and ensures membership in the protected `tap_admin` group (whose grants give
+    the human admin authority through the service boundary — `is_superuser` is
+    NOT a service-layer bypass, req-tap-auth-local-5). It never deletes or
+    demotes anyone. When `DJANGO_SUPERUSER_USERNAME` is unset it is a logged
+    no-op, so an auth-only / IdP-driven standup is not forced to mint a local
+    admin.
+
+    Must run after :func:`sync_protected_groups` so the `tap_admin` group exists.
+    Returns the admin user, or ``None`` when no username was provided.
+    """
+    username = (os.environ.get("DJANGO_SUPERUSER_USERNAME") or "").strip()
+    if not username:
+        logger.info("[e3c2] no DJANGO_SUPERUSER_USERNAME set; skipping initial-admin bootstrap")
+        return None
+
+    email = (os.environ.get("DJANGO_SUPERUSER_EMAIL") or "").strip()
+    password = os.environ.get("DJANGO_SUPERUSER_PASSWORD") or ""
+
+    user_model = get_user_model()
+    with transaction.atomic():
+        user, created = user_model.objects.get_or_create(
+            username=username,
+            defaults={"email": email, "is_staff": True, "is_superuser": True},
+        )
+        changed = False
+        if not user.is_staff:
+            user.is_staff = True
+            changed = True
+        if not user.is_superuser:
+            user.is_superuser = True
+            changed = True
+        if email and user.email != email:
+            user.email = email
+            changed = True
+        if password:
+            user.set_password(password)
+            changed = True
+        if changed or created:
+            user.save()
+
+        admin_group = Group.objects.get(name=GROUP_ADMIN)
+        if not user.groups.filter(pk=admin_group.pk).exists():
+            user.groups.add(admin_group)
+            logger.info("[8c1f] initial admin %s joined %s", username, GROUP_ADMIN)
+
+    logger.info(
+        "[b6f8] initial admin ensured: %s (%s)",
+        username,
+        "created" if created else "updated",
+    )
+    return user

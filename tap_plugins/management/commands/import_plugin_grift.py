@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 
-from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 
 from tap_plugins.base import TapPluginConfig
@@ -177,23 +176,17 @@ class Command(BaseCommand):
         all_plugins: bool,
         plugin_slugs: list[str],
     ) -> list[TapPluginConfig]:
-        tap_configs = [app_config for app_config in apps.get_app_configs() if isinstance(app_config, TapPluginConfig)]
+        from tap_plugins.seeding import PluginNotFound, all_tap_plugins, resolve_tap_plugin
 
         if all_plugins:
-            return tap_configs
+            return all_tap_plugins()
 
         result = []
         for slug in plugin_slugs:
-            match = next(
-                (c for c in tap_configs if c.manifest and c.manifest.slug == slug),
-                None,
-            )
-            if match is None:
-                raise CommandError(
-                    f"No TAP plugin with slug '{slug}' found in INSTALLED_APPS. "
-                    f"Available: {[c.manifest.slug for c in tap_configs if c.manifest]}"
-                )
-            result.append(match)
+            try:
+                result.append(resolve_tap_plugin(slug))
+            except PluginNotFound as exc:
+                raise CommandError(str(exc)) from exc
         return result
 
     def _import_plugin(
@@ -224,66 +217,58 @@ class Command(BaseCommand):
             self.stdout.write(f"  [{manifest.slug}] No GRIFT bundles declared; nothing to import.")
             return 0, 0
 
-        imported = 0
-        errors = 0
-
-        for bundle in bundles:
-            grift_path = manifest.plugin_root / bundle.path
-            self.stdout.write(f"  [{manifest.slug}] Importing bundle '{bundle.name}' from {bundle.path} ...")
-
-            try:
-                with open(grift_path) as fh:
-                    document = json.load(fh)
-            except (OSError, json.JSONDecodeError) as exc:
-                self.stderr.write(self.style.ERROR(f"    Failed to read '{bundle.path}': {exc}"))
-                errors += 1
-                continue
-
-            if dry_run:
+        # Dry-run validates files only; it never routes through the writing seed
+        # op, so it reads each bundle here.
+        if dry_run:
+            imported = 0
+            errors = 0
+            for bundle in bundles:
+                self.stdout.write(f"  [{manifest.slug}] Validating bundle '{bundle.name}' from {bundle.path} ...")
+                grift_path = manifest.plugin_root / bundle.path
+                try:
+                    with open(grift_path) as fh:
+                        document = json.load(fh)
+                except (OSError, json.JSONDecodeError) as exc:
+                    self.stderr.write(self.style.ERROR(f"    Failed to read '{bundle.path}': {exc}"))
+                    errors += 1
+                    continue
                 if self._dry_run_bundle(manifest.slug, bundle.name, document):
                     imported += 1
                 else:
                     errors += 1
+            return imported, errors
+
+        # Real import — the shared seed_plugin op (also used by tap_boot's
+        # population phase) runs as the named tap_bootloader program actor
+        # (req-tap-auth-actor-model: no User=None at the service boundary; the
+        # bootloader's least-privilege bundle includes grid.import_grift +
+        # grid.write).
+        from tap_auth.actors import BOOTLOADER, get_builtin_actor
+        from tap_plugins.seeding import seed_plugin
+
+        imported = 0
+        errors = 0
+        outcomes = seed_plugin(
+            config,
+            actor=get_builtin_actor(BOOTLOADER),
+            bundle_name=bundle_name,
+            force_batches=tuple(force_batches or ()),
+            sweep_strict=sweep_strict,
+            purge=purge,
+        )
+        for outcome in outcomes:
+            self.stdout.write(f"  [{outcome.slug}] Imported bundle '{outcome.bundle_name}' from {outcome.bundle_path}.")
+            if outcome.read_error is not None:
+                self.stderr.write(self.style.ERROR(f"    Failed to read '{outcome.bundle_path}': {outcome.read_error}"))
+                errors += 1
                 continue
-
-            result = self._run_import(
-                document,
-                force_batches=force_batches or [],
-                sweep_strict=sweep_strict,
-                purge=purge,
-            )
-            self._report_result(manifest.slug, bundle.name, result)
-
-            if result.success:
+            self._report_result(outcome.slug, outcome.bundle_name, outcome.result)
+            if outcome.result.success:
                 imported += 1
             else:
                 errors += 1
 
         return imported, errors
-
-    def _run_import(
-        self,
-        document: dict,
-        *,
-        force_batches: list[str] | None = None,
-        sweep_strict: bool = False,
-        purge: bool = False,
-    ) -> object:
-        from tap_auth.actors import BOOTLOADER, get_builtin_actor
-        from tap_grid.grift import grift_import
-
-        # Seed import is a standup/bootstrap operation; it runs as the named
-        # tap_bootloader program actor (req-tap-auth-actor-model: no User=None at
-        # the service boundary). The bootloader's least-privilege bundle includes
-        # grid.import_grift + grid.write.
-        return grift_import(
-            document,
-            dangling_edge_mode="warn",
-            actor=get_builtin_actor(BOOTLOADER),
-            force_batches=force_batches or None,
-            sweep_strict=sweep_strict,
-            purge=purge,
-        )
 
     def _dry_run_bundle(self, plugin_slug: str, bundle_name: str, document: dict) -> bool:
         """Validate a GRIFT document against the GRIFT schema without writing.

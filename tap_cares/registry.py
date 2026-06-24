@@ -7,9 +7,13 @@ Mirrors the search runner registry pattern in `tap_grid/registry.py`:
     - `collector_registry` is a ScopedRegistry[type[CollectorBase]] using the
       validator hooks added by req-grid-registry-scope-validators
     - `register_collector(key, cls, *, name, description, scope=None)` is the
-      dual-existence registration entry point: it registers the runner class
-      AND upserts the on-grid Collector node with deterministic UUIDv5
-      identity. See `tap_grid/specs/spec-grid-dual-existence.md`.
+      read-only half of dual-existence registration: it registers the runner
+      class and records the on-grid node descriptor in memory, writing no grid
+      node (req-plugin-load-v0-ready-readonly).
+    - `reconcile_collector_nodes()` is the deferred grid-side half: the sole path
+      that materializes the on-grid Collector node (deterministic UUIDv5
+      identity) under a caller-bound actor. See
+      `tap_grid/specs/spec-grid-dual-existence.md`.
     - `_validate_collector_token` is the single source of truth for the
       scope:key format. The Collector model's validate() hook calls it too so
       model-side and registry-side enforcement cannot drift
@@ -18,7 +22,6 @@ Mirrors the search runner registry pattern in `tap_grid/registry.py`:
 
 from __future__ import annotations
 
-import logging
 import re
 import uuid
 from typing import Final
@@ -31,8 +34,6 @@ from tap_cares.exceptions import (
     InvalidCollectorRegistryKeyError,
 )
 from tap_grid.registry import ScopedRegistry
-
-logger = logging.getLogger(__name__)
 
 _TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
 
@@ -138,6 +139,12 @@ def reconcile_collector_nodes() -> dict[str, int]:
     Idempotent: re-running converges — creates missing nodes, patches drifted
     `name`/`description`, no-ops the rest — so it is safe to re-apply. Returns counts
     keyed `created` / `updated` / `unchanged`.
+
+    Fails loud: a collector registered in `collector_registry` with no recorded node
+    descriptor is an internal-consistency violation (`register_collector` records both
+    halves together) and raises `ImproperlyConfigured` rather than skipping the node —
+    boot relies on this reconcile, so a missing descriptor must never be a partial,
+    silent skip-as-success.
     """
     from tap_cares.models import Collector
     from tap_grid.service_types import WriteOperation
@@ -154,15 +161,17 @@ def reconcile_collector_nodes() -> dict[str, int]:
     for qualified_key in registered:
         meta = _COLLECTOR_NODE_METADATA.get(qualified_key)
         if meta is None:
-            # Registered with no recorded descriptor — should not happen
-            # (register_collector records both together); surface it rather than
-            # silently materializing a half-identified node.
-            logger.warning(
-                "[605d] reconcile_collector_nodes: no node descriptor for registered "
-                "collector %s; skipping its grid node",
-                qualified_key,
+            # A runner registered in collector_registry with no recorded node
+            # descriptor is an internal-consistency violation: register_collector
+            # records both halves in one call, so this state means a registration
+            # path bypassed it. Boot materializes Collector nodes through this
+            # reconcile, so a missing descriptor must fail loud — never a partial
+            # reconcile that silently omits a node while reporting success.
+            raise ImproperlyConfigured(
+                f"reconcile_collector_nodes: collector {qualified_key!r} is registered in "
+                f"collector_registry but has no node descriptor; register_collector records "
+                f"both halves together, so this indicates a registration path that bypassed it."
             )
-            continue
         desired.append((qualified_key, uuid.uuid5(NAMESPACE_COLLECTOR, qualified_key), meta))
 
     existing_by_id = {c.entity_id: c for c in Collector.objects.filter(entity_id__in=[eid for _, eid, _ in desired])}

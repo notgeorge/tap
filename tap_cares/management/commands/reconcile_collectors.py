@@ -1,14 +1,14 @@
 """Materialize the on-grid Collector node for every registered collector.
 
-The explicit boot **population** step for collector nodes: app `ready()` registers
-each collector runner in memory (read-only, req-plugin-load-v0-ready-readonly);
-this command creates/updates the matching `Collector` grid node, run as the named
+A standalone collector-node reconcile: app `ready()` registers each collector
+runner in memory (read-only, req-plugin-load-v0-ready-readonly); this command
+creates/updates the matching `Collector` grid node, run as the named
 `tap_bootloader` actor — so no graph write happens before auth bootstrap exists.
 
-`scripts/spawn-session.sh` calls this between `sync_auth` (which creates the
-bootloader) and `fire_boot_collectors` (which needs the Collector nodes to exist).
-Idempotent — safe to re-run on every boot. The future `tap_boot` population phase
-absorbs this command (spec-tap-boot-v0).
+`manage.py boot` runs `reconcile_collector_nodes()` itself at the start of its
+population phase (spec-tap-boot-v0, req-boot-population), so the spawn flow no
+longer calls this command directly; it is retained as an idempotent, standalone
+operator/diagnostic command.
 """
 
 from __future__ import annotations

@@ -2,13 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fedramp.gov/schema/documentation.json",
   "title": "FedRAMP Consolidated Rules Schema (KSI-scoped subset)",
-  "description": "Validates the part of the FedRAMP Consolidated Rules document that the KSI collector actually ingests. Top-level structure is strict (the four sibling sections must exist and no extras are allowed) but only the KSI subtree is validated in depth. The info / FRR / FRD sections are accepted as opaque sibling data because we do not ingest them. See req-fedramp-20x-ksi-collector-validation-scope.",
+  "description": "Validates the part of the FedRAMP Consolidated Rules document that the KSI collector actually ingests. Top-level structure is strict (the four required sibling sections must exist; the optional CTL sibling is tolerated; no other extras are allowed) but only the KSI subtree is validated in depth. The info / FRR / FRD / CTL sections are accepted as opaque sibling data because we do not ingest them — CTL is FedRAMP's organization-defined-parameter (ODP) baseline (14 control families / ~79 controls), added upstream 2026-06, tolerated here but not modeled. See req-fedramp-20x-ksi-collector-validation-scope.",
   "type": "object",
   "required": ["info", "FRD", "FRR", "KSI"],
   "properties": {
     "info": { "type": "object" },
     "FRD":  { "type": "object" },
     "FRR":  { "type": "object" },
+    "CTL":  { "type": "object" },
     "KSI": {
       "type": "object",
       "patternProperties": {

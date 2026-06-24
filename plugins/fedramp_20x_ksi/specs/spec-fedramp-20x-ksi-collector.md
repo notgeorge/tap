@@ -81,15 +81,15 @@ def ready(self) -> None:
 ```
 
 - The registered key is `ksi-catalog`; with `__module__`-based scope inference, the full registry key persisted on the on-grid `Collector` node is `plugins.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog`.
-- The on-grid `Collector` node is created by `register_collector(...)` itself — it is **not** seeded via GRIFT. Since `Collector` is `INTERNAL_ONLY` (see `req-tap-cares-collector-model-9`), GRIFT import would reject the seed. Identity is deterministic: `entity_id = uuid5(NAMESPACE_COLLECTOR, "plugins.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog")`. First plugin load creates the row; subsequent loads upsert.
+- The on-grid `Collector` node is created by `reconcile_collector_nodes()` (run by the boot orchestrator under a bound actor after `ready()`), **not** by `register_collector` itself and **not** seeded via GRIFT. `register_collector` at `ready()` only records the runner and its descriptor. Since `Collector` is `INTERNAL_ONLY` (see `req-tap-cares-collector-model-9`), GRIFT import would reject the seed. Identity is deterministic: `entity_id = uuid5(NAMESPACE_COLLECTOR, "plugins.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog")`. The first reconcile creates the row; subsequent reconciles converge it.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-fedramp-20x-ksi-collector-class-1 | CollectorBase Subclass | Proposed | `KSICollector` inherits from `tap_cares.collectors.CollectorBase` and implements `run()`. | |
-| req-fedramp-20x-ksi-collector-class-2 | AppConfig Registration | Proposed | `Fedramp20xKsiConfig.ready()` registers the class and the on-grid Collector node via `register_collector(key="ksi-catalog", cls=KSICollector, name=..., description=...)`. | |
-| req-fedramp-20x-ksi-collector-class-3 | Registration Creates On-Grid Node | Proposed | The on-grid `Collector` node is created by `register_collector(...)`, not by GRIFT seed. `Collector.INTERNAL_ONLY = True` closes the GRIFT path. | |
+| req-fedramp-20x-ksi-collector-class-2 | AppConfig Registration | Proposed | `Fedramp20xKsiConfig.ready()` registers the runner class read-only via `register_collector(key="ksi-catalog", cls=KSICollector, name=..., description=...)`; the on-grid Collector node is materialized by `reconcile_collector_nodes()` after `ready()`. | |
+| req-fedramp-20x-ksi-collector-class-3 | Reconcile Creates On-Grid Node | Proposed | The on-grid `Collector` node is created by `reconcile_collector_nodes()` after `ready()`, not by `register_collector` and not by GRIFT seed. `Collector.INTERNAL_ONLY = True` closes the GRIFT path. | |
 | req-fedramp-20x-ksi-collector-class-4 | No Per-Instance Config in v0 | Proposed | KSI-specific configuration is class-level constants; the v0 `CollectorConfig` contract is unchanged. | |
 
 ---
@@ -201,9 +201,9 @@ The upstream document is now "FedRAMP Consolidated Rules for 2026" — it carrie
 
 | Path | Validation posture | Why |
 | --- | --- | --- |
-| Top-level | Strict: `required: [info, FRD, FRR, KSI]`, `additionalProperties: false` | Detects "upstream removed a section" or "upstream added a new top-level section" — both trust-anchor signals worth flagging. |
+| Top-level | Strict: `required: [info, FRD, FRR, KSI]`, the four required siblings plus the optional `CTL` sibling allowed, `additionalProperties: false` | Detects "upstream removed a section" or "upstream added an *unreviewed* new top-level section" — both trust-anchor signals worth flagging. A genuinely-new section blocks until a human reviews it and updates the pin; that review happened for `CTL` (2026-06, FedRAMP's organization-defined-parameter baseline), so it is now an allowed-but-opaque sibling rather than a block. |
 | `$.KSI.*` | Strict: themes, indicators, and all nested shapes validated against the pinned subschema | This is the load-bearing data we ingest. Drift here changes what the grid sees. |
-| `$.info`, `$.FRR`, `$.FRD` | Opaque: validated only as present and object-typed (`{"type": "object"}`) | These sibling sections exist in the upstream document but we never read them. Validating their interiors would block on every upstream editorial change without protecting anything we depend on. The upstream FedRAMP team is actively iterating on FRR/FRD shape (front_matter, status, purpose, tag, do_not_link, artifacts, effective_date, revision-splitting `both` → `20x`/`rev5`). |
+| `$.info`, `$.FRR`, `$.FRD`, `$.CTL` | Opaque: validated only as present (or, for `CTL`, optional) and object-typed (`{"type": "object"}`) | These sibling sections exist in the upstream document but we never read them. Validating their interiors would block on every upstream editorial change without protecting anything we depend on. The upstream FedRAMP team is actively iterating on FRR/FRD shape (front_matter, status, purpose, tag, do_not_link, artifacts, effective_date, revision-splitting `both` → `20x`/`rev5`); `CTL` (14 control families / ~79 controls of FedRAMP ODP values) is orthogonal to KSI ingestion and tolerated as opaque. |
 
 #### Safety walk scope
 
@@ -222,7 +222,7 @@ The non-schema safety checks distinguish between *tamper-resistance* walks (whic
 | --- | --- | :---: | --- | --- |
 | req-fedramp-20x-ksi-collector-validation-scope-1 | Top-Level Strict | Implemented | Pinned schema enforces `required: [info, FRD, FRR, KSI]` and `additionalProperties: false` at the document root. | |
 | req-fedramp-20x-ksi-collector-validation-scope-2 | KSI Subtree Strict | Implemented | `$.KSI.*` is validated against the full pinned subschema (theme shape, indicator shape, varies-by-class, updated_list, etc.). | |
-| req-fedramp-20x-ksi-collector-validation-scope-3 | Sibling Sections Opaque | Implemented | `$.info`, `$.FRR`, and `$.FRD` are validated only as present and object-typed. Their interiors may change shape upstream without affecting KSI ingestion. | |
+| req-fedramp-20x-ksi-collector-validation-scope-3 | Sibling Sections Opaque | Implemented | `$.info`, `$.FRR`, `$.FRD`, and the optional `$.CTL` are validated only as present (CTL: when present) and object-typed. Their interiors may change shape upstream without affecting KSI ingestion. | |
 | req-fedramp-20x-ksi-collector-validation-scope-4 | Outlier Walk Scoped | Implemented | `_check_outliers` walks only the `$.KSI` subtree because outlier-length signals are meaningful for content we render, not for sibling data. | |
 | req-fedramp-20x-ksi-collector-validation-scope-5 | Tamper-Resistance Walks Stay Global | Implemented | `_check_structural_caps` and `_check_character_classes` continue to walk the whole document — they are about adversarial-content detection, not ingestion semantics. | |
 
@@ -552,7 +552,7 @@ The plugin continues to ship a current-time catalog snapshot for fresh-install c
 
 This preserves the offline / no-GitHub install path. Once the plugin is up, the collector takes over for updates. The seed gets refreshed in place (filename stays the same) when a maintainer decides to bump it — initially manually, eventually via a future emitter that rebakes from current grid state.
 
-The previously-shipped `ksi-initial-YYYY-MM-DD.grift.json` and any `ksi-wave-YYYY-MM-DD.grift.json` files are deleted in this phase. `dimension.grift.json` survives untouched. The on-grid `Collector` node is **not** seeded via GRIFT — it is created by `register_collector(...)` at plugin load time (see `req-fedramp-20x-ksi-collector-class-3` and the dual-existence pattern in `tap_grid/specs/spec-grid-dual-existence.md`).
+The previously-shipped `ksi-initial-YYYY-MM-DD.grift.json` and any `ksi-wave-YYYY-MM-DD.grift.json` files are deleted in this phase. `dimension.grift.json` survives untouched. The on-grid `Collector` node is **not** seeded via GRIFT — it is created by `reconcile_collector_nodes()` after plugin load (see `req-fedramp-20x-ksi-collector-class-3` and the dual-existence pattern in `tap_grid/specs/spec-grid-dual-existence.md`).
 
 #### Database state on existing dev installs
 
@@ -564,7 +564,7 @@ Per direction from spec review: the existing data in any developer's local TAP g
 | --- | --- | :---: | --- | --- |
 | req-fedramp-20x-ksi-collector-deprecation-1 | Code Removed | Implemented | `skills/refresh-ksi-catalog/`, the upstream submodule, the nightly GitHub Action, and the plugin's `.gitmodules` have been deleted. | |
 | req-fedramp-20x-ksi-collector-deprecation-2 | Content Migrated | Implemented | Pinned source schema, UUID namespace, and denylist live byte-exact in `plugins/fedramp_20x_ksi/collectors/{pinned,safety}/`. | |
-| req-fedramp-20x-ksi-collector-deprecation-3 | Waves Replaced By Seed | Implemented | `ksi-initial-2026-04-23.grift.json` was removed; replaced by `ksi-seed.grift.json` with the same catalog content under a `tap.fedramp_20x_ksi.seed-v0` description format. `dimension.grift.json` survives. The on-grid `Collector` node is registered via `register_collector(...)` at plugin load, not seeded via GRIFT. | |
+| req-fedramp-20x-ksi-collector-deprecation-3 | Waves Replaced By Seed | Implemented | `ksi-initial-2026-04-23.grift.json` was removed; replaced by `ksi-seed.grift.json` with the same catalog content under a `tap.fedramp_20x_ksi.seed-v0` description format. `dimension.grift.json` survives. The on-grid `Collector` node is materialized via `reconcile_collector_nodes()` after plugin load, not seeded via GRIFT. | |
 | req-fedramp-20x-ksi-collector-deprecation-4 | v0 Spec Status Sync | Implemented | `req-fedramp-20x-ksi-refresh`, `-wave-schema`, and `-safety` are flipped to Deprecated in `spec-fedramp-20x-ksi-v0.md`; `-reference` reflects the single-seed model. | |
 | req-fedramp-20x-ksi-collector-deprecation-5 | Seed Singular And Undated | Implemented | The shipped seed file uses the fixed filename `ksi-seed.grift.json`; refreshes overwrite in place. | |
 

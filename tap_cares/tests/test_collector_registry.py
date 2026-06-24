@@ -316,6 +316,20 @@ class TestReconcileCollectorNodes:
         with pytest.raises(UnguardedOperation):
             reconcile_collector_nodes()
 
+    def test_reconcile_missing_descriptor_fails_loud(self):
+        # A runner present in collector_registry with no recorded descriptor is an
+        # internal-consistency violation (register_collector records both halves
+        # together). Boot materializes nodes through this reconcile, so it must fail
+        # loud — never silently skip the node (req-tap-cares-collector-registration-9).
+        from tap_cares.registry import _COLLECTOR_NODE_METADATA
+
+        cls = _make_collector_class(module="recon.scope")
+        _register("orphan", cls)
+        _COLLECTOR_NODE_METADATA.pop("recon.scope:orphan")
+
+        with pytest.raises(ImproperlyConfigured, match="no node descriptor"):
+            reconcile_collector_nodes()
+
 
 # ---------------------------------------------------------------------------
 # get_collector (req-tap-cares-collector-registry, exceptions)

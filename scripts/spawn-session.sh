@@ -392,10 +392,10 @@ except AttributeError:
     print(uuid.UUID(int=val))
 PY
 )"
-# TAP_BOOT_PROFILE names which boot/<id>.json the post-seed fire step (Step 6.5)
-# runs. It is chosen explicitly per spawn via `--boot <profile>`; there is no
-# default — an empty value means a plain boot (seed only, no collectors fired).
-# See specs/spec-dev-boot-collectors.md.
+# TAP_BOOT_PROFILE names which boot/<id>.json `manage.py boot` applies in Step 6.
+# It is chosen explicitly per spawn via `--boot <profile>`; an empty value means
+# Step 6 falls back to the seed-all, no-collectors `base` profile — a plain spawn
+# seeds every plugin but reaches out to nothing. See specs/spec-tap-boot-v0.md.
 cat > .env.local <<EOF
 COMPOSE_PROJECT_NAME=tap_$SESSION_NAME
 WEB_PORT=$WEB_PORT
@@ -504,81 +504,43 @@ done
 echo
 
 # ============================================================================
-# Step 5.9: Auth bootstrap (sync capabilities, protected groups, built-in actors)
+# Step 6: Stand the instance up via the bootloader (auth → population)
 #
-# Must run BEFORE seeding and collectors: under the on-by-default service-boundary
-# enforcement, the seed import runs as the tap_bootloader actor and collectors run
-# as tap_collector, both created here (req-tap-auth-boot, req-boot-phases). This
-# interim shell step is what the bootloader's auth section handler will absorb.
+# One command replaces the former ad hoc sequence (sync_auth → import_plugin_grift
+# → reconcile_collectors → fire_boot_collectors → createsuperuser → tap_admin
+# join): `manage.py boot` runs those as fixed phases under the tap_bootloader
+# actor, so dev and customer standup share one path (req-boot-spawn-bridge,
+# spec-tap-boot-v0). Migrations already ran in the entrypoint (a boot precondition,
+# not a phase).
+#
+# Profile: the explicit `--boot` profile if given, else the seed-all/no-collectors
+# `base` profile — so a plain spawn still seeds every plugin but reaches out to
+# nothing, matching the former plain-boot behavior. boot's auth phase creates the
+# admin from DJANGO_SUPERUSER_* env (Django's unattended convention) via
+# ensure_initial_admin() and joins it to tap_admin (req-tap-auth-local-5) — the
+# is_superuser flag is NOT a service-layer bypass, so the group join is what gives
+# the admin authority through the service boundary.
+#
+# Admin password resolution (req-dev-multisession-admin-bootstrap):
+# TAP_DEV_ADMIN_PASSWORD → macOS Keychain (tap-dev-default/admin) → random. The
+# resolved password is written to .dev-credentials (gitignored) — the runtime
+# interface the attached Claude / developer reads on demand.
 # ============================================================================
-bold "Step 5.9: Syncing auth bootstrap"
-scripts/dc exec web uv run python manage.py sync_auth
+bold "Step 6: Standing the instance up (manage.py boot)"
 
-# ============================================================================
-# Step 6: Seed plugin data
-#
-# Each isolated stack is a separate TAP installation; spawn seeds it so the
-# attached Claude session has data to work with from the first request.
-# Plugin order is INSTALLED_APPS order via apps.get_app_configs() — see
-# req-plugin-load-v0-ready-readonly.
-# ============================================================================
-bold "Step 6: Seeding plugin data"
-scripts/dc exec web uv run python manage.py import_plugin_grift --all
-
-# ============================================================================
-# Step 6.1: Reconcile collector nodes
-#
-# App ready() registers each collector runner in memory only (read-only,
-# req-plugin-load-v0-ready-readonly); this materializes the matching on-grid
-# Collector node as tap_bootloader (created by sync_auth above). Must run BEFORE
-# fire_boot_collectors, which needs the Collector nodes to exist. Idempotent.
-# Interim boot step the tap_boot population phase will absorb (spec-tap-boot-v0).
-# ============================================================================
-bold "Step 6.1: Reconciling collector nodes"
-scripts/dc exec web uv run python manage.py reconcile_collectors
-
-# ============================================================================
-# Step 6.5: Fire boot collectors
-#
-# Populate the freshly-seeded grid from the outside world (AWS, GitHub,
-# compliance artifacts) so the session comes up with real collected data, not
-# just the hand-authored seed. The profile fired is $TAP_BOOT_PROFILE (written
-# into .env.local above, default "samsite"); an empty profile makes this a
-# clean no-op. Collectors are awaited to terminal state in order, and the
-# profile's on_failure=abort makes a failed collector exit non-zero — which,
-# like the strict seed import, aborts the spawn rather than leaving a
-# half-populated session.
-# Spec: req-dev-boot-collectors-spawn-integration in specs/spec-dev-boot-collectors.md.
-# ============================================================================
-bold "Step 6.5: Firing boot collectors"
-scripts/dc exec web uv run python manage.py fire_boot_collectors
-
-# ============================================================================
-# Step 7: Create the Django admin superuser
-#
-# Spec: req-dev-multisession-admin-bootstrap — full design lives there.
-#       Username/email are fixed (admin / admin@<session>.tap.localhost).
-#       Password resolution order: TAP_DEV_ADMIN_PASSWORD → macOS Keychain
-#       (tap-dev-default / admin) → random secrets.token_urlsafe(18).
-#       Whatever password is resolved is written to .dev-credentials in the
-#       worktree (gitignored) — that file is the runtime interface for the
-#       attached Claude or developer to read on demand.
-#       The createsuperuser invocation uses --noinput driven by env vars,
-#       Django's built-in unattended path.
-# ============================================================================
-bold "Step 7: Creating Django admin superuser"
+BOOT_PROFILE_EFFECTIVE="${BOOT_PROFILE:-base}"
 
 # Resolution order matches req-dev-multisession-admin-bootstrap.
 # (--admin-password CLI flag isn't supported in v1; add later if needed.)
 ADMIN_PASSWORD=""
 if [[ -n "${TAP_DEV_ADMIN_PASSWORD:-}" ]]; then
   ADMIN_PASSWORD="$TAP_DEV_ADMIN_PASSWORD"
-  info "Password source: \$TAP_DEV_ADMIN_PASSWORD"
+  info "Admin password source: \$TAP_DEV_ADMIN_PASSWORD"
 elif [[ "$(uname)" == "Darwin" ]] && ADMIN_PASSWORD="$(security find-generic-password -s tap-dev-default -a admin -w 2>/dev/null)" && [[ -n "$ADMIN_PASSWORD" ]]; then
-  info "Password source: macOS Keychain (tap-dev-default)"
+  info "Admin password source: macOS Keychain (tap-dev-default)"
 else
   ADMIN_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(18))')"
-  info "Password source: random (fresh per session)"
+  info "Admin password source: random (fresh per session)"
 fi
 
 ADMIN_EMAIL="admin@$SESSION_NAME.tap.localhost"
@@ -591,24 +553,14 @@ SESSION_NAME=$SESSION_NAME
 GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 
+info "Booting with profile '$BOOT_PROFILE_EFFECTIVE'."
 scripts/dc exec \
   -e DJANGO_SUPERUSER_USERNAME=admin \
   -e DJANGO_SUPERUSER_PASSWORD="$ADMIN_PASSWORD" \
   -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL" \
-  web uv run python manage.py createsuperuser --noinput
+  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE"
 
-# Spawn bridge (req-tap-auth-local-5): the Django superuser is_superuser is NOT a
-# TAP-service bypass, so the admin must join tap_admin to operate the grid through
-# the service boundary. Interim shell step; folds into boot's auth section later.
-scripts/dc exec web uv run python manage.py shell -c "
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
-u = get_user_model().objects.get(username='admin')
-u.groups.add(Group.objects.get(name='tap_admin'))
-print('admin joined tap_admin')
-"
-
-info "Superuser created (and joined tap_admin). Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
+info "Instance booted (admin created + joined tap_admin). Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
 
 # ============================================================================
 # Final: record the session in the registry

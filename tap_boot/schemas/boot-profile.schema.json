@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tap.dev/schemas/boot-profile.schema.json",
+  "title": "TAP Boot Profile",
+  "description": "A TAP boot profile: a config-as-code document the bootloader (manage.py boot) applies in fixed phases to stand an instance up from a fresh, migrated database to a populated, usable instance. Profile data files live in the top-level boot/ directory (filename is the profile id). v0 carries a single population section of ordered seed-plugin / fire-collector steps; identity/auth sections and per-app schema composition are deferred (req-boot-sections). Spec: specs/spec-tap-boot-v0.md (req-boot-profile, req-boot-population).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": {
+      "description": "Profile schema version. 1 for the v0 ordered-steps shape.",
+      "type": "integer",
+      "const": 1
+    },
+    "description": {
+      "description": "Human label shown by `boot --list` and in review.",
+      "type": "string"
+    },
+    "population": {
+      "description": "The population section: ordered steps that bring plugins online and populate them. Omit for a safe, no-outbound auth-only standup (req-boot-profile-4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["steps"],
+      "properties": {
+        "on_failure": {
+          "description": "Behavior when a step fails. 'abort' (default): stop, skip the rest, exit non-zero. 'continue': log and proceed; exit code still signals the failure.",
+          "type": "string",
+          "enum": ["abort", "continue"]
+        },
+        "steps": {
+          "description": "Ordered list of population steps, applied strictly in array order, sequentially, with no overlap (req-boot-population-1). seed-plugin and fire-collector steps may interleave (req-boot-population-3).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "required": ["type", "plugin", "enabled"],
+                "properties": {
+                  "type": {
+                    "description": "seed-plugin: bring a plugin online by importing its declared GRIFT bundles via the import_plugin_grift path.",
+                    "const": "seed-plugin"
+                  },
+                  "plugin": {
+                    "description": "The plugin slug (tap-plugin.toml `slug`), e.g. 'samsite'. Resolved against loaded TAP plugins; an unknown slug aborts before any population step runs (req-boot-population-4).",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "bundle": {
+                    "description": "Optional: import only this named manifest bundle instead of all of the plugin's declared bundles.",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "enabled": {
+                    "description": "false skips the step without removing it (the 'comment it out' affordance).",
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "description": "Free-text annotation for the human reader (e.g. why a step is ordered where it is).",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "additionalProperties": false,
+                "required": ["type", "key", "enabled"],
+                "properties": {
+                  "type": {
+                    "description": "fire-collector: fire a collector via run_collection and await its job to terminal.",
+                    "const": "fire-collector"
+                  },
+                  "key": {
+                    "description": "The collector's qualified registry key (scope:key) exactly as stored in Collector.collector_registry, e.g. 'plugins.aws_core.collectors.boto3_collector.collector:boto3'. Resolved against the collector registry; an unknown key aborts before any population step runs (req-boot-population-4).",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "run_mode": {
+                    "description": "'full' (default) runs self-test then collect; 'self_test_only' runs only the readiness probe.",
+                    "type": "string",
+                    "enum": ["full", "self_test_only"]
+                  },
+                  "enabled": {
+                    "description": "false skips the step without removing it (the 'comment it out' affordance).",
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "description": "Free-text annotation for the human reader (e.g. why a step is ordered where it is).",
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
