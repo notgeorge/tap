@@ -1,7 +1,7 @@
 ---
 title: Auth tap_cares Pass — Session Handoff
 date: 2026-06-24
-status: handoff
+status: done
 audience:
   - llm
   - developer
@@ -12,6 +12,17 @@ related_specs:
 ---
 
 # Auth tap_cares Pass — Session Handoff
+
+> **DONE (session/boot, 2026-06-24).** The pass landed as planned, with one design
+> upgrade: the human-trigger gate is `@requires_capability("cares.run_collectors")`
+> **on `run_collection`** (not scattered authorize() calls at each surface) — so the
+> administrivia panel is a *pure pass-through* (it hands its request context to the
+> service, which enforces), realizing George's "tap_web is a pass-through for user
+> context + capabilities" shape. The boot/dev mgmt commands now bind
+> `acting_as(BOOTLOADER)` (a necessary consequence of that central gate). The 13
+> task/scheduler/services/base authz-coverage rows are cleared; `registry.py`'s 2
+> remain for the boot increment. Tests: `tap_cares/tests/test_no_request_actor.py`.
+> The remaining sections below are the original plan, kept for provenance.
 
 Handoff for the next session to complete the **tap_cares per-app auth pass** (the program-actor
 binding work). The core auth tightening + the per-app actor model + the actor rename are **done and

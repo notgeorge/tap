@@ -176,6 +176,24 @@ set or a `@requires_capability`/`authorized()` scope.
 
 ## App: tap_web (human request/response + the panel contract)
 
+**The shape (George, 2026-06-24): tap_web is a pure pass-through for user context
+and capabilities.** It mints no actor of its own and swaps to no service identity;
+it retains the middleware-bound request user and hands that context to the grid
+operation, which confirms the user may perform it. Page-shell loads, panel/page
+lookups, and render-reads therefore execute **as the user**, against the user's
+capabilities — not a privileged renderer. This is the property that makes
+future fine-grained page/data access possible: when the read already runs as the
+user, gating *which* pages and *which* rows a user may see is a capability/scope
+question at the same chokepoint, not a re-plumb. The same pass-through shape is
+expected to hold for **tap_api** and **tap_viz** (the HTTP edge and the
+visualization surface are likewise pass-throughs for user context + capabilities).
+The one sanctioned exception is a deliberate, gated swap to a bounded program
+actor for a *named background job* (e.g. a panel POST that triggers a collector
+routes through `run_collection`, which authorizes the user for
+`cares.run_collectors` and *then* runs the collection as `tap_cares.collector` —
+see the tap_cares section); the trigger is the user's, the execution identity is
+the job's, and the two are never collapsed.
+
 **Operational construction.** Synchronous Django views rendering pages, panel HTMX fragments,
 and synthetic in-memory pages. The request actor is always bound by `CallerContextMiddleware`;
 the only question is whether a path consults the gate. Four entry kinds: page-shell views,
@@ -254,6 +272,19 @@ backstop).
 
 ## App: tap_cares (background / program-actor land)
 
+**Status — standard 1-3 LANDED (session/boot, 2026-06-24).** The task body, the
+on-commit callback, `submit_grift`, and the human-trigger gate are done via the
+**generic `tap_auth.acting_as(actor)`** context manager (NOT the per-app
+`collector_runtime_context()` speculated below — see the class-eliminating moves).
+`run_collector` binds `COLLECTOR` once at task entry; `run_collection` carries
+`@requires_capability("cares.run_collectors")` (the human-trigger chokepoint —
+every surface, incl. the boot mgmt commands now binding `acting_as(BOOTLOADER)`,
+routes through it); `submit_grift` dropped its `actor=` param. The
+production-realism fixture + human-trigger denial test ship in
+`tap_cares/tests/test_no_request_actor.py`. **Remaining: standard 5** — the
+`registry.py` collector upsert in `ready()` (the 2 residual authz-coverage rows),
+deferred to the tap_boot increment.
+
 **Operational construction.** Entry points run with **no** `request.user`, so the
 request-binding middleware never fires. Four entry kinds that do **not** share an actor source:
 async task body (`run_collector`), app-ready registration, scheduler tick (the one path that
@@ -303,9 +334,13 @@ test-realism gap are the same fact viewed twice.*
 
 **Class-eliminating moves:**
 
-- **A task-boundary context helper** (med): `with collector_runtime_context():` binds the
-  program actor for the operation lifetime — the worker analogue of the request middleware.
-  Kills the entire ambient-actor class at one chokepoint per app.
+- **A task-boundary context helper** (med): ✅ landed as the **generic
+  `tap_auth.acting_as(actor)`** — the no-request analogue of the request middleware,
+  parameterized by the *resolved* actor so every subsystem shares it
+  (`acting_as(get_builtin_actor(COLLECTOR))` for the collector runtime,
+  `acting_as(get_builtin_actor(BOOTLOADER))` for boot, `acting_as(delegated)` for a
+  future AI runner). Deliberately NOT a per-app `collector_runtime_context()`. Kills
+  the entire ambient-actor class at one chokepoint per boundary.
 - **`run_collection` as the human-trigger chokepoint** (low): a `triggering_actor` authorized
   for `cares.run_collectors` before the swap; every trigger surface routes through it.
 - **`submit_grift` off the `actor=None` default** (low, naturally satisfied by the helper).
