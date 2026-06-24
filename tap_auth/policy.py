@@ -12,17 +12,16 @@ Two deliberate design points:
    calls Django's `user.has_perm()` (which returns True for any superuser).
    Django admin keeps its superuser floor; the TAP service boundary does not.
 
-2. **Decision ledger.** A successful `authorize()` records the capability into a
-   contextvar ledger. The on-by-default enforcement backstops (write pipeline /
-   read dispatch) consult this ledger to prove an operation was authorized; an
-   operation that reaches commit/return with no recorded decision fails closed.
-   The ledger primitives live here; the backstops that consume them are wired in
-   with the enforcement flip.
+2. **Stateless backstop — no decision ledger.** The on-by-default enforcement
+   backstops (write-commit / read-dispatch) re-check the actor's capability
+   directly via `can(actor, needed_cap)`. In capability-only v1, "did we
+   authorize this operation?" and "does the actor hold the capability?" are the
+   same question, so there is no contextvar ledger to leak across requests or
+   threads (req-tap-auth-policy-8).
 """
 
 from __future__ import annotations
 
-import contextvars
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -46,53 +45,6 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Decision ledger — capabilities authorized in the current execution context.
-# ---------------------------------------------------------------------------
-
-_authorized: contextvars.ContextVar[set[str] | None] = contextvars.ContextVar(
-    "tap_auth_authorized",
-    default=None,
-)
-
-
-def record_authorization(capability: str) -> None:
-    """Record that `capability` was authorized in the current context."""
-    current = _authorized.get()
-    if current is None:
-        current = set()
-        _authorized.set(current)
-    current.add(capability)
-
-
-def authorized_capabilities() -> frozenset[str]:
-    """Return the set of capabilities authorized in the current context."""
-    current = _authorized.get()
-    return frozenset(current) if current else frozenset()
-
-
-def reset_authorization_ledger() -> None:
-    """Clear the ledger — call at request/task/operation boundaries so decisions
-    never leak across logical operations."""
-    _authorized.set(None)
-
-
-def push_authorization_scope() -> contextvars.Token[set[str] | None]:
-    """Open a fresh, empty ledger scope and return a token to restore the prior one.
-
-    The `@requires_capability` decorator wraps each guarded call in its own scope
-    so an operation's authorization is isolated: a directly-called write/read that
-    did not go through a decorator sees an empty (or prior) scope and fails the
-    backstop. Mirrors the deferred-hotlink token pattern in caller_context.
-    """
-    return _authorized.set(set())
-
-
-def pop_authorization_scope(token: contextvars.Token[set[str] | None]) -> None:
-    """Restore the ledger scope that was active before `push_authorization_scope`."""
-    _authorized.reset(token)
-
-
-# ---------------------------------------------------------------------------
 # Evaluation
 # ---------------------------------------------------------------------------
 
@@ -112,11 +64,23 @@ def _has_capability(user: Any, capability: str) -> bool:
     ).exists()
 
 
+def is_actor_active(user: Any) -> bool:
+    """Single definition of an *active* actor: enabled AND not deactivated.
+
+    `is_active=True AND deactivated_at IS NULL`. Centralized so the three places
+    that ask "is this actor usable?" — `_evaluate` here, `get_builtin_actor`
+    (runtime resolution), and `_ensure_program_actor` (sync repair, which clears
+    `deactivated_at`) — cannot drift into a state where a lookup hands back an
+    actor that policy then denies (the zombie built-in; doc-auth-per-app-standards
+    "one definition of active").
+    """
+    return bool(getattr(user, "is_active", False)) and getattr(user, "deactivated_at", None) is None
+
+
 def _evaluate(caller_context: CallerContext | None, capability: str) -> None:
     """Raise a typed AuthzError if the capability is not granted; else return None.
 
-    Does not log and does not record a decision — shared by the raising
-    `authorize()` and the silent `can()`.
+    Does not log — shared by the raising `authorize()` and the silent `can()`.
     """
     if caps.get_capability(capability) is None:
         raise UnknownCapability(f"unknown capability: {capability!r}")
@@ -125,7 +89,7 @@ def _evaluate(caller_context: CallerContext | None, capability: str) -> None:
     if user is None:
         raise MissingActor(f"no named actor for capability {capability!r}")
 
-    if not getattr(user, "is_active", False) or getattr(user, "deactivated_at", None) is not None:
+    if not is_actor_active(user):
         raise InactiveActor(f"actor {getattr(user, 'username', '?')!r} is inactive")
 
     if not _has_capability(user, capability):
@@ -143,26 +107,28 @@ def authorize(
     """Authorize one capability for the caller. Returns None on allow; raises a
     typed `tap_auth.errors` exception on denial/error.
 
-    On allow, records the decision in the ledger so the enforcement backstops can
-    prove the operation was authorized. On denial, emits a structured security log.
+    The backstop is stateless (req-tap-auth-policy-8): a successful authorize
+    records nothing. On denial, emits a structured security log.
     """
     try:
         _evaluate(caller_context, capability)
     except AuthzError as exc:
         _log_denial(caller_context, capability, operation, resource_type, resource, exc.reason)
         raise
-    record_authorization(capability)
 
 
 def can(
     caller_context: CallerContext | None,
     capability: str,
 ) -> bool:
-    """Non-raising, non-recording predicate twin of `authorize()`.
+    """Non-raising predicate twin of `authorize()` — same evaluation, returns a
+    bool instead of raising.
 
-    For non-enforcement uses (hiding a UI control, branching). Never a substitute
-    for `authorize()` at a mutation/read boundary — it records no decision, so it
-    cannot satisfy the enforcement backstop.
+    For non-enforcement uses (hiding a UI control, branching) and for the
+    structural backstops, which re-check the actor's capability directly
+    (req-tap-auth-policy-8). Not a substitute for `authorize()` at a primary
+    mutation/read gate: `authorize()` raises a typed denial and emits the security
+    log; `can()` is silent.
     """
     try:
         _evaluate(caller_context, capability)

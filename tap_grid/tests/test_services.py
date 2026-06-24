@@ -11,7 +11,7 @@ from tap_grid.constraints import (
     register_edge_property_schema,
 )
 from tap_grid.exceptions import EdgePropertyValidationError, InvalidEdgeError
-from tap_grid.models import Edge, Entity
+from tap_grid.models import Batch, Edge, Entity
 from tap_grid.service_types import WriteOperation
 from tap_grid.services import (
     create_edge,
@@ -462,6 +462,14 @@ class TestWriteBatch:
         op2 = WriteOperation(verb="create_node", type_slug="character", payload={"name": "Sam"})
         result = write_batch([op1, op2])
         assert result.results[0].batch_id == result.results[1].batch_id == result.batch_id
+
+    def test_empty_batch_is_rejected(self):
+        """An empty operation list is a caller bug, not a no-op: write_batch raises
+        and mints no Batch (doc-auth-per-app-standards "seal empty-batch")."""
+        before = Batch.objects.count()
+        with pytest.raises(ValueError, match="at least one operation"):
+            write_batch([])
+        assert Batch.objects.count() == before
 
 
 @pytest.mark.django_db

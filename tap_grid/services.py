@@ -669,7 +669,19 @@ def write_batch(
 
     Returns:
         BatchWriteResult with per-operation results and overall success flag.
+
+    Raises:
+        ValueError: if `operations` is empty — see below.
     """
+    # An empty batch is a caller bug, never a legitimate operation: the single-op
+    # verbs pass [op] and the GRIFT importer guards `if ops:`, so nothing in TAP
+    # produces write_batch([]). Reject it loudly rather than minting an Entity+Batch
+    # row for zero work (doc-auth-per-app-standards "seal empty-batch"). This is a
+    # usage error orthogonal to authorization, so it precedes actor resolution and
+    # the write backstop.
+    if not operations:
+        raise ValueError("write_batch requires at least one operation; received an empty batch")
+
     # Resolve the acting context: inherit the ambient request/task/test actor
     # when the caller passed no context, or passed a batch scope without an actor,
     # so the batch is always attributed to a named actor (no User=None). Mirrors
@@ -682,11 +694,12 @@ def write_batch(
             caller_context = CallerContext(user=_ambient.user, batch_id=caller_context.batch_id)
     user = caller_context.user if caller_context else None
 
-    # On-by-default write backstop (req-tap-auth-policy): a mutation must not
-    # reach commit without an authorize() decision recorded for the active scope.
-    # Checked per op-class so a delete op requires a delete-authorizing capability,
-    # not merely any write cap. Decorated verbs / the grift authorized() scope
-    # populate the ledger; an unguarded path fails closed (UnguardedOperation).
+    # On-by-default write backstop (req-tap-auth-policy, stateless re-check): a
+    # mutation must not reach commit with an actor lacking the capability its ops
+    # require. Checked per op-class — a delete op requires grid.delete specifically,
+    # not merely grid.write. The decorated verbs / grift authorized() scope are the
+    # primary gate (typed AuthzError on denial); this is independent defense-in-depth
+    # and an unauthorized or actorless path fails closed here (UnguardedOperation).
     _delete_verbs = {"delete_node", "delete_edge"}
     _batch_verbs = {op.verb for op in operations}
     assert_write_authorized(

@@ -2453,6 +2453,20 @@ def _execute_grift_batch(
                 if any(i.code in _ERROR_CODES for i in removal_plan.issues):
                     raise _BatchFailed()
 
+                # A removal batch tombstones nodes/edges. Because deletes are
+                # appended as WriteOperations to write_batch (bypassing the
+                # delete_node/delete_edge verbs' own grid.delete decorators),
+                # authorize grid.delete explicitly here, in the import's scope, so
+                # an actor whose bundle excludes it (tap_bootloader, tap_collector)
+                # gets a clean CapabilityDenied rather than tripping the write_batch
+                # delete backstop as an UnguardedOperation. "Boot cannot tombstone"
+                # is thereby literally true (doc-auth-per-app-standards "split cover
+                # semantics", open decision #3).
+                if removal_plan.executable_deletes:
+                    from tap_auth import policy
+
+                    policy.authorize(ctx, "grid.delete", operation="grift_import_delete")
+
                 # Append delete WriteOperations to the same write_batch call.
                 # Per-target entity_expected_version (req-grift-concurrency-version)
                 # flows through to the pipeline OCC guard.

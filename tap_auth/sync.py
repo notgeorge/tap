@@ -202,7 +202,19 @@ def _ensure_program_actor(builtin_key: str, group_key: str) -> None:
     # program actor is also drift: these identities are never password-login
     # surfaces, so a usable password is repaired back to unusable rather than left
     # as a standing credential (req-tap-auth-builtins).
-    fields = {"user_kind": "program", "is_tap_builtin": True, "is_active": True}
+    # The deactivation trio is cleared too: a built-in that someone (or a buggy
+    # flow) deactivated must come back *fully* active on re-sync — clearing
+    # is_active alone would leave a `deactivated_at` that policy still denies on,
+    # since `policy.is_actor_active` requires both is_active AND no deactivated_at
+    # (the zombie built-in; doc-auth-per-app-standards "one definition of active").
+    fields = {
+        "user_kind": "program",
+        "is_tap_builtin": True,
+        "is_active": True,
+        "deactivated_at": None,
+        "deactivated_reason": "",
+        "deactivated_by_actor_id": None,
+    }
     password_drifted = not created and user.has_usable_password()
     if password_drifted:
         user.set_unusable_password()

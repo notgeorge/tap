@@ -1344,6 +1344,39 @@ class TestGriftRemovalExecution:
 
         assert not Character.objects.filter(entity_id=uuid.UUID(nid)).exists()
 
+    def test_bootloader_cannot_tombstone_via_import(self):
+        """Boot cannot tombstone through the grid.import_grift cover: the bootloader
+        bundle excludes grid.delete, and the importer authorizes grid.delete
+        explicitly for a removal batch — so a removal import run as tap_bootloader
+        fails closed (doc-auth-per-app-standards "split cover semantics", decision #3).
+
+        The denial surfaces as an `execution_failed` issue naming grid.delete (the
+        importer's broad except records it); the key invariant is that the target is
+        never tombstoned. A grid.delete message — not an "unguarded" one — proves the
+        importer's explicit authorize fired, not just the write_batch backstop.
+        """
+        from tap_auth.actors import get_builtin_actor
+
+        nid = self._seed_one_character()
+        bid = _batch_entity_id()
+        deletes = {
+            "on_missing": "error",
+            "on_tombstoned": "ignore",
+            "edges": [],
+            "nodes": [_remove_target(nid, "character", "retired")],
+        }
+        doc = _minimal_doc([_container_with_removals(bid, deletes=deletes)])
+
+        bootloader = get_builtin_actor("tap_bootloader")
+        result = grift_import(doc, actor=bootloader)
+
+        assert not result.success
+        assert any(
+            e.code == "execution_failed" and "grid.delete" in str(e.message) for e in result.errors
+        ), result.errors
+        # Fails closed: the target is still live (never tombstoned).
+        assert Entity.objects.filter(pk=uuid.UUID(nid), deleted_at__isnull=True).exists()
+
     def test_delete_missing_target_on_missing_error_fails(self):
         bid = _batch_entity_id()
         missing_id = _node_entity_id()

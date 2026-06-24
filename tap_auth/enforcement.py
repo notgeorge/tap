@@ -4,18 +4,22 @@ backstops (req-tap-auth-policy On By Default).
 Two layers make authorization the *default* state rather than something a
 developer must remember:
 
-1. `@requires_capability(cap)` decorates a public service function. It opens an
-   isolated authorization scope, resolves the `CallerContext` (explicit arg →
-   contextvar), and calls `authorize()` before the function body runs. The
-   default state of a newly-written guarded function is therefore "gated."
+1. `@requires_capability(cap)` decorates a public service function. It resolves
+   the `CallerContext` (explicit arg → contextvar) and calls `authorize()`
+   before the function body runs. The default state of a newly-written guarded
+   function is therefore "gated."
 
 2. The structural backstops — `assert_write_authorized()` (called at the
    write-pipeline commit chokepoint) and `assert_read_authorized()` (called at
-   the Search read-dispatch chokepoint) — verify a decision was actually
-   recorded for the active scope. An operation that reaches commit/return with
-   no recorded decision raises `UnguardedOperation` and **fails closed in every
-   mode**. This is the Oso-style "authorize-can-be-forgotten" net: the gate is
-   enforced by structure, not reviewer vigilance.
+   the Search read-dispatch chokepoint) — re-check, *statelessly*, that the
+   active actor holds the capability the operation requires (`policy.can`). An
+   operation that reaches commit/return with an actor lacking that capability (or
+   no actor) raises `UnguardedOperation` and **fails closed in every mode**.
+   There is no decision ledger (req-tap-auth-policy-8): the backstop is
+   independent defense-in-depth, not a record of whether `authorize()` ran, and
+   when it trips it carries the full stack of the ungated callsite. This is the
+   Oso-style "authorize-can-be-forgotten" net: enforced by structure, not
+   reviewer vigilance.
 
 `TAP_TEST_MODE` does not gate enforcement — it only raises the volume (the
 unguarded callsite is surfaced for CI). Security behavior never depends on test
@@ -70,22 +74,18 @@ def _resolve_caller_context(kwargs: dict[str, Any]) -> CallerContext | None:
 def requires_capability(capability: str, *, operation: str = "") -> Callable[[F], F]:
     """Gate a public service function on one capability.
 
-    Opens a fresh authorization scope, authorizes `capability` for the resolved
-    CallerContext, then runs the function. The scope isolates this operation's
-    authorization so a directly-called write/read that bypassed the decorator
-    fails the structural backstop.
+    Authorizes `capability` for the resolved CallerContext, then runs the
+    function. A directly-called write/read that bypassed the decorator is still
+    caught by the stateless backstop, which re-checks the actor's capability at
+    the commit/dispatch chokepoint.
     """
 
     def decorator(fn: F) -> F:
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             ctx = _resolve_caller_context(kwargs)
-            token = policy.push_authorization_scope()
-            try:
-                policy.authorize(ctx, capability, operation=operation or fn.__name__)
-                return fn(*args, **kwargs)
-            finally:
-                policy.pop_authorization_scope(token)
+            policy.authorize(ctx, capability, operation=operation or fn.__name__)
+            return fn(*args, **kwargs)
 
         return wrapper  # type: ignore[return-value]
 
@@ -101,26 +101,23 @@ def authorized(
     resource_type: str = "",
     resource: Any = None,
 ) -> Iterator[None]:
-    """Open an isolated authorization scope, authorize `capability`, run the body.
+    """Authorize `capability`, then run the body.
 
     The decorator form (`@requires_capability`) is preferred for plain functions
     that take a `caller_context`. This context-manager form is for entry points
     that resolve their actor differently — e.g. `grift_import`, which takes an
-    `actor` argument rather than a `caller_context`. Inside the `with`, the
-    write/read backstops see the recorded decision.
+    `actor` argument rather than a `caller_context`. The body's writes/reads are
+    backed by the stateless backstop, which re-checks the actor's capability at
+    the commit/dispatch chokepoint.
     """
-    token = policy.push_authorization_scope()
-    try:
-        policy.authorize(
-            caller_context,
-            capability,
-            operation=operation,
-            resource_type=resource_type,
-            resource=resource,
-        )
-        yield
-    finally:
-        policy.pop_authorization_scope(token)
+    policy.authorize(
+        caller_context,
+        capability,
+        operation=operation,
+        resource_type=resource_type,
+        resource=resource,
+    )
+    yield
 
 
 def _callsite(skip: int = 2) -> str:
@@ -169,25 +166,28 @@ def assert_write_authorized(
 ) -> None:
     """Backstop at the write-pipeline commit chokepoint, per op-class.
 
-    A batch containing create/update ops requires a write-authorizing capability;
-    a batch containing delete ops *additionally* requires a delete-authorizing
-    capability — so a plain `grid.write` authorization cannot carry a delete
-    (req-tap-auth-policy On By Default). Either gap means the mutation reached
-    commit without the right `authorize()` call — fail closed.
+    A batch containing create/update ops requires the actor to hold `grid.write`;
+    a batch containing delete ops *additionally* requires `grid.delete` — a plain
+    `grid.write` holder cannot carry a delete (req-tap-auth-policy On By Default).
+    Stateless re-check (`policy.can`): if the actor reaching commit does not hold
+    the capability its ops require (or there is no actor), the mutation fails
+    closed. The DELETE check requires `grid.delete` specifically — broad covers
+    (`grid.import_grift`, `grid.admin`) do not satisfy it, so a bootloader or
+    collector cannot tombstone through an import cover.
     """
-    ledger = policy.authorized_capabilities()
-    if needs_write and not (caps.WRITE_CAPABILITIES & ledger):
+    if needs_write and not policy.can(caller_context, caps.WRITE_CAPABILITY):
         _raise_unguarded("write", caller_context, "write_batch commit")
-    if needs_delete and not (caps.DELETE_CAPABILITIES & ledger):
+    if needs_delete and not policy.can(caller_context, caps.DELETE_CAPABILITY):
         _raise_unguarded("delete", caller_context, "write_batch delete op")
 
 
 def assert_read_authorized(caller_context: CallerContext | None) -> None:
     """Backstop at the Search read-dispatch chokepoint.
 
-    Passes iff the active scope recorded `grid.read`. Otherwise the read reached
-    mode dispatch without an `authorize()` call — fail closed (returns no data).
+    Passes iff the active actor holds `grid.read` (stateless `policy.can`
+    re-check). Otherwise the read reached mode dispatch with an unauthorized or
+    missing actor — fail closed (returns no data).
     """
-    if caps.READ_CAPABILITY in policy.authorized_capabilities():
+    if policy.can(caller_context, caps.READ_CAPABILITY):
         return
     _raise_unguarded("read", caller_context, "search dispatch")

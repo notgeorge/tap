@@ -74,24 +74,17 @@ def _resolve_test_actor():
     return actor
 
 
-# Capabilities pre-authorized for the test session so a test that calls a
-# service chokepoint directly (e.g. write_batch) — not via a decorated verb —
-# finds a recorded decision. These are REAL authorizations: tap_test is a
-# tap_admin member that holds them; we are not bypassing the gate, only
-# recording up front that this admin session authorized them.
-_SESSION_CAPS = ("grid.read", "grid.write", "grid.delete")
-
-
 @pytest.fixture(autouse=True)
 def default_caller_context(request):
     """Bind a CallerContext for the duration of each test.
 
-    DB tests run as the authorized `tap_test` actor so the on-by-default
-    service-boundary enforcement is satisfied without per-test boilerplate, and
-    the standard admin capabilities are pre-authorized in an ambient scope so
-    direct-chokepoint calls resolve. Decorated verbs still open their own scopes.
-    Non-DB tests get a `None`-actor context (they do not reach the service
-    boundary). A fresh batch_id is generated per test so writes stay isolated.
+    DB tests run as the `tap_test` actor — a `tap_admin` member that *holds* every
+    capability — so the on-by-default service-boundary enforcement is satisfied
+    without per-test boilerplate: the stateless backstop re-checks what the actor
+    holds (req-tap-auth-policy-8), and tap_test holds it, so there is nothing to
+    pre-authorize. Non-DB tests get a `None`-actor context (they do not reach the
+    service boundary). A fresh batch_id is generated per test so writes stay
+    isolated.
     """
     db_fixture = _db_fixture_name(request)
     if db_fixture is None:
@@ -103,16 +96,11 @@ def default_caller_context(request):
 
     # Enable DB access and order this fixture after the db fixture before querying.
     request.getfixturevalue(db_fixture)
-    from tap_auth import policy
 
     actor = _resolve_test_actor()
     ctx = CallerContext(user=actor, batch_id=str(uuid.uuid7()))
     set_caller_context(ctx)
-    token = policy.push_authorization_scope()
-    for cap in _SESSION_CAPS:
-        policy.authorize(ctx, cap)
     try:
         yield ctx
     finally:
-        policy.pop_authorization_scope(token)
         set_caller_context(None)

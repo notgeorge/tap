@@ -22,14 +22,6 @@ def synced(db):
     sync.sync_auth()
 
 
-@pytest.fixture(autouse=True)
-def _clear_ledger():
-    """Each test starts and ends with a clean decision ledger."""
-    policy.reset_authorization_ledger()
-    yield
-    policy.reset_authorization_ledger()
-
-
 def _admin_user() -> User:
     user = User.objects.create_user(username="alice", password="x")
     user.groups.add(Group.objects.get(name="tap_admin"))
@@ -96,35 +88,9 @@ class TestCanPredicate:
         assert policy.can(admin_ctx, "grid.write") is True
         assert policy.can(none_ctx, "grid.write") is False
 
-    def test_can_does_not_record_decision(self, synced):
-        """can() must never satisfy the enforcement ledger (req-tap-auth-policy)."""
-        ctx = CallerContext(user=_admin_user())
-        policy.can(ctx, "grid.write")
-        assert "grid.write" not in policy.authorized_capabilities()
-
     def test_can_never_raises(self, synced):
         assert policy.can(CallerContext(user=None), "grid.read") is False
         assert policy.can(CallerContext(user=_admin_user()), "bogus.cap") is False
-
-
-@pytest.mark.django_db
-class TestDecisionLedger:
-    def test_authorize_records(self, synced):
-        ctx = CallerContext(user=_admin_user())
-        policy.authorize(ctx, "grid.read")
-        assert "grid.read" in policy.authorized_capabilities()
-
-    def test_reset_clears(self, synced):
-        ctx = CallerContext(user=_admin_user())
-        policy.authorize(ctx, "grid.read")
-        policy.reset_authorization_ledger()
-        assert policy.authorized_capabilities() == frozenset()
-
-    def test_denied_not_recorded(self, synced):
-        ctx = CallerContext(user=_no_caps_user())
-        with pytest.raises(CapabilityDenied):
-            policy.authorize(ctx, "grid.read")
-        assert "grid.read" not in policy.authorized_capabilities()
 
 
 def _user_in(group_name: str) -> User:

@@ -125,6 +125,34 @@ class TestSyncGroupsAndActors:
         assert bootloader.user_kind == "program"
         assert bootloader.is_active is True
 
+    def test_deactivated_builtin_reactivated_on_sync(self):
+        """A built-in carrying deactivated_at is a permanently-denied zombie until
+        re-sync clears the whole deactivation trio: `is_actor_active` requires
+        is_active AND deactivated_at IS NULL (doc-auth-per-app-standards "one
+        definition of active")."""
+        from django.utils import timezone
+
+        from tap_auth.actors import get_builtin_actor
+        from tap_auth.policy import is_actor_active
+
+        sync.sync_auth()
+        bootloader = User.objects.get(tap_builtin_key="tap_bootloader")
+        # Zombie drift: deactivated audit fields set while is_active stays True. The
+        # pre-fix get_builtin_actor (is_active-only filter) would resolve it, but
+        # policy would deny it as inactive.
+        User.objects.filter(pk=bootloader.pk).update(deactivated_at=timezone.now(), deactivated_reason="incident")
+        bootloader.refresh_from_db()
+        assert not is_actor_active(bootloader)
+
+        sync.sync_builtin_actors()
+
+        bootloader.refresh_from_db()
+        assert bootloader.deactivated_at is None
+        assert bootloader.deactivated_reason == ""
+        assert is_actor_active(bootloader)
+        # Resolves again as a usable built-in actor (raised MissingActor before).
+        assert get_builtin_actor("tap_bootloader").pk == bootloader.pk
+
     def test_usable_password_on_program_actor_is_repaired(self):
         """A program actor is never a password-login surface — a usable password
         set on one is drift, repaired back to unusable by re-sync (Codex P2)."""

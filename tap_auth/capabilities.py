@@ -80,13 +80,17 @@ CAPABILITIES: tuple[CapabilitySpec, ...] = (
 
 ALL_CAPABILITY_NAMES: tuple[str, ...] = tuple(c.name for c in CAPABILITIES)
 
-# Per-op authorizing sets for the write backstop (req-tap-auth-policy On By
-# Default). A create/update op is authorized by WRITE_CAPABILITIES; a delete op
-# requires DELETE_CAPABILITIES — so a plain grid.write authorization cannot carry
-# a delete batch. grid.import_grift and grid.admin are broad covers (a GRIFT
-# import legitimately creates, updates, and sweep-tombstones within one import).
-WRITE_CAPABILITIES: frozenset[str] = frozenset({"grid.write", "grid.import_grift", "grid.admin"})
-DELETE_CAPABILITIES: frozenset[str] = frozenset({"grid.delete", "grid.import_grift", "grid.admin"})
+# The capability each op-class requires at the write backstop (req-tap-auth-policy
+# On By Default), checked statelessly against what the actor holds. A create/update
+# op requires grid.write; a delete op requires grid.delete *specifically*. Broad
+# covers (grid.import_grift, grid.admin) deliberately do NOT satisfy the delete
+# check — so a bootloader/collector cannot tombstone through an import cover
+# (doc-auth-per-app-standards "split cover semantics"). The grift importer
+# authorizes grid.delete explicitly in its own scope when its batch contains
+# removals, so an actor lacking it gets a clean denial rather than tripping this
+# structural net.
+WRITE_CAPABILITY: str = "grid.write"
+DELETE_CAPABILITY: str = "grid.delete"
 
 # The single capability every graph READ requires (the read backstop checks for
 # exactly this on the Search dispatch chokepoint).
