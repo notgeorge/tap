@@ -8,7 +8,7 @@ These functions converge the DB to the canonical code/spec definitions:
 - `sync_protected_groups()` creates/protects the built-in groups and hard-syncs
   each group's capability grants from its role bundle.
 - `sync_builtin_actors()` creates/updates the protected program actors
-  (`tap_bootloader`, `tap_scheduler`, `tap_collector`, and — only under
+  (`tap_bootloader`, `tap_cares.scheduler`, `tap_cares.collector`, and — only under
   `TAP_TEST_MODE` — `tap_test`) and ensures their group membership.
 
 These touch Django auth + tap_auth management tables (not TAP-managed graph
@@ -38,12 +38,12 @@ logger = logging.getLogger(__name__)
 # are humans (initial admins) plus tap_test.
 GROUP_ADMIN = "tap_admin"
 GROUP_BOOTLOADER = "tap_bootloader"
-GROUP_SCHEDULER = "tap_scheduler"
-GROUP_COLLECTOR = "tap_collector"
+GROUP_SCHEDULER = "tap_cares.scheduler"
+GROUP_COLLECTOR = "tap_cares.collector"
 
 ACTOR_BOOTLOADER = "tap_bootloader"
-ACTOR_SCHEDULER = "tap_scheduler"
-ACTOR_COLLECTOR = "tap_collector"
+ACTOR_SCHEDULER = "tap_cares.scheduler"
+ACTOR_COLLECTOR = "tap_cares.collector"
 ACTOR_TEST = "tap_test"
 
 # group builtin_key -> bundle of capability names it grants (hard-synced).

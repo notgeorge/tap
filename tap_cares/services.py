@@ -188,7 +188,7 @@ def run_collection(
     backend the job will be READY or RUNNING depending on worker pickup
     latency.
     """
-    # Collection ALWAYS runs as the least-privilege tap_collector program actor —
+    # Collection ALWAYS runs as the least-privilege tap_cares.collector program actor —
     # never as the human or schedule that triggered it (model 2: own service
     # identity, like a Kubernetes CronJob's ServiceAccount). The trigger is
     # recorded as metadata (manual_run / manual_run_source; the schedule's

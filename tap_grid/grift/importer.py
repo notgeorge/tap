@@ -2457,7 +2457,7 @@ def _execute_grift_batch(
                 # appended as WriteOperations to write_batch (bypassing the
                 # delete_node/delete_edge verbs' own grid.delete decorators),
                 # authorize grid.delete explicitly here, in the import's scope, so
-                # an actor whose bundle excludes it (tap_bootloader, tap_collector)
+                # an actor whose bundle excludes it (tap_bootloader, tap_cares.collector)
                 # gets a clean CapabilityDenied rather than tripping the write_batch
                 # delete backstop as an UnguardedOperation. "Boot cannot tombstone"
                 # is thereby literally true (doc-auth-per-app-standards "split cover
@@ -2966,7 +2966,7 @@ def _apply_sweep_tombstone(
     if ops:
         # A sweep tombstones nodes/edges, so authorize grid.delete explicitly here — grift_import's
         # scope only authorizes grid.import_grift, so without this an actor lacking grid.delete
-        # (tap_bootloader / cares.collector) would trip the write_batch delete backstop as an
+        # (tap_bootloader / tap_cares.collector) would trip the write_batch delete backstop as an
         # UnguardedOperation instead of a clean denial. Symmetric with the imperative-removal path.
         # The marker exempts the write_batch call (the scanner can't see a bare authorize).
         from tap_auth import policy

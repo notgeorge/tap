@@ -114,11 +114,11 @@ _BUNDLE_MATRIX = [
     ("tap_bootloader", "plugins.manage", "ai.delegate"),
     # collector: read + write/import its batches; NEVER user/provider administration
     # or destructive deletes.
-    ("tap_collector", "grid.import_grift", "auth.manage_users"),
-    ("tap_collector", "grid.read", "grid.delete"),
+    ("tap_cares.collector", "grid.import_grift", "auth.manage_users"),
+    ("tap_cares.collector", "grid.read", "grid.delete"),
     # scheduler: bookkeeping writes + trigger collectors; NEVER import or delete.
-    ("tap_scheduler", "cares.run_collectors", "grid.import_grift"),
-    ("tap_scheduler", "grid.write", "grid.delete"),
+    ("tap_cares.scheduler", "cares.run_collectors", "grid.import_grift"),
+    ("tap_cares.scheduler", "grid.write", "grid.delete"),
 ]
 
 

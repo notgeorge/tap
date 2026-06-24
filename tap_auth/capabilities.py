@@ -138,7 +138,7 @@ BOOTLOADER_BUNDLE: tuple[str, ...] = (
     "cares.run_collectors",
 )
 
-# tap_collector: the single shared bundle for ALL collectors in v0. Per-collector
+# tap_cares.collector: the single shared bundle for ALL collectors in v0. Per-collector
 # (plugin-defined) actors/bundles are deferred to the plugin refactor; see the
 # spec Backlog. Collectors read existing nodes to resolve links, write/import
 # their collected GRIFT batches, and run under the collector runtime.
@@ -149,7 +149,7 @@ COLLECTOR_BUNDLE: tuple[str, ...] = (
     "cares.run_collectors",
 )
 
-# tap_scheduler: writes its own operational bookkeeping (Schedule/ScheduleFire
+# tap_cares.scheduler: writes its own operational bookkeeping (Schedule/ScheduleFire
 # nodes + edges) and triggers collection runs. The triggered run itself executes
 # as the collector actor, not the scheduler.
 SCHEDULER_BUNDLE: tuple[str, ...] = (

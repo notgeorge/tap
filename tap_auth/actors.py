@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 
 # Built-in keys for the system program actors (mirrors tap_auth.sync).
 BOOTLOADER = "tap_bootloader"
-SCHEDULER = "tap_scheduler"
-COLLECTOR = "tap_collector"
+SCHEDULER = "tap_cares.scheduler"
+COLLECTOR = "tap_cares.collector"
 
 
 def get_builtin_actor(builtin_key: str) -> AbstractUser:

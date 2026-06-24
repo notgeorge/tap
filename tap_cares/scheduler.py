@@ -53,7 +53,7 @@ def _scheduler_ctx(caller_context: CallerContext | None) -> CallerContext:
 
     A caller that supplies its own named actor keeps it; otherwise scheduler
     bookkeeping (Schedule/ScheduleFire nodes + edges, and the automated tick)
-    runs as the named tap_scheduler program actor — never User=None at the
+    runs as the named tap_cares.scheduler program actor — never User=None at the
     service boundary (req-tap-auth-actor-model).
     """
     if caller_context is not None and caller_context.user is not None:

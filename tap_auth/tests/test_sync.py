@@ -69,15 +69,15 @@ class TestSyncGroupsAndActors:
         sync.sync_capabilities()
         sync.sync_protected_groups()
         keys = set(ProtectedGroup.objects.values_list("builtin_key", flat=True))
-        assert keys == {"tap_admin", "tap_bootloader", "tap_scheduler", "tap_collector"}
+        assert keys == {"tap_admin", "tap_bootloader", "tap_cares.scheduler", "tap_cares.collector"}
         assert Group.objects.get(name="tap_admin").permissions.count() == len(ALL_CAPABILITY_NAMES)
-        collector_caps = set(Group.objects.get(name="tap_collector").permissions.values_list("codename", flat=True))
+        collector_caps = set(Group.objects.get(name="tap_cares.collector").permissions.values_list("codename", flat=True))
         assert collector_caps == {"grid_read", "grid_write", "grid_import_grift", "cares_run_collectors"}
 
     def test_group_bundle_is_hard_synced(self):
         sync.sync_capabilities()
         sync.sync_protected_groups()
-        collector = Group.objects.get(name="tap_collector")
+        collector = Group.objects.get(name="tap_cares.collector")
         # Inject a stray grant; a re-sync must remove it (set() semantics).
         collector.permissions.add(Permission.objects.get(codename="grid_purge"))
         sync.sync_protected_groups()
