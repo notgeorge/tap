@@ -2498,8 +2498,10 @@ def _execute_grift_batch(
                     )
 
             # Execute all node + edge + delete ops in one write_batch call (atomic).
+            # Gated by grift_import's authorized('grid.import_grift') one+ frames up,
+            # which the per-function authz-coverage scanner cannot see across the call.
             if ops:
-                batch_result = write_batch(ops, caller_context=ctx)
+                batch_result = write_batch(ops, caller_context=ctx)  # TAP-AUTHZ-COV: gated by grift_import
                 any_failure = False
                 # write_batch returns `results` truncated at the first failing op
                 # (services.py raises _BailOut on per-op failure), so results may
@@ -2961,8 +2963,11 @@ def _apply_sweep_tombstone(
     for eid, etype in cleared:
         verb = "delete_edge" if etype == "edge" else "delete_node"
         ops.append(WriteOperation(verb=verb, target=eid))
+    # Gated by grift_import's authorized('grid.import_grift') scope (_apply_sweep_tombstone
+    # runs inside the import); the per-function authz-coverage scanner cannot see the gate
+    # across the call, so it is marked rather than baselined.
     if ops:
-        write_batch(ops, caller_context=caller_ctx)
+        write_batch(ops, caller_context=caller_ctx)  # TAP-AUTHZ-COV: gated by grift_import (sweep)
 
     return [
         GriftSweptEntity(

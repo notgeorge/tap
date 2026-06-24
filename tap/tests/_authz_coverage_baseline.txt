@@ -1,0 +1,78 @@
+# Authz-coverage scanner baseline — req-tap-auth-policy-9.
+#
+# Each non-comment line is <relative-path>:<lineno> identifying a call to a
+# privileged graph sink (write_batch / grift_import / the Search+Gryphon
+# executors / the _*_internal write helpers) whose enclosing function is NOT
+# gated by @requires_capability or an authorized() block — the build-time dual of
+# the stateless enforcement backstop (tap/authz_coverage.py). It catches the
+# forgotten-gate-by-a-privileged-actor case the runtime backstop cannot.
+#
+# These are grandfathered so the gate is green on day one; the set ratchets to
+# ZERO as the rest of the authZ build-out lands — this file is that worklist.
+# test_authz_coverage.py fails on any NEW entry and any STALE entry, so a fix must
+# delete its line here. Do not add rows except as a deliberate, reviewed last
+# resort: prefer a @requires_capability/authorized() gate, or a
+# `# noqa: TAP-AUTHZ-COV <reason>` when the call is provably gated by a caller the
+# per-function scanner cannot see.
+#
+# Clusters (each is a per-app standard still to land):
+#   tap_cares/*              — bind a named program actor at the task/scheduler/registry boundary
+#   tap_web/* + tap_viz/*    — host-gate grid.read at panel_view (the render-read contract)
+#   plugins/*/panels/*       — ride the tap_web host-gate
+#   plugins/*/collectors/*   — collector-runtime actor binding
+#   tap_api/routers/*        — authorize-before-lookup / make the executor self-gate explicit
+#   tap_grid/* tap_plugins/* — read-helper classification + the import command's boot actor
+plugins/fedramp_20x_ksi/panels/compliance_view/__init__.py:108
+plugins/fedramp_20x_ksi/panels/compliance_view/__init__.py:44
+plugins/fedramp_20x_ksi/panels/finding_profile/__init__.py:151
+plugins/fedramp_20x_ksi/panels/finding_strip/__init__.py:60
+plugins/fedramp_20x_ksi/panels/findings_by_ksi/__init__.py:55
+plugins/fedramp_20x_ksi/panels/findings_by_system/__init__.py:53
+plugins/fedramp_20x_ksi/panels/indicator_profile/__init__.py:112
+plugins/fedramp_20x_ksi/panels/indicator_profile/__init__.py:228
+plugins/fedramp_20x_ksi/panels/instance_findings/__init__.py:86
+plugins/genericom/panels/instance_hero/__init__.py:75
+plugins/genericom/panels/open_alerts/__init__.py:67
+plugins/github_core/collectors/github_collector/enrichment.py:223
+plugins/gryphon_playground/gridkin/runner.py:56
+plugins/gryphon_playground/gridkin/runner.py:84
+plugins/samsite/collectors/compliance_collector/boundary_membership.py:82
+plugins/samsite/collectors/compliance_collector/kev_process.py:64
+plugins/samsite/collectors/compliance_collector/sigstore_link.py:84
+plugins/samsite/panels/ksi_scoreboard/__init__.py:100
+plugins/samsite/panels/ksi_scoreboard/__init__.py:76
+plugins/samsite/panels/ksi_signal_workbench/__init__.py:39
+plugins/samsite/panels/vdr_report_workbench/__init__.py:34
+tap_api/routers/gryphon.py:34
+tap_api/routers/searches.py:47
+tap_cares/collectors/base.py:289
+tap_cares/registry.py:157
+tap_cares/registry.py:194
+tap_cares/scheduler.py:266
+tap_cares/scheduler.py:300
+tap_cares/scheduler.py:319
+tap_cares/scheduler.py:343
+tap_cares/services.py:225
+tap_cares/services.py:271
+tap_cares/tasks.py:151
+tap_cares/tasks.py:167
+tap_cares/tasks.py:196
+tap_cares/tasks.py:214
+tap_cares/tasks.py:258
+tap_cares/tasks.py:280
+tap_grid/batch.py:254
+tap_grid/gryphon/executor.py:107
+tap_grid/services.py:1492
+tap_grid/services.py:1511
+tap_plugins/management/commands/import_plugin_grift.py:279
+tap_plugins/validate/service.py:812
+tap_viz/panels/graph_panel/__init__.py:188
+tap_viz/panels/graph_panel/__init__.py:245
+tap_web/panels/batch_viewer/__init__.py:40
+tap_web/panels/entity_resolution.py:50
+tap_web/panels/entity_resolution.py:68
+tap_web/panels/table_panel/__init__.py:245
+tap_web/synthetic.py:218
+tap_web/views.py:443
+tap_web/views.py:648
+tap_web/views.py:649
