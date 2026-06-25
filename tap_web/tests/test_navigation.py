@@ -345,3 +345,19 @@ class TestUserMenu:
         resp = Client().get("/")
         assert resp.status_code == 302
         assert "tap-usermenu" not in resp.content.decode()
+
+    def test_user_menu_shows_display_name_not_generated_username(self):
+        # the generated ext-<provider>-<hash> login key must never appear in the
+        # menu — show the display name + provider avatar (req-tap-auth-external-identity)
+        u = get_user_model().objects.create_user(
+            username="ext-criticalsec-google-zzz",
+            email="george@criticalsec.com",
+            first_name="George",
+            avatar_url="https://lh3.googleusercontent.com/p",
+        )
+        c = Client()
+        c.force_login(u)
+        body = c.get("/").content.decode()
+        assert "ext-criticalsec-google-zzz" not in body
+        assert "George" in body
+        assert "lh3.googleusercontent.com/p" in body

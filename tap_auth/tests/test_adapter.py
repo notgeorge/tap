@@ -209,7 +209,9 @@ class TestSocialAdapter:
     def test_sync_external_identity_creates_record(self, settings):
         settings.TAP_AUTH_PROVIDERS = [_provider_raw()]
         user = get_user_model().objects.create_user(username="pending")
-        sl = _sociallogin(_claims())
+        sl = _sociallogin(
+            _claims(given_name="George", family_name="Aydlette", picture="https://lh3.googleusercontent.com/p")
+        )
         TapSocialAccountAdapter()._sync_external_identity(sl, user)
         ei = ExternalIdentity.objects.get(provider_id=PROVIDER_ID, subject="google-sub-123")
         assert ei.user_id == user.pk
@@ -219,6 +221,9 @@ class TestSocialAdapter:
         user.refresh_from_db()
         assert user.username.startswith(f"ext-{PROVIDER_ID}-")
         assert user.email == "george@criticalsec.com"
+        # display profile for the UI (never the generated username)
+        assert user.get_full_name() == "George Aydlette"
+        assert user.avatar_url == "https://lh3.googleusercontent.com/p"
 
     def test_apply_initial_admin_grants_group(self, settings):
         settings.TAP_AUTH_PROVIDERS = [_provider_raw()]

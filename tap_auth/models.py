@@ -60,6 +60,13 @@ class User(AbstractUser):
         blank=True,
         help_text="Backend-managed structured context, especially for program/AI actors.",
     )
+    avatar_url = models.URLField(
+        blank=True,
+        default="",
+        max_length=500,
+        help_text="Provider profile photo URL (e.g. Google 'picture'), refreshed on login. "
+        "Display-only; the UI falls back to an initial when empty.",
+    )
     is_tap_builtin = models.BooleanField(
         default=False,
         help_text="True for TAP-managed protected built-in actors (req-tap-auth-builtins).",

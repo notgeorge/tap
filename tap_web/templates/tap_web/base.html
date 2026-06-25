@@ -13,6 +13,7 @@
     <script src="{% static 'tap_web/js/lib/htmx.min.js' %}" defer></script>
     <script src="{% static 'tap_web/js/palette.js' %}" defer></script>
     <script src="{% static 'tap_web/js/breadcrumb.js' %}" defer></script>
+    <script src="{% static 'tap_web/js/usermenu.js' %}" defer></script>
     {% block head_extras %}{% endblock %}
 </head>
 {# full_bleed pages need a DEFINITE body height (h-full) so the graph/dashboard #}
@@ -83,15 +84,20 @@
                     {# Auth identity is consumed here (request.user); logout is tap_auth's #}
                     {# /auth/logout/ route (account_logout). <details> = no-JS dropdown. #}
                     {% if request.user.is_authenticated %}
-                        <details class="tap-usermenu">
-                            <summary class="tap-usermenu-trigger" aria-label="Account menu" title="{{ request.user.email|default:request.user.get_username }}">
-                                <span class="tap-usermenu-avatar">{{ request.user.email|default:request.user.get_username|slice:":1"|upper }}</span>
+                        {# Display name = full name → email → username (never the generated #}
+                        {# ext-<provider>-<hash> login key); avatar = provider photo or initial. #}
+                        {% with display_name=request.user.get_full_name|default:request.user.email|default:request.user.get_username %}
+                        <details class="tap-usermenu" data-tap-usermenu>
+                            <summary class="tap-usermenu-trigger" aria-label="Account menu" title="{{ display_name }}">
+                                <span class="tap-usermenu-avatar">
+                                    {% if request.user.avatar_url %}<img src="{{ request.user.avatar_url }}" alt="" referrerpolicy="no-referrer">{% else %}{{ display_name|slice:":1"|upper }}{% endif %}
+                                </span>
                                 <svg class="tap-usermenu-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
                             </summary>
                             <div class="tap-usermenu-panel">
                                 <div class="tap-usermenu-id">
-                                    <div class="tap-usermenu-name">{{ request.user.get_username }}</div>
-                                    {% if request.user.email %}<div class="tap-usermenu-email">{{ request.user.email }}</div>{% endif %}
+                                    <div class="tap-usermenu-name">{{ display_name }}</div>
+                                    {% if request.user.get_full_name and request.user.email %}<div class="tap-usermenu-email">{{ request.user.email }}</div>{% endif %}
                                 </div>
                                 <form method="post" action="{% url 'account_logout' %}" class="tap-usermenu-form">
                                     {% csrf_token %}
@@ -99,6 +105,7 @@
                                 </form>
                             </div>
                         </details>
+                        {% endwith %}
                     {% endif %}
                 </div>
             </div>
@@ -112,7 +119,10 @@
     {% if messages %}
         <div class="tap-flash-region">
             {% for message in messages %}
-                <div class="tap-flash tap-flash--{{ message.tags|default:'info' }}">{{ message }}</div>
+                <div class="tap-flash tap-flash--{{ message.tags|default:'info' }}" data-tap-flash>
+                    <span>{{ message }}</span>
+                    <button type="button" class="tap-flash-close" data-tap-flash-close aria-label="Dismiss">&times;</button>
+                </div>
             {% endfor %}
         </div>
     {% endif %}

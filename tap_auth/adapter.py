@@ -200,6 +200,7 @@ class TapSocialAccountAdapter(DefaultSocialAccountAdapter):
         email = (decision.verified_email if decision else "") or claims.get("email") or ""
         display = str(claims.get("name") or "")
         hd = (decision.hd if decision else "") or str(claims.get("hd") or "")
+        avatar = str(claims.get("picture") or "")
 
         ExternalIdentity.objects.update_or_create(
             provider_id=provider_id,
@@ -215,12 +216,18 @@ class TapSocialAccountAdapter(DefaultSocialAccountAdapter):
             },
         )
 
-        # Deterministic, non-display username + verified email + human kind.
+        # Deterministic, non-display username + verified email + human kind +
+        # display name/avatar (the UI shows these, never the generated username).
         user.username = ExternalIdentity.generate_username(provider_id, subject)
         if email:
             user.email = email
+        if claims.get("given_name"):
+            user.first_name = str(claims.get("given_name"))
+        if claims.get("family_name"):
+            user.last_name = str(claims.get("family_name"))
+        user.avatar_url = avatar
         user.user_kind = UserKind.HUMAN
-        user.save(update_fields=["username", "email", "user_kind"])
+        user.save(update_fields=["username", "email", "first_name", "last_name", "avatar_url", "user_kind"])
         logger.info(
             "[0128] external identity synced: provider=%s subject=%s email=%s",
             provider_id,

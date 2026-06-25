@@ -241,3 +241,29 @@
 .tap-flash--danger  { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
 .tap-flash--warning { background: #fffbeb; border-color: #fde68a; color: #b45309; }
 .tap-flash--info    { background: #f1f5f9; border-color: #e2e8f0; color: #475569; }
+
+/* Avatar image (provider photo) fills the circle; falls back to the initial. */
+.tap-usermenu-avatar { overflow: hidden; }
+.tap-usermenu-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Flash: row layout with a dismiss affordance + fade-out on dismiss. */
+.tap-flash {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  transition: opacity 200ms ease;
+}
+.tap-flash--leaving { opacity: 0; }
+.tap-flash-close {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  cursor: pointer;
+}
+.tap-flash-close:hover { opacity: 1; }
