@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "description": "TAP role definitions — named, reusable capability bundles (the least-privilege set each protected built-in group/actor holds). The grant path is principal -> role -> capabilities; tap_auth/sync.py hard-syncs each protected group's Django permissions to its role here. A role lists explicit capabilities, or \"*\" (admin-only) meaning every defined capability, including ones plugins add later, so new caps auto-flow to admin without editing this file. Roles are security boundaries: edits are reviewed in git and guarded by tests (every named capability must be defined; the tap_bootloader role must exclude grid.purge/grid.delete). NOTE: the tap_cares.* roles live here in v0 for historical reasons; re-homing them so tap_cares ships its own roles is the per-app split (deferred). See spec-tap-auth-v0 req-tap-auth-roles.",
+  "roles": {
+    "tap_admin": {
+      "description": "Full administrative authority: every defined capability, explicitly via \"*\" so new plugin capabilities auto-flow to admin. Members are human initial admins (plus tap_test in test mode).",
+      "capabilities": "*"
+    },
+    "tap_bootloader": {
+      "description": "The bootloader program actor's least-privilege boot bundle: everything boot needs and no more. Deliberately EXCLUDES destructive grid demolition (grid.purge, grid.delete) so a boot bug cannot nuke the grid, and ai.delegate (boot does not delegate). See spec-tap-boot-v0 req-boot-phases.",
+      "capabilities": [
+        "grid.read",
+        "grid.write",
+        "grid.import_grift",
+        "grid.admin",
+        "auth.manage_users",
+        "auth.manage_providers",
+        "config.manage",
+        "plugins.manage",
+        "cares.run_collectors"
+      ]
+    },
+    "tap_cares.collector": {
+      "description": "The single shared bundle for ALL collectors in v0 (per-collector actors are deferred to the plugin refactor). Collectors read existing nodes to resolve links, write/import their collected GRIFT batches, and run under the collector runtime.",
+      "capabilities": [
+        "grid.read",
+        "grid.write",
+        "grid.import_grift",
+        "cares.run_collectors"
+      ]
+    },
+    "tap_cares.scheduler": {
+      "description": "The scheduler program actor: writes its own operational bookkeeping (Schedule/ScheduleFire nodes + edges) and triggers collection runs. The triggered run itself executes as the collector actor, not the scheduler.",
+      "capabilities": [
+        "grid.read",
+        "grid.write",
+        "cares.run_collectors"
+      ]
+    }
+  }
+}

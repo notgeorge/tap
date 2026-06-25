@@ -30,6 +30,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
 from tap_auth import capabilities as caps
+from tap_auth import roles
 from tap_auth.models import Capability, ProtectedGroup, User
 
 logger = logging.getLogger(__name__)
@@ -47,12 +48,12 @@ ACTOR_SCHEDULER = "tap_cares.scheduler"
 ACTOR_COLLECTOR = "tap_cares.collector"
 ACTOR_TEST = "tap_test"
 
-# group builtin_key -> bundle of capability names it grants (hard-synced).
+# group builtin_key -> bundle of capability names it grants (hard-synced). The
+# bundles live in roles.json (req-tap-auth-roles); each protected group's
+# built-in key is also its role key, so we resolve the bundle from the role
+# registry rather than hardcoding it here.
 _GROUP_BUNDLES: dict[str, tuple[str, ...]] = {
-    GROUP_ADMIN: caps.ADMIN_BUNDLE,
-    GROUP_BOOTLOADER: caps.BOOTLOADER_BUNDLE,
-    GROUP_SCHEDULER: caps.SCHEDULER_BUNDLE,
-    GROUP_COLLECTOR: caps.COLLECTOR_BUNDLE,
+    key: roles.role_capabilities(key) for key in (GROUP_ADMIN, GROUP_BOOTLOADER, GROUP_SCHEDULER, GROUP_COLLECTOR)
 }
 
 

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tap.dev/schemas/tap.auth.capabilities.schema.json",
+  "title": "TAP Capability Registry",
+  "description": "Schema for tap_auth/capabilities.json — the declarative source of truth for TAP's authorization vocabulary. A mandatory top-level description states what/why; each capability declares a namespaced name, a human-readable description, and a risk level. additionalProperties:false catches typos and rogue fields. Name uniqueness is enforced by the loader (tap_auth/capabilities.py). See spec-tap-auth-v0 req-tap-auth-capabilities.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "description", "capabilities"],
+  "properties": {
+    "version": {
+      "description": "Schema version. 1 for v0.",
+      "type": "integer",
+      "const": 1
+    },
+    "description": {
+      "description": "What this file is and why it exists (mandatory — config that grants authority must explain itself).",
+      "type": "string",
+      "minLength": 1
+    },
+    "capabilities": {
+      "description": "The capability vocabulary, in declared order.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "description", "risk"],
+        "properties": {
+          "name": {
+            "description": "Public TAP capability name, namespaced 'group.action' (e.g. 'grid.read').",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+          },
+          "description": {
+            "description": "Human-readable meaning, stored on the Capability row.",
+            "type": "string",
+            "minLength": 1
+          },
+          "risk": {
+            "description": "Risk/classification metadata, queryable from the DB.",
+            "enum": ["low", "medium", "high", "critical"]
+          }
+        }
+      }
+    }
+  }
+}

@@ -59,7 +59,9 @@ This spec supersedes the user/auth architecture previously parked under `tap_gri
 | req-tap-auth-user-model | [Canonical User Model](#canonical-user-model) | Proposed | Move canonical user from `tap_grid` to `tap_auth` |
 | req-tap-auth-actor-model | [Named Actor Model](#named-actor-model) | Proposed | No service-boundary `User=None`; human/program actor kinds |
 | req-tap-auth-builtins | [Protected Built-Ins](#protected-built-ins) | Proposed | Built-in users/groups use immutable natural keys |
-| req-tap-auth-capabilities | [Capability Registry](#capability-registry) | Proposed | Code/spec registry hard-syncs to Django permissions |
+| req-tap-auth-capabilities | [Capability Registry](#capability-registry) | Proposed | Declarative JSON file (schema-validated) hard-syncs to Django permissions |
+| req-tap-auth-roles | [Role Definitions](#role-definitions) | Implemented | Roles (capability bundles) in a schema-validated JSON file; bootloader least-privilege guarded by test |
+| req-tap-auth-program-users | [Program-User Definitions](#program-user-definitions) | Proposed | **Design/deferred.** Program-only-by-construction declarative file; humans operator-only |
 | req-tap-auth-policy | [Policy API](#policy-api) | Proposed | One central `authorize()` API; typed errors; denial logging |
 | req-tap-auth-service-boundary | [Service Boundary Enforcement](#service-boundary-enforcement) | Proposed | AuthZ at service boundary; AuthN at edges |
 | req-tap-auth-boot | [Boot Profile Integration](#boot-profile-integration) | Proposed | Auth config is a boot-profile section with owned schema fragment |
@@ -272,8 +274,11 @@ TAP capabilities are the public authorization vocabulary. Django permissions are
   - `cares.run_collectors`
   - `ai.delegate`
 - Capability checks are operation-level in v1, not model-level.
-- The canonical registry lives in code/spec, reviewable in git.
-- The DB projection is hard-synced from the canonical code/spec registry, which remains the source of truth.
+- The canonical registry lives in a **version-controlled declarative JSON file** (`tap_auth/capabilities.json`), reviewable in git — not buried in inline Python and not DB-only state. `tap_auth/capabilities.py` is a thin loader that reads + validates the file into the in-memory registry; the public Python API (`CAPABILITIES`, `get_capability`, `ALL_CAPABILITY_NAMES`, `codename_for`, the well-known `WRITE_/DELETE_/READ_CAPABILITY` constants enforcement imports) is unchanged.
+- The file carries a **top-level `description`** stating what the file is and why it exists, plus, per capability, `name` / `description` / `risk`. A mandatory `description` is a standing convention across all three authz config files (capabilities, roles, program-users) — config that grants authority must explain itself.
+- The file is validated against a **published JSON Schema** (`tap_auth/schemas/capabilities.schema.json`); a malformed file fails loud at load (`ImproperlyConfigured`), never a silent partial registry. `additionalProperties: false` and a name pattern catch typos and rogue fields.
+- The DB projection is hard-synced from the canonical file-backed registry, which remains the source of truth.
+- Composition is forward-compatible: the same file convention extends per-app/plugin later (`<app>/capabilities.json`, namespaced names) — see the per-app declaration backlog. v0 loads only `tap_auth`'s file.
 - Capabilities are stored as a **real `tap_auth.Capability` table** (a managed model with its own table), not a `managed=False` placeholder. Each row carries the capability's public name, a human-readable `description`, and risk/classification metadata (flagging high-risk actions such as `grid.purge`). A backing Django `Permission` is projected from each `Capability` (the `Capability` model serves as the content-type home for those permission rows, or each `Capability` has a one-to-one `Permission`), so Groups still hold standard Django permissions while the capability metadata lives queryably in the DB.
   - Rationale (chosen 2026-06-12): a real table makes capability descriptions and risk metadata **queryable from the database / service layer**, which is the affordance a future AI/Paladin actor needs — it can be granted DB-level read or a gated service-layer query rather than code access. This matches TAP's declarative-shapes-over-code and satellite-agents-without-code-access direction; a code-only registry would force code access to answer "what does this capability mean / how risky is it." The `managed=False` placeholder approach (descriptions in code only) was considered and rejected for exactly this reason.
   - Threat posture: the `Capability` table holds capability *definitions* (name/description/risk), which are a **projection** of the code/spec registry and hard-synced at boot. Tampering with a definition row, or injecting a rogue capability, is therefore self-correcting and detectable — the next sync reverts it or hard-fails on undeclared drift (`req-tap-auth-capabilities`), and an unknown capability fails closed at runtime. So DB access to *this table specifically* buys little beyond breaking the system (a denial-of-service against authz, which fails closed), not silent privilege escalation. The sensitive runtime state is the **grants** — Group↔Permission and User↔Group membership — not the definitions; and raw DB write access to those is full compromise in any auth system (one could equally flip `is_superuser` or rewrite a password hash), so it is out of scope for this design rather than made worse by it. Read access to definitions is low-sensitivity by intent — queryability is the whole point.
@@ -299,12 +304,71 @@ TAP capabilities are the public authorization vocabulary. Django permissions are
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-auth-capabilities-1 | TAP Vocabulary | Proposed | Specs/boot/policy use TAP names like `grid.read`, not Django storage names. | |
-| req-tap-auth-capabilities-2 | Code Registry | Proposed | The canonical capability registry lives in code/spec, not as DB-only state. | |
+| req-tap-auth-capabilities-2 | Declarative File Registry | Implemented | The canonical capability registry is a version-controlled JSON file (`tap_auth/capabilities.json`), loaded by `capabilities.py`; not inline Python and not DB-only state. | |
 | req-tap-auth-capabilities-3 | Hard Sync | Proposed | Capability sync makes the DB projection exactly match the registry. | |
-| req-tap-auth-capabilities-4 | Descriptions Required | Proposed | Every capability includes a human-readable description. | |
+| req-tap-auth-capabilities-4 | Descriptions Required | Implemented | Every capability includes a human-readable description; the file itself carries a top-level description. | |
 | req-tap-auth-capabilities-5 | tap_admin Explicit Grants | Proposed | `tap_admin` is granted each capability explicitly. | |
 | req-tap-auth-capabilities-6 | Unknown Capability Fails | Proposed | Runtime checks for unknown capabilities raise hard errors. | |
 | req-tap-auth-capabilities-7 | Real Capability Table | Proposed | Capabilities are a real `tap_auth.Capability` table with DB-queryable description + risk metadata, projecting a Django `Permission`; not a `managed=False` placeholder. | |
+| req-tap-auth-capabilities-8 | Schema-Validated File | Implemented | The capabilities file validates against a published JSON Schema; a malformed file fails loud at load. | |
+
+---
+
+### Role Definitions
+----
+RID: `req-tap-auth-roles`  
+Status: `Implemented`
+
+Roles are named, reusable capability bundles — the least-privilege capability set each protected group/built-in actor holds. A role is the grant path: `principal → role → capabilities`. Direct per-user capability grants are not a v1 path (`req-tap-auth-capabilities`).
+
+#### Implementation
+
+- Roles live in a **version-controlled declarative JSON file** (`tap_auth/roles.json`), validated against a published JSON Schema (`tap_auth/schemas/roles.schema.json`). This replaces the inline `*_BUNDLE` tuples formerly buried at the bottom of `capabilities.py`.
+- The file carries a **top-level `description`** (what roles are, why they exist); each role carries a mandatory **`description`** (what the role is for and why it holds the caps it does). Mandatory descriptions are the standing convention across the authz config files.
+- Each role names either an explicit `capabilities` list or `"*"` (every defined capability). `"*"` is **reserved for `tap_admin`** and means "all capabilities, *including ones plugins add later*" — so a new plugin capability auto-flows to admin without editing `roles.json`, while non-admin roles must opt in explicitly.
+- `sync_protected_groups()` grants each protected group exactly its role's capabilities (hard-sync), exactly as before — only the *source* of the bundle moves from code to the file.
+- **Security invariants are guarded by tests, not just review** (roles are security boundaries; the schema + tests are the compensating controls for the bundle being data rather than typed code):
+  - every capability named by a role must be a defined capability (no typos / rogue caps);
+  - the `tap_bootloader` role **excludes `grid.purge` and `grid.delete`** (the least-privilege boot boundary, `spec-tap-boot-v0.md` `req-boot-phases`) and `ai.delegate`;
+  - `"*"` is admin-only.
+- **Layering note:** in v0 the `tap_cares.collector` / `tap_cares.scheduler` roles still live in `tap_auth`'s `roles.json` (their historical placement). Re-homing them so `tap_cares` ships its own roles is the per-app split — deferred with the per-app/plugin declaration mechanism (Backlog). Moving the bundles to a file now fixes the buried-in-code smell; the ownership/layering fix lands with that split.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-roles-1 | Declarative File | Implemented | Roles are a schema-validated JSON file, not inline code. | |
+| req-tap-auth-roles-2 | Descriptions Required | Implemented | Top-level file description and a per-role description are mandatory. | |
+| req-tap-auth-roles-3 | Defined Caps Only | Implemented | Every role capability is a defined capability; guarded by test. | |
+| req-tap-auth-roles-4 | Bootloader Least-Privilege | Implemented | The `tap_bootloader` role excludes `grid.purge`/`grid.delete` (and `ai.delegate`); guarded by test. | |
+| req-tap-auth-roles-5 | Role-Mediated Grants | Implemented | Principals receive capabilities via roles, not direct per-user grants. | |
+
+---
+
+### Program-User Definitions
+----
+RID: `req-tap-auth-program-users`  
+Status: `Proposed`
+
+> **Design only — deferred** to the per-app/plugin actor-declaration pass (Backlog). The shape is ratified here so it is built right when its consumer (the plugin refactor) arrives; v0 still defines program actors via `sync_builtin_actors()` (`req-tap-auth-builtins`).
+
+Program users (program-kind actors: `tap_bootloader`, `tap_cares.scheduler`, `tap_cares.collector`, plugin service accounts, AI actors) are defined declaratively in a **program-only file**.
+
+#### Implementation
+
+- Program users live in a declarative JSON file (`<app>/program-users.json`), validated against a schema, with a mandatory **top-level `description`** and a mandatory **per-entry `description`**; each entry maps a program-user `key` to its `role(s)` (capabilities flow via roles).
+- **Program-only by construction (the load-bearing guardrail).** The file type's *only* ingest path constructs program users (`user_kind=program`). There is **no `kind` field and no code path from this file to a human user** — the human-creation capability does not exist in this path. This is the structural form of the human-introduction rule below: you cannot misuse what isn't there, so there is nothing to police per-plugin.
+- **Human-introduction rule.** *Plugins extend what the system can do; the operator decides who may use it.* Human `User`s may be introduced only from **operator-controlled sources** — the instance boot profile and, later, the authN/IdP path — never from a plugin or any declarative program-user file. Programmatic human creation beyond the operator's bootstrap admin is parked until a real demand signal; the lone human bootstrap today is the operator's env-driven initial admin (`req-tap-auth-boot`), deliberately separate. A future external-identity plugin (e.g. Google Workspace) models people as grid data or provisions logins *through* authN — it does not mint `User` rows.
+- This file is the declarative home that eventually replaces `sync_builtin_actors()`' hardcoded program-actor wiring, and the mechanism by which a plugin self-declares its own program/service actors. The existing built-in guards (immutable `tap_builtin_key`, hard-sync repair, protected metadata — `req-tap-auth-builtins`) still prevent a declarant from impersonating, duplicating, or acquiring an existing actor.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-program-users-1 | Program-Only By Construction | Proposed | The file's only ingest path creates program users; no human can be produced from it (no `kind` field, no human code path). | |
+| req-tap-auth-program-users-2 | Schema + Descriptions | Proposed | Schema-validated; top-level and per-entry `description` mandatory. | |
+| req-tap-auth-program-users-3 | Role-Mapped | Proposed | Each program user maps to role(s); capabilities flow via roles. | |
+| req-tap-auth-program-users-4 | Humans Operator-Only | Proposed | Human users come only from operator sources (boot profile / authN), never a plugin or declarative program-user file. | |
 
 ---
 
