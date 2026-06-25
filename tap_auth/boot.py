@@ -54,9 +54,14 @@ def _fragment_schema() -> dict[str, Any]:
 
 
 def _profile_path(profile_id: str) -> Path:
-    # Computed from BASE_DIR rather than importing tap_boot, so this module is a
-    # clean settings-time dependency and tap_auth does not depend on tap_boot.
-    return Path(settings.BASE_DIR) / "boot" / f"{profile_id}.json"
+    # Computed from this file's location (repo_root/tap_auth/boot.py →
+    # repo_root/boot/) rather than settings.BASE_DIR: the settings-time readers
+    # run DURING tap.settings import, where the lazy django.conf.settings object
+    # is still mid-initialization and BASE_DIR is not yet accessible through it.
+    # This also keeps the module a clean settings-time dependency with no reach
+    # into tap_boot.
+    repo_root = Path(__file__).resolve().parent.parent
+    return repo_root / "boot" / f"{profile_id}.json"
 
 
 def read_auth_section(profile_id: str) -> dict[str, Any]:

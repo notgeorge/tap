@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +36,16 @@ def _oidc_client_validator() -> Draft202012Validator:
 
 
 def _secrets_root() -> Path:
-    root = getattr(settings, "TAP_SECRETS_ROOT", None)
+    # Prefer the live settings (so test fixtures overriding TAP_SECRETS_ROOT
+    # work), but fall back to os.environ when settings is not yet configured —
+    # build_socialaccount_providers runs DURING tap.settings import, where the
+    # lazy django.conf.settings object is mid-initialization and its attributes
+    # are not reliably accessible. os.environ is the same source settings.py reads.
+    root: str | None = None
+    if settings.configured:
+        root = getattr(settings, "TAP_SECRETS_ROOT", None)
+    if not root:
+        root = os.environ.get("TAP_SECRETS_ROOT")
     if not root:
         raise ProviderError("TAP_SECRETS_ROOT is not configured; cannot resolve provider secrets")
     return Path(root)

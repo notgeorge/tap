@@ -57,13 +57,38 @@ def _redact_subject(subject: str) -> str:
     return "sub#" + hashlib.sha256(subject.encode("utf-8")).hexdigest()[:12]
 
 
+def _pick_claims(extra_data: object) -> dict[str, Any]:
+    """Normalize an allauth openid_connect ``extra_data`` into a flat claims dict.
+
+    allauth 65 stores ``extra_data`` WRAPPED as ``{"userinfo": {...},
+    "id_token": {...}}`` and only un-wraps it for the uid (``_pick_data``), not
+    for ``extract_extra_data``. The security-relevant claims (``email_verified``,
+    ``hd``, ``email``, ``sub``) live inside those sub-dicts, so we merge them —
+    with the **signed id_token taking precedence** on overlap, honoring the spec's
+    "enforce the domain via the returned id_token ``hd`` claim". Falls back to the
+    dict itself for non-wrapped/older shapes.
+    """
+    if not isinstance(extra_data, dict):
+        return {}
+    userinfo = extra_data.get("userinfo")
+    id_token = extra_data.get("id_token")
+    if isinstance(userinfo, dict) or isinstance(id_token, dict):
+        merged: dict[str, Any] = {}
+        if isinstance(userinfo, dict):
+            merged.update(userinfo)
+        if isinstance(id_token, dict):
+            merged.update(id_token)  # signed id_token wins on email_verified / hd / sub
+        return merged
+    return dict(extra_data)
+
+
 class TapSocialAccountAdapter(DefaultSocialAccountAdapter):
     """Social-login security chokepoint (see module docstring)."""
 
     def pre_social_login(self, request: HttpRequest, sociallogin: SocialLogin) -> None:
         provider_id = sociallogin.account.provider
         subject = sociallogin.account.uid
-        claims = dict(sociallogin.account.extra_data or {})
+        claims = _pick_claims(sociallogin.account.extra_data)
 
         config = get_provider_config(provider_id)
         if config is None:
@@ -107,6 +132,15 @@ class TapSocialAccountAdapter(DefaultSocialAccountAdapter):
                     ),
                 )
 
+    def is_open_for_signup(self, request: HttpRequest, sociallogin: SocialLogin) -> bool:
+        # Social provisioning must NOT be gated by the LOCAL public-signup toggle.
+        # allauth's default delegates this to the account adapter's
+        # is_open_for_signup (which we close for local self-signup), so without
+        # this override a permitted Google login hits "Sign Up Closed". Social
+        # signup is governed instead by pre_social_login (security) +
+        # is_auto_signup_allowed (per-provider auto_provision).
+        return True
+
     def is_auto_signup_allowed(self, request: HttpRequest, sociallogin: SocialLogin) -> bool:
         config = get_provider_config(sociallogin.account.provider)
         return bool(config and config.auto_provision)
@@ -148,7 +182,7 @@ class TapSocialAccountAdapter(DefaultSocialAccountAdapter):
     def _sync_external_identity(self, sociallogin: SocialLogin, user: Any) -> None:
         provider_id = sociallogin.account.provider
         subject = sociallogin.account.uid
-        claims = dict(sociallogin.account.extra_data or {})
+        claims = _pick_claims(sociallogin.account.extra_data)
         config = get_provider_config(provider_id)
         decision = get_provider(config.type).evaluate_access(config, claims) if config else None
 

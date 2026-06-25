@@ -146,6 +146,12 @@ services:
       # See specs/spec-dev-boot-collectors.md.
       TAP_BOOT_PROFILE: "${TAP_BOOT_PROFILE:-}"
 
+      # Public base URL of this instance (req-tap-auth-providers-7). Used by auth
+      # provider self-tests + boot validation to derive the OIDC callback URL.
+      # allauth itself derives the runtime redirect_uri from the request. Empty
+      # by default; set per-session in .env.local (e.g. http://localhost:8010).
+      TAP_BASE_URL: "${TAP_BASE_URL:-}"
+
     # Wait for the database to be healthy before starting Django
     # Prevents errors from Django trying to connect before PostgreSQL is ready
     depends_on:

@@ -197,6 +197,15 @@ class TestSocialAdapter:
         settings.TAP_AUTH_PROVIDERS = [_provider_raw(auto_provision=True)]
         assert TapSocialAccountAdapter().is_auto_signup_allowed(self._request(), _sociallogin(_claims())) is True
 
+    def test_social_signup_open_despite_closed_local(self, settings):
+        # a permitted Google login must not hit allauth's "Sign Up Closed" just
+        # because LOCAL public self-signup is disabled
+        from tap_auth.adapter import TapAccountAdapter
+
+        settings.TAP_AUTH_PROVIDERS = [_provider_raw()]
+        assert TapSocialAccountAdapter().is_open_for_signup(self._request(), _sociallogin(_claims())) is True
+        assert TapAccountAdapter().is_open_for_signup(self._request()) is False  # local stays closed
+
     def test_sync_external_identity_creates_record(self, settings):
         settings.TAP_AUTH_PROVIDERS = [_provider_raw()]
         user = get_user_model().objects.create_user(username="pending")
@@ -225,3 +234,62 @@ class TestSocialAdapter:
         user = get_user_model().objects.create_user(username="h", email="other@criticalsec.com")
         TapSocialAccountAdapter()._apply_initial_admin(user)
         assert not user.groups.filter(name="tap_admin").exists()
+
+
+# --------------------------------------------------------------------------- #
+# claim un-wrapping — allauth 65 openid_connect stores extra_data WRAPPED
+# (regression: a wrapped shape was read at the top level → email_not_verified)
+# --------------------------------------------------------------------------- #
+
+
+class TestClaimUnwrapping:
+    def test_wrapped_userinfo_and_id_token_merged(self):
+        from tap_auth.adapter import _pick_claims
+
+        wrapped = {
+            "userinfo": {"email": "george@criticalsec.com", "name": "George"},
+            "id_token": {"email_verified": True, "hd": "criticalsec.com", "sub": "s1"},
+        }
+        c = _pick_claims(wrapped)
+        assert c["email"] == "george@criticalsec.com"  # from userinfo
+        assert c["email_verified"] is True  # from id_token
+        assert c["hd"] == "criticalsec.com"
+
+    def test_id_token_wins_on_overlap(self):
+        # the SIGNED id_token is authoritative for security claims; a userinfo
+        # value must never widen access past the id_token's hd
+        from tap_auth.adapter import _pick_claims
+
+        c = _pick_claims({"userinfo": {"hd": "spoof.com"}, "id_token": {"hd": "real.com"}})
+        assert c["hd"] == "real.com"
+
+    def test_flat_extra_data_passthrough(self):
+        from tap_auth.adapter import _pick_claims
+
+        assert _pick_claims({"email": "a@b.com"})["email"] == "a@b.com"
+
+    def test_non_dict_is_empty(self):
+        from tap_auth.adapter import _pick_claims
+
+        assert _pick_claims(None) == {}
+
+    @pytest.mark.django_db
+    def test_pre_social_login_allows_wrapped_verified(self, settings):
+        # the end-to-end regression: a real-shaped (wrapped) Google response for a
+        # verified Workspace account must be ALLOWED, not denied email_not_verified
+        from django.test import RequestFactory
+
+        settings.TAP_AUTH_PROVIDERS = [_provider_raw(allowed_emails=["george@criticalsec.com"])]
+        account = SocialAccount(
+            provider=PROVIDER_ID,
+            uid="s1",
+            extra_data={
+                "userinfo": {"email": "george@criticalsec.com", "name": "George", "sub": "s1"},
+                "id_token": {"email_verified": True, "hd": "criticalsec.com", "sub": "s1"},
+            },
+        )
+        sl = SocialLogin(account=account)
+        sl.user = get_user_model()(username="pending")
+        sl.account.pk = None
+        # must NOT raise
+        TapSocialAccountAdapter().pre_social_login(RequestFactory().get("/cb"), sl)
