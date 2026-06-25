@@ -245,22 +245,25 @@ The signed-in actor's identity and the **only** logout affordance live in a user
 #### Implementation
 
 - The menu renders **only when `request.user.is_authenticated`** — anonymous pages are behind the login wall, so the chrome never shows a logged-out state.
-- A `<details>`/`<summary>` disclosure (no JavaScript): the trigger is an **avatar** (the actor's initial in a circle) plus a caret; the panel shows the username + email and a **Sign out** action.
-- **Ownership boundary.** The menu is `tap_web` chrome — it lives in `tap_web/templates/tap_web/base.html` and is styled in `tap_web/static/tap_web/css/palette.css` (`.tap-usermenu*`). It *consumes* the auth identity (`request.user`, bound by `tap_auth`'s middleware) and points Sign out at `tap_auth`'s `account_logout` (`/auth/logout/`) via a POST form. tap_web renders; tap_auth owns the identity + the logout route. tap_auth ships no templates of its own.
+- A `<details>`/`<summary>` disclosure: the trigger is an **avatar** plus a caret; the panel shows the actor's identity and a **Sign out** action. Disclosure is progressive enhancement — the native `<details>` works without scripts; a small `tap_web/js/usermenu.js` adds outside-click / Esc dismissal (native `<details>` only toggles on its own summary).
+- **Display, never the login key.** The avatar is the provider **profile photo** when available (`User.avatar_url`, refreshed on login), falling back to the actor's **initial**. The panel shows the **display name** (full name → email → username) and email — **never** the generated `ext-<provider>-<hash>` username, which is a non-display login key (`req-tap-auth-external-identity`).
+- **Ownership boundary.** The menu is `tap_web` chrome — it lives in `tap_web/templates/tap_web/base.html`, styled in `tap_web/static/tap_web/css/palette.css` (`.tap-usermenu*`) with behavior in `tap_web/static/tap_web/js/usermenu.js`. It *consumes* the auth identity (`request.user`, bound by `tap_auth`'s middleware) and points Sign out at `tap_auth`'s `account_logout` (`/auth/logout/`) via a POST form. tap_web renders; tap_auth owns the identity + the logout route + the user model fields. tap_auth ships no templates of its own.
 - Sign out is a **POST** (CSRF-protected); allauth performs the logout and redirects to the login page.
 
 #### Development
 
-The user menu is the first chrome element gated on application state (auth) rather than always present — but within an authenticated session it *is* always present, so it earns permanent chrome under the budget. The avatar-initial keeps the footprint to a single glyph; the disclosure keeps identity detail + logout one click away without spending horizontal space. Logout is deliberately the *only* always-reachable session-exit: there is no second logout link elsewhere, mirroring how the breadcrumb is the only navigation.
+The user menu is the first chrome element gated on application state (auth) rather than always present — but within an authenticated session it *is* always present, so it earns permanent chrome under the budget. The avatar (photo or single-glyph initial) keeps the footprint to one circle; the disclosure keeps identity detail + logout one click away without spending horizontal space. Logout is deliberately the *only* always-reachable session-exit: there is no second logout link elsewhere, mirroring how the breadcrumb is the only navigation. Showing the **display name, never the generated username**, is a deliberate boundary with the auth core: the `ext-<provider>-<hash>` value is a login key, not a human identity (`req-tap-auth-external-identity`), so leaking it into chrome would be both ugly and a minor information disclosure.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-web-nav-user-menu-1 | Auth-Gated Render | Implemented | The user menu renders only for an authenticated request; it is absent otherwise. | `{% if request.user.is_authenticated %}` in `base.html`. |
-| req-web-nav-user-menu-2 | Identity Shown | Implemented | The menu surfaces the signed-in actor's identity (avatar initial + username/email). | `.tap-usermenu-avatar` / `.tap-usermenu-id`. |
-| req-web-nav-user-menu-3 | Logout Affordance | Implemented | A Sign out action logs the user out via `tap_auth`'s `/auth/logout/` (`account_logout`), as a CSRF-protected POST. | The only always-reachable session-exit. |
-| req-web-nav-user-menu-4 | Ownership Boundary | Implemented | tap_web owns the markup + styling; it consumes the auth identity and the logout route from `tap_auth`, which ships no templates. | Web rendering stays in tap_web; the auth core has no inbound render surface. |
+| req-web-nav-user-menu-2 | Display Name, Not The Login Key | Implemented | The menu shows the actor's display name (full name → email → username) + email; it NEVER shows the generated `ext-<provider>-<hash>` username. | `req-tap-auth-external-identity`; the `{% with display_name=... %}` block in `base.html`. |
+| req-web-nav-user-menu-3 | Avatar (Photo Or Initial) | Implemented | The avatar is the provider profile photo (`User.avatar_url`, refreshed on login) when present, falling back to the actor's initial. | `referrerpolicy="no-referrer"` so the IdP CDN serves it. |
+| req-web-nav-user-menu-4 | Logout Affordance | Implemented | A Sign out action logs the user out via `tap_auth`'s `/auth/logout/` (`account_logout`), as a CSRF-protected POST. | The only always-reachable session-exit. |
+| req-web-nav-user-menu-5 | Dismissal | Implemented | The disclosure closes on outside click or Esc, not only on re-clicking its summary. Progressive enhancement — the native `<details>` works without JS. | `tap_web/js/usermenu.js`. |
+| req-web-nav-user-menu-6 | Ownership Boundary | Implemented | tap_web owns the markup + styling + behavior; it consumes the auth identity, the logout route, and the user model fields from `tap_auth`, which ships no templates. | Web rendering stays in tap_web; the auth core has no inbound render surface. |
 
 
 ### No Hamburger Menu

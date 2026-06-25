@@ -26,6 +26,7 @@ We haven't fully defined the panel structure yet, likely going to do that next.
 | req-web-render-panel-edit | [Panel Edit Rendering](#panel-edit-rendering) | Implemented | Panel edit pages integrate the panel route with the generic web editor shell |
 | req-web-render-missingpan | [Missing / Broken Panels](#missing--broken-panels) | Implemented | Missing panels show "Panel Error" in their layout slot |
 | req-web-render-landing | [Landing Page Owns /](#landing-page-owns-) | Implemented | Root `/` delegates to LandingPage-linked Page without client-side redirect |
+| req-web-render-flash | [Flash Messages](#flash-messages) | Implemented | The base template renders + consumes Django messages once, where the user lands, as a dismissible banner |
 | req-web-rendering-pagesan.sec | [Page Rendering Sanitization](#page-rendering-sanitization-security) | Implemented | Base template + HTMX + static asset manifest ensure safe page output |
 | req-web-rendering-panelsan.sec | [Panel Rendering Sanitization](#panel-rendering-sanitization-security) | Implemented | Standard Django templates; `\|safe` risk documented |
 | req-web-rendering-path.sec | [Path Access Security](#path-access-security) | Backlog | User permission checks (deferred to user security model) |
@@ -216,6 +217,28 @@ Note: `created_at` lives on `Entity`, not on `BaseModel` (which no longer carrie
 | req-web-render-landing-2 | Query Params Passed Through | Implemented | Query parameters from the root request are available in the page rendering context. | |
 | req-web-render-landing-3 | Earliest LandingPage Selected | Implemented | If multiple LandingPage nodes exist, the one with the earliest `entity__created_at` is used. | |
 | req-web-render-landing-4 | No LandingPage Returns 404 | Implemented | If no LandingPage exists, `/` returns a 404. | Currently falls back to the legacy home view instead. |
+
+
+### Flash Messages
+----
+RID: `req-web-render-flash`
+Status: `Implemented`
+
+The base template renders and **consumes** the Django messages framework once, as a dismissible banner under the header, so a message queued by an action (e.g. allauth's sign-in notice) appears on the page the user actually lands on — not stranded until the next message-rendering page. This is global feedback chrome, distinct from navigation (`spec-web-navigation`) and from per-panel error rendering (`req-web-render-missingpan`).
+
+#### Implementation
+
+- `base.html` iterates `{% if messages %}` in a flash region between the header and the page body. Iterating *consumes* the one-shot messages, so each shows exactly once, on the landing page — fixing the class of bug where an auth message lingered onto the logout screen because no app page rendered messages.
+- Each banner carries the message-level tag class (`.tap-flash--success/-error/-warning/-info`) and a dismiss `×`; `tap_web/js/usermenu.js` removes it on click and auto-dismisses after a timeout. Styling is `.tap-flash*` in `palette.css`.
+- Message *content* is owned by whoever queues it (allauth, future TAP code); this requirement owns only the rendering + consumption + dismissal.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-render-flash-1 | Rendered + Consumed In Base | Implemented | The base template renders any queued Django messages and consumes them (each shows once), on the page the user lands on. | `{% if messages %}` in `base.html`. |
+| req-web-render-flash-2 | Level Styling | Implemented | Each banner reflects its message level (success / error / warning / info). | `.tap-flash--<tag>`. |
+| req-web-render-flash-3 | Dismissible | Implemented | A banner is dismissible (× / click) and auto-dismisses after a timeout. | `tap_web/js/usermenu.js`. |
 
 
 ### Page Rendering Sanitization Security
