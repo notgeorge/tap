@@ -36,6 +36,10 @@
             "type": "string",
             "minLength": 1
           },
+          "description_json": {
+            "description": "Optional structured context, flowed to Capability.description_json (queryable alongside the prose description for AI/security reasoning).",
+            "type": "object"
+          },
           "risk": {
             "description": "Risk/classification metadata, queryable from the DB.",
             "enum": ["low", "medium", "high", "critical"]

@@ -32,6 +32,10 @@
             "type": "string",
             "minLength": 1
           },
+          "description_json": {
+            "description": "Optional structured context, flowed to ProtectedGroup.description_json (queryable alongside the prose description for AI/security reasoning).",
+            "type": "object"
+          },
           "capabilities": {
             "description": "Either '*' (every defined capability — admin-only, enforced by the loader) or an explicit list of capability names.",
             "oneOf": [

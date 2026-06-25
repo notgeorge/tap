@@ -20,7 +20,7 @@ built-in groups) live in ``tap_auth/roles.json`` (loaded by `tap_auth.roles`),
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -54,6 +54,8 @@ class CapabilitySpec:
     description: str
     """Human-readable meaning, stored on the Capability row."""
     risk: RiskLevel
+    description_json: dict[str, Any] = field(default_factory=dict)
+    """Optional structured context, synced to ``Capability.description_json``."""
 
 
 def _load_json(path: Path) -> Any:
@@ -78,7 +80,12 @@ def _load_capabilities() -> tuple[CapabilitySpec, ...]:
         raise ImproperlyConfigured(f"capabilities.json failed schema validation at {location}: {exc.message}") from exc
 
     specs = tuple(
-        CapabilitySpec(name=c["name"], description=c["description"], risk=RiskLevel(c["risk"]))
+        CapabilitySpec(
+            name=c["name"],
+            description=c["description"],
+            risk=RiskLevel(c["risk"]),
+            description_json=c.get("description_json", {}),
+        )
         for c in data["capabilities"]
     )
     names = [s.name for s in specs]

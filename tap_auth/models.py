@@ -161,6 +161,12 @@ class Capability(models.Model):
         default="",
         help_text="Human-readable meaning of this capability.",
     )
+    description_json = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured context for this capability (synced from capabilities.json), "
+        "queryable alongside the prose description for AI/security reasoning.",
+    )
     risk = models.CharField(
         max_length=16,
         default="medium",
@@ -207,6 +213,17 @@ class ProtectedGroup(models.Model):
     is_protected = models.BooleanField(
         default=True,
         help_text="When true, the group is shielded from ordinary mutation/deletion.",
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="Human-readable meaning of this role/group (synced from roles.json).",
+    )
+    description_json = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured context for this role (synced from roles.json), queryable "
+        "alongside the prose description for AI/security reasoning.",
     )
 
     class Meta:

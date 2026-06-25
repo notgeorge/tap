@@ -48,6 +48,32 @@ ACTOR_SCHEDULER = "tap_cares.scheduler"
 ACTOR_COLLECTOR = "tap_cares.collector"
 ACTOR_TEST = "tap_test"
 
+# Built-in program-actor descriptions, flowed (hard-synced) to User.description so
+# the actor rows are self-describing in the DB — context for AI/security without
+# guessing. Code-defined in v0 because the built-in actors themselves are defined
+# here; both move to the declarative program-users file when it lands
+# (req-tap-auth-program-users).
+_ACTOR_DESCRIPTIONS: dict[str, str] = {
+    ACTOR_BOOTLOADER: (
+        "The bootloader program actor: every boot service-layer write runs as it under its "
+        "least-privilege boot bundle (req-boot-phases). Resolved in the boot auth phase; never a "
+        "login identity."
+    ),
+    ACTOR_SCHEDULER: (
+        "The scheduler program actor: runs the once-per-minute scheduler tick, writing "
+        "Schedule/ScheduleFire bookkeeping and triggering collection runs (the run itself executes "
+        "as the collector actor)."
+    ),
+    ACTOR_COLLECTOR: (
+        "The shared collector execution actor: every collector run executes as it under a "
+        "least-privilege bundle, regardless of which actor triggered it."
+    ),
+    ACTOR_TEST: (
+        "Test-only program actor (TAP_TEST_MODE): a tap_admin member used as the authorized actor "
+        "for the test suite."
+    ),
+}
+
 # group builtin_key -> bundle of capability names it grants (hard-synced). The
 # bundles live in roles.json (req-tap-auth-roles); each protected group's
 # built-in key is also its role key, so we resolve the bundle from the role
@@ -95,6 +121,7 @@ def sync_capabilities(*, declared_prune: tuple[str, ...] = ()) -> dict[str, int]
                 name=spec.name,
                 defaults={
                     "description": spec.description,
+                    "description_json": spec.description_json,
                     "risk": spec.risk.value,
                     "permission": permission,
                 },
@@ -165,10 +192,18 @@ def sync_protected_groups() -> None:
     """Create/protect the built-in groups and hard-sync their capability grants."""
     with transaction.atomic():
         for builtin_key, bundle in _GROUP_BUNDLES.items():
+            role = roles.ROLES[builtin_key]
             group, _ = Group.objects.get_or_create(name=builtin_key)
+            # Hard-sync the role's description(_json) onto the protected-group row so
+            # the role is self-describing in the DB (req-tap-auth-roles).
             ProtectedGroup.objects.update_or_create(
                 group=group,
-                defaults={"builtin_key": builtin_key, "is_protected": True},
+                defaults={
+                    "builtin_key": builtin_key,
+                    "is_protected": True,
+                    "description": role.description,
+                    "description_json": role.description_json,
+                },
             )
             # Hard-sync: the group holds exactly the bundle's permissions.
             group.permissions.set(_permissions_for(bundle))
@@ -185,6 +220,7 @@ def _ensure_program_actor(builtin_key: str, group_key: str) -> None:
     privileged group like `tap_admin` — across re-syncs (req-tap-auth-builtins).
     """
     user_model = get_user_model()
+    description = _ACTOR_DESCRIPTIONS.get(builtin_key, "")
     user, created = user_model.objects.get_or_create(
         tap_builtin_key=builtin_key,
         defaults={
@@ -192,6 +228,7 @@ def _ensure_program_actor(builtin_key: str, group_key: str) -> None:
             "user_kind": "program",
             "is_tap_builtin": True,
             "is_active": True,
+            "description": description,
         },
     )
     if created:
@@ -216,6 +253,9 @@ def _ensure_program_actor(builtin_key: str, group_key: str) -> None:
         "deactivated_at": None,
         "deactivated_reason": "",
         "deactivated_by_actor_id": None,
+        # Hard-sync the description too, so the actor row stays self-describing and
+        # cannot drift away from its canonical context (req-tap-auth-program-users).
+        "description": description,
     }
     password_drifted = not created and user.has_usable_password()
     if password_drifted:

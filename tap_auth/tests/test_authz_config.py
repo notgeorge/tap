@@ -12,6 +12,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+from django.contrib.auth import get_user_model
+
 from tap_auth import roles
 from tap_auth.capabilities import (
     ALL_CAPABILITY_NAMES,
@@ -19,6 +22,7 @@ from tap_auth.capabilities import (
     DELETE_CAPABILITY,
     READ_CAPABILITY,
     WRITE_CAPABILITY,
+    get_capability,
 )
 
 _TAP_AUTH = Path(__file__).resolve().parent.parent
@@ -115,3 +119,33 @@ def test_cares_bundles_unchanged():
         "grid.write",
         "cares.run_collectors",
     }
+
+
+# --- descriptions flow into the tables (not just the files) --------------------
+
+
+@pytest.mark.django_db
+def test_capability_description_flows_to_table():
+    from tap_auth.models import Capability
+
+    cap = Capability.objects.get(name="grid.read")
+    assert cap.description == get_capability("grid.read").description
+    assert cap.description.strip()
+    assert isinstance(cap.description_json, dict)
+
+
+@pytest.mark.django_db
+def test_role_description_flows_to_protected_group():
+    from tap_auth.models import ProtectedGroup
+
+    pg = ProtectedGroup.objects.get(builtin_key="tap_bootloader")
+    assert pg.description == roles.ROLES["tap_bootloader"].description
+    assert pg.description.strip()
+    assert isinstance(pg.description_json, dict)
+
+
+@pytest.mark.django_db
+def test_program_actor_description_flows_to_user():
+    actor = get_user_model().objects.get(tap_builtin_key="tap_bootloader")
+    assert actor.description.strip(), "program actor row should carry its description"
+    assert "bootloader" in actor.description.lower()

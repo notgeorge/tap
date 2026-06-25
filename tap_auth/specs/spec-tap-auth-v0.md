@@ -275,7 +275,8 @@ TAP capabilities are the public authorization vocabulary. Django permissions are
   - `ai.delegate`
 - Capability checks are operation-level in v1, not model-level.
 - The canonical registry lives in a **version-controlled declarative JSON file** (`tap_auth/capabilities.json`), reviewable in git — not buried in inline Python and not DB-only state. `tap_auth/capabilities.py` is a thin loader that reads + validates the file into the in-memory registry; the public Python API (`CAPABILITIES`, `get_capability`, `ALL_CAPABILITY_NAMES`, `codename_for`, the well-known `WRITE_/DELETE_/READ_CAPABILITY` constants enforcement imports) is unchanged.
-- The file carries a **top-level `description`** stating what the file is and why it exists, plus, per capability, `name` / `description` / `risk`. A mandatory `description` is a standing convention across all three authz config files (capabilities, roles, program-users) — config that grants authority must explain itself.
+- The file carries a **top-level `description`** stating what the file is and why it exists, plus, per capability, `name` / `description` / `risk` and an optional structured `description_json`. A mandatory `description` is a standing convention across all three authz config files (capabilities, roles, program-users) — config that grants authority must explain itself.
+- **Descriptions flow into the table, not just the file.** `sync_capabilities` writes each capability's `description` **and** `description_json` onto its `Capability` row, so the running system is self-describing and DB-queryable — the context an AI/Paladin actor reads instead of guessing, and the surface against which a reviewer verifies the stated purpose matches the granted action. (`Capability.description_json` was added for this.)
 - The file is validated against a **published JSON Schema** (`tap_auth/schemas/capabilities.schema.json`); a malformed file fails loud at load (`ImproperlyConfigured`), never a silent partial registry. `additionalProperties: false` and a name pattern catch typos and rogue fields.
 - The DB projection is hard-synced from the canonical file-backed registry, which remains the source of truth.
 - Composition is forward-compatible: the same file convention extends per-app/plugin later (`<app>/capabilities.json`, namespaced names) — see the per-app declaration backlog. v0 loads only `tap_auth`'s file.
@@ -311,6 +312,7 @@ TAP capabilities are the public authorization vocabulary. Django permissions are
 | req-tap-auth-capabilities-6 | Unknown Capability Fails | Proposed | Runtime checks for unknown capabilities raise hard errors. | |
 | req-tap-auth-capabilities-7 | Real Capability Table | Proposed | Capabilities are a real `tap_auth.Capability` table with DB-queryable description + risk metadata, projecting a Django `Permission`; not a `managed=False` placeholder. | |
 | req-tap-auth-capabilities-8 | Schema-Validated File | Implemented | The capabilities file validates against a published JSON Schema; a malformed file fails loud at load. | |
+| req-tap-auth-capabilities-9 | Descriptions Reach The Table | Implemented | `description` and `description_json` flow from the file onto the `Capability` row, so the registry is DB-queryable and self-describing. | |
 
 ---
 
@@ -324,7 +326,8 @@ Roles are named, reusable capability bundles — the least-privilege capability 
 #### Implementation
 
 - Roles live in a **version-controlled declarative JSON file** (`tap_auth/roles.json`), validated against a published JSON Schema (`tap_auth/schemas/roles.schema.json`). This replaces the inline `*_BUNDLE` tuples formerly buried at the bottom of `capabilities.py`.
-- The file carries a **top-level `description`** (what roles are, why they exist); each role carries a mandatory **`description`** (what the role is for and why it holds the caps it does). Mandatory descriptions are the standing convention across the authz config files.
+- The file carries a **top-level `description`** (what roles are, why they exist); each role carries a mandatory **`description`** (what the role is for and why it holds the caps it does) and an optional structured **`description_json`**. Mandatory descriptions are the standing convention across the authz config files.
+- **Descriptions flow into the table.** `sync_protected_groups` hard-syncs each role's `description` and `description_json` onto its `ProtectedGroup` row (new fields added for this), so a group/role is self-describing and DB-queryable — same AI/security rationale as capabilities. The program-actor `User` rows are likewise made self-describing: `sync_builtin_actors` hard-syncs each built-in actor's `description` onto its `User` row (the actor descriptions are code-defined in v0 and move to the program-users file when it lands).
 - Each role names either an explicit `capabilities` list or `"*"` (every defined capability). `"*"` is **reserved for `tap_admin`** and means "all capabilities, *including ones plugins add later*" — so a new plugin capability auto-flows to admin without editing `roles.json`, while non-admin roles must opt in explicitly.
 - `sync_protected_groups()` grants each protected group exactly its role's capabilities (hard-sync), exactly as before — only the *source* of the bundle moves from code to the file.
 - **Security invariants are guarded by tests, not just review** (roles are security boundaries; the schema + tests are the compensating controls for the bundle being data rather than typed code):
@@ -342,6 +345,7 @@ Roles are named, reusable capability bundles — the least-privilege capability 
 | req-tap-auth-roles-3 | Defined Caps Only | Implemented | Every role capability is a defined capability; guarded by test. | |
 | req-tap-auth-roles-4 | Bootloader Least-Privilege | Implemented | The `tap_bootloader` role excludes `grid.purge`/`grid.delete` (and `ai.delegate`); guarded by test. | |
 | req-tap-auth-roles-5 | Role-Mediated Grants | Implemented | Principals receive capabilities via roles, not direct per-user grants. | |
+| req-tap-auth-roles-6 | Descriptions Reach The Table | Implemented | A role's `description`/`description_json` hard-sync onto its `ProtectedGroup` row; built-in program actors' descriptions hard-sync onto their `User` rows. | |
 
 ---
 

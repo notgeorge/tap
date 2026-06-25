@@ -20,7 +20,7 @@ at import on any violation:
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +49,8 @@ class RoleSpec:
     description: str
     capabilities: tuple[str, ...]
     is_wildcard: bool
+    description_json: dict[str, Any] = field(default_factory=dict)
+    """Optional structured context, synced to ``ProtectedGroup.description_json``."""
 
 
 def _load_json(path: Path) -> Any:
@@ -86,6 +88,7 @@ def _load_roles() -> dict[str, RoleSpec]:
             description=body["description"],
             capabilities=resolved,
             is_wildcard=wildcard,
+            description_json=body.get("description_json", {}),
         )
     return roles
 
