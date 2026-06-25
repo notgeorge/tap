@@ -70,3 +70,13 @@ class TestNoAccessPage:
         # Even anonymous, the wall does not redirect it (it is under /auth/).
         response = Client().get(reverse("no_access"))
         assert response.status_code == 200
+
+
+def test_login_success_message_is_suppressed():
+    """allauth's "Successfully signed in as …" flash is intentionally suppressed
+    (an empty account/messages/logged_in.txt override) so the post-login grid
+    reveal isn't covered by a banner. Guards against the override being removed
+    (allauth's default would render non-empty). See req-web-render-flash."""
+    from django.template.loader import render_to_string
+
+    assert render_to_string("account/messages/logged_in.txt", {}).strip() == ""

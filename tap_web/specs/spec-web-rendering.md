@@ -231,6 +231,7 @@ The base template renders and **consumes** the Django messages framework once, a
 - `base.html` iterates `{% if messages %}` in a flash region between the header and the page body. Iterating *consumes* the one-shot messages, so each shows exactly once, on the landing page — fixing the class of bug where an auth message lingered onto the logout screen because no app page rendered messages.
 - Each banner carries the message-level tag class (`.tap-flash--success/-error/-warning/-info`) and a dismiss `×`; `tap_web/js/usermenu.js` removes it on click and auto-dismisses after a timeout. Styling is `.tap-flash*` in `palette.css`.
 - Message *content* is owned by whoever queues it (allauth, future TAP code); this requirement owns only the rendering + consumption + dismissal.
+- allauth's **login-success** message is intentionally suppressed (an empty `account/messages/logged_in.txt` override; allauth skips a message that renders empty) — the post-login landing should reveal the grid cleanly, and the sign-in is self-evident. The logout confirmation is kept.
 
 #### Acceptance Criteria
 

@@ -1,0 +1,7 @@
+{% comment %}
+Intentionally empty — suppresses allauth's "Successfully signed in as …" flash on
+login. allauth's add_message renders this template, strips it, and skips the
+message when it is empty (account/adapter.py). The post-login landing should
+reveal the grid cleanly, not behind a banner; the sign-in was self-evident. The
+logout confirmation (logged_out.txt) is deliberately kept. See req-web-render-flash.
+{% endcomment %}
