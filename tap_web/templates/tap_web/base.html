@@ -79,6 +79,27 @@
                         <span class="tap-palette-affordance-kbd">⌘K</span>
                     </button>
                     {# Mini-graph slot (req-web-nav-mini-graph) — reserved, backlog. #}
+                    {# User menu (req-web-nav-user-menu): avatar + identity + Sign out. #}
+                    {# Auth identity is consumed here (request.user); logout is tap_auth's #}
+                    {# /auth/logout/ route (account_logout). <details> = no-JS dropdown. #}
+                    {% if request.user.is_authenticated %}
+                        <details class="tap-usermenu">
+                            <summary class="tap-usermenu-trigger" aria-label="Account menu" title="{{ request.user.email|default:request.user.get_username }}">
+                                <span class="tap-usermenu-avatar">{{ request.user.email|default:request.user.get_username|slice:":1"|upper }}</span>
+                                <svg class="tap-usermenu-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                            </summary>
+                            <div class="tap-usermenu-panel">
+                                <div class="tap-usermenu-id">
+                                    <div class="tap-usermenu-name">{{ request.user.get_username }}</div>
+                                    {% if request.user.email %}<div class="tap-usermenu-email">{{ request.user.email }}</div>{% endif %}
+                                </div>
+                                <form method="post" action="{% url 'account_logout' %}" class="tap-usermenu-form">
+                                    {% csrf_token %}
+                                    <button type="submit" class="tap-usermenu-signout">Sign out</button>
+                                </form>
+                            </div>
+                        </details>
+                    {% endif %}
                 </div>
             </div>
         </div>

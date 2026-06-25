@@ -1,0 +1,37 @@
+{% load static %}
+{% comment %}
+TAP-branded shell for ALL allauth pages (login, logout, account-management,
+signup-closed, …). Owned by tap_web (web rendering is tap_web's job; tap_auth has
+no templates). Overrides allauth's allauth/layouts/base.html because tap_web
+precedes allauth in INSTALLED_APPS (APP_DIRS first-match-wins), so every allauth
+page inherits the TAP chrome instead of allauth's bare default. Self-contained
+styling (auth.css), matching tap_web/base.html. Pages override {% block content %}.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if session_label %}[{{ session_label }}] {% endif %}{% block head_title %}{{ product_name|default:"TAP" }}{% endblock head_title %}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'tap_web/favicon.ico' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/auth.css' %}">
+    {% block extra_head %}{% endblock extra_head %}
+</head>
+<body class="tap-auth-body">
+    <header class="tap-auth-header">
+        <a class="tap-auth-wordmark" href="/">{{ product_name|default:"TAP" }}</a>
+        {% if session_label %}<span class="tap-auth-session-tag">[ {{ session_label }} ]</span>{% endif %}
+    </header>
+    <main class="tap-auth-main">
+        <div class="tap-auth-card">
+            {% if messages %}
+                <div class="tap-auth-errors">
+                    <ul>{% for message in messages %}<li>{{ message }}</li>{% endfor %}</ul>
+                </div>
+            {% endif %}
+            {% block content %}{% endblock content %}
+        </div>
+    </main>
+    {% block extra_body %}{% endblock extra_body %}
+</body>
+</html>

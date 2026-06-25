@@ -33,8 +33,9 @@ The chrome budget is fixed: product mark, breadcrumb, session tag, command-palet
 | req-web-nav-auto-parent | [Auto-Derived Parent From URL](#auto-derived-parent-from-url) | Implemented | Each URL segment is a breadcrumb level; v0 has no explicit override |
 | req-web-nav-command-palette | [Command Palette Affordance](#command-palette-affordance) | In Development | Cmd-K + chrome affordance + Pages index landed; entity / recent-visits / migrated-chrome indexing still Proposed (ACIDs -3 + -4) |
 | req-web-nav-mini-graph | [Mini-Graph Affordance](#mini-graph-affordance) | Backlog | Reserved chrome slot held; mini-graph itself is backlog pending sibling `spec-viz-mini-map.md` |
+| req-web-nav-user-menu | [User Menu](#user-menu) | Implemented | Avatar + identity + Sign out in the upper-right; consumes the auth identity (`request.user`), logs out via `tap_auth` `/auth/logout/` |
 | req-web-nav-no-hamburger | [No Hamburger Menu](#no-hamburger-menu) | Implemented | Hard prohibition; defends the design against drift |
-| req-web-nav-chrome-budget | [Chrome Budget](#chrome-budget) | Implemented | Header contents enumerated and capped at five elements |
+| req-web-nav-chrome-budget | [Chrome Budget](#chrome-budget) | Implemented | Header contents enumerated and capped at six elements |
 | req-web-nav-index-endpoint | [Machine-Readable Nav Index](#machine-readable-nav-index) | Implemented | `/__nav-index.json` enumerates reachable pages + canonical breadcrumb paths |
 | req-web-nav-page-discoverable | [Page Discoverability Gate](#page-discoverability-gate) | Implemented | Pages requiring URL parameters opt out of all browse-discovery surfaces via a `discoverable=False` flag |
 | req-web-nav-page-weight | [Page Sort Weight](#page-sort-weight) | Implemented | `Page.nav_weight` integer floats pages up (+) or sinks down (−) in discovery surfaces; default 0 = alphabetical |
@@ -234,6 +235,34 @@ It's also the answer to *"what's one step away from where I am"* — which is fu
 Mini-graph on non-entity pages (Pages, dashboards) — sibling-spec decides what the "neighborhood" of a Page is. Mini-graph as a zoom-out gesture — clicking the center entity expands to a larger graph view, possibly inline.
 
 
+### User Menu
+----
+RID: `req-web-nav-user-menu`
+Status: `Implemented`
+
+The signed-in actor's identity and the **only** logout affordance live in a user menu at the far-right of the header chrome (element 6 of `req-web-nav-chrome-budget`). It answers a question no other chrome element does — "who am I signed in as, and how do I leave?" — which became always-present once auth landed (`spec-tap-auth-v0`).
+
+#### Implementation
+
+- The menu renders **only when `request.user.is_authenticated`** — anonymous pages are behind the login wall, so the chrome never shows a logged-out state.
+- A `<details>`/`<summary>` disclosure (no JavaScript): the trigger is an **avatar** (the actor's initial in a circle) plus a caret; the panel shows the username + email and a **Sign out** action.
+- **Ownership boundary.** The menu is `tap_web` chrome — it lives in `tap_web/templates/tap_web/base.html` and is styled in `tap_web/static/tap_web/css/palette.css` (`.tap-usermenu*`). It *consumes* the auth identity (`request.user`, bound by `tap_auth`'s middleware) and points Sign out at `tap_auth`'s `account_logout` (`/auth/logout/`) via a POST form. tap_web renders; tap_auth owns the identity + the logout route. tap_auth ships no templates of its own.
+- Sign out is a **POST** (CSRF-protected); allauth performs the logout and redirects to the login page.
+
+#### Development
+
+The user menu is the first chrome element gated on application state (auth) rather than always present — but within an authenticated session it *is* always present, so it earns permanent chrome under the budget. The avatar-initial keeps the footprint to a single glyph; the disclosure keeps identity detail + logout one click away without spending horizontal space. Logout is deliberately the *only* always-reachable session-exit: there is no second logout link elsewhere, mirroring how the breadcrumb is the only navigation.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-nav-user-menu-1 | Auth-Gated Render | Implemented | The user menu renders only for an authenticated request; it is absent otherwise. | `{% if request.user.is_authenticated %}` in `base.html`. |
+| req-web-nav-user-menu-2 | Identity Shown | Implemented | The menu surfaces the signed-in actor's identity (avatar initial + username/email). | `.tap-usermenu-avatar` / `.tap-usermenu-id`. |
+| req-web-nav-user-menu-3 | Logout Affordance | Implemented | A Sign out action logs the user out via `tap_auth`'s `/auth/logout/` (`account_logout`), as a CSRF-protected POST. | The only always-reachable session-exit. |
+| req-web-nav-user-menu-4 | Ownership Boundary | Implemented | tap_web owns the markup + styling; it consumes the auth identity and the logout route from `tap_auth`, which ships no templates. | Web rendering stays in tap_web; the auth core has no inbound render surface. |
+
+
 ### No Hamburger Menu
 ----
 RID: `req-web-nav-no-hamburger`
@@ -283,20 +312,22 @@ The header bar contains exactly the following, in this left-to-right order:
 3. **Session tag** — when a multi-session dev label is active, the `[<label>]` chip in the session tag style (see `spec-dev-multisession.md`).
 4. **Command palette affordance** — the search-icon button (see `req-web-nav-command-palette`).
 5. **Mini-graph slot** — the local-neighborhood graph (see `req-web-nav-mini-graph`). In v0 this slot is *reserved but empty* — the mini-graph requirement is `Backlog`; the slot exists in the chrome layout so nothing else accumulates into the space, and the mini-graph drops in when the sibling spec lands.
+6. **User menu** — the signed-in actor's avatar + identity + Sign out, far-right (see `req-web-nav-user-menu`). Present only when authenticated; consumes the auth identity and logs out via `tap_auth`'s `/auth/logout/`.
 
-No sixth element. Features that earn permanent chrome require a new requirement in this spec.
+No seventh element. Features that earn permanent chrome require a new requirement in this spec.
 
 #### Development
 
 The cap is the discipline. The spec is the rejection mechanism for chrome bloat. Without an enumerated list, every team that needs visibility for its feature will add an icon to the header until the chrome becomes a tool palette.
 
-The five elements were chosen because each answers a different always-present question:
+The six elements were chosen because each answers a different always-present question:
 
 - **Product mark** — "what am I in?" (TAP)
 - **Breadcrumb** — "where am I?" (path) + "what's adjacent?" (popovers)
 - **Session tag** — "is this a dev session?" (operational signal)
 - **Palette affordance** — "how do I reach the rest of TAP?"
 - **Mini-graph** — "what's one graph-step from here?" (the platform's signature view)
+- **User menu** — "who am I signed in as, and how do I leave?" (identity + the only logout affordance)
 
 Removing any of these removes a category of question that has no other answer. Adding a sixth would compete with one of these for the user's eye.
 
@@ -304,7 +335,7 @@ Removing any of these removes a category of question that has no other answer. A
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-nav-chrome-budget-1 | Enumerated List | Implemented | The header contains exactly the five enumerated elements; no others. | Product mark + breadcrumb + session tag + palette affordance + reserved mini-graph slot. |
+| req-web-nav-chrome-budget-1 | Enumerated List | Implemented | The header contains exactly the six enumerated elements; no others. | Product mark + breadcrumb + session tag + palette affordance + reserved mini-graph slot + user menu (auth-only). |
 | req-web-nav-chrome-budget-2 | Order Stable | Implemented | The five elements appear in the documented left-to-right order. | `tap_web/templates/tap_web/base.html`. |
 | req-web-nav-chrome-budget-3 | Additions Require Spec Revision | Implemented | New permanent header elements require a new requirement in this spec; they cannot be added ad hoc. | Standing rule. |
 

@@ -360,7 +360,7 @@ class TestTablePanelViewContext:
             "warnings": {},
         }
         with patch("tap_grid.search.execute_search", return_value=fake_envelope):
-            response = Client().get(_panel_url(panel))
+            response = _admin_client().get(_panel_url(panel))
 
         content = response.content.decode()
         assert content.count("tap-table-nav ") >= 2  # above + below
@@ -399,20 +399,20 @@ class TestTablePanelViewEndpoint:
         _link_search(panel, search)
         fake_envelope = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
         with patch("tap_grid.search.execute_search", return_value=fake_envelope):
-            response = Client().get(_panel_url(panel))
+            response = _admin_client().get(_panel_url(panel))
         assert response.status_code == 200
 
     def test_panel_view_uses_table_template(self):
         panel = _create_table_panel()
         fake_envelope = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
         with patch("tap_grid.search.execute_search", return_value=fake_envelope):
-            response = Client().get(_panel_url(panel))
+            response = _admin_client().get(_panel_url(panel))
         template_names = [t.name for t in response.templates]
         assert "tap_web/panels/table_panel.html" in template_names
 
     def test_no_search_shows_error_message(self):
         panel = _create_table_panel()
-        response = Client().get(_panel_url(panel))
+        response = _admin_client().get(_panel_url(panel))
         assert response.status_code == 200
         assert b"No search linked" in response.content
 
@@ -422,7 +422,7 @@ class TestTablePanelViewEndpoint:
         _link_search(panel, search)
         fake_envelope = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
         with patch("tap_grid.search.execute_search", return_value=fake_envelope):
-            response = Client().get(_panel_url(panel))
+            response = _admin_client().get(_panel_url(panel))
         assert b"data-tap-table-mount" in response.content
 
     def test_embedded_json_script_present(self):
@@ -431,7 +431,7 @@ class TestTablePanelViewEndpoint:
         _link_search(panel, search)
         fake_envelope = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
         with patch("tap_grid.search.execute_search", return_value=fake_envelope):
-            response = Client().get(_panel_url(panel))
+            response = _admin_client().get(_panel_url(panel))
         assert b'type="application/json"' in response.content
         assert f"tap-table-data-{panel.entity_id}".encode() in response.content
 
@@ -442,7 +442,7 @@ class TestTablePanelViewEndpoint:
         _link_search(panel, search)
         fake_envelope = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
         with patch("tap_grid.search.execute_search", return_value=fake_envelope):
-            response = Client().get(_panel_url(panel))
+            response = _admin_client().get(_panel_url(panel))
         # No executable script blocks (type="application/json" is allowed).
         content = response.content.decode()
         import re

@@ -91,34 +91,34 @@ class TestTextPanelView:
 
     def test_panel_view_returns_200(self):
         panel = _create_text_panel()
-        response = Client().get(_panel_url(panel))
+        response = _admin_client().get(_panel_url(panel))
         assert response.status_code == 200
 
     def test_panel_view_renders_title(self):
         panel = _create_text_panel(name="My Heading")
-        response = Client().get(_panel_url(panel))
+        response = _admin_client().get(_panel_url(panel))
         assert b"My Heading" in response.content
 
     def test_panel_view_renders_body_text(self):
         panel = _create_text_panel(config={"text": "Body content here."})
-        response = Client().get(_panel_url(panel))
+        response = _admin_client().get(_panel_url(panel))
         assert b"Body content here." in response.content
 
     def test_panel_view_does_not_render_description(self):
         panel = _create_text_panel(description="Admin note only.")
-        response = Client().get(_panel_url(panel))
+        response = _admin_client().get(_panel_url(panel))
         assert b"Admin note only." not in response.content
 
     # req-web-panel-render-content.sec — HTML in text is escaped, not rendered
     def test_html_in_text_is_escaped(self):
         panel = _create_text_panel(config={"text": "<script>alert('xss')</script>"})
-        response = Client().get(_panel_url(panel))
+        response = _admin_client().get(_panel_url(panel))
         assert b"<script>" not in response.content
         assert b"&lt;script&gt;" in response.content
 
     def test_angle_brackets_in_title_escaped(self):
         panel = _create_text_panel(name="<b>Bold</b>")
-        response = Client().get(_panel_url(panel))
+        response = _admin_client().get(_panel_url(panel))
         assert b"<b>Bold</b>" not in response.content
         assert b"&lt;b&gt;" in response.content
 

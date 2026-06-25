@@ -173,7 +173,7 @@ class TapSocialAccountAdapter(DefaultSocialAccountAdapter):
         )
         response = render(
             request,
-            "tap_auth/login_denied.html",
+            "tap_web/auth/login_denied.html",
             {"reason": decision.reason, "message": decision.user_message},
             status=403,
         )

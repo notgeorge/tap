@@ -1,0 +1,38 @@
+{% load static %}
+<!DOCTYPE html>
+{% comment %}
+No-access page (req-tap-auth-google-oidc): an authenticated but capability-less
+actor's landing. Self-contained — depends on no grid-readable context — and
+styled with the shared auth.css so it matches the login chrome.
+{% endcomment %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>No access — {{ product_name|default:"TAP" }}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'tap_web/favicon.ico' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/auth.css' %}">
+</head>
+<body class="tap-auth-body">
+    <header class="tap-auth-header">
+        <span class="tap-auth-wordmark">{{ product_name|default:"TAP" }}</span>
+        {% if session_label %}<span class="tap-auth-session-tag">[ {{ session_label }} ]</span>{% endif %}
+    </header>
+    <main class="tap-auth-main">
+        <div class="tap-auth-card tap-auth-card--wide">
+            <h1 class="tap-auth-title">You're signed in, but have no access yet</h1>
+            <p class="tap-auth-sub">
+                Your account
+                {% if request.user.is_authenticated %}<span class="tap-auth-who">{{ request.user.email|default:request.user.get_username }}</span>{% endif %}
+                authenticated successfully, but it hasn't been granted any capabilities on
+                this instance. An administrator needs to assign you access before you can
+                see anything here.
+            </p>
+            <form method="post" action="{% url 'account_logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="tap-auth-link" style="border:0;cursor:pointer;">Sign out</button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>

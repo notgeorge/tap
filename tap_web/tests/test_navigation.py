@@ -8,16 +8,28 @@ machine-readable nav index's schema and population).
 from __future__ import annotations
 
 import pytest
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group  # noqa: F401
 from django.test import Client
 
 from tap_web.models import Page
-from tap_web.navigation import BreadcrumbSegment, build_breadcrumb
+from tap_web.navigation import build_breadcrumb
 
 # Pages require a valid layout to pass model-level validation. These tests
 # don't care about layout content; the helpers only read `slug` and `name`.
-_MINIMAL_LAYOUT = {
-    "columns": {"col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "x"}}}}
-}
+_MINIMAL_LAYOUT = {"columns": {"col-1": {"width": "1fr", "rows": {"row-1": {"panel-id": "x"}}}}}
+
+
+def _auth_client() -> Client:
+    """Authenticated client. The default-deny login wall
+    (req-tap-auth-service-boundary) requires a session to reach any tap_web page;
+    the autouse caller-context fixture authorizes the grid reads. get_or_create so
+    repeated calls within one test don't collide on the username."""
+    user, _ = get_user_model().objects.get_or_create(username="nav-user")
+    c = Client()
+    c.force_login(user)
+    return c
 
 
 def _create_page(
@@ -119,7 +131,7 @@ class TestBreadcrumbRendering:
         affordance for opening the palette. Click handler + Cmd-K binding
         are JS-side; we only verify the markup is present here.
         """
-        body = Client().get("/").content.decode()
+        body = _auth_client().get("/").content.decode()
         assert "data-tap-palette-affordance" in body
         assert 'aria-label="Open command palette"' in body
         # Keyboard shortcut hint surfaces in the title attribute and the
@@ -128,13 +140,13 @@ class TestBreadcrumbRendering:
 
     def test_chrome_loads_palette_assets(self):
         """Palette JS + CSS are linked in the base template head."""
-        body = Client().get("/").content.decode()
+        body = _auth_client().get("/").content.decode()
         assert "tap_web/js/palette.js" in body
         assert "tap_web/css/palette.css" in body
 
     def test_chrome_loads_breadcrumb_assets(self):
         """Breadcrumb interaction JS + CSS are linked (Phases 6 + 7)."""
-        body = Client().get("/").content.decode()
+        body = _auth_client().get("/").content.decode()
         assert "tap_web/js/breadcrumb.js" in body
         assert "tap_web/css/breadcrumb.css" in body
 
@@ -145,7 +157,7 @@ class TestBreadcrumbRendering:
         """
         _create_page("Samsite", "/samsite")
         _create_page("Samsite Compliance", "/samsite/compliance")
-        body = Client().get("/samsite/compliance").content.decode()
+        body = _auth_client().get("/samsite/compliance").content.decode()
         assert "data-tap-chevron" in body
         # The chevron preceding "samsite" targets /samsite for sibling lookup.
         assert 'data-tap-sibling-url="/samsite"' in body
@@ -158,7 +170,7 @@ class TestBreadcrumbRendering:
         """
         _create_page("Samsite", "/samsite")
         _create_page("Samsite Compliance", "/samsite/compliance")
-        body = Client().get("/samsite/compliance").content.decode()
+        body = _auth_client().get("/samsite/compliance").content.decode()
         assert 'data-tap-segment-url="/"' in body
         assert 'data-tap-segment-url="/samsite"' in body
         assert 'data-tap-segment-url="/samsite/compliance"' in body
@@ -172,10 +184,10 @@ class TestBreadcrumbRendering:
         # Create a deep page with NO Page at `/` registered.
         _create_page("Samsite", "/samsite")
         _create_page("Samsite Compliance", "/samsite/compliance")
-        body = Client().get("/samsite/compliance").content.decode()
+        body = _auth_client().get("/samsite/compliance").content.decode()
         # The home `<a>` is present, links to /, carries the product mark.
         assert 'href="/"' in body
-        assert ">TAP<" in body  # default product name from settings
+        assert f">{settings.TAP_PRODUCT_NAME}<" in body  # the configured product mark (RAMPART by default)
         # The home segment is NOT the empty-label unregistered fallback.
         assert '<span class="text-slate-400"></span>' not in body
 
@@ -193,11 +205,11 @@ class TestNavIndexEndpoint:
     """The `/__nav-index.json` endpoint exposes the platform's nav surface."""
 
     def test_returns_200(self):
-        response = Client().get("/__nav-index.json")
+        response = _auth_client().get("/__nav-index.json")
         assert response.status_code == 200
 
     def test_response_is_json(self):
-        response = Client().get("/__nav-index.json")
+        response = _auth_client().get("/__nav-index.json")
         assert response["Content-Type"].startswith("application/json")
         payload = response.json()
         assert "version" in payload
@@ -208,7 +220,7 @@ class TestNavIndexEndpoint:
     def test_enumerates_registered_pages(self):
         _create_page("Alpha", "/alpha")
         _create_page("Beta", "/beta")
-        response = Client().get("/__nav-index.json")
+        response = _auth_client().get("/__nav-index.json")
         urls = {p["url"] for p in response.json()["pages"]}
         assert "/alpha" in urls
         assert "/beta" in urls
@@ -216,7 +228,7 @@ class TestNavIndexEndpoint:
     def test_each_page_carries_breadcrumb(self):
         _create_page("Samsite", "/samsite")
         _create_page("Samsite Compliance", "/samsite/compliance")
-        response = Client().get("/__nav-index.json")
+        response = _auth_client().get("/__nav-index.json")
         entry = next(p for p in response.json()["pages"] if p["url"] == "/samsite/compliance")
         assert "breadcrumb" in entry
         bc = entry["breadcrumb"]
@@ -228,7 +240,7 @@ class TestNavIndexEndpoint:
 
     def test_schema_keys_match_spec(self):
         _create_page("A", "/a", description="d")
-        response = Client().get("/__nav-index.json")
+        response = _auth_client().get("/__nav-index.json")
         payload = response.json()
         # Top-level keys per spec-web-navigation §Machine-Readable Nav Index.
         assert payload["version"] == "0"
@@ -244,7 +256,7 @@ class TestNavIndexEndpoint:
         """
         _create_page("Visible", "/visible")
         _create_page("Hidden", "/hidden", discoverable=False)
-        urls = {p["url"] for p in Client().get("/__nav-index.json").json()["pages"]}
+        urls = {p["url"] for p in _auth_client().get("/__nav-index.json").json()["pages"]}
         assert "/visible" in urls
         assert "/hidden" not in urls
 
@@ -258,7 +270,7 @@ class TestNavWeightOrdering:
         _create_page("Banana", "/b")
         _create_page("Apple", "/a")
         _create_page("Cherry", "/c")
-        urls = [p["url"] for p in Client().get("/__nav-index.json").json()["pages"]]
+        urls = [p["url"] for p in _auth_client().get("/__nav-index.json").json()["pages"]]
         assert urls == ["/a", "/b", "/c"]
 
     def test_higher_weight_floats_up(self):
@@ -266,7 +278,7 @@ class TestNavWeightOrdering:
         _create_page("Apple", "/a")
         _create_page("Banana", "/b", nav_weight=100)
         _create_page("Cherry", "/c", nav_weight=50)
-        urls = [p["url"] for p in Client().get("/__nav-index.json").json()["pages"]]
+        urls = [p["url"] for p in _auth_client().get("/__nav-index.json").json()["pages"]]
         # /b (100) > /c (50) > /a (0)
         assert urls == ["/b", "/c", "/a"]
 
@@ -275,7 +287,7 @@ class TestNavWeightOrdering:
         _create_page("Operator", "/operator", nav_weight=-100)
         _create_page("Samsite", "/samsite")
         _create_page("Routine", "/routine")
-        urls = [p["url"] for p in Client().get("/__nav-index.json").json()["pages"]]
+        urls = [p["url"] for p in _auth_client().get("/__nav-index.json").json()["pages"]]
         # /routine and /samsite (both 0) come first alphabetically; /operator sinks.
         assert urls == ["/routine", "/samsite", "/operator"]
 
@@ -283,7 +295,7 @@ class TestNavWeightOrdering:
         """ACID-4: the endpoint surfaces nav_weight so client-side sort can apply."""
         _create_page("Weighted", "/w", nav_weight=42)
         _create_page("Default", "/d")
-        entries = {p["url"]: p for p in Client().get("/__nav-index.json").json()["pages"]}
+        entries = {p["url"]: p for p in _auth_client().get("/__nav-index.json").json()["pages"]}
         assert entries["/w"]["nav_weight"] == 42
         assert entries["/d"]["nav_weight"] == 0
 
@@ -292,7 +304,7 @@ class TestNavWeightOrdering:
         _create_page("Bravo", "/bravo", nav_weight=10)
         _create_page("Alpha", "/alpha", nav_weight=10)
         _create_page("Charlie", "/charlie", nav_weight=10)
-        urls = [p["url"] for p in Client().get("/__nav-index.json").json()["pages"]]
+        urls = [p["url"] for p in _auth_client().get("/__nav-index.json").json()["pages"]]
         assert urls == ["/alpha", "/bravo", "/charlie"]
 
 
@@ -316,3 +328,20 @@ class TestDiscoverableGateInBreadcrumb:
         assert segments[2].label == "Finding"  # title-cased slug, not the Page's name
         assert segments[3].is_registered is False
         assert segments[3].is_current is True
+
+
+@pytest.mark.django_db
+class TestUserMenu:
+    """req-web-nav-user-menu — auth-gated identity + logout in the header chrome."""
+
+    def test_user_menu_present_when_authenticated(self):
+        body = _auth_client().get("/").content.decode()
+        assert "tap-usermenu" in body  # the menu component
+        assert 'action="/auth/logout/"' in body  # logout posts to tap_auth's route
+        assert "Sign out" in body
+
+    def test_user_menu_absent_for_anonymous(self):
+        # anonymous is caught by the login wall (302) — no authenticated chrome
+        resp = Client().get("/")
+        assert resp.status_code == 302
+        assert "tap-usermenu" not in resp.content.decode()

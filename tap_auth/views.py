@@ -19,7 +19,8 @@ def no_access(request: HttpRequest) -> HttpResponse:
     auto-provisioned (or deactivated-group) user may log in successfully yet
     hold no capabilities. Rather than a bare 403, they land here with a clear
     explanation and a logout affordance. Rendered under ``/auth/`` (wall-exempt)
-    and from a self-contained template that depends on no grid-readable context,
-    so it always renders even when every capability check would deny.
+    and from a self-contained template (owned by tap_web — tap_auth renders no
+    HTML of its own) that depends on no grid-readable context, so it always
+    renders even when every capability check would deny.
     """
-    return render(request, "tap_auth/no_access.html")
+    return render(request, "tap_web/auth/no_access.html")

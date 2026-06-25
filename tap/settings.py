@@ -102,17 +102,11 @@ INSTALLED_APPS = [
     # Site row per install; allauth resolves provider apps + callback URLs
     # against it.
     "django.contrib.sites",
-    # Authentication (django-allauth) — owns the login/social-login machinery
-    # mounted under /auth/ (req-tap-auth-app-3). tap_auth owns the routes,
-    # provider config, and the security adapter on top; allauth is the engine.
-    # The openid_connect provider backs every google_oidc TAP provider, each
-    # addressed by a stable provider_id natural key (req-tap-auth-providers,
-    # req-tap-auth-google-oidc). Listed before tap apps so tap_web/tap_auth
-    # templates can override allauth defaults (APP_DIRS first-match-wins).
-    "allauth",
-    "allauth.account",
-    "allauth.socialaccount",
-    "allauth.socialaccount.providers.openid_connect",
+    # NOTE: django-allauth is listed LATER, AFTER the tap apps (see the allauth
+    # block below tap_viz). APP_DIRS template resolution is first-match-wins, so
+    # the auth-owning apps (tap_auth, tap_web) must PRECEDE allauth for their
+    # templates to override allauth's defaults. tap_auth owns the auth page
+    # templates; tap_web owns the shared auth-UI styling.
     # TAP apps (added as we scaffold each one)
     # tap_boot is the bootloader and the cross-cutting management plane; it owns
     # all boot logic and sits FIRST so nothing below it imports the (deferred)
@@ -181,6 +175,22 @@ INSTALLED_APPS = [
     "tap_web",
     # Visualization
     "tap_viz",
+    # Authentication (django-allauth) — the login/social-login ENGINE behind the
+    # /auth/ routes (req-tap-auth-app-3). tap_auth owns the routes, provider
+    # config, security adapter, and policy (the Python); tap_web owns ALL the auth
+    # PAGE TEMPLATES + styling (web rendering is tap_web's job — tap_auth has no
+    # templates, so there is no render path from the Internet into the auth core);
+    # allauth is the engine. The openid_connect provider backs every google_oidc
+    # TAP provider, addressed by a stable provider_id natural key. Listed AFTER the
+    # tap apps so tap_web wins template resolution (APP_DIRS first-match-wins) and
+    # overrides allauth's defaults; allauth's own templates remain the fallback for
+    # any page TAP does not override. Migrations are order-independent (the
+    # swappable AUTH_USER_MODEL dep sequences tap_auth.User before allauth's user
+    # FKs), and no tap app imports allauth at AppConfig-load time.
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.openid_connect",
     # History tracking (django-simple-history)
     "simple_history",
     # Steady Queue — production-equivalent task backend for django.tasks
