@@ -12,6 +12,7 @@ Key environment variables:
     TAP_GRID_ID     - UUIDv7 identifying this TAP installation (required)
 """
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -352,7 +353,25 @@ TAP_LOGIN_EXEMPT_PREFIXES = [
 # boot auth config + resolved secrets (req-tap-auth-providers); empty until then.
 SOCIALACCOUNT_LOGIN_ON_GET = False
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = False
-SOCIALACCOUNT_PROVIDERS: dict = {}
+
+# Public base URL of this instance (scheme + host[:port]). Required when
+# external auth providers are configured (req-tap-auth-providers-7): provider
+# callback URLs derive from it. allauth derives the runtime redirect_uri from
+# the incoming request; TAP_BASE_URL is the canonical value provider self-tests
+# and boot validation use.
+TAP_BASE_URL = os.environ.get("TAP_BASE_URL", "")
+
+# Declarative auth provider configs (req-tap-auth-providers). Empty by default
+# (local password auth only). Populated from the boot profile's auth section
+# (req-tap-auth-boot — increment 4); a JSON env override (TAP_AUTH_PROVIDERS)
+# supports dev / pre-boot wiring. allauth's provider APPS are built from these at
+# settings-build time so the resolved secret stays in memory, never a DB
+# SocialApp row (req-tap-auth-providers-3).
+TAP_AUTH_PROVIDERS = json.loads(os.environ.get("TAP_AUTH_PROVIDERS", "[]"))
+
+from tap_auth.providers import build_socialaccount_providers  # noqa: E402
+
+SOCIALACCOUNT_PROVIDERS = build_socialaccount_providers(TAP_AUTH_PROVIDERS)
 
 # Local account behavior (dev + recovery). Email optional/unverified locally;
 # external IdP login is the customer path (req-tap-auth-local).
