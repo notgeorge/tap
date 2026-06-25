@@ -12,6 +12,7 @@ only stdlib, jsonschema, and Django settings/conf.
 """
 
 from tap_auth.providers.base import (
+    AccessDecision,
     ProviderConfig,
     ProviderError,
     SelfTestPhase,
@@ -19,9 +20,14 @@ from tap_auth.providers.base import (
     SelfTestStatus,
 )
 from tap_auth.providers.registry import UnknownProviderType, get_provider, provider_types
-from tap_auth.providers.wiring import build_socialaccount_providers
+from tap_auth.providers.wiring import (
+    build_socialaccount_providers,
+    get_provider_config,
+    iter_provider_configs,
+)
 
 __all__ = [
+    "AccessDecision",
     "ProviderConfig",
     "ProviderError",
     "SelfTestPhase",
@@ -30,5 +36,7 @@ __all__ = [
     "UnknownProviderType",
     "build_socialaccount_providers",
     "get_provider",
+    "get_provider_config",
+    "iter_provider_configs",
     "provider_types",
 ]

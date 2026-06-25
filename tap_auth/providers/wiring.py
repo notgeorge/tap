@@ -23,6 +23,8 @@ import logging
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from django.conf import settings
+
 from tap_auth.providers.base import ProviderConfig, ProviderError
 from tap_auth.providers.registry import UnknownProviderType, get_provider
 
@@ -72,3 +74,20 @@ def build_socialaccount_providers(
     if not apps:
         return {}
     return {_OPENID_CONNECT: {"APPS": apps}}
+
+
+def iter_provider_configs() -> list[ProviderConfig]:
+    """Parse ``settings.TAP_AUTH_PROVIDERS`` into ProviderConfig objects."""
+    return [ProviderConfig.from_dict(raw) for raw in (getattr(settings, "TAP_AUTH_PROVIDERS", []) or [])]
+
+
+def get_provider_config(provider_id: str) -> ProviderConfig | None:
+    """Return the configured ProviderConfig with id ``provider_id``, or None.
+
+    Used by the social adapter to resolve the access policy for an incoming
+    login by its allauth provider id (which equals the TAP provider id for
+    openid_connect apps)."""
+    for config in iter_provider_configs():
+        if config.id == provider_id:
+            return config
+    return None

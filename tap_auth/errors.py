@@ -68,6 +68,50 @@ class ActorKindNotAllowed(AuthzError):
     reason = "actor_kind_not_allowed"
 
 
+class LoginDenied(AuthzError):
+    """An AuthN-edge login denial (req-tap-auth-google-oidc / external-identity).
+
+    The user authenticated correctly with the IdP but is not permitted to log in
+    to THIS deployment. Part of the same taxonomy as service-boundary denials so
+    AuthN-edge and AuthZ-boundary denials share one set of stable ``reason``
+    codes. Carries an optional ``user_message`` — a specific, safe hint the login
+    surface shows the user (distinct from the internal log message), since a
+    correctly-authenticated user turned away deserves to know *why* (wrong
+    deployment vs not-allowlisted vs linking-disabled) rather than an opaque fail.
+    """
+
+    reason = "login_denied"
+
+    def __init__(self, message: str = "", *, reason: str | None = None, user_message: str = "") -> None:
+        self.user_message = user_message
+        super().__init__(message, reason=reason)
+
+
+class EmailNotVerified(LoginDenied):
+    """The IdP did not assert a verified email (`email_verified` is not true)."""
+
+    reason = "email_not_verified"
+
+
+class DomainNotAllowed(LoginDenied):
+    """The verified account's hosted domain is not in the provider's allowed_domains."""
+
+    reason = "domain_not_allowed"
+
+
+class AccountNotAllowlisted(LoginDenied):
+    """The account is in an allowed domain but not in the provider's allowed_emails."""
+
+    reason = "account_not_allowlisted"
+
+
+class IdentityLinkingDisabled(LoginDenied):
+    """A second provider presented the same email as an existing TAP user; v1
+    disables account linking, so the login is refused (req-tap-auth-external-identity)."""
+
+    reason = "identity_linking_disabled"
+
+
 class UnguardedOperation(Exception):
     """A mutation or read reached its commit/return point with NO authorize()
     decision recorded — a code-level defect, NOT an authorization denial.

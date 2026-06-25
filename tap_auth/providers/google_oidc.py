@@ -29,6 +29,7 @@ import requests
 from django.conf import settings
 
 from tap_auth.providers.base import (
+    AccessDecision,
     ProviderConfig,
     ProviderError,
     SelfTestPhase,
@@ -47,6 +48,14 @@ _REQUIRED_DISCOVERY_KEYS = ("issuer", "authorization_endpoint", "token_endpoint"
 
 def _result(check: str, status: SelfTestStatus, phase: SelfTestPhase, message: str) -> SelfTestResult:
     return SelfTestResult(check=check, status=status, phase=phase, message=message, docs_url=DOCS_URL)
+
+
+def _truthy(value: Any) -> bool:
+    """OIDC claims may carry ``email_verified`` as a JSON bool or a string
+    ('true'/'false'); normalize both. Anything else is treated as not-verified."""
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() == "true"
 
 
 class GoogleOidcProvider:
@@ -133,6 +142,84 @@ class GoogleOidcProvider:
 
     def resolve_secrets(self, config: ProviderConfig) -> dict[str, str]:
         return resolve_oidc_client_secret(config.secret_key)
+
+    def evaluate_access(self, config: ProviderConfig, claims: Mapping[str, Any]) -> AccessDecision:
+        """The security core (req-tap-auth-google-oidc). Pure, claim-only.
+
+        Order of checks (each fails closed with a distinct reason code):
+          1. email present + ``email_verified`` true — a verified email is the
+             precondition for everything else.
+          2. domain: enforced via the RETURNED ``hd`` claim (the trustworthy
+             hosted-domain assertion). Email-domain fallback applies ONLY when the
+             provider opted in (off by default for Workspace/customer providers),
+             and even then ``email_verified`` is still required. A login with no
+             ``hd`` and no fallback is denied — no silent email-domain matching.
+          3. allowed_emails: when configured, the verified email must be on the
+             list. Narrows WITHIN allowed_domains, never widens; enforced on every
+             login (email is mutable, so this is not a one-time provisioning gate).
+        """
+        email = str(claims.get("email") or "").strip().lower()
+        verified = _truthy(claims.get("email_verified"))
+        hd = claims.get("hd")
+        hd_norm = str(hd).strip().lower() if hd else None
+
+        if not email or not verified:
+            return AccessDecision(
+                allowed=False,
+                reason="email_not_verified",
+                user_message="Your identity provider did not confirm a verified email address.",
+                log_detail=f"email_verified={claims.get('email_verified')!r} email_present={bool(email)}",
+                hd=hd_norm,
+            )
+
+        allowed_domains = set(self._allowed_domains(config))
+        fallback = bool(config.config.get("email_domain_fallback", False))
+
+        if hd_norm:
+            matched = hd_norm
+        elif fallback:
+            matched = email.split("@")[-1]
+        else:
+            return AccessDecision(
+                allowed=False,
+                reason="domain_not_allowed",
+                user_message="Your account's domain is not permitted on this deployment.",
+                log_detail="no hd claim returned and email-domain fallback is disabled",
+                verified_email=email,
+            )
+
+        if matched not in allowed_domains:
+            return AccessDecision(
+                allowed=False,
+                reason="domain_not_allowed",
+                user_message="Your account's domain is not permitted on this deployment.",
+                log_detail=f"domain {matched!r} not in allowed_domains {sorted(allowed_domains)}",
+                hd=hd_norm,
+                matched_domain=matched,
+                verified_email=email,
+            )
+
+        allowed_emails = {str(e).strip().lower() for e in (config.config.get("allowed_emails") or [])}
+        if allowed_emails and email not in allowed_emails:
+            return AccessDecision(
+                allowed=False,
+                reason="account_not_allowlisted",
+                user_message=(
+                    "You authenticated correctly and your domain is allowed, but your "
+                    "account is not on this deployment's allowlist. An administrator must add you."
+                ),
+                log_detail=f"email not in allowed_emails ({len(allowed_emails)} entr(ies))",
+                hd=hd_norm,
+                matched_domain=matched,
+                verified_email=email,
+            )
+
+        return AccessDecision(
+            allowed=True,
+            hd=hd_norm,
+            matched_domain=matched,
+            verified_email=email,
+        )
 
     def self_test(self, config: ProviderConfig, secrets: Mapping[str, str], *, live: bool) -> list[SelfTestResult]:
         results = self.validate_config(config)

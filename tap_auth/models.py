@@ -15,6 +15,7 @@ tap_auth/specs/spec-tap-auth-v0.md.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from django.conf import settings
@@ -232,3 +233,115 @@ class ProtectedGroup(models.Model):
 
     def __str__(self) -> str:
         return self.builtin_key
+
+
+class ExternalIdentityStatus(models.TextChoices):
+    """Lifecycle of an external identity link (req-tap-auth-external-identity)."""
+
+    ACTIVE = "active", "Active"
+    DEACTIVATED = "deactivated", "Deactivated"
+
+
+class ExternalIdentity(models.Model):
+    """Links a provider-authenticated subject to a canonical TAP user.
+
+    The durable identity key is ``(provider_id, subject)`` — for OIDC the
+    provider's ``sub`` (req-tap-auth-external-identity). Email is a profile
+    *snapshot* and reconciliation hint, never identity (it is mutable and may
+    repeat across users). v1 stores explicit columns only — no raw claims, no
+    ``safe_claims_json``. v1 account linking is disabled: a second provider
+    presenting the same email as an existing user is denied
+    (``identity_linking_disabled``), not auto-connected. This is a plain Django
+    model (auth infrastructure), deliberately off the Entity/graph spine.
+    """
+
+    provider_id = models.CharField(
+        max_length=64,
+        help_text="Stable provider natural key, e.g. 'criticalsec-google'.",
+    )
+    provider_type = models.CharField(
+        max_length=32,
+        help_text="Provider type, e.g. 'google_oidc'.",
+    )
+    subject = models.CharField(
+        max_length=255,
+        help_text="Upstream durable subject (OIDC 'sub'). The identity key with provider_id; never logged in full.",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="external_identities",
+        help_text="The canonical TAP user this external subject resolves to.",
+    )
+    email_snapshot = models.EmailField(
+        blank=True,
+        default="",
+        help_text="Most recent provider-asserted verified email (profile snapshot / hint, NOT identity).",
+    )
+    display_name_snapshot = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Most recent provider-asserted display name.",
+    )
+    hosted_domain_snapshot = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Most recent returned hosted-domain (Google 'hd') the access decision matched on.",
+    )
+    first_seen = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this external identity was first provisioned.",
+    )
+    last_seen = models.DateTimeField(
+        auto_now=True,
+        help_text="When this external identity was last updated (any login touch).",
+    )
+    last_login = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this external identity last completed a successful login.",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=ExternalIdentityStatus.choices,
+        default=ExternalIdentityStatus.ACTIVE,
+        help_text="active | deactivated. Provider/domain removal deactivates affected identities by default.",
+    )
+
+    class Meta:
+        db_table = "tap_external_identity"
+        verbose_name_plural = "external identities"
+        constraints = [
+            # The durable identity key: a given upstream subject under a given
+            # provider maps to exactly one row (req-tap-auth-external-identity).
+            models.UniqueConstraint(
+                fields=["provider_id", "subject"],
+                name="tap_external_identity_provider_subject_unique",
+            ),
+        ]
+        indexes = [
+            # Email reconciliation/diagnostic lookups (email is non-unique here —
+            # duplicate emails are allowed because email is not identity).
+            models.Index(fields=["email_snapshot"], name="tap_extid_email_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.provider_id}:{self.redacted_subject}"
+
+    @property
+    def redacted_subject(self) -> str:
+        """Provider id + a truncated/hashed subject for safe display/logging
+        (req-tap-auth-external-identity: full subjects are not logged)."""
+        digest = hashlib.sha256(self.subject.encode("utf-8")).hexdigest()[:12]
+        return f"sub#{digest}"
+
+    @staticmethod
+    def generate_username(provider_id: str, subject: str) -> str:
+        """Generate a stable, non-display login username from provider id +
+        subject (req-tap-auth-external-identity). The UI shows email/display
+        name, never this value; it exists only to satisfy Django's username
+        field uniquely and deterministically."""
+        digest = hashlib.sha256(f"{provider_id}:{subject}".encode()).hexdigest()[:24]
+        return f"ext-{provider_id}-{digest}"[:150]

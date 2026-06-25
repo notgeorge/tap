@@ -354,6 +354,18 @@ TAP_LOGIN_EXEMPT_PREFIXES = [
 SOCIALACCOUNT_LOGIN_ON_GET = False
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = False
 
+# TAP-owned allauth adapters (req-tap-auth-external-identity). The social adapter
+# is the login security chokepoint (verified-email / hd-domain / allowlist /
+# linking-disabled, gated auto-provisioning, ExternalIdentity sync, initial-admin
+# grant). The account adapter disables public local self-signup.
+SOCIALACCOUNT_ADAPTER = "tap_auth.adapter.TapSocialAccountAdapter"
+ACCOUNT_ADAPTER = "tap_auth.adapter.TapAccountAdapter"
+
+# Verified emails granted tap_admin on first login (req-tap-auth-boot). Add-only
+# (a typo cannot revoke admin). Populated from the boot profile's auth section
+# (increment 4); JSON env override for dev. Operator-controlled — never a plugin.
+TAP_AUTH_INITIAL_ADMINS = json.loads(os.environ.get("TAP_AUTH_INITIAL_ADMINS", "[]"))
+
 # Public base URL of this instance (scheme + host[:port]). Required when
 # external auth providers are configured (req-tap-auth-providers-7): provider
 # callback URLs derive from it. allauth derives the runtime redirect_uri from

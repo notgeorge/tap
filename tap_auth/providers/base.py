@@ -67,6 +67,29 @@ class SelfTestResult:
 
 
 @dataclass(frozen=True)
+class AccessDecision:
+    """The outcome of a provider's per-login access evaluation (the security
+    core — req-tap-auth-google-oidc). Pure data: the provider decides, the
+    adapter enforces (raises / logs / provisions). Deliberately claim-only so it
+    is trivially unit-testable with synthetic claims — no network, no DB.
+
+    ``reason`` is a stable login-denial reason code (matches the
+    ``tap_auth.errors`` LoginDenied codes) when ``allowed`` is False. ``hd`` /
+    ``matched_domain`` / ``verified_email`` are surfaced for the structured
+    security log. ``log_detail`` is internal; ``user_message`` is the safe hint
+    shown to the turned-away user.
+    """
+
+    allowed: bool
+    reason: str | None = None
+    user_message: str = ""
+    log_detail: str = ""
+    hd: str | None = None
+    matched_domain: str | None = None
+    verified_email: str | None = None
+
+
+@dataclass(frozen=True)
 class ProviderConfig:
     """A single provider entry from the boot auth config (req-tap-auth-providers).
 
@@ -125,6 +148,12 @@ class Provider(Protocol):
     def resolve_secrets(self, config: ProviderConfig) -> dict[str, str]:
         """Resolve the provider's secret material into memory (never persisted).
         Raises ProviderError if the secret cannot be resolved/validated."""
+        ...
+
+    def evaluate_access(self, config: ProviderConfig, claims: Mapping[str, Any]) -> AccessDecision:
+        """Decide whether the IdP-asserted ``claims`` are permitted to log in to
+        this deployment under ``config`` (verified email, domain, allowlist). Pure
+        and side-effect-free — the adapter enforces the decision."""
         ...
 
     def self_test(self, config: ProviderConfig, secrets: Mapping[str, str], *, live: bool) -> list[SelfTestResult]:
