@@ -16,6 +16,10 @@
       "description": "Human label shown by `boot --list` and in review.",
       "type": "string"
     },
+    "auth": {
+      "description": "The auth section (req-tap-auth-boot): external login providers, initial-admin emails, local-password toggle, and admin-lockout break-glass. tap_auth OWNS this section's schema (tap_auth/schemas/auth-boot-section.schema.json) and the bootloader composes it — only its object-shape is asserted here; the boot auth phase validates it strictly against the tap_auth fragment before applying. Omit for a local-password-only standup.",
+      "type": "object"
+    },
     "population": {
       "description": "The population section: ordered steps that bring plugins online and populate them. Omit for a safe, no-outbound auth-only standup (req-boot-profile-4).",
       "type": "object",

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tap.dev/schemas/tap.auth.boot-section.schema.json",
+  "title": "TAP Boot Profile — Auth Section",
+  "description": "The reusable 'auth' section of a TAP boot profile (req-tap-auth-boot). tap_auth OWNS this fragment; the bootloader composes it rather than copying auth schema into the monolithic boot schema. It declares the external login providers, the initial-admin emails, the local-password toggle, and the admin-lockout break-glass. Secrets are NEVER here — providers reference an auth-scoped *.secret.json by key (req-tap-auth-providers-3). Boot validates this section, runs provider self-tests (live for a deploy profile), enforces the last-admin invariant, and gates on the Django deploy posture before serving.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["description"],
+  "properties": {
+    "description": {
+      "description": "What this auth configuration is and why (mandatory — config that grants login authority explains itself).",
+      "type": "string",
+      "minLength": 1
+    },
+    "providers": {
+      "description": "External login providers configured for this instance. Multiple providers from v1 (req-tap-auth-providers-2). Empty/omitted ⇒ local password auth only.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "display_name", "description"],
+        "properties": {
+          "id": {
+            "description": "Stable provider natural key, also the secret key by default (e.g. 'criticalsec-google', 'robco-google'). Lowercase with hyphens.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "type": {
+            "description": "Provider type. v1: 'google_oidc'. Unknown types fail boot immediately (req-tap-auth-providers).",
+            "type": "string",
+            "enum": ["google_oidc"]
+          },
+          "display_name": {
+            "description": "Human-facing provider name on the login page (distinct from id).",
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "description": "What this provider is and which org/tenant it serves (mandatory per entry).",
+            "type": "string",
+            "minLength": 1
+          },
+          "secret": {
+            "description": "Optional override for the auth-scoped secret key holding the client credentials. Defaults to the provider id.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "critical_for_boot": {
+            "description": "true (default): a failed live self-test fails a deploy boot. false: an unavailable upstream logs loudly and that provider's login is unavailable, but boot continues. A malformed static config / missing secret fails boot regardless.",
+            "type": "boolean"
+          },
+          "auto_provision": {
+            "description": "true (default): a permitted new login auto-creates a TAP user (with no groups). false: only pre-existing linked users may log in.",
+            "type": "boolean"
+          },
+          "allowed_domains": {
+            "description": "google_oidc: Workspace domains permitted to log in, enforced via the returned hd claim (req-tap-auth-google-oidc). Required and non-empty — there is no 'any Google account' login.",
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "allowed_emails": {
+            "description": "google_oidc: optional allowlist of individual verified emails within allowed_domains (e.g. pin a criticalsec.com provider to a single operator). Absent/empty ⇒ domain-only.",
+            "type": "array",
+            "items": {"type": "string", "format": "email"}
+          },
+          "email_domain_fallback": {
+            "description": "google_oidc: match the verified-email domain when no hd is returned (consumer accounts). OFF by default; Workspace/customer providers require a returned hd. email_verified is still required when on.",
+            "type": "boolean"
+          },
+          "server_url": {
+            "description": "OIDC issuer base URL. Defaults to Google (https://accounts.google.com).",
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      }
+    },
+    "initial_admins": {
+      "description": "Verified emails granted tap_admin on first login (req-tap-auth-boot). Add/update-only — a typo cannot revoke admin. Operator-controlled; never sourced from a plugin.",
+      "type": "array",
+      "items": {"type": "string", "format": "email"}
+    },
+    "local_password_enabled": {
+      "description": "true (default): local Django password login is available (dev + recovery). false: password login is disabled everywhere including Django admin (req-tap-auth-local) — does NOT deactivate users or invalidate sessions. Customer profiles disable it once IdP login is ready.",
+      "type": "boolean"
+    },
+    "allow_admin_lockout": {
+      "description": "Break-glass (req-tap-auth-boot last-admin invariant). false (default): boot fails loud if applying this profile would leave no active human tap_admin. true: a secure admin-lockout standup is permitted by design (recovery via the out-of-band management/shell floor). Satellite/headless only.",
+      "type": "boolean"
+    }
+  }
+}

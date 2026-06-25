@@ -59,7 +59,7 @@ def run_boot(profile: BootProfile | None, *, echo: Echo | None = None) -> None:
     logger.info("[c13a] boot starting: profile=%s", profile_label)
     say(f"Boot starting (profile: {profile_label}).")
 
-    _phase_auth(say)
+    _phase_auth(profile, say)
 
     if profile is None or not profile.has_population:
         logger.info("[f89d] boot: no population steps; auth-only standup complete")
@@ -76,8 +76,9 @@ def run_boot(profile: BootProfile | None, *, echo: Echo | None = None) -> None:
     say("Boot complete.")
 
 
-def _phase_auth(say: Echo) -> None:
-    """auth phase: hard-sync capabilities/groups/actors, then ensure the admin."""
+def _phase_auth(profile: BootProfile | None, say: Echo) -> None:
+    """auth phase: hard-sync capabilities/groups/actors, ensure the admin, then
+    (if the profile declares one) validate + apply the auth section."""
     logger.info("[0b5f] boot auth phase: sync_auth")
     say("Auth phase: syncing capabilities, protected groups, built-in actors ...")
     sync_auth()
@@ -87,6 +88,18 @@ def _phase_auth(say: Echo) -> None:
         say(f"Auth phase: initial admin '{admin.get_username()}' ensured (joined tap_admin).")
     else:
         say("Auth phase: no DJANGO_SUPERUSER_USERNAME set; skipped initial-admin bootstrap.")
+
+    if profile is not None and profile.has_auth:
+        from django.conf import settings
+
+        from tap_auth.boot import AuthBootError, apply_auth_boot_section
+
+        logger.info("[b2d4] boot auth phase: applying auth section (providers, last-admin, deploy gate)")
+        say("Auth phase: validating + applying auth section ...")
+        try:
+            apply_auth_boot_section(profile.auth or {}, deploy=not settings.DEBUG, echo=say)
+        except AuthBootError as exc:
+            raise BootError(f"auth section: {exc}") from exc
 
 
 def _phase_population(profile: BootProfile, bootloader: object, say: Echo) -> None:

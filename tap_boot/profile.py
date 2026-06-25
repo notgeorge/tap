@@ -70,10 +70,17 @@ class BootProfile:
     description: str
     on_failure: str
     steps: tuple[PopulationStep, ...]
+    # Raw auth section (req-tap-auth-boot). tap_auth owns its schema fragment and
+    # validates it strictly in the boot auth phase; the bootloader only carries it.
+    auth: dict[str, Any] | None = None
 
     @property
     def has_population(self) -> bool:
         return bool(self.steps)
+
+    @property
+    def has_auth(self) -> bool:
+        return bool(self.auth)
 
     @property
     def enabled_steps(self) -> tuple[PopulationStep, ...]:
@@ -155,4 +162,5 @@ def _parse(profile_id: str, data: dict[str, Any]) -> BootProfile:
         description=data.get("description", ""),
         on_failure=population.get("on_failure", DEFAULT_ON_FAILURE),
         steps=tuple(steps),
+        auth=data.get("auth"),
     )

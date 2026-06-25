@@ -361,29 +361,48 @@ SOCIALACCOUNT_EMAIL_AUTHENTICATION = False
 SOCIALACCOUNT_ADAPTER = "tap_auth.adapter.TapSocialAccountAdapter"
 ACCOUNT_ADAPTER = "tap_auth.adapter.TapAccountAdapter"
 
-# Verified emails granted tap_admin on first login (req-tap-auth-boot). Add-only
-# (a typo cannot revoke admin). Populated from the boot profile's auth section
-# (increment 4); JSON env override for dev. Operator-controlled — never a plugin.
-TAP_AUTH_INITIAL_ADMINS = json.loads(os.environ.get("TAP_AUTH_INITIAL_ADMINS", "[]"))
+# Declarative auth config comes from the boot profile's `auth` section
+# (req-tap-auth-boot) — ONE declarative source feeds both the running server's
+# settings (here) and the `manage.py boot` validation phase. A JSON env override
+# wins for dev / pre-boot wiring. The profile id is TAP_BOOT_PROFILE (same env the
+# bootloader reads). allauth's provider APPS are built from these at settings-build
+# time so the resolved secret stays in memory, never a DB SocialApp row
+# (req-tap-auth-providers-3).
+_TAP_BOOT_PROFILE = os.environ.get("TAP_BOOT_PROFILE", "").strip()
 
-# Public base URL of this instance (scheme + host[:port]). Required when
-# external auth providers are configured (req-tap-auth-providers-7): provider
-# callback URLs derive from it. allauth derives the runtime redirect_uri from
-# the incoming request; TAP_BASE_URL is the canonical value provider self-tests
-# and boot validation use.
-TAP_BASE_URL = os.environ.get("TAP_BASE_URL", "")
-
-# Declarative auth provider configs (req-tap-auth-providers). Empty by default
-# (local password auth only). Populated from the boot profile's auth section
-# (req-tap-auth-boot — increment 4); a JSON env override (TAP_AUTH_PROVIDERS)
-# supports dev / pre-boot wiring. allauth's provider APPS are built from these at
-# settings-build time so the resolved secret stays in memory, never a DB
-# SocialApp row (req-tap-auth-providers-3).
-TAP_AUTH_PROVIDERS = json.loads(os.environ.get("TAP_AUTH_PROVIDERS", "[]"))
-
+from tap_auth.boot import (  # noqa: E402
+    initial_admins_for_settings,
+    local_password_enabled_from_profile,
+    providers_for_settings,
+)
 from tap_auth.providers import build_socialaccount_providers  # noqa: E402
 
+# Public base URL (scheme + host[:port]). Required when external providers are
+# configured (req-tap-auth-providers-7): provider callback URLs derive from it.
+# allauth derives the runtime redirect_uri from the request; this is the
+# canonical value provider self-tests and boot validation use.
+TAP_BASE_URL = os.environ.get("TAP_BASE_URL", "")
+
+_env_providers = os.environ.get("TAP_AUTH_PROVIDERS")
+TAP_AUTH_PROVIDERS = json.loads(_env_providers) if _env_providers else providers_for_settings(_TAP_BOOT_PROFILE)
 SOCIALACCOUNT_PROVIDERS = build_socialaccount_providers(TAP_AUTH_PROVIDERS)
+
+# Verified emails granted tap_admin on first login (req-tap-auth-boot). Add-only
+# (a typo cannot revoke admin). From the boot profile's auth section; env override
+# for dev. Operator-controlled — never a plugin.
+_env_admins = os.environ.get("TAP_AUTH_INITIAL_ADMINS")
+TAP_AUTH_INITIAL_ADMINS = json.loads(_env_admins) if _env_admins else initial_admins_for_settings(_TAP_BOOT_PROFILE)
+
+# Local Django password login (dev + recovery floor — req-tap-auth-local). From
+# the boot profile's auth section (default True); env override for dev. When
+# False, local password login is blocked everywhere incl. Django admin (enforced
+# by the local-auth-disable backend in increment 5).
+_env_local = os.environ.get("TAP_LOCAL_PASSWORD_ENABLED")
+TAP_LOCAL_PASSWORD_ENABLED = (
+    _env_local.strip().lower() in ("true", "1", "yes")
+    if _env_local is not None
+    else local_password_enabled_from_profile(_TAP_BOOT_PROFILE)
+)
 
 # Local account behavior (dev + recovery). Email optional/unverified locally;
 # external IdP login is the customer path (req-tap-auth-local).
