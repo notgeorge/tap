@@ -458,6 +458,7 @@ Longer-horizon:
 - Profile generator helper (CLI or otherwise) that *produces* a boot profile — authoring is separate from applying; this would be a convenience, not a requirement.
 - Plugin-owned collector-firing hooks (resolve the `req-boot-population` open seam once samsite teaches us).
 - Plugin dependency-graph resolution (v1 relies on declared order; a real DAG is deferred).
+- **Parallel collector execution.** v0 fires `fire-collector` steps strictly serially, each awaited to terminal before the next (`req-boot-population-1`), because some collectors depend on earlier ones' grid state (samsite-compliance reads boto3's `aws_account` nodes and github_core's `github_workflow` nodes). But independent collectors — e.g. the FedRAMP KSI catalog pull — need not block the others, so a future population could run non-dependent steps concurrently (a parallel/concurrent group, or DAG-derived parallelism once dependency resolution exists) while preserving declared ordering for the dependent edges. Deferred to the "make it fast" performance phase, well after functional completeness; v0's serial-and-correct default stands until then.
 - Durable, queryable boot-report node/model (v1 logs only).
 - Profile inheritance / composition (multiple profiles, overlays, base+override).
 - Satellite / headless boot variants (where no human admin is expected; intersects `req-tap-auth-boot` relaxations).
