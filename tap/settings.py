@@ -19,6 +19,11 @@ from pathlib import Path
 
 import dj_database_url
 
+# tap_auth owns the declaration of allauth's INSTALLED_APPS entries (the
+# django-oscar pattern); settings spreads it below. Import-safe: a bare list
+# constant, no Django access at module top.
+from tap_auth.installed import ALLAUTH_APPS
+
 # =============================================================================
 # Paths
 # =============================================================================
@@ -177,20 +182,17 @@ INSTALLED_APPS = [
     "tap_viz",
     # Authentication (django-allauth) — the login/social-login ENGINE behind the
     # /auth/ routes (req-tap-auth-app-3). tap_auth owns the routes, provider
-    # config, security adapter, and policy (the Python); tap_web owns ALL the auth
-    # PAGE TEMPLATES + styling (web rendering is tap_web's job — tap_auth has no
-    # templates, so there is no render path from the Internet into the auth core);
-    # allauth is the engine. The openid_connect provider backs every google_oidc
-    # TAP provider, addressed by a stable provider_id natural key. Listed AFTER the
-    # tap apps so tap_web wins template resolution (APP_DIRS first-match-wins) and
-    # overrides allauth's defaults; allauth's own templates remain the fallback for
-    # any page TAP does not override. Migrations are order-independent (the
-    # swappable AUTH_USER_MODEL dep sequences tap_auth.User before allauth's user
-    # FKs), and no tap app imports allauth at AppConfig-load time.
-    "allauth",
-    "allauth.account",
-    "allauth.socialaccount",
-    "allauth.socialaccount.providers.openid_connect",
+    # config, security adapter, and policy (the Python) AND the declaration of
+    # these app entries (tap_auth/installed.py — the django-oscar pattern); tap_web
+    # owns ALL the auth PAGE TEMPLATES + styling (web rendering is tap_web's job —
+    # tap_auth ships no templates, so there is no render path from the Internet
+    # into the auth core); allauth is the engine. Spread here, AFTER the tap apps,
+    # so tap_web wins template resolution (APP_DIRS first-match-wins) and overrides
+    # allauth's defaults; allauth's own templates remain the fallback for any page
+    # TAP does not override. Migrations are order-independent (the swappable
+    # AUTH_USER_MODEL dep sequences tap_auth.User before allauth's user FKs), and
+    # no tap app imports allauth at AppConfig-load time.
+    *ALLAUTH_APPS,
     # History tracking (django-simple-history)
     "simple_history",
     # Steady Queue — production-equivalent task backend for django.tasks
