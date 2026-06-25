@@ -1,10 +1,16 @@
-/* TAP auth pages (login / no-access / login-denied) and the allauth shell.
+/* TAP auth styling (login / no-access / login-denied) + the allauth shell.
  *
- * Self-contained — these pages must render with no grid context and without the
- * Tailwind build (Tailwind's content globs do not scan templates/ or
- * tap_auth/templates/). Colors match the app palette: canvas #f4f5f7, slate-800
- * #1e293b header, slate text ramp, white card. Loaded via {% static %}, which is
- * served regardless of auth state.
+ * Owned by tap_web (web rendering is tap_web's job). Self-contained — these pages
+ * must render with no grid context and without the Tailwind build (Tailwind's
+ * content globs do not scan for these), and the login surface should not depend
+ * on a possibly-stale compiled stylesheet. Colors match the app palette: canvas
+ * #f4f5f7, slate-800 #1e293b header, slate text ramp, white card.
+ *
+ * The login page uses allauth's OWN standard template (we ship no login
+ * override). allauth renders classless element HTML; the rules below style that
+ * output by tag within .tap-auth-card. This is the supported allauth theming
+ * path: override the shell layout, style the elements — so allauth keeps its form
+ * logic + every login method, and we own zero form markup.
  */
 
 .tap-auth-body {
@@ -67,7 +73,6 @@
   color: #0f172a;
   margin: 0 0 0.5rem;
 }
-.tap-auth-card p,
 .tap-auth-sub {
   color: #64748b;
   line-height: 1.6;
@@ -79,13 +84,48 @@
   color: #334155;
 }
 
-/* Provider (Google) button — white, bordered, prominent */
-.tap-auth-provider-btn {
+/* ------------------------------------------------------------------------- */
+/* allauth standard login — styling its classless element output.            */
+/* ------------------------------------------------------------------------- */
+
+/* allauth's "…please sign up first" invitation does not fit TAP's closed-signup
+ * model (public self-signup is disabled — TapAccountAdapter). Hide it: it is the
+ * only DIRECT-child <p> of the card; the form's field rows are <p> INSIDE <form>,
+ * so this selector hits only the invite, not the fields. */
+.tap-auth-card > p { display: none; }
+
+/* "Or use a third-party" heading → quiet divider-with-rules label */
+.tap-auth-card h2 {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 1.4rem 0 1rem;
+}
+.tap-auth-card h2::before,
+.tap-auth-card h2::after { content: ""; flex: 1; border-bottom: 1px solid #e2e8f0; }
+.tap-auth-card h2::before { margin-right: 0.75rem; }
+.tap-auth-card h2::after { margin-left: 0.75rem; }
+
+/* allauth puts an <hr> between local form and providers — the h2 divider above
+ * carries the separation, so drop the rule. */
+.tap-auth-card hr { display: none; }
+
+/* Provider list → stacked prominent buttons. allauth renders each provider as
+ * <ul><li><a href> (a POST-safe link; LOGIN_ON_GET=False routes it through the
+ * confirm step). */
+.tap-auth-card ul { list-style: none; margin: 0; padding: 0; }
+.tap-auth-card ul li { margin: 0 0 0.6rem; }
+.tap-auth-card ul li:last-child { margin-bottom: 0; }
+.tap-auth-card ul li a {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.6rem;
-  width: 100%;
   padding: 0.65rem 1rem;
   border: 1px solid #cbd5e1;
   border-radius: 0.5rem;
@@ -93,38 +133,27 @@
   color: #1e293b;
   font-size: 0.95rem;
   font-weight: 600;
-  cursor: pointer;
+  text-decoration: none;
   transition: background 150ms ease, border-color 150ms ease;
 }
-.tap-auth-provider-btn:hover { background: #f8fafc; border-color: #94a3b8; }
-.tap-auth-provider-btn svg { width: 1.1rem; height: 1.1rem; }
-
-.tap-auth-provider-form { margin: 0 0 0.75rem; }
-.tap-auth-provider-form:last-of-type { margin-bottom: 0; }
-
-/* Divider with centered label */
-.tap-auth-divider {
-  display: flex;
-  align-items: center;
-  text-align: center;
-  color: #94a3b8;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 1.25rem 0;
-}
-.tap-auth-divider::before,
-.tap-auth-divider::after {
+.tap-auth-card ul li a:hover { background: #f8fafc; border-color: #94a3b8; }
+/* Google "G" mark restored purely in CSS (the provider element renders no icon).
+ * Every configured provider is google_oidc in this deployment. */
+.tap-auth-card ul li a::before {
   content: "";
-  flex: 1;
-  border-bottom: 1px solid #e2e8f0;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23EA4335' d='M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z'/%3E%3Cpath fill='%234285F4' d='M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z'/%3E%3Cpath fill='%23FBBC05' d='M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z'/%3E%3Cpath fill='%2334A853' d='M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z'/%3E%3C/svg%3E");
 }
-.tap-auth-divider::before { margin-right: 0.75rem; }
-.tap-auth-divider::after { margin-left: 0.75rem; }
 
-/* Local form */
-.tap-auth-field { margin-bottom: 0.85rem; text-align: left; }
-.tap-auth-field label {
+/* Local form — allauth's own field rendering (<form><p><label><input></p>…) */
+.tap-auth-card form { margin: 0; }
+.tap-auth-card form > p { margin: 0 0 0.85rem; text-align: left; }
+.tap-auth-card form label {
   display: block;
   font-size: 0.8rem;
   font-weight: 600;
@@ -133,8 +162,7 @@
 }
 .tap-auth-card input[type="text"],
 .tap-auth-card input[type="password"],
-.tap-auth-card input[type="email"],
-.tap-auth-field input {
+.tap-auth-card input[type="email"] {
   width: 100%;
   box-sizing: border-box;
   padding: 0.55rem 0.75rem;
@@ -143,17 +171,23 @@
   font-size: 0.9rem;
   color: #0f172a;
 }
-.tap-auth-card input:focus,
-.tap-auth-field input:focus {
+.tap-auth-card input:focus {
   outline: none;
   border-color: #64748b;
   box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.25);
 }
+/* "Remember me" checkbox row — inline, not full-width */
+.tap-auth-card input[type="checkbox"] { width: auto; margin-right: 0.4rem; }
+.tap-auth-card input[type="checkbox"] + label,
+.tap-auth-card label[for$="remember"] { display: inline-block; font-weight: 400; color: #64748b; }
+/* Secondary links inside the form (e.g. "Forgot your password?") */
+.tap-auth-card form a { font-size: 0.8rem; color: #475569; text-decoration: none; }
+.tap-auth-card form a:hover { text-decoration: underline; }
 
-/* Primary action (local sign-in) — solid slate, matching the app chrome */
-.tap-auth-submit,
-.tap-auth-card button[type="submit"]:not(.tap-auth-provider-btn) {
+/* Primary action — allauth renders the submit as <button type="submit"> */
+.tap-auth-card button[type="submit"] {
   width: 100%;
+  margin-top: 0.4rem;
   padding: 0.6rem 1rem;
   border: 0;
   border-radius: 0.5rem;
@@ -164,10 +198,13 @@
   cursor: pointer;
   transition: background 150ms ease;
 }
-.tap-auth-submit:hover,
-.tap-auth-card button[type="submit"]:not(.tap-auth-provider-btn):hover { background: #334155; }
+.tap-auth-card button[type="submit"]:hover { background: #334155; }
 
-/* Secondary / back link + reason code */
+/* ------------------------------------------------------------------------- */
+/* TAP-owned pages (no-access / login-denied) — our own views' templates.    */
+/* ------------------------------------------------------------------------- */
+
+/* Back link + reason code */
 .tap-auth-link {
   display: inline-block;
   margin-top: 0.5rem;
@@ -187,7 +224,7 @@
   color: #94a3b8;
 }
 
-/* Form errors */
+/* Form / message errors (allauth messages + our denial pages) */
 .tap-auth-errors {
   background: #fef2f2;
   border: 1px solid #fecaca;
