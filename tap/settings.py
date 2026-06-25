@@ -306,13 +306,15 @@ AUTH_PASSWORD_VALIDATORS = [
 # -----------------------------------------------------------------------------
 # Authentication backends + allauth (req-tap-auth-app, req-tap-auth-providers)
 # -----------------------------------------------------------------------------
-# ModelBackend keeps local username/password (dev + recovery floor,
-# req-tap-auth-local) and is what Django admin uses. allauth's backend adds the
-# social/OIDC login path. Order: ModelBackend first so local auth resolves
+# TapModelBackend keeps local username/password (dev + recovery floor,
+# req-tap-auth-local) and is what Django admin uses — but refuses password auth
+# (everywhere, incl. admin) when TAP_LOCAL_PASSWORD_ENABLED is False, without
+# deactivating users or killing sessions. allauth's backend adds the social/OIDC
+# login path (unaffected by the toggle). Order: local first so it resolves
 # without consulting allauth.
 AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",
-    "allauth.account.auth_backends.AuthenticationBackend",
+    "tap_auth.auth_backends.TapModelBackend",
+    "tap_auth.auth_backends.TapAllauthBackend",
 ]
 
 # Single Site row per install (django.contrib.sites). allauth binds provider
