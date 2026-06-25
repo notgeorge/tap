@@ -105,6 +105,18 @@
         </div>
     </nav>
 
+    {# Flash messages (Django messages framework). Rendered + consumed HERE so a #}
+    {# message queued by an action (e.g. allauth's sign-in notice) shows on the   #}
+    {# page the user lands on, not stranded until the next message-rendering page #}
+    {# (which was surfacing the sign-in notice on the logout screen).             #}
+    {% if messages %}
+        <div class="tap-flash-region">
+            {% for message in messages %}
+                <div class="tap-flash tap-flash--{{ message.tags|default:'info' }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
     {# full_bleed pages fill the viewport with internal panel scroll (flex-1 + min-h-0); #}
     {# normal stacked pages use natural document flow so the body grows with content and #}
     {# the window scrolls — which keeps the sticky header pinned for the full page height #}

@@ -293,3 +293,22 @@ class TestClaimUnwrapping:
         sl.account.pk = None
         # must NOT raise
         TapSocialAccountAdapter().pre_social_login(RequestFactory().get("/cb"), sl)
+
+
+@pytest.mark.django_db
+class TestUserDisplay:
+    """req-tap-auth-external-identity — UI shows email, not the generated username."""
+
+    def test_prefers_email_over_generated_username(self):
+        from tap_auth.adapter import user_display
+
+        u = get_user_model().objects.create_user(
+            username="ext-criticalsec-google-abc123", email="george@criticalsec.com"
+        )
+        assert user_display(u) == "george@criticalsec.com"
+
+    def test_falls_back_to_username_without_email(self):
+        from tap_auth.adapter import user_display
+
+        u = get_user_model().objects.create_user(username="localadmin", email="")
+        assert user_display(u) == "localadmin"

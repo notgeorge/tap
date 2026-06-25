@@ -375,6 +375,10 @@ SOCIALACCOUNT_EMAIL_AUTHENTICATION = False
 SOCIALACCOUNT_ADAPTER = "tap_auth.adapter.TapSocialAccountAdapter"
 ACCOUNT_ADAPTER = "tap_auth.adapter.TapAccountAdapter"
 
+# Human-facing user label (req-tap-auth-external-identity): allauth messages /
+# UI show email, never the generated non-display username (ext-<provider>-<hash>).
+ACCOUNT_USER_DISPLAY = "tap_auth.adapter.user_display"
+
 # Declarative auth config comes from the boot profile's `auth` section
 # (req-tap-auth-boot) — ONE declarative source feeds both the running server's
 # settings (here) and the `manage.py boot` validation phase. A JSON env override

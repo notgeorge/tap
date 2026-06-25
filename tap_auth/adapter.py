@@ -49,6 +49,17 @@ logger = logging.getLogger(__name__)
 TAP_ADMIN_GROUP = "tap_admin"
 
 
+def user_display(user: Any) -> str:
+    """Human-facing label for a user (allauth ``ACCOUNT_USER_DISPLAY``).
+
+    The generated external username (``ext-<provider>-<hash>``) is a non-display
+    login key — the UI must show email/display name instead
+    (req-tap-auth-external-identity). Prefer the email; fall back to the username
+    only for accounts without one (e.g. a local admin)."""
+    email = getattr(user, "email", "") or ""
+    return email or user.get_username()
+
+
 def _redact_subject(subject: str) -> str:
     """Provider subjects (OIDC ``sub``) are never logged in full
     (req-tap-auth-external-identity)."""
