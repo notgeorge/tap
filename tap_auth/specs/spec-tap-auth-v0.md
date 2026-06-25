@@ -55,7 +55,7 @@ This spec supersedes the user/auth architecture previously parked under `tap_gri
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-tap-auth-app | [Auth App Ownership](#auth-app-ownership) | Proposed | `tap_auth` is the platform auth app and management plane |
+| req-tap-auth-app | [Auth App Ownership](#auth-app-ownership) | Implemented | `tap_auth` is the platform auth app and management plane; `/auth/` routes mounted, `/auth` reserved |
 | req-tap-auth-user-model | [Canonical User Model](#canonical-user-model) | Proposed | Move canonical user from `tap_grid` to `tap_auth` |
 | req-tap-auth-actor-model | [Named Actor Model](#named-actor-model) | Proposed | No service-boundary `User=None`; human/program actor kinds |
 | req-tap-auth-builtins | [Protected Built-Ins](#protected-built-ins) | Proposed | Built-in users/groups use immutable natural keys |
@@ -64,12 +64,12 @@ This spec supersedes the user/auth architecture previously parked under `tap_gri
 | req-tap-auth-program-users | [Program-User Definitions](#program-user-definitions) | Proposed | **Design/deferred.** Program-only-by-construction declarative file; humans operator-only |
 | req-tap-auth-policy | [Policy API](#policy-api) | Proposed | One central `authorize()` API; typed errors; denial logging |
 | req-tap-auth-service-boundary | [Service Boundary Enforcement](#service-boundary-enforcement) | Proposed | AuthZ at service boundary; AuthN at edges |
-| req-tap-auth-boot | [Boot Profile Integration](#boot-profile-integration) | Proposed | Auth config is a boot-profile section with owned schema fragment |
-| req-tap-auth-providers | [Provider Framework](#provider-framework) | Proposed | Provider-specific validation/self-tests/settings builders |
-| req-tap-auth-google-oidc | [Google OIDC Provider](#google-oidc-provider) | Proposed | First provider type; allowed domains; verified email; discovery live check |
-| req-tap-auth-local | [Local Password Auth](#local-password-auth) | Proposed | Dev/default recovery path; disable separately from user deactivation |
-| req-tap-auth-external-identity | [External Identity Linkage](#external-identity-linkage) | Proposed | Provider ID + subject; no v1 account linking |
-| req-tap-auth-sessions | [Session Invalidation](#session-invalidation) | Proposed | Separate management operation from disabling login mechanisms |
+| req-tap-auth-boot | [Boot Profile Integration](#boot-profile-integration) | Implemented | Auth config is a boot-profile section with tap_auth-owned schema fragment; last-admin invariant + deploy gate |
+| req-tap-auth-providers | [Provider Framework](#provider-framework) | Implemented | Provider-specific validation/self-tests/settings builders; `auth_selftest` command |
+| req-tap-auth-google-oidc | [Google OIDC Provider](#google-oidc-provider) | Implemented | First provider type; allowed domains (hd); verified email; allowed_emails; discovery live check |
+| req-tap-auth-local | [Local Password Auth](#local-password-auth) | Implemented | Dev/default recovery path; disable (both backends) separate from user deactivation |
+| req-tap-auth-external-identity | [External Identity Linkage](#external-identity-linkage) | Implemented | Provider ID + subject; no v1 account linking; TAP social adapter enforces |
+| req-tap-auth-sessions | [Session Invalidation](#session-invalidation) | Implemented | Global/per-user/per-session; capability-gated + audited; separate from disabling login |
 | req-tap-auth-logging | [Actor-Aware Logging](#actor-aware-logging) | Proposed | Stdlib contextvars/filter pattern; no structlog dependency |
 | req-tap-auth-ai-placeholder | [AI And Machine Actor Placeholder](#ai-and-machine-actor-placeholder) | Proposed | AI actors are named program actors; delegation deferred |
 
@@ -78,7 +78,7 @@ This spec supersedes the user/auth architecture previously parked under `tap_gri
 ### Auth App Ownership
 ----
 RID: `req-tap-auth-app`  
-Status: `Proposed`
+Status: `Implemented`
 
 `tap_auth` is a first-party Django app that owns TAP authentication, authorization, actor bootstrap, provider configuration, and policy enforcement. It is a platform capability, not a plugin.
 
@@ -509,7 +509,7 @@ actor -> CallerContext -> service call -> tap_auth policy gate
 ### Boot Profile Integration
 ----
 RID: `req-tap-auth-boot`  
-Status: `Proposed`
+Status: `Implemented`
 
 Auth configuration is a first-class section of the TAP boot profile.
 
@@ -568,7 +568,7 @@ These phases are guidance for implementation sessions, not a requirement to exec
 ### Provider Framework
 ----
 RID: `req-tap-auth-providers`  
-Status: `Proposed`
+Status: `Implemented`
 
 Provider-specific login machinery is isolated under `tap_auth/providers/`.
 
@@ -634,7 +634,7 @@ build_allauth_settings(provider_config, secrets)
 ### Google OIDC Provider
 ----
 RID: `req-tap-auth-google-oidc`  
-Status: `Proposed`
+Status: `Implemented`
 
 `google_oidc` is the first concrete external provider type.
 
@@ -685,7 +685,7 @@ Status: `Proposed`
 ### Local Password Auth
 ----
 RID: `req-tap-auth-local`  
-Status: `Proposed`
+Status: `Implemented`
 
 Local Django password auth remains available for dev and recovery, but customer deployments should prefer external IdP login.
 
@@ -717,7 +717,7 @@ Local Django password auth remains available for dev and recovery, but customer 
 ### External Identity Linkage
 ----
 RID: `req-tap-auth-external-identity`  
-Status: `Proposed`
+Status: `Implemented`
 
 External identity records link provider-authenticated subjects to canonical TAP users.
 
@@ -776,7 +776,7 @@ External identity records link provider-authenticated subjects to canonical TAP 
 ### Session Invalidation
 ----
 RID: `req-tap-auth-sessions`  
-Status: `Proposed`
+Status: `Implemented`
 
 Session invalidation is a separate management operation from disabling login mechanisms.
 
