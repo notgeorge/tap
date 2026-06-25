@@ -26,7 +26,9 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
 
-from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
+from django.conf import settings
+from django.contrib.auth.middleware import LoginRequiredMiddleware
+from django.http import HttpRequest, HttpResponse, HttpResponseBase, HttpResponseForbidden
 
 from tap_auth.errors import AuthzError
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
@@ -64,3 +66,33 @@ class CallerContextMiddleware:
             logger.warning("[a6b7] web authz denied: reason=%s path=%s", exception.reason, request.path)
             return HttpResponseForbidden(f"Forbidden ({exception.reason}). You do not have access to this resource.")
         return None
+
+
+class TapLoginRequiredMiddleware(LoginRequiredMiddleware):
+    """Default-deny login wall (req-tap-auth-service-boundary).
+
+    Subclasses Django's `LoginRequiredMiddleware` so every view requires an
+    authenticated session by default, EXCEPT requests whose path starts with a
+    prefix in `settings.TAP_LOGIN_EXEMPT_PREFIXES`. Those prefixes each carry
+    their own enforcement (the login routes, the API's session_auth → 401, the
+    Django admin login, static assets), so applying an HTML login redirect on
+    top would either loop or corrupt non-HTML clients.
+
+    A non-exempt anonymous request is redirected to `LOGIN_URL` with `?next=` —
+    fail-closed. This is a coarse, request-level gate that complements (never
+    replaces) the service-boundary capability checks: passing the wall proves a
+    named session exists, not that the actor may read/write the grid.
+    """
+
+    def process_view(
+        self,
+        request: HttpRequest,
+        view_func: Callable[..., HttpResponseBase],
+        view_args: tuple[object, ...],
+        view_kwargs: dict[str, object],
+    ) -> HttpResponseBase | None:
+        path = request.path_info
+        for prefix in getattr(settings, "TAP_LOGIN_EXEMPT_PREFIXES", ()):
+            if path.startswith(prefix):
+                return None
+        return super().process_view(request, view_func, view_args, view_kwargs)

@@ -41,6 +41,7 @@ dependencies = [
     # owning plugin's pyproject.toml and resolve via the workspace `members`
     # entries below (the github_core PyYAML pattern). `boto3` → aws_core,
     # `sigstore` → sigstore_core, `PyYAML` → github_core.
+    "django-allauth>=65",
 ]
 
 # -----------------------------------------------------------------------------

@@ -4,6 +4,7 @@ TAP URL Configuration
 URL structure:
     /admin/         Django admin interface
     /api/...        Versioned API — see tap_api/urls.py
+    /auth/...       Authentication (login/logout/OIDC) — see tap_auth/urls.py
     /viz/...        Visualization views
     /               Web interface (catch-all — must come last)
 """
@@ -17,6 +18,10 @@ urlpatterns = [
     path("favicon.ico", RedirectView.as_view(url=staticfiles_storage.url("tap_web/favicon.ico"), permanent=True)),
     path("admin/", admin.site.urls),
     path("api/", include("tap_api.urls")),
+    # Auth routes (login/logout/OIDC) owned by tap_auth, mounted under /auth/
+    # rather than allauth's default /accounts/ (req-tap-auth-app-3). Must precede
+    # the tap_web catch-all (path("") matches everything).
+    path("auth/", include("tap_auth.urls")),
     # viz must come before the tap_web catch-all (path("") matches everything)
     path("viz/", include("tap_viz.urls")),
     path("", include("tap_web.urls")),

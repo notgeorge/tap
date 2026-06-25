@@ -34,6 +34,15 @@ TASKS = {
     },
 }
 
+# Cache: local-memory in tests (no DatabaseCache table to provision; tests need
+# no cross-process / hot-swap survival). Production uses DatabaseCache — see
+# tap.settings CACHES and the no-external-cache posture.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    },
+}
+
 LOGGING = copy.deepcopy(_LOGGING)
 for _entry in LOGGING.get("loggers", {}).values():
     _entry["propagate"] = True

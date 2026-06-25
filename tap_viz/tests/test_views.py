@@ -1,12 +1,25 @@
 """Tests for tap_viz panel rendering via the tap_web panel endpoint."""
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.test import Client
 
 from tap_grid.models import Edge, Entity, Search
 from tap_viz.models import Layout
 from tap_viz.panels.graph_panel import GraphPanelType
 from tap_web.models import Panel
+
+
+@pytest.fixture
+def client(db) -> Client:
+    """Authenticated test client. The login wall (req-tap-auth-service-boundary)
+    requires a session to reach any tap_web page; grid reads inside the panel are
+    authorized by the autouse caller-context fixture, so any logged-in user is
+    sufficient to exercise rendering. Overrides pytest-django's anonymous
+    `client` fixture for this module."""
+    c = Client()
+    c.force_login(get_user_model().objects.create_user(username="viz-views", password="x"))
+    return c
 
 
 @pytest.mark.django_db

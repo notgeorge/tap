@@ -97,6 +97,21 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.postgres",
+    # django.contrib.sites — required by django-allauth (SITE_ID below). One
+    # Site row per install; allauth resolves provider apps + callback URLs
+    # against it.
+    "django.contrib.sites",
+    # Authentication (django-allauth) — owns the login/social-login machinery
+    # mounted under /auth/ (req-tap-auth-app-3). tap_auth owns the routes,
+    # provider config, and the security adapter on top; allauth is the engine.
+    # The openid_connect provider backs every google_oidc TAP provider, each
+    # addressed by a stable provider_id natural key (req-tap-auth-providers,
+    # req-tap-auth-google-oidc). Listed before tap apps so tap_web/tap_auth
+    # templates can override allauth defaults (APP_DIRS first-match-wins).
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.openid_connect",
     # TAP apps (added as we scaffold each one)
     # tap_boot is the bootloader and the cross-cutting management plane; it owns
     # all boot logic and sits FIRST so nothing below it imports the (deferred)
@@ -198,6 +213,17 @@ MIDDLEWARE = [
     # populates it) so the service boundary can authorize the request actor
     # (req-tap-auth-service-boundary). Must precede any view that reads the grid.
     "tap_auth.middleware.CallerContextMiddleware",
+    # allauth account middleware — required by django-allauth (handles account
+    # state / login-flow redirects). Must follow AuthenticationMiddleware.
+    "allauth.account.middleware.AccountMiddleware",
+    # Default-deny login wall (req-tap-auth-service-boundary, launch-ready
+    # "auth enforced"). Subclasses Django's LoginRequiredMiddleware: every view
+    # requires an authenticated session EXCEPT the path prefixes in
+    # TAP_LOGIN_EXEMPT_PREFIXES (the login routes themselves, the API which
+    # enforces its own session_auth → 401, Django admin which has its own login,
+    # and static assets). New pages are protected by construction; forgetting a
+    # gate fails closed (redirect to login), not open.
+    "tap_auth.middleware.TapLoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -275,6 +301,80 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
+
+# -----------------------------------------------------------------------------
+# Authentication backends + allauth (req-tap-auth-app, req-tap-auth-providers)
+# -----------------------------------------------------------------------------
+# ModelBackend keeps local username/password (dev + recovery floor,
+# req-tap-auth-local) and is what Django admin uses. allauth's backend adds the
+# social/OIDC login path. Order: ModelBackend first so local auth resolves
+# without consulting allauth.
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+# Single Site row per install (django.contrib.sites). allauth binds provider
+# apps + derives callback URLs against it.
+SITE_ID = 1
+
+# Login wall (TapLoginRequiredMiddleware). LOGIN_URL is allauth's login view;
+# unauthenticated requests to non-exempt paths redirect here. After login,
+# users land on "/" (the landing page / their no-access notice if cap-less).
+LOGIN_URL = "account_login"
+LOGIN_REDIRECT_URL = "/"
+ACCOUNT_LOGOUT_REDIRECT_URL = "account_login"
+
+# Path prefixes the login wall does NOT gate. Each has its own enforcement:
+#   /auth/    — the login routes themselves (gating them would loop)
+#   /api/     — Django-Ninja session_auth returns 401 for anon (not an HTML
+#               login redirect, which would corrupt API clients)
+#   /admin/   — Django admin has its own staff login + redirect
+#   /static/, /favicon.ico — unauthenticated static assets
+# Everything else requires an authenticated session.
+TAP_LOGIN_EXEMPT_PREFIXES = [
+    "/auth/",
+    "/api/",
+    "/admin/",
+    "/static/",
+    "/favicon.ico",
+]
+
+# allauth security posture — pin the login-safety knobs explicitly rather than
+# trusting defaults to stay favorable (req-tap-auth-external-identity).
+#   LOGIN_ON_GET=False  → POST-only social login initiation (guards against
+#                         login-CSRF / drive-by social login via a crafted link).
+#   EMAIL_AUTHENTICATION=False → never auto-authenticate/auto-connect a social
+#                         login to a local account by matching verified email;
+#                         the TAP adapter owns same-email handling (deny → link
+#                         disabled). Held at allauth's secure default, pinned.
+# The concrete provider APPS list is built by the provider framework from the
+# boot auth config + resolved secrets (req-tap-auth-providers); empty until then.
+SOCIALACCOUNT_LOGIN_ON_GET = False
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = False
+SOCIALACCOUNT_PROVIDERS: dict = {}
+
+# Local account behavior (dev + recovery). Email optional/unverified locally;
+# external IdP login is the customer path (req-tap-auth-local).
+ACCOUNT_LOGIN_METHODS = {"username"}
+ACCOUNT_EMAIL_VERIFICATION = "none"
+
+# -----------------------------------------------------------------------------
+# Sessions & cache — DB-backed, no external cache (hot-swap-survivable)
+# -----------------------------------------------------------------------------
+# Sessions live in Postgres so a web-container hot-swap loses no logins, and so
+# the session-invalidation banhammer (req-tap-auth-sessions) operates on the
+# real Django session store. Cache is the DB backend too (DatabaseCache) — the
+# OIDC discovery-doc cache and allauth rate-limit state survive a swap with no
+# Redis/Memcached dependency. createcachetable provisions the table (run in
+# boot/migrate; tests override CACHES to locmem in tap/test_settings.py).
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "tap_cache",
+    },
+}
 
 # =============================================================================
 # Internationalization

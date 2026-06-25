@@ -43,19 +43,29 @@ class TestLandingView:
     """Root / uses setup placeholder when no LandingPage is configured."""
 
     def test_root_returns_200(self):
-        client = Client()
+        # Authenticated: the landing page sits behind the login wall
+        # (req-tap-auth-service-boundary). An anonymous GET "/" is redirected to
+        # login — covered separately by the wall tests.
+        client = _admin_client()
         response = client.get("/")
         assert response.status_code == 200
 
     def test_root_shows_setup_placeholder_without_landing_page(self):
-        client = Client()
+        client = _admin_client()
         response = client.get("/")
         assert "tap_web/setup_placeholder.html" in [t.name for t in response.templates]
 
     def test_root_placeholder_contains_admin_link(self):
-        client = Client()
+        client = _admin_client()
         response = client.get("/")
         assert b"/admin/" in response.content
+
+    def test_anonymous_root_redirected_to_login(self):
+        """The login wall fronts the landing page: an anonymous request is a 302
+        to login, not a rendered page (req-tap-auth-service-boundary)."""
+        response = Client().get("/")
+        assert response.status_code == 302
+        assert response.url.startswith("/auth/login/")
 
 
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
@@ -218,15 +228,21 @@ class TestObjectViewReadGate:
             Character.objects.create(entity=entity, name=name, bio="Of Gondor.")
         return f"{name.lower()}--{entity.pk}"
 
-    def test_anonymous_object_view_denied_403(self):
+    def test_anonymous_object_view_redirected_to_login(self):
+        """Anonymous access is caught by the login wall BEFORE the view's authZ
+        runs — a 302 to login, not the view's 403. Defense in depth: the wall
+        fronts the service-boundary capability check (req-tap-auth-service-boundary).
+        The 403 path is exercised by the no-cap (authenticated) tests below."""
         url_id = self._make_character()
         response = Client().get(f"/object/character/{url_id}/")
-        assert response.status_code == 403
+        assert response.status_code == 302
+        assert response.url.startswith("/auth/login/")
 
-    def test_anonymous_object_edit_denied_403(self):
+    def test_anonymous_object_edit_redirected_to_login(self):
         url_id = self._make_character()
         response = Client().get(f"/object/character/{url_id}/edit/")
-        assert response.status_code == 403
+        assert response.status_code == 302
+        assert response.url.startswith("/auth/login/")
 
     def test_no_cap_object_view_denied_403(self):
         url_id = self._make_character()
