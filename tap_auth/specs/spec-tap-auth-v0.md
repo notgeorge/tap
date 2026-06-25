@@ -103,10 +103,10 @@ Status: `Implemented`
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-app-1 | Dedicated App | Proposed | TAP has a first-party `tap_auth` app for AuthN/AuthZ. | |
-| req-tap-auth-app-2 | Grid Is Not Auth Owner | Proposed | User/provider/policy ownership is removed from `tap_grid` architecture. | |
-| req-tap-auth-app-3 | `/auth/` Routes | Proposed | Auth routes mount under `/auth/` rather than allauth's default `/accounts/`. | |
-| req-tap-auth-app-4 | Reserved `/auth` Prefix | Proposed | `tap_auth`'s AppConfig declares `reserved_url_prefixes = ["/auth"]` (the `tap_web/reserved.py` registry mechanism), and the interim `/auth` entry in `_PROJECT_RESERVED_PREFIXES` is removed so the reservation lives with its owner — Pages/plugins cannot create slugs under the auth prefix, mirroring `/admin`. | |
+| req-tap-auth-app-1 | Dedicated App | Implemented | TAP has a first-party `tap_auth` app for AuthN/AuthZ. | |
+| req-tap-auth-app-2 | Grid Is Not Auth Owner | Implemented | User/provider/policy ownership is removed from `tap_grid` architecture. | |
+| req-tap-auth-app-3 | `/auth/` Routes | Implemented | Auth routes mount under `/auth/` rather than allauth's default `/accounts/`. | |
+| req-tap-auth-app-4 | Reserved `/auth` Prefix | Implemented | `tap_auth`'s AppConfig declares `reserved_url_prefixes = ["/auth"]` (the `tap_web/reserved.py` registry mechanism), and the interim `/auth` entry in `_PROJECT_RESERVED_PREFIXES` is removed so the reservation lives with its owner — Pages/plugins cannot create slugs under the auth prefix, mirroring `/admin`. | |
 
 ---
 
@@ -555,13 +555,13 @@ These phases are guidance for implementation sessions, not a requirement to exec
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-boot-1 | Boot Section | Proposed | Boot profiles include an `auth` section. | |
-| req-tap-auth-boot-2 | Schema Fragment | Proposed | `tap_auth` owns a reusable boot JSON Schema fragment. | |
-| req-tap-auth-boot-3 | Validate Before Apply | Proposed | Auth boot validates before mutating state. | |
+| req-tap-auth-boot-1 | Boot Section | Implemented | Boot profiles include an `auth` section. | |
+| req-tap-auth-boot-2 | Schema Fragment | Implemented | `tap_auth` owns a reusable boot JSON Schema fragment. | |
+| req-tap-auth-boot-3 | Validate Before Apply | Implemented | Auth boot validates before mutating state. | |
 | req-tap-auth-boot-4 | Dry Run | Proposed | Operators can test/dry-run auth boot config. | |
-| req-tap-auth-boot-5 | Early Ordering | Proposed | Auth boot runs before plugin/collector boot paths that require actors. | |
-| req-tap-auth-boot-6 | Explicit Command | Proposed | Auth bootstrap is an explicit command/boot step. | |
-| req-tap-auth-boot-7 | Deploy Security Check | Proposed | Auth-enabled deploy boot validates Django deployment security (`check --deploy`: `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, secure cookies/HTTPS) and fails a customer/deploy profile on relevant findings. | |
+| req-tap-auth-boot-5 | Early Ordering | Implemented | Auth boot runs before plugin/collector boot paths that require actors. | |
+| req-tap-auth-boot-6 | Explicit Command | Implemented | Auth bootstrap is an explicit command/boot step. | |
+| req-tap-auth-boot-7 | Deploy Security Check | Implemented | Auth-enabled deploy boot validates Django deployment security (`check --deploy`: `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, secure cookies/HTTPS) and fails a customer/deploy profile on relevant findings. | |
 
 ---
 
@@ -621,13 +621,13 @@ build_allauth_settings(provider_config, secrets)
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-providers-1 | Provider Modules | Proposed | Provider specifics live under `tap_auth/providers/`. | |
-| req-tap-auth-providers-2 | Multi Provider Shape | Proposed | Boot config supports multiple providers from v1. | |
-| req-tap-auth-providers-3 | Secret References | Proposed | Provider secrets are references, never embedded values. | |
-| req-tap-auth-providers-4 | Self-Test Interface | Proposed | Providers expose validation/self-test/settings-builder behavior. | |
-| req-tap-auth-providers-5 | Offline Live Phases | Proposed | Self-tests distinguish offline and live checks. | |
-| req-tap-auth-providers-6 | Criticality | Proposed | `critical_for_boot` controls whether live provider unavailability fails boot. | |
-| req-tap-auth-providers-7 | Base URL Required | Proposed | External providers require `TAP_BASE_URL`. | |
+| req-tap-auth-providers-1 | Provider Modules | Implemented | Provider specifics live under `tap_auth/providers/`. | |
+| req-tap-auth-providers-2 | Multi Provider Shape | Implemented | Boot config supports multiple providers from v1. | |
+| req-tap-auth-providers-3 | Secret References | Implemented | Provider secrets are references, never embedded values. | |
+| req-tap-auth-providers-4 | Self-Test Interface | Implemented | Providers expose validation/self-test/settings-builder behavior. | |
+| req-tap-auth-providers-5 | Offline Live Phases | Implemented | Self-tests distinguish offline and live checks. | |
+| req-tap-auth-providers-6 | Criticality | Implemented | `critical_for_boot` controls whether live provider unavailability fails boot. | |
+| req-tap-auth-providers-7 | Base URL Required | Implemented | External providers require `TAP_BASE_URL`. | |
 
 ---
 
@@ -671,14 +671,14 @@ Status: `Implemented`
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-google-oidc-1 | Concrete Provider | Proposed | `google_oidc` is the first provider type. | |
-| req-tap-auth-google-oidc-2 | Allowed Domains | Proposed | Customer/deploy Google providers require allowed domains. | |
-| req-tap-auth-google-oidc-3 | Verified Email | Proposed | Auto-provision and continued login require verified email. | |
-| req-tap-auth-google-oidc-4 | Discovery Check | Proposed | Live self-test fetches Google OIDC discovery metadata. | |
-| req-tap-auth-google-oidc-5 | No Default Groups | Proposed | Auto-provisioned users get no groups unless explicitly initial-admin configured. | |
-| req-tap-auth-google-oidc-6 | Named Allowlist | Proposed | Providers may restrict login to an explicit `allowed_emails` allowlist, enforced on every login and only within the allowed domains; there is no any-account escape hatch. | |
-| req-tap-auth-google-oidc-7 | Allowlist Denial Surfaced | Proposed | A domain-allowed but non-allowlisted login fails closed with a distinct `account_not_allowlisted` reason that is logged and returned to the AuthN surface for a specific user-facing hint. | |
-| req-tap-auth-google-oidc-8 | Returned hd Only | Proposed | Domain enforcement uses the returned `hd` claim, never the request-side hint; email-domain fallback is opt-in per provider and off by default for customer providers. | |
+| req-tap-auth-google-oidc-1 | Concrete Provider | Implemented | `google_oidc` is the first provider type. | |
+| req-tap-auth-google-oidc-2 | Allowed Domains | Implemented | Customer/deploy Google providers require allowed domains. | |
+| req-tap-auth-google-oidc-3 | Verified Email | Implemented | Auto-provision and continued login require verified email. | |
+| req-tap-auth-google-oidc-4 | Discovery Check | Implemented | Live self-test fetches Google OIDC discovery metadata. | |
+| req-tap-auth-google-oidc-5 | No Default Groups | Implemented | Auto-provisioned users get no groups unless explicitly initial-admin configured. | |
+| req-tap-auth-google-oidc-6 | Named Allowlist | Implemented | Providers may restrict login to an explicit `allowed_emails` allowlist, enforced on every login and only within the allowed domains; there is no any-account escape hatch. | |
+| req-tap-auth-google-oidc-7 | Allowlist Denial Surfaced | Implemented | A domain-allowed but non-allowlisted login fails closed with a distinct `account_not_allowlisted` reason that is logged and returned to the AuthN surface for a specific user-facing hint. | |
+| req-tap-auth-google-oidc-8 | Returned hd Only | Implemented | Domain enforcement uses the returned `hd` claim, never the request-side hint; email-domain fallback is opt-in per provider and off by default for customer providers. | |
 
 ---
 
@@ -706,11 +706,11 @@ Local Django password auth remains available for dev and recovery, but customer 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-local-1 | Dev Enabled | Proposed | Local password login is available in dev by default. | |
-| req-tap-auth-local-2 | Customer Explicit | Proposed | Customer boot profiles explicitly choose local login behavior. | |
-| req-tap-auth-local-3 | Admin Covered | Proposed | Disabling local login applies to Django admin too. | |
-| req-tap-auth-local-4 | No Deactivation | Proposed | Disabling local login does not deactivate local users. | |
-| req-tap-auth-local-5 | Spawn Bridge | Proposed | Spawn-created `admin` joins `tap_admin`. | |
+| req-tap-auth-local-1 | Dev Enabled | Implemented | Local password login is available in dev by default. | |
+| req-tap-auth-local-2 | Customer Explicit | Implemented | Customer boot profiles explicitly choose local login behavior. | |
+| req-tap-auth-local-3 | Admin Covered | Implemented | Disabling local login applies to Django admin too. | |
+| req-tap-auth-local-4 | No Deactivation | Implemented | Disabling local login does not deactivate local users. | |
+| req-tap-auth-local-5 | Spawn Bridge | Implemented | Spawn-created `admin` joins `tap_admin`. | |
 
 ---
 
@@ -764,12 +764,12 @@ External identity records link provider-authenticated subjects to canonical TAP 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-external-identity-1 | Provider Subject Key | Proposed | External identities are keyed by provider ID + subject. | |
-| req-tap-auth-external-identity-2 | No Raw Claims | Proposed | Raw provider claims/assertions are not stored. | |
-| req-tap-auth-external-identity-3 | Email Not Identity | Proposed | Email is not used as the durable linkage key. | |
-| req-tap-auth-external-identity-4 | Linking Disabled | Proposed | V1 denies second-provider/same-email login rather than linking or shadowing. | |
+| req-tap-auth-external-identity-1 | Provider Subject Key | Implemented | External identities are keyed by provider ID + subject. | |
+| req-tap-auth-external-identity-2 | No Raw Claims | Implemented | Raw provider claims/assertions are not stored. | |
+| req-tap-auth-external-identity-3 | Email Not Identity | Implemented | Email is not used as the durable linkage key. | |
+| req-tap-auth-external-identity-4 | Linking Disabled | Implemented | V1 denies second-provider/same-email login rather than linking or shadowing. | |
 | req-tap-auth-external-identity-5 | Deactivation On Policy Removal | Proposed | Provider/domain removal deactivates affected external users. | |
-| req-tap-auth-external-identity-6 | Adapter Enforces No-Linking | Proposed | A TAP-owned allauth social adapter overrides the email-matching hooks (`pre_social_login`, `authenticate_by_email`/`can_authenticate_by_email`) so linking-disabled / same-email denial is enforced, not left to allauth defaults. | |
+| req-tap-auth-external-identity-6 | Adapter Enforces No-Linking | Implemented | A TAP-owned allauth social adapter overrides the email-matching hooks (`pre_social_login`, `authenticate_by_email`/`can_authenticate_by_email`) so linking-disabled / same-email denial is enforced, not left to allauth defaults. | |
 
 ---
 
@@ -800,11 +800,11 @@ Session invalidation is a separate management operation from disabling login mec
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-sessions-1 | Separate Lever | Proposed | Login disablement and session invalidation are separate operations. | |
-| req-tap-auth-sessions-2 | Global Invalidation | Proposed | TAP provides a command/service path to invalidate all active sessions. | |
-| req-tap-auth-sessions-3 | Per-User Banhammer | Proposed | An operation invalidates all sessions for a specific user. | |
-| req-tap-auth-sessions-4 | Per-Session Invalidation | Proposed | An operation invalidates one specific session by key/handle. | |
-| req-tap-auth-sessions-5 | Audited And Attributable | Proposed | Every invalidation is capability-gated and logged with actor, scope, target, reason, and count. | |
+| req-tap-auth-sessions-1 | Separate Lever | Implemented | Login disablement and session invalidation are separate operations. | |
+| req-tap-auth-sessions-2 | Global Invalidation | Implemented | TAP provides a command/service path to invalidate all active sessions. | |
+| req-tap-auth-sessions-3 | Per-User Banhammer | Implemented | An operation invalidates all sessions for a specific user. | |
+| req-tap-auth-sessions-4 | Per-Session Invalidation | Implemented | An operation invalidates one specific session by key/handle. | |
+| req-tap-auth-sessions-5 | Audited And Attributable | Implemented | Every invalidation is capability-gated and logged with actor, scope, target, reason, and count. | |
 
 ---
 
