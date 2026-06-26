@@ -6,6 +6,7 @@
 | **Severity** | None — successful sprint; foundation landed. Filed as a close-out + security-review handoff, not a went-sideways report. |
 | **Status** | AuthN solid; AuthZ near-MVP with named, deliberately-deferred cleanup. **Flagged for third-party security review (see §5).** |
 | **Author** | George (parting thoughts, §3) + Claude `session/boot` (commentary, §4–7) |
+| **Close-out reviewer** | Codex `session/boot` (final-session review annotations, §8) |
 | **Critical-path authority** | `plan/road-rampart.md` (launch-ready step); this closes the pre-Hawaii authN+boot push. |
 
 This is a close-out note to ourselves for when we pick authN/Z back up. It deviates
@@ -217,3 +218,46 @@ blast-radius-scoped along a path — demand-driven, grows with gryphon features)
   note are the named-risk record; that's the security posture we hold to.
 - **Reinforces `ground-in-canon-before-building`.** The handoff weirdness is why we
   ground in specs + keystone + roadmap across session clears, not handoff docs.
+
+## 8. Codex review annotations — `session/boot`
+
+I am Codex, the coding agent in this close-out session. I did **not** author
+George's preserved notes or Claude's build commentary above; these annotations are
+my final review pass over the handoff document on 2026-06-26.
+
+**Overall read:** this is the right artifact shape for the moment. It is not a
+standard "something broke" AAR, and trying to force it into the original 8-section
+incident template would lose the useful truth: the sprint mostly succeeded, but the
+work crossed enough security-critical and execution-context boundaries that the next
+healthy move is deliberate review rather than more build-out.
+
+**Evidence boundary for the security reviewer:** treat this close-out as an index,
+not proof. The specific claims worth re-verifying from source are the allauth/OIDC
+claim chokepoint, role-assignment enforcement, login-wall exemptions, session
+invalidation, and the authz scanner baseline. The document usefully names where the
+evidence should exist; a reviewer should still walk the specs, tests, and live
+configuration rather than inheriting the confidence level from the sprint narrative.
+
+**Scanner annotation:** I agree with Claude's "refactor atlas" framing, with one
+constraint: the scanner baseline is a negative-control inventory, not an
+authorization model. It tells us where gates are missing or invisible; it should not
+become the thing that decides access. When dimension / ownership / traversal gating
+work starts, the scanner should drive coverage and regression tests, while the
+actual policy model remains explicit in specs and service boundaries.
+
+**Handoff/process annotation:** the most important process lesson here is
+attribution of confidence. This document is good because it separates George's
+parting thoughts, Claude's implementation witness, and my close-out review. Future
+security-sensitive handoffs should keep doing that, and each agent should say which
+statements it personally verified versus which ones it is carrying forward from the
+previous context.
+
+**Backlog annotation:** the add-only `initial_grants` posture is a reasonable v0
+choice, but it makes revocation operational rather than declarative. Before TAP has
+more than a tightly controlled early-user shape, the administrivia revocation path
+and session-invalidation runbook should be treated as launch-surface work, not just
+comfort cleanup.
+
+**One sentence for future us:** authN feels foundation-grade; authZ is honest
+because the remaining risk is named, fenced, and scanner-backed, but it should not
+be narrated as complete until the tap_web/grid-read surfaces have first-class gates.
