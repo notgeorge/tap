@@ -111,9 +111,14 @@ class TestFourPieceFragment:
 
 class TestFivePieceFragmentWithIdentity:
     """Spec: req-sigstore-core-edges-5 (caller-supplied identity),
-    req-sigstore-core-decompose-2 (5-piece shape)."""
+    req-sigstore-core-decompose-2 (shape).
 
-    def test_identity_supplied_emits_fifth_edge(self) -> None:
+    A resolved signing identity emits two edges (same precondition): the
+    verifier-walk ``SIGNED_BY_IDENTITY`` (Rekor entry -> identity) and the
+    action edge ``REQUESTS_SIGSTORE_SIGNATURE`` (identity -> Fulcio CA), per the
+    edge catalog in spec-sigstore-core-v0.md."""
+
+    def test_identity_supplied_emits_identity_edges(self) -> None:
         fragment = bundle_to_grift_fragment(
             _good_result(),
             anchor_entity_id="anchor-1",
@@ -121,9 +126,28 @@ class TestFivePieceFragmentWithIdentity:
             dimensions={},
             signing_identity_entity_id="github-workflow-42",
         )
-        assert len(fragment.edges) == 3
+        assert len(fragment.edges) == 4
         types = {e["edge_type"] for e in fragment.edges}
-        assert types == {"CERT_ISSUED_BY", "ATTESTED_BY", "SIGNED_BY_IDENTITY"}
+        assert types == {
+            "CERT_ISSUED_BY",
+            "ATTESTED_BY",
+            "SIGNED_BY_IDENTITY",
+            "REQUESTS_SIGSTORE_SIGNATURE",
+        }
+
+    def test_requests_signature_edge_runs_identity_to_ca(self) -> None:
+        fragment = bundle_to_grift_fragment(
+            _good_result(),
+            anchor_entity_id="anchor-1",
+            policy=_policy(),
+            dimensions={},
+            signing_identity_entity_id="github-workflow-42",
+        )
+        requests = next(e for e in fragment.edges if e["edge_type"] == "REQUESTS_SIGSTORE_SIGNATURE")
+        # Source is the signing identity; target is the issuing Fulcio CA node.
+        assert requests["source_entity_id"] == "github-workflow-42"
+        ca = next(e for e in fragment.entities if e["entity_type"] == "sigstore_ca")
+        assert requests["target_entity_id"] == ca["entity_id"]
 
     def test_signed_by_identity_edge_targets_the_supplied_entity(self) -> None:
         fragment = bundle_to_grift_fragment(
