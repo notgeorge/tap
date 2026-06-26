@@ -17,8 +17,10 @@ Per spec-gridkin-v0.md: req-gridkin-runner-contract, req-gridkin-explain-snapsho
 
 from __future__ import annotations
 
+import ast
 import difflib
 import json
+import re
 from typing import TYPE_CHECKING, Any
 
 from tap_grid.grift import grift_import
@@ -42,6 +44,47 @@ def normalize_sql(text: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
+# A labelless ``MATCH (n)`` compiles to ``entity_type IN (<every registered node
+# type>)`` (executor `_execute_bare_type_scan`). That enumeration is an
+# *environment fact* — it grows whenever ANY plugin registers a new node type —
+# not a property of the query plan under test. Snapshotting it verbatim makes the
+# two labelless-scan oracles churn on every new entity type for no behavioral
+# reason, so it is redacted to a stable sentinel before comparison: the SQL
+# analogue of the envelope's volatile-spine-field redaction (`_VOLATILE_SPINE_FIELDS`).
+# The residual filter (`= %s` / `LIKE %s`), the IN-on-`entity_type` shape itself,
+# and every other clause are still asserted exactly — and the envelope assertion
+# still verifies the rows the scan actually returns. Only this exact column with an
+# `IN` appears in any oracle (the bare-type-scan), so the redaction is surgical.
+# See spec-gridkin-v0.md req-gridkin-explain-snapshot.
+_REGISTRY_SENTINEL = "<entity-type-registry>"
+_ENTITY_TYPE_IN_RE = re.compile(r'"tap_entity"\."entity_type" IN \((%s(?:,\s*%s)*)\)')
+_PARAMS_LINE_RE = re.compile(r"-- params: (\[.*\])")
+
+
+def redact_registry_scan(text: str) -> str:
+    """Collapse the labelless bare-type-scan's registered-node-type enumeration.
+
+    Replaces the ``entity_type IN (%s, %s, …)`` placeholder run with a single
+    ``<entity-type-registry>`` sentinel and drops the matching leading params
+    (the registered node types bind first in the WHERE), substituting the same
+    sentinel. A no-op for every other statement. Applied to both sides of the SQL
+    comparison and to the written snapshot, so the committed oracle is stable
+    across registry growth (req-gridkin-explain-snapshot).
+    """
+    match = _ENTITY_TYPE_IN_RE.search(text)
+    if match is None:
+        return text
+    registry_param_count = match.group(1).count("%s")
+    text = _ENTITY_TYPE_IN_RE.sub(f'"tap_entity"."entity_type" IN ({_REGISTRY_SENTINEL})', text, count=1)
+
+    def _trim_params(params_match: re.Match[str]) -> str:
+        params = ast.literal_eval(params_match.group(1))
+        residual = params[registry_param_count:]
+        return "-- params: " + repr([_REGISTRY_SENTINEL, *residual])
+
+    return _PARAMS_LINE_RE.sub(_trim_params, text, count=1)
+
+
 def run_scenario(scenario: Scenario, *, update_snapshots: bool = False) -> list[str]:
     """Run one Gridkin scenario.
 
@@ -53,7 +96,9 @@ def run_scenario(scenario: Scenario, *, update_snapshots: bool = False) -> list[
     is returned (regeneration never "fails").
     """
     _seed_fixture(scenario)
-    result = explain_gryphon_raw(scenario.query, scenario.params, db_alias="default", layer=scenario.layer)
+    result = explain_gryphon_raw(  # TAP-AUTHZ-COV: pytest-only gridkin harness, not a production path
+        scenario.query, scenario.params, db_alias="default", layer=scenario.layer
+    )
     actual_envelope: dict[str, Any] = result["envelope"]
     actual_sql: str = result["sql"].render()
 
@@ -81,7 +126,7 @@ def _seed_fixture(scenario: Scenario) -> None:
         if not fixture_path.is_file():
             raise AssertionError(f"{scenario.scenario_id}: GRIFT fixture not found: {fixture_path}")
         document = json.loads(fixture_path.read_text(encoding="utf-8"))
-        result = grift_import(document, dangling_edge_mode="strict")
+        result = grift_import(document, dangling_edge_mode="strict")  # TAP-AUTHZ-COV: pytest-only gridkin fixture seed
         # A non-collector direct grift_import caller owns checking result.errors —
         # result.success alone can miss a partially-rejected import. A bad fixture
         # must fail loud, not fake-green (the GRIFT atomic-batch-rejection rule).
@@ -150,7 +195,7 @@ def _write_snapshots(scenario: Scenario, envelope: dict[str, Any], sql_text: str
         encoding="utf-8",
     )
     scenario.expected_sql_path.parent.mkdir(parents=True, exist_ok=True)
-    scenario.expected_sql_path.write_text(sql_text, encoding="utf-8")
+    scenario.expected_sql_path.write_text(redact_registry_scan(sql_text), encoding="utf-8")
 
 
 def _check_envelope(scenario: Scenario, actual: dict[str, Any]) -> list[str]:
@@ -168,8 +213,8 @@ def _check_sql(scenario: Scenario, actual_sql: str) -> list[str]:
     path = scenario.expected_sql_path
     if not path.is_file():
         return [_missing(scenario, "SQL", path)]
-    expected = normalize_sql(path.read_text(encoding="utf-8"))
-    actual = normalize_sql(actual_sql)
+    expected = redact_registry_scan(normalize_sql(path.read_text(encoding="utf-8")))
+    actual = redact_registry_scan(normalize_sql(actual_sql))
     if expected == actual:
         return []
     return ["SQL MISMATCH — the executor's compiled SQL changed (query plan).\n" + _line_diff(expected, actual)]

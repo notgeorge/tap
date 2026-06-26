@@ -314,6 +314,22 @@ trivial formatting changes don't churn snapshots. Everything else — table name
 column names, JOIN structure, WHERE clauses, inlined values, the stage labels, and
 the block count and order — is asserted byte-exact after normalization.
 
+One volatile element is redacted, mirroring the envelope's volatile-spine-field
+redaction. A labelless `MATCH (n)` compiles to a bare type-scan whose WHERE
+enumerates **every registered node type** —
+`entity_type IN (%s, %s, … one per type …)`. That enumeration is an *environment
+fact*: it grows whenever any plugin (anywhere in the tree) registers a new node
+type, with no change to the Gryphon query plan under test. Snapshotting it verbatim
+would make the labelless-scan oracles churn on every new entity type for no
+behavioral reason. So the runner redacts the `entity_type IN (…)` placeholder run
+and its matching leading params to a single `<entity-type-registry>` sentinel
+before comparing (and writes the sentinel form on regeneration). This is surgical:
+only the bare-type-scan emits an `IN` on `tap_entity.entity_type`, so no other
+scenario is affected. The residual filter (`= %s` / `LIKE %s`), the
+`IN`-on-`entity_type` shape itself, and every other clause are still asserted
+exactly — and the **envelope** assertion still verifies the exact rows the scan
+returns, so a behavioral regression in the bare scan is still caught.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
@@ -322,6 +338,7 @@ the block count and order — is asserted byte-exact after normalization.
 | req-gridkin-explain-snapshot-2 | Whitespace Normalized | Implemented | The runner whitespace-normalizes both expected and actual SQL before comparing. | |
 | req-gridkin-explain-snapshot-3 | Failure Distinct From Envelope Failure | Implemented | SQL mismatch is reported as a distinct failure mode from envelope mismatch. | |
 | req-gridkin-explain-snapshot-4 | Multi-Statement Capture | Implemented | The `.sql.txt` side file holds one labelled block per `SELECT` the executor executes, in execution order; queries that run multiple statements capture all of them. | |
+| req-gridkin-explain-snapshot-5 | Registry Enumeration Redacted | Implemented | The labelless bare-type-scan's `entity_type IN (…)` enumeration of all registered node types is redacted to a `<entity-type-registry>` sentinel on both comparison sides and on regeneration, so the oracle is stable across node-type registry growth; the residual filter and the response envelope still assert behavior exactly. | Surgical: only the bare-type-scan emits `IN` on `entity_type` |
 
 ### Requirement Traceability
 ----

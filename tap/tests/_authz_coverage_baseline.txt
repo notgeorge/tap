@@ -36,8 +36,6 @@ plugins/fedramp_20x_ksi/panels/instance_findings/__init__.py:86
 plugins/genericom/panels/instance_hero/__init__.py:75
 plugins/genericom/panels/open_alerts/__init__.py:67
 plugins/github_core/collectors/github_collector/enrichment.py:223
-plugins/gryphon_playground/gridkin/runner.py:56
-plugins/gryphon_playground/gridkin/runner.py:84
 plugins/samsite/collectors/compliance_collector/boundary_membership.py:82
 plugins/samsite/collectors/compliance_collector/kev_process.py:64
 plugins/samsite/collectors/compliance_collector/sigstore_link.py:84
@@ -51,7 +49,7 @@ tap_grid/batch.py:254
 tap_grid/gryphon/executor.py:107
 tap_grid/services.py:1500
 tap_grid/services.py:1519
-tap_plugins/management/commands/import_plugin_grift.py:279
+tap_plugins/seeding.py:119
 tap_plugins/validate/service.py:812
 tap_viz/panels/graph_panel/__init__.py:188
 tap_viz/panels/graph_panel/__init__.py:245
