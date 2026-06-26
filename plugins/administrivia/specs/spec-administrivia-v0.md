@@ -61,6 +61,7 @@ This index is intentionally not a duplicate specification. It should answer: whe
 | CARES homepage (collectors table) | `plugins/administrivia/tap_cares/panels/collector_table/`, `plugins/administrivia/grift/cares-administrivia.grift.json` | `tap_cares/specs/spec-tap-cares-administrivia.md` | `/administrivia/cares` |
 | CARES collector detail | `plugins/administrivia/tap_cares/panels/collector_detail/`, `plugins/administrivia/grift/cares-administrivia.grift.json` | `tap_cares/specs/spec-tap-cares-administrivia.md` | `/administrivia/cares/collector?entity_id=<uuid>` |
 | CARES run detail (per-run deep dive) | `plugins/administrivia/tap_cares/panels/run_detail/`, `plugins/administrivia/grift/cares-administrivia.grift.json` | `tap_cares/specs/spec-tap-cares-administrivia.md` | `/administrivia/cares/run?entity_id=<job_uuid>` |
+| User management (roster + control) — *Proposed, not yet built* | _planned_ `plugins/administrivia/tap_auth/panels/...` | `tap_auth/specs/spec-tap-auth-user-management-v0.md` | _planned_ `/administrivia/users` |
 
 #### Acceptance Criteria
 
