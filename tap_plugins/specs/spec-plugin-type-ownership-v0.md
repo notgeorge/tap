@@ -284,13 +284,26 @@ TAP accepts long, fully-qualified identifiers everywhere and builds **no** short
 
 ## Implementation Sequencing (Guidance)
 
-Not a near-term task — this lands with the **plugin refactor**. When it does:
+This lands with the **plugin refactor**, and is sequenced **before plugin repo extraction** — a global type rename is dramatically cheaper in the monorepo than across N extracted repos. When it does:
 
-1. Decide the lint strictness (`req-plugin-type-collision-loud`) and the delimiter/format details, and confirm core-default exemptions.
-2. Add owner-affixing to plugin type registration (node prefix, edge suffix), inferring the owner from the registering plugin's slug — authors write the affixed name in manifests/JSON (no auto-resolution; the written name is the real name).
-3. Mechanical rename sweep of existing plugin node types + tables (`<slug>__name`) and plugin edge types (`NAME__<slug>`). Core types stay bare. No data migration semantics beyond table renames; dev resets freely (as the `HAS_JOB` rename already demonstrated).
+1. ~~Decide~~ **Locked 2026-06-26:** delimiter is `__`; core-default exemptions stay bare (`entity, edge, batch, keystone, dimension, search` + core edges); lint strictness is **warn-now, fail-CI once the sweep completes** (so the half-swept intermediate state does not red-gate itself — `req-plugin-type-collision-loud`).
+2. Add owner-affixing to plugin type registration (node prefix, edge suffix), inferring the owner from the registering plugin's slug — authors write the affixed name in manifests/JSON (no auto-resolution; the written name is the real name). Note: because v0 keeps the written name == the real name, the registry needs **no new inference logic** — it registers the opaque affixed string as-is.
+3. Mechanical rename sweep of existing plugin node types + tables (`<slug>__name`) and plugin edge types (`NAME__<slug>`). Core types stay bare. No data migration semantics beyond table renames; dev resets freely (as the `HAS_JOB` rename already demonstrated). **See the cost model below — the dominant cost is string references, not model files.**
 4. Add the display-strip at viz/panels/admin and the dev-validation lint.
 5. Relax the node hard-raise to the reuse nudge; leave the edge merge in place (now safe).
+
+### Sweep cost model & proof-plugin selection (2026-06-26)
+
+A pre-sweep survey of the candidate plugins produced a correction worth recording so it is not rediscovered: **the rename's dominant cost is *string references* to the type slugs, not the plugin's own model files.** A plugin's `ENTITY_TYPE` / `db_table` / edge-`slug` edits are a handful of files; the real ripple is everywhere the bare slug appears *as a string* — test corpora, GRIFT/fixture/expected-result data, Gryphon query strings, doc examples, and cross-plugin edge endpoints.
+
+Consequences for sequencing:
+
+- **Rank candidate plugins by string-reference count, not module-import count.** `grep -rn '<slug-tokens>'` repo-wide is the selection tool; an import-count proxy is misleading (it under-counts the data/corpus references that dominate).
+- **The corpus/example plugins are the *highest*-ripple and sweep LAST, not first.** `lotr` is the constraint/edge/validation test corpus (~20 core test modules); `gryphon_playground` is the Gryphon query corpus *and* the engine's canonical example vocabulary (~80 self-contained fixture/expected/scenario JSON files + 43 executed-query refs in `tap_grid/tests/test_gryphon.py` + ~17 docstring/error-hint examples in `tap_grid/gryphon/executor.py`/`ast_nodes.py`). The genuinely isolated plugins (`genericom`, `administrivia`) are grift-only and have **no** node/edge type surface to rename, so they cannot serve as the proof.
+- **Context-aware rewriting, not a blind sed.** The same token means different things in different places — e.g. `pg_node` is simultaneously a type-slug *value*, a Python module path (`models/pg_node.py`), a `db_table` component, and (as `PgNode`) a class name. Only the type-slug *value* / manifest key / edge-endpoint / query-string / data-`type` occurrences are rewritten; module paths, filenames, class names, and the `db_table` *prefix* delimiter (`<slug>_<name>` → `<slug>__<name>` is a single→double-underscore change, not a slug re-prepend) must be left alone or handled distinctly.
+- **Display-strip interacts with `expected`-result corpora.** Until `req-plugin-type-display-strip` is implemented, query results return the raw affixed `entity_type`, so fixtures and `expected/*.expected.json` rename together uniformly and stay green. Once display-strip lands, some occurrences want the stripped form and some the full form — so a corpus-heavy plugin renamed *before* display-strip is the simpler ordering.
+
+**Chosen proof plugin: `gryphon_playground`.** It is the right *first proof* despite its corpus size because it is **functionally self-contained** — the ~17 core-engine references are docstring examples + one error-hint string (cosmetic; a stale example is a doc nit, not a bug), with **no functional coupling** (no `entity_type ==` branch, no model import, no registry hardcode), so a rename **cannot break the live boot or the engine**. Its full functional ripple is bounded: its own files (4 node types + tables, 4 edge types, manifest, ~80 corpus JSON, plugin tests, one table-rename migration) + the 2 core Gryphon test files. It exercises both the node-prefix and edge-suffix surfaces. The proof produces the reusable template for the remaining plugins; the cross-plugin-edge plugins (`sigstore_core`, `aws_core`, `github_core`, `fedramp_20x_ksi`, `samsite`) follow, with `lotr`/`gryphon_playground`-class corpus updates handled with the display-strip ordering above.
 
 ## Backlog
 

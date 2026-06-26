@@ -30,12 +30,14 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-surfaces | [Declared TAP Surfaces](#declared-tap-surfaces) | Implemented | Models, edges, editors, searches, and GRIFT are manifest-declared |
 | req-plugin-arch-layout | [Package Layout](#package-layout) | Implemented | Core files, convention directories, and self-contained repo structure |
 | req-plugin-arch-repo | [Repository Structure](#repository-structure) | Implemented | Plugins are self-contained git repos integrated as submodules |
+| req-plugin-arch-install-registry | [Install Resolution And Plugin Registry](#install-resolution-and-plugin-registry) | Proposed | Plugin-refactor direction: boot profile desired state, uv lockfile resolution, package entry point discovery, TAP registry/report truth |
 | req-plugin-arch-skills | [Plugin Skills](#plugin-skills) | Implemented | Plugins may ship Claude Code skills for plugin-specific automation |
 | req-plugin-arch-runtime | [Runtime Boundaries](#runtime-boundaries) | Implemented | TAP-facing startup behavior flows through the plugin contract |
 | req-plugin-arch-tests | [Testing Requirements](#testing-requirements) | Implemented | Plugins include plugin-specific tests and participate in shared validation |
 | req-plugin-arch-iterative-dev | [Iterative Development](#iterative-development) | Implemented | Canonical patterns for revising GRIFT content during and after initial import |
 | req-plugin-arch-python-deps | [Plugin Python Dependencies](#plugin-python-dependencies) | Implemented | uv workspace seam wired at root; first plugin proof is `github_core` (PyYAML resolves into root `uv.lock`) |
 | req-plugin-arch-isolation | [Plugin Type Ownership & DB Isolation](#plugin-type-ownership--db-isolation) | Proposed | Plugin-refactor pickup: owner-namespaced types + hard-included per-plugin DB guards |
+| req-plugin-arch-hooks | [Plugin Hook System](#plugin-hook-system) | Backlog | Future Simon Willison DJP/pluggy-style hook surface for plugin injection points throughout TAP |
 | req-plugin-arch-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Explicitly deferred concerns |
 
 ### Plugin Scope
@@ -230,6 +232,189 @@ The plugin repo does not need to be a pip-installable package in v0. It is a Dja
 #### Future
 
 Later work may define plugin dependency resolution, version compatibility constraints between plugins and TAP core, and automated plugin discovery beyond manual submodule addition.
+
+### Install Resolution And Plugin Registry
+----
+RID: `req-plugin-arch-install-registry`
+Status: `Proposed`
+
+The plugin refactor separates TAP plugin desired state, Python package
+resolution, installed-plugin discovery, and TAP runtime registry/reporting into
+distinct layers. This prevents uv's package-management metadata from becoming a
+surrogate for TAP's plugin model while still using uv for the work it is good at:
+repeatable Python dependency resolution and installation.
+
+#### Implementation Direction
+
+The proposed install architecture has four layers:
+
+1. **Boot profile desired state.** The boot profile is the authored source of
+   truth for an instance. Its plugin section declares which TAP plugin slugs the
+   instance wants, where they may be obtained from, which credential reference is
+   used for private sources, which surfaces are enabled, and whether the plugin
+   is loaded in checkout/development mode or package/production mode.
+2. **uv package resolution.** uv owns Python package resolution and installation.
+   The root `pyproject.toml` and `uv.lock` describe the Python environment.
+   `uv.lock` records the exact resolved package graph for reproducible installs;
+   it does not answer TAP-domain questions such as plugin slugs, enabled
+   surfaces, migration status, or health.
+3. **Python package discovery.** Installed TAP plugin packages advertise
+   themselves through Python package metadata, preferably a `tap.plugins` entry
+   point group read with `importlib.metadata.entry_points()`. This discovers
+   installed plugin-capable packages without requiring TAP to scan arbitrary
+   `site-packages` paths.
+4. **TAP plugin registry and reports.** TAP owns the runtime registry/report:
+   slug, package/distribution name, resolved version or commit, `app_config`,
+   manifest path, requested and loaded surfaces, install mode, provenance,
+   generated settings contribution, migration/static outcomes, and load health.
+   This registry/report is the auditable source of what TAP attempted, what it
+   resolved, what it loaded, and why startup failed if it failed.
+
+The four layers are intentionally not interchangeable. A package may be present
+in `uv.lock` without being an enabled TAP plugin. A TAP plugin may be declared in
+the boot profile but fail to resolve or load. The registry/report is where those
+states become visible to humans and future AI operators.
+
+#### MVP Direction
+
+The installable-plugin MVP targets package/production mode first. TAP should make
+uv-backed package installation work end-to-end, then add or refine
+checkout/development mode once the production path is proven. Checkout mode
+remains important for plugin authoring, debugging, and rapid edits, but it should
+not delay the package-mode shape.
+
+In package mode, a plugin is a real Python package with package metadata,
+package data for plugin-owned assets, and a `tap.plugins` entry point. The entry
+point key must equal the TAP plugin `slug`; this is the simplest validation path
+and reinforces that `slug` is the ecosystem identity. The entry point target,
+plugin manifest, and generated registry record must agree on slug and
+`app_config` before the plugin is added to generated settings.
+
+#### Canonical Plugin Home
+
+TAP should continue to guarantee a stable inspection path at:
+
+```text
+plugins/<slug>/
+```
+
+In checkout/development mode this path may be a real working tree. In
+package/production mode it may be generated state, including a symlink to the
+installed package payload inside the active Python environment. That symlink
+shape should be spiked before implementation is finalized:
+
+- install a package with uv in the standard way
+- locate the installed plugin payload through package metadata
+- create or refresh `plugins/<slug>` as a symlink to that payload
+- verify Django can load the declared `app_config`
+- verify plugin-owned assets such as `tap-plugin.toml`, `grift/`, `skills/`,
+  `static/`, and `specs/` remain inspectable from `plugins/<slug>`
+
+The symlink is disposable generated state. If the environment is rebuilt, the
+pre-Django boot/install wrapper recreates it from the boot profile, package
+metadata, and install report. Provenance lives in the registry/report, not in
+`.git` metadata under `plugins/<slug>` for package-mode installs.
+
+Generated plugin-home state needs a dedicated implementation spec before code
+lands. At minimum, that spec should define how stale symlinks are detected, when
+they are replaced, what happens if a real directory already exists at
+`plugins/<slug>`, and how checkout-mode working trees are protected from
+package-mode regeneration.
+
+#### Identity Boundaries
+
+TAP plugin identity remains distinct from Python packaging identity:
+
+- `slug` is the globally unique TAP plugin identity.
+- Python distribution/package names are uv/PyPA identities and may differ from
+  `slug`.
+- `app_config` is the Django import path TAP adds to generated settings.
+- source URL plus resolved revision/version is provenance, not TAP identity.
+- `plugins/<slug>` is a local inspection/materialization path, not necessarily
+  the import root in every install mode.
+
+This preserves the existing slug-centered TAP model while allowing production
+package installs to use normal Python packaging conventions.
+
+#### Generated Settings
+
+The pre-Django install/boot wrapper writes generated plugin settings before
+Django imports project settings. The target setting names are:
+
+- `TAP_PLUGINS`: ordered plugin `app_config` entries generated from the resolved
+  boot profile and registry/discovery result
+- `TAP_PLUGIN_CONFIG`: plugin-scoped configuration values, initially generated
+  as an empty mapping until plugin-specific configuration is specified
+
+`TAP_PLUGINS` is the settings-time bridge into `INSTALLED_APPS`.
+`TAP_PLUGIN_CONFIG` reserves the NetBox-like configuration shape without forcing
+plugin-specific config into shared infrastructure.
+
+#### Discussion Outcomes (2026-06-26)
+
+Refinements from a George ↔ Claude review of this Codex-authored draft, recorded
+inline so the thinking is in one place for a Monday three-way review (Codex's
+draft, George reading, these edits). They sharpen the four-layer direction
+without changing its shape.
+
+- **Install source: github-first is uv git-source, which *is* package mode —
+  not git submodules.** "github-first" must mean a plugin installed as a real
+  package from a git URL (`<dist> @ git+https://…@<rev>`), which uv clones to its
+  cache, builds, and installs into the venv. It is emphatically **not**
+  `git submodule add` (source vendored into the host tree — the prior dependency
+  nightmare). Because a uv git-source install and a PyPI install are the *same*
+  mechanism (same wheel, same `tap.plugins` entry point, same generated-settings
+  path) differing only in the source URL, github-first is strictly **on the
+  glide-path**: graduating a plugin to an index is a one-line source change with
+  zero rework. The thing proven first is therefore the *packaging shape* (a
+  wheel-buildable package + entry point installed from git), not publishing.
+  Dev/checkout mode is a uv **path/editable** install of the plugin under active
+  edit — distinct from the git-source consume path, and why checkout mode does
+  not need the `plugins/<slug>` symlink gymnastics. The spec should say "uv
+  git-source install" and explicitly disclaim submodules so the pattern is not
+  reintroduced by habit.
+- **The running-plugin registry/report is the inspection surface — which weakens
+  the `plugins/<slug>` symlink case.** If the authoritative "what is installed /
+  enabled + its config + load health" is a queryable report (layer 4 — a
+  `manage.py plugins`-style command / generated report now; plugins-as-grid-
+  entities, Gryphon-queryable, later), then the filesystem symlink at
+  `plugins/<slug>` loses most of its justification: it shrinks to "tooling that
+  hardcodes that path" (pytest discovery, bind mounts), solvable without a
+  load-bearing symlink-materialization spec. Treat the registry/report as a
+  first-class deliverable, not a single ACID line; converge it with `/healthz`
+  and the deferred boot report (`req-boot-report`) — all three are "observable
+  assembled-instance truth" and should share a shape.
+- **The pre-Django install wrapper's home is `docker/entrypoint.sh`.** It is the
+  only process-launch slot that runs before Django imports settings, and it
+  already hosts `uv sync` + `migrate`. The *logic* is a settings-free Python
+  module the entrypoint calls (not bash, not `manage.py` — which would need the
+  settings it is generating); it must run **before `migrate`** (so plugin
+  migrations apply) and be **idempotent / fast on reboot** (the "reboot just
+  works" requirement — already-installed plugins are a no-op, no re-pull). This
+  is the next entry in the one-canonical-provisioning-sequence the 2026-06-26
+  health/provisioning AAR established (`specs/spec-tap-health-v0.md`,
+  `docs/aar/2026-06-26-tap-cache-latent-provisioning.md`).
+- **Plugin config is deliberately deferred.** Keep the reserved
+  `TAP_PLUGIN_CONFIG` seam empty; samsite continues to carry config in collector
+  secrets under `TAP_SECRETS_ROOT`. A formal plugin-config mechanism is its own
+  future spec (`spec-plugin-config-v0`), demand-triggered by the first plugin
+  whose config genuinely cannot be a secret (e.g. a Google Workspace/IdP plugin
+  or per-customer instance config). Reserve the seam; do not fill it now.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-install-registry-1 | Four Layers Defined | Proposed | The architecture distinguishes boot profile desired state, uv package resolution, Python package discovery, and TAP registry/reporting. | |
+| req-plugin-arch-install-registry-2 | uv Boundary | Proposed | `uv.lock` is treated as the Python package resolution record, not the TAP plugin registry. | |
+| req-plugin-arch-install-registry-3 | TAP Registry Boundary | Proposed | TAP owns the auditable record of plugin slug, package, app config, manifest, surfaces, provenance, generated settings, and load health. | |
+| req-plugin-arch-install-registry-4 | Entry Point Discovery | Proposed | Package-mode plugins advertise themselves through a `tap.plugins` Python package entry point whose key equals the TAP plugin slug. | |
+| req-plugin-arch-install-registry-5 | Stable Plugin Home | Proposed | TAP guarantees a stable `plugins/<slug>` inspection path across checkout and package install modes. | |
+| req-plugin-arch-install-registry-6 | Symlink Spike | Proposed | The refactor spikes package-mode symlinks from `plugins/<slug>` to the installed package payload before finalizing the install shape. | |
+| req-plugin-arch-install-registry-7 | Identity Separation | Proposed | The spec keeps TAP slug, Python distribution/package name, Django `app_config`, source provenance, and local install path as separate concepts. | |
+| req-plugin-arch-install-registry-8 | Generated Settings Names | Proposed | The generated settings bridge uses `TAP_PLUGINS` and `TAP_PLUGIN_CONFIG`. | |
+| req-plugin-arch-install-registry-9 | Package Mode First | Proposed | The MVP proves uv-backed package-mode install before refining checkout/development mode. | |
+| req-plugin-arch-install-registry-10 | Generated Home Lifecycle Spec | Proposed | Generated `plugins/<slug>` symlink behavior is specified before implementation, including stale links, existing directories, and checkout-mode protection. | |
 
 ### Plugin Skills
 ----
@@ -428,20 +613,123 @@ This requirement provides dependency declaration and lockfile ownership, not run
 | req-plugin-arch-python-deps-6 | Standalone Repo Compatible | Implemented | The dependency shape works whether a plugin is in-tree, a git submodule, a path dependency, or a standalone repository. | |
 
 
+### Plugin Hook System
+----
+RID: `req-plugin-arch-hooks`
+Status: `Backlog`
+
+TAP should eventually support a general plugin hook system: explicit extension
+points throughout the application where plugins can inject behavior, presentation,
+validation, commands, routing, or other narrowly-scoped contributions without
+requiring TAP core to know each plugin's implementation details.
+
+This is **not** part of the installable-plugin MVP. It is a named backlog target
+so the current packaging/refactor work does not accidentally foreclose it, and so
+future demand signals can graduate it into a dedicated spec rather than another
+round of ad hoc registries.
+
+#### Prior Art
+
+The target shape is informed by:
+
+- **Simon Willison's DJP plugin system for Django.** DJP is the direct prior art:
+  a Django plugin mechanism built on `pluggy`. A Django project configures DJP
+  once in `settings.py` (`djp.settings(globals())`) and `urls.py`
+  (`djp.urlpatterns()`), after which installed DJP-enabled packages can
+  contribute Django settings changes, `INSTALLED_APPS`, middleware, URL
+  patterns, and other hook-backed behavior without each plugin requiring custom
+  project edits. DJP plugins implement hooks with `@djp.hookimpl` and are
+  discovered through Python package entry points.
+- **Datasette / LLM plugin lineage.** DJP inherits lessons from Simon Willison's
+  broader plugin work: broad documented hook catalogs, tiny hook implementation
+  modules, separate plugin packages, and plugin templates / testing patterns that
+  make publishing many small plugins practical.
+- **NetBox plugin architecture.** NetBox is the closest domain/platform neighbor:
+  a Django-based platform for network/infrastructure systems management whose
+  plugins are packaged Django apps. NetBox plugins can add models, URLs/views,
+  template content injections, navigation items, middleware, plugin-scoped
+  configuration, and NetBox-version compatibility limits. Its install path is
+  deliberately operational rather than hot-load magic: install the Python package,
+  add the plugin to configuration, provide plugin config, run migrations, collect
+  static assets, then restart WSGI/workers. Its restrictions are equally useful:
+  plugins may not modify core models, register URLs outside `/plugins`, override
+  core templates, modify core settings, or disable core components. TAP/Rampart
+  is broader and graph-native, but NetBox is a high-value prior-art target for
+  both what to adapt and what boundaries to keep.
+- **pluggy / pytest-style hooks.** pluggy formalizes the split between hook
+  specifications (`hookspec`) and hook implementations (`hookimpl`), validates
+  implementations against specifications, supports opt-in arguments so specs can
+  evolve without breaking existing implementations, and offers call-order/result
+  controls such as first-result hooks.
+- **Ushahidi-style application hooks.** The historical value is the product
+  capability: hooks placed throughout the app let plugins participate in real
+  workflows and UI seams, not only declare data types at startup.
+
+This prior art is inspiration only. TAP should not copy upstream code into the
+repository. If `pluggy` itself becomes the chosen implementation dependency, that
+requires the normal explicit dependency approval at implementation time.
+
+#### Implementation Direction
+
+A future hook system should have these properties:
+
+- Core TAP apps define named hook specifications at intentional extension points.
+- Hook specifications are documented and versioned as part of the owning app's
+  spec, not invented by individual plugins.
+- Plugins declare hook implementations through an inspectable manifest surface or
+  a clearly-named convention module; arbitrary import side effects are not enough.
+- Hook invocation is explicit at the callsite: a reader should be able to see
+  where plugin behavior may enter a workflow.
+- Hook behavior must respect existing TAP boundaries: graph writes still go
+  through the service layer, boot remains explicit, and security-sensitive hooks
+  require a source-material security pass before implementation.
+- Hook failures have defined behavior per hook: fail-loud, collect warnings,
+  first-result fallback, or ignore-`None`; no silent catch-all swallowing.
+- Hook ordering and result-composition semantics are declared by the hook spec,
+  not by plugin load accidents.
+- Hook registration and invocation are observable enough for debugging and future
+  Paladin-style health checks.
+
+#### Demand Triggers
+
+This backlog item should graduate when TAP has at least one concrete extension
+point that is awkward to model with the existing manifest surfaces and registries.
+Likely triggers include:
+
+- multiple plugins wanting to contribute to the same page, panel, menu, or action
+  surface
+- plugin-specific validation or transformation around a shared workflow
+- plugin-owned collector lifecycle participation beyond today's explicit boot
+  steps
+- customer/plugin code needing to add commands, routes, permission checks, or UI
+  affordances without modifying TAP core
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-hooks-1 | Backlog Target Named | Backlog | The plugin architecture records a future general hook system as a deliberate target, not an oversight. | |
+| req-plugin-arch-hooks-2 | MVP Boundary Preserved | Backlog | The hook system is explicitly outside the installable-plugin MVP. | |
+| req-plugin-arch-hooks-3 | Prior Art Captured | Backlog | The future design references DJP/pluggy-style Django hooks, NetBox's Django infrastructure plugin model, and Ushahidi-style app injection points as prior art. | |
+| req-plugin-arch-hooks-4 | Explicit Hook Specs | Backlog | Future hooks are owned by core apps as named, documented hook specifications with declared ordering/result/failure semantics. | |
+| req-plugin-arch-hooks-5 | No Ad Hoc Side Effects | Backlog | Plugin hook implementations are declared through an inspectable surface or clear convention rather than hidden import side effects. | |
+| req-plugin-arch-hooks-6 | Service And Security Boundaries | Backlog | Hook implementations do not bypass TAP service-layer, boot, auth, or security-sensitive boundaries. | |
+
+
 ### v0 Non-Goals
 ----
 RID: `req-plugin-arch-nongoals`
 Status: `Proposed`
 
-This specification does not define:
+The current implemented v0 plugin architecture does not yet define or ship:
 
 - plugin dependency resolution or version compatibility constraints
-- install or uninstall workflows beyond git submodule add/remove
+- concrete package-mode install, update, or uninstall workflows
 - plugin enablement state or marketplace concepts
 - non-Python runtime packaging such as containers
 - security review or permission declarations for plugin code
 - automatic skill discovery from plugin subdirectories
-- implementation of plugin-local Python dependency resolution
+- general hook/injection points beyond the current manifest-declared surfaces
 
 Those concerns may become future plugin architecture layers, but they are intentionally outside this authoring spec.
 
@@ -450,5 +738,5 @@ Those concerns may become future plugin architecture layers, but they are intent
 - Define how TAP handles plugin-declared model types whose Python classes import correctly but whose backing database tables or migration state are not present.
 - Define version compatibility constraints between plugins and TAP core.
 - Define plugin dependency resolution when plugins depend on other plugins.
-- Define the uv workspace implementation for plugin-local Python dependencies once the first plugin requires packages not otherwise needed by TAP core.
-- Define automated plugin discovery beyond manual submodule addition and `INSTALLED_APPS` registration.
+- Implement package-mode uv installation, package entry point discovery, generated plugin settings, and the TAP registry/report shape (`req-plugin-arch-install-registry`).
+- Define a general hook/injection system once real extension-point demand exists (`req-plugin-arch-hooks`).
