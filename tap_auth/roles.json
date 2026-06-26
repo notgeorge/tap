@@ -1,13 +1,19 @@
 {
   "version": 1,
-  "description": "TAP role definitions — named, reusable capability bundles (the least-privilege set each protected built-in group/actor holds). The grant path is principal -> role -> capabilities; tap_auth/sync.py hard-syncs each protected group's Django permissions to its role here. A role lists explicit capabilities, or \"*\" (admin-only) meaning every defined capability, including ones plugins add later, so new caps auto-flow to admin without editing this file. Roles are security boundaries: edits are reviewed in git and guarded by tests (every named capability must be defined; the tap_bootloader role must exclude grid.purge/grid.delete). NOTE: the tap_cares.* roles live here in v0 for historical reasons; re-homing them so tap_cares ships its own roles is the per-app split (deferred). See spec-tap-auth-v0 req-tap-auth-roles.",
+  "description": "TAP role definitions — named, reusable capability bundles (the least-privilege set each protected built-in group/actor holds). The grant path is principal -> role -> capabilities; tap_auth/sync.py hard-syncs each protected group's Django permissions to its role here. A role lists explicit capabilities, or \"*\" (admin-only) meaning every defined capability, including ones plugins add later, so new caps auto-flow to admin without editing this file. Every role declares assignable_to — the principal classes it may be granted to: \"human\" (a person, via the deploy profile's auth.initial_grants login path), \"program\" (a built-in program actor bound in sync.py), or both. This is a security boundary made explicit: a human-only role (tap_viewer) can never be a program actor's bundle, and a program-only role (tap_bootloader, tap_cares.*) can never be handed to a person by login config. tap_admin is both — humans (initial admins/grants) and the test-only tap_test program actor. Roles are security boundaries: edits are reviewed in git and guarded by tests (every named capability must be defined; the tap_bootloader role must exclude grid.purge/grid.delete; assignable_to is held in sync with the login-grant enum and the program-actor bindings). NOTE: the tap_cares.* roles live here in v0 for historical reasons; re-homing them so tap_cares ships its own roles is the per-app split (deferred). See spec-tap-auth-v0 req-tap-auth-roles.",
   "roles": {
     "tap_admin": {
-      "description": "Full administrative authority: every defined capability, explicitly via \"*\" so new plugin capabilities auto-flow to admin. Members are human initial admins (plus tap_test in test mode).",
-      "capabilities": "*"
+      "description": "Full administrative authority: every defined capability, explicitly via \"*\" so new plugin capabilities auto-flow to admin. Members are human initial admins/grants, plus the test-only tap_test program actor in test mode — hence assignable to both principal classes.",
+      "capabilities": "*",
+      "assignable_to": ["human", "program"]
+    },
+    "tap_viewer": {
+      "description": "Read-only human role: grid.read and nothing else. The least-privilege bundle for an invited guest / viewer — an early adopter who should see the grid but never mutate it, run collectors, or administer. Human-only: granted by email via auth.initial_grants; never a program actor's bundle. Holds no write/import/admin/cares capability.",
+      "capabilities": ["grid.read"],
+      "assignable_to": ["human"]
     },
     "tap_bootloader": {
-      "description": "The bootloader program actor's least-privilege boot bundle: everything boot needs and no more. Deliberately EXCLUDES destructive grid demolition (grid.purge, grid.delete) so a boot bug cannot nuke the grid, and ai.delegate (boot does not delegate). See spec-tap-boot-v0 req-boot-phases.",
+      "description": "The bootloader program actor's least-privilege boot bundle: everything boot needs and no more. Deliberately EXCLUDES destructive grid demolition (grid.purge, grid.delete) so a boot bug cannot nuke the grid, and ai.delegate (boot does not delegate). Program-only — never grantable to a person via login config. See spec-tap-boot-v0 req-boot-phases.",
       "capabilities": [
         "grid.read",
         "grid.write",
@@ -18,24 +24,27 @@
         "config.manage",
         "plugins.manage",
         "cares.run_collectors"
-      ]
+      ],
+      "assignable_to": ["program"]
     },
     "tap_cares.collector": {
-      "description": "The single shared bundle for ALL collectors in v0 (per-collector actors are deferred to the plugin refactor). Collectors read existing nodes to resolve links, write/import their collected GRIFT batches, and run under the collector runtime.",
+      "description": "The single shared bundle for ALL collectors in v0 (per-collector actors are deferred to the plugin refactor). Collectors read existing nodes to resolve links, write/import their collected GRIFT batches, and run under the collector runtime. Program-only.",
       "capabilities": [
         "grid.read",
         "grid.write",
         "grid.import_grift",
         "cares.run_collectors"
-      ]
+      ],
+      "assignable_to": ["program"]
     },
     "tap_cares.scheduler": {
-      "description": "The scheduler program actor: writes its own operational bookkeeping (Schedule/ScheduleFire nodes + edges) and triggers collection runs. The triggered run itself executes as the collector actor, not the scheduler.",
+      "description": "The scheduler program actor: writes its own operational bookkeeping (Schedule/ScheduleFire nodes + edges) and triggers collection runs. The triggered run itself executes as the collector actor, not the scheduler. Program-only.",
       "capabilities": [
         "grid.read",
         "grid.write",
         "cares.run_collectors"
-      ]
+      ],
+      "assignable_to": ["program"]
     }
   }
 }

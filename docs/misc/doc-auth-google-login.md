@@ -78,7 +78,10 @@ scripts/dc exec web uv run python manage.py auth_selftest --live   # all PASS
 4. The TAP adapter runs: verified email + `hd=criticalsec.com` + `george@` on the
    allowlist → allowed → a user is provisioned, an `ExternalIdentity` is written,
    and because `george@criticalsec.com` is in `auth.initial_admins`, the user is
-   added to `tap_admin`.
+   added to `tap_admin`. (`initial_admins` is sugar for the general
+   `auth.initial_grants` email→role map; e.g. `{"sam@example.com": ["tap_viewer"]}`
+   admits a read-only guest. Only human-assignable roles — `tap_admin`,
+   `tap_viewer` — may be granted this way; see `req-tap-auth-roles`.)
 5. You land on `/` as a named, authenticated admin.
 
 ### Expected denials (try them to see the security adapter work)

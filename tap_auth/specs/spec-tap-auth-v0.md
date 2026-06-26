@@ -334,6 +334,13 @@ Roles are named, reusable capability bundles — the least-privilege capability 
   - every capability named by a role must be a defined capability (no typos / rogue caps);
   - the `tap_bootloader` role **excludes `grid.purge` and `grid.delete`** (the least-privilege boot boundary, `spec-tap-boot-v0.md` `req-boot-phases`) and `ai.delegate`;
   - `"*"` is admin-only.
+- **Every role declares `assignable_to`** — the principal classes it may be granted to: `"human"` (a person, via the deploy profile's `auth.initial_grants` login path), `"program"` (a built-in program actor bound in `sync.py`), or both. This makes the human/program boundary an explicit, mandatory, schema-validated property of each role rather than an implicit convention:
+  - `tap_admin` is **both** — humans (initial admins/grants) and the test-only `tap_test` program actor.
+  - `tap_viewer` (read-only, `grid.read` only — the least-privilege bundle for an invited guest/viewer) is **human-only**.
+  - `tap_bootloader` / `tap_cares.*` are **program-only** — they can never be handed to a person by login config.
+- The loader derives `HUMAN_ASSIGNABLE_ROLES` and `PROGRAM_ASSIGNABLE_ROLES` from the declarations. The boundary is enforced on **both** sides and guarded by tests:
+  - **human side** — the `auth.initial_grants` role enum (auth-boot-section schema) is held in sync with `HUMAN_ASSIGNABLE_ROLES`; boot additionally fails loud if a grant names a non-human role (defense against schema/registry drift); and the social adapter refuses to apply a non-human-assignable role even if one leaks into the effective map at runtime.
+  - **program side** — `_ensure_program_actor` refuses to bind an actor to a group whose role is not `assignable_to "program"` (so a program actor can't be bound to `tap_viewer`).
 - **Layering note:** in v0 the `tap_cares.collector` / `tap_cares.scheduler` roles still live in `tap_auth`'s `roles.json` (their historical placement). Re-homing them so `tap_cares` ships its own roles is the per-app split — deferred with the per-app/plugin declaration mechanism (Backlog). Moving the bundles to a file now fixes the buried-in-code smell; the ownership/layering fix lands with that split.
 
 #### Acceptance Criteria
@@ -346,6 +353,9 @@ Roles are named, reusable capability bundles — the least-privilege capability 
 | req-tap-auth-roles-4 | Bootloader Least-Privilege | Implemented | The `tap_bootloader` role excludes `grid.purge`/`grid.delete` (and `ai.delegate`); guarded by test. | |
 | req-tap-auth-roles-5 | Role-Mediated Grants | Implemented | Principals receive capabilities via roles, not direct per-user grants. | |
 | req-tap-auth-roles-6 | Descriptions Reach The Table | Implemented | A role's `description`/`description_json` hard-sync onto its `ProtectedGroup` row; built-in program actors' descriptions hard-sync onto their `User` rows. | |
+| req-tap-auth-roles-7 | Principal-Class Declared | Implemented | Every role declares a mandatory, non-empty `assignable_to` (`human`/`program`/both). The loader exposes `HUMAN_ASSIGNABLE_ROLES`/`PROGRAM_ASSIGNABLE_ROLES`; guarded by test. | |
+| req-tap-auth-roles-8 | Assignment Boundary Enforced | Implemented | A program-only role can never be granted to a person (schema enum in sync with the human set + boot validation + adapter refusal), and a human-only role can never be bound to a program actor (`_ensure_program_actor` guard). | |
+| req-tap-auth-roles-9 | Viewer Role | Implemented | `tap_viewer` is a human-only read-only role (`grid.read`), the least-privilege bundle for an invited guest/viewer. | |
 
 ---
 
@@ -525,7 +535,7 @@ Auth configuration is a first-class section of the TAP boot profile.
   1. capability sync
   2. protected group sync
   3. built-in actor sync
-  4. initial admin add/update
+  4. initial admin/grant add/update (on login)
   5. provider validation/settings build
   6. provider/domain deactivation handling
   7. later plugin/collector boot steps
@@ -533,9 +543,10 @@ Auth configuration is a first-class section of the TAP boot profile.
 - Boot logs actions now; durable boot reports can come later.
 - Auth boot logs add/update/sync/deactivation decisions with secrets redacted.
 - `tap_admin` membership is add/update-only in v1 to avoid accidental removal by typo.
+- **Email → role grants (`initial_grants`).** Beyond the single-role `initial_admins`, the profile may declare `initial_grants`: a map of verified email → the **human-assignable** roles (`req-tap-auth-roles`) granted to that person on each login. This is how a non-admin is admitted — e.g. an invited guest granted `tap_viewer` (read-only) rather than admin-or-nothing. The role values are constrained to the human-assignable set by the schema enum (held in sync with the loader), and boot fails loud on any non-human/unknown role (defense against drift); the social adapter additionally refuses a non-human-assignable role at runtime, so login config can never hand a person a program actor's authority. Grants are **add/update-only and idempotent** — applied on login, never reconciled or revoked, so a typo or de-listing cannot silently drop access; **de-provisioning a guest is a separate explicit action** (group removal + session invalidation), deliberately not a profile edit. `initial_admins` is retained as documented sugar for `initial_grants` with role `["tap_admin"]`; boot folds the two declarative sources into one effective map.
 - Capability assignment to `tap_admin` is hard-synced.
 - Capability pruning is explicit, not implicit: the auth boot config carries a declared prune list of capabilities expected to be removed. Capability sync applies only declared removals and hard-fails on any undeclared drift (`req-tap-auth-capabilities`). This preserves lights-out standup while keeping destructive capability changes pre-declared and reviewable.
-- **Last-admin invariant.** Ordinary auth-enabled customer boot must never converge to zero active human `tap_admin`. Boot fails loud if applying the profile would leave no active human admin — *including* the case where provider/domain removal would deactivate the last human admin (`req-tap-auth-external-identity`). This is the default and is not silently overridable.
+- **Last-admin invariant.** Ordinary auth-enabled customer boot must never converge to zero active human `tap_admin`. Boot fails loud if applying the profile would leave no active human admin — *including* the case where provider/domain removal would deactivate the last human admin (`req-tap-auth-external-identity`). A declared path to admin on first login satisfies the invariant: a non-empty `initial_admins` **or** any `initial_grants` entry that grants `tap_admin` (a `tap_viewer`-only grant does **not**). This is the default and is not silently overridable.
 - The **only** way boot may proceed into an admin-lockout state is an explicit break-glass declaration in the profile — an `allow_admin_lockout`-style flag, the same explicit-destructive-declaration pattern as capability pruning (`req-tap-auth-capabilities`) — **plus** a documented recovery path. Absent that declaration, a profile that would lock out every admin is a hard boot failure, not a silent secure-lockout. The declared-but-not-actually-lockout case need not fail.
 - When `allow_admin_lockout` is declared, secure lockout is permitted by design; recovery then happens via the out-of-band floor (management-command / shell access — see [Policy API](#policy-api) recovery floor) or available local auth. Satellite/headless deployments that expect no human admin are a future explicit relaxation of this invariant, not the default.
 
@@ -562,6 +573,7 @@ These phases are guidance for implementation sessions, not a requirement to exec
 | req-tap-auth-boot-5 | Early Ordering | Implemented | Auth boot runs before plugin/collector boot paths that require actors. | |
 | req-tap-auth-boot-6 | Explicit Command | Implemented | Auth bootstrap is an explicit command/boot step. | |
 | req-tap-auth-boot-7 | Deploy Security Check | Implemented | Auth-enabled deploy boot validates Django deployment security (`check --deploy`: `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, secure cookies/HTTPS) and fails a customer/deploy profile on relevant findings. | |
+| req-tap-auth-boot-8 | Email→Role Grants | Implemented | The profile declares `initial_grants` (verified email → human-assignable roles), applied add-only/idempotent on login; `initial_admins` folds in as `["tap_admin"]`. Role values constrained to the human-assignable set (schema enum in sync with the loader) and boot fails loud on a non-human/unknown role; the last-admin invariant is satisfied by `initial_admins` or an `initial_grants` `tap_admin`. | |
 
 ---
 

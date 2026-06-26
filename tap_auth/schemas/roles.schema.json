@@ -25,7 +25,7 @@
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["description", "capabilities"],
+        "required": ["description", "capabilities", "assignable_to"],
         "properties": {
           "description": {
             "description": "What the role is for and why it holds the capabilities it does (mandatory).",
@@ -35,6 +35,13 @@
           "description_json": {
             "description": "Optional structured context, flowed to ProtectedGroup.description_json (queryable alongside the prose description for AI/security reasoning).",
             "type": "object"
+          },
+          "assignable_to": {
+            "description": "The principal classes this role may be granted to (mandatory, non-empty). 'human' = grantable to a person via the deploy profile's auth.initial_grants login path; 'program' = bindable to a built-in program actor in sync.py. A role may declare both (tap_admin). The security boundary made explicit: a human-only role is never a program actor's bundle, and a program-only role (tap_bootloader, tap_cares.*) can never be handed to a person by login config. The loader exposes the 'human' set as LOGIN_GRANTABLE_ROLES; the auth-boot-section initial_grants enum is held in sync with it, and program bindings are checked against the 'program' set, by guard tests (req-tap-auth-roles).",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "enum": ["human", "program"] }
           },
           "capabilities": {
             "description": "Either '*' (every defined capability — admin-only, enforced by the loader) or an explicit list of capability names.",

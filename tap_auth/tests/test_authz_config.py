@@ -57,6 +57,7 @@ def test_well_known_capability_constants_are_defined():
 def test_expected_roles_present():
     assert set(roles.ROLES) == {
         "tap_admin",
+        "tap_viewer",
         "tap_bootloader",
         "tap_cares.collector",
         "tap_cares.scheduler",

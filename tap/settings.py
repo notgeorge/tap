@@ -390,6 +390,7 @@ _TAP_BOOT_PROFILE = os.environ.get("TAP_BOOT_PROFILE", "").strip()
 
 from tap_auth.boot import (  # noqa: E402
     initial_admins_for_settings,
+    initial_grants_for_settings,
     local_password_enabled_from_profile,
     providers_for_settings,
 )
@@ -407,9 +408,19 @@ SOCIALACCOUNT_PROVIDERS = build_socialaccount_providers(TAP_AUTH_PROVIDERS)
 
 # Verified emails granted tap_admin on first login (req-tap-auth-boot). Add-only
 # (a typo cannot revoke admin). From the boot profile's auth section; env override
-# for dev. Operator-controlled — never a plugin.
+# for dev. Operator-controlled — never a plugin. Retained for the last-admin
+# invariant's readability and as documented sugar; the adapter grants via
+# TAP_AUTH_INITIAL_GRANTS below (which folds these in).
 _env_admins = os.environ.get("TAP_AUTH_INITIAL_ADMINS")
 TAP_AUTH_INITIAL_ADMINS = json.loads(_env_admins) if _env_admins else initial_admins_for_settings(_TAP_BOOT_PROFILE)
+
+# Effective email -> roles grant map applied on each login (req-tap-auth-boot,
+# req-tap-auth-roles). Generalizes initial_admins to any human-assignable role
+# (tap_admin, tap_viewer) and folds initial_admins in as {email: ["tap_admin"]}.
+# Add-only/idempotent; the adapter refuses any non-human-assignable role even if
+# one leaks past the schema. Env override (JSON object) for dev.
+_env_grants = os.environ.get("TAP_AUTH_INITIAL_GRANTS")
+TAP_AUTH_INITIAL_GRANTS = json.loads(_env_grants) if _env_grants else initial_grants_for_settings(_TAP_BOOT_PROFILE)
 
 # Local Django password login (dev + recovery floor — req-tap-auth-local). From
 # the boot profile's auth section (default True); env override for dev. When

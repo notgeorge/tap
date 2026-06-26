@@ -225,20 +225,57 @@ class TestSocialAdapter:
         assert user.get_full_name() == "George Aydlette"
         assert user.avatar_url == "https://lh3.googleusercontent.com/p"
 
-    def test_apply_initial_admin_grants_group(self, settings):
-        settings.TAP_AUTH_PROVIDERS = [_provider_raw()]
-        settings.TAP_AUTH_INITIAL_ADMINS = ["george@criticalsec.com"]
+    def test_apply_initial_grants_grants_all_mapped_roles(self, settings):
+        # A single email may be granted several human roles at once.
+        settings.TAP_AUTH_INITIAL_GRANTS = {"george@criticalsec.com": ["tap_admin", "tap_viewer"]}
         Group.objects.get_or_create(name="tap_admin")
+        Group.objects.get_or_create(name="tap_viewer")
         user = get_user_model().objects.create_user(username="g", email="george@criticalsec.com")
-        TapSocialAccountAdapter()._apply_initial_admin(user)
+        TapSocialAccountAdapter()._apply_initial_grants(user)
         assert user.groups.filter(name="tap_admin").exists()
+        assert user.groups.filter(name="tap_viewer").exists()
 
-    def test_apply_initial_admin_skips_non_declared(self, settings):
-        settings.TAP_AUTH_INITIAL_ADMINS = ["someone@criticalsec.com"]
+    def test_apply_initial_grants_viewer_only(self, settings):
+        # The Sam-as-guest path: a non-admin, read-only grant.
+        settings.TAP_AUTH_INITIAL_GRANTS = {"sam@example.com": ["tap_viewer"]}
+        Group.objects.get_or_create(name="tap_viewer")
+        Group.objects.get_or_create(name="tap_admin")
+        user = get_user_model().objects.create_user(username="sam", email="sam@example.com")
+        TapSocialAccountAdapter()._apply_initial_grants(user)
+        assert user.groups.filter(name="tap_viewer").exists()
+        assert not user.groups.filter(name="tap_admin").exists()
+
+    def test_apply_initial_grants_skips_unmapped_email(self, settings):
+        settings.TAP_AUTH_INITIAL_GRANTS = {"someone@criticalsec.com": ["tap_admin"]}
         Group.objects.get_or_create(name="tap_admin")
         user = get_user_model().objects.create_user(username="h", email="other@criticalsec.com")
-        TapSocialAccountAdapter()._apply_initial_admin(user)
+        TapSocialAccountAdapter()._apply_initial_grants(user)
         assert not user.groups.filter(name="tap_admin").exists()
+
+    def test_apply_initial_grants_refuses_non_human_role(self, settings):
+        # Defense in depth: even if a program-only role leaks into the map (past
+        # the schema/boot guards), the adapter refuses to grant it to a person —
+        # a human can NEVER be handed a program actor's authority via login.
+        settings.TAP_AUTH_INITIAL_GRANTS = {"x@criticalsec.com": ["tap_bootloader", "tap_viewer"]}
+        Group.objects.get_or_create(name="tap_bootloader")
+        Group.objects.get_or_create(name="tap_viewer")
+        user = get_user_model().objects.create_user(username="x", email="x@criticalsec.com")
+        TapSocialAccountAdapter()._apply_initial_grants(user)
+        assert not user.groups.filter(name="tap_bootloader").exists()  # refused
+        assert user.groups.filter(name="tap_viewer").exists()  # the grantable one still applied
+
+    def test_apply_initial_grants_is_add_only_idempotent(self, settings):
+        # Add-only: never removes a pre-existing membership; idempotent on re-run.
+        settings.TAP_AUTH_INITIAL_GRANTS = {"george@criticalsec.com": ["tap_viewer"]}
+        Group.objects.get_or_create(name="tap_admin")
+        Group.objects.get_or_create(name="tap_viewer")
+        user = get_user_model().objects.create_user(username="g2", email="george@criticalsec.com")
+        user.groups.add(Group.objects.get(name="tap_admin"))  # a standing grant the map omits
+        adapter = TapSocialAccountAdapter()
+        adapter._apply_initial_grants(user)
+        adapter._apply_initial_grants(user)  # idempotent
+        assert user.groups.filter(name="tap_viewer").exists()
+        assert user.groups.filter(name="tap_admin").exists()  # NOT revoked by omission
 
 
 # --------------------------------------------------------------------------- #

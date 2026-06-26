@@ -43,10 +43,9 @@ from django.utils import timezone
 
 from tap_auth.models import ExternalIdentity, ExternalIdentityStatus, UserKind
 from tap_auth.providers import AccessDecision, get_provider, get_provider_config
+from tap_auth.roles import is_login_grantable
 
 logger = logging.getLogger(__name__)
-
-TAP_ADMIN_GROUP = "tap_admin"
 
 
 def user_display(user: Any) -> str:
@@ -159,7 +158,7 @@ class TapSocialAccountAdapter(DefaultSocialAccountAdapter):
     def save_user(self, request: HttpRequest, sociallogin: SocialLogin, form: Any = None) -> Any:
         user = super().save_user(request, sociallogin, form)
         self._sync_external_identity(sociallogin, user)
-        self._apply_initial_admin(user)
+        self._apply_initial_grants(user)
         return user
 
     # -- internals ---------------------------------------------------------
@@ -235,23 +234,41 @@ class TapSocialAccountAdapter(DefaultSocialAccountAdapter):
             email or "<none>",
         )
 
-    def _apply_initial_admin(self, user: Any) -> None:
-        """Grant tap_admin to a declared initial-admin email on login
-        (req-tap-auth-boot). Add/update-only — never removes (a typo cannot
-        revoke admin). Idempotent."""
-        declared = {str(e).strip().lower() for e in getattr(settings, "TAP_AUTH_INITIAL_ADMINS", []) or []}
-        if not user.email or user.email.lower() not in declared:
+    def _apply_initial_grants(self, user: Any) -> None:
+        """Grant the declared roles for an email on login (req-tap-auth-boot,
+        req-tap-auth-roles). Reads the effective ``TAP_AUTH_INITIAL_GRANTS`` map
+        (email -> roles; ``initial_admins`` already folded in as ``tap_admin``).
+
+        Add/update-only and idempotent — never removes (a typo or de-listing
+        cannot silently revoke; de-provisioning is a separate explicit action).
+        Defense-in-depth: even though the boot schema + validation constrain the
+        map to human-assignable roles, a role that is not human-assignable (a
+        leaked/drifted entry) is refused here too, so a person can never be granted
+        a program-actor's authority through this path."""
+        if not user.email:
             return
-        group = Group.objects.filter(name=TAP_ADMIN_GROUP).first()
-        if group is None:
-            logger.warning(
-                "[6351] initial-admin declared for %s but group '%s' is missing (run auth sync)",
-                user.email,
-                TAP_ADMIN_GROUP,
-            )
+        grants = getattr(settings, "TAP_AUTH_INITIAL_GRANTS", {}) or {}
+        roles_for_email = grants.get(user.email.lower())
+        if not roles_for_email:
             return
-        user.groups.add(group)
-        logger.info("[c331] initial admin granted: email=%s group=%s", user.email, TAP_ADMIN_GROUP)
+        for role in roles_for_email:
+            if not is_login_grantable(role):
+                logger.warning(
+                    "[6351] refusing non-human-grantable role in initial_grants: email=%s role=%s",
+                    user.email,
+                    role,
+                )
+                continue
+            group = Group.objects.filter(name=role).first()
+            if group is None:
+                logger.warning(
+                    "[7af2] initial grant declared for %s but group '%s' is missing (run auth sync)",
+                    user.email,
+                    role,
+                )
+                continue
+            user.groups.add(group)
+            logger.info("[c331] initial grant applied: email=%s role=%s", user.email, role)
 
 
 class TapAccountAdapter(DefaultAccountAdapter):

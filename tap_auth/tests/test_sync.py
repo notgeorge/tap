@@ -69,9 +69,13 @@ class TestSyncGroupsAndActors:
         sync.sync_capabilities()
         sync.sync_protected_groups()
         keys = set(ProtectedGroup.objects.values_list("builtin_key", flat=True))
-        assert keys == {"tap_admin", "tap_bootloader", "tap_cares.scheduler", "tap_cares.collector"}
+        assert keys == {"tap_admin", "tap_viewer", "tap_bootloader", "tap_cares.scheduler", "tap_cares.collector"}
         assert Group.objects.get(name="tap_admin").permissions.count() == len(ALL_CAPABILITY_NAMES)
-        collector_caps = set(Group.objects.get(name="tap_cares.collector").permissions.values_list("codename", flat=True))
+        # tap_viewer is the human-only read role: grid.read and nothing else.
+        assert set(Group.objects.get(name="tap_viewer").permissions.values_list("codename", flat=True)) == {"grid_read"}
+        collector_caps = set(
+            Group.objects.get(name="tap_cares.collector").permissions.values_list("codename", flat=True)
+        )
         assert collector_caps == {"grid_read", "grid_write", "grid_import_grift", "cares_run_collectors"}
 
     def test_group_bundle_is_hard_synced(self):
@@ -107,7 +111,9 @@ class TestSyncGroupsAndActors:
         sync.sync_auth()
         sync.sync_auth()
         assert User.objects.filter(tap_builtin_key="tap_bootloader").count() == 1
-        assert ProtectedGroup.objects.count() == 4
+        # 5 protected groups: tap_admin, tap_viewer (human-membership) + the three
+        # program-actor groups (bootloader, scheduler, collector).
+        assert ProtectedGroup.objects.count() == 5
 
     def test_actor_membership_is_authoritative(self):
         """Re-sync removes a stray privileged group from a built-in actor and

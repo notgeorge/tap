@@ -76,9 +76,21 @@
       }
     },
     "initial_admins": {
-      "description": "Verified emails granted tap_admin on first login (req-tap-auth-boot). Add/update-only — a typo cannot revoke admin. Operator-controlled; never sourced from a plugin.",
+      "description": "Verified emails granted tap_admin on first login (req-tap-auth-boot). Add/update-only — a typo cannot revoke admin. Operator-controlled; never sourced from a plugin. Sugar for `initial_grants` with role ['tap_admin']; boot folds the two into one effective grant map.",
       "type": "array",
       "items": {"type": "string", "format": "email"}
+    },
+    "initial_grants": {
+      "description": "Verified email -> the human-assignable roles granted to that person on each login (req-tap-auth-boot), generalizing initial_admins beyond tap_admin. Add/update-only and idempotent — applied on login, never reconciles or revokes (a typo or de-listing cannot silently drop access; de-provisioning is a separate explicit action). The role enum is the HUMAN-assignable set only; program-actor roles (tap_bootloader, tap_cares.*) are not grantable to a person here — the load-bearing security edge. Operator-controlled; never sourced from a plugin.",
+      "type": "object",
+      "propertyNames": {"format": "email"},
+      "additionalProperties": {
+        "description": "The roles granted to this email on login. Human-assignable roles only; held in sync with tap_auth.roles.HUMAN_ASSIGNABLE_ROLES by a guard test.",
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {"enum": ["tap_admin", "tap_viewer"]}
+      }
     },
     "local_password_enabled": {
       "description": "true (default): local Django password login is available (dev + recovery). false: password login is disabled everywhere including Django admin (req-tap-auth-local) — does NOT deactivate users or invalidate sessions. Customer profiles disable it once IdP login is ready.",

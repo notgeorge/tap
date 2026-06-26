@@ -35,6 +35,10 @@ _SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "roles.schema.json"
 # The single role permitted to use the "*" (all-capabilities) wildcard.
 ADMIN_ROLE = "tap_admin"
 
+# The principal classes a role may be assignable to (req-tap-auth-roles).
+PRINCIPAL_HUMAN = "human"
+PRINCIPAL_PROGRAM = "program"
+
 # The capabilities the bootloader role must never hold — destructive grid demolition
 # a boot bug must not be able to reach (spec-tap-boot-v0 req-boot-phases). Enforced
 # by guard test; documented here as the named invariant.
@@ -51,6 +55,15 @@ class RoleSpec:
     is_wildcard: bool
     description_json: dict[str, Any] = field(default_factory=dict)
     """Optional structured context, synced to ``ProtectedGroup.description_json``."""
+    assignable_to: frozenset[str] = field(default_factory=frozenset)
+    """The principal classes this role may be granted to — ``"human"`` (via
+    ``auth.initial_grants`` login) and/or ``"program"`` (a built-in program actor).
+    The security boundary that keeps program-only roles unreachable from login
+    config and human-only roles off program actors (req-tap-auth-roles)."""
+
+    def grantable_to(self, principal_class: str) -> bool:
+        """Whether this role may be granted to ``principal_class`` ('human'/'program')."""
+        return principal_class in self.assignable_to
 
 
 def _load_json(path: Path) -> Any:
@@ -89,12 +102,36 @@ def _load_roles() -> dict[str, RoleSpec]:
             capabilities=resolved,
             is_wildcard=wildcard,
             description_json=body.get("description_json", {}),
+            assignable_to=frozenset(body["assignable_to"]),
         )
     return roles
 
 
 # Canonical role registry, loaded from roles.json at import.
 ROLES: dict[str, RoleSpec] = _load_roles()
+
+# Roles assignable to each principal class (req-tap-auth-roles), derived from each
+# role's declared ``assignable_to``. HUMAN_ASSIGNABLE_ROLES is exactly the set a
+# person may be granted at login via ``auth.initial_grants`` — program-only roles
+# (``tap_bootloader``, ``tap_cares.*``) are excluded so login config can never hand
+# a person a program actor's authority; the auth-boot-section ``initial_grants``
+# enum is held in sync with this set, and program-actor bindings against
+# PROGRAM_ASSIGNABLE_ROLES, by guard tests.
+HUMAN_ASSIGNABLE_ROLES: frozenset[str] = frozenset(k for k, s in ROLES.items() if s.grantable_to(PRINCIPAL_HUMAN))
+PROGRAM_ASSIGNABLE_ROLES: frozenset[str] = frozenset(k for k, s in ROLES.items() if s.grantable_to(PRINCIPAL_PROGRAM))
+
+# Back-compat alias: "login-grantable" is exactly "human-assignable" (login is the
+# human grant path). Kept so the adapter/boot/schema-guard read intent-first.
+LOGIN_GRANTABLE_ROLES: frozenset[str] = HUMAN_ASSIGNABLE_ROLES
+
+
+def is_login_grantable(key: str) -> bool:
+    """Whether ``key`` is a role a human may be granted at login (req-tap-auth-roles).
+
+    False for unknown roles and for every program-only role — the defensive check
+    the adapter and boot validation both consult so a misconfigured
+    ``initial_grants`` can never grant a non-grantable role to a person."""
+    return key in HUMAN_ASSIGNABLE_ROLES
 
 
 def role_capabilities(key: str) -> tuple[str, ...]:

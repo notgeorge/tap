@@ -97,6 +97,58 @@ def initial_admins_for_settings(profile_id: str) -> list[str]:
     return admins if isinstance(admins, list) else []
 
 
+# The role a bare ``initial_admins`` email is sugar for (kept as a literal here so
+# this settings-time reader needs no import of the role registry, which pulls in
+# Django/capabilities and is not safe mid-settings-import — mirrors the providers
+# split). The schema enum + boot-phase validation are the real grantable guard.
+_ADMIN_ROLE = "tap_admin"
+
+
+def initial_grants_for_settings(profile_id: str) -> dict[str, list[str]]:
+    """Effective email -> roles grant map for ``TAP_AUTH_INITIAL_GRANTS``.
+
+    Reads the profile's ``initial_grants`` and folds ``initial_admins`` into it as
+    ``{email: ["tap_admin"]}``, so the two declarative sources collapse to ONE map
+    the adapter applies at login. Emails are normalized (stripped + lowercased);
+    roles for an email that appears in both sources are unioned (order-stable).
+
+    Tolerant by design (settings-time): malformed entries are skipped, not fatal —
+    the boot command validates the section against the schema and enforces the
+    grantable-role guard loudly. No role-registry import here (see ``_ADMIN_ROLE``).
+    """
+    return merge_initial_grants(read_auth_section(profile_id))
+
+
+def merge_initial_grants(section: dict[str, Any]) -> dict[str, list[str]]:
+    """Pure merge of an auth section's ``initial_grants`` + ``initial_admins`` into
+    one normalized email -> roles map (the testable core of
+    :func:`initial_grants_for_settings`). Emails stripped + lowercased; roles
+    unioned order-stably; malformed entries skipped (tolerant — boot validates)."""
+    merged: dict[str, list[str]] = {}
+
+    def _add(email: object, role: object) -> None:
+        if not isinstance(email, str) or not isinstance(role, str):
+            return
+        key = email.strip().lower()
+        if not key:
+            return
+        roles = merged.setdefault(key, [])
+        if role not in roles:
+            roles.append(role)
+
+    raw_grants = section.get("initial_grants")
+    if isinstance(raw_grants, dict):
+        for email, role_list in raw_grants.items():
+            if isinstance(role_list, list):
+                for role in role_list:
+                    _add(email, role)
+    raw_admins = section.get("initial_admins")
+    if isinstance(raw_admins, list):
+        for email in raw_admins:
+            _add(email, _ADMIN_ROLE)
+    return merged
+
+
 def local_password_enabled_from_profile(profile_id: str) -> bool:
     """Whether local password auth is enabled (default True when unset)."""
     return bool(read_auth_section(profile_id).get("local_password_enabled", True))
@@ -128,6 +180,7 @@ def apply_auth_boot_section(section: dict[str, Any], *, deploy: bool, echo: Echo
     from tap_auth.providers import ProviderConfig, get_provider
 
     validate_auth_section(section)
+    _validate_initial_grants(section)
 
     if deploy:
         _check_deploy_posture(echo)
@@ -157,10 +210,47 @@ def apply_auth_boot_section(section: dict[str, Any], *, deploy: bool, echo: Echo
 
     _enforce_last_admin_invariant(
         allow_lockout=bool(section.get("allow_admin_lockout", False)),
-        declared_admin_path=bool(section.get("initial_admins")),
+        declared_admin_path=_declares_admin_path(section),
         echo=echo,
     )
     echo("Auth phase: auth section applied (providers validated, last-admin invariant enforced).")
+
+
+def _declares_admin_path(section: dict[str, Any]) -> bool:
+    """Whether the section declares a path to a human ``tap_admin`` on first login —
+    a non-empty ``initial_admins`` OR any ``initial_grants`` entry granting
+    ``tap_admin``. Either satisfies the last-admin invariant (req-tap-auth-boot)."""
+    if section.get("initial_admins"):
+        return True
+    grants = section.get("initial_grants")
+    if isinstance(grants, dict):
+        return any(isinstance(r, list) and "tap_admin" in r for r in grants.values())
+    return False
+
+
+def _validate_initial_grants(section: dict[str, Any]) -> None:
+    """Boot-fatal guard: every role named in ``initial_grants`` must be a defined,
+    HUMAN-assignable role (req-tap-auth-roles).
+
+    The schema enum already constrains the role values; this is defense-in-depth
+    against schema/registry drift (an enum that outlives a role rename, or a role
+    whose ``assignable_to`` dropped ``human``) and gives a precise boot failure
+    rather than a silent grant the adapter would later refuse. Importing the role
+    registry is safe here — boot phase, not settings-import time."""
+    grants = section.get("initial_grants")
+    if not isinstance(grants, dict):
+        return
+    from tap_auth.roles import HUMAN_ASSIGNABLE_ROLES
+
+    offending: set[str] = set()
+    for role_list in grants.values():
+        if isinstance(role_list, list):
+            offending.update(r for r in role_list if r not in HUMAN_ASSIGNABLE_ROLES)
+    if offending:
+        raise AuthBootError(
+            f"auth.initial_grants names non-human-grantable or unknown role(s): {sorted(offending)}. "
+            f"Only human-assignable roles may be granted at login: {sorted(HUMAN_ASSIGNABLE_ROLES)}."
+        )
 
 
 def _check_deploy_posture(echo: Echo) -> None:

@@ -36,9 +36,11 @@ from tap_auth.models import Capability, ProtectedGroup, User
 logger = logging.getLogger(__name__)
 
 # Built-in identities. Group builtin_key == member program-actor tap_builtin_key
-# where a role has a single dedicated actor; tap_admin is a group whose members
-# are humans (initial admins) plus tap_test.
+# where a role has a single dedicated actor; tap_admin and tap_viewer are groups
+# whose members are humans (granted by email via auth.initial_grants) — they have
+# NO dedicated program actor, unlike the bootloader/scheduler/collector groups.
 GROUP_ADMIN = "tap_admin"
+GROUP_VIEWER = "tap_viewer"
 GROUP_BOOTLOADER = "tap_bootloader"
 GROUP_SCHEDULER = "tap_cares.scheduler"
 GROUP_COLLECTOR = "tap_cares.collector"
@@ -79,7 +81,8 @@ _ACTOR_DESCRIPTIONS: dict[str, str] = {
 # built-in key is also its role key, so we resolve the bundle from the role
 # registry rather than hardcoding it here.
 _GROUP_BUNDLES: dict[str, tuple[str, ...]] = {
-    key: roles.role_capabilities(key) for key in (GROUP_ADMIN, GROUP_BOOTLOADER, GROUP_SCHEDULER, GROUP_COLLECTOR)
+    key: roles.role_capabilities(key)
+    for key in (GROUP_ADMIN, GROUP_VIEWER, GROUP_BOOTLOADER, GROUP_SCHEDULER, GROUP_COLLECTOR)
 }
 
 
@@ -267,7 +270,16 @@ def _ensure_program_actor(builtin_key: str, group_key: str) -> None:
             setattr(user, name, value)
         user.save()
 
-    # Authoritative membership: exactly this one group, no strays.
+    # Authoritative membership: exactly this one group, no strays. The target
+    # group's role must be program-assignable (req-tap-auth-roles) — the complement
+    # to the human-side login-grant boundary: just as login config can't hand a
+    # person a program-only role, a program actor must not be bound to a human-only
+    # role (e.g. tap_viewer). A misdeclared binding is a boot-fatal config error.
+    if group_key not in roles.PROGRAM_ASSIGNABLE_ROLES:
+        raise AuthSyncError(
+            f"refusing to bind program actor '{builtin_key}' to group '{group_key}': "
+            f"its role is not assignable_to 'program' (req-tap-auth-roles)."
+        )
     user.groups.set([Group.objects.get(name=group_key)])
 
 
