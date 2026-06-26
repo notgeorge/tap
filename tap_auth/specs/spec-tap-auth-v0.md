@@ -664,6 +664,7 @@ Status: `Implemented`
   - When a provider explicitly enables email-domain fallback, every fallback decision is logged — the absence of `hd` is itself security-relevant.
   - `email_verified=true` is still required regardless of which path matched.
 - `google_oidc` live self-test fetches Google's OIDC discovery document.
+- The self-test covers reachability at **boot**; the **runtime** complement is that a transient provider-unreachable *during the login/callback flow* (allauth fetching the discovery doc, exchanging the authorization code, or fetching userinfo — all `requests` calls) is caught at the auth edge and rendered as a friendly, retryable page (HTTP 503 with `Retry-After`) rather than an uncaught 500. The rescue is scoped to the `/auth/` flow — the one place TAP makes outbound IdP calls inside a request — so a `requests` failure from any other view stays a real 500 (a genuine defect, not masked). This is graceful failure, not a security control: a denied login is still a deliberate 403 via the adapter, distinct from an unreachable-IdP 503.
 - Auto-provisioned users receive no TAP groups unless explicitly configured as initial admins.
 - Authenticated users may have no TAP permissions; they see a generic no-access page.
 
@@ -679,6 +680,7 @@ Status: `Implemented`
 | req-tap-auth-google-oidc-6 | Named Allowlist | Implemented | Providers may restrict login to an explicit `allowed_emails` allowlist, enforced on every login and only within the allowed domains; there is no any-account escape hatch. | |
 | req-tap-auth-google-oidc-7 | Allowlist Denial Surfaced | Implemented | A domain-allowed but non-allowlisted login fails closed with a distinct `account_not_allowlisted` reason that is logged and returned to the AuthN surface for a specific user-facing hint. | |
 | req-tap-auth-google-oidc-8 | Returned hd Only | Implemented | Domain enforcement uses the returned `hd` claim, never the request-side hint; email-domain fallback is opt-in per provider and off by default for customer providers. | |
+| req-tap-auth-google-oidc-9 | Runtime Unreachable Graceful | Implemented | A transient provider-reachability failure (`requests.RequestException`) during the OAuth login/callback flow renders a retryable 503 page instead of an uncaught 500; scoped to `/auth/` so non-auth `requests` failures stay real 500s. The runtime complement to the boot-time discovery self-test (-4). | |
 
 ---
 

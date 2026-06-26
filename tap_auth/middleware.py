@@ -26,9 +26,11 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
 
+import requests
 from django.conf import settings
 from django.contrib.auth.middleware import LoginRequiredMiddleware
 from django.http import HttpRequest, HttpResponse, HttpResponseBase, HttpResponseForbidden
+from django.shortcuts import render
 
 from tap_auth.errors import AuthzError
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
@@ -57,14 +59,34 @@ class CallerContextMiddleware:
             set_caller_context(prior)
 
     def process_exception(self, request: HttpRequest, exception: Exception) -> HttpResponse | None:
-        """Translate a tap_auth authorization denial escaping a web view into a
-        403 (req-tap-auth-policy: web layers translate denials to a 403 / no-access
-        response). A branded no-access page is allauth-phase work; v1 returns a
-        plain 403. `unguarded_operation` is NOT an AuthzError and stays a 500 — it
-        is an internal defect, not a denial."""
+        """Translate an auth-edge exception escaping a web view into a branded,
+        actionable response rather than a raw 500/traceback:
+
+        - a tap_auth authorization denial (`AuthzError`) → 403 no-access
+          (req-tap-auth-policy: web layers translate denials to a 403);
+        - a transient identity-provider reachability failure DURING the OAuth
+          login/callback flow (`requests.RequestException` on an `/auth/` path) →
+          a retryable 503 page (req-tap-auth-google-oidc callback hardening).
+          allauth's callback fetches the provider discovery doc, exchanges the
+          code, and fetches userinfo with `requests`; a network blip there is
+          otherwise an uncaught 500 on a load-bearing path.
+
+        Scope is deliberate. `unguarded_operation` is NOT an AuthzError and stays
+        a 500 — an internal defect, not a denial. A `RequestException` from any
+        non-auth view likewise stays a 500 (a real defect): only the login flow,
+        the one place TAP makes outbound IdP calls inside a request, is rescued."""
         if isinstance(exception, AuthzError):
             logger.warning("[a6b7] web authz denied: reason=%s path=%s", exception.reason, request.path)
             return HttpResponseForbidden(f"Forbidden ({exception.reason}). You do not have access to this resource.")
+        if isinstance(exception, requests.RequestException) and request.path.startswith("/auth/"):
+            logger.warning(
+                "[55c6] identity provider unreachable during login: path=%s error=%s",
+                request.path,
+                type(exception).__name__,
+            )
+            response = render(request, "tap_web/auth/provider_unreachable.html", status=503)
+            response["Retry-After"] = "10"
+            return response
         return None
 
 

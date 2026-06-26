@@ -17,7 +17,13 @@ import urllib.parse as urlparse
 from unittest import mock
 
 import pytest
-from django.test import Client
+import requests
+from django.contrib.auth.models import AnonymousUser
+from django.http import HttpResponse
+from django.test import Client, RequestFactory
+
+from tap_auth.errors import AuthzError
+from tap_auth.middleware import CallerContextMiddleware
 
 _IDP = "https://idp.example.test"
 _DISCOVERY = {
@@ -43,7 +49,7 @@ _APPS = {
 }
 
 
-def _discovery_response():
+def _discovery_response() -> mock.Mock:
     resp = mock.Mock()
     resp.status_code = 200
     resp.json.return_value = _DISCOVERY
@@ -72,3 +78,38 @@ class TestOidcInitiation:
         with mock.patch("requests.Session.get", return_value=_discovery_response()):
             r = Client().get("/auth/oidc/criticalsec-google/login/", SERVER_NAME="localhost")
         assert r.status_code != 302 or not r.headers.get("Location", "").startswith(_IDP)
+
+
+@pytest.mark.django_db
+class TestProviderUnreachableRescue:
+    """A transient IdP-reachability failure during the OAuth flow renders a
+    retryable 503 instead of a raw 500 (req-tap-auth-google-oidc callback
+    hardening). allauth reaches the provider with `requests` to fetch the
+    discovery doc / exchange the code / fetch userinfo; a network blip there
+    must not be an uncaught traceback on the login path."""
+
+    def test_idp_unreachable_during_login_renders_503(self, settings):
+        settings.SOCIALACCOUNT_PROVIDERS = _APPS
+        # The discovery fetch (requests.Session.get) blows up with a connection
+        # error — the same failure a network blip mid-login produces.
+        with mock.patch("requests.Session.get", side_effect=requests.ConnectionError("unreachable")):
+            r = Client().post("/auth/oidc/criticalsec-google/login/", SERVER_NAME="localhost")
+        assert r.status_code == 503
+        assert r["Retry-After"] == "10"
+        assert b"couldn't reach the sign-in provider" in r.content.lower()
+
+    def test_request_exception_off_the_auth_path_is_not_swallowed(self):
+        """Scope guard: a requests failure from any non-`/auth/` view stays an
+        unhandled 500 (a real defect), so the rescue can't mask bugs elsewhere."""
+        mw = CallerContextMiddleware(get_response=lambda request: HttpResponse())
+        req = RequestFactory().get("/viz/graph/")
+        req.user = AnonymousUser()
+        assert mw.process_exception(req, requests.ConnectionError("boom")) is None
+
+    def test_authz_denial_still_translates_to_403(self):
+        """Regression: the existing AuthzError → 403 translation is unchanged."""
+        mw = CallerContextMiddleware(get_response=lambda request: HttpResponse())
+        req = RequestFactory().get("/some/guarded/view/")
+        req.user = AnonymousUser()
+        resp = mw.process_exception(req, AuthzError("nope", reason="missing_actor"))
+        assert resp is not None and resp.status_code == 403

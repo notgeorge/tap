@@ -1,0 +1,32 @@
+{% load static %}
+<!DOCTYPE html>
+{% comment %}
+Provider-unreachable page (req-tap-auth-google-oidc, callback-hardening): a
+transient network failure reaching the identity provider DURING the OAuth
+login/callback flow — allauth fetching the provider discovery doc, exchanging the
+authorization code, or fetching userinfo with `requests`. Uncaught that is a raw
+500 (a traceback in dev, a bare error in prod) for a routine, retryable blip.
+Rendered instead with HTTP 503. Self-contained, styled with the shared auth.css.
+{% endcomment %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Couldn't reach the sign-in provider — {{ product_name|default:"TAP" }}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'tap_web/favicon.ico' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/auth.css' %}">
+</head>
+<body class="tap-auth-body">
+    <header class="tap-auth-header">
+        <span class="tap-auth-wordmark">{{ product_name|default:"TAP" }}</span>
+        {% if session_label %}<span class="tap-auth-session-tag">[ {{ session_label }} ]</span>{% endif %}
+    </header>
+    <main class="tap-auth-main">
+        <div class="tap-auth-card tap-auth-card--wide">
+            <h1 class="tap-auth-title">We couldn't reach the sign-in provider</h1>
+            <p class="tap-auth-sub">Something went wrong reaching the identity provider while signing you in. This is usually a temporary network blip — please try again in a moment.</p>
+            <a class="tap-auth-link" href="{% url 'account_login' %}">Try signing in again</a>
+        </div>
+    </main>
+</body>
+</html>
