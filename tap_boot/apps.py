@@ -15,3 +15,13 @@ class TapBootConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "tap_boot"
     verbose_name = "TAP Boot"
+
+    def ready(self) -> None:
+        """Register tap_boot's startup system checks.
+
+        Importing ``tap_boot.checks`` only *registers* the check functions with
+        Django's system check framework; the DB access they perform happens
+        later, when the checks run (during ``migrate`` / ``check --database``).
+        So this stays within TAP's "no DB access in ``ready()``" rule.
+        """
+        from tap_boot import checks  # noqa: F401  (import registers the checks)

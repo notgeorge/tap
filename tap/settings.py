@@ -353,6 +353,10 @@ TAP_LOGIN_EXEMPT_PREFIXES = [
     "/admin/",
     "/static/",
     "/favicon.ico",
+    # The health probe must answer unauthenticated so monitoring and the
+    # spawn-time health gate can read it before any login. It exposes only
+    # coarse status strings (no grid data). See tap/health.py.
+    "/healthz",
 ]
 
 # allauth security posture — pin the login-safety knobs explicitly rather than

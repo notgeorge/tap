@@ -96,10 +96,10 @@ Usage: $0 [<name>] [cli|codex|vscode] [<boot-profile>]
 Spawn a new isolated TAP dev session. The positional args, in order, are:
   <name>          session label (lowercase, e.g. cli, fix-arrangements).
                   If omitted, the script prompts for it interactively.
-  <boot-profile>  which boot/<profile>.boot.json the post-seed fire step runs to
-                  populate the session from collectors (e.g. \`samsite\`).
-                  Optional — omit it and the session boots plain (seed only,
-                  no collectors fired). There is no default.
+  <boot-profile>  which boot/<profile>.boot.json \`manage.py boot\` applies to
+                  this session (e.g. \`samsite\`). Optional — omit it and the
+                  session boots the \`base\` profile. What a profile declares and
+                  how boot applies it lives in spec-tap-boot-v0.md, not here.
 The launch target (cli|codex|vscode) is recognized by value, so it may sit
 anywhere among the positionals; the two free-form words are <name> then
 <boot-profile>.
@@ -114,7 +114,7 @@ The launch target auto-attaches an editor after spawn completes:
 
 \`--boot <profile>\` is an explicit alternative to the positional boot-profile
 (handy in scripts / to avoid positional ambiguity). See
-specs/spec-dev-boot-collectors.md.
+specs/spec-tap-boot-v0.md.
 
 Examples:
   $0                              # interactive, plain boot, no auto-launch
@@ -504,27 +504,28 @@ done
 echo
 
 # ============================================================================
-# Step 6: Stand the instance up via the bootloader (auth → population)
+# Step 6: Stand the instance up via the bootloader
 #
-# One command replaces the former ad hoc sequence (sync_auth → import_plugin_grift
-# → reconcile_collectors → fire_boot_collectors → createsuperuser → tap_admin
-# join): `manage.py boot` runs those as fixed phases under the tap_bootloader
-# actor, so dev and customer standup share one path (req-boot-spawn-bridge,
-# spec-tap-boot-v0). Migrations already ran in the entrypoint (a boot precondition,
-# not a phase).
+# spawn's job ends at "hand a fresh DB + running container to the bootloader."
+# `manage.py boot --profile <id>` owns the standup contract — phases, ordering,
+# auth, plugin seeding, collectors — and is the SAME path in dev and customer
+# environments (req-boot-spawn-bridge). Do NOT re-describe boot's phases here;
+# they live in spec-tap-boot-v0.md. (Migrations + the cache table already ran in
+# the entrypoint — schema preconditions, not boot phases.)
 #
-# Profile: the explicit `--boot` profile if given, else the seed-all/no-collectors
-# `base` profile — so a plain spawn still seeds every plugin but reaches out to
-# nothing, matching the former plain-boot behavior. boot's auth phase creates the
-# admin from DJANGO_SUPERUSER_* env (Django's unattended convention) via
-# ensure_initial_admin() and joins it to tap_admin (req-tap-auth-local-5) — the
-# is_superuser flag is NOT a service-layer bypass, so the group join is what gives
-# the admin authority through the service boundary.
+# What spawn legitimately owns at this step is dev-env-specific: resolving the
+# admin password and exposing it through the .dev-credentials interface. boot's
+# auth phase creates the admin from the DJANGO_SUPERUSER_* env this step supplies
+# (req-tap-auth-local-5); spawn just sources the password and passes it.
 #
 # Admin password resolution (req-dev-multisession-admin-bootstrap):
 # TAP_DEV_ADMIN_PASSWORD → macOS Keychain (tap-dev-default/admin) → random. The
 # resolved password is written to .dev-credentials (gitignored) — the runtime
 # interface the attached Claude / developer reads on demand.
+#
+# Profile default: the explicit `--boot` profile if given, else `base`
+# (seed-all / no-collectors) — a plain spawn seeds every plugin but reaches out
+# to nothing.
 # ============================================================================
 bold "Step 6: Standing the instance up (manage.py boot)"
 
@@ -560,7 +561,48 @@ scripts/dc exec \
   -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL" \
   web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE"
 
-info "Instance booted (admin created + joined tap_admin). Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
+info "Instance booted via manage.py boot. Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
+
+# ============================================================================
+# Step 6.5: Functional health gate (/healthz)
+#
+# The Step 5 wait only proves runserver is LISTENING — it accepts any HTTP
+# response, 5xx included, as "ready". That blindness is exactly what let the
+# tap_cache latent-provisioning fault ship a "successful" spawn that 500s on
+# first cache access. After boot, gate on the real-backend health endpoint:
+# it does a live db + cache (set/get round-trip) + queue probe and returns
+# 200 only when the critical backends actually work. Require 200 + healthy;
+# fail the spawn loudly otherwise. Pure Python-in-container (no curl), same
+# shape as the Step 5 wait. See tap/health.py and
+# docs/aar/2026-06-26-tap-cache-latent-provisioning.md.
+# ============================================================================
+bold "Step 6.5: Gating on the real-backend health endpoint (/healthz)"
+if scripts/dc exec -T web python -c "
+import json, sys, urllib.request
+try:
+    resp = urllib.request.urlopen('http://localhost:8000/healthz', timeout=10)
+    body = json.loads(resp.read().decode())
+except urllib.error.HTTPError as e:
+    # A 503 from the endpoint is an UNHEALTHY instance, not a missing route —
+    # surface its JSON body so the failure names the broken backend.
+    try:
+        print(e.read().decode())
+    except Exception:
+        pass
+    sys.exit(1)
+except Exception as e:
+    print('health endpoint unreachable:', e)
+    sys.exit(1)
+print(json.dumps(body.get('checks', {})))
+sys.exit(0 if resp.status == 200 and body.get('status') == 'healthy' else 1)
+"; then
+  info "Instance is healthy (db + cache + queue probes passed)."
+else
+  fail "Instance booted but /healthz is UNHEALTHY — a critical backend (db/cache) is broken.
+    The checks JSON above names the failing probe. Inspect logs:
+      scripts/dc logs web
+    (in $WORKTREE). Do NOT treat this session as usable until /healthz returns healthy."
+fi
 
 # ============================================================================
 # Final: record the session in the registry

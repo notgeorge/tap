@@ -12,7 +12,7 @@
 # entrypoint means the install lands in the per-project container venv and
 # uv cache volumes, which is what we actually want to use.
 #
-# Exit immediately if any command fails
+# Exit immediately if any command failsals
 set -e
 
 echo "==> Syncing Python dependencies (uv sync --all-packages)..."
@@ -25,6 +25,17 @@ uv sync --all-packages
 
 echo "==> Running database migrations..."
 uv run python manage.py migrate --noinput
+
+# Provision the DatabaseCache table (settings.CACHES LOCATION="tap_cache").
+# This is DB-schema provisioning, the same category as migrate — "fresh DB →
+# schema current" — not instance state, so it lives here next to migrate rather
+# than in `manage.py boot` (which converges instance state above the schema) or
+# in spawn-session.sh (dev-env orchestration only). createcachetable is
+# idempotent: it no-ops when the table already exists, so it is safe on every
+# container start. Without it the first cache read (e.g. allauth login
+# rate-limiting) fails with relation "tap_cache" does not exist.
+echo "==> Provisioning the DatabaseCache table (createcachetable)..."
+uv run python manage.py createcachetable
 
 # Note: tailwindcss is NOT rebuilt at container start. The committed
 # tap_web/static/tap_web/css/tailwind.css is served as-is. Dev work that
