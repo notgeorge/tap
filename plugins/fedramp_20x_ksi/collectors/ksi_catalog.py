@@ -41,6 +41,7 @@ from uuid import UUID, uuid5, uuid7
 
 import jsonschema
 
+from tap.jsonfiles import load_schema, validate_json
 from tap_cares.collectors import (
     CollectorBase,
     CollectorDocRef,
@@ -121,7 +122,7 @@ class KSICollectorError(Exception):
 
 
 def _load_pinned_schema() -> dict[str, Any]:
-    return json.loads(_PINNED_SCHEMA_PATH.read_text())
+    return load_schema(_PINNED_SCHEMA_PATH)
 
 
 def _load_pinned_namespace() -> UUID:
@@ -129,7 +130,7 @@ def _load_pinned_namespace() -> UUID:
 
 
 def _load_collection_schema() -> dict[str, Any]:
-    return json.loads(_PINNED_COLLECTION_SCHEMA_PATH.read_text())
+    return load_schema(_PINNED_COLLECTION_SCHEMA_PATH)
 
 
 def _load_denylist() -> dict[str, Any]:
@@ -793,7 +794,7 @@ class KSICollector(CollectorBase):
                 "deletion_ratio": ratio,
             },
         }
-        jsonschema.validate(instance=description_data, schema=_load_collection_schema())
+        validate_json(description_data, _load_collection_schema(), source="description_data")
 
         nodes: list[dict[str, Any]] = []
         for code, state in sorted(diff["themes_added"].items()):

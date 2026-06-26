@@ -60,21 +60,21 @@ class TestSchemaValidation:
         bad = json.loads(json.dumps(_VALID_SCENARIO))
         del bad["scenarios"][0]["query"]
         _write(tmp_path, "bad.gridkin.json", bad)
-        with pytest.raises(GridkinScenarioError, match="schema violation"):
+        with pytest.raises(GridkinScenarioError, match="schema validation"):
             loader.discover_scenarios(tmp_path)
 
     def test_rejects_unknown_field(self, tmp_path):
         bad = json.loads(json.dumps(_VALID_SCENARIO))
         bad["scenarios"][0]["typo_field"] = "oops"
         _write(tmp_path, "bad.gridkin.json", bad)
-        with pytest.raises(GridkinScenarioError, match="schema violation"):
+        with pytest.raises(GridkinScenarioError, match="schema validation"):
             loader.discover_scenarios(tmp_path)
 
     def test_rejects_empty_covers(self, tmp_path):
         bad = json.loads(json.dumps(_VALID_SCENARIO))
         bad["scenarios"][0]["covers"] = []
         _write(tmp_path, "bad.gridkin.json", bad)
-        with pytest.raises(GridkinScenarioError, match="schema violation"):
+        with pytest.raises(GridkinScenarioError, match="schema validation"):
             loader.discover_scenarios(tmp_path)
 
     def test_rejects_invalid_json(self, tmp_path):

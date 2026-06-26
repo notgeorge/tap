@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import jsonschema
+from tap.jsonfiles import validate_json
 
 logger = logging.getLogger(__name__)
 
@@ -91,12 +91,8 @@ class ValidationResult:
         passed = sum(1 for c in self.checks if c.status == "pass")
         warned = sum(1 for c in self.checks if c.status == "warn")
         failed = sum(1 for c in self.checks if c.status == "fail")
-        warnings_total = sum(
-            1 for c in self.checks for m in c.messages if m.severity == "warning"
-        )
-        errors_total = sum(
-            1 for c in self.checks for m in c.messages if m.severity == "error"
-        )
+        warnings_total = sum(1 for c in self.checks for m in c.messages if m.severity == "warning")
+        errors_total = sum(1 for c in self.checks for m in c.messages if m.severity == "error")
         return {
             "checks_total": len(self.checks),
             "checks_passed": passed,
@@ -118,8 +114,7 @@ class ValidationResult:
 
     def to_json(self) -> str:
         doc = self.to_dict()
-        schema = _load_schema()
-        jsonschema.validate(doc, schema)
+        validate_json(doc, _SCHEMA_PATH, source="plugin-validation-result")
         return json.dumps(doc, indent=2)
 
     def to_human(self) -> str:
@@ -144,19 +139,12 @@ class ValidationResult:
             icon = {"pass": "OK", "warn": "WARN", "fail": "FAIL"}[check.status]
             lines.append(f"  [{icon}] {check.name}")
             for msg in check.messages:
-                prefix = {"info": "     ", "warning": "     WARN:", "error": "     ERR:"}[
-                    msg.severity
-                ]
+                prefix = {"info": "     ", "warning": "     WARN:", "error": "     ERR:"}[msg.severity]
                 path_suffix = f" ({msg.path})" if msg.path else ""
                 lines.append(f"{prefix} {msg.text}{path_suffix}")
 
         lines.append("")
         return "\n".join(lines)
-
-
-def _load_schema() -> dict[str, Any]:
-    with open(_SCHEMA_PATH) as fh:
-        return json.load(fh)
 
 
 class UnsupportedLevelError(Exception):
@@ -186,9 +174,7 @@ def validate_plugin(
     if level not in KNOWN_LEVELS:
         raise ValueError(f"Unknown validation level: {level!r}")
     if level not in SUPPORTED_LEVELS:
-        raise UnsupportedLevelError(
-            f"Validation level {level!r} is not yet implemented"
-        )
+        raise UnsupportedLevelError(f"Validation level {level!r} is not yet implemented")
 
     result = ValidationResult(
         ok=True,
@@ -264,9 +250,7 @@ def _check_core_files(plugin_root: Path, result: ValidationResult) -> None:
     result.checks.append(check)
 
 
-def _check_manifest_parse(
-    plugin_root: Path, result: ValidationResult
-) -> Any:
+def _check_manifest_parse(plugin_root: Path, result: ValidationResult) -> Any:
     """Parse and structurally validate the manifest. Returns PluginManifest or None."""
     from tap_plugins.manifest import PluginManifestError, load_manifest
 
@@ -340,8 +324,7 @@ def _check_edge_files(manifest: Any, result: ValidationResult) -> None:
     check = CheckResult(id="edge-files", name="Edge definition files valid")
     for edge in manifest.edges:
         check.info(
-            f"Edge {edge.slug}: {edge.name} "
-            f"(sources={edge.sources or 'any'}, targets={edge.targets or 'any'})"
+            f"Edge {edge.slug}: {edge.name} " f"(sources={edge.sources or 'any'}, targets={edge.targets or 'any'})"
         )
     result.checks.append(check)
 
@@ -419,8 +402,6 @@ def _check_model_classes(manifest: Any, result: ValidationResult) -> None:
 
     check = CheckResult(id="model-classes", name="Model classes import and validate")
 
-    from tap_plugins.manifest import PluginManifestError, validate_manifest_classes
-
     from django.utils.module_loading import import_string
 
     for entry in manifest.models:
@@ -442,8 +423,7 @@ def _check_model_classes(manifest: Any, result: ValidationResult) -> None:
         entity_type = getattr(cls, "ENTITY_TYPE", None)
         if entity_type != entry.slug:
             check.fail(
-                f"'{entry.class_path}' ENTITY_TYPE='{entity_type}' "
-                f"does not match manifest slug='{entry.slug}'",
+                f"'{entry.class_path}' ENTITY_TYPE='{entity_type}' " f"does not match manifest slug='{entry.slug}'",
                 path=entry.class_path,
             )
             continue
@@ -666,9 +646,7 @@ def _generate_edge_properties(property_schema: dict[str, Any]) -> dict[str, Any]
     return properties
 
 
-def _check_create_nodes(
-    manifest: Any, result: ValidationResult, *, caller_context: Any = None
-) -> None:
+def _check_create_nodes(manifest: Any, result: ValidationResult, *, caller_context: Any = None) -> None:
     if not manifest.models:
         return
 
@@ -699,10 +677,7 @@ def _check_create_nodes(
         if write_result.success:
             check.info(f"create_node('{entry.slug}') OK")
         else:
-            error_msgs = "; ".join(
-                f"{e.field}: {e.message}" if e.field else e.message
-                for e in write_result.errors
-            )
+            error_msgs = "; ".join(f"{e.field}: {e.message}" if e.field else e.message for e in write_result.errors)
             check.fail(
                 f"create_node('{entry.slug}') failed: {error_msgs}",
                 path=entry.slug,
@@ -711,9 +686,7 @@ def _check_create_nodes(
     result.checks.append(check)
 
 
-def _check_create_edges(
-    manifest: Any, result: ValidationResult, *, caller_context: Any = None
-) -> None:
+def _check_create_edges(manifest: Any, result: ValidationResult, *, caller_context: Any = None) -> None:
     if not manifest.edges:
         return
 
@@ -723,8 +696,6 @@ def _check_create_edges(
         return
 
     check = CheckResult(id="create-edges", name="create_edge succeeds for constrained edge types")
-
-    from django.utils.module_loading import import_string
 
     from tap_grid.models import Entity
     from tap_grid.registry import get_model_class
@@ -775,14 +746,11 @@ def _check_create_edges(
         properties = _generate_edge_properties(edge.property_schema) if edge.property_schema else None
 
         try:
-            edge_obj = create_edge(source_entity, target_entity, edge.slug, properties=properties)
-            check.info(
-                f"create_edge('{source_type}' -> '{target_type}', '{edge.slug}') OK"
-            )
+            create_edge(source_entity, target_entity, edge.slug, properties=properties)
+            check.info(f"create_edge('{source_type}' -> '{target_type}', '{edge.slug}') OK")
         except Exception as exc:
             check.fail(
-                f"create_edge('{source_type}' -> '{target_type}', '{edge.slug}') "
-                f"raised: {exc}",
+                f"create_edge('{source_type}' -> '{target_type}', '{edge.slug}') " f"raised: {exc}",
                 path=edge.slug,
             )
 
@@ -819,19 +787,14 @@ def _check_grift_import(manifest: Any, result: ValidationResult) -> None:
 
         if import_result.success:
             counts = import_result.counts
-            check.info(
-                f"Bundle '{entry.name}': {counts.nodes_imported} node(s), "
-                f"{counts.edges_imported} edge(s)"
-            )
+            check.info(f"Bundle '{entry.name}': {counts.nodes_imported} node(s), " f"{counts.edges_imported} edge(s)")
             for w in import_result.warnings:
                 check.warn(
                     f"Bundle '{entry.name}' [{w.phase}]: {w.message}",
                     path=entry.path,
                 )
         else:
-            error_msgs = "; ".join(
-                f"[{e.phase}] {e.path}: {e.message}" for e in import_result.errors
-            )
+            error_msgs = "; ".join(f"[{e.phase}] {e.path}: {e.message}" for e in import_result.errors)
             check.fail(
                 f"Bundle '{entry.name}' import failed: {error_msgs}",
                 path=entry.path,

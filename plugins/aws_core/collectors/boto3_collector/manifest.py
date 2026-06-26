@@ -16,6 +16,8 @@ from typing import Any
 
 import jsonschema
 
+from tap.jsonfiles import JsonFileError, load_json_file, load_schema, validate_json
+
 _DIR = Path(__file__).resolve().parent
 MANIFEST_PATH = _DIR / "aws_resource_manifest.json"
 SCHEMA_PATH = _DIR / "aws_resource_manifest.schema.json"
@@ -33,19 +35,18 @@ def load_manifest() -> dict[str, Any]:
     schema is missing/unparseable or the manifest fails schema validation.
     """
     try:
-        manifest: dict[str, Any] = json.loads(MANIFEST_PATH.read_text())
-        schema = json.loads(SCHEMA_PATH.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
+        manifest: dict[str, Any] = load_json_file(MANIFEST_PATH)
+        schema = load_schema(SCHEMA_PATH)
+    except (JsonFileError, OSError, json.JSONDecodeError) as exc:
         raise ManifestError(f"Cannot read/parse manifest or schema: {exc}") from exc
 
     try:
         jsonschema.Draft202012Validator.check_schema(schema)
-        jsonschema.validate(instance=manifest, schema=schema)
+        validate_json(manifest, schema, source=MANIFEST_PATH)
     except jsonschema.SchemaError as exc:
         raise ManifestError(f"Manifest schema is itself invalid: {exc.message}") from exc
-    except jsonschema.ValidationError as exc:
-        path = "$" + "".join(f"[{p!r}]" for p in exc.absolute_path)
-        raise ManifestError(f"Manifest failed schema validation at {path}: {exc.message}") from exc
+    except JsonFileError as exc:
+        raise ManifestError(f"Manifest failed schema validation: {exc}") from exc
 
     return manifest
 

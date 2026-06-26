@@ -96,7 +96,7 @@ Usage: $0 [<name>] [cli|codex|vscode] [<boot-profile>]
 Spawn a new isolated TAP dev session. The positional args, in order, are:
   <name>          session label (lowercase, e.g. cli, fix-arrangements).
                   If omitted, the script prompts for it interactively.
-  <boot-profile>  which boot/<profile>.json the post-seed fire step runs to
+  <boot-profile>  which boot/<profile>.boot.json the post-seed fire step runs to
                   populate the session from collectors (e.g. \`samsite\`).
                   Optional — omit it and the session boots plain (seed only,
                   no collectors fired). There is no default.
@@ -130,7 +130,7 @@ EOF
       ;;
     --boot)
       shift
-      [[ $# -gt 0 ]] || fail "--boot requires a profile name (a boot/<profile>.json id)."
+      [[ $# -gt 0 ]] || fail "--boot requires a profile name (a boot/<profile>.boot.json id)."
       BOOT_PROFILE="$1"
       shift
       ;;
@@ -392,7 +392,7 @@ except AttributeError:
     print(uuid.UUID(int=val))
 PY
 )"
-# TAP_BOOT_PROFILE names which boot/<id>.json `manage.py boot` applies in Step 6.
+# TAP_BOOT_PROFILE names which boot/<id>.boot.json `manage.py boot` applies in Step 6.
 # It is chosen explicitly per spawn via `--boot <profile>`; an empty value means
 # Step 6 falls back to the seed-all, no-collectors `base` profile — a plain spawn
 # seeds every plugin but reaches out to nothing. See specs/spec-tap-boot-v0.md.

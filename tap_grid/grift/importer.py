@@ -20,6 +20,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from tap.jsonfiles import load_schema
 from tap_grid.batch import close_batch, create_batch
 from tap_grid.caller_context import CallerContext
 from tap_grid.models import Entity
@@ -33,7 +34,6 @@ if TYPE_CHECKING:
 GRIFT_VERSION = "0"
 IMPORT_MODE = "upsert"
 _GRIFT_SCHEMA_PATH = Path(__file__).parent.parent / "schemas" / "grift-document.schema.json"
-_grift_schema_cache: dict[str, Any] | None = None
 
 # ---------------------------------------------------------------------------
 # Result types (mirror the JSON schema in spec-grid-import-grift.md)
@@ -1073,11 +1073,7 @@ def _validate_removal_section(
 
 def _load_grift_schema() -> dict[str, Any]:
     """Load and cache the GRIFT document JSON Schema."""
-    global _grift_schema_cache
-    if _grift_schema_cache is None:
-        with open(_GRIFT_SCHEMA_PATH) as fh:
-            _grift_schema_cache = json.load(fh)
-    return _grift_schema_cache
+    return load_schema(_GRIFT_SCHEMA_PATH)
 
 
 def _validate_document_schema(document: dict[str, Any], issues: list[GriftIssue]) -> bool:

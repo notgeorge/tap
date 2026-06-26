@@ -15,7 +15,7 @@ from tap_boot.profile import (
 
 
 def _write(boot_dir, profile_id: str, data: dict[str, object]) -> None:
-    (boot_dir / f"{profile_id}.json").write_text(json.dumps(data))
+    (boot_dir / f"{profile_id}.boot.json").write_text(json.dumps(data))
 
 
 @pytest.fixture

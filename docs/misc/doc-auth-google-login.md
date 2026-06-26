@@ -24,7 +24,7 @@ Google; the only step a browser/human must complete is the consent round-trip.
 - The `google_oidc` provider, the security adapter (verified-email / `hd`-domain /
   `allowed_emails` / linking-disabled), `ExternalIdentity`, gated provisioning,
   initial-admin-on-first-login.
-- The `criticalsec` boot profile (`boot/criticalsec.json`) wiring the
+- The `criticalsec` boot profile (`boot/criticalsec.boot.json`) wiring the
   `criticalsec-google` provider pinned to `george@criticalsec.com`.
 - The secret `~/tap-secrets/auth/criticalsec-google.secret.json` (your real
   Google client id/secret), schema-validated.

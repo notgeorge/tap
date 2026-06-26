@@ -17,7 +17,7 @@ failure_class: >
   has less in it than it should, and nothing on the artifact says so.
 surfaces:
   - scripts/spawn-session.sh
-  - boot/samsite.json
+  - boot/samsite.boot.json
   - plugins/samsite/grift/landing.grift.json
   - plugins/samsite/collectors/compliance_collector/sigstore_link.py
   - tap_grid/grift/importer.py
@@ -132,7 +132,7 @@ asserting "this is incomplete."
 
 - `ec8339f` — removed the 4 orphan edges from `landing.grift.json`; future cold
   spawns pass Step 6 and reach Step 6.5.
-- `boot/samsite.json` — profile description + `samsite-compliance` note now
+- `boot/samsite.boot.json` — profile description + `samsite-compliance` note now
   document the `github_core` dependency (resolve-signing-workflow) alongside the
   `boto3` one, and state that out-of-order runs silently drop the edges.
 - `sigstore_link.py` — `logger.info` (`[3e92]`) when no workflow matches (the

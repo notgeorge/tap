@@ -8,12 +8,11 @@ without reading collector code.
 
 from __future__ import annotations
 
-import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import jsonschema
+from tap.jsonfiles import JsonFileError, load_json_file, load_schema, validate_json
 
 _MANIFEST_PATH = Path(__file__).resolve().parent / "artifact_manifest.json"
 _SCHEMA_PATH = Path(__file__).resolve().parent / "artifact_manifest.schema.json"
@@ -32,16 +31,16 @@ def load_manifest() -> dict[str, Any]:
             JSON, or fails validation against the manifest JSON Schema.
     """
     try:
-        manifest = json.loads(_MANIFEST_PATH.read_text())
-    except FileNotFoundError as exc:
-        raise ArtifactManifestError(f"Artifact manifest not found: {_MANIFEST_PATH}") from exc
-    except json.JSONDecodeError as exc:
-        raise ArtifactManifestError(f"Artifact manifest is not valid JSON: {exc}") from exc
+        manifest = load_json_file(_MANIFEST_PATH)
+    except JsonFileError as exc:
+        raise ArtifactManifestError(f"Artifact manifest could not be loaded: {exc}") from exc
 
-    schema = json.loads(_SCHEMA_PATH.read_text())
+    schema = load_schema(_SCHEMA_PATH)
     try:
-        jsonschema.validate(manifest, schema)
-    except jsonschema.ValidationError as exc:
-        raise ArtifactManifestError(f"Artifact manifest failed schema validation: {exc.message}") from exc
+        validate_json(manifest, schema, source=_MANIFEST_PATH)
+    except JsonFileError as exc:
+        raise ArtifactManifestError(
+            f"Artifact manifest failed schema validation at {exc.location}: {exc.reason}"
+        ) from exc
 
     return manifest

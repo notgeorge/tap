@@ -81,10 +81,10 @@ RID: `req-dev-boot-collectors-profiles`
 Status: `Proposed`
 
 Boot profiles live in a **top-level `boot/`** directory. Each profile is one
-JSON file; the **filename is the profile id** (`boot/full.json` → profile
+JSON file; the **filename is the profile id** (`boot/full.boot.json` → profile
 `full`). A single shared JSON Schema validates every profile:
 
-- Profiles (data): `boot/<profile>.json`
+- Profiles (data): `boot/<profile>.boot.json`
 - Schema: `tap_cares/schemas/boot-profile.schema.json` — co-located with its
   loader (the `fire_boot_collectors` command lives in `tap_cares`; see
   [Fire Command](#fire-command)), next to the existing
@@ -148,7 +148,7 @@ growth is declared.
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-dev-boot-collectors-profiles-1 | Shared Schema Authored + Validated | Proposed | `tap_cares/schemas/boot-profile.schema.json` exists and the command validates each selected profile against it at load, failing loud on violation. | |
-| req-dev-boot-collectors-profiles-2 | Filename Is Profile Id | Proposed | A profile is selected by the basename of its file (`boot/full.json` ⇒ `full`). | |
+| req-dev-boot-collectors-profiles-2 | Filename Is Profile Id | Proposed | A profile is selected by the basename of its file (`boot/full.boot.json` ⇒ `full`). | |
 | req-dev-boot-collectors-profiles-3 | Disabled Entries Skipped | Proposed | An entry with `enabled: false` is not fired and does not error. | |
 | req-dev-boot-collectors-profiles-4 | Unknown Key Fails Loud | Proposed | A `key` absent from the collector registry aborts the run with a clear error before any collector fires. | |
 
@@ -165,7 +165,7 @@ commands), is the executable surface:
 
 1. Resolves the profile per [Profile Selection](#profile-selection-opt-in). If
    none is selected, **exits 0 without firing** (clean no-op, logged).
-2. Reads `boot/<profile>.json`; validates it against the shared schema; aborts on
+2. Reads `boot/<profile>.boot.json`; validates it against the shared schema; aborts on
    violation or a missing profile file.
 3. Pre-resolves every enabled entry's qualified key to its `Collector` entity;
    an unknown key aborts here, before any collector fires.

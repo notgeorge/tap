@@ -2,17 +2,16 @@
 
 Spec: plugins/github_core/specs/spec-github-core-v0.md
 (req-github-core-manifests-1/2). Manifests are JSON, validated against
-JSON Schemas at load. Invalid manifests fail the run visibly (`jsonschema`
-raises with the offending path).
+JSON Schemas at load. Invalid manifests fail the run visibly (the shared JSON
+loader raises `JsonFileError` with the offending path/location).
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
-import jsonschema
+from tap.jsonfiles import load_json_file
 
 _HERE = Path(__file__).resolve().parent
 
@@ -23,9 +22,7 @@ LINK_MANIFEST_SCHEMA_PATH = _HERE / "github_grid_link_manifest.schema.json"
 
 
 def _load_validated(manifest_path: Path, schema_path: Path) -> dict[str, Any]:
-    manifest: dict[str, Any] = json.loads(manifest_path.read_text())
-    schema: dict[str, Any] = json.loads(schema_path.read_text())
-    jsonschema.validate(instance=manifest, schema=schema)
+    manifest: dict[str, Any] = load_json_file(manifest_path, schema=schema_path)
     return manifest
 
 

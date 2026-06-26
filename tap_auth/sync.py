@@ -77,7 +77,7 @@ _ACTOR_DESCRIPTIONS: dict[str, str] = {
 }
 
 # group builtin_key -> bundle of capability names it grants (hard-synced). The
-# bundles live in roles.json (req-tap-auth-roles); each protected group's
+# bundles live in tap_auth.roles.json (req-tap-auth-roles); each protected group's
 # built-in key is also its role key, so we resolve the bundle from the role
 # registry rather than hardcoding it here.
 _GROUP_BUNDLES: dict[str, tuple[str, ...]] = {

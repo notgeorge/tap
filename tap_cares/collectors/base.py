@@ -41,13 +41,13 @@ class and message. See `req-tap-cares-collector-failure-mode`.
 
 from __future__ import annotations
 
-import json
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar
 
 import jsonschema
 
+from tap.jsonfiles import load_schema
 from tap_cares.collectors.config import CollectorConfig
 from tap_cares.collectors.readiness import (
     LIVE_CHECK_TIMEOUT_SECONDS,
@@ -62,7 +62,7 @@ from tap_cares.exceptions import GriftRejectedError
 _SITE_GRIFT_REJECTED = "4613"
 
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "collection_job_results.schema.json"
-_SCHEMA: dict[str, Any] = json.loads(_SCHEMA_PATH.read_text())
+_SCHEMA: dict[str, Any] = load_schema(_SCHEMA_PATH)
 _ENTRY_SCHEMA: dict[str, Any] = _SCHEMA["$defs"]["entry"]
 
 _LEVELS = ("info", "warn", "error")

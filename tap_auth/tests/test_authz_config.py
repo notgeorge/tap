@@ -1,7 +1,7 @@
 """Guard tests for the declarative authz config files (req-tap-auth-capabilities / -roles).
 
 These pin the capability vocabulary and the role bundles loaded from
-`tap_auth/capabilities.json` + `tap_auth/roles.json`. They are the compensating
+`tap_auth/tap_auth.capabilities.json` + `tap_auth/tap_auth.roles.json`. They are the compensating
 control for the bundles being data rather than typed code: a silent edit that
 broadens a security boundary (especially the bootloader's least-privilege set)
 fails here. No DB — the registries are loaded at import.
@@ -32,7 +32,7 @@ _TAP_AUTH = Path(__file__).resolve().parent.parent
 
 
 def test_capabilities_loaded_and_unique():
-    assert CAPABILITIES, "capabilities.json produced an empty registry"
+    assert CAPABILITIES, "tap_auth.capabilities.json produced an empty registry"
     assert len(ALL_CAPABILITY_NAMES) == len(set(ALL_CAPABILITY_NAMES)), "duplicate capability names"
 
 
@@ -42,13 +42,13 @@ def test_every_capability_has_a_description():
 
 
 def test_capabilities_file_has_top_level_description():
-    data = json.loads((_TAP_AUTH / "capabilities.json").read_text())
-    assert data.get("description", "").strip(), "capabilities.json needs a top-level description"
+    data = json.loads((_TAP_AUTH / "tap_auth.capabilities.json").read_text())
+    assert data.get("description", "").strip(), "tap_auth.capabilities.json needs a top-level description"
 
 
 def test_well_known_capability_constants_are_defined():
     for name in (READ_CAPABILITY, WRITE_CAPABILITY, DELETE_CAPABILITY):
-        assert name in ALL_CAPABILITY_NAMES, f"{name} is enforced in code but not defined in capabilities.json"
+        assert name in ALL_CAPABILITY_NAMES, f"{name} is enforced in code but not defined in tap_auth.capabilities.json"
 
 
 # --- roles (B) -----------------------------------------------------------------
@@ -65,8 +65,8 @@ def test_expected_roles_present():
 
 
 def test_roles_file_and_each_role_have_descriptions():
-    data = json.loads((_TAP_AUTH / "roles.json").read_text())
-    assert data.get("description", "").strip(), "roles.json needs a top-level description"
+    data = json.loads((_TAP_AUTH / "tap_auth.roles.json").read_text())
+    assert data.get("description", "").strip(), "tap_auth.roles.json needs a top-level description"
     for key, spec in roles.ROLES.items():
         assert spec.description.strip(), f"role {key} has no description"
 

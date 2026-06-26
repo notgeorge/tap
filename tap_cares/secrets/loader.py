@@ -30,11 +30,11 @@ Tests pass a `tmp_path`-backed `registry=` argument so the production
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
+from tap.jsonfiles import JsonFileError, discover_json_files, load_json_file
 from tap_cares.exceptions import (
     InvalidSecretRegistryKeyError,
     SecretDuplicateError,
@@ -89,12 +89,9 @@ def load_secrets(
         raise SecretLoadError(f"tap-cares secrets root {root_path!s} exists but is not a directory.")
 
     loaded: list[SecretRef] = []
-    # rglob is deterministic across platforms when fed a sorted iterator.
-    for path in sorted(root_path.rglob(f"*{SECRET_SUFFIX}")):
-        if not path.is_file():
-            continue
-        if path.name.startswith("."):
-            continue
+    # discover_json_files sorts deterministically and skips dotfiles/non-files
+    # (req-tap-json-discovery); the `secret` role keys the `*.secret.json` glob.
+    for path in discover_json_files(root_path, role="secret", recursive=True):
         secret = _load_secret_file(path)
         try:
             target.register(secret.ref.key, secret, scope=secret.ref.scope)
@@ -119,14 +116,9 @@ def load_secrets(
 def _load_secret_file(path: Path) -> Secret:
     """Parse `path` and return a Secret. Raises SecretLoadError on any problem."""
     try:
-        raw_text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise SecretLoadError(f"Failed to read secret file {path}: {exc}") from None
-
-    try:
-        payload = json.loads(raw_text)
-    except json.JSONDecodeError as exc:
-        raise SecretLoadError(f"Secret file {path} is not valid JSON: line {exc.lineno} col {exc.colno}") from None
+        payload = load_json_file(path)
+    except JsonFileError as exc:
+        raise SecretLoadError(str(exc)) from None
 
     if not isinstance(payload, dict):
         raise SecretLoadError(f"Secret file {path} must contain a JSON object, got {type(payload).__name__}.")

@@ -172,7 +172,7 @@ class Capability(models.Model):
     description_json = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Structured context for this capability (synced from capabilities.json), "
+        help_text="Structured context for this capability (synced from tap_auth.capabilities.json), "
         "queryable alongside the prose description for AI/security reasoning.",
     )
     risk = models.CharField(
@@ -225,12 +225,12 @@ class ProtectedGroup(models.Model):
     description = models.TextField(
         blank=True,
         default="",
-        help_text="Human-readable meaning of this role/group (synced from roles.json).",
+        help_text="Human-readable meaning of this role/group (synced from tap_auth.roles.json).",
     )
     description_json = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Structured context for this role (synced from roles.json), queryable "
+        help_text="Structured context for this role (synced from tap_auth.roles.json), queryable "
         "alongside the prose description for AI/security reasoning.",
     )
 

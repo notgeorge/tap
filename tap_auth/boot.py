@@ -21,15 +21,14 @@ key (req-tap-auth-providers-3).
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Callable
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import jsonschema
 from django.conf import settings
+
+from tap.jsonfiles import JsonFileError, load_json_file, validate_json
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +39,6 @@ _FRAGMENT_PATH = Path(__file__).resolve().parent / "schemas" / "auth-boot-sectio
 
 class AuthBootError(Exception):
     """Raised when the auth boot section is invalid or its application must abort."""
-
-
-@lru_cache(maxsize=1)
-def _fragment_schema() -> dict[str, Any]:
-    schema: dict[str, Any] = json.loads(_FRAGMENT_PATH.read_text())
-    return schema
 
 
 # --------------------------------------------------------------------------- #
@@ -61,11 +54,11 @@ def _profile_path(profile_id: str) -> Path:
     # This also keeps the module a clean settings-time dependency with no reach
     # into tap_boot.
     repo_root = Path(__file__).resolve().parent.parent
-    return repo_root / "boot" / f"{profile_id}.json"
+    return repo_root / "boot" / f"{profile_id}.boot.json"
 
 
 def read_auth_section(profile_id: str) -> dict[str, Any]:
-    """Return the raw ``auth`` section of ``boot/<profile_id>.json`` ({} if absent).
+    """Return the raw ``auth`` section of ``boot/<profile_id>.boot.json`` ({} if absent).
 
     Tolerant by design — a malformed profile is the boot command's problem to
     surface loudly; settings-time reading must not crash the process on a bad
@@ -77,8 +70,8 @@ def read_auth_section(profile_id: str) -> dict[str, Any]:
     if not path.is_file():
         return {}
     try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
+        data = load_json_file(path)
+    except JsonFileError as exc:
         logger.warning("[2f1e] could not read auth section from %s: %s", path, exc)
         return {}
     section = data.get("auth")
@@ -163,10 +156,9 @@ def validate_auth_section(section: dict[str, Any]) -> None:
     """Validate an auth section against the tap_auth schema fragment. Raises
     AuthBootError on any violation (malformed config fails boot loudly)."""
     try:
-        jsonschema.validate(instance=section, schema=_fragment_schema())
-    except jsonschema.ValidationError as exc:
-        loc = "/".join(str(p) for p in exc.absolute_path) or "<root>"
-        raise AuthBootError(f"auth section failed schema validation at {loc}: {exc.message}") from exc
+        validate_json(section, _FRAGMENT_PATH, source="auth section")
+    except JsonFileError as exc:
+        raise AuthBootError(str(exc)) from exc
 
 
 def apply_auth_boot_section(section: dict[str, Any], *, deploy: bool, echo: Echo) -> None:

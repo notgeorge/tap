@@ -2,7 +2,7 @@
 
 TAP capabilities are the platform's public authorization vocabulary; Django
 permissions are the backend projection. The **source of truth** is the
-version-controlled declarative file ``tap_auth/capabilities.json`` (schema:
+version-controlled declarative file ``tap_auth/tap_auth.capabilities.json`` (schema:
 ``tap_auth/schemas/capabilities.schema.json``); this module is the thin loader
 that validates it and exposes the in-memory registry. The `Capability` DB table
 and the projected `auth.Permission` rows are hard-synced from `CAPABILITIES`
@@ -13,22 +13,22 @@ The public name is the contract (``grid.read``); the projected Django permission
 codename is an implementation detail (``grid_read``), via `codename_for()`.
 
 Role bundles (the least-privilege capability sets granted to the protected
-built-in groups) live in ``tap_auth/roles.json`` (loaded by `tap_auth.roles`),
+built-in groups) live in ``tap_auth/tap_auth.roles.json`` (loaded by `tap_auth.roles`),
 **not here** — moving them out of this file is `req-tap-auth-roles`.
 """
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-import jsonschema
 from django.core.exceptions import ImproperlyConfigured
 
-_DATA_PATH = Path(__file__).resolve().parent / "capabilities.json"
+from tap.jsonfiles import JsonFileError, load_json_file
+
+_DATA_PATH = Path(__file__).resolve().parent / "tap_auth.capabilities.json"
 _SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "capabilities.schema.json"
 
 
@@ -58,26 +58,16 @@ class CapabilitySpec:
     """Optional structured context, synced to ``Capability.description_json``."""
 
 
-def _load_json(path: Path) -> Any:
-    try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        raise ImproperlyConfigured(f"capability registry file {path.name} could not be read: {exc}") from exc
-
-
 def _load_capabilities() -> tuple[CapabilitySpec, ...]:
-    """Load + validate ``capabilities.json`` into the canonical registry.
+    """Load + validate ``tap_auth.capabilities.json`` into the canonical registry.
 
     Fails loud (`ImproperlyConfigured`) on a missing/unreadable file, schema
     violation, or duplicate capability name — never a silent partial registry.
     """
-    data = _load_json(_DATA_PATH)
-    schema = _load_json(_SCHEMA_PATH)
     try:
-        jsonschema.validate(instance=data, schema=schema)
-    except jsonschema.ValidationError as exc:
-        location = "/".join(str(p) for p in exc.absolute_path) or "<root>"
-        raise ImproperlyConfigured(f"capabilities.json failed schema validation at {location}: {exc.message}") from exc
+        data = load_json_file(_DATA_PATH, schema=_SCHEMA_PATH)
+    except JsonFileError as exc:
+        raise ImproperlyConfigured(f"tap_auth.capabilities.json: {exc}") from exc
 
     specs = tuple(
         CapabilitySpec(
@@ -91,11 +81,11 @@ def _load_capabilities() -> tuple[CapabilitySpec, ...]:
     names = [s.name for s in specs]
     duplicates = sorted({n for n in names if names.count(n) > 1})
     if duplicates:
-        raise ImproperlyConfigured(f"capabilities.json has duplicate capability names: {duplicates}")
+        raise ImproperlyConfigured(f"tap_auth.capabilities.json has duplicate capability names: {duplicates}")
     return specs
 
 
-# Canonical v1 capability registry, loaded from capabilities.json at import.
+# Canonical v1 capability registry, loaded from tap_auth.capabilities.json at import.
 # Operation-level (not model-level) in v1.
 CAPABILITIES: tuple[CapabilitySpec, ...] = _load_capabilities()
 

@@ -16,14 +16,14 @@ class Migration(migrations.Migration):
             field=models.JSONField(
                 blank=True,
                 default=dict,
-                help_text="Structured context for this capability (synced from capabilities.json), queryable alongside the prose description for AI/security reasoning.",
+                help_text="Structured context for this capability (synced from tap_auth.capabilities.json), queryable alongside the prose description for AI/security reasoning.",
             ),
         ),
         migrations.AddField(
             model_name="protectedgroup",
             name="description",
             field=models.TextField(
-                blank=True, default="", help_text="Human-readable meaning of this role/group (synced from roles.json)."
+                blank=True, default="", help_text="Human-readable meaning of this role/group (synced from tap_auth.roles.json)."
             ),
         ),
         migrations.AddField(
@@ -32,7 +32,7 @@ class Migration(migrations.Migration):
             field=models.JSONField(
                 blank=True,
                 default=dict,
-                help_text="Structured context for this role (synced from roles.json), queryable alongside the prose description for AI/security reasoning.",
+                help_text="Structured context for this role (synced from tap_auth.roles.json), queryable alongside the prose description for AI/security reasoning.",
             ),
         ),
     ]

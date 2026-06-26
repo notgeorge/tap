@@ -50,7 +50,7 @@ tap_grid/gryphon/executor.py:107
 tap_grid/services.py:1500
 tap_grid/services.py:1519
 tap_plugins/seeding.py:119
-tap_plugins/validate/service.py:812
+tap_plugins/validate/service.py:780
 tap_viz/panels/graph_panel/__init__.py:188
 tap_viz/panels/graph_panel/__init__.py:245
 tap_web/panels/batch_viewer/__init__.py:40

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tap.dev/schemas/tap.auth.roles.schema.json",
   "title": "TAP Role Definitions",
-  "description": "Schema for tap_auth/roles.json — named capability bundles granted to protected groups. A mandatory top-level description states what/why; each role declares a mandatory description and either an explicit capability list or \"*\" (admin-only wildcard). Semantic checks the schema cannot express — wildcard is admin-only, every named capability is defined, the bootloader role excludes grid.purge/grid.delete — are enforced by the loader (tap_auth/roles.py) and guard tests. See spec-tap-auth-v0 req-tap-auth-roles.",
+  "description": "Schema for tap_auth/tap_auth.roles.json — named capability bundles granted to protected groups. A mandatory top-level description states what/why; each role declares a mandatory description and either an explicit capability list or \"*\" (admin-only wildcard). Semantic checks the schema cannot express — wildcard is admin-only, every named capability is defined, the bootloader role excludes grid.purge/grid.delete — are enforced by the loader (tap_auth/roles.py) and guard tests. See spec-tap-auth-v0 req-tap-auth-roles.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "description", "roles"],

@@ -2,7 +2,7 @@
 
 Roles are the least-privilege capability sets granted to the protected built-in
 groups (`tap_admin`, `tap_bootloader`, `tap_cares.collector`, `tap_cares.scheduler`).
-The source of truth is the version-controlled declarative file ``tap_auth/roles.json``
+The source of truth is the version-controlled declarative file ``tap_auth/tap_auth.roles.json``
 (schema: ``tap_auth/schemas/roles.schema.json``); `tap_auth.sync.sync_protected_groups`
 hard-syncs each group's Django permissions to its role here.
 
@@ -19,17 +19,16 @@ at import on any violation:
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import jsonschema
 from django.core.exceptions import ImproperlyConfigured
 
+from tap.jsonfiles import JsonFileError, load_json_file
 from tap_auth.capabilities import ALL_CAPABILITY_NAMES, get_capability
 
-_DATA_PATH = Path(__file__).resolve().parent / "roles.json"
+_DATA_PATH = Path(__file__).resolve().parent / "tap_auth.roles.json"
 _SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "roles.schema.json"
 
 # The single role permitted to use the "*" (all-capabilities) wildcard.
@@ -66,34 +65,28 @@ class RoleSpec:
         return principal_class in self.assignable_to
 
 
-def _load_json(path: Path) -> Any:
-    try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        raise ImproperlyConfigured(f"roles file {path.name} could not be read: {exc}") from exc
-
-
 def _load_roles() -> dict[str, RoleSpec]:
-    data = _load_json(_DATA_PATH)
-    schema = _load_json(_SCHEMA_PATH)
     try:
-        jsonschema.validate(instance=data, schema=schema)
-    except jsonschema.ValidationError as exc:
-        location = "/".join(str(p) for p in exc.absolute_path) or "<root>"
-        raise ImproperlyConfigured(f"roles.json failed schema validation at {location}: {exc.message}") from exc
+        data = load_json_file(_DATA_PATH, schema=_SCHEMA_PATH)
+    except JsonFileError as exc:
+        raise ImproperlyConfigured(f"tap_auth.roles.json: {exc}") from exc
 
     roles: dict[str, RoleSpec] = {}
     for key, body in data["roles"].items():
         caps_field = body["capabilities"]
         if caps_field == "*":
             if key != ADMIN_ROLE:
-                raise ImproperlyConfigured(f"roles.json: the '*' wildcard is admin-only; role '{key}' may not use it.")
+                raise ImproperlyConfigured(
+                    f"tap_auth.roles.json: the '*' wildcard is admin-only; role '{key}' may not use it."
+                )
             resolved = tuple(ALL_CAPABILITY_NAMES)
             wildcard = True
         else:
             unknown = [c for c in caps_field if get_capability(c) is None]
             if unknown:
-                raise ImproperlyConfigured(f"roles.json: role '{key}' names undefined capabilities: {sorted(unknown)}")
+                raise ImproperlyConfigured(
+                    f"tap_auth.roles.json: role '{key}' names undefined capabilities: {sorted(unknown)}"
+                )
             resolved = tuple(caps_field)
             wildcard = False
         roles[key] = RoleSpec(
@@ -107,7 +100,7 @@ def _load_roles() -> dict[str, RoleSpec]:
     return roles
 
 
-# Canonical role registry, loaded from roles.json at import.
+# Canonical role registry, loaded from tap_auth.roles.json at import.
 ROLES: dict[str, RoleSpec] = _load_roles()
 
 # Roles assignable to each principal class (req-tap-auth-roles), derived from each
@@ -139,4 +132,4 @@ def role_capabilities(key: str) -> tuple[str, ...]:
     try:
         return ROLES[key].capabilities
     except KeyError:
-        raise ImproperlyConfigured(f"Unknown role '{key}' (not defined in roles.json).") from None
+        raise ImproperlyConfigured(f"Unknown role '{key}' (not defined in tap_auth.roles.json).") from None

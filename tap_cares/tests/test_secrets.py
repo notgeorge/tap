@@ -213,7 +213,7 @@ class TestLoaderShape:
     def test_malformed_json_raises(self, tmp_path: Path) -> None:
         path = tmp_path / "prod-readonly.secret.json"
         path.write_text("{ not valid json", encoding="utf-8")
-        with pytest.raises(SecretLoadError, match="not valid JSON"):
+        with pytest.raises(SecretLoadError, match="invalid JSON"):
             load_secrets(tmp_path, registry=_fresh_registry())
 
     def test_non_object_root_raises(self, tmp_path: Path) -> None:

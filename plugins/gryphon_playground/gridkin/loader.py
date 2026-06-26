@@ -9,20 +9,17 @@ Per spec-gridkin-v0.md: req-gridkin-scenario-format, req-gridkin-json-schema.
 
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-import jsonschema
+from tap.jsonfiles import JsonFileError, discover_json_files, instance_id, load_json_file, load_schema
 
 # plugins/gryphon_playground/ — this file is gridkin/loader.py.
 PLUGIN_ROOT: Path = Path(__file__).resolve().parent.parent
 SCENARIOS_DIR: Path = PLUGIN_ROOT / "scenarios"
 SCHEMA_PATH: Path = SCENARIOS_DIR / "gridkin-scenario.schema.json"
-
-_FEATURE_SUFFIX = ".gridkin.json"
 
 # Truthy environment-variable values. Anything else — unset, "", "0", "false",
 # "no", "off" — is False, so GRIDKIN_*=0 cannot accidentally enable a switch.
@@ -72,37 +69,24 @@ def _slugify(text: str) -> str:
     return out.strip("-")
 
 
-def _load_schema() -> dict[str, Any]:
-    schema: dict[str, Any] = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-    return schema
-
-
 def discover_scenarios(scenarios_dir: Path = SCENARIOS_DIR) -> list[Scenario]:
     """Discover and validate every Gridkin scenario under `scenarios_dir`.
 
     Raises `GridkinScenarioError` if any file is invalid JSON or violates the
     scenario JSON Schema — surfaced at pytest collection time as a loud error.
     """
-    if not scenarios_dir.is_dir():
-        return []
-    schema = _load_schema()
+    schema = load_schema(SCHEMA_PATH)
     scenarios: list[Scenario] = []
-    for path in sorted(scenarios_dir.glob(f"*{_FEATURE_SUFFIX}")):
+    for path in discover_json_files(scenarios_dir, role="gridkin"):
         scenarios.extend(_parse_file(path, schema))
     return scenarios
 
 
 def _parse_file(path: Path, schema: dict[str, Any]) -> list[Scenario]:
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise GridkinScenarioError(f"{path.name}: invalid JSON — {exc}") from exc
-
-    try:
-        jsonschema.validate(instance=document, schema=schema)
-    except jsonschema.ValidationError as exc:
-        location = "/".join(str(part) for part in exc.absolute_path) or "(root)"
-        raise GridkinScenarioError(f"{path.name}: schema violation at {location} — {exc.message}") from exc
+        document = load_json_file(path, schema=schema)
+    except JsonFileError as exc:
+        raise GridkinScenarioError(f"{path.name}: {exc}") from exc
 
     feature = document["feature"]
     background = document["background"]
@@ -116,7 +100,7 @@ def _parse_file(path: Path, schema: dict[str, Any]) -> list[Scenario]:
     else:
         fixture_paths = tuple(PLUGIN_ROOT / entry for entry in raw_fixture)
     soft_delete = tuple(background.get("soft_delete", []))
-    feature_stem = path.name[: -len(_FEATURE_SUFFIX)]
+    feature_stem = instance_id(path, role="gridkin")
 
     parsed: list[Scenario] = []
     for raw in document["scenarios"]:

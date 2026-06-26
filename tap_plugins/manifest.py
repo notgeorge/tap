@@ -9,14 +9,13 @@ Public API:
 
 from __future__ import annotations
 
-import json
 import logging
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import jsonschema
+from tap.jsonfiles import JsonFileError, load_json_file, load_schema
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +34,11 @@ _ALLOWED_TOP_KEYS = {
 _REQUIRED_TOP_KEYS = {"manifest_version", "plugin_version", "slug", "name"}
 
 _EDGE_SCHEMA_PATH = Path(__file__).resolve().parent.parent / "tap_grid" / "schemas" / "edge-definition.schema.json"
-_edge_schema_cache: dict[str, Any] | None = None
 
 
 def _load_edge_schema() -> dict[str, Any]:
     """Load and cache the edge definition JSON Schema."""
-    global _edge_schema_cache
-    if _edge_schema_cache is None:
-        with open(_EDGE_SCHEMA_PATH) as fh:
-            _edge_schema_cache = json.load(fh)
-    return _edge_schema_cache
+    return load_schema(_EDGE_SCHEMA_PATH)
 
 
 class PluginManifestError(Exception):
@@ -224,22 +218,9 @@ def _load_edge_file(
     manifest_path: Path,
 ) -> EdgeEntry:
     try:
-        with open(full_path) as fh:
-            data: dict[str, Any] = json.load(fh)
-    except json.JSONDecodeError as exc:
-        raise PluginManifestError(f"Edge file '{rel_path}' is not valid JSON: {exc}") from exc
-
-    if not isinstance(data, dict):
-        raise PluginManifestError(f"Edge file '{rel_path}' must be a JSON object")
-
-    # Validate against the edge definition JSON Schema.
-    schema = _load_edge_schema()
-    try:
-        jsonschema.validate(instance=data, schema=schema)
-    except jsonschema.ValidationError as exc:
-        raise PluginManifestError(
-            f"Edge file '{rel_path}' schema validation failed: {exc.message}"
-        ) from exc
+        data: dict[str, Any] = load_json_file(full_path, schema=_load_edge_schema())
+    except JsonFileError as exc:
+        raise PluginManifestError(f"Edge file '{rel_path}': {exc}") from exc
 
     # Slug must match the manifest key.
     file_slug = data["slug"]

@@ -16,7 +16,6 @@ Secret material is returned in memory only and never logged in full
 from __future__ import annotations
 
 import functools
-import json
 import os
 from pathlib import Path
 from typing import Any
@@ -24,6 +23,7 @@ from typing import Any
 from django.conf import settings
 from jsonschema import Draft202012Validator
 
+from tap.jsonfiles import JsonFileError, load_json_file, load_schema
 from tap_auth.providers.base import ProviderError
 
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "oidc_client_secret.schema.json"
@@ -31,8 +31,9 @@ _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "oidc_client
 
 @functools.lru_cache(maxsize=1)
 def _oidc_client_validator() -> Draft202012Validator:
-    schema = json.loads(_SCHEMA_PATH.read_text())
-    return Draft202012Validator(schema)
+    # Multi-error reporting (iter_errors) is kept deliberately here — a malformed
+    # provider secret should surface every problem at once (req-tap-json-adoption).
+    return Draft202012Validator(load_schema(_SCHEMA_PATH))
 
 
 def _secrets_root() -> Path:
@@ -62,8 +63,8 @@ def _find_secret_file(scope: str, key: str) -> Path:
         raise ProviderError(f"secrets root {root} does not exist; cannot resolve {scope}:{key}")
     for path in sorted(root.rglob(f"{key}.secret.json")):
         try:
-            doc = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError) as exc:
+            doc = load_json_file(path)
+        except JsonFileError as exc:
             raise ProviderError(f"secret file {path} is unreadable/invalid JSON: {exc}") from exc
         if doc.get("scope") == scope and doc.get("key") == key:
             return path
@@ -81,7 +82,10 @@ def resolve_oidc_client_secret(key: str, *, scope: str = "auth") -> dict[str, st
     returns only the ``data`` block.
     """
     path = _find_secret_file(scope, key)
-    doc: dict[str, Any] = json.loads(path.read_text())
+    try:
+        doc: dict[str, Any] = load_json_file(path)
+    except JsonFileError as exc:
+        raise ProviderError(f"secret {scope}:{key} ({path.name}) is unreadable/invalid JSON: {exc}") from exc
     errors = sorted(_oidc_client_validator().iter_errors(doc), key=lambda e: list(e.path))
     if errors:
         detail = "; ".join(f"{list(e.path) or '<root>'}: {e.message}" for e in errors)

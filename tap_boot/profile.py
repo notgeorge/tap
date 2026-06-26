@@ -1,7 +1,7 @@
 """Boot-profile loading, schema validation, and parsing.
 
 The bootloader owns profile handling (req-boot-app): this module resolves a
-profile id to its `boot/<id>.json` file, validates it against the boot-profile
+profile id to its `boot/<id>.boot.json` file, validates it against the boot-profile
 JSON Schema (shape only — semantic pre-resolution of plugin/collector keys
 happens in the population phase, req-boot-population-4), and parses it into a
 typed `BootProfile`. The richer app-owned multi-section composition is deferred
@@ -12,16 +12,15 @@ Spec: specs/spec-tap-boot-v0.md (req-boot-profile).
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import jsonschema
 from django.conf import settings
 
-_SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "boot-profile.schema.json"
+from tap.jsonfiles import JsonFileError, discover_json_files, instance_id, load_json_file
+
+_SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "boot.schema.json"
 
 # Profile-level default when the population section omits `on_failure`. Abort is
 # the safe default: a half-populated standup should fail loud, not look healthy.
@@ -93,41 +92,24 @@ def boot_dir() -> Path:
 
 
 def profile_ids() -> list[str]:
-    directory = boot_dir()
-    if not directory.is_dir():
-        return []
-    return sorted(p.stem for p in directory.glob("*.json"))
-
-
-@lru_cache(maxsize=1)
-def _schema() -> dict[str, Any]:
-    schema: dict[str, Any] = json.loads(_SCHEMA_PATH.read_text())
-    return schema
+    return [instance_id(p, role="boot") for p in discover_json_files(boot_dir(), role="boot")]
 
 
 def load_profile(profile_id: str) -> BootProfile:
-    """Load, schema-validate, and parse ``boot/<profile_id>.json``.
+    """Load, schema-validate, and parse ``boot/<profile_id>.boot.json``.
 
     Raises `BootProfileError` (loud, machine-readable) on a missing file, unreadable
     JSON, or schema-validation failure — never returns a malformed profile.
     """
-    path = boot_dir() / f"{profile_id}.json"
+    path = boot_dir() / f"{profile_id}.boot.json"
     if not path.is_file():
         available = ", ".join(profile_ids()) or "(none)"
         raise BootProfileError(f"Boot profile '{profile_id}' not found at {path}. Available: {available}.")
 
     try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        raise BootProfileError(f"Could not read boot profile '{profile_id}': {exc}") from exc
-
-    try:
-        jsonschema.validate(instance=data, schema=_schema())
-    except jsonschema.ValidationError as exc:
-        location = "/".join(str(p) for p in exc.absolute_path) or "<root>"
-        raise BootProfileError(
-            f"Boot profile '{profile_id}' failed schema validation at {location}: {exc.message}"
-        ) from exc
+        data = load_json_file(path, schema=_SCHEMA_PATH)
+    except JsonFileError as exc:
+        raise BootProfileError(f"Boot profile '{profile_id}': {exc}") from exc
 
     return _parse(profile_id, data)
 
