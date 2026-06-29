@@ -52,8 +52,9 @@ def check_database_cache_table(app_configs: Any, **kwargs: Any) -> list[Error]:
             f"does not exist on the {DEFAULT_DB_ALIAS!r} database.",
             hint=(
                 "Run `manage.py createcachetable` to provision it. This is wired "
-                "into docker/entrypoint.sh (next to migrate); if you hit this on a "
-                "fresh instance, that provisioning step did not run."
+                "into docker/entrypoint.sh (before migrate, so this check passes "
+                "during migrate's check phase); if you hit this on a fresh "
+                "instance, that provisioning step did not run."
             ),
             id="tap_health.E001",
         )

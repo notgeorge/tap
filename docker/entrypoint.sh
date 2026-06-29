@@ -23,9 +23,6 @@ echo "==> Syncing Python dependencies (uv sync --all-packages)..."
 # get installed.
 uv sync --all-packages
 
-echo "==> Running database migrations..."
-uv run python manage.py migrate --noinput
-
 # Provision the DatabaseCache table (settings.CACHES LOCATION="tap_cache").
 # This is DB-schema provisioning, the same category as migrate — "fresh DB →
 # schema current" — not instance state, so it lives here next to migrate rather
@@ -34,8 +31,19 @@ uv run python manage.py migrate --noinput
 # idempotent: it no-ops when the table already exists, so it is safe on every
 # container start. Without it the first cache read (e.g. allauth login
 # rate-limiting) fails with relation "tap_cache" does not exist.
+#
+# This MUST run BEFORE migrate: the `tap_health.E001` Tags.database system check
+# (tap_health/checks.py) fires during migrate's check phase and hard-fails when
+# the cache table is missing, so on a fresh DB `migrate` would abort before this
+# step ever ran (chicken-and-egg → container restart loop). createcachetable
+# itself has `requires_system_checks = []`, so it runs no checks and is safe
+# against an as-yet-unmigrated DB; it creates the table via the schema editor
+# independently of migration state.
 echo "==> Provisioning the DatabaseCache table (createcachetable)..."
 uv run python manage.py createcachetable
+
+echo "==> Running database migrations..."
+uv run python manage.py migrate --noinput
 
 # Note: tailwindcss is NOT rebuilt at container start. The committed
 # tap_web/static/tap_web/css/tailwind.css is served as-is. Dev work that
