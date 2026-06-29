@@ -76,7 +76,7 @@
                 }
               ],
               "presentation": {
-                "placement": "cytoscape:grid"
+                "placement": "cytoscape:cose"
               },
               "interactions": {}
             }
@@ -95,7 +95,9 @@
             "slug": "grid-overview-graph",
             "name": "Grid Overview",
             "view": "tap_viz/panels/graph_panel.html",
-            "config": {}
+            "config": {
+              "height": "840px"
+            }
           }
         },
         {
