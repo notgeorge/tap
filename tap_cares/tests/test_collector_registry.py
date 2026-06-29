@@ -361,7 +361,7 @@ class TestGetCollector:
 
 class TestRegistryVisibility:
     def test_collector_registry_in_meta_registry(self):
-        from tap_grid.registry import meta_registry
+        from tap.registry import meta_registry
 
         assert "collector" in meta_registry
 

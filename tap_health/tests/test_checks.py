@@ -1,4 +1,4 @@
-"""Tests for tap_boot.checks.check_database_cache_table.
+"""Tests for tap_health.checks.check_database_cache_table.
 
 The check guards the latent ``tap_cache`` provisioning fault: when the default
 cache backend is DatabaseCache, its ``LOCATION`` table must exist.
@@ -15,7 +15,7 @@ import pytest
 from django.db import DEFAULT_DB_ALIAS
 from django.test import override_settings
 
-from tap_boot.checks import DATABASE_CACHE_BACKEND, check_database_cache_table
+from tap_health.checks import DATABASE_CACHE_BACKEND, check_database_cache_table
 
 _DB_CACHE = {
     "default": {"BACKEND": DATABASE_CACHE_BACKEND, "LOCATION": "tap_cache"},
@@ -38,8 +38,8 @@ def test_error_when_cache_table_missing():
     with override_settings(CACHES=missing):
         errors = check_database_cache_table(app_configs=None, databases=[DEFAULT_DB_ALIAS])
     assert len(errors) == 1
-    assert errors[0].id == "tap_boot.E001"
-    assert "createcachetable" in errors[0].hint
+    assert errors[0].id == "tap_health.E001"
+    assert "createcachetable" in (errors[0].hint or "")
 
 
 @pytest.mark.spec("req-tap-health-bootcheck-2")

@@ -197,4 +197,6 @@ class TestModuleLevelRegistryMetadata:
 
     def test_meta_registry_metadata(self):
         assert meta_registry.title == "Meta Registry"
-        assert meta_registry.creator == "tap_grid.registry"
+        # meta_registry's canonical home is now tap.registry (the generic
+        # machinery moved there as a platform capability; tap_grid re-exports it).
+        assert meta_registry.creator == "tap.registry"

@@ -564,44 +564,26 @@ scripts/dc exec \
 info "Instance booted via manage.py boot. Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
 
 # ============================================================================
-# Step 6.5: Functional health gate (/healthz)
+# Step 6.5: Functional health gate (manage.py health)
 #
 # The Step 5 wait only proves runserver is LISTENING — it accepts any HTTP
 # response, 5xx included, as "ready". That blindness is exactly what let the
 # tap_cache latent-provisioning fault ship a "successful" spawn that 500s on
-# first cache access. After boot, gate on the real-backend health endpoint:
-# it does a live db + cache (set/get round-trip) + queue probe and returns
-# 200 only when the critical backends actually work. Require 200 + healthy;
-# fail the spawn loudly otherwise. Pure Python-in-container (no curl), same
-# shape as the Step 5 wait. See tap/health.py and
-# docs/aar/2026-06-26-tap-cache-latent-provisioning.md.
+# first cache access. After boot, gate on the in-process health service via the
+# CLI: `manage.py health` runs a live db + cache (set/get round-trip) + queue +
+# secrets probe and exits non-zero when a critical backend is broken. This is
+# the network-free exec gate (req-tap-health-exposure-2) that replaced the
+# unauthenticated /healthz endpoint (req-tap-health-exposure-4). See
+# specs/spec-tap-health-v0.md and docs/aar/2026-06-26-tap-cache-latent-provisioning.md.
 # ============================================================================
-bold "Step 6.5: Gating on the real-backend health endpoint (/healthz)"
-if scripts/dc exec -T web python -c "
-import json, sys, urllib.request
-try:
-    resp = urllib.request.urlopen('http://localhost:8000/healthz', timeout=10)
-    body = json.loads(resp.read().decode())
-except urllib.error.HTTPError as e:
-    # A 503 from the endpoint is an UNHEALTHY instance, not a missing route —
-    # surface its JSON body so the failure names the broken backend.
-    try:
-        print(e.read().decode())
-    except Exception:
-        pass
-    sys.exit(1)
-except Exception as e:
-    print('health endpoint unreachable:', e)
-    sys.exit(1)
-print(json.dumps(body.get('checks', {})))
-sys.exit(0 if resp.status == 200 and body.get('status') == 'healthy' else 1)
-"; then
-  info "Instance is healthy (db + cache + queue probes passed)."
+bold "Step 6.5: Gating on instance health (manage.py health)"
+if scripts/dc exec -T web uv run python manage.py health --json; then
+  info "Instance is healthy (db + cache + queue + secrets probes passed)."
 else
-  fail "Instance booted but /healthz is UNHEALTHY — a critical backend (db/cache) is broken.
-    The checks JSON above names the failing probe. Inspect logs:
+  fail "Instance booted but health is UNHEALTHY — a critical backend (db/cache/secrets) is broken.
+    The report JSON above names the failing probe (status + code). Inspect logs:
       scripts/dc logs web
-    (in $WORKTREE). Do NOT treat this session as usable until /healthz returns healthy."
+    (in $WORKTREE). Do NOT treat this session as usable until 'manage.py health' passes."
 fi
 
 # ============================================================================

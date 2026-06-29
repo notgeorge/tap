@@ -24,6 +24,7 @@ The grid may eventually know about secret references, health, usage, policy, and
 | --- | --- | :---: | --- |
 | req-tap-cares-secrets-scope | [Secrets Scope](#secrets-scope) | Implemented | Secret material is off-grid runtime data |
 | req-tap-cares-secrets-files | [Secret Files](#secret-files) | Implemented | Recursive `*.secret.json` discovery under a configured secrets root |
+| req-tap-cares-secrets-resilient-load | [Resilient Load And Failure Surfacing](#resilient-load-and-failure-surfacing) | Implemented | Bad files are recorded (not crash-raised); `required_for_boot` escalates to blocking; surfaced via system check + the `tap_health` secrets probe |
 | req-tap-cares-secrets-shape | [Secret JSON Shape](#secret-json-shape) | Implemented | Minimal required JSON object fields |
 | req-tap-cares-secrets-registry | [Secret Registry And Resolution](#secret-registry-and-resolution) | Implemented | Internal `ScopedRegistry` plus `SecretRef` / `resolve_secret` helpers |
 | req-tap-cares-secrets-validation | [Consumer Validation](#consumer-validation) | Implemented | Consumers validate kind-specific secret data |
@@ -78,7 +79,7 @@ The `*.secret.json` suffix is mandatory so secret files are visually obvious and
 
 The file declares its canonical identity. Directory names do not contribute to identity. The basename `<key>` must match the JSON object's `key` field so humans browsing the mounted folder see the same local key that tap-cares registers.
 
-Duplicate `scope:key` values are configuration errors even when they appear in different directories.
+Duplicate `scope:key` values are configuration errors even when they appear in different directories. Like other per-file faults they are recorded, not crash-raised, per the resilient-load contract (`req-tap-cares-secrets-resilient-load`).
 
 ### Example Layout
 
@@ -115,7 +116,51 @@ that host path before `dc up` runs:
 | req-tap-cares-secrets-files-3 | Git Ignore | Implemented | The repository ignores `*.secret.json`. | |
 | req-tap-cares-secrets-files-4 | Directory Non-Semantic | Implemented | Directories help organization but do not define scope, key, or kind. | |
 | req-tap-cares-secrets-files-5 | Basename Matches Key | Implemented | The filename's `<key>` portion must match the JSON object's `key` field. | |
-| req-tap-cares-secrets-files-6 | Duplicate Guard | Implemented | Duplicate `scope:key` values fail startup secret loading. | |
+| req-tap-cares-secrets-files-6 | Duplicate Guard | Implemented | Duplicate `scope:key` values are recorded as load failures (degraded unless `required_for_boot`), not crash-raised. | See `req-tap-cares-secrets-resilient-load`. |
+
+## Resilient Load And Failure Surfacing
+----
+RID: `req-tap-cares-secrets-resilient-load`
+Status: `Implemented`
+
+Secret loading at Django startup is **resilient, not crash-fast**. A single
+malformed, mis-keyed, invalid-token, or duplicate secret file must never abort
+`django.setup()` and crash-loop the instance — doing so kills the very surfaces
+(`manage.py`, `manage.py health`, a shell) an operator needs to diagnose and fix it.
+
+Instead the loader registers every valid file and records each bad file as a
+non-secret `SecretLoadFailure` (source path, redacted structural reason, the
+`scope:key` when determinable, and the file's `required_for_boot` flag) in a
+process-wide `secret_load_report`. Exactly one fault still raises: a `root`
+that exists but is not a directory — a gross mount/deploy misconfiguration of
+the root itself, not a per-file fault.
+
+**One load, three readers.** The single report populated in
+`TapCaresConfig.ready` is consumed by three independent surfaces, separating
+*validation* (strict, at the gate) from *process startup* (resilient):
+
+| Reader | Degraded failure | `required_for_boot` failure |
+| --- | --- | --- |
+| `tap_cares` system check (`manage.py check`, `runserver`, validation gate) | `Warning` `tap_cares.W001` | `Error` `tap_cares.E001` — fails the build |
+| `tap_health` secrets probe (running instance; WSGI/ASGI runs no checks) | `degraded` | `unhealthy` |
+| boot | proceeds | refuses |
+
+The `required_for_boot` boolean (see Secret JSON Shape) is what escalates a
+recorded failure from degrade to blocking. It is read from the file's
+`metadata` — best-effort even from a malformed-but-parseable file, since a bad
+file can still self-declare that its failure must block standup; only a literal
+`true` escalates. A file too broken to parse at all degrades (it cannot be
+proven required) and is still recorded loudly.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-resilient-load-1 | No Crash-Loop | Implemented | A per-file load fault is recorded in `secret_load_report`, never raised, so startup does not crash-loop. | Non-directory root is the sole still-raising case. |
+| req-tap-cares-secrets-resilient-load-2 | Failure Record Shape | Implemented | Each failure carries source path, redacted reason, optional `scope:key`, and `required_for_boot`; no secret material. | |
+| req-tap-cares-secrets-resilient-load-3 | Blocking Escalation | Implemented | A failure whose file declared `required_for_boot: true` is blocking; others degrade. | |
+| req-tap-cares-secrets-resilient-load-4 | System Check Surface | Implemented | The `tap_cares` check emits `E001` for blocking failures and `W001` for degraded ones. | Fails `manage.py check` / the validation gate. |
+| req-tap-cares-secrets-resilient-load-5 | Health Surface | Implemented | The `tap_health` secrets probe (via `run_health()` / `manage.py health`) reports `unhealthy` on a blocking failure and `degraded` otherwise. | Covers running instances where system checks do not run; the unauthenticated `/healthz` was parked (`req-tap-health-exposure-4`). |
 
 ## Secret JSON Shape
 ----
@@ -135,6 +180,19 @@ Each v0 secret file must contain one JSON object with these top-level fields:
 
 v0 tap-cares validates only the minimal structural shape needed for registration. It does not validate kind-specific schemas.
 
+#### Reserved metadata: `required_for_boot`
+
+`metadata.required_for_boot` is a reserved boolean (default `false`). It
+declares the *consequence of this file failing to load*, not a property of the
+secret — chosen as an explicit boolean rather than an opaque policy enum so its
+full meaning is visible at the file. When `true`, a load failure for this file
+is **blocking** (fails the build / 503s health); when absent or `false`, a
+load failure merely **degrades** the instance. It governs the present-but-
+malformed (and duplicate) case; an entirely absent secret is handled at run
+time by `resolve_secret` (`req-tap-cares-secrets-redaction-3`). When present it
+must be a boolean (a non-boolean is itself a structural load failure). See
+`req-tap-cares-secrets-resilient-load`.
+
 ### Example
 
 ```json
@@ -149,7 +207,8 @@ v0 tap-cares validates only the minimal structural shape needed for registration
     "region": "us-east-1"
   },
   "metadata": {
-    "account_id": "123456789012"
+    "account_id": "123456789012",
+    "required_for_boot": false
   }
 }
 ```
@@ -164,6 +223,7 @@ v0 tap-cares validates only the minimal structural shape needed for registration
 | req-tap-cares-secrets-shape-4 | Description Required | Implemented | The object includes free-form `description` text explaining the secret. | |
 | req-tap-cares-secrets-shape-5 | Data Object | Implemented | The object includes a `data` object containing the secret material. | |
 | req-tap-cares-secrets-shape-6 | No Kind Schema In Core | Implemented | tap-cares v0 does not ship or enforce kind-specific schemas. | Consumers validate their own shapes. |
+| req-tap-cares-secrets-shape-7 | Required-For-Boot Flag | Implemented | `metadata.required_for_boot`, when present, is a boolean declaring that a load failure for this file is blocking. | See `req-tap-cares-secrets-resilient-load`. |
 
 ## Secret Registry And Resolution
 ----
@@ -214,7 +274,7 @@ Status: `Implemented`
 
 Secrets must not leak through logs, exceptions, run records, debug payloads, or rendered UI. tap-cares should provide a recursive redaction helper for structured diagnostics. At minimum, keys containing sensitive words such as `secret`, `token`, `password`, `private_key`, or `credential` are redacted.
 
-Missing secrets do not prevent TAP from starting and do not remove collector capability nodes. A run that requires a missing secret fails visibly with a structured, redacted error in the run record.
+Missing secrets do not prevent TAP from starting and do not remove collector capability nodes. A run that requires a missing secret fails visibly with a structured, redacted error in the run record. A *malformed* secret behaves the same way for non-blocking files — it is recorded, the instance degrades, and a run that needs it fails at run time — extending this missing-secret philosophy to bad files rather than crash-looping startup (`req-tap-cares-secrets-resilient-load`).
 
 ### Acceptance Criteria
 

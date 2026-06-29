@@ -6,7 +6,11 @@ architecture decision record. It complements
 [Agent-Legibility Doctrine](agent-legibility-doctrine.md): that earlier note is
 about making TAP understandable and usable by a future grid-native agent; this
 note is about where AI integration itself belongs in TAP and what shapes it may
-need.
+need. It is also complemented by
+[Programmatic Actor Affordance Laws](agent-affordance-laws.md), which captures
+the standing rules for AI/programmatic-facing surfaces: TAP remains the control
+surface; actors need structured meaning, authority declarations, projection
+boundaries, audit trails, proposal-first writes, and explicit stop conditions.
 
 Roadmap posture: AI integration is strategically central but must not become a
 VC-style "AI everywhere" distraction. For the August product horizon, TAP should
@@ -332,6 +336,9 @@ Likely specs or spec sections when this becomes implementation work:
   pre-context, model/provider requirements, auth requirements, and UI surfaces.
 - Agent auth: request identity, delegated user/service identity, dimensions,
   scoped reads, audit logging, and future write approval.
+- Programmatic actor affordances: tool/capability effect classes, machine-view
+  conventions, stable status/error codes, projection tiers, audit trails, and
+  lifecycle stop/escalation rules.
 - Agent hub: system UI for available agents, active agents, health, runs,
   permissions, costs, and recent outcomes.
 - Provider integrations: model registry, provider-specific adapters, local

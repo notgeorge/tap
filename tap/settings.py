@@ -119,6 +119,10 @@ INSTALLED_APPS = [
     # does not disturb the AUTH_USER_MODEL dependency root below
     # (spec-tap-boot-v0, req-boot-app-4).
     "tap_boot",
+    # tap_health owns the health domain: the probe registry, the run_health()
+    # service, `manage.py health`, and the boot-time provisioning system check.
+    # No models/migrations; registers the core probes from its ready().
+    "tap_health",
     # tap_auth owns AUTH_USER_MODEL and loads before tap_grid so the swapped
     # user model is a clean dependency root for every app's first migration
     # (req-tap-auth-app, req-tap-auth-user-model-6).
@@ -353,10 +357,9 @@ TAP_LOGIN_EXEMPT_PREFIXES = [
     "/admin/",
     "/static/",
     "/favicon.ico",
-    # The health probe must answer unauthenticated so monitoring and the
-    # spawn-time health gate can read it before any login. It exposes only
-    # coarse status strings (no grid data). See tap/health.py.
-    "/healthz",
+    # No /healthz: the unauthenticated health endpoint was parked
+    # (req-tap-health-exposure-4). Health is introspected in-process via
+    # `manage.py health`, so there is no unauthenticated surface to exempt.
 ]
 
 # allauth security posture — pin the login-safety knobs explicitly rather than

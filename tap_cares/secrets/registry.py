@@ -17,14 +17,15 @@ boundary instead of mid-lookup.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from typing import Final
 
+from tap.registry import ScopedRegistry
 from tap_cares.exceptions import (
     InvalidSecretRegistryKeyError,
     SecretNotFoundError,
 )
-from tap_cares.secrets.models import Secret, SecretRef
-from tap_grid.registry import ScopedRegistry
+from tap_cares.secrets.models import Secret, SecretLoadFailure, SecretRef
 
 _TOKEN_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
 
@@ -44,6 +45,40 @@ secret_registry: ScopedRegistry[Secret] = ScopedRegistry(
     title="Secret Registry",
     description="Scoped registry of tap_cares runtime secrets loaded from mounted files.",
 )
+
+
+@dataclass
+class SecretLoadReport:
+    """Process-wide record of the last `load_secrets` run's failures.
+
+    Populated by the loader at startup (one load) and read by three consumers
+    (the `tap_health` secrets probe, the `tap_cares` system check, and boot).
+    A failed file degrades the instance rather than crash-looping startup; a
+    failure whose file declared `required_for_boot: true` is *blocking* and
+    escalates from degrade to fail-the-build / fail-health
+    (req-tap-cares-secrets-resilient-load).
+    """
+
+    failures: list[SecretLoadFailure] = field(default_factory=list)
+
+    def reset(self) -> None:
+        """Clear recorded failures so a re-load starts from a clean slate."""
+        self.failures.clear()
+
+    @property
+    def blocking(self) -> list[SecretLoadFailure]:
+        """Failures that must block boot / fail the build (required_for_boot)."""
+        return [f for f in self.failures if f.required_for_boot]
+
+    @property
+    def degraded(self) -> list[SecretLoadFailure]:
+        """Failures that degrade the instance but do not block boot."""
+        return [f for f in self.failures if not f.required_for_boot]
+
+
+# Process-wide singleton. Tests pass an isolated report= to load_secrets so
+# this is never mutated under test (mirrors the registry= convention).
+secret_load_report = SecretLoadReport()
 
 
 def resolve_secret(ref: SecretRef) -> Secret:

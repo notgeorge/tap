@@ -1,11 +1,12 @@
 """Tests for tap_cares.secrets (spec-tap-cares-secrets.md).
 
 Covers:
-  req-tap-cares-secrets-files       — recursive `*.secret.json` discovery
-  req-tap-cares-secrets-shape       — minimal JSON structural validation
-  req-tap-cares-secrets-registry    — ScopedRegistry + SecretRef + resolve
-  req-tap-cares-secrets-validation  — consumer-side kind + schema check
-  req-tap-cares-secrets-redaction   — recursive sensitive-key redaction
+  req-tap-cares-secrets-files           — recursive `*.secret.json` discovery
+  req-tap-cares-secrets-shape           — minimal JSON structural validation
+  req-tap-cares-secrets-resilient-load  — bad files recorded, not crash-raised
+  req-tap-cares-secrets-registry        — ScopedRegistry + SecretRef + resolve
+  req-tap-cares-secrets-validation      — consumer-side kind + schema check
+  req-tap-cares-secrets-redaction       — recursive sensitive-key redaction
 
 All on-disk fixtures live in pytest's `tmp_path`. The repo never ships a real
 or example `*.secret.json` file — operator-monitored alarms (filesystem and
@@ -21,9 +22,10 @@ from typing import Any
 
 import pytest
 
+from tap.registry import ScopedRegistry
+from tap_cares.checks import check_secret_load_failures
 from tap_cares.exceptions import (
     InvalidSecretRegistryKeyError,
-    SecretDuplicateError,
     SecretLoadError,
     SecretNotFoundError,
     SecretValidationError,
@@ -38,8 +40,12 @@ from tap_cares.secrets import (
     secret_registry,
 )
 from tap_cares.secrets.loader import _check_basename_matches_key
-from tap_cares.secrets.registry import _validate_secret_token
-from tap_grid.registry import ScopedRegistry
+from tap_cares.secrets.models import SecretLoadFailure
+from tap_cares.secrets.registry import (
+    SecretLoadReport,
+    _validate_secret_token,
+    secret_load_report,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -103,6 +109,13 @@ def _fresh_registry() -> ScopedRegistry[Secret]:
     )
 
 
+def _load_recorded(root: Path, **kwargs: Any) -> tuple[list[SecretRef], SecretLoadReport]:
+    """Load `root` into isolated registry+report and return (refs, report)."""
+    report = SecretLoadReport()
+    refs = load_secrets(root, registry=_fresh_registry(), report=report, **kwargs)
+    return refs, report
+
+
 @pytest.fixture(autouse=True)
 def isolate_secret_registry():
     """Snapshot/restore the global registry around each test.
@@ -115,6 +128,19 @@ def isolate_secret_registry():
     secret_registry._reset_for_testing()
     yield
     secret_registry._reset_for_testing(saved)
+
+
+@pytest.fixture(autouse=True)
+def isolate_secret_load_report():
+    """Reset the global load report around each test.
+
+    The system-check / health surfaces read the process-wide
+    `secret_load_report`; a few tests populate it directly, so reset before and
+    after to keep tests independent regardless of order.
+    """
+    secret_load_report.reset()
+    yield
+    secret_load_report.reset()
 
 
 # ---------------------------------------------------------------------------
@@ -210,53 +236,70 @@ class TestLoaderDiscovery:
 
 
 class TestLoaderShape:
-    def test_malformed_json_raises(self, tmp_path: Path) -> None:
+    """Structural faults are recorded as degraded failures, not crash-raised.
+
+    req-tap-cares-secrets-resilient-load: one bad file must never abort
+    startup. Each test asserts the loader returns no ref for the bad file and
+    records exactly one non-blocking failure with a recognizable reason.
+    """
+
+    def test_malformed_json_recorded(self, tmp_path: Path) -> None:
         path = tmp_path / "prod-readonly.secret.json"
         path.write_text("{ not valid json", encoding="utf-8")
-        with pytest.raises(SecretLoadError, match="invalid JSON"):
-            load_secrets(tmp_path, registry=_fresh_registry())
+        refs, report = _load_recorded(tmp_path)
+        assert refs == []
+        assert len(report.failures) == 1
+        assert "invalid JSON" in report.failures[0].reason
+        assert report.degraded and not report.blocking
 
-    def test_non_object_root_raises(self, tmp_path: Path) -> None:
+    def test_non_object_root_recorded(self, tmp_path: Path) -> None:
         path = tmp_path / "prod-readonly.secret.json"
         path.write_text(json.dumps([1, 2, 3]), encoding="utf-8")
-        with pytest.raises(SecretLoadError, match="must contain a JSON object"):
-            load_secrets(tmp_path, registry=_fresh_registry())
+        refs, report = _load_recorded(tmp_path)
+        assert refs == []
+        assert "must contain a JSON object" in report.failures[0].reason
 
     @pytest.mark.parametrize("missing_field", ["scope", "key", "kind", "description", "data"])
-    def test_missing_required_field_raises(self, tmp_path: Path, missing_field: str) -> None:
+    def test_missing_required_field_recorded(self, tmp_path: Path, missing_field: str) -> None:
         payload = _valid_payload()
         del payload[missing_field]
         _write_secret(tmp_path, payload=payload)
-        with pytest.raises(SecretLoadError, match=missing_field):
-            load_secrets(tmp_path, registry=_fresh_registry())
+        refs, report = _load_recorded(tmp_path)
+        assert refs == []
+        assert missing_field in report.failures[0].reason
+        assert report.degraded and not report.blocking
 
-    def test_empty_description_rejected(self, tmp_path: Path) -> None:
+    def test_empty_description_recorded(self, tmp_path: Path) -> None:
         _write_secret(tmp_path, payload=_valid_payload(description="   "))
-        with pytest.raises(SecretLoadError, match="description"):
-            load_secrets(tmp_path, registry=_fresh_registry())
+        _, report = _load_recorded(tmp_path)
+        assert "description" in report.failures[0].reason
 
-    def test_data_must_be_object(self, tmp_path: Path) -> None:
+    def test_data_must_be_object_recorded(self, tmp_path: Path) -> None:
         _write_secret(tmp_path, payload=_valid_payload(data=["x"]))
-        with pytest.raises(SecretLoadError, match="data must be a JSON object"):
-            load_secrets(tmp_path, registry=_fresh_registry())
+        _, report = _load_recorded(tmp_path)
+        assert "data must be a JSON object" in report.failures[0].reason
 
     def test_metadata_optional(self, tmp_path: Path) -> None:
         payload = _valid_payload()
         del payload["metadata"]
         _write_secret(tmp_path, payload=payload)
         registry = _fresh_registry()
-        load_secrets(tmp_path, registry=registry)
+        load_secrets(tmp_path, registry=registry, report=SecretLoadReport())
         secret = registry.get("prod-readonly", scope="aws")
         assert dict(secret.metadata) == {}
 
-    def test_basename_must_match_key(self, tmp_path: Path) -> None:
+    def test_basename_mismatch_recorded(self, tmp_path: Path) -> None:
         _write_secret(
             tmp_path,
             basename="mismatched.secret.json",
             payload=_valid_payload(key="prod-readonly"),
         )
-        with pytest.raises(SecretLoadError, match="does not match"):
-            load_secrets(tmp_path, registry=_fresh_registry())
+        refs, report = _load_recorded(tmp_path)
+        assert refs == []
+        failure = report.failures[0]
+        assert "does not match" in failure.reason
+        # scope:key is still recoverable from the parseable (if mis-keyed) file.
+        assert failure.qualified == "aws:prod-readonly"
 
     def test_check_basename_helper_rejects_wrong_suffix(self, tmp_path: Path) -> None:
         path = tmp_path / "x.json"
@@ -264,16 +307,136 @@ class TestLoaderShape:
         with pytest.raises(SecretLoadError, match="does not end with"):
             _check_basename_matches_key(path, "x")
 
-    def test_duplicate_scope_key_across_dirs_raises(self, tmp_path: Path) -> None:
+    def test_duplicate_scope_key_across_dirs_recorded(self, tmp_path: Path) -> None:
         _write_secret(tmp_path, subdir="a", payload=_valid_payload(key="prod-readonly"))
         _write_secret(tmp_path, subdir="b", payload=_valid_payload(key="prod-readonly"))
-        with pytest.raises(SecretDuplicateError, match="aws:prod-readonly"):
-            load_secrets(tmp_path, registry=_fresh_registry())
+        refs, report = _load_recorded(tmp_path)
+        # First registers; the duplicate is recorded, not raised.
+        assert refs == [SecretRef("aws", "prod-readonly")]
+        assert len(report.failures) == 1
+        failure = report.failures[0]
+        assert "Duplicate" in failure.reason and failure.qualified == "aws:prod-readonly"
 
-    def test_invalid_scope_token_raises(self, tmp_path: Path) -> None:
+    def test_invalid_scope_token_recorded(self, tmp_path: Path) -> None:
         _write_secret(tmp_path, payload=_valid_payload(scope="not a valid scope"))
-        with pytest.raises(InvalidSecretRegistryKeyError):
-            load_secrets(tmp_path, registry=_fresh_registry())
+        refs, report = _load_recorded(tmp_path)
+        assert refs == []
+        assert len(report.failures) == 1
+        assert report.degraded and not report.blocking
+
+
+class TestRequiredForBoot:
+    """req-tap-cares-secrets-resilient-load: `required_for_boot` escalation."""
+
+    def test_malformed_required_file_is_blocking(self, tmp_path: Path) -> None:
+        """A required_for_boot file that fails to load is a BLOCKING failure."""
+        _write_secret(
+            tmp_path,
+            basename="mismatched.secret.json",
+            payload=_valid_payload(key="prod-readonly", metadata={"required_for_boot": True}),
+        )
+        refs, report = _load_recorded(tmp_path)
+        assert refs == []
+        assert len(report.blocking) == 1
+        assert not report.degraded
+        assert report.blocking[0].qualified == "aws:prod-readonly"
+
+    def test_malformed_without_flag_is_degraded(self, tmp_path: Path) -> None:
+        _write_secret(
+            tmp_path,
+            basename="mismatched.secret.json",
+            payload=_valid_payload(key="prod-readonly"),
+        )
+        _, report = _load_recorded(tmp_path)
+        assert report.degraded and not report.blocking
+
+    def test_required_for_boot_must_be_bool(self, tmp_path: Path) -> None:
+        """A non-boolean flag is itself a load failure — and cannot escalate."""
+        _write_secret(tmp_path, payload=_valid_payload(metadata={"required_for_boot": "yes"}))
+        refs, report = _load_recorded(tmp_path)
+        assert refs == []
+        assert "required_for_boot must be a boolean" in report.failures[0].reason
+        # A non-literal-true flag must not be trusted to escalate.
+        assert report.degraded and not report.blocking
+
+    def test_valid_required_for_boot_loads_cleanly(self, tmp_path: Path) -> None:
+        _write_secret(tmp_path, payload=_valid_payload(metadata={"required_for_boot": True}))
+        refs, report = _load_recorded(tmp_path)
+        assert refs == [SecretRef("aws", "prod-readonly")]
+        assert report.failures == []
+
+
+class TestSecretLoadSystemCheck:
+    """req-tap-cares-secrets-resilient-load: the strict check surface."""
+
+    def test_clean_report_emits_no_messages(self) -> None:
+        secret_load_report.reset()
+        assert check_secret_load_failures(None) == []
+
+    def test_blocking_failure_emits_error(self) -> None:
+        secret_load_report.reset()
+        secret_load_report.failures.append(
+            SecretLoadFailure(
+                path="/x/a.secret.json", reason="basename mismatch", required_for_boot=True, qualified="aws:a"
+            )
+        )
+        messages = check_secret_load_failures(None)
+        assert len(messages) == 1
+        assert messages[0].id == "tap_cares.E001"
+        assert "aws:a" in messages[0].msg
+
+    def test_degraded_failure_emits_warning(self) -> None:
+        secret_load_report.reset()
+        secret_load_report.failures.append(
+            SecretLoadFailure(path="/x/b.secret.json", reason="invalid JSON", required_for_boot=False, qualified=None)
+        )
+        messages = check_secret_load_failures(None)
+        assert len(messages) == 1
+        assert messages[0].id == "tap_cares.W001"
+        assert "/x/b.secret.json" in messages[0].msg
+
+
+class TestSecretsHealthProbe:
+    """req-tap-cares-secrets-resilient-load-5: the running-instance health surface.
+
+    `probe_secrets()` is registered into the `tap_health` registry from
+    tap_cares's own `ready()`; here we exercise the report → ProbeResult mapping
+    directly (the coverage the parked `/healthz` endpoint test used to provide).
+    """
+
+    def test_healthy_when_no_failures(self) -> None:
+        from tap_cares.health import probe_secrets
+
+        secret_load_report.reset()
+        assert probe_secrets().status.value == "healthy"
+
+    def test_degraded_on_nonblocking_failure(self) -> None:
+        from tap_cares.health import probe_secrets
+
+        secret_load_report.reset()
+        secret_load_report.failures.append(
+            SecretLoadFailure(
+                path="/x/b.secret.json", reason="invalid JSON", required_for_boot=False, qualified="aws:b"
+            )
+        )
+        result = probe_secrets()
+        assert result.status.value == "degraded"
+        assert result.code == "secrets.load_failed"
+        assert result.context["failed"] == ["aws:b"]
+
+    def test_unhealthy_on_required_for_boot_failure(self) -> None:
+        from tap_cares.health import probe_secrets
+
+        secret_load_report.reset()
+        secret_load_report.failures.append(
+            SecretLoadFailure(
+                path="/x/a.secret.json", reason="basename mismatch", required_for_boot=True, qualified="aws:a"
+            )
+        )
+        result = probe_secrets()
+        assert result.status.value == "unhealthy"
+        assert result.code == "secrets.required_for_boot_failed"
+        assert result.context["failed"] == ["aws:a"]
 
 
 # ---------------------------------------------------------------------------

@@ -66,3 +66,21 @@ class Secret:
 def freeze_mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
     """Return a read-only view of `value` for storage on a Secret."""
     return MappingProxyType(dict(value))
+
+
+@dataclass(frozen=True)
+class SecretLoadFailure:
+    """A single secret file that failed to load at startup.
+
+    Carries only non-secret context — the source path, the qualified
+    ``scope:key`` when determinable, a redacted structural reason, and the
+    file's ``required_for_boot`` flag. The loader records these instead of
+    raising so a malformed file degrades the instance rather than crash-looping
+    startup (req-tap-cares-secrets-resilient-load). Readers: the ``tap_health``
+    secrets probe, the ``tap_cares`` system check, and boot.
+    """
+
+    path: str
+    reason: str
+    required_for_boot: bool
+    qualified: str | None = None

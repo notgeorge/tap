@@ -20,6 +20,20 @@ class TapCaresConfig(AppConfig):
 
         load_secrets(getattr(settings, "TAP_SECRETS_ROOT", None))
 
+        # Register the secret-load system check. Importing only registers the
+        # check function; it reads secret_load_report (populated just above)
+        # when it runs under `manage.py check` / `runserver` — no DB access
+        # here, so this is ready()-safe. See tap_cares/checks.py.
+        from tap_cares import checks  # noqa: F401
+        from tap_cares.health import probe_secrets
+
+        # Register the secrets health probe from tap_cares's own boundary so the
+        # dependency runs tap_cares -> tap_health (not core importing up into
+        # tap_cares). See tap_cares/health.py and spec-tap-health-v0.md.
+        from tap_health.registry import register_health_probe
+
+        register_health_probe("secrets", probe_secrets, group="tap_cares", critical=True)
+
         # Register tap_cares-owned edge types. Plugins use the manifest path
         # (tap-plugin.toml + edges/*.edge.json); first-party apps register
         # programmatically through the same constraints registry.

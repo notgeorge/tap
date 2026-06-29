@@ -1,0 +1,183 @@
+"""Structured health result + report types and their projections.
+
+req-tap-health-service-3, req-tap-health-exposure (spec-tap-health-v0.md).
+
+A probe returns a `ProbeResult` carrying explicit machine fields (`status`,
+`critical`, `group`, a stable `code` for non-healthy results) alongside
+optional human prose (`detail`, `reasoning`) and a structured `context` dict.
+A programmatic actor branches on `status`/`code`, never on prose (Law 4,
+docs/misc/agent-affordance-laws.md).
+
+`HealthReport` aggregates per-probe results into an overall verdict and offers
+two projections:
+
+- `full()` — everything, for trusted surfaces (the internal service, the CLI).
+- `scorecard()` — per-probe `status` + overall verdict only, **never** detail,
+  reasoning, context, or code. The scorecard is a security boundary
+  (req-tap-health-exposure-3); a load-bearing test proves it strips the rich
+  fields. No endpoint exposes it in this version (the unauthenticated `/healthz`
+  is parked, req-tap-health-exposure-4) — it exists for a future,
+  deliberately-stood-up external surface.
+
+The four-state model: overall is `unhealthy` if any *critical* probe is
+`unhealthy`; else `degraded` if any probe is `degraded` **or a non-critical
+probe is `unhealthy`** (non-blocking but never hidden as healthy); else
+`healthy`. `unknown` never flips the verdict but is never dropped — it is
+always visible per-probe (Law 1, Preserve Truth).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Any
+
+
+class ProbeStatus(StrEnum):
+    """The four health states. `StrEnum` so values serialize as plain strings."""
+
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    UNHEALTHY = "unhealthy"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class ProbeResult:
+    """The outcome of one probe execution.
+
+    Construct via the `ProbeResult.*` classmethods so the machine fields stay
+    consistent. `code` is required for any non-healthy result and omitted for a
+    healthy one; it is a stable, probe-namespaced token a consumer branches on.
+    """
+
+    status: ProbeStatus
+    code: str | None = None
+    detail: str | None = None
+    reasoning: str | None = None
+    context: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # A stable `code` is the machine contract for any non-healthy result
+        # (Law 4); enforce it so a programmatic consumer never meets a coded
+        # gap. Healthy results carry no code. Constructing an invalid result is
+        # a probe bug — it surfaces (via service isolation) as `probe.raised`.
+        if self.status is not ProbeStatus.HEALTHY and not self.code:
+            raise ValueError(f"A {self.status.value!r} ProbeResult requires a stable `code`.")
+
+    @classmethod
+    def healthy(cls, *, detail: str | None = None, context: dict[str, Any] | None = None) -> ProbeResult:
+        return cls(status=ProbeStatus.HEALTHY, detail=detail, context=context or {})
+
+    @classmethod
+    def degraded(
+        cls,
+        code: str,
+        *,
+        detail: str | None = None,
+        reasoning: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> ProbeResult:
+        return cls(ProbeStatus.DEGRADED, code=code, detail=detail, reasoning=reasoning, context=context or {})
+
+    @classmethod
+    def unhealthy(
+        cls,
+        code: str,
+        *,
+        detail: str | None = None,
+        reasoning: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> ProbeResult:
+        return cls(ProbeStatus.UNHEALTHY, code=code, detail=detail, reasoning=reasoning, context=context or {})
+
+    @classmethod
+    def unknown(cls, code: str, *, detail: str | None = None, context: dict[str, Any] | None = None) -> ProbeResult:
+        return cls(ProbeStatus.UNKNOWN, code=code, detail=detail, context=context or {})
+
+
+@dataclass(frozen=True)
+class ProbeOutcome:
+    """A probe's identity (name/group/critical) joined to its `ProbeResult`.
+
+    The report holds a list of these; the registry supplies name/group/critical
+    and the probe call supplies the result.
+    """
+
+    name: str
+    group: str
+    critical: bool
+    result: ProbeResult
+
+
+# Overall-verdict precedence: a critical unhealthy is worst, then degraded.
+_DEGRADED = ProbeStatus.DEGRADED
+_UNHEALTHY = ProbeStatus.UNHEALTHY
+
+
+@dataclass(frozen=True)
+class HealthReport:
+    """Aggregate of per-probe outcomes with an overall verdict and projections."""
+
+    outcomes: tuple[ProbeOutcome, ...]
+
+    @property
+    def status(self) -> ProbeStatus:
+        """Overall four-state verdict (see module docstring).
+
+        A *critical* unhealthy is `unhealthy`. A *non-critical* unhealthy, or any
+        `degraded`, is `degraded` — never hidden as `healthy` (Law 1, Preserve
+        Truth): the overall verdict stays non-blocking but stays honest.
+        """
+        if any(o.critical and o.result.status is _UNHEALTHY for o in self.outcomes):
+            return ProbeStatus.UNHEALTHY
+        if any(o.result.status in (_UNHEALTHY, _DEGRADED) for o in self.outcomes):
+            return ProbeStatus.DEGRADED
+        return ProbeStatus.HEALTHY
+
+    @property
+    def ok(self) -> bool:
+        """True unless a critical probe is unhealthy — the CLI exit-code basis.
+
+        A non-critical failure surfaces as `degraded` (truthful) but keeps `ok`
+        True, so the gate stays non-blocking on non-critical probes.
+        """
+        return self.status is not ProbeStatus.UNHEALTHY
+
+    def full(self) -> dict[str, Any]:
+        """Trusted projection: every field of every probe (Law 4 machine view).
+
+        For internal callers and the CLI. Carries the rich `detail`/`reasoning`/
+        `context` and the stable `code`.
+        """
+        checks: dict[str, dict[str, Any]] = {}
+        for o in self.outcomes:
+            entry: dict[str, Any] = {
+                "status": o.result.status.value,
+                "critical": o.critical,
+                "group": o.group,
+            }
+            if o.result.code is not None:
+                entry["code"] = o.result.code
+            if o.result.detail is not None:
+                entry["detail"] = o.result.detail
+            if o.result.reasoning is not None:
+                entry["reasoning"] = o.result.reasoning
+            if o.result.context:
+                entry["context"] = o.result.context
+            checks[o.name] = entry
+        return {"status": self.status.value, "checks": checks}
+
+    def scorecard(self) -> dict[str, Any]:
+        """Coarse projection: per-probe `status` + overall verdict ONLY.
+
+        A security boundary (req-tap-health-exposure-3): it must never carry
+        `detail`, `reasoning`, `context`, or `code`. The leak-test asserts this.
+        """
+        return {
+            "status": self.status.value,
+            "checks": {o.name: {"status": o.result.status.value} for o in self.outcomes},
+        }
+
+
+__all__ = ["ProbeStatus", "ProbeResult", "ProbeOutcome", "HealthReport"]

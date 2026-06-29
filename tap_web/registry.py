@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tap_grid.registry import ScopedRegistry
+from tap.registry import ScopedRegistry
 
 if TYPE_CHECKING:
     from tap_web.editor import EditorDescriptor

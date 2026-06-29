@@ -28,12 +28,12 @@ from typing import Final
 
 from django.core.exceptions import ImproperlyConfigured
 
+from tap.registry import ScopedRegistry
 from tap_cares.collectors.base import CollectorBase
 from tap_cares.exceptions import (
     CollectorNotFoundError,
     InvalidCollectorRegistryKeyError,
 )
-from tap_grid.registry import ScopedRegistry
 
 _TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
 
