@@ -55,20 +55,20 @@ A survey of systems that actually ship a *registry* of named, component-contribu
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-tap-health-service | [Internal Health Service](#internal-health-service) | Proposed | `tap_health` app; in-process pure-producer `run_health() → HealthReport` is the foundation; structured results (status/critical/group/code + projected detail/context); CLI/API are projections |
-| req-tap-health-exposure | [Tiered Exposure And Projections](#tiered-exposure-and-projections) | Proposed | One rich report, projected per caller trust; CLI is network-free; unauth scorecard is a demoted, optional projection; projection boundary is a security boundary |
-| req-tap-health-endpoint | [Health Endpoint](#health-endpoint) | Deprecating | unauthenticated `/healthz` **parked / being removed**; replaced by the internal service + `manage.py health` |
+| req-tap-health-service | [Internal Health Service](#internal-health-service) | Implemented | `tap_health` app; in-process pure-producer `run_health() → HealthReport` is the foundation; structured results (status/critical/group/code + projected detail/context); CLI/API are projections |
+| req-tap-health-exposure | [Tiered Exposure And Projections](#tiered-exposure-and-projections) | Implemented | One rich report, projected per caller trust; CLI is network-free; unauth scorecard is a demoted, optional projection; projection boundary is a security boundary |
+| req-tap-health-endpoint | [Health Endpoint](#health-endpoint) | Deprecated | unauthenticated `/healthz` **removed**; replaced by the internal service + `manage.py health` |
 | req-tap-health-probes | [Real-Backend Probes](#real-backend-probes) | Implemented | Independent db / cache-round-trip / secrets / queue probes; report never raise |
-| req-tap-health-probe-registry | [Pluggable Health-Probe Registry](#pluggable-health-probe-registry) | Proposed | First-party apps register named probes from `ready()`, grouped; verdict derived from `critical=` flags; inverts the core→app dependency |
+| req-tap-health-probe-registry | [Pluggable Health-Probe Registry](#pluggable-health-probe-registry) | Implemented | First-party apps register named probes from `ready()`, grouped; verdict derived from `critical=` flags; inverts the core→app dependency |
 | req-tap-health-probe-actor | [Probe Execution Identity](#probe-execution-identity) | Proposed | Anonymous caller never becomes an actor; service-boundary probe work runs as a named `tap_health.health_probe` program actor, materialized lazily |
-| req-tap-health-unauth | [Unauthenticated, Coarse-Status Only](#unauthenticated-coarse-status-only) | Deprecating | parked with the endpoint; no unauthenticated surface remains |
-| req-tap-health-bootcheck | [Boot-Time Provisioning Check](#boot-time-provisioning-check) | Implemented | DB-tagged system check; missing `tap_cache` → loud `tap_boot.E001`; **home moves to `tap_health`** |
+| req-tap-health-unauth | [Unauthenticated, Coarse-Status Only](#unauthenticated-coarse-status-only) | Deprecated | parked with the endpoint; no unauthenticated surface remains |
+| req-tap-health-bootcheck | [Boot-Time Provisioning Check](#boot-time-provisioning-check) | Implemented | DB-tagged system check; missing `tap_cache` → loud `tap_health.E001` (owned by `tap_health`) |
 | req-tap-health-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Metrics, auth'd diagnostics, worker-liveness, plugin probes deferred |
 
 ### Internal Health Service
 ----
 RID: `req-tap-health-service`
-Status: `Proposed`
+Status: `Implemented`
 
 Health is, first, an **in-process service the instance uses to introspect itself** — not an HTTP endpoint. The endpoint and the CLI are *projections* of this service (`req-tap-health-exposure`), not the other way round. This inverts the original framing that made the unauthenticated `/healthz` the foundation. The primary consumers are internal: the instance checking itself as it comes up (so faults are handled by AI + human review at standup), and — later — AI agents and authorized users/plugins introspecting system status.
 
@@ -78,7 +78,7 @@ Health gets its own Django app, `tap_health`, which buys:
 
 - a real `AppConfig.ready()` to register the core probes (`db`, `cache`, `queue`) — resolving the earlier open question (the `tap` package is not an app and has no `ready()`; `tap_health` is a cleaner home than borrowing `tap_boot`'s).
 - a single owner for the health domain: the probe registry (`req-tap-health-probe-registry`), the `HealthReport` model, the `run_health` service entrypoint, the `manage.py health` command, the endpoint view, and the health program actor (`tap_health.health_probe`, `req-tap-health-probe-actor`). Health logic stops being scattered across `tap/` and `tap_boot/`.
-- the boot-time provisioning check (`req-tap-health-bootcheck`), today in `tap_boot/checks.py`, **consolidates into `tap_health`** (resolved): it is a health/provisioning check by nature, so the health app owns it. It stays a Django system check registered from `tap_health`'s `ready()` (it remains `Tags.database`-tagged and fires at `migrate` / `check --database` exactly as before); only its home moves.
+- the boot-time provisioning check (`req-tap-health-bootcheck`) **moved into `tap_health`** from `tap_boot/checks.py`: it is a health/provisioning check by nature, so the health app owns it. It stays a Django system check registered from `tap_health`'s `ready()` (still `Tags.database`-tagged, firing at `migrate` / `check --database` exactly as before); only its home moved.
 
 #### Entry point and report shape
 
@@ -97,16 +97,16 @@ Health gets its own Django app, `tap_health`, which buys:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-health-service-1 | Service Is The Foundation | Proposed | `run_health()` is the primary health surface; HTTP / CLI / API are projections of it. | inverts the endpoint-first framing |
-| req-tap-health-service-2 | tap_health App | Proposed | A `tap_health` app owns the registry, report model, service, command, the boot check, and the health actor, and registers the core probes from its `ready()`. | resolves the registration-home question |
-| req-tap-health-service-3 | Structured Probe Result | Proposed | A probe result carries explicit `status`, `critical`, `group`, a stable machine `code` for non-healthy results, plus optional prose `detail`/`reasoning` and a structured `context` dict. | Law 4: structure before prose; criticality is a field, not prose |
-| req-tap-health-service-4 | Collect Behind A Tested Boundary | Proposed | Rich `reasoning`/`context` are collected only once a load-bearing projection test proves the coarse projection strips them; exposure is the projection's call, never the probe's. | gated on `req-tap-health-exposure-3` |
-| req-tap-health-service-5 | Pure Producer, Actor-Free Liveness | Proposed | `run_health()` takes no caller and no actor; the liveness path resolves no actor. Projection/authorization is a surface concern; probe execution identity (if any) is internal to a boundary-crossing probe. | resolves the caller/identity conflation |
+| req-tap-health-service-1 | Service Is The Foundation | Implemented | `run_health()` is the primary health surface; HTTP / CLI / API are projections of it. | inverts the endpoint-first framing |
+| req-tap-health-service-2 | tap_health App | Implemented | A `tap_health` app owns the registry, report model, service, command, the boot check, and the health actor, and registers the core probes from its `ready()`. | resolves the registration-home question |
+| req-tap-health-service-3 | Structured Probe Result | Implemented | A probe result carries explicit `status`, `critical`, `group`, a stable machine `code` for non-healthy results, plus optional prose `detail`/`reasoning` and a structured `context` dict. | Law 4: structure before prose; criticality is a field, not prose |
+| req-tap-health-service-4 | Collect Behind A Tested Boundary | Implemented | Rich `reasoning`/`context` are collected only once a load-bearing projection test proves the coarse projection strips them; exposure is the projection's call, never the probe's. | gated on `req-tap-health-exposure-3` |
+| req-tap-health-service-5 | Pure Producer, Actor-Free Liveness | Implemented | `run_health()` takes no caller and no actor; the liveness path resolves no actor. Projection/authorization is a surface concern; probe execution identity (if any) is internal to a boundary-crossing probe. | resolves the caller/identity conflation |
 
 ### Tiered Exposure And Projections
 ----
 RID: `req-tap-health-exposure`
-Status: `Proposed`
+Status: `Implemented`
 
 The internal service produces one rich `HealthReport`; how much of it a caller sees depends on the caller, via explicit **projections**. This is Spring Boot Actuator's `show-details: never | when-authorized | always` pattern made the center of the design — and the reason an unauthenticated network endpoint is a *narrow, deliberate* projection, not the default surface.
 
@@ -125,11 +125,11 @@ Because probes now collect rich `context` (timings, file names, observed values)
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-health-exposure-1 | Projections, Not Surfaces | Proposed | One rich report; each surface is an explicit projection keyed on caller trust. | Spring `show-details` pattern |
-| req-tap-health-exposure-2 | CLI Is Network-Free | Proposed | `manage.py health` runs the service in-process and exits 0 / non-zero; the spawn / exec gate uses it, needing no network endpoint. | makes the HTTP endpoint optional |
-| req-tap-health-exposure-3 | Coarse Scorecard, Leak-Tested | Proposed | `report.scorecard()` emits only per-probe `status` (+ overall verdict) — never `detail` / `reasoning` / `context` / `code`. A **load-bearing projection test** asserts this and is the gate for `req-tap-health-service-4`. | projection = security boundary; supersedes `req-tap-health-unauth-2` |
-| req-tap-health-exposure-4 | Unauth Endpoint Parked | Proposed | The unauthenticated `/healthz` is removed once the spawn gate migrates to `manage.py health`; the coarse shape survives only as a `HealthReport.scorecard()` method with no endpoint. Any future external surface is a deliberate decision with its own threat model. | resolved: park entirely |
-| req-tap-health-exposure-5 | Coordinated Removal Pass | Proposed | Parking `/healthz` is one atomic, ordered change across every surface that references it; the repo never claims it is both removed and the current gate. | the file list + order below |
+| req-tap-health-exposure-1 | Projections, Not Surfaces | Implemented | One rich report; each surface is an explicit projection keyed on caller trust. | Spring `show-details` pattern |
+| req-tap-health-exposure-2 | CLI Is Network-Free | Implemented | `manage.py health` runs the service in-process and exits 0 / non-zero; the spawn / exec gate uses it, needing no network endpoint. | makes the HTTP endpoint optional |
+| req-tap-health-exposure-3 | Coarse Scorecard, Leak-Tested | Implemented | `report.scorecard()` emits only per-probe `status` (+ overall verdict) — never `detail` / `reasoning` / `context` / `code`. A **load-bearing projection test** asserts this and is the gate for `req-tap-health-service-4`. | projection = security boundary; supersedes `req-tap-health-unauth-2` |
+| req-tap-health-exposure-4 | Unauth Endpoint Parked | Implemented | The unauthenticated `/healthz` is removed once the spawn gate migrates to `manage.py health`; the coarse shape survives only as a `HealthReport.scorecard()` method with no endpoint. Any future external surface is a deliberate decision with its own threat model. | resolved: park entirely |
+| req-tap-health-exposure-5 | Coordinated Removal Pass | Implemented | Parking `/healthz` is one atomic, ordered change across every surface that references it; the repo never claims it is both removed and the current gate. | the file list + order below |
 
 #### Coordinated removal pass (`req-tap-health-exposure-5`)
 
@@ -148,11 +148,11 @@ After the pass there is **no externally-reachable health surface** — internal 
 ### Health Endpoint
 ----
 RID: `req-tap-health-endpoint`
-Status: `Deprecating`
+Status: `Deprecated`
 
-> **Parked (`req-tap-health-exposure-4`).** The unauthenticated `/healthz` endpoint is being **removed**, not kept — it was an over-eager end-of-week build with no consumer we actually need, and the internal service + `manage.py health` cover the real cases. It stays live only until the spawn gate migrates off it (`req-tap-health-exposure-2`), then the route and view are deleted. The coarse-scorecard *shape* survives as `HealthReport.scorecard()` for a future, deliberately-stood-up external surface. The as-built behavior below is retained for reference until removal.
+> **Removed (`req-tap-health-exposure-4`).** The unauthenticated `/healthz` endpoint **has been deleted** — it was an over-eager end-of-week build with no consumer we actually need, and the internal service + `manage.py health` cover the real cases. The spawn gate migrated to `manage.py health --json` (`req-tap-health-exposure-2`), and the route + view (`tap/health.py`) are gone. The coarse-scorecard *shape* survives only as `HealthReport.scorecard()` for a future, deliberately-stood-up external surface. The as-built description below is retained as historical record of what was removed.
 
-TAP exposes a health endpoint at the stable path `/healthz` that reports the instance's real backend health as JSON with an HTTP status code consumable by an orchestrator or a script.
+(Historical, as-removed.) TAP exposed a health endpoint at the stable path `/healthz` that reported the instance's real backend health as JSON with an HTTP status code consumable by an orchestrator or a script.
 
 #### Implementation
 
@@ -180,12 +180,14 @@ Health is judged by exercising the real backends independently. Each probe repor
 
 #### Implementation
 
-- **db** (`_check_db`) — a trivial `SELECT 1` over the default connection.
-- **cache** (`_check_cache`) — a real `cache.set` then `cache.get` round-trip with a unique probe key; the observed value must equal the written token, else `unhealthy`. This is the probe that catches the `tap_cache` fault: a missing `DatabaseCache` table surfaces here as an `unhealthy` cache probe (with the `relation "tap_cache" does not exist` detail) instead of a 500 on the first real cache access. The probe key is deleted after the round-trip.
-- **secrets** (`_check_secrets`) — reports the startup secret-load outcome (`secret_load_report`, owned by `tap_cares`). The loader is resilient (a bad secret file is recorded, not raised), so this probe is how a degraded/blocked secret surfaces on a *running* instance, where Django system checks do not run. It is **conditionally critical**: a `required_for_boot` load failure reports `unhealthy` (→503); any other load failure reports `degraded` (→200). Defined and owned by `tap_cares` (`req-tap-cares-secrets-resilient-load-5`); `tap/health.py` currently imports it directly — the dependency inversion is the subject of `req-tap-health-probe-registry`.
-- **queue** (`_check_queue`) — a light, best-effort reachability check (the DB-backed Steady Queue's `steady_queue_job` table is present). It is **non-critical**: any indeterminate result reports `"unknown"` and never flips the overall status. It deliberately does not probe worker liveness.
-- **Critical set** = `(db, cache)` always-critical, plus `secrets` when it reports `unhealthy`. The overall verdict follows the four-state model: `unhealthy`/503 if any critical probe is `unhealthy`; else `degraded`/200 if any probe is `degraded`; else `healthy`/200. `queue` (`unknown`) never flips the verdict. `req-tap-health-probe-registry` generalizes this to a `critical=` flag per registered probe.
-- Every probe wraps its work in a `try/except` that logs at the appropriate level (`warning` for critical, `info` for the non-critical queue) and returns a status dict — the view can never 500 on a probe error.
+The core probes live in `tap_health/probes.py` and register from `tap_health`'s `ready()`; each returns a `ProbeResult` and never raises.
+
+- **db** (`probe_db`) — a trivial `SELECT 1` over the default connection.
+- **cache** (`probe_cache`) — a real `cache.set` then `cache.get` round-trip with a unique probe key; the observed value must equal the written token, else `unhealthy` (code `cache.roundtrip_mismatch` / `cache.unavailable`). This is the probe that catches the `tap_cache` fault: a missing `DatabaseCache` table surfaces here as `unhealthy` (with the `relation "tap_cache" does not exist` detail) instead of a 500 on the first real cache access. The probe key is deleted after the round-trip.
+- **secrets** (`tap_cares.health.probe_secrets`, group `tap_cares`) — reports the startup secret-load outcome (`secret_load_report`). Owned by `tap_cares` and registered from `tap_cares`'s own `ready()` (the dependency inversion of `req-tap-health-probe-registry` — no core→`tap_cares` import). **Conditionally critical**: a `required_for_boot` failure reports `unhealthy` (code `secrets.required_for_boot_failed`); any other failure reports `degraded` (code `secrets.load_failed`).
+- **queue** (`probe_queue`) — a light, best-effort reachability check (the DB-backed Steady Queue's `steady_queue_job` table is present). **Non-critical**: an indeterminate result reports `unknown`, never flips the verdict, and is never dropped. It does not probe worker liveness.
+- **Aggregation** is in `HealthReport` (`req-tap-health-service`) keyed on the per-probe `critical=` flag (`req-tap-health-probe-registry`): `unhealthy` if any critical probe is `unhealthy`; else `degraded` if any probe is `degraded` or a non-critical probe is `unhealthy`; else `healthy`.
+- Per-probe exception isolation lives in the service (`run_health._run_one`): a probe that raises is reported as `unhealthy` (code `probe.raised`) and isolated — the run never crashes.
 
 #### Acceptance Criteria
 
@@ -201,9 +203,9 @@ Health is judged by exercising the real backends independently. Each probe repor
 ### Pluggable Health-Probe Registry
 ----
 RID: `req-tap-health-probe-registry`
-Status: `Proposed`
+Status: `Implemented`
 
-The probe set in `health_view` is currently a hardcoded dict literal and the critical set a module-level tuple. Adding the `secrets` probe (`req-tap-cares-secrets-resilient-load-5`) required editing `tap/health.py` directly and forced TAP core to import *up* into `tap_cares` — a backwards dependency (core depending on an app). This requirement replaces the literal with a small in-process registry so any first-party app contributes a named probe from its own `AppConfig.ready()` — the same import-to-register pattern the Django system-check half (`req-tap-health-bootcheck`) already uses — and inverts that dependency. It is the build-once edge that graduates the long-noted "plugin-contributed probes" future item from a flat non-goal into a real substrate, while still deferring untrusted plugin probes (see Non-Goals).
+The probe set in the original `health_view` was a hardcoded dict literal and the critical set a module-level tuple. Adding the `secrets` probe (`req-tap-cares-secrets-resilient-load-5`) required editing `tap/health.py` directly and forced TAP core to import *up* into `tap_cares` — a backwards dependency (core depending on an app). This requirement replaced the literal with a small in-process registry so any first-party app contributes a named probe from its own `AppConfig.ready()` — the same import-to-register pattern the Django system-check half (`req-tap-health-bootcheck`) already uses — and inverted that dependency. It is the build-once edge that graduates the long-noted "plugin-contributed probes" future item from a flat non-goal into a real substrate, while still deferring untrusted plugin probes (see Non-Goals).
 
 #### Implementation
 
@@ -267,19 +269,21 @@ Every registered probe executes real work, and a probe contributed by *untrusted
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-health-probe-registry-1 | Registration API | Proposed | `register_health_probe(name, probe, *, critical=False)` wraps a flat `tap_grid.registry.Registry`; a duplicate name raises `ImproperlyConfigured` at startup. | reuses existing registry; precedent `register_search_runner` |
-| req-tap-health-probe-registry-2 | Self-Registration From ready() | Proposed | Apps register probes by importing the module in `AppConfig.ready()`; registration accesses no DB. | mirrors system-check registration |
-| req-tap-health-probe-registry-3 | Dependency Inversion | Proposed | `tap_cares` registers the `secrets` probe; `tap/health.py` no longer imports `tap_cares`. | fixes the layering smell from `req-tap-cares-secrets-resilient-load-5` |
-| req-tap-health-probe-registry-4 | Derived Critical Set | Proposed | The 200/503 verdict is derived from per-probe `critical=` flags, not a hardcoded tuple. | |
-| req-tap-health-probe-registry-5 | Four-State Status Model | Proposed | Overall = `unhealthy` if any critical probe `unhealthy`; else `degraded` if any probe `degraded` or a non-critical probe `unhealthy`; else `healthy`. | subsumes secrets conditional criticality; a non-critical unhealthy is degraded, never hidden (Law 1) |
-| req-tap-health-probe-registry-6 | Probe Isolation | Proposed | A probe that raises is caught and reported; it cannot 500 the endpoint or block other probes. | centralizes `req-tap-health-probes-5` |
-| req-tap-health-probe-registry-7 | First-Party Only | Proposed | The v0 registry accepts first-party app probes only; plugin probes remain deferred with the named risks above. | security scope |
-| req-tap-health-probe-registry-8 | Probe Grouping | Proposed | Each probe registers under one `group` (default `core`), carried as a value field for clustering/ownership; probes report in `(group, name)` order. Names stay globally unique. | `group` is ownership, **not** a selection set; liveness/readiness selection is a separate deferred layer; no `order` flag in v0 |
+| req-tap-health-probe-registry-1 | Registration API | Implemented | `register_health_probe(name, probe, *, critical=False)` wraps a flat `tap_grid.registry.Registry`; a duplicate name raises `ImproperlyConfigured` at startup. | reuses existing registry; precedent `register_search_runner` |
+| req-tap-health-probe-registry-2 | Self-Registration From ready() | Implemented | Apps register probes by importing the module in `AppConfig.ready()`; registration accesses no DB. | mirrors system-check registration |
+| req-tap-health-probe-registry-3 | Dependency Inversion | Implemented | `tap_cares` registers the `secrets` probe; `tap/health.py` no longer imports `tap_cares`. | fixes the layering smell from `req-tap-cares-secrets-resilient-load-5` |
+| req-tap-health-probe-registry-4 | Derived Critical Set | Implemented | The 200/503 verdict is derived from per-probe `critical=` flags, not a hardcoded tuple. | |
+| req-tap-health-probe-registry-5 | Four-State Status Model | Implemented | Overall = `unhealthy` if any critical probe `unhealthy`; else `degraded` if any probe `degraded` or a non-critical probe `unhealthy`; else `healthy`. | subsumes secrets conditional criticality; a non-critical unhealthy is degraded, never hidden (Law 1) |
+| req-tap-health-probe-registry-6 | Probe Isolation | Implemented | A probe that raises is caught and reported; it cannot 500 the endpoint or block other probes. | centralizes `req-tap-health-probes-5` |
+| req-tap-health-probe-registry-7 | First-Party Only | Implemented | The v0 registry accepts first-party app probes only; plugin probes remain deferred with the named risks above. | security scope |
+| req-tap-health-probe-registry-8 | Probe Grouping | Implemented | Each probe registers under one `group` (default `core`), carried as a value field for clustering/ownership; probes report in `(group, name)` order. Names stay globally unique. | `group` is ownership, **not** a selection set; liveness/readiness selection is a separate deferred layer; no `order` flag in v0 |
 
 ### Probe Execution Identity
 ----
 RID: `req-tap-health-probe-actor`
 Status: `Proposed`
+
+> **v0 status:** the *actor-free liveness* invariant this requirement rests on is **realized** — `run_health()` is a pure producer and the v0 probes resolve no actor (`req-tap-health-service`). The rest is a forward-looking contract for when a boundary-crossing probe first appears: the `tap_health.health_probe` program actor is **not yet created**, capability scoping is declared-not-enforced (the `requires=()` slot exists), and activity tracking is deferred. So this requirement stays `Proposed` until a probe actually needs the actor.
 
 The instance enforces a no-anonymous-actor rule: the service boundary rejects `user=None` and system-initiated work runs as a **named program actor** — `tap_bootloader`, `tap_cares.collector`, `tap_cares.scheduler` (`tap_grid/caller_context.py`, `req-tap-auth-policy`). Health probes execute real work, so they must answer "as whom?" without re-introducing an anonymous actor.
 
@@ -332,11 +336,11 @@ A natural refinement: rather than one health actor accumulating the *union* of e
 ### Unauthenticated, Coarse-Status Only
 ----
 RID: `req-tap-health-unauth`
-Status: `Deprecating`
+Status: `Deprecated`
 
-> **Parked with the endpoint (`req-tap-health-exposure-4`).** This requirement existed to justify an *unauthenticated* surface; with the endpoint removed there is no unauthenticated surface to govern. It is retained for reference until the route is deleted, after which there is no externally-reachable health endpoint at all (the internal service + `manage.py health` are the surfaces). Note the projection boundary that this requirement guarded is now owned by `req-tap-health-exposure-3` and applies to *any* future external surface.
+> **Removed with the endpoint (`req-tap-health-exposure-4`).** This requirement existed to justify an *unauthenticated* surface; the endpoint is now deleted, so there is no externally-reachable health endpoint at all (the internal service + `manage.py health` are the surfaces). The projection boundary it guarded is now owned by `req-tap-health-exposure-3` and applies to *any* future external surface. Retained as historical record.
 
-The endpoint must answer without authentication so an orchestrator or a pre-auth boot gate can probe it, while exposing only coarse status — never secrets, configuration, or internal topology.
+(Historical, as-removed.) The endpoint answered without authentication so an orchestrator or a pre-auth boot gate could probe it, while exposing only coarse status — never secrets, configuration, or internal topology.
 
 #### Implementation
 
@@ -359,8 +363,8 @@ The fail-at-boot half of the pair: a Django system check that turns a known late
 
 #### Implementation
 
-- `tap_boot/checks.py:check_database_cache_table`, registered `@register(Tags.database)` and wired in `tap_boot.apps.TapBootConfig.ready()` by *importing* the module (import registers; the DB access happens later when the check runs — so it does not breach the "no DB in `ready()`" rule).
-- When the default cache backend is `DatabaseCache`, the table named by its `LOCATION` must exist on the default database; otherwise the check returns a single `checks.Error` `tap_boot.E001` whose hint points at `manage.py createcachetable` and notes it is wired into `docker/entrypoint.sh`.
+- `tap_health/checks.py:check_database_cache_table`, registered `@register(Tags.database)` and wired in `tap_health.apps.TapHealthConfig.ready()` by *importing* the module (import registers; the DB access happens later when the check runs — so it does not breach the "no DB in `ready()`" rule). It moved here from `tap_boot` when `tap_health` took ownership of the health domain (`req-tap-health-service-2`).
+- When the default cache backend is `DatabaseCache`, the table named by its `LOCATION` must exist on the default database; otherwise the check returns a single `checks.Error` `tap_health.E001` whose hint points at `manage.py createcachetable` and notes it is wired into `docker/entrypoint.sh`.
 - Because it is database-tagged, Django passes the permitted `databases` aliases; the check no-ops when the default alias is not among them (e.g. a non-DB command, or a check run without DB access) rather than guessing.
 - It runs at `migrate` and on explicit `manage.py check --database <alias>`, so a fresh standup that skipped cache provisioning fails loudly before serving instead of 500'ing a user later.
 
@@ -368,7 +372,7 @@ The fail-at-boot half of the pair: a Django system check that turns a known late
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-health-bootcheck-1 | Missing Table Errors | Implemented | DatabaseCache + a non-existent table yields exactly one `tap_boot.E001` with a `createcachetable` hint. | test: table-missing |
+| req-tap-health-bootcheck-1 | Missing Table Errors | Implemented | DatabaseCache + a non-existent table yields exactly one `tap_health.E001` with a `createcachetable` hint. | test: table-missing |
 | req-tap-health-bootcheck-2 | Present Table Clean | Implemented | DatabaseCache pointed at an existing table produces no error. | test: table-exists |
 | req-tap-health-bootcheck-3 | Non-DatabaseCache Skips | Implemented | A non-DatabaseCache backend is irrelevant — no error, no introspection. | test: non-db-backend |
 | req-tap-health-bootcheck-4 | No DB Access Without Permission | Implemented | With no permitted DB alias the check skips rather than introspecting. | test: db-unavailable; respects no-DB-in-ready |
