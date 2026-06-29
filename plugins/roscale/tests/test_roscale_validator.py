@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from plugins.roscale.parser import parse
 from plugins.roscale.validator import validate
 
@@ -23,17 +21,13 @@ class TestSchemaValidation:
         parsed = parse(_load("samsite_oscal_ssp.json"))
         result = validate(parsed)
         assert result.root_recognized
-        assert result.schema_ok, [
-            f"{e.path}: {e.message}" for e in result.schema_errors[:5]
-        ]
+        assert result.schema_ok, [f"{e.path}: {e.message}" for e in result.schema_errors[:5]]
 
     def test_samsite_poam_schema_ok(self):
         parsed = parse(_load("samsite_oscal_poam.json"))
         result = validate(parsed)
         assert result.root_recognized
-        assert result.schema_ok, [
-            f"{e.path}: {e.message}" for e in result.schema_errors[:5]
-        ]
+        assert result.schema_ok, [f"{e.path}: {e.message}" for e in result.schema_errors[:5]]
 
     def test_no_root_does_not_validate(self):
         parsed = parse({"not-oscal": {}})
@@ -81,10 +75,7 @@ class TestSemanticChecksSSP:
             }
         )
         result = validate(parsed)
-        assert any(
-            w.check == "ssp-implemented-requirement-control-id"
-            for w in result.semantic_warnings
-        )
+        assert any(w.check == "ssp-implemented-requirement-control-id" for w in result.semantic_warnings)
 
 
 class TestSemanticChecksPOAM:
@@ -103,7 +94,4 @@ class TestSemanticChecksPOAM:
             }
         )
         result = validate(parsed)
-        assert any(
-            w.check == "poam-item-title-or-description"
-            for w in result.semantic_warnings
-        )
+        assert any(w.check == "poam-item-title-or-description" for w in result.semantic_warnings)

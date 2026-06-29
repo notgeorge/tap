@@ -14,10 +14,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from tap_web.panels.entity_resolution import (
-    EntityResolution,
     _lookup_by_entity_id,
     _run_fallback_query,
     resolve_entity,
@@ -108,10 +105,12 @@ class TestResolveEntitySingleEntity:
     @patch("tap_web.panels.entity_resolution._run_fallback_query")
     def test_url_deep_link_wins(self, mock_fallback, mock_lookup):
         mock_lookup.return_value = self.SAMPLE_NODE
-        panel = FakePanel({
-            "entity_id_var": "ssp_eid",
-            "fallback": {"query": self.SAMPLE_QUERY, "description": "Latest oscal_ssp"},
-        })
+        panel = FakePanel(
+            {
+                "entity_id_var": "ssp_eid",
+                "fallback": {"query": self.SAMPLE_QUERY, "description": "Latest oscal_ssp"},
+            }
+        )
         request = _fake_request({"ssp_eid": "node-1"})
         result = resolve_entity(panel, request, default_var_name="default_eid")
         assert result.ok
@@ -125,10 +124,12 @@ class TestResolveEntitySingleEntity:
     @patch("tap_web.panels.entity_resolution._run_fallback_query")
     def test_fallback_fires_when_url_var_empty(self, mock_fallback, mock_lookup):
         mock_fallback.return_value = ([self.SAMPLE_NODE], 1)
-        panel = FakePanel({
-            "entity_id_var": "ssp_eid",
-            "fallback": {"query": self.SAMPLE_QUERY, "description": "Latest oscal_ssp"},
-        })
+        panel = FakePanel(
+            {
+                "entity_id_var": "ssp_eid",
+                "fallback": {"query": self.SAMPLE_QUERY, "description": "Latest oscal_ssp"},
+            }
+        )
         request = _fake_request({})  # no URL var
         result = resolve_entity(panel, request, default_var_name="default_eid")
         assert result.ok
@@ -162,10 +163,12 @@ class TestResolveEntitySingleEntity:
     @patch("tap_web.panels.entity_resolution._run_fallback_query")
     def test_fallback_zero_rows_returns_empty_error(self, mock_fallback):
         mock_fallback.return_value = ([], 0)
-        panel = FakePanel({
-            "entity_id_var": "ssp_eid",
-            "fallback": {"query": self.SAMPLE_QUERY, "description": "Latest oscal_ssp"},
-        })
+        panel = FakePanel(
+            {
+                "entity_id_var": "ssp_eid",
+                "fallback": {"query": self.SAMPLE_QUERY, "description": "Latest oscal_ssp"},
+            }
+        )
         request = _fake_request({})
         result = resolve_entity(panel, request, default_var_name="default_eid")
         assert not result.ok
@@ -176,10 +179,12 @@ class TestResolveEntitySingleEntity:
     @patch("tap_web.panels.entity_resolution._run_fallback_query")
     def test_fallback_ambiguous_returns_ambiguous_error(self, mock_fallback):
         mock_fallback.return_value = ([{"entity_id": "a"}, {"entity_id": "b"}], 2)
-        panel = FakePanel({
-            "entity_id_var": "ssp_eid",
-            "fallback": {"query": "MATCH (n:t) LIMIT 2", "description": "Unique user 'george'"},
-        })
+        panel = FakePanel(
+            {
+                "entity_id_var": "ssp_eid",
+                "fallback": {"query": "MATCH (n:t) LIMIT 2", "description": "Unique user 'george'"},
+            }
+        )
         request = _fake_request({})
         result = resolve_entity(panel, request, default_var_name="default_eid")
         assert not result.ok
@@ -189,10 +194,12 @@ class TestResolveEntitySingleEntity:
         assert result.fallback_count == 2
 
     def test_partial_fallback_query_without_description_is_config_error(self):
-        panel = FakePanel({
-            "entity_id_var": "ssp_eid",
-            "fallback": {"query": self.SAMPLE_QUERY},  # no description
-        })
+        panel = FakePanel(
+            {
+                "entity_id_var": "ssp_eid",
+                "fallback": {"query": self.SAMPLE_QUERY},  # no description
+            }
+        )
         request = _fake_request({})
         result = resolve_entity(panel, request, default_var_name="default_eid")
         assert not result.ok
@@ -219,10 +226,12 @@ class TestResolveEntitySingleEntity:
     @patch("tap_web.panels.entity_resolution._run_fallback_query")
     def test_transient_fallback_exception_surfaces_polished_error(self, mock_fallback):
         mock_fallback.side_effect = RuntimeError("gryphon parse error")
-        panel = FakePanel({
-            "entity_id_var": "ssp_eid",
-            "fallback": {"query": self.SAMPLE_QUERY, "description": "Latest oscal_ssp"},
-        })
+        panel = FakePanel(
+            {
+                "entity_id_var": "ssp_eid",
+                "fallback": {"query": self.SAMPLE_QUERY, "description": "Latest oscal_ssp"},
+            }
+        )
         request = _fake_request({})
         result = resolve_entity(panel, request, default_var_name="default_eid")
         assert not result.ok
@@ -234,20 +243,24 @@ class TestResolveEntityMultiEntity:
 
     SAMPLE_NODE = {"entity_id": "ssp-1", "name": "SSP"}
     SSP_QUERY = "MATCH (a:compliance_artifact) WHERE a.data.kind = 'oscal_ssp' ORDER BY a.data.fetched_at DESC LIMIT 1"
-    POAM_QUERY = "MATCH (a:compliance_artifact) WHERE a.data.kind = 'oscal_poam' ORDER BY a.data.fetched_at DESC LIMIT 1"
+    POAM_QUERY = (
+        "MATCH (a:compliance_artifact) WHERE a.data.kind = 'oscal_poam' ORDER BY a.data.fetched_at DESC LIMIT 1"
+    )
 
     @patch("tap_web.panels.entity_resolution._lookup_by_entity_id")
     @patch("tap_web.panels.entity_resolution._run_fallback_query")
     def test_role_reads_role_prefixed_keys(self, mock_fallback, mock_lookup):
         mock_fallback.return_value = ([self.SAMPLE_NODE], 1)
-        panel = FakePanel({
-            "ssp_entity_id_var": "ssp_eid",
-            "poam_entity_id_var": "poam_eid",
-            "fallback": {
-                "ssp": {"query": self.SSP_QUERY, "description": "Latest oscal_ssp"},
-                "poam": {"query": self.POAM_QUERY, "description": "Latest oscal_poam"},
-            },
-        })
+        panel = FakePanel(
+            {
+                "ssp_entity_id_var": "ssp_eid",
+                "poam_entity_id_var": "poam_eid",
+                "fallback": {
+                    "ssp": {"query": self.SSP_QUERY, "description": "Latest oscal_ssp"},
+                    "poam": {"query": self.POAM_QUERY, "description": "Latest oscal_poam"},
+                },
+            }
+        )
         request = _fake_request({})
         result = resolve_entity(panel, request, role="ssp", default_var_name="ssp_default")
         assert result.ok
@@ -261,10 +274,12 @@ class TestResolveEntityMultiEntity:
     @patch("tap_web.panels.entity_resolution._lookup_by_entity_id")
     def test_role_reads_role_prefixed_url_var(self, mock_lookup):
         mock_lookup.return_value = self.SAMPLE_NODE
-        panel = FakePanel({
-            "ssp_entity_id_var": "ssp_eid",
-            "poam_entity_id_var": "poam_eid",
-        })
+        panel = FakePanel(
+            {
+                "ssp_entity_id_var": "ssp_eid",
+                "poam_entity_id_var": "poam_eid",
+            }
+        )
         request = _fake_request({"ssp_eid": "ssp-1", "poam_eid": "poam-1"})
         result = resolve_entity(panel, request, role="poam", default_var_name="poam_default")
         # The poam URL var was read, not ssp's.

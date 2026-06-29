@@ -1,18 +1,14 @@
 """Tests for the synthetic page builder (tap_web/synthetic.py)."""
 
-import json
-
 import pytest
 
 from tap_web.synthetic import (
     SyntheticGraph,
     SyntheticLayout,
     SyntheticPage,
-    SyntheticPanel,
     SyntheticSearch,
     load_subgraph,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

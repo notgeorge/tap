@@ -9,7 +9,7 @@ returns the indicator and its parent theme in one pass.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from tap_web.utils import safe_json
@@ -20,10 +20,10 @@ def _parse_iso(iso: str | None) -> datetime | None:
         return None
     try:
         dt = datetime.fromisoformat(iso)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -36,7 +36,7 @@ def _relative_timestamp(iso: str | None) -> str:
     dt = _parse_iso(iso)
     if dt is None:
         return ""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     seconds = (now - dt).total_seconds()
     if seconds < 60:
         return "just now"
@@ -52,6 +52,7 @@ def _relative_timestamp(iso: str | None) -> str:
     if dt.year == now.year:
         return dt.strftime("%b %-d")
     return dt.strftime("%b %-d, %Y")
+
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -109,9 +110,7 @@ class KsiIndicatorProfilePanelType:
                 default_limit=50,
                 max_limit=100,
             )
-            result = execute_search(
-                search, inputs={"entity_id": entity_id}, layer="extended"
-            )
+            result = execute_search(search, inputs={"entity_id": entity_id}, layer="extended")
         except Exception as exc:  # noqa: BLE001
             logger.exception("[500c] KSI profile search failed for %s", entity_id)
             return {"ksi_error": f"Failed to load indicator: {exc}", "ksi": None}
@@ -151,9 +150,7 @@ class KsiIndicatorProfilePanelType:
         display_statement = ind_node.get("description", "")
         if has_variants and not display_statement:
             cv = ind_node["class_variants"]
-            first_class = (
-                ind_node.get("classes", [])[0] if ind_node.get("classes") else None
-            )
+            first_class = ind_node.get("classes", [])[0] if ind_node.get("classes") else None
             if first_class and first_class in cv:
                 display_statement = cv[first_class].get("statement", "")
             elif cv:
@@ -190,9 +187,7 @@ class KsiIndicatorProfilePanelType:
             "ksi": ksi,
             "ksi_display_statement": display_statement,
             "ksi_class_info": class_info,
-            "ksi_variants_json": (
-                safe_json(ksi["class_variants"]) if has_variants else "null"
-            ),
+            "ksi_variants_json": (safe_json(ksi["class_variants"]) if has_variants else "null"),
             "ksi_findings_json": safe_json(findings_rows),
             "ksi_findings_count": len(findings_rows),
             "ksi_error": None,
@@ -225,13 +220,9 @@ def _load_findings_rows(indicator_entity_id: str) -> list[dict[str, Any]]:
             default_limit=500,
             max_limit=2000,
         )
-        result = execute_search(
-            search, inputs={"entity_id": indicator_entity_id}, layer="extended"
-        )
+        result = execute_search(search, inputs={"entity_id": indicator_entity_id}, layer="extended")
     except Exception:  # noqa: BLE001
-        logger.exception(
-            "[7ead] KSI indicator findings query failed for %s", indicator_entity_id
-        )
+        logger.exception("[7ead] KSI indicator findings query failed for %s", indicator_entity_id)
         return []
 
     envelope = result["results"] if "results" in result else result

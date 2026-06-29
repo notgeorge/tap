@@ -26,12 +26,12 @@
 #   tap_grid/* tap_plugins/* — read-helper classification + the import command's boot actor
 plugins/fedramp_20x_ksi/panels/compliance_view/__init__.py:108
 plugins/fedramp_20x_ksi/panels/compliance_view/__init__.py:44
-plugins/fedramp_20x_ksi/panels/finding_profile/__init__.py:151
+plugins/fedramp_20x_ksi/panels/finding_profile/__init__.py:152
 plugins/fedramp_20x_ksi/panels/finding_strip/__init__.py:60
-plugins/fedramp_20x_ksi/panels/findings_by_ksi/__init__.py:55
-plugins/fedramp_20x_ksi/panels/findings_by_system/__init__.py:53
-plugins/fedramp_20x_ksi/panels/indicator_profile/__init__.py:112
-plugins/fedramp_20x_ksi/panels/indicator_profile/__init__.py:228
+plugins/fedramp_20x_ksi/panels/findings_by_ksi/__init__.py:54
+plugins/fedramp_20x_ksi/panels/findings_by_system/__init__.py:52
+plugins/fedramp_20x_ksi/panels/indicator_profile/__init__.py:113
+plugins/fedramp_20x_ksi/panels/indicator_profile/__init__.py:223
 plugins/fedramp_20x_ksi/panels/instance_findings/__init__.py:86
 plugins/genericom/panels/instance_hero/__init__.py:75
 plugins/genericom/panels/open_alerts/__init__.py:67

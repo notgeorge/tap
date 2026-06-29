@@ -2,9 +2,10 @@
 
 import django.db.models.deletion
 import simple_history.models
-import tap_cares.models
 from django.conf import settings
 from django.db import migrations, models
+
+import tap_cares.models
 
 
 class Migration(migrations.Migration):

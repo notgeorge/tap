@@ -12,7 +12,7 @@ Spec: plugins/fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-finding-profile.md
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from tap_web.utils import safe_json
@@ -62,10 +62,10 @@ def _parse_iso(iso: str | None) -> datetime | None:
         return None
     try:
         dt = datetime.fromisoformat(iso)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -79,7 +79,7 @@ def _relative_timestamp(iso: str | None) -> str:
     dt = _parse_iso(iso)
     if dt is None:
         return ""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     delta = now - dt
     seconds = delta.total_seconds()
     if seconds < 60:
@@ -98,6 +98,7 @@ def _relative_timestamp(iso: str | None) -> str:
     if dt.year == now.year:
         return dt.strftime("%b %-d")
     return dt.strftime("%b %-d, %Y")
+
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -148,9 +149,7 @@ class KsiFindingProfilePanelType:
                 default_limit=200,
                 max_limit=500,
             )
-            result = execute_search(
-                search, inputs={"entity_id": entity_id}, layer="extended"
-            )
+            result = execute_search(search, inputs={"entity_id": entity_id}, layer="extended")
         except Exception as exc:  # noqa: BLE001
             logger.exception("[52c8] Finding profile search failed for %s", entity_id)
             return {
@@ -170,9 +169,7 @@ class KsiFindingProfilePanelType:
                 nodes_by_id[eid] = n
 
         finding_node = nodes_by_id.get(entity_id)
-        if finding_node is None or (finding_node.get("entity") or {}).get(
-            "entity_type"
-        ) != "finding":
+        if finding_node is None or (finding_node.get("entity") or {}).get("entity_type") != "finding":
             return {"finding_error": "Finding not found.", "finding": None}
 
         f_ent = finding_node.get("entity") or {}

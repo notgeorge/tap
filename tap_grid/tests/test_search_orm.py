@@ -197,7 +197,7 @@ class TestHopTraversal:
         """Inbound hop includes root nodes, source nodes, and connecting edges."""
         w1 = _make_wanderer("Source")
         w2 = _make_wanderer("Root")
-        edge = _make_edge(w1.entity, w2.entity, edge_type="POINTS_TO")
+        _make_edge(w1.entity, w2.entity, edge_type="POINTS_TO")
 
         s = Search.objects.create(
             name="In Hop",

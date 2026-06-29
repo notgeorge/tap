@@ -13,8 +13,6 @@ SPINE_FIELD_NAMES reds this test.
 
 from __future__ import annotations
 
-import pytest
-
 from tap_grid.models import Entity
 
 
@@ -62,20 +60,8 @@ class TestSpineFieldNamesCanonical:
         # `concrete_fields` is exactly the columns on the entity table.
         concrete_field_names = {f.name for f in Entity._meta.concrete_fields}
 
-        # Map each Django field name to its envelope-serialized name.
-        renamed_djongo_to_serialized = {
-            django: serialized
-            for serialized, django in Entity.SPINE_DJANGO_NAME.items()
-        }
-        canonical_django_names = {
-            renamed_djongo_to_serialized.get(name, name)
-            for name in Entity.SPINE_FIELD_NAMES
-        }
-        # Reverse-map to find what django names the canonical tuple covers.
-        canonical_django_set = {
-            Entity.SPINE_DJANGO_NAME.get(name, name)
-            for name in Entity.SPINE_FIELD_NAMES
-        }
+        # Map each canonical spine field name to the Django field name it covers.
+        canonical_django_set = {Entity.SPINE_DJANGO_NAME.get(name, name) for name in Entity.SPINE_FIELD_NAMES}
 
         missing = concrete_field_names - canonical_django_set
         assert not missing, (

@@ -15,14 +15,14 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache
 from typing import Any
 
-import jsonschema
 from jsonschema import Draft7Validator, validators
 
 from .constants import schema_path_for
 from .parser import ParseResult
+
 
 # OSCAL 1.1.2 schemas declare $schema = http://json-schema.org/draft-07/schema#.
 # Using a Draft 2020-12 validator breaks internal $id anchor resolution.
@@ -71,7 +71,7 @@ class ValidationResult:
         return self.root_recognized and self.schema_ok and not self.semantic_warnings
 
 
-@lru_cache(maxsize=None)
+@cache
 def _load_validator(schema_file: str):
     with open(schema_file, "rb") as fh:
         schema = json.load(fh)
@@ -116,12 +116,18 @@ def _semantic_ssp(doc: dict[str, Any]) -> list[SemanticWarning]:
     metadata = root.get("metadata")
     if metadata is None:
         warnings.append(
-            SemanticWarning(check="ssp-metadata-present", message="metadata block is missing", path="system-security-plan.metadata")
+            SemanticWarning(
+                check="ssp-metadata-present", message="metadata block is missing", path="system-security-plan.metadata"
+            )
         )
     else:
         if "title" not in metadata:
             warnings.append(
-                SemanticWarning(check="ssp-metadata-title", message="metadata.title is missing", path="system-security-plan.metadata.title")
+                SemanticWarning(
+                    check="ssp-metadata-title",
+                    message="metadata.title is missing",
+                    path="system-security-plan.metadata.title",
+                )
             )
         if "oscal-version" not in metadata:
             warnings.append(

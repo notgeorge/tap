@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from tap_web.utils import safe_json
@@ -116,9 +116,7 @@ def _build_rows(envelope: dict[str, Any]) -> list[dict[str, Any]]:
             finding_id = edge_body.get("from_entity_id")
             ksi_id = edge_body.get("to_entity_id")
             if finding_id and ksi_id and finding_id not in ksi_links_by_finding:
-                rel = (edge_body.get("properties") or {}).get(
-                    "relationship_type", ""
-                )
+                rel = (edge_body.get("properties") or {}).get("relationship_type", "")
                 ksi_links_by_finding[finding_id] = {
                     "ksi_id": ksi_id,
                     "relationship": rel,
@@ -169,9 +167,7 @@ def _build_rows(envelope: dict[str, Any]) -> list[dict[str, Any]]:
             {
                 "finding_id": finding_id,
                 "title": ent.get("name") or finding_body.get("name") or "",
-                "system_name": parent_ent.get("name")
-                or (parent.get("node") or {}).get("name")
-                or "",
+                "system_name": parent_ent.get("name") or (parent.get("node") or {}).get("name") or "",
                 "system_id": parent_id,
                 "summary": finding_body.get("summary") or "",
                 "description": finding_body.get("description") or "",
@@ -204,11 +200,11 @@ def _age_in_days(created_at_iso: str | None) -> int | None:
         return None
     try:
         dt = datetime.fromisoformat(created_at_iso)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    delta = datetime.now(timezone.utc) - dt
+        dt = dt.replace(tzinfo=UTC)
+    delta = datetime.now(UTC) - dt
     age_days_float = delta.total_seconds() / 86400.0
     if age_days_float < 0:
         return 0
@@ -220,10 +216,8 @@ def _iso_to_epoch(created_at_iso: str | None) -> float | None:
         return None
     try:
         dt = datetime.fromisoformat(created_at_iso)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt.timestamp()
-
-

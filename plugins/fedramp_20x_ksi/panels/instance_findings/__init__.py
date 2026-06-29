@@ -13,13 +13,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from tap_web.utils import safe_json
-
 from plugins.fedramp_20x_ksi.panels.finding_profile import (
     _format_timestamp,
     _ksi_description,
     _relative_timestamp,
 )
+from tap_web.utils import safe_json
 
 # Aggregated-verdict precedence for HAS_EVIDENCE.support_kind values: any
 # violation wins; otherwise any passing wins; otherwise informational.
@@ -36,6 +35,7 @@ def _aggregate_verdict(evidence_list: list[dict[str, Any]]) -> str:
         if weight > best[1]:
             best = (sk, weight)
     return best[0]
+
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -83,9 +83,7 @@ class KsiInstanceFindingsPanelType:
                 }
             from tap_grid.search import execute_search
 
-            result = execute_search(
-                search, inputs={"entity_id": entity_id}, layer="extended"
-            )
+            result = execute_search(search, inputs={"entity_id": entity_id}, layer="extended")
         except Exception as exc:  # noqa: BLE001
             logger.exception("[efc9] Instance findings search failed for %s", entity_id)
             return {
@@ -185,9 +183,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
         f = findings_by_id[fid]
         ent = f["entity"]
         body = f["body"]
-        f["evidence"].sort(
-            key=lambda e: (e["support_kind"], e["name"], e["entity_id"])
-        )
+        f["evidence"].sort(key=lambda e: (e["support_kind"], e["name"], e["entity_id"]))
         f["ksis"].sort(key=lambda k: (k["code"], k["entity_id"]))
         primary_ksi = f["ksis"][0] if f["ksis"] else {}
         # Verdict precedence: aggregate-from-evidence wins, then the

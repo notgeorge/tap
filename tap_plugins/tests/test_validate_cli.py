@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from tap_plugins.validate_plugin.__main__ import main
 
 PLUGINS_ROOT = Path(__file__).resolve().parent.parent.parent / "plugins"
@@ -35,7 +33,6 @@ class TestCLIBasics:
 
     def test_strict_mode(self, capsys):
         code = main([str(PLUGINS_ROOT / "lotr"), "--strict"])
-        captured = capsys.readouterr()
         # LOTR should still pass in strict mode (no undeclared files expected)
         # but even if it doesn't, the test verifies the flag is accepted
         assert code in (0, 1)

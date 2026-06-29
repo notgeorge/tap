@@ -116,6 +116,13 @@ ignore = [
     "E501",   # line too long (black handles this)
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# The Entity/Edge/BaseModel spine groups its methods by concern for legibility
+# rather than by Django's style-guide sequence. DJ012 is a purely stylistic
+# ordering rule; enforcing it here would churn load-bearing model code for zero
+# behavioral gain, so it is scoped off for this one file.
+"tap_grid/models.py" = ["DJ012"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["tap", "tap_grid", "tap_plugins", "tap_api", "tap_web", "tap_viz", "tap_flip", "tap_ai"]
 

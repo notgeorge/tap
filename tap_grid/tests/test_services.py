@@ -292,7 +292,7 @@ class TestPatchNode:
     def test_omitted_fields_unchanged(self):
         result = create_node("character", {"name": "Lord", "bio": "original bio"})
         char = Character.objects.get(entity_id=result.entity_id)
-        patch_result = patch_node(char.entity_id, {"name": "Updated"})
+        patch_node(char.entity_id, {"name": "Updated"})
         char.refresh_from_db()
         assert char.name == "Updated"
         assert char.bio == "original bio"  # untouched
@@ -389,7 +389,7 @@ class TestCreateEdgePipeline:
     def test_edge_type_immutable_on_patch(self):
         from_result = create_node("character", {"name": "Frodo"})
         to_result = create_node("location", {"name": "Shire"})
-        edge_result = write_batch(
+        write_batch(
             [
                 WriteOperation(
                     verb="create_edge",
@@ -408,7 +408,7 @@ class TestCreateEdgePipeline:
     def test_no_edges_between_edges(self):
         a = create_node("character", {"name": "Frodo"})
         b = create_node("location", {"name": "Shire"})
-        edge_result = write_batch(
+        write_batch(
             [
                 WriteOperation(
                     verb="create_edge",
@@ -587,7 +587,7 @@ class TestServiceErrorTaxonomy:
                 operation="create_node",
                 errors=[ServiceError(code="authz_failure", message="forbidden")],
             )
-            result = create_node("character", {})
+            create_node("character", {})
             # Just confirm the code can be constructed; pipeline mock controls output
             assert mock_pipeline.called
 

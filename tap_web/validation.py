@@ -15,7 +15,6 @@ from tap_web.exceptions import (
     PageSlugValidationError,
 )
 
-
 # ---------------------------------------------------------------------------
 # Page slug validation (req-web-page-slug-sanitize.sec)
 # ---------------------------------------------------------------------------
@@ -169,7 +168,7 @@ _LAYOUT_SCHEMA: dict = {
                     },
                 },
             },
-        }
+        },
     },
 }
 
@@ -187,5 +186,3 @@ def validate_page_layout(layout: dict) -> None:
         jsonschema.validate(instance=layout, schema=_LAYOUT_SCHEMA)
     except jsonschema.ValidationError as exc:
         raise PageLayoutValidationError(f"Invalid page layout: {exc.message}") from exc
-
-

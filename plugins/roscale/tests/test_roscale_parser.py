@@ -5,9 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
-from plugins.roscale.parser import ParseResult, detect_root, parse
+from plugins.roscale.parser import detect_root, parse
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

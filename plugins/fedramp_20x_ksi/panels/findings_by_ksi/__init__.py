@@ -12,9 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from tap_web.utils import safe_json
-
 from plugins.fedramp_20x_ksi.panels.findings_table_helpers import build_findings_rows
+from tap_web.utils import safe_json
 
 if TYPE_CHECKING:
     from django.http import HttpRequest

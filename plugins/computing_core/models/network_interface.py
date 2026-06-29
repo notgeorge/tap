@@ -42,7 +42,9 @@ class NetworkInterface(BaseModel):
 
     name = models.CharField(max_length=255, blank=True, default="")
     interface_name = models.CharField(max_length=64, blank=True, default="", db_index=True)
-    mac_address = models.CharField(max_length=17, blank=True, null=True)
+    # null distinguishes "MAC unknown/not-applicable" from "" (intentional; a
+    # nullability change would require a data migration). noqa the string-null rule.
+    mac_address = models.CharField(max_length=17, blank=True, null=True)  # noqa: DJ001
     state = models.CharField(max_length=32, blank=True, default="")
     configuration = models.JSONField(default=dict, blank=True)
 

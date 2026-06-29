@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING, Any
 from tap_grid.exceptions import InvalidSearchDefinitionError
 from tap_grid.grift.subgraph import (
     SubgraphLayer,
+    batch_resolve_display,
     batch_resolve_entity_names,
     batch_resolve_icon_urls,
-    batch_resolve_display,
     batch_resolve_typed_models,
     serialize_edge_extended,
     serialize_edge_full,

@@ -19,8 +19,7 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from plugins.lotr.models import Character, Location
-from tap_grid.caller_context import CallerContext
+from plugins.lotr.models import Character
 from tap_grid.exceptions import (
     ServiceConflictError,
     ServiceNotFoundError,
@@ -107,7 +106,7 @@ class TestHistoryRowRemoval:
             "character",
             {"name": "Eowyn", "bio": "Shieldmaiden of Rohan."},
         )
-        char = Character.objects.get(entity_id=result.entity_id)
+        Character.objects.get(entity_id=result.entity_id)  # exists (raises if purged)
         # Sanity: history rows exist for the create.
         assert Character.history.filter(entity_id=result.entity_id).exists()
 
