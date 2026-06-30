@@ -1,0 +1,43 @@
+{
+  "feature": "IS KNOWN / IS UNKNOWN observation predicates — the field-observation convention's null axis as query vocabulary",
+  "background": {
+    "grift_fixture": "fixtures/emissions.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "IS UNKNOWN returns only the unobserved (null observed_at) row",
+      "tags": ["observation", "is-unknown", "data-lane", "type-scan"],
+      "covers": [
+        "req-grid-traversal-lang-observation",
+        "req-grid-traversal-lang-observation-1"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS UNKNOWN",
+      "expected_envelope": "expected/observation__is_unknown.expected.json",
+      "expected_sql_snapshot": "expected/observation__is_unknown.sql.txt"
+    },
+    {
+      "name": "IS KNOWN excludes the unobserved row (complement of IS UNKNOWN)",
+      "tags": ["observation", "is-known", "data-lane", "type-scan"],
+      "covers": [
+        "req-grid-traversal-lang-observation-2",
+        "req-grid-traversal-lang-observation-5"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS KNOWN",
+      "expected_envelope": "expected/observation__is_known.expected.json",
+      "expected_sql_snapshot": "expected/observation__is_known.sql.txt"
+    },
+    {
+      "name": "IS UNKNOWN composes with AND on a second comparison",
+      "tags": ["observation", "is-unknown", "combinators", "and"],
+      "covers": [
+        "req-grid-traversal-lang-observation-3"
+      ],
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS UNKNOWN AND n.data.severity_score = 0",
+      "expected_envelope": "expected/observation__and_combination.expected.json",
+      "expected_sql_snapshot": "expected/observation__and_combination.sql.txt"
+    }
+  ]
+}

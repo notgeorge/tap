@@ -77,6 +77,8 @@ comparison: field_path COMPARE_OP value
           | field_path _IN_KW value_list           -> in_comparison
           | field_path _IS_KW _NULL_KW             -> is_null
           | field_path _IS_KW _NOT_KW _NULL_KW     -> is_not_null
+          | field_path _IS_KW _KNOWN_KW            -> is_known
+          | field_path _IS_KW _UNKNOWN_KW          -> is_unknown
 
 // Membership test: the field value must equal one of the listed values.
 // List elements may be literals or $param references; an empty list matches
@@ -154,6 +156,12 @@ _EXISTS_KW: /EXISTS/i
 _COUNT_KW:  /COUNT/i
 _IS_KW:     /IS/i
 _NULL_KW:   /NULL/i
+// Observation-semantic predicates (req-grid-traversal-lang-observation): the
+// convention's null axis surfaced as intent-revealing keywords. KNOWN/UNKNOWN
+// become reserved words (like NULL); a field literally named known/unknown must
+// be reached via bracket key-step notation.
+_KNOWN_KW:   /KNOWN/i
+_UNKNOWN_KW: /UNKNOWN/i
 _ORDER_KW:  /ORDER/i
 _BY_KW:     /BY/i
 _ASC_KW:    /ASC/i

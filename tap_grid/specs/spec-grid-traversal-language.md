@@ -31,6 +31,7 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-string-match | [String Match Predicates](#string-match-predicates) | Implemented | `WHERE` substring predicates: `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` |
 | req-grid-traversal-lang-regex | [Regex Match Operator](#regex-match-operator) | Implemented | `WHERE field =~ pattern` — PostgreSQL ARE/POSIX-family regex, search semantics (substring match; anchor with `^...$`) |
 | req-grid-traversal-lang-is-null | [Null-Existence Predicate](#null-existence-predicate) | Implemented | `WHERE field IS NULL` / `IS NOT NULL` — defensive filter for ORDER BY DESC envelope queries |
+| req-grid-traversal-lang-observation | [Observation-Semantic Predicates](#observation-semantic-predicates) | Implemented | `WHERE field IS KNOWN` / `IS UNKNOWN` — the field-observation convention's null axis as intent-revealing vocabulary (`IS EMPTY` deferred) |
 | req-grid-traversal-lang-bare-match | [Bare Labelless MATCH](#bare-labelless-match) | Implemented | Labelless `MATCH (n)` scans every registered node type and unions the results |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
 | req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
@@ -775,6 +776,70 @@ MATCH (n:pg_node) WHERE NOT (n.data.observed_at IS NULL)
 
 - Per-term `NULLS FIRST` / `NULLS LAST` syntax on `ORDER BY` — the alternative shape for the same defensive concern. Not promoted: the `IS NOT NULL` filter is the cleaner contract because it makes the intent explicit at the WHERE layer (where authors already think about row filters) rather than overloading the ORDER BY semantics.
 - A dedicated `NOT IN` surface, mirroring the way `IS NOT NULL` is its own alternative rather than `NOT (... IS NULL)` (today expressible as the latter where the executor path supports `NOT`).
+
+
+### Observation-Semantic Predicates
+----
+RID: `req-grid-traversal-lang-observation`
+Status: `Implemented`
+
+A `WHERE` predicate may test a field against the field-observation convention's null axis with `IS KNOWN` and `IS UNKNOWN` — intent-revealing vocabulary for "observed" vs "unobserved" (`spec-grid-node.md` `req-grid-node-observation`).
+
+#### Background
+
+The convention reads a stored `null` as *unobserved* and a value as *observed*. `IS NULL` / `IS NOT NULL` already express that mechanically, but a query author writing a graph traversal is asking an *observational* question — "which interfaces have we never captured a MAC for?" — not a storage question. `IS UNKNOWN` / `IS KNOWN` make the intent first-class, read naturally, and stay stable as the representation evolves (e.g. a future Phase-2 known-vs-unknown-unknown refinement lives behind `IS UNKNOWN` without changing query text). They are the Gryphon-side, queryable counterpart to the `x-tap-absence` schema annotation.
+
+#### Semantics
+
+`IS KNOWN` / `IS UNKNOWN` test the **null axis only**, which is universal across every field type:
+
+- `IS UNKNOWN` ≡ the field is `null` (unobserved). Lowers to `__isnull=True`.
+- `IS KNOWN` ≡ the field is non-null (observed — **inclusive** of observed-empty). Lowers to `__isnull=False`.
+
+The two **partition the null axis**: every row is exactly one of `KNOWN` / `UNKNOWN`, and `IS KNOWN` is the complement of `IS UNKNOWN`. `IS KNOWN` is deliberately *inclusive* — an observed-empty `""` counts as known ("we observed something"). This is forward-compatible: when `IS EMPTY` lands it *narrows within* `IS KNOWN` (`IS EMPTY ⊂ IS KNOWN`) rather than redefining it.
+
+Because they are pure `__isnull` tests, they require no field-type introspection and work on every field type and every WHERE-bearing path.
+
+#### Why `IS EMPTY` Is Not Here
+
+`IS EMPTY` (observed-empty) is deliberately excluded from this pass. "Empty" is a **container-type concept** — `""` for strings, `[]`/`{}` for collections — and is *undefined for scalar fields* (an integer, boolean, or datetime has no empty form; conflating a scalar's zero-value with "empty" is the null-island anti-pattern the convention rejects). So `IS EMPTY` cannot lower to a single type-agnostic test the way the null axis does: it requires resolving each field's type (or its `x-tap-absence.empty_is_meaningful` declaration) and lowering differently per type — string → `= ""`, collection → empty-container test, scalar → match-nothing. That is field-type-aware compilation threaded through every resolver path, a meaningfully larger change. Its only capability `= ""` cannot already express is *collection*-empty, for which there is no current demand. It is therefore designed-but-deferred: the discriminator (`empty_is_meaningful`) already ships in the schema, so only the executor lowering remains for when collection-empty queries have real demand. Until then, observed-empty strings are expressed with `field = ""`.
+
+#### Implementation
+
+- Grammar: two alternatives on the `comparison` rule, mirroring `is_null` — `field_path IS KNOWN -> is_known` and `field_path IS UNKNOWN -> is_unknown`. `KNOWN` / `UNKNOWN` become reserved keywords (like `NULL`); a field literally named `known`/`unknown` is reached via bracket key-step notation.
+- AST: a single leaf `ObservationComparison(field_path, kind: Literal["known", "unknown"])`, added to the `Predicate` union; `_collect_params_from_predicate` recognizes it (field-path-only, no `$param`). A distinct leaf (rather than reusing `IsNullComparison`) preserves the observational intent in the AST for future evolution.
+- Executor: `_predicate_to_q` and the OPTIONAL MATCH leaf compiler `_comparison_to_q` lower it to `Q(**{f"{path}__isnull": kind == "unknown"})`. Every predicate walker (`_flatten_conjunction`, `_filter_predicate_for_bindings`, `_predicate_field_paths`, `_is_pure_conjunction`, `_collect_params_from_predicate`) recognizes the new leaf — the "new leaf misses a walker" footgun the IS-NULL work flagged.
+
+#### Examples
+
+```text
+# Interfaces whose hardware address has never been observed.
+MATCH (n:network_interface) WHERE n.data.mac_address IS UNKNOWN
+RETURN n.entity_id AS id ORDER BY id
+
+# Interfaces with an observed MAC.
+MATCH (n:network_interface) WHERE n.data.mac_address IS KNOWN
+
+# Composes like any leaf.
+MATCH (n:network_interface)
+WHERE n.data.mac_address IS UNKNOWN AND n.data.state = "up"
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-observation-1 | IS UNKNOWN Accepted | Implemented | `field IS UNKNOWN` parses to `ObservationComparison(kind="unknown")` and lowers to `__isnull=True`. | Unobserved. |
+| req-grid-traversal-lang-observation-2 | IS KNOWN Accepted | Implemented | `field IS KNOWN` parses to `ObservationComparison(kind="known")` and lowers to `__isnull=False`. | Observed; inclusive of observed-empty. |
+| req-grid-traversal-lang-observation-3 | Composes With Combinators | Implemented | An observation leaf combines with `AND` / `OR` / `NOT` like any comparison. | |
+| req-grid-traversal-lang-observation-4 | Works In Every WHERE-Bearing Path | Implemented | The leaf works in type-scan, hub-and-spoke, edge-type scan, multi-hop / aggregation, OPTIONAL MATCH, and `NOT EXISTS`; bare `IS` still fails parse. | Every predicate walker recognizes it. |
+| req-grid-traversal-lang-observation-5 | KNOWN/UNKNOWN Partition The Null Axis | Implemented | `IS KNOWN` is the exact complement of `IS UNKNOWN`; `\|KNOWN\| + \|UNKNOWN\|` equals the full set. | Type-agnostic. |
+| req-grid-traversal-lang-observation-6 | IS EMPTY Deferred | Proposed | `IS EMPTY` (observed-empty) is reserved as a container-scoped, `empty_is_meaningful`-driven predicate, not built in this pass; observed-empty strings use `field = ""` in the interim. | Needs field-type-aware lowering; no current collection-empty demand. |
+
+#### Future
+
+- **`IS EMPTY`** — container-scoped observed-empty test driven by `x-tap-absence.empty_is_meaningful`: string → `= ""`, collection → empty-container test, scalar → matches nothing. Build when collection-empty queries have real demand.
+- **Phase-2 known-vs-unknown-unknown** — once the convention's extended-FLIP applicability work lands, `IS UNKNOWN` may gain refinements (e.g. distinguishing an asserted absence from an unseen field) without changing the surface keyword.
 
 
 ### Bare Labelless MATCH

@@ -28,6 +28,7 @@ from tap_grid.gryphon.ast_nodes import (
     NodePattern,
     NotExistsClause,
     NotPred,
+    ObservationComparison,
     OptionalMatchClause,
     OrderByClause,
     OrderByItem,
@@ -314,6 +315,15 @@ class _ASTTransformer(Transformer):
         # transformer recover the negated flag at all (a discarded optional
         # gives the method no signal that NOT was present).
         return IsNullComparison(field_path=fp, negated=True)
+
+    def is_known(self, fp: FieldPath) -> ObservationComparison:
+        # `_IS_KW` and `_KNOWN_KW` are underscore-prefixed and discarded — only
+        # the field_path child reaches the transformer. Separate rule labels
+        # (is_known / is_unknown) recover the kind, exactly as is_null/is_not_null.
+        return ObservationComparison(field_path=fp, kind="known")
+
+    def is_unknown(self, fp: FieldPath) -> ObservationComparison:
+        return ObservationComparison(field_path=fp, kind="unknown")
 
     def value_list(self, *values: Any) -> tuple[Any, ...]:
         return values
