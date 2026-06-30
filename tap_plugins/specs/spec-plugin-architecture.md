@@ -252,7 +252,11 @@ The proposed install architecture has four layers:
    truth for an instance. Its plugin section declares which TAP plugin slugs the
    instance wants, where they may be obtained from, which credential reference is
    used for private sources, which surfaces are enabled, and whether the plugin
-   is loaded in checkout/development mode or package/production mode.
+   is loaded in checkout/development mode or package/production mode. The
+   boot-profile *shape* of this — the `install` section, its separation from the
+   deployment-specific `population` section, and the cross-section drift guard —
+   is owned by `specs/spec-tap-boot-v0.md` (`req-boot-install-section`); this
+   spec owns the packaging/discovery/registry mechanics the section resolves to.
 2. **uv package resolution.** uv owns Python package resolution and installation.
    The root `pyproject.toml` and `uv.lock` describe the Python environment.
    `uv.lock` records the exact resolved package graph for reproducible installs;
@@ -385,7 +389,13 @@ They sharpen the four-layer direction without changing its shape.
   works" requirement — already-installed plugins are a no-op, no re-pull). This
   is the next entry in the one-canonical-provisioning-sequence the 2026-06-26
   health/provisioning AAR established (`specs/spec-tap-health-v0.md`,
-  `docs/aar/2026-06-26-tap-cache-latent-provisioning.md`).
+  `docs/aar/2026-06-26-tap-cache-latent-provisioning.md`). The wrapper's
+  settings-free *home* and lifecycle (the named **pre-boot stage**, its
+  `tap/`-resident logic, the pre-migrate **database snapshot** it takes, and the
+  **boot-variable resolution** ladder it honors) are specified on the boot side
+  in `specs/spec-tap-boot-v0.md` (`req-boot-preboot`, `req-boot-snapshot`,
+  `req-boot-variable-resolution`). Entrypoint order:
+  `uv sync → pre-boot (install → snapshot) → migrate → manage.py boot`.
 - **Plugin config is deliberately deferred.** Keep the reserved
   `TAP_PLUGIN_CONFIG` seam empty; samsite continues to carry config in collector
   secrets under `TAP_SECRETS_ROOT`. A formal plugin-config mechanism is its own
