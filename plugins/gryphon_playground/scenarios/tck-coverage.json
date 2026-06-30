@@ -93,9 +93,6 @@
     {
       "folder": "expressions/boolean",
       "gaps": [
-        {"intent": "De Morgan over a disjunction: NOT (a OR b) == NOT a AND NOT b", "note": "only negation-over-AND is exercised; the dual rewrite over OR is a distinct eval path", "kind": "test"},
-        {"intent": "double negation NOT NOT x", "note": "idempotent-negation parser/eval corner never exercised", "kind": "test"},
-        {"intent": "AND/OR associativity with 3+ chained operands", "note": "only two-operand compositions tested; chaining checks flattening and precedence at depth", "kind": "test"},
         {"intent": "disjunction across relationship-type predicates (type=X OR type=Y)", "note": "OR is only tested over node-property / IN comparisons", "kind": "feature"}
       ],
       "excluded": [

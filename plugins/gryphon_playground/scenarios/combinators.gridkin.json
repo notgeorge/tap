@@ -80,6 +80,36 @@
       "query": "MATCH (h)-[:PG_LINKS]->(n:pg_node) WHERE NOT n.data.kind = \"island\" RETURN h.entity_id AS src, COUNT(n) AS c",
       "expected_envelope": "expected/combinators__not_aggregation.expected.json",
       "expected_sql_snapshot": "expected/combinators__not_aggregation.sql.txt"
+    },
+    {
+      "name": "De Morgan — NOT over a disjunction keeps the band between the bounds",
+      "tags": ["combinators", "not", "or", "de-morgan"],
+      "covers": ["req-grid-traversal-lang-combinators-2"],
+      "inspired_by": "opencypher TCK — expressions/boolean (De Morgan over a disjunction: NOT (a OR b))",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE NOT (n.data.severity_score < 10 OR n.data.severity_score > 25) RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/combinators__not_over_or.expected.json",
+      "expected_sql_snapshot": "expected/combinators__not_over_or.sql.txt"
+    },
+    {
+      "name": "double negation NOT NOT collapses to the inner predicate",
+      "tags": ["combinators", "not", "double-negation"],
+      "covers": ["req-grid-traversal-lang-combinators-1"],
+      "inspired_by": "opencypher TCK — expressions/boolean (double negation NOT NOT x)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE NOT (NOT n.data.kind = \"island\") RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/combinators__double_negation.expected.json",
+      "expected_sql_snapshot": "expected/combinators__double_negation.sql.txt"
+    },
+    {
+      "name": "three chained AND operands narrow left-to-right",
+      "tags": ["combinators", "and", "associativity"],
+      "covers": ["req-grid-traversal-lang-combinators"],
+      "inspired_by": "opencypher TCK — expressions/boolean (AND/OR associativity with 3+ chained operands)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.kind = \"neighbor\" AND n.data.severity_score > 10 AND n.data.severity_score < 30 RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/combinators__three_and.expected.json",
+      "expected_sql_snapshot": "expected/combinators__three_and.sql.txt"
     }
   ]
 }
