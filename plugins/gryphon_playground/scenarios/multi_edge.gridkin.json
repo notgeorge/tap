@@ -29,6 +29,15 @@
       },
       "expected_envelope": "expected/multi_edge__typed.expected.json",
       "expected_sql_snapshot": "expected/multi_edge__typed.sql.txt"
+    },
+    {
+      "name": "comma-joined patterns in one MATCH (convergence join) are rejected in v0",
+      "tags": ["multi-edge", "convergence", "rejection", "validation"],
+      "covers": ["req-grid-traversal-lang-shape"],
+      "inspired_by": "opencypher TCK — clauses/match (two patterns converging on one target, (a)-->(x),(b)-->(x); v0 Gryphon binds exactly one pattern per MATCH clause and rejects the comma-join rather than computing the convergence)",
+      "layer": "lite",
+      "query": "MATCH (a:pg_node)-[:PG_LINKS]->(x:pg_node), (b:pg_node)-[:PG_LINKS]->(x:pg_node) RETURN x.entity_id AS id",
+      "expected_error": { "type": "SearchExecutionError", "message_contains": "exactly one pattern" }
     }
   ]
 }
