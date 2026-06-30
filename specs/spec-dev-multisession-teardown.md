@@ -54,6 +54,8 @@ Best-effort, aggressive teardown. Individual cleanup-step failures log a warning
 
 The script lives at `scripts/despawn-session.sh` and is checked into the repo. It runs from anywhere (uses `git rev-parse --show-toplevel` of the primary checkout for relative ops).
 
+**Invoke despawn from the primary checkout (`~/tap-sessions/main`).** Each worktree carries its own copy of the script, so a despawn run from inside a stale session uses *that* session's possibly-outdated copy — including, before this version, one with no [safety guard](#safety-rails) at all. The primary checkout is the one kept current via the promote sync ([req-dev-multisession-push-workflow-4](spec-dev-multisession.md)), so running despawn from there guarantees the guard is present. This matters most for the dangerous case the guard defends — despawning a session that itself holds unpushed work.
+
 Sequence:
 
 1. **Pick the session.** If `<name>` is provided, use it. Otherwise display the registry and prompt. Names not in the registry are accepted (cleaning up a half-spawned session may not have a registry row).
