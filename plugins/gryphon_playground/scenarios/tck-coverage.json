@@ -107,7 +107,6 @@
     {
       "folder": "expressions/list",
       "gaps": [
-        {"intent": "scalar NOT a member when the list also contains null: 4 IN [1,null,3] -> false", "note": "the precise point Gryphon's two-valued logic DIVERGES from Cypher (Cypher -> null); the headline contract is currently unasserted", "kind": "test"},
         {"intent": "unobserved/null LHS IN a list -> non-member (false), not null", "note": "no scenario feeds a null LHS into IN", "kind": "test"},
         {"intent": "type-mismatch non-match: 1 IN ['1',2] -> false (no cross-type coercion)", "note": "numeric value must not match a stringified member", "kind": "test"},
         {"intent": "non-list right-hand side (1 IN true / 123 / 'foo') is rejected or empty, not misbehaving", "note": "defensive malformed-RHS guard", "kind": "test"}

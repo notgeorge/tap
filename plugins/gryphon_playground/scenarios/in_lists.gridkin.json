@@ -106,6 +106,18 @@
       "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"island\"] AND n.data.severity_score > 10 RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__in_and.expected.json",
       "expected_sql_snapshot": "expected/in_lists__in_and.sql.txt"
+    },
+    {
+      "name": "NOT over IN with a null list member keeps non-members (two-valued logic)",
+      "tags": ["in-list", "null", "two-valued", "where"],
+      "covers": [
+        "req-grid-traversal-lang-in-4"
+      ],
+      "inspired_by": "opencypher TCK — expressions/list (NOT over IN with a null member; two-valued divergence from Cypher's three-valued IN)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE NOT (n.data.severity_score IN [10, null, 30]) RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__not_in_null_member.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__not_in_null_member.sql.txt"
     }
   ]
 }
