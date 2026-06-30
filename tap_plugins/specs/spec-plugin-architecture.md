@@ -290,36 +290,32 @@ and reinforces that `slug` is the ecosystem identity. The entry point target,
 plugin manifest, and generated registry record must agree on slug and
 `app_config` before the plugin is added to generated settings.
 
-#### Canonical Plugin Home
+#### Plugin Location And Inspection
 
-TAP should continue to guarantee a stable inspection path at:
+In package mode, plugin code lives where uv installs it in the active Python
+environment. TAP should not coerce package installs into a custom source-tree
+layout, and the runtime load path should not depend on a generated
+`plugins/<slug>` symlink.
+
+The canonical inspection surface for an assembled instance is the TAP
+registry/report, not the filesystem. That report records the TAP slug,
+distribution/package name, `app_config`, manifest location, installed version or
+resolved commit, source provenance, requested and loaded surfaces, generated
+settings contribution, migration/static outcomes, and load health.
+
+The `plugins/<slug>/` path remains meaningful for checkout/development mode:
 
 ```text
 plugins/<slug>/
 ```
 
-In checkout/development mode this path may be a real working tree. In
-package/production mode it may be generated state, including a symlink to the
-installed package payload inside the active Python environment. That symlink
-shape should be spiked before implementation is finalized:
-
-- install a package with uv in the standard way
-- locate the installed plugin payload through package metadata
-- create or refresh `plugins/<slug>` as a symlink to that payload
-- verify Django can load the declared `app_config`
-- verify plugin-owned assets such as `tap-plugin.toml`, `grift/`, `skills/`,
-  `static/`, and `specs/` remain inspectable from `plugins/<slug>`
-
-The symlink is disposable generated state. If the environment is rebuilt, the
-pre-Django boot/install wrapper recreates it from the boot profile, package
-metadata, and install report. Provenance lives in the registry/report, not in
-`.git` metadata under `plugins/<slug>` for package-mode installs.
-
-Generated plugin-home state needs a dedicated implementation spec before code
-lands. At minimum, that spec should define how stale symlinks are detected, when
-they are replaced, what happens if a real directory already exists at
-`plugins/<slug>`, and how checkout-mode working trees are protected from
-package-mode regeneration.
+In checkout/development mode this path may be a real working tree, path
+dependency, or editable install target for a plugin under active edit. In
+package/production mode, TAP may later add optional tooling conveniences such as
+a generated pointer file or symlink for human navigation, but that is explicitly
+not part of the MVP load contract. If such a convenience is added, it must be
+specified as disposable tooling state and must protect checkout-mode working
+trees from package-mode regeneration.
 
 #### Identity Boundaries
 
@@ -330,8 +326,8 @@ TAP plugin identity remains distinct from Python packaging identity:
   `slug`.
 - `app_config` is the Django import path TAP adds to generated settings.
 - source URL plus resolved revision/version is provenance, not TAP identity.
-- `plugins/<slug>` is a local inspection/materialization path, not necessarily
-  the import root in every install mode.
+- `plugins/<slug>` is a checkout/development convention or optional tooling
+  convenience, not the package-mode import root.
 
 This preserves the existing slug-centered TAP model while allowing production
 package installs to use normal Python packaging conventions.
@@ -350,12 +346,10 @@ Django imports project settings. The target setting names are:
 `TAP_PLUGIN_CONFIG` reserves the NetBox-like configuration shape without forcing
 plugin-specific config into shared infrastructure.
 
-#### Discussion Outcomes (2026-06-26)
+#### Closed Review Outcomes (2026-06-30)
 
-Refinements from a George ↔ Claude review of this Codex-authored draft, recorded
-inline so the thinking is in one place for a Monday three-way review (Codex's
-draft, George reading, these edits). They sharpen the four-layer direction
-without changing its shape.
+The following review outcomes are accepted design decisions for this requirement.
+They sharpen the four-layer direction without changing its shape.
 
 - **Install source: github-first is uv git-source, which *is* package mode —
   not git submodules.** "github-first" must mean a plugin installed as a real
@@ -370,20 +364,18 @@ without changing its shape.
   wheel-buildable package + entry point installed from git), not publishing.
   Dev/checkout mode is a uv **path/editable** install of the plugin under active
   edit — distinct from the git-source consume path, and why checkout mode does
-  not need the `plugins/<slug>` symlink gymnastics. The spec should say "uv
-  git-source install" and explicitly disclaim submodules so the pattern is not
-  reintroduced by habit.
-- **The running-plugin registry/report is the inspection surface — which weakens
-  the `plugins/<slug>` symlink case.** If the authoritative "what is installed /
-  enabled + its config + load health" is a queryable report (layer 4 — a
-  `manage.py plugins`-style command / generated report now; plugins-as-grid-
-  entities, Gryphon-queryable, later), then the filesystem symlink at
-  `plugins/<slug>` loses most of its justification: it shrinks to "tooling that
-  hardcodes that path" (pytest discovery, bind mounts), solvable without a
-  load-bearing symlink-materialization spec. Treat the registry/report as a
-  first-class deliverable, not a single ACID line; converge it with `/healthz`
-  and the deferred boot report (`req-boot-report`) — all three are "observable
-  assembled-instance truth" and should share a shape.
+  not need the `plugins/<slug>` symlink gymnastics. The install source is a uv
+  git-source package install, not a submodule.
+- **The running-plugin registry/report is the inspection surface.** The
+  authoritative "what is installed / enabled + its config + load health" is a
+  queryable report (layer 4 — a `manage.py plugins`-style command / generated
+  report now; plugins-as-grid-entities, Gryphon-queryable, later). The
+  filesystem symlink at `plugins/<slug>` is not a load-bearing mechanism for
+  package-mode installs; it is, at most, optional tooling for path-hardcoded
+  workflows such as pytest discovery or bind mounts. The registry/report is a
+  first-class deliverable and should converge with `/healthz` and the deferred
+  boot report (`req-boot-report`) because all three are "observable
+  assembled-instance truth" surfaces that should share a shape.
 - **The pre-Django install wrapper's home is `docker/entrypoint.sh`.** It is the
   only process-launch slot that runs before Django imports settings, and it
   already hosts `uv sync` + `migrate`. The *logic* is a settings-free Python
@@ -409,12 +401,14 @@ without changing its shape.
 | req-plugin-arch-install-registry-2 | uv Boundary | Proposed | `uv.lock` is treated as the Python package resolution record, not the TAP plugin registry. | |
 | req-plugin-arch-install-registry-3 | TAP Registry Boundary | Proposed | TAP owns the auditable record of plugin slug, package, app config, manifest, surfaces, provenance, generated settings, and load health. | |
 | req-plugin-arch-install-registry-4 | Entry Point Discovery | Proposed | Package-mode plugins advertise themselves through a `tap.plugins` Python package entry point whose key equals the TAP plugin slug. | |
-| req-plugin-arch-install-registry-5 | Stable Plugin Home | Proposed | TAP guarantees a stable `plugins/<slug>` inspection path across checkout and package install modes. | |
-| req-plugin-arch-install-registry-6 | Symlink Spike | Proposed | The refactor spikes package-mode symlinks from `plugins/<slug>` to the installed package payload before finalizing the install shape. | |
+| req-plugin-arch-install-registry-5 | Registry Inspection Surface | Proposed | TAP treats the registry/report as the canonical inspection surface for package-mode installed plugins. | |
+| req-plugin-arch-install-registry-6 | uv-Owned Package Location | Proposed | Package-mode plugin code lives where uv installs it; TAP does not require a `plugins/<slug>` symlink for runtime loading. | |
 | req-plugin-arch-install-registry-7 | Identity Separation | Proposed | The spec keeps TAP slug, Python distribution/package name, Django `app_config`, source provenance, and local install path as separate concepts. | |
 | req-plugin-arch-install-registry-8 | Generated Settings Names | Proposed | The generated settings bridge uses `TAP_PLUGINS` and `TAP_PLUGIN_CONFIG`. | |
 | req-plugin-arch-install-registry-9 | Package Mode First | Proposed | The MVP proves uv-backed package-mode install before refining checkout/development mode. | |
-| req-plugin-arch-install-registry-10 | Generated Home Lifecycle Spec | Proposed | Generated `plugins/<slug>` symlink behavior is specified before implementation, including stale links, existing directories, and checkout-mode protection. | |
+| req-plugin-arch-install-registry-10 | Optional Pointer State | Proposed | Any future `plugins/<slug>` pointer/symlink for package-mode installs is tooling-only, disposable, and specified separately before implementation. | |
+| req-plugin-arch-install-registry-11 | Registry Report Deliverable | Proposed | The MVP includes a first-class installed-plugin registry/report surface and aligns its shape with boot/health reporting where practical. | |
+| req-plugin-arch-install-registry-12 | Git Source Is Package Mode | Proposed | GitHub-first plugin consumption uses uv git-source package installs, not git submodules or vendored source under `plugins/`. | |
 
 ### Plugin Skills
 ----
