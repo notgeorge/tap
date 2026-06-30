@@ -28,7 +28,7 @@ Secret material is returned in memory only; this module never logs ``data``.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -170,8 +170,78 @@ def resolve_secret_envelope(root: Path, scope: str, key: str) -> SecretEnvelope:
     return load_secret_envelope(find_secret_file(root, scope, key))
 
 
+# --------------------------------------------------------------------------- #
+# leak guard (req-tap-cares-secrets-leak-guard)
+# --------------------------------------------------------------------------- #
+
+# Path segments that mark test scaffolding, exempt from the envelope-content
+# check (a fixture may legitimately embed an example envelope). Mirrors the
+# `_TEST_SEGMENTS` exemption in `tap/jsonfiles.py`.
+_LEAK_TEST_SEGMENTS: frozenset[str] = frozenset({"tests", "fixtures", "expected", "snapshots"})
+
+# Explicit, non-secret template suffix. A `<key>.secret.example.json` is a
+# checked-in placeholder, never real material, so it is allowed to be both
+# committed and envelope-shaped.
+SECRET_EXAMPLE_SUFFIX = ".secret.example.json"
+
+
+@dataclass(frozen=True)
+class SecretLeak:
+    """One file that leaks secret material into version control."""
+
+    path: str
+    reason: str
+
+
+def _looks_like_envelope(payload: Any) -> bool:
+    """True if ``payload`` is the canonical secret envelope (scope+key+kind+data).
+
+    A schema file (`properties`/`type` keys) or a boot/grift document does not
+    carry all four envelope fields at the top level, so the signature is
+    high-specificity — a real secret renamed to dodge the `.secret.json` suffix.
+    """
+    return isinstance(payload, dict) and all(field in payload for field in REQUIRED_FIELDS)
+
+
+def scan_paths_for_secret_leaks(repo_root: Path, rel_paths: Iterable[str]) -> list[SecretLeak]:
+    """Find files that leak secret material into the repository tree.
+
+    Pure over ``rel_paths`` (repo-relative `.json` files) so it is unit-testable;
+    the enforcement test supplies the walked file list. Flags:
+
+    1. any ``*.secret.json`` (a real secret file), and
+    2. any ``*.json`` whose content is the canonical secret envelope, outside
+       test scaffolding and ``*.secret.example.json`` templates (a secret renamed
+       to evade the suffix).
+
+    The caller is responsible for excluding the live secrets mount and
+    vendored/cache dirs so the legitimate off-grid store is never passed in.
+    """
+    leaks: list[SecretLeak] = []
+    for rel in rel_paths:
+        rel_path = Path(rel)
+        name = rel_path.name
+        if name.endswith(SECRET_EXAMPLE_SUFFIX):
+            continue  # explicit non-secret template
+        if name.endswith(SECRET_SUFFIX):
+            leaks.append(SecretLeak(path=rel, reason="committed *.secret.json file"))
+            continue
+        if not name.endswith(".json"):
+            continue
+        if _LEAK_TEST_SEGMENTS & set(rel_path.parts):
+            continue  # fixtures may embed example envelopes
+        try:
+            payload = load_json_file(repo_root / rel_path)
+        except JsonFileError:
+            continue  # unparseable / unreadable is not this guard's concern
+        if _looks_like_envelope(payload):
+            leaks.append(SecretLeak(path=rel, reason="canonical secret envelope in a non-.secret.json file"))
+    return leaks
+
+
 __all__ = [
     "SECRET_SUFFIX",
+    "SECRET_EXAMPLE_SUFFIX",
     "REQUIRED_FIELDS",
     "RuntimeSecretError",
     "SecretEnvelope",
@@ -179,4 +249,6 @@ __all__ = [
     "load_secret_envelope",
     "find_secret_file",
     "resolve_secret_envelope",
+    "SecretLeak",
+    "scan_paths_for_secret_leaks",
 ]

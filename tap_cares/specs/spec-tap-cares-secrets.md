@@ -30,6 +30,9 @@ The grid may eventually know about secret references, health, usage, policy, and
 | req-tap-cares-secrets-validation | [Consumer Validation](#consumer-validation) | Implemented | Consumers validate kind-specific secret data |
 | req-tap-cares-secrets-redaction | [Redaction And Failure Behavior](#redaction-and-failure-behavior) | Implemented | Secret material must not leak into logs or run records |
 | req-tap-cares-secrets-consumer-kinds | [Consumer-Defined Secret Kinds](#consumer-defined-secret-kinds) | Implemented | Kind `data` shapes are owned by consuming plugin/collector specs, not here |
+| req-tap-cares-secrets-conditional-validation | [Conditional Validation Lives In Health Probes](#conditional-validation-lives-in-health-probes) | Implemented | Whether a secret is *needed* is per-consumer conditional logic owned by health probes, not a static declaration; tap_cares owns only generic file-level load/format |
+| req-tap-cares-secrets-rotation | [Rotation Semantics](#rotation-semantics) | Implemented | v0 is restart-to-rotate; atomic reload / staleness / rotation-due are named-deferred |
+| req-tap-cares-secrets-leak-guard | [Source-Control Leak Guard](#source-control-leak-guard) | Implemented | A committed `*.secret.json` (or an envelope-shaped file outside the mount) fails a CI-guarded scan — push-protection beyond `.gitignore` |
 | req-tap-cares-secrets-future-secret-model | [Future Secret BaseModel](#future-secret-basemodel) | Backlog | Future on-grid Secret metadata and file generation |
 | req-tap-cares-secrets-future-encryption | [Future Encryption At Rest](#future-encryption-at-rest) | Backlog | Encrypted file format explicitly deferred |
 
@@ -321,6 +324,82 @@ generic subsystem carries no AWS-specific shape.
 | req-tap-cares-secrets-consumer-kinds-1 | Subsystem Owns Mechanics | Implemented | File discovery, registry, resolution, `require_secret_kind`, redaction, and string `kind` dispatch are `tap_cares`-owned and kind-agnostic. | |
 | req-tap-cares-secrets-consumer-kinds-2 | Consumer Owns Shape | Implemented | A kind's `data` fields and validation JSON Schema live in the consuming plugin/collector spec and are supplied to `require_secret_kind(..., data_schema=...)`; this spec enumerates none. | `data_schema` is a caller-supplied parameter, not a `tap_cares` constant. |
 | req-tap-cares-secrets-consumer-kinds-3 | Reference Example | Implemented | `aws_static_access_key` is owned by `spec-aws-core-secrets.md` `req-aws-core-secret-aws-static`; this spec links it as the example, not the definition. | Relocated from `req-tap-cares-secrets-aws-static`. |
+
+## Conditional Validation Lives In Health Probes
+----
+RID: `req-tap-cares-secrets-conditional-validation`
+Status: `Implemented`
+
+Whether a given secret is *needed* is not a static fact that can be written down once — it is a predicate over a consumer's configuration and grid state. The github collector pulling only public repos needs no token; the aws collector used only to ingest GRIFT files from another service, or to model a system on the design dimension, needs no credentials; an auth provider needs its `oidc_client` secret only when that provider is configured. A flat "expected secrets" list cannot express "required *if* …" without becoming a logic engine.
+
+TAP already has that logic engine: the `tap_health` probe system (`spec-tap-health-v0.md`). So TAP does **not** maintain a static expected-secret declaration — no on-grid `SecretReference` table in v0 (that stays [Future Secret BaseModel](#future-secret-basemodel)), and no code-level required-secret list. **Conditional necessity is evaluated by the consuming app's own health probe**, reusing its existing self-test logic where it has one. The probe runs the consumer's own conditional check and validates presence + shape against the kind schema the consumer owns — which is also where the "validate known kinds earlier" goal is satisfied: a malformed *present* AWS or OIDC secret is reported at health time, before the consumer's next run, not as a mystery failure later.
+
+**Division of labor (the boundary):**
+
+- **`tap_cares` + `tap/runtime_secrets` (necessity-agnostic, generic):** file discovery, envelope load/format validation, and surfacing a *present-but-malformed* file — via the `secrets` health probe and the resilient-load system check (`req-tap-cares-secrets-resilient-load`). This layer never opines on whether a given secret is *needed*.
+- **Per-consumer health probe (auth, each collector — owned by the consumer that knows its own config/state):** conditional necessity ("do I even need a key, given how I'm configured?") + presence + kind-shape. Reuses the consumer's offline self-test as the single source of truth so boot-time and runtime checks cannot drift.
+
+`required_for_boot` (`req-tap-cares-secrets-shape-7`) stays **narrow** and must not be conflated with this: it means "if this file is *present* and fails to load, that failure is blocking." It does **not** mean "this file must exist." Conditional must-exist is the probe's job.
+
+The auth providers health probe (`spec-tap-auth-v0.md` `req-tap-auth-providers`) is the worked reference; collectors mirror it through the `CollectorBase` offline self-test.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-conditional-validation-1 | Necessity Is Conditional | Implemented | Whether a secret is needed is a per-consumer predicate over config/state, not a static declaration; TAP keeps no static expected-secret list and no on-grid `SecretReference` in v0. | |
+| req-tap-cares-secrets-conditional-validation-2 | Probe Ownership | Implemented | The consuming app's health probe evaluates conditional necessity + presence + kind-shape, reusing its offline self-test as the single source of truth. | Auth is the reference; collectors mirror via `CollectorBase`. |
+| req-tap-cares-secrets-conditional-validation-3 | Generic Layer Stays Necessity-Agnostic | Implemented | `tap_cares`/`tap.runtime_secrets` own only discovery + format + present-but-malformed surfacing; they never opine on necessity. | |
+| req-tap-cares-secrets-conditional-validation-4 | required_for_boot Stays Narrow | Implemented | `required_for_boot` means "a present-but-broken file blocks boot," never "this file must exist." | Prevents conflation with conditional presence. |
+
+## Rotation Semantics
+----
+RID: `req-tap-cares-secrets-rotation`
+Status: `Implemented`
+
+**v0 contract: restart to rotate.** Secrets are read exactly **once per process, at startup** — `tap_cares` loads the mount into `secret_registry` in `ready()`, and `tap_auth` resolves provider secrets even earlier, at settings-import. A change to a secret file on disk therefore has **no effect on a running process**. To rotate a secret: replace the file on the mount, then restart the process (container).
+
+This is acceptable for v0 and is written down deliberately rather than left implicit. It matches TAP's broader restart-to-reload posture (no external cache; code changes already require a restart) and the rotation cadence of dev and early single-tenant deployments is low enough that a restart is cheap. Prior art points the other way for later: Kubernetes mounted-secret volumes update *eventually*; AWS/Vault emphasize caching, TTLs, leases, rotation, and revocation. TAP does none of that yet, by choice.
+
+**Named-deferred (the risks left open, deliberately):**
+
+- **Atomic in-process reload** — re-read the mount into the registry without a restart.
+- **Staleness detection** — source `mtime` / content digest so the instance can know its in-memory value has diverged from disk.
+- **Health surfacing** — a probe reporting a loaded secret as `stale` (differs from disk) or `rotation_due`. (The `rotation_due` notion is coupled to rotation existing; it is *not* built ahead of it.)
+- **Vault-style lifecycle** — TTL / lease / revocation and short-lived credential exchange (relates to the short-lived-credentials backlog and [Future Secret BaseModel](#future-secret-basemodel)).
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-rotation-1 | Restart To Rotate | Implemented | Secrets load once at process startup; rotating a secret requires replacing the file and restarting the process. | The documented v0 contract. |
+| req-tap-cares-secrets-rotation-2 | No Hot Reload | Implemented | A change to a secret file does not affect a running process; there is no in-process reload in v0. | Stated as an explicit limitation, not a gap. |
+| req-tap-cares-secrets-rotation-3 | Staleness Detection | Proposed | Detect that an in-memory secret has diverged from disk (mtime/digest). | Backlog |
+| req-tap-cares-secrets-rotation-4 | Rotation Health Surface | Proposed | A health probe surfaces `stale` / `rotation_due`. | Backlog; gated on rotation existing. |
+| req-tap-cares-secrets-rotation-5 | Atomic Reload / Lifecycle | Proposed | In-process atomic reload and vault-style TTL/lease/revocation. | Backlog |
+
+## Source-Control Leak Guard
+----
+RID: `req-tap-cares-secrets-leak-guard`
+Status: `Implemented`
+
+The repository `.gitignore` ignores `*.secret.json` (`req-tap-cares-secrets-files-3`), but an ignore rule is bypassable (`git add -f`) and does nothing about a real secret renamed to dodge the suffix. The leak guard is **push-protection beyond ignore**, modeled on GitHub secret-scanning / push-protection: a scan that refuses to let a secret enter version control in the first place. It keeps secret *values* out of source control, the same way `req-tap-cares-secrets-scope` keeps them off the grid.
+
+The scan is a CI-guarded `pytest` surface, mirroring the log-site-token and JSON-filename scanners (`tap.runtime_secrets` hosts the scan logic; `tap/tests/` is the enforcement). It is a **filesystem walk** (no git dependency, so it runs in-container like the sibling scanners) over the repository tree's `*.json` files, **excluding** vendored/cache dirs and the live secrets mount (`tap_secrets` — a gitignored symlink to the off-grid store). It fails on:
+
+1. **Any `*.secret.json` file** — a secret file in the tree. High-signal, zero false positives.
+2. **Any `*.json` file whose content is envelope-shaped** — a top-level object carrying the full canonical secret envelope (`scope` + `key` + `kind` + `data`) — outside allowed locations. Allowed: test fixtures/scaffolding and explicit `*.secret.example.json` templates. This catches a real secret renamed to evade the `.secret.json` suffix.
+
+A hit is therefore either a committed leak or a stray real secret a developer dropped in the tree outside the mount — both must be removed (and the credential rotated). This surface is registered in the Validation Map (`spec-dev-validation.md`). Guard status today: CI-guarded (`pytest`); a pre-commit hook and the promote/push gate are the natural future homes.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-leak-guard-1 | No Secret Files In The Tree | Implemented | A `*.secret.json` file anywhere in the scanned tree fails the scan. | Push-protection beyond `.gitignore`. |
+| req-tap-cares-secrets-leak-guard-2 | No Disguised Secrets | Implemented | A file whose content is the canonical secret envelope fails, outside test fixtures and `*.secret.example.json` templates. | Catches suffix-evasion. |
+| req-tap-cares-secrets-leak-guard-3 | Mount + Vendored Dirs Excluded | Implemented | The walk excludes the live secrets mount (`tap_secrets`) and vendored/cache dirs, so the legitimate off-grid store is never flagged. | |
+| req-tap-cares-secrets-leak-guard-4 | Map-Registered Surface | Implemented | The guard has a row in the `spec-dev-validation.md` Validation Map. | Co-change discipline. |
 
 ## Future Secret BaseModel
 ----
