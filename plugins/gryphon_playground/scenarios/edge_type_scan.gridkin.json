@@ -26,6 +26,26 @@
       "query": "MATCH (a:pg_node)-[e:PG_LINKS]->(b:pg_node)",
       "expected_envelope": "expected/edge_type_scan__node_to_node.expected.json",
       "expected_sql_snapshot": "expected/edge_type_scan__node_to_node.sql.txt"
+    },
+    {
+      "name": "incoming-direction match yields the same edges read from the target side",
+      "tags": ["edge-type-scan", "dispatch", "direction", "current-behavior"],
+      "covers": ["req-grid-traversal-lang-patterns"],
+      "inspired_by": "opencypher TCK — clauses/match (incoming-direction relationship read from the target endpoint)",
+      "layer": "lite",
+      "query": "MATCH (b:pg_node)<-[e:PG_LINKS]-(a:pg_hub)",
+      "expected_envelope": "expected/edge_type_scan__incoming.expected.json",
+      "expected_sql_snapshot": "expected/edge_type_scan__incoming.sql.txt"
+    },
+    {
+      "name": "typed pattern against an absent edge type returns an empty envelope",
+      "tags": ["edge-type-scan", "dispatch", "empty", "current-behavior"],
+      "covers": ["req-grid-traversal-lang-patterns"],
+      "inspired_by": "opencypher TCK — clauses/match (typed relationship pattern matching no edges yields empty result)",
+      "layer": "lite",
+      "query": "MATCH (a:pg_hub)-[e:PG_OWNS]->(b:pg_node)",
+      "expected_envelope": "expected/edge_type_scan__absent_type_empty.expected.json",
+      "expected_sql_snapshot": "expected/edge_type_scan__absent_type_empty.sql.txt"
     }
   ]
 }

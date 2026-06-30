@@ -13,6 +13,16 @@
       "query": "MATCH (a:pg_hub) MATCH (b:pg_node)",
       "expected_envelope": "expected/union__hub_and_node.expected.json",
       "expected_sql_snapshot": "expected/union__hub_and_node.sql.txt"
+    },
+    {
+      "name": "overlapping arms dedup — nodes matching both bounds appear once",
+      "tags": ["union", "multi-match", "dedup", "tck-inspired"],
+      "covers": ["req-grid-traversal-lang-shape-5"],
+      "inspired_by": "opencypher TCK — clauses/union (overlapping arms force deduplication)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) MATCH (m:pg_node) WHERE n.data.severity_score >= 15 AND m.data.severity_score <= 20",
+      "expected_envelope": "expected/union__overlap_dedup.expected.json",
+      "expected_sql_snapshot": "expected/union__overlap_dedup.sql.txt"
     }
   ]
 }

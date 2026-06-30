@@ -67,6 +67,19 @@
       "query": "MATCH (n) WHERE n.data.bio = \"anything\"",
       "expected_envelope": "expected/bare_match__field_absent.expected.json",
       "expected_sql_snapshot": "expected/bare_match__field_absent.sql.txt"
+    },
+    {
+      "name": "bare unfiltered labelless scan returns the whole node population",
+      "tags": ["bare-match", "spine-scan"],
+      "covers": [
+        "req-grid-traversal-lang-bare-match",
+        "req-grid-traversal-lang-bare-match-1"
+      ],
+      "inspired_by": "opencypher TCK — clauses/match (all-node scan with no predicate returns every node)",
+      "layer": "lite",
+      "query": "MATCH (n)",
+      "expected_envelope": "expected/bare_match__all_nodes.expected.json",
+      "expected_sql_snapshot": "expected/bare_match__all_nodes.sql.txt"
     }
   ]
 }

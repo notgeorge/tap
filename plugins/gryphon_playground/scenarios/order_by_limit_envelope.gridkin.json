@@ -142,6 +142,31 @@
       "query": "MATCH (n:pg_node) ORDER BY n.data.severity_score ASC, n.data.observed_at DESC LIMIT 3",
       "expected_envelope": "expected/order_by_limit_envelope__multi_key_mixed_dir.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__multi_key_mixed_dir.sql.txt"
+    },
+    {
+      "name": "ORDER BY with no direction token defaults to ascending",
+      "tags": ["order-by", "envelope", "default-ascending", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-1",
+        "req-grid-gryphon-order-by-envelope-6"
+      ],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (ORDER BY with no ASC/DESC defaults to ascending)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.severity_score",
+      "expected_envelope": "expected/order_by_limit_envelope__default_ascending.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__default_ascending.sql.txt"
+    },
+    {
+      "name": "ORDER BY a RETURN alias orders rows by the projected alias",
+      "tags": ["order-by", "rows", "alias", "tck-inspired"],
+      "covers": [
+        "req-grid-gryphon-order-by-envelope-1"
+      ],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (ORDER BY references a RETURN projection alias)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.data.severity_score AS sev ORDER BY sev",
+      "expected_envelope": "expected/order_by_limit_envelope__order_by_alias.expected.json",
+      "expected_sql_snapshot": "expected/order_by_limit_envelope__order_by_alias.sql.txt"
     }
   ]
 }

@@ -127,6 +127,30 @@
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN 5 RETURN n.entity_id AS id",
       "expected_error": { "type": "GryphonParseError" }
+    },
+    {
+      "name": "IN with a null left-hand side (unset tag) is a non-member, not an error",
+      "tags": ["in-list", "null", "two-valued", "where"],
+      "covers": [
+        "req-grid-traversal-lang-in-4"
+      ],
+      "inspired_by": "opencypher TCK — expressions/list (null/unobserved left-hand side is a non-member under two-valued logic, never an error)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.tags.zone IN [\"core\", \"edge\"] RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__null_lhs_nonmember.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__null_lhs_nonmember.sql.txt"
+    },
+    {
+      "name": "string list members are coerced to the numeric column type before comparison (current behavior; diverges from Cypher)",
+      "tags": ["in-list", "type-coercion", "current-behavior", "cypher-divergence", "where"],
+      "covers": [
+        "req-grid-traversal-lang-in-2"
+      ],
+      "inspired_by": "opencypher TCK — expressions/list (Cypher does NOT coerce: 10 IN [\"10\"] is false; TAP coerces the string members to the typed integer column — params Int4(10), Int4(20) — so they DO match. Documented divergence, not Cypher parity)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN [\"10\", \"20\"] RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__type_coerced.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__type_coerced.sql.txt"
     }
   ]
 }

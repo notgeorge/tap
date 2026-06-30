@@ -5,157 +5,429 @@
     {
       "folder": "clauses/match",
       "gaps": [
-        {"intent": "bare unfiltered MATCH (n) all-node scan with no WHERE", "note": "every bare_match scenario carries a WHERE; the zero-predicate baseline that would catch an accidental always-on filter is never asserted on the labelless spine", "kind": "test"},
-        {"intent": "incoming-direction relationship match (<--)", "note": "only --> and undirected are exercised; the direction-inversion executor path is untested", "kind": "test"},
-        {"intent": "relationship-type alternation T1|T2 (and redundant T|T collapsing to one)", "note": "union-of-types in one hop; separate parse/dispatch path, grammar support unverified", "kind": "feature"},
-        {"intent": "empty-result relationship match against a non-existent edge", "note": "edge files always assume matches exist; the empty-edge-result base case is unexercised", "kind": "test"},
-        {"intent": "undirected unanchored match returns BOTH orientations of each edge", "note": "our undirected scenarios anchor on an endpoint, so the symmetric double-row behaviour is never asserted", "kind": "test"},
-        {"intent": "mixed directed + undirected segments in one pattern", "note": "combined-direction traversal through a node produces nontrivial row multiplicity", "kind": "test"},
-        {"intent": "same variable bound to both relationship endpoints (n)-[r]-(n)", "note": "identity-collapse case; our self-loop uses two distinct vars", "kind": "test"},
-        {"intent": "convergence join: two bound sources onto one target (a)-->(x),(b)-->(x)", "note": "intersection/convergence; hub_and_spoke only covers single-source radiation", "kind": "test"},
-        {"intent": "disconnected patterns / cross-product across MATCH clauses", "note": "cartesian product of independent patterns — easy to get wrong (row explosion), untested", "kind": "feature"},
-        {"intent": "relationship-uniqueness: reusing one edge variable twice in a pattern is rejected", "note": "negative/validation case; uniqueness semantics unverified", "kind": "test"},
-        {"intent": "chained / correlated OPTIONAL MATCH where the second depends on the first's optional var", "note": "null cascades through successive optionals — high-value correctness corner", "kind": "test"},
-        {"intent": "multi-hop pattern inside a single OPTIONAL MATCH (all-or-nothing null)", "note": "our optional file is single-hop only", "kind": "test"},
-        {"intent": "optional self-loop match, present vs absent", "note": "optional matching of a loop edge", "kind": "test"},
-        {"intent": "projecting optionalVar IS NULL as an open-world matched/unmatched flag", "note": "distinguishing matched vs unmatched via IS NULL (not only COUNT)", "kind": "feature"},
-        {"intent": "null-bound node fed into a later mandatory MATCH yields nothing", "note": "null propagation from optional into a subsequent mandatory match", "kind": "test"}
+        {
+          "intent": "bare unfiltered MATCH (n) all-node scan with no WHERE",
+          "note": "every bare_match scenario carries a WHERE; the zero-predicate baseline that would catch an accidental always-on filter is never asserted on the labelless spine",
+          "kind": "test"
+        },
+        {
+          "intent": "incoming-direction relationship match (<--)",
+          "note": "only --> and undirected are exercised; the direction-inversion executor path is untested",
+          "kind": "test"
+        },
+        {
+          "intent": "relationship-type alternation T1|T2 (and redundant T|T collapsing to one)",
+          "note": "union-of-types in one hop; separate parse/dispatch path, grammar support unverified",
+          "kind": "feature"
+        },
+        {
+          "intent": "empty-result relationship match against a non-existent edge",
+          "note": "edge files always assume matches exist; the empty-edge-result base case is unexercised",
+          "kind": "test"
+        },
+        {
+          "intent": "undirected unanchored match returns BOTH orientations of each edge",
+          "note": "our undirected scenarios anchor on an endpoint, so the symmetric double-row behaviour is never asserted",
+          "kind": "test"
+        },
+        {
+          "intent": "mixed directed + undirected segments in one pattern",
+          "note": "probed 2026-06-30: a multi-hop chain with a directed first hop and an undirected second hop ((a)-[:T]->(b)-[:T]-(c)) routes to the aggregation/advanced executor, which rejects the undirected segment — 'Undirected edge patterns are not supported by the aggregation executor; use -> or <-'. Mixed-direction multi-hop needs engine support",
+          "kind": "feature"
+        },
+        {
+          "intent": "same variable bound to both relationship endpoints (n)-[r]-(n)",
+          "note": "v0 edge scan ignores variable identity (no from==to) — needs engine work",
+          "kind": "feature"
+        },
+        {
+          "intent": "convergence join: two bound sources onto one target (a)-->(x),(b)-->(x)",
+          "note": "intersection/convergence; hub_and_spoke only covers single-source radiation",
+          "kind": "test"
+        },
+        {
+          "intent": "disconnected patterns / cross-product across MATCH clauses",
+          "note": "cartesian product of independent patterns — easy to get wrong (row explosion), untested",
+          "kind": "feature"
+        },
+        {
+          "intent": "relationship-uniqueness: reusing one edge variable twice in a pattern is rejected",
+          "note": "probed 2026-06-30: the executor does NOT enforce relationship-uniqueness — reusing one edge variable across two hops ((a)-[e:T]->(b)-[e:T]->(c)) executes without error rather than being rejected. Cypher's uniqueness rule needs engine enforcement before a rejection test can assert it",
+          "kind": "feature"
+        },
+        {
+          "intent": "chained / correlated OPTIONAL MATCH where the second depends on the first's optional var",
+          "note": "v0 OPTIONAL MATCH supports exactly one OPTIONAL clause — needs engine work",
+          "kind": "feature"
+        },
+        {
+          "intent": "multi-hop pattern inside a single OPTIONAL MATCH (all-or-nothing null)",
+          "note": "v0 OPTIONAL MATCH requires a single-hop pattern — needs engine work",
+          "kind": "feature"
+        },
+        {
+          "intent": "optional self-loop match, present vs absent",
+          "note": "v0 has no self-loop identity; COUNT(e) counts all out-edges — needs engine work",
+          "kind": "feature"
+        },
+        {
+          "intent": "projecting optionalVar IS NULL as an open-world matched/unmatched flag",
+          "note": "distinguishing matched vs unmatched via IS NULL (not only COUNT)",
+          "kind": "feature"
+        },
+        {
+          "intent": "null-bound node fed into a later mandatory MATCH yields nothing",
+          "note": "v0 allows exactly one mandatory MATCH; multi-MATCH is union not correlation — needs engine work",
+          "kind": "feature"
+        }
       ],
       "excluded": [
-        {"intent": "variable-length / unbounded relationship paths [*], [*2..n]", "reason": "Gryphon has no variable-length traversal"},
-        {"intent": "named paths / path variables p = (...) and length(p)", "reason": "no path binding or path functions in Gryphon"},
-        {"intent": "type(r) and other scalar/path functions in RETURN", "reason": "Gryphon has no scalar/path function library"},
-        {"intent": "multi-label node conjunction (a:A:B)", "reason": "TAP entities carry exactly one entity_type, not a label set"},
-        {"intent": "MERGE-interaction and compile-time variable-type-conflict negatives", "reason": "MERGE is a write clause; the type-conflict cases validate constructs Gryphon does not expose"}
+        {
+          "intent": "variable-length / unbounded relationship paths [*], [*2..n]",
+          "reason": "Gryphon has no variable-length traversal"
+        },
+        {
+          "intent": "named paths / path variables p = (...) and length(p)",
+          "reason": "no path binding or path functions in Gryphon"
+        },
+        {
+          "intent": "type(r) and other scalar/path functions in RETURN",
+          "reason": "Gryphon has no scalar/path function library"
+        },
+        {
+          "intent": "multi-label node conjunction (a:A:B)",
+          "reason": "TAP entities carry exactly one entity_type, not a label set"
+        },
+        {
+          "intent": "MERGE-interaction and compile-time variable-type-conflict negatives",
+          "reason": "MERGE is a write clause; the type-conflict cases validate constructs Gryphon does not expose"
+        }
       ]
     },
     {
       "folder": "clauses/match-where",
       "gaps": [
-        {"intent": "cross-variable comparison join in WHERE (a.prop = b.prop, a <> b, a.val < b.val)", "note": "every predicate compares a property to a literal; comparing two bound variables (equi- and non-equi join) is a core WHERE shape with zero coverage", "kind": "feature"},
-        {"intent": "multi-variable conjunction constraining two different bound nodes", "note": "AND is only ever applied to one variable", "kind": "test"},
-        {"intent": "NOT EXISTS subquery carrying its own inner WHERE (correlated filter)", "note": "both NOT EXISTS scenarios use bare patterns; a further-constrained anti-join exercises correlation handling", "kind": "test"},
-        {"intent": "NOT EXISTS over a multi-hop / multi-relationship inner pattern", "note": "only single-edge subqueries tested; a longer inner path stresses subquery planning", "kind": "test"},
-        {"intent": "pattern-existence predicate mixed into boolean composition (scalar AND existence)", "note": "combining NOT EXISTS as one branch of AND/OR rather than a standalone filter", "kind": "feature"}
+        {
+          "intent": "cross-variable comparison join in WHERE (a.prop = b.prop, a <> b, a.val < b.val)",
+          "note": "every predicate compares a property to a literal; comparing two bound variables (equi- and non-equi join) is a core WHERE shape with zero coverage",
+          "kind": "feature"
+        },
+        {
+          "intent": "multi-variable conjunction constraining two different bound nodes",
+          "note": "AND is only ever applied to one variable",
+          "kind": "test"
+        },
+        {
+          "intent": "NOT EXISTS over a multi-hop / multi-relationship inner pattern",
+          "note": "only single-edge subqueries tested; a longer inner path stresses subquery planning",
+          "kind": "test"
+        },
+        {
+          "intent": "pattern-existence predicate mixed into boolean composition (scalar AND existence)",
+          "note": "combining NOT EXISTS as one branch of AND/OR rather than a standalone filter",
+          "kind": "feature"
+        }
       ],
       "excluded": [
-        {"intent": "affirmative EXISTS { pattern } and full existential subquery with RETURN/WITH/aggregation/nesting", "reason": "Gryphon's existence form is the NOT EXISTS negated pattern predicate only"},
-        {"intent": "existential subquery containing a write/update clause must fail", "reason": "Gryphon is read-only; the clause cannot appear"},
-        {"intent": "path-length predicates length(p) in WHERE", "reason": "depends on path variables, which Gryphon lacks"}
+        {
+          "intent": "affirmative EXISTS { pattern } and full existential subquery with RETURN/WITH/aggregation/nesting",
+          "reason": "Gryphon's existence form is the NOT EXISTS negated pattern predicate only"
+        },
+        {
+          "intent": "existential subquery containing a write/update clause must fail",
+          "reason": "Gryphon is read-only; the clause cannot appear"
+        },
+        {
+          "intent": "path-length predicates length(p) in WHERE",
+          "reason": "depends on path variables, which Gryphon lacks"
+        }
       ]
     },
     {
       "folder": "clauses/return-orderby",
       "gaps": [
-        {"intent": "default-ascending order when the ASC/DESC token is omitted", "note": "our asc scenarios state asc explicitly; the implicit-default path is unwitnessed", "kind": "test"},
-        {"intent": "ORDER BY a RETURN alias whose sort priority differs from projection order", "note": "we order by aggregated columns but never a plain projected alias with divergent priority", "kind": "test"},
-        {"intent": "constant expression in ORDER BY is inert (no influence on order)", "note": "cheap determinism pin, untested", "kind": "feature"},
-        {"intent": "ORDER BY an undefined / unknown key fails", "note": "no negative scenario for sorting on an unknown variable", "kind": "test"},
-        {"intent": "aggregation-misuse in ORDER BY fails (bare aggregate / sort on DISTINCT-removed var)", "note": "error paths untested", "kind": "test"}
+        {
+          "intent": "default-ascending order when the ASC/DESC token is omitted",
+          "note": "our asc scenarios state asc explicitly; the implicit-default path is unwitnessed",
+          "kind": "test"
+        },
+        {
+          "intent": "ORDER BY a RETURN alias whose sort priority differs from projection order",
+          "note": "we order by aggregated columns but never a plain projected alias with divergent priority",
+          "kind": "test"
+        },
+        {
+          "intent": "constant expression in ORDER BY is inert (no influence on order)",
+          "note": "cheap determinism pin, untested",
+          "kind": "feature"
+        },
+        {
+          "intent": "ORDER BY an undefined / unknown key fails",
+          "note": "no negative scenario for sorting on an unknown variable",
+          "kind": "test"
+        },
+        {
+          "intent": "aggregation-misuse in ORDER BY fails (bare aggregate / sort on DISTINCT-removed var)",
+          "note": "error paths untested",
+          "kind": "test"
+        }
       ],
       "excluded": [
-        {"intent": "temporal-type ordering (date/time/datetime property types)", "reason": "not part of the Gryphon/TAP data-lane surface; the asc/desc + NULL-placement mechanics are already covered via int/string scans"},
-        {"intent": "DISTINCT-dependent ordering corners", "reason": "contingent on DISTINCT semantics — a separate coverage axis, not ORDER BY"}
+        {
+          "intent": "temporal-type ordering (date/time/datetime property types)",
+          "reason": "not part of the Gryphon/TAP data-lane surface; the asc/desc + NULL-placement mechanics are already covered via int/string scans"
+        },
+        {
+          "intent": "DISTINCT-dependent ordering corners",
+          "reason": "contingent on DISTINCT semantics — a separate coverage axis, not ORDER BY"
+        }
       ]
     },
     {
       "folder": "clauses/return-skip-limit",
-      "gaps": [
-      ],
+      "gaps": [],
       "excluded": [
-        {"intent": "all SKIP scenarios and SKIP+LIMIT combinations", "reason": "Gryphon has no SKIP clause (LIMIT-only)"}
+        {
+          "intent": "all SKIP scenarios and SKIP+LIMIT combinations",
+          "reason": "Gryphon has no SKIP clause (LIMIT-only)"
+        }
       ]
     },
     {
       "folder": "clauses/union",
       "gaps": [
-        {"intent": "UNION deduplication actually triggered — an element present in BOTH arms collapses to one", "note": "our two union arms are disjoint types (pg_hub vs pg_node), so the defining dedup semantic of distinct union is never exercised", "kind": "test"}
+        {
+          "intent": "UNION deduplication actually triggered — an element present in BOTH arms collapses to one",
+          "note": "our two union arms are disjoint types (pg_hub vs pg_node), so the defining dedup semantic of distinct union is never exercised",
+          "kind": "test"
+        }
       ],
       "excluded": [
-        {"intent": "UNION ALL and mixed UNION / UNION ALL", "reason": "Gryphon performs only deduplicated union"},
-        {"intent": "scalar/literal-row union (RETURN 1 UNION RETURN 2) and column-compatibility validation", "reason": "Gryphon union is a graph-envelope merge of MATCH clauses, not column-aligned scalar-row union"}
+        {
+          "intent": "UNION ALL and mixed UNION / UNION ALL",
+          "reason": "Gryphon performs only deduplicated union"
+        },
+        {
+          "intent": "scalar/literal-row union (RETURN 1 UNION RETURN 2) and column-compatibility validation",
+          "reason": "Gryphon union is a graph-envelope merge of MATCH clauses, not column-aligned scalar-row union"
+        }
       ]
     },
     {
       "folder": "expressions/aggregation",
       "gaps": [
-        {"intent": "COUNT(expr) skips null/absent values while still counting the row's group", "note": "our scenarios count whole bound nodes that are never null; the count-only-non-null semantic is unexercised", "kind": "test"},
-        {"intent": "COUNT of a self-loop / degenerate self-referential edge", "note": "edge-counting around self-loops is an easy off-by-one source", "kind": "test"}
+        {
+          "intent": "COUNT(expr) skips null/absent values while still counting the row's group",
+          "note": "probed 2026-06-30: node-only property grouping (MATCH (n:pg_node) RETURN n.data.kind, COUNT(...)) is rejected by the executor — 'Advanced executor requires at least one edge in the MATCH pattern'. COUNT-with-grouping is only reachable through a relationship pattern, so the null-skipping COUNT(expr) semantic needs an engine path for edgeless grouping before a test can assert it",
+          "kind": "feature"
+        },
+        {
+          "intent": "COUNT of a self-loop / degenerate self-referential edge",
+          "note": "edge-counting around self-loops is an easy off-by-one source",
+          "kind": "test"
+        }
       ],
       "excluded": [
-        {"intent": "non-COUNT aggregates (min/max/sum/avg/collect/percentile/stdev)", "reason": "Gryphon's only aggregate is COUNT"},
-        {"intent": "COUNT DISTINCT / collect(DISTINCT ...)", "reason": "Gryphon's COUNT exposes no DISTINCT modifier"}
+        {
+          "intent": "non-COUNT aggregates (min/max/sum/avg/collect/percentile/stdev)",
+          "reason": "Gryphon's only aggregate is COUNT"
+        },
+        {
+          "intent": "COUNT DISTINCT / collect(DISTINCT ...)",
+          "reason": "Gryphon's COUNT exposes no DISTINCT modifier"
+        }
       ]
     },
     {
       "folder": "expressions/boolean",
       "gaps": [
-        {"intent": "disjunction across relationship-type predicates (type=X OR type=Y)", "note": "OR is only tested over node-property / IN comparisons", "kind": "feature"}
+        {
+          "intent": "disjunction across relationship-type predicates (type=X OR type=Y)",
+          "note": "OR is only tested over node-property / IN comparisons",
+          "kind": "feature"
+        }
       ],
       "excluded": [
-        {"intent": "XOR exclusive disjunction and its algebra", "reason": "XOR is not in Gryphon's grammar (AND/OR/NOT only)"},
-        {"intent": "null-operand boolean truth tables and null-propagation through AND/OR", "reason": "Cypher three-valued quirks; Gryphon uses two-valued IS KNOWN/IS UNKNOWN"},
-        {"intent": "fail-on-non-boolean operand to AND/OR/NOT", "reason": "Gryphon's grammar only admits boolean predicates as operands"}
+        {
+          "intent": "XOR exclusive disjunction and its algebra",
+          "reason": "XOR is not in Gryphon's grammar (AND/OR/NOT only)"
+        },
+        {
+          "intent": "null-operand boolean truth tables and null-propagation through AND/OR",
+          "reason": "Cypher three-valued quirks; Gryphon uses two-valued IS KNOWN/IS UNKNOWN"
+        },
+        {
+          "intent": "fail-on-non-boolean operand to AND/OR/NOT",
+          "reason": "Gryphon's grammar only admits boolean predicates as operands"
+        }
       ]
     },
     {
       "folder": "expressions/list",
       "gaps": [
-        {"intent": "unobserved/null LHS IN a list -> non-member (false), not null", "note": "no scenario feeds a null LHS into IN", "kind": "test"},
-        {"intent": "type-mismatch non-match: 1 IN ['1',2] -> false (no cross-type coercion)", "note": "numeric value must not match a stringified member", "kind": "test"}
+        {
+          "intent": "unobserved/null LHS IN a list -> non-member (false), not null",
+          "note": "no scenario feeds a null LHS into IN",
+          "kind": "test"
+        },
+        {
+          "intent": "type-mismatch non-match: 1 IN ['1',2] -> false (no cross-type coercion)",
+          "note": "CYPHER DIVERGENCE, probed 2026-06-30: TAP does NOT match Cypher here — string list members are coerced to the typed integer column (params Int4(10), Int4(20)) so `severity_score IN [\"10\",\"20\"]` DOES match. Current (coercing) behavior is pinned by in_lists__type_coerced; Cypher's no-coercion semantic would need an engine change. Surfaced to George — decide whether to ratify coercion or enforce type-strictness",
+          "kind": "feature"
+        }
       ],
       "excluded": [
-        {"intent": "list subscripting / slicing, list-typed LHS, nested-list membership", "reason": "Gryphon has no indexing/slice operators; membership is scalar-against-list only"},
-        {"intent": "list equality, concatenation, range(), comprehension, reverse, head/tail/last, size()", "reason": "none of these list constructors/operations exist in Gryphon's read-only grammar"}
+        {
+          "intent": "list subscripting / slicing, list-typed LHS, nested-list membership",
+          "reason": "Gryphon has no indexing/slice operators; membership is scalar-against-list only"
+        },
+        {
+          "intent": "list equality, concatenation, range(), comprehension, reverse, head/tail/last, size()",
+          "reason": "none of these list constructors/operations exist in Gryphon's read-only grammar"
+        }
       ]
     },
     {
       "folder": "expressions/map",
       "gaps": [
-        {"intent": "JSON key-path access is case-sensitive (data.tags.Team vs data.tags.team)", "note": "JSON-path backends can silently fold/mismatch; no scenario pins exact-case lookup", "kind": "test"},
-        {"intent": "distinguish an absent key from a key present with an explicit null value, in a predicate", "note": "our absent-key scenario conflates the two; the missing-vs-explicit-null distinction is a live grid convention", "kind": "test"},
-        {"intent": "sub-key access walking into a non-map scalar (data.tags is a string, then .team)", "note": "behaviour walking a key path into a non-object value is undefined (null vs error)", "kind": "test"}
+        {
+          "intent": "JSON key-path access is case-sensitive (data.tags.Team vs data.tags.team)",
+          "note": "JSON-path backends can silently fold/mismatch; no scenario pins exact-case lookup",
+          "kind": "test"
+        },
+        {
+          "intent": "distinguish an absent key from a key present with an explicit null value, in a predicate",
+          "note": "our absent-key scenario conflates the two; the missing-vs-explicit-null distinction is a live grid convention",
+          "kind": "test"
+        },
+        {
+          "intent": "sub-key access walking into a non-map scalar (data.tags is a string, then .team)",
+          "note": "behaviour walking a key path into a non-object value is undefined (null vs error)",
+          "kind": "test"
+        }
       ],
       "excluded": [
-        {"intent": "dynamic bracket map access map[$expr] with parameters and its type errors", "reason": "Gryphon predicates use static dotted JSON paths, no parameters or runtime bracket indexing"},
-        {"intent": "keys() builtin and key-existence via 'x' IN keys(map)", "reason": "Gryphon exposes no keys() function"},
-        {"intent": "map-literal construction / projection", "reason": "out of Gryphon's read-only data-access scope"}
+        {
+          "intent": "dynamic bracket map access map[$expr] with parameters and its type errors",
+          "reason": "Gryphon predicates use static dotted JSON paths, no parameters or runtime bracket indexing"
+        },
+        {
+          "intent": "keys() builtin and key-existence via 'x' IN keys(map)",
+          "reason": "Gryphon exposes no keys() function"
+        },
+        {
+          "intent": "map-literal construction / projection",
+          "reason": "out of Gryphon's read-only data-access scope"
+        }
       ]
     },
     {
       "folder": "expressions/null",
       "gaps": [
-        {"intent": "keyword case-insensitivity of IS NULL / IS NOT NULL (and IS KNOWN / IS UNKNOWN)", "note": "no scenario pins the parser's case folding; a regression to case-sensitive keywords would go uncaught", "kind": "test"},
-        {"intent": "IS NULL / IS UNKNOWN on a property of a node that itself was never bound (unmatched optional row)", "note": "our null files only exercise a present node with a missing property, not the null-node path", "kind": "test"}
+        {
+          "intent": "keyword case-insensitivity of IS NULL / IS NOT NULL (and IS KNOWN / IS UNKNOWN)",
+          "note": "no scenario pins the parser's case folding; a regression to case-sensitive keywords would go uncaught",
+          "kind": "test"
+        },
+        {
+          "intent": "IS NULL / IS UNKNOWN on a property of a node that itself was never bound (unmatched optional row)",
+          "note": "our null files only exercise a present node with a missing property, not the null-node path",
+          "kind": "test"
+        }
       ],
       "excluded": [
-        {"intent": "null = null / null <> null evaluating to null, and NOT null = null", "reason": "three-valued-logic equality; Gryphon is two-valued (null = unobserved)"},
-        {"intent": "literal null IS NULL in a bare RETURN, and IS NULL on a map-literal key via WITH", "reason": "Gryphon evaluates IS KNOWN/IS UNKNOWN against matched fields, not free literals; no map literals or WITH"}
+        {
+          "intent": "null = null / null <> null evaluating to null, and NOT null = null",
+          "reason": "three-valued-logic equality; Gryphon is two-valued (null = unobserved)"
+        },
+        {
+          "intent": "literal null IS NULL in a bare RETURN, and IS NULL on a map-literal key via WITH",
+          "reason": "Gryphon evaluates IS KNOWN/IS UNKNOWN against matched fields, not free literals; no map literals or WITH"
+        }
       ]
     },
     {
       "folder": "expressions/string",
       "gaps": [
-        {"intent": "null needle -> every row drops (name STARTS_WITH null)", "note": "core three-valued-logic edge for string predicates, untested", "kind": "test"},
-        {"intent": "NOT (predicate against null) still drops every row (NOT (name STARTS_WITH null))", "note": "the counterintuitive half of TVL", "kind": "test"},
-        {"intent": "NOT-negated string predicate (NOT name STARTS_WITH 'ab')", "note": "string_match has zero NOT coverage", "kind": "test"},
-        {"intent": "whitespace needle matched literally (no implicit trimming)", "note": "leading/trailing space in the needle is significant", "kind": "test"},
-        {"intent": "newline/tab control-char needle matched literally (no normalization)", "note": "embedded control chars treated as literal", "kind": "test"},
-        {"intent": "non-string operand yields NULL, never an error", "note": "applying a string predicate to a number/bool/list/map coerces to NULL", "kind": "test"},
-        {"intent": "exact full-value match (needle equals the entire value)", "note": "our scenarios only exercise strict sub-portions", "kind": "test"},
-        {"intent": "multi-predicate AND combinations (prefix AND suffix; prefix AND substring AND suffix)", "note": "conjunctive narrowing on one field, untested", "kind": "test"}
+        {
+          "intent": "null needle -> every row drops (name STARTS_WITH null)",
+          "note": "ROBUSTNESS DEFECT, probed 2026-06-30: a null literal needle leaks a raw Django 'ValueError: Cannot use None as a query value' from the ORM lowering instead of the two-valued result (predicate is unknown -> drop every row -> empty envelope). The executor must guard a null string-predicate operand before building the ORM filter; until it does, no green test can assert the intended empty result",
+          "kind": "feature"
+        },
+        {
+          "intent": "NOT (predicate against null) still drops every row (NOT (name STARTS_WITH null))",
+          "note": "ROBUSTNESS DEFECT, probed 2026-06-30: same raw 'ValueError: Cannot use None as a query value' leak as the bare null-needle case; the NOT wrapper does not change the crash. Blocked on the same executor-side null-operand guard",
+          "kind": "feature"
+        },
+        {
+          "intent": "NOT-negated string predicate (NOT name STARTS_WITH 'ab')",
+          "note": "string_match has zero NOT coverage",
+          "kind": "test"
+        },
+        {
+          "intent": "whitespace needle matched literally (no implicit trimming)",
+          "note": "leading/trailing space in the needle is significant",
+          "kind": "test"
+        },
+        {
+          "intent": "newline/tab control-char needle matched literally (no normalization)",
+          "note": "embedded control chars treated as literal",
+          "kind": "test"
+        },
+        {
+          "intent": "non-string operand yields NULL, never an error",
+          "note": "CYPHER DIVERGENCE, probed 2026-06-30: TAP does NOT yield null — STARTS_WITH on a numeric field casts the typed column to text (severity_score::text LIKE '1%') and matches (10, 15). Current (coercing) behavior is pinned by string_match__numeric_coerced; Cypher's null-on-type-mismatch would need an engine change. Surfaced to George alongside the IN-coercion divergence",
+          "kind": "feature"
+        },
+        {
+          "intent": "exact full-value match (needle equals the entire value)",
+          "note": "our scenarios only exercise strict sub-portions",
+          "kind": "test"
+        },
+        {
+          "intent": "multi-predicate AND combinations (prefix AND suffix; prefix AND substring AND suffix)",
+          "note": "conjunctive narrowing on one field, untested",
+          "kind": "test"
+        }
       ],
       "excluded": [
-        {"intent": "scalar string functions: substring, trim, reverse, split, toUpper/toLower, concat, length, replace, regex-replace", "reason": "Gryphon is read-only with no scalar string functions"}
+        {
+          "intent": "scalar string functions: substring, trim, reverse, split, toUpper/toLower, concat, length, replace, regex-replace",
+          "reason": "Gryphon is read-only with no scalar string functions"
+        }
       ]
     }
   ],
   "no_applicable_folder": [
-    {"feature": "regex_match", "reason": "openCypher TCK has no regex coverage — the String13/String14 feature files are empty stubs and the =~ operator appears in zero TCK feature files. regex_match corner cases are self-authored, not TCK-mined.", "self_authored": true},
-    {"feature": "dimensions", "reason": "TAP-native: Entity dimension scoping has no openCypher analog.", "self_authored": true},
-    {"feature": "hotlinks", "reason": "TAP-native: post-upsert write-path read of USES_PANEL edges; TCK is read-only MATCH.", "self_authored": true},
-    {"feature": "occ", "reason": "TAP-native: optimistic-concurrency version bump.", "self_authored": true},
-    {"feature": "removals", "reason": "TAP-native: write-path removal visibility.", "self_authored": true},
-    {"feature": "soft_deletes", "reason": "TAP-native: soft-delete visibility filter.", "self_authored": true}
+    {
+      "feature": "regex_match",
+      "reason": "openCypher TCK has no regex coverage — the String13/String14 feature files are empty stubs and the =~ operator appears in zero TCK feature files. regex_match corner cases are self-authored, not TCK-mined.",
+      "self_authored": true
+    },
+    {
+      "feature": "dimensions",
+      "reason": "TAP-native: Entity dimension scoping has no openCypher analog.",
+      "self_authored": true
+    },
+    {
+      "feature": "hotlinks",
+      "reason": "TAP-native: post-upsert write-path read of USES_PANEL edges; TCK is read-only MATCH.",
+      "self_authored": true
+    },
+    {
+      "feature": "occ",
+      "reason": "TAP-native: optimistic-concurrency version bump.",
+      "self_authored": true
+    },
+    {
+      "feature": "removals",
+      "reason": "TAP-native: write-path removal visibility.",
+      "self_authored": true
+    },
+    {
+      "feature": "soft_deletes",
+      "reason": "TAP-native: soft-delete visibility filter.",
+      "self_authored": true
+    }
   ]
 }

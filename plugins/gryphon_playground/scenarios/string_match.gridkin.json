@@ -80,6 +80,91 @@
       },
       "expected_envelope": "expected/string_match__param_needle.expected.json",
       "expected_sql_snapshot": "expected/string_match__param_needle.sql.txt"
+    },
+    {
+      "name": "NOT negates a string predicate to the complement set",
+      "tags": ["string-match", "starts-with", "not", "where"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2"
+      ],
+      "inspired_by": "opencypher TCK — expressions/string (NOT of a STARTS WITH returns the complement of the matched rows)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE NOT n.name STARTS_WITH \"Neighbor\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__not_starts_with.expected.json",
+      "expected_sql_snapshot": "expected/string_match__not_starts_with.sql.txt"
+    },
+    {
+      "name": "a whitespace needle is matched literally",
+      "tags": ["string-match", "contains", "whitespace", "where"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2"
+      ],
+      "inspired_by": "opencypher TCK — expressions/string (a needle containing a space matches only where that exact space occurs)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name CONTAINS \"Island \" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__whitespace_needle.expected.json",
+      "expected_sql_snapshot": "expected/string_match__whitespace_needle.sql.txt"
+    },
+    {
+      "name": "a control-character needle is matched literally",
+      "tags": ["string-match", "contains", "control-char", "empty-result", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2"
+      ],
+      "inspired_by": "opencypher TCK — expressions/string (a tab needle is matched byte-for-byte, not normalized, so it matches nothing here)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name CONTAINS \"\t\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__control_char_needle.expected.json",
+      "expected_sql_snapshot": "expected/string_match__control_char_needle.sql.txt"
+    },
+    {
+      "name": "STARTS_WITH coerces a numeric operand to its text form and prefix-matches (current behavior; diverges from Cypher)",
+      "tags": ["string-match", "starts-with", "type-coercion", "current-behavior", "cypher-divergence"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2",
+        "req-grid-traversal-lang-string-match-3"
+      ],
+      "inspired_by": "opencypher TCK — expressions/string (Cypher yields null when STARTS WITH is applied to a non-string operand; TAP instead casts the typed column to text — severity_score::text LIKE '1%' — so 10 and 15 match. Documented divergence, not Cypher parity)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score STARTS_WITH \"1\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__numeric_coerced.expected.json",
+      "expected_sql_snapshot": "expected/string_match__numeric_coerced.sql.txt"
+    },
+    {
+      "name": "a needle equal to the whole value matches just that node",
+      "tags": ["string-match", "starts-with", "exact-value", "where"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2"
+      ],
+      "inspired_by": "opencypher TCK — expressions/string (a needle equal to the entire value still satisfies the prefix predicate)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"Island Alpha\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__exact_value.expected.json",
+      "expected_sql_snapshot": "expected/string_match__exact_value.sql.txt"
+    },
+    {
+      "name": "prefix AND suffix predicates narrow the result",
+      "tags": ["string-match", "starts-with", "ends-with", "and", "where"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2"
+      ],
+      "inspired_by": "opencypher TCK — expressions/string (conjunction of a prefix and a suffix predicate narrows to their intersection)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"Neighbor\" AND n.name ENDS_WITH \"e\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__and_prefix_suffix.expected.json",
+      "expected_sql_snapshot": "expected/string_match__and_prefix_suffix.sql.txt"
+    },
+    {
+      "name": "prefix AND substring AND suffix predicates narrow to one node",
+      "tags": ["string-match", "starts-with", "contains", "ends-with", "and", "where"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2"
+      ],
+      "inspired_by": "opencypher TCK — expressions/string (three conjoined string predicates intersect to a single node)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"Island\" AND n.name CONTAINS \"Alph\" AND n.name ENDS_WITH \"a\" RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__and_three_predicates.expected.json",
+      "expected_sql_snapshot": "expected/string_match__and_three_predicates.sql.txt"
     }
   ]
 }

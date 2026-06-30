@@ -149,6 +149,24 @@
       "layer": "lite",
       "query": "MATCH (n:pg_node) RETURN n LIMIT n.data.severity_score",
       "expected_error": { "type": "GryphonParseError" }
+    },
+    {
+      "name": "ORDER BY an undefined variable is rejected",
+      "tags": ["order-by", "rejection", "validation"],
+      "covers": ["req-grid-gryphon-order-by"],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (ORDER BY an undefined key is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY x.bogus",
+      "expected_error": { "type": "SearchExecutionError" }
+    },
+    {
+      "name": "aggregate function in ORDER BY is rejected",
+      "tags": ["order-by", "aggregation", "rejection", "validation"],
+      "covers": ["req-grid-gryphon-order-by"],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (aggregate misuse in ORDER BY is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY COUNT(n)",
+      "expected_error": { "type": "GryphonParseError" }
     }
   ]
 }

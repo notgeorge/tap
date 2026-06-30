@@ -30,6 +30,32 @@
       "query": "MATCH (s)-[:PG_LINKS]->(t) NOT EXISTS { MATCH (g)-[:PG_OPTIONAL]->(t) } RETURN s.entity_id AS source_id, COUNT(t) AS unguarded_count",
       "expected_envelope": "expected/not_exists__unguarded_count.expected.json",
       "expected_sql_snapshot": "expected/not_exists__unguarded_count.sql.txt"
+    },
+    {
+      "name": "NOT EXISTS inner WHERE narrows the anti-join so guarded target survives",
+      "tags": ["not-exists", "advanced", "inner-where", "correlated"],
+      "covers": [
+        "req-grid-gryphon-not-exists",
+        "req-grid-gryphon-not-exists-3"
+      ],
+      "inspired_by": "opencypher TCK — clauses/match-where (NOT EXISTS subquery carrying its own correlated inner WHERE)",
+      "layer": "lite",
+      "query": "MATCH (s)-[e:PG_LINKS]->(t) NOT EXISTS { MATCH (g:pg_node)-[:PG_OPTIONAL]->(t) WHERE g.data.severity_score > 100 }",
+      "expected_envelope": "expected/not_exists__inner_where_narrows.expected.json",
+      "expected_sql_snapshot": "expected/not_exists__inner_where_narrows.sql.txt"
+    },
+    {
+      "name": "NOT EXISTS over a multi-hop inner chain that matches nothing keeps every target",
+      "tags": ["not-exists", "advanced", "multi-hop", "correlated"],
+      "covers": [
+        "req-grid-gryphon-not-exists",
+        "req-grid-gryphon-not-exists-3"
+      ],
+      "inspired_by": "opencypher TCK — clauses/match-where (NOT EXISTS over a 2-hop inner pattern)",
+      "layer": "lite",
+      "query": "MATCH (s)-[e:PG_LINKS]->(t) NOT EXISTS { MATCH (a)-[:PG_LINKS]->(b)-[:PG_OPTIONAL]->(t) }",
+      "expected_envelope": "expected/not_exists__multi_hop_inner.expected.json",
+      "expected_sql_snapshot": "expected/not_exists__multi_hop_inner.sql.txt"
     }
   ]
 }

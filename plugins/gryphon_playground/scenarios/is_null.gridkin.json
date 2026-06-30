@@ -53,6 +53,18 @@
       "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS NULL AND n.data.severity_score = 0",
       "expected_envelope": "expected/is_null__and_combination.expected.json",
       "expected_sql_snapshot": "expected/is_null__and_combination.sql.txt"
+    },
+    {
+      "name": "IS NOT NULL keyword is case-insensitive — lowercase 'is not null' is identical",
+      "tags": ["is-null", "is-not-null", "case-insensitive", "keywords"],
+      "covers": [
+        "req-grid-traversal-lang-is-null-2"
+      ],
+      "inspired_by": "opencypher TCK — expressions/null (predicate keyword case-insensitivity: lowercase is not null behaves identically)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.observed_at is not null",
+      "expected_envelope": "expected/is_null__lowercase_is_not_null.expected.json",
+      "expected_sql_snapshot": "expected/is_null__lowercase_is_not_null.sql.txt"
     }
   ]
 }

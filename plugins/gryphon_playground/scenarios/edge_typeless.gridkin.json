@@ -41,6 +41,19 @@
       "query": "MATCH (a)-[e]-(b)",
       "expected_envelope": "expected/edge_typeless__undirected.expected.json",
       "expected_sql_snapshot": "expected/edge_typeless__undirected.sql.txt"
+    },
+    {
+      "name": "typed undirected single-edge match collapses both orientations to one edge",
+      "tags": ["edge-typeless", "edge-type-scan", "undirected"],
+      "covers": [
+        "req-grid-traversal-lang-patterns-3",
+        "req-grid-traversal-lang-patterns-7"
+      ],
+      "inspired_by": "opencypher TCK — clauses/match (undirected relationship matches both endpoint orderings, deduplicated in the graph envelope)",
+      "layer": "lite",
+      "query": "MATCH (a)-[e:PG_OPTIONAL]-(b)",
+      "expected_envelope": "expected/edge_typeless__undirected_typed.expected.json",
+      "expected_sql_snapshot": "expected/edge_typeless__undirected_typed.sql.txt"
     }
   ]
 }
