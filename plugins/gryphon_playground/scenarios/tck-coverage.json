@@ -61,9 +61,6 @@
     {
       "folder": "clauses/return-skip-limit",
       "gaps": [
-        {"intent": "negative LIMIT is rejected", "note": "no scenario asserts Gryphon errors on a negative LIMIT (validation/robustness)", "kind": "test"},
-        {"intent": "non-integer / floating-point LIMIT is rejected", "note": "no scenario asserts a float LIMIT is refused", "kind": "test"},
-        {"intent": "non-constant / expression-valued LIMIT is rejected", "note": "our LIMITs are literals; the failure path for an expression LIMIT is unwitnessed", "kind": "test"}
       ],
       "excluded": [
         {"intent": "all SKIP scenarios and SKIP+LIMIT combinations", "reason": "Gryphon has no SKIP clause (LIMIT-only)"}
@@ -105,8 +102,7 @@
       "folder": "expressions/list",
       "gaps": [
         {"intent": "unobserved/null LHS IN a list -> non-member (false), not null", "note": "no scenario feeds a null LHS into IN", "kind": "test"},
-        {"intent": "type-mismatch non-match: 1 IN ['1',2] -> false (no cross-type coercion)", "note": "numeric value must not match a stringified member", "kind": "test"},
-        {"intent": "non-list right-hand side (1 IN true / 123 / 'foo') is rejected or empty, not misbehaving", "note": "defensive malformed-RHS guard", "kind": "test"}
+        {"intent": "type-mismatch non-match: 1 IN ['1',2] -> false (no cross-type coercion)", "note": "numeric value must not match a stringified member", "kind": "test"}
       ],
       "excluded": [
         {"intent": "list subscripting / slicing, list-typed LHS, nested-list membership", "reason": "Gryphon has no indexing/slice operators; membership is scalar-against-list only"},

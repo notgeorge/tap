@@ -214,6 +214,36 @@ class TestTckCoverageLedger:
     def test_empty_directory_yields_no_scenarios(self, tmp_path):
         assert loader.discover_scenarios(tmp_path) == []
 
+    def test_accepts_a_rejection_scenario(self, tmp_path):
+        # A rejection scenario asserts the query is refused — expected_error
+        # instead of an envelope/SQL pair.
+        doc = json.loads(json.dumps(_VALID_SCENARIO))
+        sc = doc["scenarios"][0]
+        del sc["expected_envelope"]
+        del sc["expected_sql_snapshot"]
+        sc["expected_error"] = {"type": "GryphonParseError", "message_contains": "LIMIT"}
+        _write(tmp_path, "reject.gridkin.json", doc)
+        scenarios = loader.discover_scenarios(tmp_path)
+        assert len(scenarios) == 1
+        assert scenarios[0].expected_error == {"type": "GryphonParseError", "message_contains": "LIMIT"}
+        assert scenarios[0].expected_envelope_path is None
+
+    def test_rejects_scenario_with_both_envelope_and_error(self, tmp_path):
+        # The two modes are mutually exclusive.
+        doc = json.loads(json.dumps(_VALID_SCENARIO))
+        doc["scenarios"][0]["expected_error"] = {"type": "GryphonParseError"}
+        _write(tmp_path, "bad.gridkin.json", doc)
+        with pytest.raises(GridkinScenarioError, match="schema validation"):
+            loader.discover_scenarios(tmp_path)
+
+    def test_rejects_scenario_with_neither_envelope_nor_error(self, tmp_path):
+        doc = json.loads(json.dumps(_VALID_SCENARIO))
+        del doc["scenarios"][0]["expected_envelope"]
+        del doc["scenarios"][0]["expected_sql_snapshot"]
+        _write(tmp_path, "bad.gridkin.json", doc)
+        with pytest.raises(GridkinScenarioError, match="schema validation"):
+            loader.discover_scenarios(tmp_path)
+
 
 def _scenario(scenario_id: str, covers: tuple[str, ...]) -> Scenario:
     base = Scenario(

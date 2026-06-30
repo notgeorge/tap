@@ -48,7 +48,17 @@
     "scenario": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "covers", "inspired_by", "query", "expected_envelope", "expected_sql_snapshot"],
+      "required": ["name", "covers", "inspired_by", "query"],
+      "oneOf": [
+        {
+          "required": ["expected_envelope", "expected_sql_snapshot"],
+          "not": { "required": ["expected_error"] }
+        },
+        {
+          "required": ["expected_error"],
+          "not": { "anyOf": [{ "required": ["expected_envelope"] }, { "required": ["expected_sql_snapshot"] }] }
+        }
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -93,6 +103,23 @@
           "type": "string",
           "minLength": 1,
           "description": "Path, relative to the plugin root, to the expected ORM-compiled SQL snapshot file."
+        },
+        "expected_error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "description": "Rejection oracle: the query MUST be refused. Mutually exclusive with expected_envelope/expected_sql_snapshot. The traversal contract includes which queries are rejected, not only which return rows.",
+          "properties": {
+            "type": {
+              "enum": ["GryphonParseError", "SearchExecutionError"],
+              "description": "The refusal class: grammar refusal (parse) or semantic/unsupported-shape refusal (execution)."
+            },
+            "message_contains": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Optional case-insensitive substring the error message must contain — pins the diagnostic, not just the type."
+            }
+          }
         }
       }
     }

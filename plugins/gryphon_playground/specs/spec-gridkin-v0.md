@@ -40,6 +40,7 @@ is their shared operational companion.
 | --- | --- | :---: | --- |
 | req-gridkin-scenario-format | [Gridkin Scenario Format](#gridkin-scenario-format) | Implemented | The JSON shape of a `.gridkin.json` file |
 | req-gridkin-runner-contract | [Gridkin Runner Contract](#gridkin-runner-contract) | Implemented | Discovery, loading, execution, and assertion behavior |
+| req-gridkin-rejection-scenario | [Rejection Scenarios](#rejection-scenarios) | Implemented | A scenario may assert the query is *refused* (`expected_error`) instead of returning an envelope |
 | req-gridkin-oracle-assertion | [Oracle Assertion Discipline](#oracle-assertion-discipline) | Implemented | Expected envelopes are independent of the executor under test |
 | req-gridkin-snapshot-discipline | [Snapshot Regeneration Discipline](#snapshot-regeneration-discipline) | Implemented | Explicit opt-in and human review when regenerating |
 | req-gridkin-explain-snapshot | [Explain SQL Snapshot](#explain-sql-snapshot) | Implemented | Each scenario commits the ORM-compiled SQL Gryphon emits |
@@ -107,11 +108,16 @@ Field semantics:
   execute the query at, one of `lite` / `full` / `extended`; defaults to `full`
 - `scenarios[].query` (string, required) — the Gryphon query to execute
 - `scenarios[].params` (object, optional) — runtime `$param` values for the query
-- `scenarios[].expected_envelope` (string, required) — path to the JSON file
-  holding the exact expected response envelope
-- `scenarios[].expected_sql_snapshot` (string, required) — path to the text file
-  holding the expected ORM-compiled SQL (see
+- `scenarios[].expected_envelope` (string, required for a *result* scenario) —
+  path to the JSON file holding the exact expected response envelope
+- `scenarios[].expected_sql_snapshot` (string, required for a *result* scenario)
+  — path to the text file holding the expected ORM-compiled SQL (see
   [req-gridkin-explain-snapshot](#explain-sql-snapshot))
+- `scenarios[].expected_error` (object) — present for a *rejection* scenario
+  instead of the two `expected_*` paths (the modes are mutually exclusive, per
+  [req-gridkin-rejection-scenario](#rejection-scenarios)). Fields: `type`
+  (`GryphonParseError` | `SearchExecutionError`) and optional `message_contains`
+  (case-insensitive substring). The query must be refused with that error.
 
 The expected envelope file is a literal JSON document matching the canonical
 three-lane envelope shape (`spec-grift-envelope.md`, `req-grift-envelope-shape`)
@@ -437,6 +443,43 @@ satellite query authors — the same role openCypher's TCK serves for multi-engi
 Cypher compatibility. The scenario format is designed so that this evolution is
 structural, not a rewrite. Until that demand signal arrives, Gridkin is
 internal-only.
+
+### Rejection Scenarios
+----
+RID: `req-gridkin-rejection-scenario`
+Status: `Implemented`
+
+The traversal contract includes which queries are *rejected*, not only which
+return rows. A query that must be refused — a negative `LIMIT`, a non-list `IN`
+right-hand side, an unsupported pattern shape — is as much a part of the contract
+as one that returns an envelope. Such cases live in Gridkin alongside the result
+scenarios, so the whole traversal contract is validated in one place rather than
+split across Gridkin and a separate `test_gryphon.py` surface.
+
+#### Implementation
+
+- A scenario sets `expected_error` *instead of* `expected_envelope` +
+  `expected_sql_snapshot`; the JSON Schema enforces that exactly one mode is
+  present (`oneOf`).
+- `expected_error.type` is the refusal class — `GryphonParseError` (a grammar
+  refusal) or `SearchExecutionError` (a semantic / unsupported-shape refusal at
+  execution). The optional `message_contains` pins the diagnostic with a
+  case-insensitive substring.
+- The runner seeds the fixture, executes the query, and asserts it raised the
+  named error type (and, if given, the message substring). A query that succeeds,
+  or raises a different type, is a contract failure. `expected_error` is the
+  hand-authored oracle: there is no snapshot to regenerate, so
+  `GRIDKIN_UPDATE_SNAPSHOTS` is a no-op for rejection scenarios (the oracle
+  discipline still holds — the author asserts the refusal, the executor is not
+  consulted to write it).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-rejection-scenario-1 | Mutually-Exclusive Modes | Implemented | A scenario carries either the envelope+SQL pair or `expected_error`, never both and never neither (schema `oneOf`). | |
+| req-gridkin-rejection-scenario-2 | Typed Refusal Oracle | Implemented | `expected_error.type` names the refusal class; an optional `message_contains` pins the diagnostic. The runner fails if the query succeeds or raises a different type. | |
+| req-gridkin-rejection-scenario-3 | No Regeneration | Implemented | Rejection oracles are hand-authored; `GRIDKIN_UPDATE_SNAPSHOTS` does not write them. | |
 
 ### TCK Coverage Ledger
 ----

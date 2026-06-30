@@ -122,6 +122,33 @@
       "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.name AS label LIMIT 2",
       "expected_envelope": "expected/order_by_limit__limit_no_order.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__limit_no_order.sql.txt"
+    },
+    {
+      "name": "negative LIMIT is rejected",
+      "tags": ["limit", "rejection", "validation"],
+      "covers": ["req-grid-gryphon-limit"],
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit (negative LIMIT is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n LIMIT -1",
+      "expected_error": { "type": "GryphonParseError" }
+    },
+    {
+      "name": "non-integer floating-point LIMIT is rejected",
+      "tags": ["limit", "rejection", "validation"],
+      "covers": ["req-grid-gryphon-limit"],
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit (non-integer LIMIT is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n LIMIT 2.5",
+      "expected_error": { "type": "GryphonParseError" }
+    },
+    {
+      "name": "non-constant expression LIMIT is rejected",
+      "tags": ["limit", "rejection", "validation"],
+      "covers": ["req-grid-gryphon-limit"],
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit (non-constant LIMIT is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n LIMIT n.data.severity_score",
+      "expected_error": { "type": "GryphonParseError" }
     }
   ]
 }
