@@ -350,16 +350,6 @@
       "folder": "expressions/string",
       "gaps": [
         {
-          "intent": "null needle -> every row drops (name STARTS_WITH null)",
-          "note": "ROBUSTNESS DEFECT, probed 2026-06-30: a null literal needle leaks a raw Django 'ValueError: Cannot use None as a query value' from the ORM lowering instead of the two-valued result (predicate is unknown -> drop every row -> empty envelope). The executor must guard a null string-predicate operand before building the ORM filter; until it does, no green test can assert the intended empty result",
-          "kind": "feature"
-        },
-        {
-          "intent": "NOT (predicate against null) still drops every row (NOT (name STARTS_WITH null))",
-          "note": "ROBUSTNESS DEFECT, probed 2026-06-30: same raw 'ValueError: Cannot use None as a query value' leak as the bare null-needle case; the NOT wrapper does not change the crash. Blocked on the same executor-side null-operand guard",
-          "kind": "feature"
-        },
-        {
           "intent": "NOT-negated string predicate (NOT name STARTS_WITH 'ab')",
           "note": "string_match has zero NOT coverage",
           "kind": "test"

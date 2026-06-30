@@ -2661,6 +2661,14 @@ def _comparison_to_q(
         "ends_with": "__endswith",
         "contains": "__contains",
     }[comp.op]
+    # A NULL operand makes an ordering / substring comparison unknown under
+    # Gryphon's two-valued logic (null = unobserved): the row is dropped rather
+    # than crashing the ORM ("Cannot use None as a query value") or matching.
+    # Mirrors the `regex` null short-circuit above. The `=` lookup (empty suffix)
+    # is exempt — Django lowers `field=None` to `__isnull` without crashing, and
+    # the IS KNOWN / IS UNKNOWN operators are the deliberate null-axis surface.
+    if value is None and suffix:
+        return ~Q(pk__isnull=True) & Q(pk__isnull=True)
     return Q(**{f"{orm_path}{suffix}": value})
 
 

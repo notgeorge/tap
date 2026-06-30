@@ -82,6 +82,32 @@
       "expected_sql_snapshot": "expected/string_match__param_needle.sql.txt"
     },
     {
+      "name": "a null needle matches nothing (two-valued: predicate is false, no ORM crash)",
+      "tags": ["string-match", "null-needle", "empty-result", "two-valued", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2",
+        "req-grid-traversal-lang-string-match-3"
+      ],
+      "inspired_by": "opencypher TCK — expressions/string (Cypher: a null needle makes STARTS WITH null/unknown; TAP is two-valued — a null operand short-circuits the predicate to false so every row drops, and never leaks a raw `Cannot use None as a query value`)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH null RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__null_needle.expected.json",
+      "expected_sql_snapshot": "expected/string_match__null_needle.sql.txt"
+    },
+    {
+      "name": "NOT over a null-needle predicate matches every row (two-valued NOT(false)=true; diverges from Cypher)",
+      "tags": ["string-match", "null-needle", "not", "two-valued", "cypher-divergence", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-string-match-2",
+        "req-grid-traversal-lang-string-match-3"
+      ],
+      "inspired_by": "opencypher TCK — expressions/string (Cypher's NOT(null) is null so no rows survive; TAP's two-valued null operand makes the inner predicate false, so NOT flips it to true and EVERY row matches. Same two-valued shape as the committed NOT-over-IN-with-null scenario)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE NOT (n.name STARTS_WITH null) RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/string_match__not_null_needle.expected.json",
+      "expected_sql_snapshot": "expected/string_match__not_null_needle.sql.txt"
+    },
+    {
       "name": "NOT negates a string predicate to the complement set",
       "tags": ["string-match", "starts-with", "not", "where"],
       "covers": [
