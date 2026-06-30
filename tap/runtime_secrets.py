@@ -1,0 +1,182 @@
+"""App-neutral runtime-secret file/envelope resolver (spec-tap-cares-secrets.md).
+
+The single low-level mechanic for reading the shared ``*.secret.json`` store:
+discover a file by ``scope``/``key`` and parse/validate the canonical envelope
+(``scope``, ``key``, ``kind``, ``description``, ``data``, optional
+``metadata``). It lives in ``tap/`` — next to ``tap/jsonfiles.py`` — rather than
+in any ``tap_*`` app so that both ``tap_cares`` (the major secrets manager: it
+owns the registry, resilient-load report, system check, and health probe) and
+``tap_auth`` (which resolves provider client secrets at settings-import time,
+before ``tap_cares.ready()`` runs) share one resolver instead of two divergent
+copies.
+
+This module is deliberately **import-safe**: it touches no Django settings at
+import time and imports no ``tap_*`` app, so ``tap_auth`` can call it while the
+settings module is still being built. Callers supply the secrets root; root
+resolution (settings vs. env) and all policy (registry registration, blocking
+escalation, ``required_for_boot`` semantics, consumer kind schemas) stay with
+the calling app.
+
+Errors raise the neutral :class:`RuntimeSecretError`; callers re-wrap it in
+their own domain exception (``SecretLoadError`` / ``ProviderError``) per the
+shared-loader pattern in ``req-tap-json-adoption``. The envelope-shape messages
+match the field-validation contract the tap_cares loader has always emitted, so
+the structural reason a caller records is unchanged.
+
+Secret material is returned in memory only; this module never logs ``data``.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from tap.jsonfiles import JsonFileError, load_json_file
+
+SECRET_SUFFIX = ".secret.json"
+
+# The canonical envelope fields every `*.secret.json` declares
+# (req-tap-cares-secrets-shape). `metadata` is optional and validated separately.
+REQUIRED_FIELDS = ("scope", "key", "kind", "description", "data")
+
+
+class RuntimeSecretError(Exception):
+    """A secret file could not be discovered or its envelope is malformed.
+
+    Neutral and app-independent: callers catch it and re-raise their own domain
+    exception (``SecretLoadError`` in tap_cares, ``ProviderError`` in tap_auth).
+    """
+
+
+@dataclass(frozen=True)
+class SecretEnvelope:
+    """The validated, non-policy shape of one ``*.secret.json`` file.
+
+    Carries the canonical fields plus the source path. ``data`` and ``metadata``
+    are returned as plain mappings — freezing/registration is the caller's job
+    (tap_cares wraps these in a ``Secret``). ``__repr__`` omits ``data`` and
+    ``metadata`` so an envelope interpolated into a log line cannot leak material.
+    """
+
+    scope: str
+    key: str
+    kind: str
+    description: str
+    data: Mapping[str, Any]
+    metadata: Mapping[str, Any]
+    source_path: Path
+
+    @property
+    def qualified(self) -> str:
+        """The ``scope:key`` string used for registry lookup and diagnostics."""
+        return f"{self.scope}:{self.key}"
+
+    def __repr__(self) -> str:
+        return f"SecretEnvelope(qualified={self.qualified!r}, kind={self.kind!r}, source={self.source_path})"
+
+
+def parse_secret_envelope(payload: Any, path: Path) -> SecretEnvelope:
+    """Validate an in-memory secret ``payload`` and return its envelope.
+
+    Validates only the canonical envelope shape — the required fields and their
+    types. App-specific policy (basename/key match, ``required_for_boot``
+    boolean semantics, consumer kind schemas) is intentionally left to callers.
+
+    Raises:
+        RuntimeSecretError: on any structural problem, with a message whose
+            substring matches the long-standing tap_cares field-validation
+            contract (so a caller recording the reason is unchanged).
+    """
+    if not isinstance(payload, dict):
+        raise RuntimeSecretError(f"Secret file {path} must contain a JSON object, got {type(payload).__name__}.")
+
+    missing = [field for field in REQUIRED_FIELDS if field not in payload]
+    if missing:
+        raise RuntimeSecretError(f"Secret file {path} is missing required field(s): {missing}.")
+
+    scope = payload["scope"]
+    key = payload["key"]
+    kind = payload["kind"]
+    description = payload["description"]
+    data = payload["data"]
+    metadata = payload.get("metadata", {})
+
+    if not isinstance(scope, str) or not isinstance(key, str):
+        raise RuntimeSecretError(f"Secret file {path}: scope and key must be strings.")
+    if not isinstance(kind, str) or not kind:
+        raise RuntimeSecretError(f"Secret file {path}: kind must be a non-empty string.")
+    if not isinstance(description, str) or not description.strip():
+        raise RuntimeSecretError(f"Secret file {path}: description must be a non-empty string.")
+    if not isinstance(data, dict):
+        raise RuntimeSecretError(f"Secret file {path}: data must be a JSON object.")
+    if not isinstance(metadata, dict):
+        raise RuntimeSecretError(f"Secret file {path}: metadata must be a JSON object when present.")
+
+    return SecretEnvelope(
+        scope=scope,
+        key=key,
+        kind=kind,
+        description=description,
+        data=data,
+        metadata=metadata,
+        source_path=path,
+    )
+
+
+def load_secret_envelope(path: Path) -> SecretEnvelope:
+    """Read ``path`` and return its validated :class:`SecretEnvelope`.
+
+    Raises:
+        RuntimeSecretError: on an unreadable file, malformed JSON, or a
+            structural envelope problem.
+    """
+    try:
+        payload = load_json_file(path)
+    except JsonFileError as exc:
+        raise RuntimeSecretError(str(exc)) from None
+    return parse_secret_envelope(payload, path)
+
+
+def find_secret_file(root: Path, scope: str, key: str) -> Path:
+    """Locate the ``<key>.secret.json`` whose envelope declares ``scope``/``key``.
+
+    Directories under the root are organizational only
+    (req-tap-cares-secrets-files-4), so we match the basename glob then confirm
+    the declared ``scope``/``key`` inside. Returns the first deterministic match.
+
+    Raises:
+        RuntimeSecretError: when the root is not a directory, a candidate file is
+            unreadable, or no file declares the requested ``scope``/``key``.
+    """
+    if not root.is_dir():
+        raise RuntimeSecretError(f"secrets root {root} does not exist; cannot resolve {scope}:{key}")
+    for path in sorted(root.rglob(f"{key}{SECRET_SUFFIX}")):
+        try:
+            doc = load_json_file(path)
+        except JsonFileError as exc:
+            raise RuntimeSecretError(f"secret file {path} is unreadable/invalid JSON: {exc}") from exc
+        if isinstance(doc, dict) and doc.get("scope") == scope and doc.get("key") == key:
+            return path
+    raise RuntimeSecretError(
+        f"no secret file found for {scope}:{key} under {root} "
+        f"(expected a '{key}{SECRET_SUFFIX}' with scope='{scope}', key='{key}')"
+    )
+
+
+def resolve_secret_envelope(root: Path, scope: str, key: str) -> SecretEnvelope:
+    """Discover and load the envelope for ``scope``/``key`` under ``root``."""
+    return load_secret_envelope(find_secret_file(root, scope, key))
+
+
+__all__ = [
+    "SECRET_SUFFIX",
+    "REQUIRED_FIELDS",
+    "RuntimeSecretError",
+    "SecretEnvelope",
+    "parse_secret_envelope",
+    "load_secret_envelope",
+    "find_secret_file",
+    "resolve_secret_envelope",
+]

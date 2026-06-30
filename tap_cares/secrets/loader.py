@@ -52,6 +52,7 @@ from typing import Any
 
 from tap.jsonfiles import JsonFileError, discover_json_files, load_json_file
 from tap.registry import ScopedRegistry
+from tap.runtime_secrets import SECRET_SUFFIX, RuntimeSecretError, load_secret_envelope
 from tap_cares.exceptions import (
     InvalidSecretRegistryKeyError,
     SecretLoadError,
@@ -61,9 +62,10 @@ from tap_cares.secrets.registry import SecretLoadReport, secret_load_report, sec
 
 logger = logging.getLogger(__name__)
 
-SECRET_SUFFIX = ".secret.json"
-
-_REQUIRED_FIELDS = ("scope", "key", "kind", "description", "data")
+# The envelope shape (SECRET_SUFFIX, required fields, field-type validation) is
+# owned by the app-neutral resolver in `tap/runtime_secrets.py`, shared with
+# tap_auth. tap_cares keeps the policy on top: registry registration, the
+# resilient-load report, basename/key matching, and `required_for_boot`.
 
 # Opt-in metadata flag: when true, a file that fails to load is *blocking*
 # (fails the build / 503s health) rather than merely degrading the instance.
@@ -154,47 +156,30 @@ def load_secrets(
 
 
 def _load_secret_file(path: Path) -> Secret:
-    """Parse `path` and return a Secret. Raises SecretLoadError on any problem."""
+    """Parse `path` and return a Secret. Raises SecretLoadError on any problem.
+
+    Envelope discovery/validation is delegated to the app-neutral resolver; the
+    tap_cares-specific policy layered on top is the `required_for_boot` boolean
+    check, the basename/key match (req-tap-cares-secrets-files-5), and wrapping
+    the result in a registry-ready `Secret`.
+    """
     try:
-        payload = load_json_file(path)
-    except JsonFileError as exc:
+        envelope = load_secret_envelope(path)
+    except RuntimeSecretError as exc:
         raise SecretLoadError(str(exc)) from None
 
-    if not isinstance(payload, dict):
-        raise SecretLoadError(f"Secret file {path} must contain a JSON object, got {type(payload).__name__}.")
-
-    missing = [field for field in _REQUIRED_FIELDS if field not in payload]
-    if missing:
-        raise SecretLoadError(f"Secret file {path} is missing required field(s): {missing}.")
-
-    scope = payload["scope"]
-    key = payload["key"]
-    kind = payload["kind"]
-    description = payload["description"]
-    data = payload["data"]
-    metadata = payload.get("metadata", {})
-
-    if not isinstance(scope, str) or not isinstance(key, str):
-        raise SecretLoadError(f"Secret file {path}: scope and key must be strings.")
-    if not isinstance(kind, str) or not kind:
-        raise SecretLoadError(f"Secret file {path}: kind must be a non-empty string.")
-    if not isinstance(description, str) or not description.strip():
-        raise SecretLoadError(f"Secret file {path}: description must be a non-empty string.")
-    if not isinstance(data, dict):
-        raise SecretLoadError(f"Secret file {path}: data must be a JSON object.")
-    if not isinstance(metadata, dict):
-        raise SecretLoadError(f"Secret file {path}: metadata must be a JSON object when present.")
+    metadata = envelope.metadata
     if REQUIRED_FOR_BOOT_KEY in metadata and not isinstance(metadata[REQUIRED_FOR_BOOT_KEY], bool):
         raise SecretLoadError(f"Secret file {path}: metadata.{REQUIRED_FOR_BOOT_KEY} must be a boolean when present.")
 
-    _check_basename_matches_key(path, key)
+    _check_basename_matches_key(path, envelope.key)
 
     return Secret(
-        ref=SecretRef(scope=scope, key=key),
-        kind=kind,
-        description=description,
-        data=freeze_mapping(data),
-        metadata=freeze_mapping(metadata),
+        ref=SecretRef(scope=envelope.scope, key=envelope.key),
+        kind=envelope.kind,
+        description=envelope.description,
+        data=freeze_mapping(envelope.data),
+        metadata=freeze_mapping(envelope.metadata),
         source_path=path,
     )
 
