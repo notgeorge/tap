@@ -72,6 +72,7 @@ This spec follows well-trodden declarative-provisioning patterns rather than inv
 | req-boot-phases | [Fixed Phase Order](#fixed-phase-order) | Implemented | **v0: auth → population** (bootloader resolved in auth, bound for population); fuller order is future |
 | req-boot-population | [Population Phase](#population-phase) | Implemented | **v0.** Ordered seed-plugin / fire-collector; unknown plugin/collector/bundle aborts before any mutation |
 | req-boot-collector-timeout | [Collector Await Timeout](#collector-await-timeout) | Implemented | **v0.** Per-`fire-collector`-step `timeout_seconds` (default 90s); per-collector default is backlog |
+| req-boot-collector-criticality | [Per-Collector Boot Criticality](#per-collector-boot-criticality) | Proposed | **Backlog.** Per-`fire-collector`-step criticality overriding the profile-wide `on_failure`; auth-parity with per-provider `critical_for_boot` |
 | req-boot-identity | [Identity Section](#identity-section) | Proposed | **Backlog, not critical path.** Generate a keystone only if none exists; v0 keystone comes from plugin GRIFT |
 | req-boot-idempotent | [Idempotent Re-Apply](#idempotent-re-apply) | Implemented | **v0 principle** (ops are idempotent; seed + admin re-apply tested); formal convergence contract deferred |
 | req-boot-trust | [Config-As-Code Trust Model](#config-as-code-trust-model) | Implemented | **v0.** Boot config is code-level-trusted; guards are anti-footgun, not anti-operator |
@@ -281,6 +282,33 @@ A `fire-collector` step awaits its collector's job to a terminal state for a bou
 | req-boot-collector-timeout-1 | Per-Step Timeout | Implemented | A `fire-collector` step's optional `timeout_seconds` bounds the await; exceeding it is a step failure, not a hang. | |
 | req-boot-collector-timeout-2 | Default When Unset | Implemented | A step with no `timeout_seconds` uses the bootloader default (90s). | |
 | req-boot-collector-timeout-3 | Per-Collector Default | Proposed | A per-collector `COLLECTION_TIMEOUT_SECONDS` default that the step overrides. | Backlog |
+
+---
+
+### Per-Collector Boot Criticality
+----
+RID: `req-boot-collector-criticality`  
+Status: `Proposed`
+
+A `fire-collector` step can declare its own boot-criticality — *critical* (a failed run aborts boot) or *best-effort* (a failed run is logged and boot continues) — overriding the profile-wide default.
+
+#### Implementation
+
+> **Backlog — not built in v0.** Captured here so the boot-criticality model is consistent across boot sections.
+
+- **Today (v0):** boot-criticality for collectors is **profile-wide**, not per-collector. `on_failure` lives on the `BootProfile` (default `"abort"`, `tap_boot/profile.py`); a failed `fire-collector` step aborts boot when `on_failure="abort"` and otherwise is collected and reported (`req-boot-population-5`). A `FireCollectorStep` carries no criticality field, so a single profile is all-or-nothing: *every* fired collector is critical, or *none* are. This is sufficient for the binary "this standup's collectors are critical" case.
+- **The gap:** a profile cannot mix criticalities — e.g. "the AWS pull is critical (abort if it fails), but the GitHub pull is best-effort (continue)". The natural shape is a per-step field on `FireCollectorStep` (e.g. `critical: bool`, or a per-step `on_failure`) that **overrides** the profile-level `on_failure`; the profile default is retained when a step omits it.
+- **Auth parity (the motivating rationale):** auth already has *per-provider* boot-criticality via `critical_for_boot` (`req-tap-auth-providers-6`). Collectors should reach the same granularity so the two surfaces share one mental model: each fired/configured thing declares whether its failure blocks standup or merely degrades a running instance.
+- **Relationship to health / partial-instance default (cross-ref the secrets discussion):** the *default* posture agreed for collectors is **health-degrade, not boot-block** — a collector that is **not** a `fire-collector` step never runs at boot and so never blocks it; its missing-secret / upstream failure surfaces through that consumer's own health probe (the per-consumer conditional-secret-validation pattern, `spec-tap-cares-secrets` → *Shared Resolver* discussion and the auth-providers health probe) and loudly when it next runs. This requirement is only about the **opt-in** path: putting a collector in the boot profile *and* choosing whether that specific collector's failure is fatal. A collector that can't run because its secret is missing/malformed is a step failure; per-step criticality decides whether that aborts boot or degrades.
+- **Deferred because** no current standup needs mixed criticality in one profile; the profile-wide `on_failure` covers today's needs. Lands when a real profile must hold both a critical and a best-effort collector.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-boot-collector-criticality-1 | Per-Step Criticality | Proposed | A `fire-collector` step may declare its own criticality, overriding the profile-level `on_failure`. | Backlog |
+| req-boot-collector-criticality-2 | Auth Parity | Proposed | Collector per-step criticality mirrors auth's per-provider `critical_for_boot` so both share one boot-criticality model. | Backlog |
+| req-boot-collector-criticality-3 | Default Preserved | Proposed | A step without explicit criticality inherits the profile `on_failure` (default `abort`); a collector absent from the profile never blocks boot. | Backlog |
 
 ---
 

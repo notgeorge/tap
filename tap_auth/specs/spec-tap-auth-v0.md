@@ -598,6 +598,8 @@ Provider-specific login machinery is isolated under `tap_auth/providers/`.
 - Provider IDs are stable natural keys such as `criticalsec-google` and `robco-google`.
 - Provider display names are separate from IDs.
 - Provider secrets are referenced by keys under `TAP_SECRETS_ROOT`; secrets are never embedded in boot profiles or DB rows.
+- Provider secrets are resolved from the shared `*.secret.json` store via the **app-neutral `tap/runtime_secrets` resolver** (the same file-discovery and envelope contract tap_cares uses; see `spec-tap-cares-secrets` → *Shared Resolver*). tap_auth deliberately resolves **independently of the `tap_cares` app**: allauth settings are built at settings-import time, before `tap_cares.ready()` loads its registry, and tap_auth must not depend on tap_cares (the `tap_*` apps stay independently shippable; `tap/` and `tap_grid` are the only shared-dependency layers). tap_auth therefore reads the upstream resolver directly and owns its provider-side `oidc_client` data-block schema; the tap_cares *registry*, resilient-load report, and secrets health probe are not on this path.
+- A **`tap_auth.providers` health probe** (group `tap_auth`, non-critical) runs each configured provider's **offline** self-test on a *running* instance — the runtime view of what boot already validates at standup — reusing `self_test` as the single source of truth so the two cannot drift. No providers configured is healthy (local auth only, conditional necessity); a configured provider whose secret is missing/malformed makes the probe `unhealthy` and the instance `degraded` (loud, non-blocking — boot already hard-gates `critical_for_boot` providers). This is the worked reference for the per-consumer conditional-secret-validation pattern (`spec-tap-cares-secrets.md` → *Conditional Validation Lives In Health Probes*); collectors mirror it via the `CollectorBase` offline self-test.
 - Provider implementations expose a common interface or functional equivalent:
 
 ```python
@@ -640,6 +642,7 @@ build_allauth_settings(provider_config, secrets)
 | req-tap-auth-providers-5 | Offline Live Phases | Implemented | Self-tests distinguish offline and live checks. | |
 | req-tap-auth-providers-6 | Criticality | Implemented | `critical_for_boot` controls whether live provider unavailability fails boot. | |
 | req-tap-auth-providers-7 | Base URL Required | Implemented | External providers require `TAP_BASE_URL`. | |
+| req-tap-auth-providers-8 | Providers Health Probe | Implemented | A non-critical `tap_auth.providers` health probe runs configured providers' offline self-test on a running instance, reusing `self_test`; no providers is healthy, a broken configured provider degrades. | The conditional-secret-validation reference (`req-tap-cares-secrets-conditional-validation`). |
 
 ---
 

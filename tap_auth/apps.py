@@ -24,3 +24,16 @@ class TapAuthConfig(AppConfig):
     # Routes are not mounted yet (deferred to the allauth phase); the reservation
     # is a forward guard so no Page can occupy /auth before then.
     reserved_url_prefixes: list[str] = ["/auth"]
+
+    def ready(self) -> None:
+        # Register the auth-providers health probe from tap_auth's own boundary
+        # so the dependency runs tap_auth -> tap_health (not core importing up
+        # into tap_auth). The probe body runs later, so this is ready()-safe (no
+        # DB / no settings access here). critical=False: boot already hard-gates
+        # critical_for_boot providers, so the probe is the non-blocking runtime
+        # view. See tap_auth/health.py and spec-tap-cares-secrets.md
+        # (Conditional Validation Lives In Health Probes).
+        from tap_auth.health import probe_auth_providers
+        from tap_health.registry import register_health_probe
+
+        register_health_probe("auth.providers", probe_auth_providers, group="tap_auth", critical=False)

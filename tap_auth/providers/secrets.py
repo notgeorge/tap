@@ -2,12 +2,14 @@
 
 Provider client credentials live in the same ``*.secret.json`` files as the rest
 of TAP's runtime secrets (one shared, gitignored, bind-mounted store), under the
-``auth`` scope. tap_auth reads its own provider secrets directly here rather than
-through the tap-cares registry, because allauth settings are built at
-settings-import time — before ``tap_cares.ready()`` loads that registry. The file
-format is the established tap-cares envelope; tap_auth owns the ``oidc_client``
-data-block schema (``tap_auth/schemas/oidc_client_secret.schema.json``) and
-validates against it here.
+``auth`` scope. File discovery and envelope shape come from the app-neutral
+``tap.runtime_secrets`` resolver (shared with tap_cares, so there is one resolver
+not two). tap_auth still resolves directly here rather than through the
+*tap-cares registry*, because allauth settings are built at settings-import time
+— before ``tap_cares.ready()`` loads that registry, and tap_auth must not depend
+on the tap_cares app. tap_auth owns the ``oidc_client`` data-block schema
+(``tap_auth/schemas/oidc_client_secret.schema.json``) and validates against it
+here.
 
 Secret material is returned in memory only and never logged in full
 (req-tap-auth-providers-3 / the threat model in req-tap-auth-capabilities).
@@ -24,6 +26,7 @@ from django.conf import settings
 from jsonschema import Draft202012Validator
 
 from tap.jsonfiles import JsonFileError, load_json_file, load_schema
+from tap.runtime_secrets import RuntimeSecretError, find_secret_file
 from tap_auth.providers.base import ProviderError
 
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "oidc_client_secret.schema.json"
@@ -52,36 +55,18 @@ def _secrets_root() -> Path:
     return Path(root)
 
 
-def _find_secret_file(scope: str, key: str) -> Path:
-    """Locate the ``<key>.secret.json`` whose envelope declares ``scope``/``key``.
-
-    Directories under the root are organizational only (spec-tap-cares-secrets),
-    so we match on the basename then confirm the declared scope/key inside.
-    """
-    root = _secrets_root()
-    if not root.is_dir():
-        raise ProviderError(f"secrets root {root} does not exist; cannot resolve {scope}:{key}")
-    for path in sorted(root.rglob(f"{key}.secret.json")):
-        try:
-            doc = load_json_file(path)
-        except JsonFileError as exc:
-            raise ProviderError(f"secret file {path} is unreadable/invalid JSON: {exc}") from exc
-        if doc.get("scope") == scope and doc.get("key") == key:
-            return path
-    raise ProviderError(
-        f"no secret file found for {scope}:{key} under {root} "
-        f"(expected a '{key}.secret.json' with scope='{scope}', key='{key}')"
-    )
-
-
 def resolve_oidc_client_secret(key: str, *, scope: str = "auth") -> dict[str, str]:
     """Return ``{'client_id': ..., 'client_secret': ...}`` for an OIDC provider.
 
-    Validates the whole secret file against the ``oidc_client`` schema (so a
+    Discovers the file via the shared ``tap.runtime_secrets`` resolver, then
+    validates the whole secret file against the ``oidc_client`` schema (so a
     malformed secret fails loud and specific, not as a mystery login error) and
     returns only the ``data`` block.
     """
-    path = _find_secret_file(scope, key)
+    try:
+        path = find_secret_file(_secrets_root(), scope, key)
+    except RuntimeSecretError as exc:
+        raise ProviderError(str(exc)) from exc
     try:
         doc: dict[str, Any] = load_json_file(path)
     except JsonFileError as exc:
@@ -97,7 +82,7 @@ def resolve_oidc_client_secret(key: str, *, scope: str = "auth") -> dict[str, st
 def secret_exists(key: str, *, scope: str = "auth") -> bool:
     """True if a resolvable secret file exists for ``scope:key`` (no validation)."""
     try:
-        _find_secret_file(scope, key)
-    except ProviderError:
+        find_secret_file(_secrets_root(), scope, key)
+    except RuntimeSecretError, ProviderError:
         return False
     return True
