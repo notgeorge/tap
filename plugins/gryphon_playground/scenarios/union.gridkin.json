@@ -8,6 +8,7 @@
       "name": "two type-scan MATCH clauses union pg_hub and pg_node nodes",
       "tags": ["union", "multi-match", "current-behavior"],
       "covers": ["req-grid-traversal-lang-shape-5"],
+      "inspired_by": "opencypher TCK — clauses/union (UNION of two label scans, deduplicated)",
       "layer": "lite",
       "query": "MATCH (a:pg_hub) MATCH (b:pg_node)",
       "expected_envelope": "expected/union__hub_and_node.expected.json",

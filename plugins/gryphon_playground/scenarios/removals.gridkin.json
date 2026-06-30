@@ -12,6 +12,7 @@
         "req-grid-import-grift-removals",
         "req-grid-import-grift-removal-preflight"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (TAP-native: write-path removal visibility)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"Removal Demo Node \"",
       "expected_envelope": "expected/removals__post_removal_nodes.expected.json",

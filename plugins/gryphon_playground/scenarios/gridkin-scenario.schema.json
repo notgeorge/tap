@@ -48,7 +48,7 @@
     "scenario": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "covers", "query", "expected_envelope", "expected_sql_snapshot"],
+      "required": ["name", "covers", "inspired_by", "query", "expected_envelope", "expected_sql_snapshot"],
       "properties": {
         "name": {
           "type": "string",
@@ -68,7 +68,8 @@
         },
         "inspired_by": {
           "type": "string",
-          "description": "Optional breadcrumb to an openCypher TCK feature folder when the scenario's intent was mined from the TCK. Informational only, never a license claim."
+          "pattern": "^opencypher TCK — (no applicable feature folder \\(.+\\)|.+/.+)$",
+          "description": "Required openCypher-TCK mining breadcrumb (req-gridkin-tck-inspiration, req-grid-traversal-lang-tck-mining-3). Either a folder cite — 'opencypher TCK — <folder> (<intent>)', e.g. 'opencypher TCK — clauses/match (...)' — or, where no TCK folder applies, the explicit empty-pass marker 'opencypher TCK — no applicable feature folder (<reason>)' (reason names why, e.g. 'TAP-native: optimistic-concurrency' or 'openCypher TCK has no regex coverage'). 'Looked, found nothing' is a deliberate, recorded state; a missing breadcrumb is a forgotten mining pass. Per-folder COVERAGE state lives in tck-coverage.json, not here. Informational only, never a license claim."
         },
         "layer": {
           "enum": ["lite", "full", "extended"],

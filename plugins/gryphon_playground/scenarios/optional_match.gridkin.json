@@ -13,7 +13,7 @@
         "req-grid-gryphon-optional-match-2",
         "req-grid-gryphon-optional-match-3"
       ],
-      "inspired_by": "tck/features/clauses/optional-match/",
+      "inspired_by": "opencypher TCK — clauses/match",
       "layer": "lite",
       "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
       "expected_envelope": "expected/optional_match__keeps_zero.expected.json",
@@ -26,6 +26,7 @@
         "req-grid-gryphon-optional-match-2",
         "req-grid-gryphon-count"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (plain MATCH drops zero-match rows)",
       "layer": "lite",
       "query": "MATCH (t:pg_node)<-[:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
       "expected_envelope": "expected/optional_match__plain_match_drops.expected.json",
@@ -37,6 +38,7 @@
       "covers": [
         "req-grid-gryphon-optional-match-6"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (optional outbound edge fan-out)",
       "layer": "lite",
       "query": "MATCH (h:pg_hub) OPTIONAL MATCH (h)-[:PG_LINKS]->(t:pg_node) RETURN h.entity_id AS hub, COUNT(t) AS links",
       "expected_envelope": "expected/optional_match__outbound.expected.json",
@@ -48,6 +50,7 @@
       "covers": [
         "req-grid-gryphon-optional-match-7"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (optional match with ORDER BY + LIMIT)",
       "layer": "lite",
       "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY guards DESC LIMIT 1",
       "expected_envelope": "expected/optional_match__order_limit.expected.json",
@@ -60,7 +63,7 @@
         "req-grid-gryphon-optional-match-2",
         "req-grid-gryphon-optional-match-4"
       ],
-      "inspired_by": "tck/features/clauses/optional-match/",
+      "inspired_by": "opencypher TCK — clauses/match",
       "layer": "lite",
       "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) WHERE g.data.severity_score > 100 RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
       "expected_envelope": "expected/optional_match__where_optional_var.expected.json",
@@ -72,6 +75,7 @@
       "covers": [
         "req-grid-gryphon-optional-match-5"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (WHERE on the mandatory variable)",
       "layer": "lite",
       "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) WHERE t.data.kind = \"target\" RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
       "expected_envelope": "expected/optional_match__where_mandatory_var.expected.json",
@@ -83,6 +87,7 @@
       "covers": [
         "req-grid-gryphon-optional-match-3"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (COUNT over optional edge, null not counted)",
       "layer": "lite",
       "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[e:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(e) AS guard_edges ORDER BY target",
       "expected_envelope": "expected/optional_match__count_edge.expected.json",

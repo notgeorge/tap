@@ -12,6 +12,7 @@
         "req-grid-traversal-lang-in-1",
         "req-grid-traversal-lang-in-2"
       ],
+      "inspired_by": "opencypher TCK — expressions/list (IN membership on a value)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"neighbor\"] RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__kind_neighbor.expected.json",
@@ -23,6 +24,7 @@
       "covers": [
         "req-grid-traversal-lang-in-2"
       ],
+      "inspired_by": "opencypher TCK — expressions/list (IN over multiple numeric members)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN [10, 30] RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__severity_set.expected.json",
@@ -34,7 +36,7 @@
       "covers": [
         "req-grid-traversal-lang-in-2"
       ],
-      "inspired_by": "tck/features/expressions/list/",
+      "inspired_by": "opencypher TCK — expressions/list",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"island\"] RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__single_element.expected.json",
@@ -46,7 +48,7 @@
       "covers": [
         "req-grid-traversal-lang-in-3"
       ],
-      "inspired_by": "tck/features/expressions/list/",
+      "inspired_by": "opencypher TCK — expressions/list",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.kind IN [] RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__empty_list.expected.json",
@@ -58,7 +60,7 @@
       "covers": [
         "req-grid-traversal-lang-in-4"
       ],
-      "inspired_by": "tck/features/expressions/null/",
+      "inspired_by": "opencypher TCK — expressions/null",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN [null, 20] RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__null_member.expected.json",
@@ -70,6 +72,7 @@
       "covers": [
         "req-grid-traversal-lang-in-5"
       ],
+      "inspired_by": "opencypher TCK — expressions/list (IN with parameterized members)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.entity_id IN [$first, $second] RETURN n.entity_id AS id ORDER BY id",
       "params": {
@@ -86,6 +89,7 @@
         "req-grid-traversal-lang-in-2",
         "req-grid-gryphon-count"
       ],
+      "inspired_by": "opencypher TCK — expressions/list (IN filter applied before aggregation)",
       "layer": "lite",
       "query": "MATCH (h)-[:PG_LINKS]->(n:pg_node) WHERE n.data.kind IN [\"neighbor\"] RETURN h.entity_id AS src, COUNT(n) AS c",
       "expected_envelope": "expected/in_lists__aggregation.expected.json",
@@ -97,6 +101,7 @@
       "covers": [
         "req-grid-traversal-lang-in-6"
       ],
+      "inspired_by": "opencypher TCK — expressions/list (IN composed with AND)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"island\"] AND n.data.severity_score > 10 RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__in_and.expected.json",

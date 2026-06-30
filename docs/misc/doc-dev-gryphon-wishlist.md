@@ -675,11 +675,11 @@ When authoring Gridkin scenarios for a new feature, the workflow includes a pass
 
 The workflow:
 
-1. Identify the TCK feature folder for the feature being implemented (e.g. `tck/features/clauses/optional-match/` for OPTIONAL MATCH).
+1. Identify the TCK feature folder for the feature being implemented (e.g. `tck/features/clauses/match/` — which is where OPTIONAL MATCH lives too, in `Match7`). **Verify the folder against a real TCK checkout** — folder names are easy to mis-remember: there is no `clauses/optional-match`, no `clauses/orderBy`/`clauses/limit` (they are `clauses/return-orderby`/`clauses/return-skip-limit`), and no `expressions/regex` (the `=~` operator is untested — its `expressions/string` stubs are empty).
 2. Read each scenario for its *intent* — what corner case does it pin down? What historical confusion does it guard against?
-3. Notes-list the corner-case intents that apply to Gryphon's semantics. Skip Cypher-specific quirks (null comparison weirdness, type coercion edge cases) — those are not Gryphon's contract.
+3. Notes-list the corner-case intents that apply to Gryphon's semantics. Skip Cypher-specific quirks (three-valued null logic, type coercion edge cases) — those are not Gryphon's contract.
 4. Author Gridkin scenarios in TAP vocabulary covering each retained intent. Queries are written in Gryphon syntax against `pg_*` playground types; fixtures are hand-authored; expecteds are hand-authored per the oracle discipline.
-5. Set the scenario's `inspired_by` field to the TCK feature folder path — an attribution breadcrumb so future-us can trace which corner-case taxonomies have been mined.
+5. Set the scenario's `inspired_by` field (now schema-**required**) to the TCK feature folder path — an attribution breadcrumb — or, where no TCK folder applies, the explicit empty-pass marker. Record per-folder *coverage* (covered/gaps/excluded) in the coverage ledger `scenarios/tck-coverage.json` (req-gridkin-tck-coverage), so which corner-case taxonomies have been mined — and what is still owed — is auditable, not just asserted.
 
 Hard constraints (per `feedback_borrow_from_oss_prior_art`: inspire, never copy):
 

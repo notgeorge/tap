@@ -14,6 +14,7 @@
         "req-grid-gryphon-order-by-envelope-3",
         "req-grid-gryphon-order-by-envelope-6"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit (LIMIT 1 latest by field)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__latest_limit_1.expected.json",
@@ -26,6 +27,7 @@
         "req-grid-gryphon-order-by-envelope-1",
         "req-grid-gryphon-order-by-envelope-2"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit (top-N descending)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC LIMIT 3",
       "expected_envelope": "expected/order_by_limit_envelope__top3_desc.expected.json",
@@ -37,6 +39,7 @@
       "covers": [
         "req-grid-gryphon-order-by-envelope-4"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (tie-break determinism on equal keys)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score = 30 ORDER BY n.data.observed_at DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__tiebreak_lowest_id.expected.json",
@@ -48,6 +51,7 @@
       "covers": [
         "req-grid-gryphon-order-by-envelope-5"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (NULL ordering under ASC)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) ORDER BY n.data.observed_at ASC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__nulls_last_asc.expected.json",
@@ -59,6 +63,7 @@
       "covers": [
         "req-grid-gryphon-order-by-envelope-5"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (NULL ordering under DESC)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) ORDER BY n.data.observed_at DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__nulls_first_desc.expected.json",
@@ -70,6 +75,7 @@
       "covers": [
         "req-grid-gryphon-order-by-envelope-3"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (order by a spine field descending)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) ORDER BY n.name DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__spine_name_desc.expected.json",
@@ -81,6 +87,7 @@
       "covers": [
         "req-grid-gryphon-order-by-envelope-7"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (ORDER BY independent of RETURN projection)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 0 RETURN n ORDER BY n.data.observed_at DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__return_n_explicit.expected.json",
@@ -92,7 +99,7 @@
       "covers": [
         "req-grid-gryphon-order-by-envelope-2"
       ],
-      "inspired_by": "tck/features/clauses/limit/",
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit",
       "layer": "lite",
       "query": "MATCH (n:pg_node) ORDER BY n.name LIMIT 0",
       "expected_envelope": "expected/order_by_limit_envelope__limit_zero.expected.json",
@@ -104,7 +111,7 @@
       "covers": [
         "req-grid-gryphon-order-by-envelope-2"
       ],
-      "inspired_by": "tck/features/clauses/limit/",
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit",
       "layer": "lite",
       "query": "MATCH (n:pg_node) ORDER BY n.name LIMIT 999",
       "expected_envelope": "expected/order_by_limit_envelope__limit_oversize.expected.json",
@@ -117,7 +124,7 @@
         "req-grid-gryphon-order-by-envelope-1",
         "req-grid-gryphon-order-by-envelope-6"
       ],
-      "inspired_by": "tck/features/clauses/orderBy/",
+      "inspired_by": "opencypher TCK — clauses/return-orderby",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC",
       "expected_envelope": "expected/order_by_limit_envelope__order_no_limit.expected.json",
@@ -130,7 +137,7 @@
         "req-grid-gryphon-order-by-envelope-1",
         "req-grid-gryphon-order-by-envelope-4"
       ],
-      "inspired_by": "tck/features/clauses/orderBy/",
+      "inspired_by": "opencypher TCK — clauses/return-orderby",
       "layer": "lite",
       "query": "MATCH (n:pg_node) ORDER BY n.data.severity_score ASC, n.data.observed_at DESC LIMIT 3",
       "expected_envelope": "expected/order_by_limit_envelope__multi_key_mixed_dir.expected.json",

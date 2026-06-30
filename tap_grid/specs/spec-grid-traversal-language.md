@@ -1117,8 +1117,9 @@ having to already know the gridkin validation spec.
 | --- | --- | :---: | --- | --- |
 | req-grid-traversal-lang-tck-mining-1 | Mining Pass Is A Precondition | Implemented | Every language extension in this spec runs the TCK mining pass before the feature is done. | Binds `req-gridkin-tck-inspiration` to the language-extension lifecycle. |
 | req-grid-traversal-lang-tck-mining-2 | Breadcrumb On Mined Scenarios | Implemented | A Gridkin scenario whose intent was mined sets `inspired_by` to the TCK source folder. | Per `req-gridkin-tck-inspiration-1`. |
-| req-grid-traversal-lang-tck-mining-3 | Empty Pass Is Recorded | Proposed | A feature with no applicable TCK folder records "looked, found nothing" rather than silently omitting the breadcrumb. | Distinguishes "no source" from "never checked". Backfill of the 17 pre-existing breadcrumb-less scenarios is tracked as a known gap, not blocked on here. |
+| req-grid-traversal-lang-tck-mining-3 | Empty Pass Is Recorded | Implemented | A feature with no applicable TCK folder records "looked, found nothing" rather than silently omitting the breadcrumb. | Enforced: `inspired_by` is schema-required and must be a folder cite or an explicit empty-pass marker (`gridkin-scenario.schema.json`); the pre-existing breadcrumb-less scenarios were backfilled 2026-06-30. Distinguishes "no source" from "never checked". |
 | req-grid-traversal-lang-tck-mining-4 | No TCK Content Copied | Implemented | No TCK query text, graph data, or expected results enter any Gryphon or Gridkin file. | Inherited from `req-gridkin-tck-inspiration-2`. |
+| req-grid-traversal-lang-tck-mining-5 | Coverage Is Ledgered | Implemented | Per-folder mining coverage (covered/gaps/excluded) is recorded in the corpus-wide coverage ledger, machine-checked and bidirectionally tied to scenario cites. | Binds `req-gridkin-tck-coverage`; a language extension that cites a new TCK folder must add its ledger entry in the same change. |
 
 
 ## Status Vocabulary

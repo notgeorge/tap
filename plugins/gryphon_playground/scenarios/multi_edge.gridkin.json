@@ -8,6 +8,7 @@
       "name": "hub-and-spoke returns both parallel edges between the same pair",
       "tags": ["hub-and-spoke", "multi-edge", "current-behavior"],
       "covers": ["req-grid-traversal-lang-shape"],
+      "inspired_by": "opencypher TCK — clauses/match (parallel relationships between one pair)",
       "layer": "lite",
       "query": "MATCH (a)-[e]-(b) WHERE a.entity_id = $source",
       "params": {
@@ -20,6 +21,7 @@
       "name": "typed edge pattern selects only the matching parallel edge",
       "tags": ["hub-and-spoke", "multi-edge", "edge-type", "current-behavior"],
       "covers": ["req-grid-traversal-lang-shape"],
+      "inspired_by": "opencypher TCK — clauses/match (typed pattern selects one of parallel edges)",
       "layer": "lite",
       "query": "MATCH (a)-[e:PG_NESTS]-(b) WHERE a.entity_id = $source",
       "params": {

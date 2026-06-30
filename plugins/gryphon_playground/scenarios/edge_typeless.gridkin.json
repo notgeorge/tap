@@ -11,6 +11,7 @@
         "req-grid-traversal-lang-patterns",
         "req-grid-traversal-lang-patterns-7"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (untyped directed relationship spans all types)",
       "layer": "lite",
       "query": "MATCH (a)-[e]->(b)",
       "expected_envelope": "expected/edge_typeless__all_types.expected.json",
@@ -22,6 +23,7 @@
       "covers": [
         "req-grid-traversal-lang-patterns-7"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (untyped relationship constrained by endpoint labels)",
       "layer": "lite",
       "query": "MATCH (a:pg_hub)-[e]->(b:pg_node)",
       "expected_envelope": "expected/edge_typeless__typed_endpoints.expected.json",
@@ -34,6 +36,7 @@
         "req-grid-traversal-lang-patterns-3",
         "req-grid-traversal-lang-patterns-7"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (undirected relationship dedup across directions)",
       "layer": "lite",
       "query": "MATCH (a)-[e]-(b)",
       "expected_envelope": "expected/edge_typeless__undirected.expected.json",

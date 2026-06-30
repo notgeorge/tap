@@ -12,6 +12,7 @@
         "req-grid-traversal-lang-string-match-1",
         "req-grid-traversal-lang-string-match-2"
       ],
+      "inspired_by": "opencypher TCK — expressions/string (STARTS WITH prefix)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"Neighbor\" RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/string_match__starts_with.expected.json",
@@ -23,6 +24,7 @@
       "covers": [
         "req-grid-traversal-lang-string-match-2"
       ],
+      "inspired_by": "opencypher TCK — expressions/string (ENDS WITH suffix)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name ENDS_WITH \"a\" RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/string_match__ends_with.expected.json",
@@ -34,6 +36,7 @@
       "covers": [
         "req-grid-traversal-lang-string-match-2"
       ],
+      "inspired_by": "opencypher TCK — expressions/string (CONTAINS substring)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name CONTAINS \"Island\" RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/string_match__contains.expected.json",
@@ -45,7 +48,7 @@
       "covers": [
         "req-grid-traversal-lang-string-match-3"
       ],
-      "inspired_by": "tck/features/expressions/string/",
+      "inspired_by": "opencypher TCK — expressions/string",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"neighbor\" RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/string_match__case_sensitive.expected.json",
@@ -57,7 +60,7 @@
       "covers": [
         "req-grid-traversal-lang-string-match-2"
       ],
-      "inspired_by": "tck/features/expressions/string/",
+      "inspired_by": "opencypher TCK — expressions/string",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name STARTS_WITH \"\" RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/string_match__empty_needle.expected.json",
@@ -69,6 +72,7 @@
       "covers": [
         "req-grid-traversal-lang-string-match-4"
       ],
+      "inspired_by": "opencypher TCK — expressions/string (parameterized needle)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name ENDS_WITH $suffix RETURN n.entity_id AS id ORDER BY id",
       "params": {

@@ -14,6 +14,7 @@
         "req-grid-traversal-lang-regex-5",
         "req-grid-traversal-lang-regex-10"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name =~ \"githubusercontent\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__default_search.expected.json",
@@ -26,6 +27,7 @@
         "req-grid-traversal-lang-regex-4",
         "req-grid-traversal-lang-regex-5"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name =~ \"(?i)githubusercontent\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__case_insensitive.expected.json",
@@ -37,6 +39,7 @@
       "covers": [
         "req-grid-traversal-lang-regex-2"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name =~ \"^https://token\\\\.actions\\\\.githubusercontent\\\\.com$\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__explicit_anchors.expected.json",
@@ -48,6 +51,7 @@
       "covers": [
         "req-grid-traversal-lang-regex-7"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name =~ \"githubusercontent\\\\.com\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__escaped_dot.expected.json",
@@ -59,6 +63,7 @@
       "covers": [
         "req-grid-traversal-lang-regex-8"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name =~ $pattern RETURN n.name AS name ORDER BY name",
       "params": { "pattern": "(?i)token" },
@@ -72,6 +77,7 @@
         "req-grid-traversal-lang-regex-6",
         "req-grid-traversal-lang-regex-10"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.tags.url =~ \"github\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__data_lane_json.expected.json",
@@ -84,6 +90,7 @@
         "req-grid-traversal-lang-regex-6",
         "req-grid-traversal-lang-regex-8"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name =~ $pattern RETURN n.name AS name ORDER BY name",
       "params": { "pattern": null },
@@ -96,6 +103,7 @@
       "covers": [
         "req-grid-traversal-lang-regex-9"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name =~ \"(?i)github\" AND n.data.kind = \"identity_provider\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__and_composition.expected.json",
@@ -107,6 +115,7 @@
       "covers": [
         "req-grid-traversal-lang-regex-9"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE NOT (n.name =~ \"(?i)token\") RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__not_composition.expected.json",
@@ -118,6 +127,7 @@
       "covers": [
         "req-grid-traversal-lang-regex-10"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.entity_type =~ \"^pg_\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__spine_entity_type.expected.json",
@@ -130,7 +140,7 @@
         "req-grid-traversal-lang-regex-2",
         "req-grid-traversal-lang-regex-11"
       ],
-      "inspired_by": "opencypher TCK — expressions/regex corner-cases (empty-pattern intent)",
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name =~ \"\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__empty_pattern.expected.json",
@@ -142,7 +152,7 @@
       "covers": [
         "req-grid-traversal-lang-regex-11"
       ],
-      "inspired_by": "opencypher TCK — expressions/regex corner-cases (alternation intent)",
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name =~ \"^https://(token|my-ghes)\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__alternation.expected.json",
@@ -154,7 +164,7 @@
       "covers": [
         "req-grid-traversal-lang-regex-11"
       ],
-      "inspired_by": "opencypher TCK — expressions/regex corner-cases (character-class intent)",
+      "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.name =~ \"actions\\\\.[a-z]+\\\\.com\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__character_class.expected.json",

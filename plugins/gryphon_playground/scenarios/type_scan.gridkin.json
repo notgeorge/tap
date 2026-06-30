@@ -12,6 +12,7 @@
         "req-grid-traversal-lang-patterns",
         "req-grid-traversal-lang-returns-1"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (full label scan)",
       "layer": "full",
       "query": "MATCH (n:pg_node)",
       "expected_envelope": "expected/type_scan__all_pg_nodes.expected.json",
@@ -25,6 +26,7 @@
         "req-grid-traversal-lang-envelope-paths-2",
         "req-grid-traversal-lang-envelope-paths-8"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (label scan with property equality)",
       "layer": "full",
       "query": "MATCH (n:pg_node) WHERE n.data.kind = \"island\"",
       "expected_envelope": "expected/type_scan__kind_island.expected.json",
@@ -37,6 +39,7 @@
         "req-grid-traversal-lang-returns-3",
         "req-grid-traversal-lang-shape"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (bare-variable RETURN of matched nodes)",
       "layer": "full",
       "query": "MATCH (n:pg_node) RETURN n",
       "expected_envelope": "expected/type_scan__return_bare_var.expected.json",
@@ -49,6 +52,7 @@
         "req-grid-traversal-lang-returns-4",
         "req-grid-traversal-lang-returns-5"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (projection of aliased field paths)",
       "layer": "full",
       "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.name AS label",
       "expected_envelope": "expected/type_scan__projection.expected.json",
@@ -61,6 +65,7 @@
         "req-grid-traversal-lang-filters",
         "req-grid-traversal-lang-envelope-paths-2"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (label scan with numeric comparison)",
       "layer": "full",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 15",
       "expected_envelope": "expected/type_scan__severity_gt.expected.json",
@@ -73,6 +78,7 @@
         "req-grid-traversal-lang-combinators-1",
         "req-grid-traversal-lang-envelope-paths-8"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (label scan with AND of predicates)",
       "layer": "full",
       "query": "MATCH (n:pg_node) WHERE n.data.kind = \"neighbor\" AND n.data.severity_score > 15",
       "expected_envelope": "expected/type_scan__kind_and_severity.expected.json",
@@ -85,6 +91,7 @@
         "req-grid-traversal-lang-filters",
         "req-grid-traversal-lang-envelope-paths-2"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (label scan with boolean predicate)",
       "layer": "full",
       "query": "MATCH (n:pg_node) WHERE n.data.is_open = true",
       "expected_envelope": "expected/type_scan__is_open.expected.json",
@@ -94,7 +101,7 @@
       "name": "a WHERE predicate that matches nothing returns an empty envelope",
       "tags": ["type-scan", "where", "empty-result", "tck-inspired"],
       "covers": ["req-grid-traversal-lang-filters"],
-      "inspired_by": "tck/features/clauses/match-where/",
+      "inspired_by": "opencypher TCK — clauses/match-where",
       "layer": "full",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score > 9999",
       "expected_envelope": "expected/type_scan__where_empty.expected.json",

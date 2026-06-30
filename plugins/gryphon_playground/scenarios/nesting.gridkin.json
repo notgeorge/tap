@@ -8,6 +8,7 @@
       "name": "two-hop nesting traversal returns the root's leaf-bearing branch and its leaves",
       "tags": ["multi-hop", "nesting", "current-behavior"],
       "covers": ["req-grid-gryphon-multihop"],
+      "inspired_by": "opencypher TCK — clauses/match (nested two-hop branch traversal)",
       "layer": "lite",
       "query": "MATCH (r)-[:PG_NESTS]->(b)-[:PG_NESTS]->(l) WHERE r.entity_id = $root",
       "params": {

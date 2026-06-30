@@ -11,6 +11,7 @@
         "req-grid-traversal-lang-filters",
         "req-grid-traversal-lang-envelope-paths-2"
       ],
+      "inspired_by": "opencypher TCK — expressions/map (nested map/key access in a predicate)",
       "layer": "full",
       "query": "MATCH (n:pg_node) WHERE n.data.tags.team = \"infra\"",
       "expected_envelope": "expected/json_payloads__team_infra.expected.json",
@@ -23,7 +24,7 @@
         "req-grid-traversal-lang-filters",
         "req-grid-traversal-lang-envelope-paths-2"
       ],
-      "inspired_by": "tck/features/clauses/match-where/",
+      "inspired_by": "opencypher TCK — clauses/match-where",
       "layer": "full",
       "query": "MATCH (n:pg_node) WHERE n.data.tags.priority = \"high\"",
       "expected_envelope": "expected/json_payloads__priority_high.expected.json",
