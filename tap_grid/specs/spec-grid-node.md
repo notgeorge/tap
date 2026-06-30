@@ -21,6 +21,7 @@ Nodes are the typed participants of the grid. Each node type is a concrete `Base
 | req-grid-node-display | [Node Display Name](#node-display-name) | Implemented | `get_display_name()` produces the label stored on the backing Entity at creation time |
 | req-grid-node-service | [Node Service Layer](#node-service-layer) | Implemented | `create_entity()`, `update_entity()`, and `delete_entity()` as the canonical Entity-level service API |
 | req-grid-node-constraints | [Node Constraint Declaration](#node-constraint-declaration) | Implemented | `OUTBOUND_EDGES` / `INBOUND_EDGES` declared on node types; registered at class-definition time |
+| req-grid-node-observation | [Field Observation Semantics](#field-observation-semantics) | Approved for Development | `null` = unobserved, concrete-empty = observed-empty, declared per-field via `x-tap-absence`; FLIP distinguishes known vs unknown unknown. Phase 2 (Codd's not-applicable, via extended FLIP) reserved |
 
 
 ## Explanation
@@ -261,6 +262,157 @@ Declaration rules:
 #### Future
 Consider a management command that audits registered node constraints against the entity type registry to detect mismatched type slugs in constraint declarations at startup.
 
+
+### Field Observation Semantics
+----
+RID: `req-grid-node-observation`
+Status: `Approved for Development`
+
+TAP is an observation graph: a node's field value records *what a source observed*, not merely *what is true*. The difference between "we never observed this," "we observed it to be empty," and "this can't apply here" is first-class information, not an implementation accident — and it must be **declared on the field**, discoverable by external readers, writers, the API, and the Gryphon traversal layer, rather than buried in a code comment that only a human reading the source can see.
+
+This requirement is staged:
+
+- **Phase 1 (this requirement, Approved for Development).** The stored-value taxonomy (`null` = unobserved, concrete-empty = observed-empty, value = observed), the known-vs-unknown-unknown distinction via FLIP, the declarative `x-tap-absence` field annotation, and the inbound write-intent boundary.
+- **Phase 2 (reserved, deferred — see Future).** Codd's *not-applicable* third state, represented out-of-band by **extending FLIP** so provenance covers applicability rather than standing up a parallel mechanism. Declared in `x-tap-absence` now; not consumed yet.
+
+Phase 1 introduces no new *storage* — the substrate (nullable columns, the FLIP map, the field schema) already exists. The static half (the stored-value taxonomy) is true today; the dynamic half (explicit-null clears a field and stamps FLIP; an omitted field touches neither) is a named write-path dependency not yet realized — see Status Details and Future.
+
+#### The Three States (Phase 1)
+
+For a column-backed field, the stored value carries observational meaning:
+
+| Stored value | Meaning | Example |
+| --- | --- | --- |
+| `null` | **Unobserved** — unknown, not-yet-seen, or not-applicable. No source has asserted a value. | A scanner sees a `network_interface` by name but never captures its hardware address → `mac_address = null`. |
+| `""` (or `[]`, `{}`) | **Observed-empty** — a source looked and the value is genuinely empty. | A source confirms an interface has no description → `description = ""`. |
+| a value | **Observed value** — a source captured a concrete value. | The MAC was captured → `mac_address = "00:11:22:33:44:55"`. |
+
+String fields carry three states (`null` / `""` / value); non-string fields with no meaningful empty form (e.g. `lat`/`lon`, a boolean, a timestamp) carry two (`null` / value). The convention is the cure for the "null island" failure mode — an unobserved value is `null`, never a sentinel like `0`, `0.0`, `(0,0)`, `9999-12-31`, or `"unknown"`.
+
+Phase 1 reads `null` as **unobserved**. It does *not* try to express Codd's *not-applicable* in the column — that distinction is deferred to Phase 2 and represented out-of-band (below), never by a second column value or an in-band sentinel. We do not adopt Codd's two-mark four-valued logic; we keep one `NULL` and recover the lost axes (responsibility now, applicability in Phase 2) through FLIP. **No shadow columns.**
+
+#### Declared Absence Semantics (`x-tap-absence`)
+
+The meaning of a field's absence is **declared in the field's `FIELD_CRUD_SCHEMA` entry**, not in a code comment. Because `_build_service_schemas` copies each field's schema dict wholesale into the published `SERVICE_CRUD_SCHEMA` (create/patch/replace), the annotation is automatically available to every consumer of the registry-backed schema surface — external readers and writers, the API, and schema-driven tooling — with no extra plumbing. It is a non-validating *annotation* keyword (JSON Schema treats unknown keywords as annotations, not assertions; the `x-` prefix follows the OpenAPI extension convention), so stock validators pass it through untouched while semantic consumers read it. (Publication makes the semantics *discoverable*; acting on them in queries — Gryphon's `IS UNOBSERVED`-style predicates — is a separate, Future concern.)
+
+```jsonc
+"mac_address": {
+  "type": ["string", "null"],
+  "x-tap-absence": {
+    "null_default": "unobserved",           // Phase 1 reading of a stored null
+    "empty_is_meaningful": false,           // is "" a distinct observed-empty state here?
+    "convention": "req-grid-node-observation",
+    "description": "Null = no source has captured a hardware address for this interface.",
+    "not_applicable": {                     // Phase 2, reserved — declared, not yet consumed
+      "permitted": true,
+      "means": "Interface has no hardware address by nature (e.g. loopback/virtual)."
+    }
+  }
+}
+```
+
+- `null_default` — the Phase-1 meaning of a stored `null` for this field. Effectively always `"unobserved"` under this convention; carried explicitly so the field is self-describing to a reader who doesn't know the convention.
+- `empty_is_meaningful` — whether `""`/`[]`/`{}` is a distinct observed-empty state for this field (false for `mac_address`: a MAC is captured or it isn't).
+- `description` — **required** (per the standing "JSON structures require descriptions" discipline); the human/AI gloss the code comment used to carry, now structured and flowing into the published schema.
+- `not_applicable` — **Phase 2, reserved.** Declares whether N/A is *permitted* for this field and what it *means*. Present so the shape is fixed and external readers see the concept; not consumed until Phase 2 (Future). `permitted: false` is the default, under which a future per-cell N/A assertion is a validation error (FHIR's "absence channel must not bypass a binding" guard).
+
+`x-tap-absence` is the source of truth for field absence-semantics; the `# noqa: DJ001` comment degrades to a pure lint-silencer (below).
+
+#### The FLIP Hinge — Known vs Unknown Unknown
+
+A bare `null` cannot, by itself, distinguish *"a source looked and asserts nothing is known"* from *"nobody has looked."* FLIP supplies the missing bit at zero additional cost, because an explicit write already earns a FLIP entry while an untouched field does not (see `spec-grid-flip.md` `req-grid-flip-default`, especially the patch semantics in `req-grid-flip-default-4`):
+
+| Stored | FLIP entry for the field path | Interpretation |
+| --- | --- | --- |
+| `null` | **present** | **Known unknown** — a batch/actor explicitly asserted "unobserved." Someone looked and recorded the absence. |
+| `null` | **absent** | **Unknown unknown** — no batch has ever touched this field. Open-world "no assertion," not a positive record. |
+
+By design, an explicit `null` in a write payload is a *touched* field — stamped like any other value — while an omitted field is *untouched* and leaves both the column and its FLIP entry alone. This needs no new storage; FLIP is the already-built answer to the "horrific extra column" the responsibility axis would otherwise demand. It does, however, need a thin write-path change that does not exist yet: the service write lane currently strips `None` from payloads before validation and stamps FLIP across the full write surface rather than the touched subset (see Status Details), so the *explicit-null* half of the hinge is not realized today. The contract above is what the write path must satisfy. Absence of a FLIP entry is an open-world non-assertion, consistent with RDF's open-world assumption — it is never read as a positive "false."
+
+#### The Inbound Write-Intent Boundary
+
+Although a non-string column stores only two states, the *write boundary* must distinguish inbound *intent*, and the import/write path must preserve that intent long enough to apply it. Following FHIR's model — the writer declares absence-with-intent rather than the system inferring it from the stored value — intent is captured at the boundary, never reconstructed from the value:
+
+| Inbound intent | Action |
+| --- | --- |
+| Field **absent** from the payload | Leave the prior stored value untouched (no clobber); do not stamp FLIP. |
+| Field present and **explicitly `null`** | Set the column to `null` (assert unobserved) **and** stamp FLIP — recording that a source asserted the absence. |
+| Field present with a value or `""` | Set the column and stamp FLIP. |
+| **(Phase 2)** Field asserted **not-applicable** | Stored as `null`; the N/A flavor recorded out-of-band via extended FLIP (Future). Requires `x-tap-absence.not_applicable.permitted`. |
+
+The GRIFT/import path (`spec-grid-import-grift.md`) and serializers must not flatten `absent` into `null` (or vice versa) on ingestion — doing so erases the known-vs-unknown distinction before the rule can act. `absent-in-batch ≠ observed-null`. Capturing intent explicitly at the boundary is also what lets Phase 2 distinguish an N/A assertion from a plain unobserved-null without overloading the value: the boundary carries the intent; the column stays `null`.
+
+#### Not-Applicable — Codd's Third State (Phase 2, deferred)
+
+Codd's *inapplicable* mark — an attribute with no meaningful value for an entity (a loopback interface's hardware MAC; a maiden name for someone never married) — is real and load-bearing (FHIR, SDMX, and DDI all found "missing" splits into at least *unobserved* vs *not-applicable*). TAP handles it in two layers:
+
+- **Class-level inapplicability → the type system.** If an attribute is inapplicable to a whole kind of node, it is simply *not a column on that type* (or the node is a different type). An out-of-schema attribute on write is rejected by `additionalProperties: false`, not stored as a null. So class-level N/A never reaches a column — the type system absorbs Codd's I-mark for the common case. (Note also that nodes whose *identity is their value* — a Port's number, an IP's address — can never be N/A: the node would not exist without it.)
+- **Instance-level inapplicability → out-of-band reason (Phase 2).** When N/A varies *within* a type — a loopback `network_interface` has no MAC while `eth0` does — the column stores `null` and the *not-applicable flavor* is recorded out-of-band. **The chosen direction is to extend FLIP** so a field's provenance entry carries applicability alongside the responsible batch: provenance grows to explain *why* the value is absent, rather than applicability becoming a separate parallel structure. (A dedicated `absence_map` column is rejected in favor of the FLIP extension; an in-band sentinel value is rejected outright — see Prior Art.)
+
+Until Phase 2, `null` reads as unobserved everywhere; an instance that is genuinely N/A is indistinguishable from unobserved at the column level. That is an accepted Phase-1 limitation, not a defect.
+
+#### The DJ001 Lint Deviation
+
+Django's ruff rule `DJ001` forbids `null=True` on string-based model fields. TAP deliberately deviates where a string field's unobserved state is meaningful under this convention. The **declared `x-tap-absence` annotation is the authoritative justification**; the inline `# noqa: DJ001  (<RID>)` is only the lint-silencer ruff itself can see:
+
+```python
+mac_address = models.CharField(  # noqa: DJ001  (req-computing-core-interface-1)
+    max_length=17, blank=True, null=True
+)
+```
+
+The `(<RID>)` cites the authorizing requirement (this convention, or a domain requirement that cites it), mirroring TAP's per-call-site justification tokens (`TAP-LOG-ID`, `TAP-AUTHZ-COV`): a narrow, auditable escape hatch, **not** a global rule-disable in `pyproject.toml`. The durable enforcement is a class-definition invariant (deferred — see Future): a nullable **service-writeable** field must carry `x-tap-absence`, and vice versa. The invariant is scoped to the observation surface (fields in `FIELD_CRUD_SCHEMA`/`SERVICE_CRUD_SCHEMA`); non-observation nulls — lifecycle (`closed_at=null` = still open), system actor (`actor=null` = system/deletion), control/pagination — are out of scope, and a service-writeable field that is genuinely a non-observation null may opt out with an explicit marker rather than be forced to declare absence semantics. A bare `# noqa: DJ001` with no RID should be rejected in review.
+
+#### Prior Art
+
+Every mature partial-data system keeps unobserved distinct from observed-empty, declares the *meaning* of absence as discoverable metadata, and represents that meaning *out-of-band* — never as an in-band sentinel. The cautionary tales come from collapsing distinctions or smuggling meaning into the value domain:
+
+- **Cypher / property graphs** — `null` is a missing property; `""` is a real value. Adopt wholesale: `IS NULL`/`IS NOT NULL` as the unobserved predicates, `OPTIONAL`-style match to avoid silent drops, `coalesce` for explicit defaults.
+- **HL7 FHIR `dataAbsentReason`** — the strongest direct hit: the value is absent and a *sibling element* carries a flat, opt-in reason code (`unknown`, `not-asked`, `masked`, `not-applicable`, …). Per-element, published, discoverable; the writer declares intent at the boundary; the reason lives out-of-band, never in the value. Two guards we adopt: (1) the absence channel must not bypass a value-set binding (if the domain already has an "unknown" member, use it); (2) present-but-blank must be a defined state, not an accident.
+- **HL7 v3 / ISO 21090 `nullFlavor` — the cautionary tale.** The same codes, but a *mandatory hierarchical* code system requiring subsumption reasoning; widely judged unimplementable. FHIR's fix — flatten, make opt-in, rename honestly, forbid binding-bypass — is the sizing lesson: keep any flavor vocabulary small and flat.
+- **SDMX `OBS_STATUS` ⟂ `CONF_STATUS`** — missing-ness is an out-of-band observation attribute on its *own axis*, separate from confidentiality, so one observation can be simultaneously missing and confidential. The reason TAP keeps absence-reason out of the value — here, folded into provenance — rather than overloading the stored value.
+- **ISO/IEC 11179** — register each code's *Value Meaning* once and reuse it; the discipline behind `x-tap-absence.description` and its `convention` RID pointer.
+- **Codd's relational model** — distinguished applicable-vs-inapplicable; SQL flattened them to one `NULL`. We re-derive the I-mark as Phase-2 N/A but represent it out-of-band (extended FLIP), not as Codd's second physical null.
+- **SAS special missing (`.A`–`.Z`), Apache Arrow validity bitmap, `xsi:nil`** — every successful "kinds of missing" mechanism makes missing **structurally distinct** from the value domain (a reserved type-space, a bit beside the value, a type marker). The lesson that kills the in-band sentinel: **improbability ≠ structural distinctness** — a "weird value" (even a GUID) is still in the value domain, so it leaks to naive readers and can form false correlations; and it is *string-only* (an integer `port_number` or a boolean has no room for it), so it can never be the grid-wide rule.
+- **RDF / open-world assumption** — absence means *unknown*, never *false*; the grounding for "no FLIP entry = open-world non-assertion."
+- **Protobuf3** — *removed* field presence, then spent years re-adding `optional`; scar tissue for the asymmetric-cost argument that collapsing unobserved into a default is one-way data loss.
+- **Prometheus / OpenTelemetry** — a hard structural line between "no sample" and "a sample of 0" (staleness markers) so an alert does not go silent when an exporter dies.
+- **JSON Schema / OpenAPI** — unknown keywords are annotations, not errors (the `x-tap-absence` delivery mechanism); OpenAPI dropped the bare `nullable` boolean in 3.1 — a one-bit flag is too weak to carry meaning, which is why our annotation is a structured object. JSON Merge Patch's "null = delete" is the anti-pattern.
+- **NetBox** (direct domain hit) — moved MAC from a string attribute to a first-class object (cardinality-zero = no MAC), and enforces the CMDB reconciliation rule that a discovery source which did not observe a field must not null out a prior value.
+
+#### Status Details
+Convention decided 2026-06-30 in design discussion, grounded in the prior-art pass above and staged into Phase 1 (here) / Phase 2 (extended-FLIP N/A, deferred). First adopted by `computing_core` (`mac_address`, `port_number`), which carry the `x-tap-absence` annotation. There is no central `BaseModel` enforcement of the annotation yet; grid-wide rollout is incremental, field by field, as node types are written or revised. This requirement documents the standing convention so adopters cite a single canonical home rather than re-deriving it per plugin.
+
+**Implementation gap (named, not yet closed).** The storage substrate is present — nullable columns plus the FLIP map and its touch-based stamping — but the service write path does not yet realize the dynamic half of the convention:
+
+1. `tap_grid/services.py` strips `None` from write payloads before validation (`{k: v ... if v is not None}`), so an explicit `null` cannot clear a field or stamp FLIP; it is silently discarded.
+2. The generic write-save lane calls `instance.save(...)` without `update_fields`, so `BaseModel.save()` passes `changed_fields=None` to `update_flip_map` and FLIP stamps the *full* service-writeable surface rather than only the touched fields. "Omitted field leaves FLIP alone" does not hold for this lane today.
+3. Create-time FLIP semantics for omitted nullable fields are unspecified.
+
+Closing these is the enabling work for `req-grid-node-observation-3` and `-4`; it belongs to `spec-grid-service-write.md` / `spec-grid-import-grift.md` and is named in Future. Until then, treat the dynamic-half ACIDs as the target contract, not current behavior. (Today's GRIFT node lane sends full-object payloads and routes existing entities through `replace_node`, so "absent means no clobber" is patch/reconciliation/import-future behavior, not a property of the current node-import path.)
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-node-observation-1 | Null Means Unobserved | Approved for Development | A column-backed field stores `null` to mean unobserved/unknown/not-applicable — never a sentinel value. | Cures "null island". |
+| req-grid-node-observation-2 | Concrete-Empty Means Observed-Empty | Approved for Development | `""`/`[]`/`{}` mean a source observed the value to be empty, distinct from `null`. Non-string fields with no meaningful empty form are `null`-or-value only. | String fields are three-state; numeric two-state. |
+| req-grid-node-observation-3 | FLIP Entry Distinguishes Known vs Unknown Unknown | Approved for Development | A `null` with a FLIP entry for that field path is a known unknown (a batch asserted the absence); a `null` with no FLIP entry is an unknown unknown (untouched). | Target contract. The value-half holds today; the explicit-null half depends on the write-path enablement (Status Details / Future). |
+| req-grid-node-observation-4 | Three-State Inbound Write Boundary | Proposed | The write/import boundary distinguishes absent (leave prior, no clobber), explicit-null (clear + stamp FLIP), and present-value (set + stamp FLIP); ingestion must not flatten absent↔null. | Not current behavior — the service lane strips `None` pre-validation. Enforcement lives in the write/import path; see Future. |
+| req-grid-node-observation-5 | DJ001 Deviation Carries A RID | Approved for Development | A string field using `null=True` under this convention carries `# noqa: DJ001  (<RID>)` citing the authorizing requirement — not a global rule-disable. | Mirrors `TAP-LOG-ID` / `TAP-AUTHZ-COV` annotation discipline; not yet machine-enforced (see Future). |
+| req-grid-node-observation-6 | Absence Semantics Are Declared, Not Commented | Approved for Development | A field's absence meaning is declared in its `FIELD_CRUD_SCHEMA` entry via `x-tap-absence` (`null_default`, `empty_is_meaningful`, required `description`, `convention` RID), which auto-publishes through `SERVICE_CRUD_SCHEMA` to schema consumers. | Carrier is the existing field schema; no new plumbing. Non-validating annotation keyword. Acting on it in queries is Future (Gryphon). |
+| req-grid-node-observation-7 | Inbound Write-Intent Captured At Boundary | Proposed | The write boundary captures intent (absent / explicit-null / value) explicitly rather than inferring it from the stored value, preserving absent-vs-null through ingestion. | FHIR-style; enables the Phase-2 N/A assertion. Write-path dependency. |
+| req-grid-node-observation-8 | Not-Applicable Reserved For Phase 2 Via Extended FLIP | Proposed | Codd's not-applicable third state is declared in `x-tap-absence.not_applicable` and, when built, represented out-of-band by extending FLIP (provenance covers applicability) — never an in-band sentinel or a parallel column. Class-level N/A is absorbed by the type system. | Deferred; biased to extending FLIP per design decision. |
+
+#### Future
+Downstream dependencies are named here as deliberate considerations and left unbuilt (don't-overbuild filter); each belongs to a different spec and should be specified there when its surface is next worked:
+
+- **Phase 2 — Not-Applicable via extended FLIP.** Resolve Codd's third state by extending FLIP's entry so a field path's provenance carries the absence *flavor* (e.g. `not-applicable`, `withheld`) alongside the responsible batch id, rather than standing up a parallel `absence_map`. Provenance thereby explains *why* a value is absent — applicability becomes part of provenance, not a separate concern (design decision, 2026-06-30). Consumes `x-tap-absence.not_applicable` and the inbound write-intent boundary. Touches `spec-grid-flip.md` (entry shape) and the write path. Biased direction, not yet specified.
+
+- **Write-path enablement (service-write / import).** The convention's dynamic half (Status Details) needs three concrete changes before `req-grid-node-observation-3`/`-4` are real: (a) preserve an explicit `null` through the write pipeline instead of stripping it pre-validation; (b) thread the set of touched field names into FLIP so only touched fields are stamped (and an omitted field is left alone); (c) define create-time FLIP semantics for omitted nullable fields. Belongs to `spec-grid-service-write.md` (with import-side implications in `spec-grid-import-grift.md`). This is the *enabling* dependency — the others below sit on top of it.
+- **Query three-valued logic (traversal).** Once `null`-as-unobserved exists, the universal footgun is that *unknown silently behaves like false* in filters (SQL's `WHERE`/`NOT IN`/aggregate traps), so valid data vanishes from results. TAP's traversal (`spec-grid-traversal.md` / `spec-grid-traversal-language.md`) must specify how a predicate over an unobserved field resolves and ship first-class predicates — `IS UNOBSERVED` / `IS OBSERVED-EMPTY` / `IS KNOWN-UNKNOWN` (Phase 1, reading the column + FLIP) and `IS NOT-APPLICABLE` (Phase 2, reading the extended FLIP entry) — so nobody reconstructs them with fragile double-negatives. Gryphon reads `x-tap-absence` from the registry to surface these. Adopt Cypher's operators as the base.
+- **Reconciliation no-clobber (import/write path).** `absent-in-batch ≠ observed-null`: a partial batch that did not observe a field must not overwrite a prior observed value with `null`. Collectors run live GRIFT batches today, so this is the dependency with present-day data-integrity teeth — flagged loudly for the owner of `spec-grid-import-grift.md` / the write path, deferred and tracked, not yet specified here.
+- **Class-definition invariant (annotation + DJ001 enforcement).** Replace the noqa-scanner idea with a `BaseModel.__init_subclass__` invariant, mirroring the existing `_enforce_field_crud_schema` / `_enforce_field_validation_schema` class-definition checks: a nullable **service-writeable** field (one in `FIELD_CRUD_SCHEMA`) must carry an `x-tap-absence` entry and vice versa, and a `null=True` string field in that surface must carry the `# noqa: DJ001  (<RID>)` silencer. The invariant is deliberately scoped to the observation surface — lifecycle/system/control nulls (`closed_at`, `actor`, pagination) are not service-writeable observation fields and are excluded; a service-writeable field that is a genuine non-observation null opts out via an explicit `x-tap-absence` marker (e.g. `{"kind": "non-observation"}`) rather than declaring a flavor. This makes the declared annotation the machine-enforced source of truth and lets a bare/undocumented suppression fail at import. Requires auditing existing nullable fields across plugins, so deferred. Named, not built.
 
 ## Status Vocabulary
 
