@@ -21,7 +21,7 @@ This spec lives separately from [spec-dev-multisession.md](spec-dev-multisession
 | --- | --- | :---: | --- |
 | req-dev-multisession-teardown-script | [Despawn Script](#despawn-script) | Implemented | The one-line public interface |
 | req-dev-multisession-teardown-cleanup | [Total Cleanup](#total-cleanup) | Implemented | What "torn down" means |
-| req-dev-multisession-teardown-safety | [Safety Rails](#safety-rails) | Deprecated | Replaced by aggressive-by-default with confirm prompt |
+| req-dev-multisession-teardown-safety | [Safety Rails](#safety-rails) | Implemented | Re-framed 2026-06-30: hard-stop on unpushed commits; dirty worktree only forces confirm |
 
 ### Despawn Script
 ----
@@ -31,18 +31,20 @@ Status: `Implemented`
 The public interface is a single command:
 
 ```bash
-scripts/despawn-session.sh <name>            # interactive confirm
-scripts/despawn-session.sh <name> --yes      # skip confirm
-scripts/despawn-session.sh                   # interactive — pick from registry
-scripts/despawn-session.sh <name> --purge-image  # also force-rebuild image
+scripts/despawn-session.sh <name>                  # interactive confirm
+scripts/despawn-session.sh <name> --yes            # skip confirm (clean sessions only)
+scripts/despawn-session.sh                         # interactive — pick from registry
+scripts/despawn-session.sh <name> --purge-image    # also force-rebuild image
+scripts/despawn-session.sh <name> --abandon-unmerged  # consent to discard unpushed commits
 ```
 
 Where `<name>` matches a session previously spawned via the procedure in [spec-dev-multisession.md](spec-dev-multisession.md) (e.g. `cli`, `vscode`). The script also accepts names that are not in the registry — useful for cleaning up half-spawned sessions where the registry append never happened.
 
 Flags:
 
-- `--yes` / `-y` — skip the confirmation prompt. Pair with the named form for one-line invocation in scripts.
+- `--yes` / `-y` — skip the confirmation prompt. Pair with the named form for one-line invocation in scripts. Narrowed by the safety guard ([Safety Rails](#safety-rails)): `--yes` never bypasses the unpushed-commit hard-stop, and a dirty worktree still forces an interactive confirm even under `--yes`.
 - `--purge-image` — also remove the per-project web image (`tap_<name>-web`) so the next spawn rebuilds without using Docker image cache. Runtime Python state lives in compose volumes and is removed by normal despawn volume cleanup.
+- `--abandon-unmerged` — explicit consent to destroy commits that exist only on `session/<name>` and are not in `origin/main`. Required to despawn a session whose branch is ahead of `origin/main`; without it, despawn hard-stops. See [Safety Rails](#safety-rails).
 
 #### Behavior
 
@@ -117,22 +119,26 @@ git branch --list "session/<name>" | grep .                           # no outpu
 ### Safety Rails
 ----
 RID: `req-dev-multisession-teardown-safety`
-Status: `Deprecated`
+Status: `Implemented`
 
-#### Status Details
-Deprecated 2026-04-27. The original safety design called for despawn to refuse on dirty worktrees and unmerged commits, with `--force` as an opt-in override. In practice, despawn is most often invoked exactly when state is dirty (mid-debugging, after a failed spawn, after a SIGKILL during migrate) — making the safety rails the rule and `--force` the path everyone takes. We replaced this with a confirm prompt (`--yes` to skip) and aggressive-by-default cleanup. The interactive confirm is the safety mechanism; the spec's explicit dirty-worktree refusal is no longer the way.
+The two ways despawn can destroy real work are not equivalent, and the guard treats them differently. This is the key lesson of the 2026-04-27 deprecation (see history below): the original blunt design collapsed both into one rule and one `--force`, which made safety into noise.
 
-If sticky safety is needed for a workflow (e.g. a CI job that must never destroy unpushed work), the right shape is a separate `--safe` flag that re-introduces the dirty checks, rather than making safety the default.
+**Unpushed commits — hard stop.** If `session/<name>` has commits not reachable from `origin/main` (`git rev-list origin/main..session/<name>` is non-empty), despawn refuses outright and exits non-zero. `git branch -D` would make those commits unreachable; they are real, hard-to-recover work. `--yes` does **not** bypass this. The only ways forward are to promote the work (`scripts/promote-to-main.sh`) or to pass `--abandon-unmerged` as explicit, deliberate consent to discard it. The block is non-destructive: it fires before any teardown step runs, so the branch, worktree, and containers all survive a blocked invocation. Before measuring, despawn does a best-effort `git fetch origin main` so "unpushed" is accurate; if the fetch fails (offline) or there is no `origin/main` at all, the guard **fails closed** (stale/absent comparison can only over-count unpushed commits, never under-count).
 
-The original ACIDs below are preserved for history but should not be implemented under their original framing.
+**Dirty worktree — forced confirm, not a block.** Uncommitted changes (modified, staged, or untracked) are usually transient scratch left by exactly the cases the 2026-04-27 deprecation named — mid-debugging, a failed spawn, a SIGKILL during migrate. These do **not** hard-stop. They are surfaced in the plan and they force an interactive `[y/N]` confirm even when `--yes` is passed, so a scripted `--yes` can never silently torch uncommitted work, but an operator who means it is one keystroke away.
 
-#### Acceptance Criteria (historical)
+This keeps the common path frictionless: a session despawned after promotion is clean and fully pushed, so `--yes` sails straight through.
+
+#### History — original framing (deprecated 2026-04-27)
+The original safety design called for despawn to refuse on *both* dirty worktrees and unmerged commits, with a single `--force` as the opt-in override. In practice, despawn is most often invoked exactly when the worktree is dirty, making the refusal the rule and `--force` the path everyone reflexively types — so the rail protected nothing. That framing was deprecated in favor of aggressive-by-default cleanup with a confirm prompt. The 2026-06-30 re-framing above keeps that lesson (a dirty worktree must not be a blunt block) while restoring a real rail for the genuinely dangerous case the confirm-only design left exposed: committed-but-unpushed work destroyed by `branch -D`. The distinction the original design missed is that uncommitted scratch and unpushed commits are not the same loss.
+
+#### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-teardown-safety-1 | Dirty worktree blocks | Deprecated | Original framing — replaced by confirm prompt. | |
-| req-dev-multisession-teardown-safety-2 | Unmerged commits block | Deprecated | Original framing — replaced by confirm prompt. | |
-| req-dev-multisession-teardown-safety-3 | Partial-failure transparency | Deprecated | Replaced by per-step warnings + best-effort continuation. | |
+| req-dev-multisession-teardown-safety-1 | Dirty worktree forces confirm | Implemented | A dirty worktree does not hard-stop, but forces an interactive `[y/N]` confirm even under `--yes`. | |
+| req-dev-multisession-teardown-safety-2 | Unpushed commits hard-stop | Implemented | A branch ahead of `origin/main` blocks despawn (non-destructively, exit non-zero); only `--abandon-unmerged` overrides, and `--yes` does not. | |
+| req-dev-multisession-teardown-safety-3 | Fail closed when unverifiable | Implemented | If `origin/main` cannot be fetched or does not exist, treat all branch commits as unpushed rather than assuming safety. | |
 
 ## Manual Teardown (until the script lands)
 

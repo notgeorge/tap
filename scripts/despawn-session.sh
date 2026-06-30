@@ -11,11 +11,22 @@
 # Usage:
 #   scripts/despawn-session.sh                  # interactive — pick from registry
 #   scripts/despawn-session.sh <name>           # despawn the named session (with confirm)
-#   scripts/despawn-session.sh <name> --yes     # skip confirm prompt
+#   scripts/despawn-session.sh <name> --yes     # skip confirm prompt (clean sessions only)
+#   scripts/despawn-session.sh <name> --abandon-unmerged
+#                                               # consent to destroy commits that exist
+#                                               # only on session/<name> (not in origin/main).
+#                                               # Without this flag, despawn HARD-STOPS when
+#                                               # the branch has unpushed commits.
 #   scripts/despawn-session.sh <name> --purge-image
 #                                               # also force-remove the per-project
 #                                               # web image so the next spawn rebuilds
 #                                               # without Docker image cache.
+#
+# Safety: unpushed commits on session/<name> are real, hard-to-recover work, so
+# despawn refuses to delete the branch until they are promoted (scripts/promote-to-main.sh)
+# or you explicitly pass --abandon-unmerged. A merely-dirty worktree (uncommitted
+# scratch) does not hard-stop, but it always forces an interactive confirm — even
+# under --yes — so a scripted --yes can never silently torch uncommitted work.
 
 # NOT set -e — we want best-effort cleanup, not abort-on-first-failure.
 set -uo pipefail
@@ -38,11 +49,13 @@ prompt() { printf "    \033[36m%s\033[0m " "$1"; }
 SESSION_NAME=""
 ASSUME_YES=0
 PURGE_IMAGE=0
+ABANDON_UNMERGED=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -y|--yes)         ASSUME_YES=1; shift ;;
-    --purge-image)    PURGE_IMAGE=1; shift ;;
+    -y|--yes)             ASSUME_YES=1; shift ;;
+    --purge-image)        PURGE_IMAGE=1; shift ;;
+    --abandon-unmerged)   ABANDON_UNMERGED=1; shift ;;
     -h|--help)
       sed -n '/^# Usage:/,/^# *$/p' "$0" | sed 's/^# //; s/^#//'
       exit 0
@@ -98,7 +111,88 @@ elif [[ -d "$WORKTREE/tap_secrets" ]]; then
 fi
 echo
 
-if [[ "$ASSUME_YES" -eq 0 ]]; then
+# ---------------------------------------------------------------------------
+# SAFETY GUARD — refuse to torch unmerged work without explicit consent.
+#
+# This re-introduces, in deliberately narrowed form, the dirty/unmerged checks
+# that req-dev-multisession-teardown-safety deprecated on 2026-04-27. That
+# deprecation was right that blocking on *every* dirty worktree — behind a
+# single blunt --force everyone reflexively types — just made safety into
+# noise. The fix is to separate the two loss vectors and narrow the bypass:
+#
+#   * Unpushed COMMITS on session/<name> are real, hard-to-recover work
+#     (branch -D makes them unreachable). HARD STOP. --yes does NOT bypass it;
+#     only --abandon-unmerged (a flag your fingers don't already know) does.
+#   * A merely-dirty worktree is usually transient scratch (mid-debug, failed
+#     spawn, SIGKILL during migrate — exactly the 2026-04-27 cases). It does
+#     not hard-stop, but it always forces an interactive [y/N] confirm, even
+#     under --yes, so a scripted --yes can never silently torch it.
+#
+# Re-framed 2026-06-30 — see req-dev-multisession-teardown-safety.
+# ---------------------------------------------------------------------------
+GUARD_BRANCH="session/$SESSION_NAME"
+UNPUSHED_COUNT=0
+UNPUSHED_LIST=""
+DIRTY=0
+DIRTY_COUNT=0
+
+# Unpushed commits: only meaningful while the branch ref still exists. The
+# commits live in $REPO's object store regardless of whether the worktree is
+# still on disk, so check the branch, not the directory.
+if git -C "$REPO" rev-parse --verify --quiet "refs/heads/$GUARD_BRANCH" >/dev/null; then
+  # Refresh origin/main so "unpushed" is accurate. Offline → compare against
+  # last-known origin/main; a stale ref only ever makes MORE commits look
+  # unpushed, never fewer, so failing closed here is the safe direction.
+  git -C "$REPO" fetch --quiet origin main 2>/dev/null \
+    || warn "Could not fetch origin/main; comparing against last-known origin/main."
+  if git -C "$REPO" rev-parse --verify --quiet origin/main >/dev/null; then
+    UNPUSHED_COUNT="$(git -C "$REPO" rev-list --count "origin/main..$GUARD_BRANCH" 2>/dev/null || echo 0)"
+    [[ "$UNPUSHED_COUNT" -gt 0 ]] && \
+      UNPUSHED_LIST="$(git -C "$REPO" log --oneline --no-decorate "origin/main..$GUARD_BRANCH" 2>/dev/null)"
+  else
+    # No origin/main to compare against at all — cannot prove the branch is
+    # safe, so treat every commit on it as unpushed (fail closed).
+    UNPUSHED_COUNT="$(git -C "$REPO" rev-list --count "$GUARD_BRANCH" 2>/dev/null || echo 0)"
+    UNPUSHED_LIST="$(git -C "$REPO" log --oneline --no-decorate "$GUARD_BRANCH" 2>/dev/null | head -20)"
+  fi
+fi
+
+# Dirty worktree: only if the directory is actually a live git worktree.
+if [[ -d "$WORKTREE" ]] && git -C "$WORKTREE" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  DIRTY_PORCELAIN="$(git -C "$WORKTREE" status --porcelain 2>/dev/null)"
+  if [[ -n "$DIRTY_PORCELAIN" ]]; then
+    DIRTY=1
+    DIRTY_COUNT="$(printf '%s\n' "$DIRTY_PORCELAIN" | wc -l | tr -d ' ')"
+  fi
+fi
+
+# Hard stop on unpushed commits unless explicitly abandoned.
+if [[ "$UNPUSHED_COUNT" -gt 0 && "$ABANDON_UNMERGED" -eq 0 ]]; then
+  bold "BLOCKED — '$SESSION_NAME' has $UNPUSHED_COUNT commit(s) not in origin/main"
+  err "These commits exist ONLY on $GUARD_BRANCH. Despawn force-deletes the branch"
+  err "(git branch -D), making them unreachable — this work would be lost:"
+  echo
+  printf '%s\n' "$UNPUSHED_LIST" | sed 's/^/      /'
+  echo
+  err "To keep it (recommended):   cd $WORKTREE && scripts/promote-to-main.sh"
+  err "To deliberately discard it: re-run despawn with --abandon-unmerged"
+  exit 1
+fi
+
+[[ "$UNPUSHED_COUNT" -gt 0 ]] && \
+  warn "Abandoning $UNPUSHED_COUNT unmerged commit(s) on $GUARD_BRANCH (--abandon-unmerged)."
+[[ "$DIRTY" -eq 1 ]] && \
+  warn "Worktree has $DIRTY_COUNT uncommitted change(s); these will be destroyed."
+
+# A dirty worktree forces an interactive confirm even under --yes.
+DO_PROMPT=1
+[[ "$ASSUME_YES" -eq 1 ]] && DO_PROMPT=0
+if [[ "$DIRTY" -eq 1 && "$DO_PROMPT" -eq 0 ]]; then
+  warn "--yes was given, but the worktree has uncommitted changes; requiring confirmation."
+  DO_PROMPT=1
+fi
+
+if [[ "$DO_PROMPT" -eq 1 ]]; then
   prompt "Permanently delete all of the above? [y/N]"
   read -r ans
   [[ "$ans" =~ ^[Yy] ]] || { info "Aborted."; exit 0; }
