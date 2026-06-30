@@ -33,6 +33,7 @@ The grid may eventually know about secret references, health, usage, policy, and
 | req-tap-cares-secrets-conditional-validation | [Conditional Validation Lives In Health Probes](#conditional-validation-lives-in-health-probes) | Implemented | Whether a secret is *needed* is per-consumer conditional logic owned by health probes, not a static declaration; tap_cares owns only generic file-level load/format |
 | req-tap-cares-secrets-rotation | [Rotation Semantics](#rotation-semantics) | Implemented | v0 is restart-to-rotate; atomic reload / staleness / rotation-due are named-deferred |
 | req-tap-cares-secrets-leak-guard | [Source-Control Leak Guard](#source-control-leak-guard) | Implemented | A committed `*.secret.json` (or an envelope-shaped file outside the mount) fails a CI-guarded scan — push-protection beyond `.gitignore` |
+| req-tap-cares-secrets-size-guard | [Secret Size Guard](#secret-size-guard) | Implemented | 1 MiB default ceiling per secret file, raised per-file via `metadata.max_bytes` — guards the dumb/malicious-oversize case while allowing a deliberately large secret |
 | req-tap-cares-secrets-future-secret-model | [Future Secret BaseModel](#future-secret-basemodel) | Backlog | Future on-grid Secret metadata and file generation |
 | req-tap-cares-secrets-future-encryption | [Future Encryption At Rest](#future-encryption-at-rest) | Backlog | Encrypted file format explicitly deferred |
 
@@ -199,6 +200,13 @@ malformed (and duplicate) case; an entirely absent secret is handled at run
 time by `resolve_secret` (`req-tap-cares-secrets-redaction-3`). When present it
 must be a boolean (a non-boolean is itself a structural load failure). See
 `req-tap-cares-secrets-resilient-load`.
+
+#### Reserved metadata: `max_bytes`
+
+`metadata.max_bytes` is a reserved positive integer that **raises** this file's
+size ceiling above the 1 MiB default (`req-tap-cares-secrets-size-guard`). It is
+raise-only — it cannot lower the default — and a non-positive-integer value is a
+structural load failure. Absent, the default applies.
 
 ### Example
 
@@ -400,6 +408,30 @@ A hit is therefore either a committed leak or a stray real secret a developer dr
 | req-tap-cares-secrets-leak-guard-2 | No Disguised Secrets | Implemented | A file whose content is the canonical secret envelope fails, outside test fixtures and `*.secret.example.json` templates. | Catches suffix-evasion. |
 | req-tap-cares-secrets-leak-guard-3 | Mount + Vendored Dirs Excluded | Implemented | The walk excludes the live secrets mount (`tap_secrets`) and vendored/cache dirs, so the legitimate off-grid store is never flagged. | |
 | req-tap-cares-secrets-leak-guard-4 | Map-Registered Surface | Implemented | The guard has a row in the `spec-dev-validation.md` Validation Map. | Co-change discipline. |
+
+## Secret Size Guard
+----
+RID: `req-tap-cares-secrets-size-guard`
+Status: `Implemented`
+
+A single secret file is size-checked before it is trusted: `tap/runtime_secrets` rejects a file larger than **1 MiB** (`DEFAULT_SECRET_MAX_BYTES`) unless the file **raises its own ceiling** with an optional `metadata.max_bytes` field (a positive integer). The effective limit is the larger of the default and the declared value, so the field is **raise-only** — it cannot lower the default or reject a sub-default file. A consumer that legitimately needs a large secret (a future collector consuming a deliberately big credential blob) opts in by declaring `metadata.max_bytes` on that secret file; everything else is guarded at 1 MiB against an accidental or malicious oversize file (a misnamed log, a runaway write, a bad paste).
+
+The override lives in the secret file's `metadata` (it travels with the secret and the loader reads it anyway), so the guard is uniform across both load paths with no per-caller wiring:
+
+- `load_secret_envelope` — the **bulk-load path** the tap_cares loader uses for every discovered secret — honors the per-file `metadata.max_bytes` override.
+- `find_secret_file` — tap_auth's small-reference-secret discovery path — applies the fixed 1 MiB cap to each candidate *before* reading it, so discovery cannot slurp an oversized file; the file it returns is already within the cap.
+
+**Threat model (named, honest).** The secrets mount is operator-controlled, so this guard targets the *dumb/accidental* oversize case, not a hostile actor who already controls the mount (such an actor would simply supply malicious credential *values*). It is not a hard DoS defense: on the override path a file over the default is read once before its declared ceiling is checked. A **pre-read absolute ceiling** that fails truly pathological files (multi-GB) before any read is the general `req-tap-json-size-guard` on `load_json_file`, deferred there.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-size-guard-1 | Default Ceiling | Implemented | A secret file larger than 1 MiB is rejected with a `RuntimeSecretError`. | `DEFAULT_SECRET_MAX_BYTES`. |
+| req-tap-cares-secrets-size-guard-2 | Per-File Override | Implemented | `metadata.max_bytes` (a positive integer) raises the ceiling for that file; the effective limit is `max(default, declared)`. | Raise-only; enables deliberately large secrets. |
+| req-tap-cares-secrets-size-guard-3 | Malformed Override Rejected | Implemented | A `metadata.max_bytes` that is not a positive integer fails envelope parsing. | |
+| req-tap-cares-secrets-size-guard-4 | Uniform Across Paths | Implemented | The override is honored on the bulk-load path; the discovery path applies the fixed default before reading each candidate. | |
+| req-tap-cares-secrets-size-guard-5 | Hostile-Mount Ceiling Deferred | Proposed | A pre-read absolute ceiling that fails pathological files before any read. | Folds into `req-tap-json-size-guard`. |
 
 ## Future Secret BaseModel
 ----

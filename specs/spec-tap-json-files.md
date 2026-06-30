@@ -268,7 +268,9 @@ The scanner is lexical over filenames, not content — it never opens the JSON. 
 RID: `req-tap-json-size-guard`
 Status: `Backlog`
 
-An optional `max_bytes` ceiling on `load_json_file`'s read, rejecting oversized files before parsing. A cheap denial-of-service edge (a hostile or accidental multi-GB file should fail fast, not OOM the parser). Deferred until a surface actually ingests operator-supplied or third-party JSON at a trust boundary; recorded now because the single load path (`req-tap-json-loader`) is exactly where such a guard belongs, and naming it keeps the seam visible.
+An optional `max_bytes` ceiling on `load_json_file`'s read, rejecting oversized files **before** parsing. A cheap denial-of-service edge (a hostile or accidental multi-GB file should fail fast, not OOM the parser). Deferred until a surface actually ingests operator-supplied or third-party JSON at a trust boundary; recorded now because the single load path (`req-tap-json-loader`) is exactly where such a guard belongs, and naming it keeps the seam visible.
+
+Prior art / first concrete instance: the secret size guard (`req-tap-cares-secrets-size-guard`) already enforces a 1 MiB per-file ceiling (with a per-file `metadata.max_bytes` raise) in `tap/runtime_secrets`, but as a *post-read* `st_size` check. This general guard is the *pre-read* version — the absolute ceiling that fails a pathological file before any `read_text` — which the secret guard explicitly defers to (`req-tap-cares-secrets-size-guard-5`).
 
 ## Out Of Scope (v0)
 

@@ -41,6 +41,15 @@ SECRET_SUFFIX = ".secret.json"
 # (req-tap-cares-secrets-shape). `metadata` is optional and validated separately.
 REQUIRED_FIELDS = ("scope", "key", "kind", "description", "data")
 
+# Default ceiling on a single secret file's size (req-tap-cares-secrets-size-guard),
+# enforced before the file is trusted. A secret file may RAISE its own ceiling
+# with `metadata.max_bytes` (e.g. a future collector that consumes a deliberately
+# large secret); absent that field, 1 MiB guards the common case against an
+# accidental or malicious oversize file. The mount is operator-controlled, so this
+# catches dumb/accidental oversize, not a hostile multi-GB OOM — a pre-read
+# absolute ceiling for that is the general `req-tap-json-size-guard`.
+DEFAULT_SECRET_MAX_BYTES = 1024 * 1024  # 1 MiB
+
 
 class RuntimeSecretError(Exception):
     """A secret file could not be discovered or its envelope is malformed.
@@ -113,6 +122,10 @@ def parse_secret_envelope(payload: Any, path: Path) -> SecretEnvelope:
         raise RuntimeSecretError(f"Secret file {path}: data must be a JSON object.")
     if not isinstance(metadata, dict):
         raise RuntimeSecretError(f"Secret file {path}: metadata must be a JSON object when present.")
+    if "max_bytes" in metadata:
+        declared = metadata["max_bytes"]
+        if isinstance(declared, bool) or not isinstance(declared, int) or declared <= 0:
+            raise RuntimeSecretError(f"Secret file {path}: metadata.max_bytes must be a positive integer when present.")
 
     return SecretEnvelope(
         scope=scope,
@@ -125,34 +138,76 @@ def parse_secret_envelope(payload: Any, path: Path) -> SecretEnvelope:
     )
 
 
-def load_secret_envelope(path: Path) -> SecretEnvelope:
-    """Read ``path`` and return its validated :class:`SecretEnvelope`.
+def _stat_size(path: Path) -> int:
+    """File size in bytes, as a neutral :class:`RuntimeSecretError` on failure."""
+    try:
+        return path.stat().st_size
+    except OSError as exc:
+        raise RuntimeSecretError(f"cannot stat secret file {path}: {exc}") from exc
+
+
+def _declared_max_bytes(metadata: Mapping[str, Any]) -> int | None:
+    """The file's own ``metadata.max_bytes`` override, or None when unset.
+
+    ``parse_secret_envelope`` already rejects a malformed value, so by here it is
+    either a positive int or absent.
+    """
+    declared = metadata.get("max_bytes")
+    return declared if isinstance(declared, int) and not isinstance(declared, bool) and declared > 0 else None
+
+
+def load_secret_envelope(path: Path, *, default_max_bytes: int = DEFAULT_SECRET_MAX_BYTES) -> SecretEnvelope:
+    """Read ``path`` and return its validated, size-checked :class:`SecretEnvelope`.
+
+    Enforces the size guard (req-tap-cares-secrets-size-guard): the file must be
+    no larger than ``default_max_bytes`` (1 MiB) unless it raises its own ceiling
+    via ``metadata.max_bytes``; the effective limit is the larger of the two. This
+    is the bulk-load path the tap_cares loader uses, so the per-file override is
+    honored for every loaded secret.
 
     Raises:
-        RuntimeSecretError: on an unreadable file, malformed JSON, or a
-            structural envelope problem.
+        RuntimeSecretError: on an unreadable file, malformed JSON, a structural
+            envelope problem, or a file over its effective size limit.
     """
     try:
         payload = load_json_file(path)
     except JsonFileError as exc:
         raise RuntimeSecretError(str(exc)) from None
-    return parse_secret_envelope(payload, path)
+    envelope = parse_secret_envelope(payload, path)
+    limit = max(default_max_bytes, _declared_max_bytes(envelope.metadata) or 0)
+    size = _stat_size(path)
+    if size > limit:
+        raise RuntimeSecretError(
+            f"secret file {path} is {size} bytes, over the {limit}-byte limit; "
+            f"raise it with metadata.max_bytes if this is intentional."
+        )
+    return envelope
 
 
-def find_secret_file(root: Path, scope: str, key: str) -> Path:
+def find_secret_file(root: Path, scope: str, key: str, *, max_bytes: int = DEFAULT_SECRET_MAX_BYTES) -> Path:
     """Locate the ``<key>.secret.json`` whose envelope declares ``scope``/``key``.
 
     Directories under the root are organizational only
     (req-tap-cares-secrets-files-4), so we match the basename glob then confirm
     the declared ``scope``/``key`` inside. Returns the first deterministic match.
 
+    Each candidate is size-guarded against ``max_bytes`` (default 1 MiB) *before*
+    it is read, so discovery cannot slurp an oversized file. This path (tap_auth's
+    small reference secrets) applies a fixed cap; the per-file ``metadata.max_bytes``
+    override is honored by :func:`load_secret_envelope`, the bulk-load path a
+    deliberately large secret would use.
+
     Raises:
-        RuntimeSecretError: when the root is not a directory, a candidate file is
-            unreadable, or no file declares the requested ``scope``/``key``.
+        RuntimeSecretError: when the root is not a directory, a candidate is
+            oversized or unreadable, or no file declares the requested
+            ``scope``/``key``.
     """
     if not root.is_dir():
         raise RuntimeSecretError(f"secrets root {root} does not exist; cannot resolve {scope}:{key}")
     for path in sorted(root.rglob(f"{key}{SECRET_SUFFIX}")):
+        size = _stat_size(path)
+        if size > max_bytes:
+            raise RuntimeSecretError(f"secret file {path} is {size} bytes, over the {max_bytes}-byte limit.")
         try:
             doc = load_json_file(path)
         except JsonFileError as exc:
@@ -165,9 +220,12 @@ def find_secret_file(root: Path, scope: str, key: str) -> Path:
     )
 
 
-def resolve_secret_envelope(root: Path, scope: str, key: str) -> SecretEnvelope:
+def resolve_secret_envelope(
+    root: Path, scope: str, key: str, *, default_max_bytes: int = DEFAULT_SECRET_MAX_BYTES
+) -> SecretEnvelope:
     """Discover and load the envelope for ``scope``/``key`` under ``root``."""
-    return load_secret_envelope(find_secret_file(root, scope, key))
+    path = find_secret_file(root, scope, key, max_bytes=default_max_bytes)
+    return load_secret_envelope(path, default_max_bytes=default_max_bytes)
 
 
 # --------------------------------------------------------------------------- #
@@ -243,6 +301,7 @@ __all__ = [
     "SECRET_SUFFIX",
     "SECRET_EXAMPLE_SUFFIX",
     "REQUIRED_FIELDS",
+    "DEFAULT_SECRET_MAX_BYTES",
     "RuntimeSecretError",
     "SecretEnvelope",
     "parse_secret_envelope",

@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from tap.runtime_secrets import (
+    DEFAULT_SECRET_MAX_BYTES,
     SECRET_SUFFIX,
     RuntimeSecretError,
     SecretEnvelope,
@@ -139,3 +140,58 @@ class TestResolveSecretEnvelope:
         env = resolve_secret_envelope(tmp_path, "auth", "criticalsec-google")
         assert env.kind == "oidc_client"
         assert env.data["client_secret"] == "shh"
+
+
+def _oversized_payload(extra_bytes: int, **over: object) -> dict:
+    """A valid payload padded so its serialized file exceeds the default ceiling."""
+    payload = _valid_payload()
+    payload["data"] = {"client_id": "abc", "client_secret": "x" * extra_bytes}
+    payload.update(over)
+    return payload
+
+
+class TestSizeGuard:
+    def test_within_default_loads(self, tmp_path: Path) -> None:
+        path = _write_secret(tmp_path, _valid_payload())
+        assert path.stat().st_size <= DEFAULT_SECRET_MAX_BYTES
+        assert load_secret_envelope(path).kind == "oidc_client"
+
+    def test_over_default_without_override_rejected(self, tmp_path: Path) -> None:
+        path = _write_secret(tmp_path, _oversized_payload(DEFAULT_SECRET_MAX_BYTES + 50_000))
+        assert path.stat().st_size > DEFAULT_SECRET_MAX_BYTES
+        with pytest.raises(RuntimeSecretError, match="over the .* limit"):
+            load_secret_envelope(path)
+
+    def test_over_default_with_sufficient_override_loads(self, tmp_path: Path) -> None:
+        payload = _oversized_payload(DEFAULT_SECRET_MAX_BYTES + 50_000, metadata={"max_bytes": 10 * 1024 * 1024})
+        path = _write_secret(tmp_path, payload)
+        env = load_secret_envelope(path)
+        assert env.metadata["max_bytes"] == 10 * 1024 * 1024
+
+    def test_over_declared_override_rejected(self, tmp_path: Path) -> None:
+        # Declares an override, but the file is still larger than it.
+        payload = _oversized_payload(
+            DEFAULT_SECRET_MAX_BYTES + 50_000, metadata={"max_bytes": DEFAULT_SECRET_MAX_BYTES + 10}
+        )
+        path = _write_secret(tmp_path, payload)
+        with pytest.raises(RuntimeSecretError, match="over the .* limit"):
+            load_secret_envelope(path)
+
+    def test_smaller_override_does_not_lower_default(self, tmp_path: Path) -> None:
+        # max_bytes is raise-only: a tiny declared value cannot reject a sub-default file.
+        payload = _valid_payload()
+        payload["metadata"] = {"max_bytes": 1}
+        path = _write_secret(tmp_path, payload)
+        assert load_secret_envelope(path).kind == "oidc_client"
+
+    def test_malformed_max_bytes_rejected(self, tmp_path: Path) -> None:
+        for bad in ("100", 0, -5, True):
+            payload = _valid_payload()
+            payload["metadata"] = {"max_bytes": bad}
+            with pytest.raises(RuntimeSecretError, match="max_bytes must be a positive integer"):
+                parse_secret_envelope(payload, Path("x.secret.json"))
+
+    def test_find_rejects_oversized_candidate(self, tmp_path: Path) -> None:
+        _write_secret(tmp_path, _oversized_payload(DEFAULT_SECRET_MAX_BYTES + 50_000))
+        with pytest.raises(RuntimeSecretError, match="over the .* limit"):
+            find_secret_file(tmp_path, "auth", "criticalsec-google")
