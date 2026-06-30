@@ -44,6 +44,16 @@ far cheaper before plugins split into N repos), and the install work *is* what d
 The slug-rename and the install work are otherwise independent; do the rename as its own focused
 pass, then the install work.
 
+**Recommended first move on the install half: a uv package-mode spike** (decided 2026-06-30). Before
+wiring the pre-boot stage, prove the packaging shape end-to-end on one plugin — make it a
+wheel-buildable package with a `tap.plugins` entry point whose key **equals the slug**, install it
+via `uv` (path/editable first, then git-source), and confirm Django loads its `app_config` and
+`importlib.metadata.entry_points()` discovers it **without** a `plugins/<slug>` source layout, with
+package data (`tap-plugin.toml`, `grift/`, `static/`) still reachable. Do it throwaway (an isolated
+worktree, no shared `uv.lock` churn), surface any landmines (namespace packages, package-data
+inclusion, Django app discovery from site-packages), and fold the proven recipe back into this doc.
+This retires the install MVP's biggest unknown before committing the build.
+
 ## Coordination — the gryphon_playground rename (read before touching it)
 
 - The rename was run + **verified once** in the `plugins` session (304 tests green, diff confirmed
