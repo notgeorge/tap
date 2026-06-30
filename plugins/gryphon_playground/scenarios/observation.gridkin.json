@@ -12,6 +12,7 @@
         "req-grid-traversal-lang-observation-1"
       ],
       "layer": "lite",
+      "inspired_by": "opencypher TCK — expressions/null (IS NULL on an unset value intent)",
       "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS UNKNOWN",
       "expected_envelope": "expected/observation__is_unknown.expected.json",
       "expected_sql_snapshot": "expected/observation__is_unknown.sql.txt"
@@ -24,6 +25,7 @@
         "req-grid-traversal-lang-observation-5"
       ],
       "layer": "lite",
+      "inspired_by": "opencypher TCK — expressions/null (IS NOT NULL complement intent)",
       "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS KNOWN",
       "expected_envelope": "expected/observation__is_known.expected.json",
       "expected_sql_snapshot": "expected/observation__is_known.sql.txt"
@@ -35,6 +37,7 @@
         "req-grid-traversal-lang-observation-3"
       ],
       "layer": "lite",
+      "inspired_by": "opencypher TCK — expressions/null (null predicate composed with a comparison intent)",
       "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS UNKNOWN AND n.data.severity_score = 0",
       "expected_envelope": "expected/observation__and_combination.expected.json",
       "expected_sql_snapshot": "expected/observation__and_combination.sql.txt"

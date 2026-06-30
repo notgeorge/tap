@@ -35,6 +35,9 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-bare-match | [Bare Labelless MATCH](#bare-labelless-match) | Implemented | Labelless `MATCH (n)` scans every registered node type and unions the results |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
 | req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
+| req-grid-traversal-lang-cypher-divergence | [Cypher Divergences Are Documented](#cypher-divergences-are-documented) | Implemented | Every deliberate divergence from Cypher is recorded in a formal `/docs` ledger; this req mandates the doc and its upkeep, not the divergences themselves |
+| req-grid-traversal-lang-cypher-credit | [Net-New Capabilities Are Credited](#net-new-capabilities-are-credited) | Implemented | Every capability Gryphon has that Cypher lacks is credited in the same `/docs` ledger — the running tab of where TAP goes beyond Cypher |
+| req-grid-traversal-lang-tck-mining | [TCK Mining Per Language Extension](#tck-mining-per-language-extension) | Implemented | Every Gryphon language extension runs the openCypher TCK mining pass; binds the existing `req-gridkin-tck-inspiration` to the language-extension lifecycle |
 
 
 ### gryphon Language Shape
@@ -979,6 +982,143 @@ wire format.
 #### Future
 Aggregation and ordering within `RETURN` should be considered only after base traversal
 execution semantics are stable.
+
+
+### Cypher Divergences Are Documented
+----
+RID: `req-grid-traversal-lang-cypher-divergence`
+Status: `Implemented`
+
+Gryphon is Cypher-*familiar*, not Cypher-*compatible* (see [Philosophy](#philosophy)). Where
+Gryphon's behavior deliberately differs from Cypher's, that divergence is a **load-bearing
+design decision** an engineer arriving from Neo4j / openCypher / Apache AGE will trip over if it
+is not written down. This requirement does not decide *whether* to diverge — each divergence is
+argued in its own feature requirement (e.g. `=~` search-vs-anchored semantics in
+`req-grid-traversal-lang-regex`). It mandates that every such divergence is **also catalogued in
+one formal place** so the set is discoverable as a whole rather than scattered across feature
+backgrounds.
+
+#### Implementation
+
+- **The ledger lives at `docs/misc/doc-dev-gryphon-vs-cypher.md`** — a single doc that catalogues
+  both divergences (this requirement) and net-new capabilities (`req-grid-traversal-lang-cypher-credit`).
+  Co-locating them is intentional: a reader asking "how does Gryphon relate to Cypher?" gets one
+  answer surface, not two. The doc follows `spec-docs.md` conventions (`doc-` prefix, frontmatter,
+  `covers:` / `update-triggers:`).
+- **A divergence is recorded when the difference is observable to a query author** — a query that is
+  valid Cypher but means something else (or nothing) in Gryphon, or vice versa. Three kinds qualify:
+  (a) *semantic* divergence — same surface, different meaning (`=~` search vs anchored); (b)
+  *deliberate subset* — a Cypher capability Gryphon intentionally omits (write clauses, most of the
+  function library); (c) *structural* divergence — a shape Cypher does not have a question for
+  (the spine/data/display lane split, dimension scoping).
+- **Adding or changing a divergence updates the ledger in the same change** that lands the feature.
+  This is the docs-drift discipline (`req-docs-drift-conventions`) applied to this specific doc:
+  a feature requirement that introduces a divergence cites the ledger, and the ledger cites the
+  feature requirement back.
+- The ledger is a **catalogue, not the authority**: the owning feature requirement remains the
+  source of truth for *why* a divergence exists. The ledger summarizes and links; it does not
+  re-argue.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-cypher-divergence-1 | Ledger Exists | Implemented | A formal doc at `docs/misc/doc-dev-gryphon-vs-cypher.md` catalogues every deliberate Cypher divergence. | Seeded from the known divergences at creation. |
+| req-grid-traversal-lang-cypher-divergence-2 | Divergence Triggers Update | Implemented | Introducing or changing a Gryphon/Cypher divergence updates the ledger in the same change. | Docs-drift discipline (`req-docs-drift-conventions`) scoped to this doc. |
+| req-grid-traversal-lang-cypher-divergence-3 | Three Divergence Kinds Covered | Implemented | The ledger distinguishes semantic, deliberate-subset, and structural divergences. | A subset omission is a divergence worth recording, not a silent gap. |
+| req-grid-traversal-lang-cypher-divergence-4 | Catalogue Links To Authority | Implemented | Each ledger entry links to the owning feature requirement, which remains the source of truth for the rationale. | The doc summarizes; it does not re-argue. |
+
+
+### Net-New Capabilities Are Credited
+----
+RID: `req-grid-traversal-lang-cypher-credit`
+Status: `Implemented`
+
+When Gryphon does something Cypher cannot — a query an engineer could not write against Neo4j —
+TAP gives itself credit for it in writing. This is not vanity: the set of net-new capabilities is
+the precise answer to "why not just use Cypher / Neo4j?", and that question *will* come up — in
+positioning, in early-adopter conversations, and the first time someone proposes adopting an
+off-the-shelf graph database instead. Tracked as it accrues, the credit ledger is a ready answer;
+reconstructed under pressure, it is a guess.
+
+#### Background
+
+The net-new capabilities to date cluster around one theme: **Cypher models present-state; Gryphon
+models observation and provenance as first-class.** `IS KNOWN` / `IS UNKNOWN`
+(`req-grid-traversal-lang-observation`), the deferred `IS EMPTY`, the planned extended-FLIP
+applicability axis, the `x-tap-absence` declared-absence schema annotation, dimension/perspective
+scoping, and future provenance-in-query all sit on that one axis. Naming the theme is itself
+credit-worthy — it is the differentiator sentence.
+
+#### Implementation
+
+- **Same doc as the divergence ledger** — `docs/misc/doc-dev-gryphon-vs-cypher.md` carries a
+  "where Gryphon goes beyond Cypher" section alongside the divergences. One relationship, one doc.
+- **A capability is credited when it has no Cypher equivalent** — not merely a different spelling of
+  something Cypher already does, but a question Cypher cannot ask. Each entry names the capability,
+  its status (shipped / planned / deferred), links its owning requirement, and states the Cypher gap
+  in one line.
+- **Shipping a beyond-Cypher capability records it in the same change**, symmetric with the
+  divergence discipline. The running tab stays current by construction, never by archaeology.
+- **Planned and deferred capabilities are listed too**, marked by status — the tab is a forward
+  roadmap of differentiation, not only a record of what already shipped.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-cypher-credit-1 | Credit Ledger Exists | Implemented | `docs/misc/doc-dev-gryphon-vs-cypher.md` carries a section crediting every Gryphon capability Cypher lacks. | Shares the doc with the divergence ledger. |
+| req-grid-traversal-lang-cypher-credit-2 | New Capability Triggers Credit | Implemented | Shipping a capability with no Cypher equivalent records it in the ledger in the same change. | Symmetric with `req-grid-traversal-lang-cypher-divergence-2`. |
+| req-grid-traversal-lang-cypher-credit-3 | Status-Marked Entries | Implemented | Each entry carries a status (shipped / planned / deferred) and links its owning requirement. | The tab doubles as a differentiation roadmap. |
+| req-grid-traversal-lang-cypher-credit-4 | Differentiator Theme Named | Implemented | The ledger names the unifying theme (observation + provenance as first-class) rather than only listing features. | The "why not Cypher?" answer is a sentence, not just a table. |
+
+
+### TCK Mining Per Language Extension
+----
+RID: `req-grid-traversal-lang-tck-mining`
+Status: `Implemented`
+
+Every extension to the Gryphon language surface runs a pass over the corresponding openCypher TCK
+(Technology Compatibility Kit) feature folder to **mine corner-case intent** before the feature is
+considered done. The TCK is a decade of accumulated "queries that historically broke real graph
+engines"; that hard-won corner-case knowledge is exactly what a new predicate or clause needs to be
+tested against — even though Gryphon is not Cypher-compatible and the queries themselves are never
+ported.
+
+#### Relationship To `req-gridkin-tck-inspiration`
+
+This requirement does **not** redefine the mining workflow — that already exists as
+`req-gridkin-tck-inspiration` in
+[`spec-gridkin-v0.md`](../../plugins/gryphon_playground/specs/spec-gridkin-v0.md), with the
+operational steps in the `build-gryphon-capability` skill (Step 8) and the rationale in
+[`doc-dev-gryphon-wishlist.md`](../../docs/misc/doc-dev-gryphon-wishlist.md) §7. What this
+requirement adds is the **lifecycle binding**: the mining pass is a precondition of *every* language
+extension specified in this document, not an optional nicety per feature. It exists here so a future
+author extending the language surface meets the obligation from the language spec itself, without
+having to already know the gridkin validation spec.
+
+#### Implementation
+
+- **Trigger.** Any new or changed grammar production, AST predicate leaf, operator, or clause in this
+  spec runs the TCK mining pass for its closest TCK feature folder (e.g. `expressions/null` for the
+  observation/null predicates, `clauses/optional-match` for OPTIONAL MATCH).
+- **Output.** Each Gridkin scenario whose intent was mined sets `inspired_by` to the source folder —
+  the attribution breadcrumb that lets future authors trace which corner-case taxonomies have already
+  been swept. A feature with no applicable TCK folder records that fact (in the feature's request note
+  or the scenario file) rather than silently skipping the pass — "we looked and there was nothing" is a
+  different state from "we never looked."
+- **The hard constraints are inherited verbatim** from `req-gridkin-tck-inspiration`: no TCK query
+  text, graph data, or expected results are copied; Cypher-specific quirks that are not Gryphon's
+  contract are filtered out. The TCK is a mine, never a source.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-tck-mining-1 | Mining Pass Is A Precondition | Implemented | Every language extension in this spec runs the TCK mining pass before the feature is done. | Binds `req-gridkin-tck-inspiration` to the language-extension lifecycle. |
+| req-grid-traversal-lang-tck-mining-2 | Breadcrumb On Mined Scenarios | Implemented | A Gridkin scenario whose intent was mined sets `inspired_by` to the TCK source folder. | Per `req-gridkin-tck-inspiration-1`. |
+| req-grid-traversal-lang-tck-mining-3 | Empty Pass Is Recorded | Proposed | A feature with no applicable TCK folder records "looked, found nothing" rather than silently omitting the breadcrumb. | Distinguishes "no source" from "never checked". Backfill of the 17 pre-existing breadcrumb-less scenarios is tracked as a known gap, not blocked on here. |
+| req-grid-traversal-lang-tck-mining-4 | No TCK Content Copied | Implemented | No TCK query text, graph data, or expected results enter any Gryphon or Gridkin file. | Inherited from `req-gridkin-tck-inspiration-2`. |
 
 
 ## Status Vocabulary
