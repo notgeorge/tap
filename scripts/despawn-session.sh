@@ -39,6 +39,7 @@ REGISTRY="$HOME/tap-sessions/.registry"
 
 bold()   { printf "\n\033[1m==> %s\033[0m\n" "$1"; }
 info()   { printf "    %s\n" "$1"; }
+ok()     { printf "\033[32m    %s\033[0m\n" "$1"; }
 warn()   { printf "\033[33m    %s\033[0m\n" "$1"; }
 err()    { printf "\033[31m    %s\033[0m\n" "$1" >&2; }
 prompt() { printf "    \033[36m%s\033[0m " "$1"; }
@@ -183,6 +184,26 @@ fi
   warn "Abandoning $UNPUSHED_COUNT unmerged commit(s) on $GUARD_BRANCH (--abandon-unmerged)."
 [[ "$DIRTY" -eq 1 ]] && \
   warn "Worktree has $DIRTY_COUNT uncommitted change(s); these will be destroyed."
+
+# Clean-state verdict — when there is genuinely nothing to lose, say so in no
+# uncertain terms right before the [y/N] prompt, so the confirm is an informed
+# "yes, this is safe" rather than a blind one. This is the affirmative twin of
+# the BLOCKED / warn paths above: exactly one of them speaks on every run.
+if [[ "$UNPUSHED_COUNT" -eq 0 && "$DIRTY" -eq 0 ]]; then
+  bold "CLEAN — no work will be lost"
+  if git -C "$REPO" rev-parse --verify --quiet "refs/heads/$GUARD_BRANCH" >/dev/null; then
+    ok "  Branch $GUARD_BRANCH is fully merged into origin/main (0 unpushed commits)."
+  else
+    ok "  No $GUARD_BRANCH branch on disk — nothing to abandon."
+  fi
+  if [[ -d "$WORKTREE" ]] && git -C "$WORKTREE" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    ok "  Worktree $WORKTREE has 0 uncommitted changes (git status is clean)."
+  else
+    ok "  No live worktree at $WORKTREE — no uncommitted files to destroy."
+  fi
+  ok "  Tearing down disposable infra only: containers, volumes, networks, registry row."
+  echo
+fi
 
 # A dirty worktree forces an interactive confirm even under --yes.
 DO_PROMPT=1
