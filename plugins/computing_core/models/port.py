@@ -25,7 +25,22 @@ class Port(BaseModel):
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": {"type": "string"},
-        "port_number": {"type": ["integer", "null"]},
+        "port_number": {
+            "type": ["integer", "null"],
+            # Declared absence semantics (tap_grid req-grid-node-observation-6). An integer
+            # field, so two-state (null | value): null = port number unobserved. The ephemeral
+            # client-port signal ("number unknown but known to be ephemeral") is a separate
+            # observation, deferred to a future is_ephemeral/role field — NOT a meaning of null
+            # and NOT a sentinel (no -1). not_applicable stays unpermitted: null already covers
+            # the absence, so N/A adds no useful flavor. See req-computing-core-ports-2.
+            "x-tap-absence": {
+                "null_default": "unobserved",
+                "empty_is_meaningful": False,
+                "convention": "req-computing-core-ports-2",
+                "description": "Null = port number unobserved (not captured by the observing source).",
+                "not_applicable": {"permitted": False},
+            },
+        },
         "transport": {"type": "string"},
         "state": {"type": "string"},
         "configuration": {"type": "object"},

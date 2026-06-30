@@ -31,9 +31,13 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-string-match | [String Match Predicates](#string-match-predicates) | Implemented | `WHERE` substring predicates: `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` |
 | req-grid-traversal-lang-regex | [Regex Match Operator](#regex-match-operator) | Implemented | `WHERE field =~ pattern` — PostgreSQL ARE/POSIX-family regex, search semantics (substring match; anchor with `^...$`) |
 | req-grid-traversal-lang-is-null | [Null-Existence Predicate](#null-existence-predicate) | Implemented | `WHERE field IS NULL` / `IS NOT NULL` — defensive filter for ORDER BY DESC envelope queries |
+| req-grid-traversal-lang-observation | [Observation-Semantic Predicates](#observation-semantic-predicates) | Implemented | `WHERE field IS KNOWN` / `IS UNKNOWN` — the field-observation convention's null axis as intent-revealing vocabulary (`IS EMPTY` deferred) |
 | req-grid-traversal-lang-bare-match | [Bare Labelless MATCH](#bare-labelless-match) | Implemented | Labelless `MATCH (n)` scans every registered node type and unions the results |
 | req-grid-traversal-lang-params | [Runtime Inputs And Variables](#runtime-inputs-and-variables) | Implemented | $var runtime inputs and named pattern bindings |
 | req-grid-traversal-lang-returns | [Return Semantics](#return-semantics) | Implemented | RETURN projection and graph envelope default |
+| req-grid-traversal-lang-cypher-divergence | [Cypher Divergences Are Documented](#cypher-divergences-are-documented) | Implemented | Every deliberate divergence from Cypher is recorded in a formal `/docs` ledger; this req mandates the doc and its upkeep, not the divergences themselves |
+| req-grid-traversal-lang-cypher-credit | [Net-New Capabilities Are Credited](#net-new-capabilities-are-credited) | Implemented | Every capability Gryphon has that Cypher lacks is credited in the same `/docs` ledger — the running tab of where TAP goes beyond Cypher |
+| req-grid-traversal-lang-tck-mining | [TCK Mining Per Language Extension](#tck-mining-per-language-extension) | Implemented | Every Gryphon language extension runs the openCypher TCK mining pass; binds the existing `req-gridkin-tck-inspiration` to the language-extension lifecycle |
 
 
 ### gryphon Language Shape
@@ -777,6 +781,70 @@ MATCH (n:pg_node) WHERE NOT (n.data.observed_at IS NULL)
 - A dedicated `NOT IN` surface, mirroring the way `IS NOT NULL` is its own alternative rather than `NOT (... IS NULL)` (today expressible as the latter where the executor path supports `NOT`).
 
 
+### Observation-Semantic Predicates
+----
+RID: `req-grid-traversal-lang-observation`
+Status: `Implemented`
+
+A `WHERE` predicate may test a field against the field-observation convention's null axis with `IS KNOWN` and `IS UNKNOWN` — intent-revealing vocabulary for "observed" vs "unobserved" (`spec-grid-node.md` `req-grid-node-observation`).
+
+#### Background
+
+The convention reads a stored `null` as *unobserved* and a value as *observed*. `IS NULL` / `IS NOT NULL` already express that mechanically, but a query author writing a graph traversal is asking an *observational* question — "which interfaces have we never captured a MAC for?" — not a storage question. `IS UNKNOWN` / `IS KNOWN` make the intent first-class, read naturally, and stay stable as the representation evolves (e.g. a future Phase-2 known-vs-unknown-unknown refinement lives behind `IS UNKNOWN` without changing query text). They are the Gryphon-side, queryable counterpart to the `x-tap-absence` schema annotation.
+
+#### Semantics
+
+`IS KNOWN` / `IS UNKNOWN` test the **null axis only**, which is universal across every field type:
+
+- `IS UNKNOWN` ≡ the field is `null` (unobserved). Lowers to `__isnull=True`.
+- `IS KNOWN` ≡ the field is non-null (observed — **inclusive** of observed-empty). Lowers to `__isnull=False`.
+
+The two **partition the null axis**: every row is exactly one of `KNOWN` / `UNKNOWN`, and `IS KNOWN` is the complement of `IS UNKNOWN`. `IS KNOWN` is deliberately *inclusive* — an observed-empty `""` counts as known ("we observed something"). This is forward-compatible: when `IS EMPTY` lands it *narrows within* `IS KNOWN` (`IS EMPTY ⊂ IS KNOWN`) rather than redefining it.
+
+Because they are pure `__isnull` tests, they require no field-type introspection and work on every field type and every WHERE-bearing path.
+
+#### Why `IS EMPTY` Is Not Here
+
+`IS EMPTY` (observed-empty) is deliberately excluded from this pass. "Empty" is a **container-type concept** — `""` for strings, `[]`/`{}` for collections — and is *undefined for scalar fields* (an integer, boolean, or datetime has no empty form; conflating a scalar's zero-value with "empty" is the null-island anti-pattern the convention rejects). So `IS EMPTY` cannot lower to a single type-agnostic test the way the null axis does: it requires resolving each field's type (or its `x-tap-absence.empty_is_meaningful` declaration) and lowering differently per type — string → `= ""`, collection → empty-container test, scalar → match-nothing. That is field-type-aware compilation threaded through every resolver path, a meaningfully larger change. Its only capability `= ""` cannot already express is *collection*-empty, for which there is no current demand. It is therefore designed-but-deferred: the discriminator (`empty_is_meaningful`) already ships in the schema, so only the executor lowering remains for when collection-empty queries have real demand. Until then, observed-empty strings are expressed with `field = ""`.
+
+#### Implementation
+
+- Grammar: two alternatives on the `comparison` rule, mirroring `is_null` — `field_path IS KNOWN -> is_known` and `field_path IS UNKNOWN -> is_unknown`. `KNOWN` / `UNKNOWN` become reserved keywords (like `NULL`); a field literally named `known`/`unknown` is reached via bracket key-step notation.
+- AST: a single leaf `ObservationComparison(field_path, kind: Literal["known", "unknown"])`, added to the `Predicate` union; `_collect_params_from_predicate` recognizes it (field-path-only, no `$param`). A distinct leaf (rather than reusing `IsNullComparison`) preserves the observational intent in the AST for future evolution.
+- Executor: `_predicate_to_q` and the OPTIONAL MATCH leaf compiler `_comparison_to_q` lower it to `Q(**{f"{path}__isnull": kind == "unknown"})`. Every predicate walker (`_flatten_conjunction`, `_filter_predicate_for_bindings`, `_predicate_field_paths`, `_is_pure_conjunction`, `_collect_params_from_predicate`) recognizes the new leaf — the "new leaf misses a walker" footgun the IS-NULL work flagged.
+
+#### Examples
+
+```text
+# Interfaces whose hardware address has never been observed.
+MATCH (n:network_interface) WHERE n.data.mac_address IS UNKNOWN
+RETURN n.entity_id AS id ORDER BY id
+
+# Interfaces with an observed MAC.
+MATCH (n:network_interface) WHERE n.data.mac_address IS KNOWN
+
+# Composes like any leaf.
+MATCH (n:network_interface)
+WHERE n.data.mac_address IS UNKNOWN AND n.data.state = "up"
+```
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-observation-1 | IS UNKNOWN Accepted | Implemented | `field IS UNKNOWN` parses to `ObservationComparison(kind="unknown")` and lowers to `__isnull=True`. | Unobserved. |
+| req-grid-traversal-lang-observation-2 | IS KNOWN Accepted | Implemented | `field IS KNOWN` parses to `ObservationComparison(kind="known")` and lowers to `__isnull=False`. | Observed; inclusive of observed-empty. |
+| req-grid-traversal-lang-observation-3 | Composes With Combinators | Implemented | An observation leaf combines with `AND` / `OR` / `NOT` like any comparison. | |
+| req-grid-traversal-lang-observation-4 | Works In Every WHERE-Bearing Path | Implemented | The leaf works in type-scan, hub-and-spoke, edge-type scan, multi-hop / aggregation, OPTIONAL MATCH, and `NOT EXISTS`; bare `IS` still fails parse. | Every predicate walker recognizes it. |
+| req-grid-traversal-lang-observation-5 | KNOWN/UNKNOWN Partition The Null Axis | Implemented | `IS KNOWN` is the exact complement of `IS UNKNOWN`; `\|KNOWN\| + \|UNKNOWN\|` equals the full set. | Type-agnostic. |
+| req-grid-traversal-lang-observation-6 | IS EMPTY Deferred | Proposed | `IS EMPTY` (observed-empty) is reserved as a container-scoped, `empty_is_meaningful`-driven predicate, not built in this pass; observed-empty strings use `field = ""` in the interim. | Needs field-type-aware lowering; no current collection-empty demand. |
+
+#### Future
+
+- **`IS EMPTY`** — container-scoped observed-empty test driven by `x-tap-absence.empty_is_meaningful`: string → `= ""`, collection → empty-container test, scalar → matches nothing. Build when collection-empty queries have real demand.
+- **Phase-2 known-vs-unknown-unknown** — once the convention's extended-FLIP applicability work lands, `IS UNKNOWN` may gain refinements (e.g. distinguishing an asserted absence from an unseen field) without changing the surface keyword.
+
+
 ### Bare Labelless MATCH
 ----
 RID: `req-grid-traversal-lang-bare-match`
@@ -914,6 +982,143 @@ wire format.
 #### Future
 Aggregation and ordering within `RETURN` should be considered only after base traversal
 execution semantics are stable.
+
+
+### Cypher Divergences Are Documented
+----
+RID: `req-grid-traversal-lang-cypher-divergence`
+Status: `Implemented`
+
+Gryphon is Cypher-*familiar*, not Cypher-*compatible* (see [Philosophy](#philosophy)). Where
+Gryphon's behavior deliberately differs from Cypher's, that divergence is a **load-bearing
+design decision** an engineer arriving from Neo4j / openCypher / Apache AGE will trip over if it
+is not written down. This requirement does not decide *whether* to diverge — each divergence is
+argued in its own feature requirement (e.g. `=~` search-vs-anchored semantics in
+`req-grid-traversal-lang-regex`). It mandates that every such divergence is **also catalogued in
+one formal place** so the set is discoverable as a whole rather than scattered across feature
+backgrounds.
+
+#### Implementation
+
+- **The ledger lives at `docs/misc/doc-dev-gryphon-vs-cypher.md`** — a single doc that catalogues
+  both divergences (this requirement) and net-new capabilities (`req-grid-traversal-lang-cypher-credit`).
+  Co-locating them is intentional: a reader asking "how does Gryphon relate to Cypher?" gets one
+  answer surface, not two. The doc follows `spec-docs.md` conventions (`doc-` prefix, frontmatter,
+  `covers:` / `update-triggers:`).
+- **A divergence is recorded when the difference is observable to a query author** — a query that is
+  valid Cypher but means something else (or nothing) in Gryphon, or vice versa. Three kinds qualify:
+  (a) *semantic* divergence — same surface, different meaning (`=~` search vs anchored); (b)
+  *deliberate subset* — a Cypher capability Gryphon intentionally omits (write clauses, most of the
+  function library); (c) *structural* divergence — a shape Cypher does not have a question for
+  (the spine/data/display lane split, dimension scoping).
+- **Adding or changing a divergence updates the ledger in the same change** that lands the feature.
+  This is the docs-drift discipline (`req-docs-drift-conventions`) applied to this specific doc:
+  a feature requirement that introduces a divergence cites the ledger, and the ledger cites the
+  feature requirement back.
+- The ledger is a **catalogue, not the authority**: the owning feature requirement remains the
+  source of truth for *why* a divergence exists. The ledger summarizes and links; it does not
+  re-argue.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-cypher-divergence-1 | Ledger Exists | Implemented | A formal doc at `docs/misc/doc-dev-gryphon-vs-cypher.md` catalogues every deliberate Cypher divergence. | Seeded from the known divergences at creation. |
+| req-grid-traversal-lang-cypher-divergence-2 | Divergence Triggers Update | Implemented | Introducing or changing a Gryphon/Cypher divergence updates the ledger in the same change. | Docs-drift discipline (`req-docs-drift-conventions`) scoped to this doc. |
+| req-grid-traversal-lang-cypher-divergence-3 | Three Divergence Kinds Covered | Implemented | The ledger distinguishes semantic, deliberate-subset, and structural divergences. | A subset omission is a divergence worth recording, not a silent gap. |
+| req-grid-traversal-lang-cypher-divergence-4 | Catalogue Links To Authority | Implemented | Each ledger entry links to the owning feature requirement, which remains the source of truth for the rationale. | The doc summarizes; it does not re-argue. |
+
+
+### Net-New Capabilities Are Credited
+----
+RID: `req-grid-traversal-lang-cypher-credit`
+Status: `Implemented`
+
+When Gryphon does something Cypher cannot — a query an engineer could not write against Neo4j —
+TAP gives itself credit for it in writing. This is not vanity: the set of net-new capabilities is
+the precise answer to "why not just use Cypher / Neo4j?", and that question *will* come up — in
+positioning, in early-adopter conversations, and the first time someone proposes adopting an
+off-the-shelf graph database instead. Tracked as it accrues, the credit ledger is a ready answer;
+reconstructed under pressure, it is a guess.
+
+#### Background
+
+The net-new capabilities to date cluster around one theme: **Cypher models present-state; Gryphon
+models observation and provenance as first-class.** `IS KNOWN` / `IS UNKNOWN`
+(`req-grid-traversal-lang-observation`), the deferred `IS EMPTY`, the planned extended-FLIP
+applicability axis, the `x-tap-absence` declared-absence schema annotation, dimension/perspective
+scoping, and future provenance-in-query all sit on that one axis. Naming the theme is itself
+credit-worthy — it is the differentiator sentence.
+
+#### Implementation
+
+- **Same doc as the divergence ledger** — `docs/misc/doc-dev-gryphon-vs-cypher.md` carries a
+  "where Gryphon goes beyond Cypher" section alongside the divergences. One relationship, one doc.
+- **A capability is credited when it has no Cypher equivalent** — not merely a different spelling of
+  something Cypher already does, but a question Cypher cannot ask. Each entry names the capability,
+  its status (shipped / planned / deferred), links its owning requirement, and states the Cypher gap
+  in one line.
+- **Shipping a beyond-Cypher capability records it in the same change**, symmetric with the
+  divergence discipline. The running tab stays current by construction, never by archaeology.
+- **Planned and deferred capabilities are listed too**, marked by status — the tab is a forward
+  roadmap of differentiation, not only a record of what already shipped.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-cypher-credit-1 | Credit Ledger Exists | Implemented | `docs/misc/doc-dev-gryphon-vs-cypher.md` carries a section crediting every Gryphon capability Cypher lacks. | Shares the doc with the divergence ledger. |
+| req-grid-traversal-lang-cypher-credit-2 | New Capability Triggers Credit | Implemented | Shipping a capability with no Cypher equivalent records it in the ledger in the same change. | Symmetric with `req-grid-traversal-lang-cypher-divergence-2`. |
+| req-grid-traversal-lang-cypher-credit-3 | Status-Marked Entries | Implemented | Each entry carries a status (shipped / planned / deferred) and links its owning requirement. | The tab doubles as a differentiation roadmap. |
+| req-grid-traversal-lang-cypher-credit-4 | Differentiator Theme Named | Implemented | The ledger names the unifying theme (observation + provenance as first-class) rather than only listing features. | The "why not Cypher?" answer is a sentence, not just a table. |
+
+
+### TCK Mining Per Language Extension
+----
+RID: `req-grid-traversal-lang-tck-mining`
+Status: `Implemented`
+
+Every extension to the Gryphon language surface runs a pass over the corresponding openCypher TCK
+(Technology Compatibility Kit) feature folder to **mine corner-case intent** before the feature is
+considered done. The TCK is a decade of accumulated "queries that historically broke real graph
+engines"; that hard-won corner-case knowledge is exactly what a new predicate or clause needs to be
+tested against — even though Gryphon is not Cypher-compatible and the queries themselves are never
+ported.
+
+#### Relationship To `req-gridkin-tck-inspiration`
+
+This requirement does **not** redefine the mining workflow — that already exists as
+`req-gridkin-tck-inspiration` in
+[`spec-gridkin-v0.md`](../../plugins/gryphon_playground/specs/spec-gridkin-v0.md), with the
+operational steps in the `build-gryphon-capability` skill (Step 8) and the rationale in
+[`doc-dev-gryphon-wishlist.md`](../../docs/misc/doc-dev-gryphon-wishlist.md) §7. What this
+requirement adds is the **lifecycle binding**: the mining pass is a precondition of *every* language
+extension specified in this document, not an optional nicety per feature. It exists here so a future
+author extending the language surface meets the obligation from the language spec itself, without
+having to already know the gridkin validation spec.
+
+#### Implementation
+
+- **Trigger.** Any new or changed grammar production, AST predicate leaf, operator, or clause in this
+  spec runs the TCK mining pass for its closest TCK feature folder (e.g. `expressions/null` for the
+  observation/null predicates, `clauses/optional-match` for OPTIONAL MATCH).
+- **Output.** Each Gridkin scenario whose intent was mined sets `inspired_by` to the source folder —
+  the attribution breadcrumb that lets future authors trace which corner-case taxonomies have already
+  been swept. A feature with no applicable TCK folder records that fact (in the feature's request note
+  or the scenario file) rather than silently skipping the pass — "we looked and there was nothing" is a
+  different state from "we never looked."
+- **The hard constraints are inherited verbatim** from `req-gridkin-tck-inspiration`: no TCK query
+  text, graph data, or expected results are copied; Cypher-specific quirks that are not Gryphon's
+  contract are filtered out. The TCK is a mine, never a source.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-tck-mining-1 | Mining Pass Is A Precondition | Implemented | Every language extension in this spec runs the TCK mining pass before the feature is done. | Binds `req-gridkin-tck-inspiration` to the language-extension lifecycle. |
+| req-grid-traversal-lang-tck-mining-2 | Breadcrumb On Mined Scenarios | Implemented | A Gridkin scenario whose intent was mined sets `inspired_by` to the TCK source folder. | Per `req-gridkin-tck-inspiration-1`. |
+| req-grid-traversal-lang-tck-mining-3 | Empty Pass Is Recorded | Proposed | A feature with no applicable TCK folder records "looked, found nothing" rather than silently omitting the breadcrumb. | Distinguishes "no source" from "never checked". Backfill of the 17 pre-existing breadcrumb-less scenarios is tracked as a known gap, not blocked on here. |
+| req-grid-traversal-lang-tck-mining-4 | No TCK Content Copied | Implemented | No TCK query text, graph data, or expected results enter any Gryphon or Gridkin file. | Inherited from `req-gridkin-tck-inspiration-2`. |
 
 
 ## Status Vocabulary

@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 from tap_web.utils import safe_json
 
 
@@ -20,7 +18,7 @@ class TestSafeJson:
 
     def test_escapes_script_close_tag(self):
         """ACID req-web-panel-json-embed.sec-4: </script> breakout prevented."""
-        payload = '</script><script>alert(1)</script>'
+        payload = "</script><script>alert(1)</script>"
         result = safe_json(payload)
         assert "<" not in result
         assert ">" not in result

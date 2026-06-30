@@ -7,7 +7,6 @@ from django.db import models
 
 from tap_grid.models import BaseModel
 
-
 # ---------------------------------------------------------------------------
 # Arrangement definition schema
 # ---------------------------------------------------------------------------
@@ -466,9 +465,5 @@ class Projection(BaseModel):
 
         if default_id not in elevations:
             raise ValidationError(
-                {
-                    "definition": [
-                        f"default_elevation_id '{default_id}' must also appear in 'elevations'."
-                    ]
-                }
+                {"definition": [f"default_elevation_id '{default_id}' must also appear in 'elevations'."]}
             )

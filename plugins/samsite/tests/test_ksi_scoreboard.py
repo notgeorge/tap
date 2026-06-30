@@ -14,7 +14,6 @@ from plugins.samsite.scoring import (
     CONTROL_OPEN,
     CONTROL_PASS,
     CONTROL_UNMAPPED,
-    INDICATOR_ACCEPTED,
     INDICATOR_GAP,
     INDICATOR_IN_PROGRESS,
     INDICATOR_PASSING,

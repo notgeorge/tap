@@ -15,7 +15,6 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Status taxonomy
 # ---------------------------------------------------------------------------
@@ -222,19 +221,31 @@ def _evaluate_control(
     poam_ids = [pid for pid, _ in poam_entries]
 
     if cid not in ssp_status_map:
-        return ControlResult(control_id=cid, status=CONTROL_UNMAPPED, ssp_implementation_status="", poam_item_ids=poam_ids)
+        return ControlResult(
+            control_id=cid, status=CONTROL_UNMAPPED, ssp_implementation_status="", poam_item_ids=poam_ids
+        )
 
     ssp_status = (ssp_status_map[cid] or "").lower()
     if poam_open:
-        return ControlResult(control_id=cid, status=CONTROL_OPEN, ssp_implementation_status=ssp_status, poam_item_ids=poam_ids)
+        return ControlResult(
+            control_id=cid, status=CONTROL_OPEN, ssp_implementation_status=ssp_status, poam_item_ids=poam_ids
+        )
     if poam_accepted:
-        return ControlResult(control_id=cid, status=CONTROL_ACCEPTED, ssp_implementation_status=ssp_status, poam_item_ids=poam_ids)
+        return ControlResult(
+            control_id=cid, status=CONTROL_ACCEPTED, ssp_implementation_status=ssp_status, poam_item_ids=poam_ids
+        )
     if ssp_status == "not-applicable":
-        return ControlResult(control_id=cid, status=CONTROL_NA, ssp_implementation_status=ssp_status, poam_item_ids=poam_ids)
+        return ControlResult(
+            control_id=cid, status=CONTROL_NA, ssp_implementation_status=ssp_status, poam_item_ids=poam_ids
+        )
     if ssp_status == "partial":
-        return ControlResult(control_id=cid, status=CONTROL_PARTIAL, ssp_implementation_status=ssp_status, poam_item_ids=poam_ids)
+        return ControlResult(
+            control_id=cid, status=CONTROL_PARTIAL, ssp_implementation_status=ssp_status, poam_item_ids=poam_ids
+        )
     # implemented (or any other "looks implemented" value) → pass
-    return ControlResult(control_id=cid, status=CONTROL_PASS, ssp_implementation_status=ssp_status, poam_item_ids=poam_ids)
+    return ControlResult(
+        control_id=cid, status=CONTROL_PASS, ssp_implementation_status=ssp_status, poam_item_ids=poam_ids
+    )
 
 
 # ---------------------------------------------------------------------------

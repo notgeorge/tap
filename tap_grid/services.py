@@ -111,9 +111,51 @@ def _deep_merge(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _schema_permits_null(prop_schema: dict[str, Any]) -> bool:
+    """True if a per-field verb schema permits a null value (`type` includes "null")."""
+    type_decl = prop_schema.get("type")
+    if isinstance(type_decl, list):
+        return "null" in type_decl
+    return type_decl == "null"
+
+
+def _prepare_null_payload(payload: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+    """Drop an explicit null only on a known field that does not permit null.
+
+    Preserves explicit null on null-permitting fields (so it clears the field and
+    stamps FLIP, req-grid-service-write-observation-1) and on unknown fields (so
+    additionalProperties:False still rejects them). A null on a known non-null field
+    is dropped — treated as absent — preserving lenient behavior
+    (req-grid-service-write-observation-2).
+    """
+    props: dict[str, Any] = schema.get("properties", {})
+    prepared: dict[str, Any] = {}
+    for field_name, value in payload.items():
+        if value is None and field_name in props and not _schema_permits_null(props[field_name]):
+            continue
+        prepared[field_name] = value
+    return prepared
+
+
+def _flip_touched_for_verb(verb: str, payload: dict[str, Any]) -> list[str] | None:
+    """The FLIP-touched field set for a write (req-grid-service-write-observation-5).
+
+    create/patch stamp exactly the payload-present fields; replace asserts the
+    complete object, so it stamps the full service-writeable surface (None).
+    """
+    if verb in ("replace_node", "replace_edge"):
+        return None
+    return list(payload.keys())
+
+
 def _apply_patch(instance: Any, payload: dict[str, Any]) -> None:
     """Apply patch payload to an instance. JSONFields deep-merge; scalars replace."""
     for field_name, value in payload.items():
+        if value is None:
+            # Explicit null clears the field; never deep-merge None into a JSONField
+            # (req-grid-service-write-observation-4).
+            setattr(instance, field_name, None)
+            continue
         try:
             model_field = instance._meta.get_field(field_name)
             is_json = isinstance(model_field, django_models.JSONField)
@@ -255,7 +297,11 @@ def _execute_write_pipeline(
     helpers, lifecycle managers); it is not part of the public write API. See
     `_create_node_internal` / `_patch_node_internal` in this module.
     """
-    payload: dict[str, Any] = {k: v for k, v in (op.payload or {}).items() if v is not None}
+    # Preserve the raw payload with the absent-key vs explicit-null distinction intact.
+    # An explicit null is dropped only later, per-field, where the field does not permit
+    # null (req-grid-service-write-observation) — never blanket-stripped here, which would
+    # collapse "asserted absence" into "omitted" and erase the convention's known-unknown.
+    payload: dict[str, Any] = dict(op.payload or {})
 
     try:
         # Step 2: Security/authz stub (reserved; logs identity at DEBUG).
@@ -388,6 +434,10 @@ def _execute_write_pipeline(
         if not is_delete:
             verb_key = _verb_to_schema_key(op.verb)
             schema = model_cls.SERVICE_CRUD_SCHEMA.get(verb_key, {})
+            # Drop an explicit null only where the field does not permit null; preserve it
+            # where the schema allows null so it clears the field and earns FLIP
+            # (req-grid-service-write-observation-1/2).
+            payload = _prepare_null_payload(payload, schema)
             try:
                 jsonschema.validate(instance=payload, schema=schema)
             except jsonschema.ValidationError as exc:
@@ -488,7 +538,11 @@ def _execute_write_pipeline(
                 version=F("version") + 1,
             )
         else:
-            instance.save(skip_validation=True, _spine_just_created=spine_just_created)
+            instance.save(
+                skip_validation=True,
+                _spine_just_created=spine_just_created,
+                flip_changed_fields=_flip_touched_for_verb(op.verb, payload),
+            )
             entity_id_out = instance.entity_id
             # Record provenance for non-delete writes too so the BatchEvent log
             # is a complete history of batch-scoped activity. Without this,

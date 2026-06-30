@@ -25,6 +25,7 @@ Write operations are where the TAP service layer earns its keep. The write contr
 | req-grid-service-write-internal-create | [Trusted-Internal Create Entry Point](#trusted-internal-create-entry-point) | Proposed | `_create_node_internal` runs the full write pipeline minus the `INTERNAL_ONLY` gate for trusted subsystem helpers |
 | req-grid-service-write-schema-cleanup | [Service Schema Simplification](#service-schema-simplification) | Implemented | Replace per-verb `SERVICE_CRUD_SCHEMA` with a simpler writable-field contract |
 | req-grid-service-write-patch | [Patch And Replace Rules](#patch-and-replace-rules) | Implemented | Deep merge and immutable edge type rules |
+| req-grid-service-write-observation | [Observation-Aware Writes](#observation-aware-writes) | Implemented | Explicit-null preservation + per-touched-field FLIP stamping; realizes the field-observation convention's write-path dependency |
 | req-grid-service-write-validate | [Write Validation Stack](#write-validation-stack) | Implemented | full_clean, constraints, hotlinks |
 | req-grid-service-write-results | [Write Result Envelopes](#write-result-envelopes) | Implemented | Minimal, standard, verbose |
 
@@ -353,6 +354,57 @@ Replace semantics:
 | req-grid-service-write-patch-2 | Edge Replace Does Not Change Type | Implemented | Replace operations for edges do not allow `edge_type` changes. | |
 | req-grid-service-write-patch-3 | Internal Flip Map Not User Writable | Implemented | `flip_map` is not part of the user-writeable payload contract. | |
 | req-grid-service-write-patch-4 | Replace Node Covers User-Writable Model Fields | Implemented | `replace_node` replaces all user-writable fields on the `BaseModel`-derived class. Fields on the Entity spine (id, entity_type, originating_grid_id, created_at) are not part of the replace payload. | |
+
+
+### Observation-Aware Writes
+----
+RID: `req-grid-service-write-observation`
+Status: `Implemented`
+
+The write pipeline must honor the grid field-observation convention (`spec-grid-node.md` `req-grid-node-observation`): an explicit `null` is a *deliberate assertion of absence* that clears a field and earns provenance, distinct from an *omitted* field that is left untouched; and FLIP stamps only the fields a write actually touched. This requirement realizes the write-path dependency the convention named, and closes two spec-vs-code gaps where the behavior was already specified but not implemented: `req-grid-service-write-patch` ("explicit nulls clear values only where schema/model rules allow"; "omitted fields remain unchanged") and `req-grid-flip-default` (`req-grid-flip-default-4`: "changed_fields controls partial vs full stamping").
+
+#### Status Details
+Before this requirement, `_execute_write_pipeline` stripped every `None` from the payload (`{k: v for k, v in payload if v is not None}`) — so an explicit null could neither clear a field nor stamp FLIP — and saved without scoping FLIP to touched fields, so FLIP stamped the *full* service-writeable surface on every write. Both `req-grid-service-write-patch` and `req-grid-flip-default-4` were marked Implemented while describing behavior the code did not perform.
+
+#### Implementation
+**1. Explicit-null preservation (the inbound write-intent boundary).** Payload preparation preserves an explicit `null` for a field whose verb schema permits null (`type` includes `"null"`). A `null` on a field that does *not* permit null is dropped (treated as field-absent), preserving today's lenient behavior; a future tightening may reject it instead. The three inbound intents then resolve:
+
+| Inbound intent | Action |
+| --- | --- |
+| Field **absent** from payload | Untouched: not applied, not FLIP-stamped. |
+| Field present, **explicit `null`** (null permitted) | Set to `null`; FLIP-stamped (deliberate absence → known unknown). |
+| Field present with a value or `""` | Set; FLIP-stamped. |
+
+The JSON `absent`-vs-`null` distinction is preserved by Python dict semantics (missing key vs key with `None`); the pipeline must not flatten it.
+
+**2. JSON null clears, it does not merge.** In a patch, an explicit `null` for a `JSONField` sets the field to `null` (clear). Deep-merge applies only to a present object value (`req-grid-service-write-patch-1`); merging `None` is never attempted.
+
+**3. FLIP stamps only touched fields.** FLIP stamping is scoped to the fields a write touched, decoupled from Django's `update_fields` (which cannot drive create-time scope because an INSERT writes all columns):
+
+| Verb | FLIP-touched set |
+| --- | --- |
+| `create_node` / `create_edge` | the fields present in the payload (explicitly provided, including explicit nulls) |
+| `patch_node` / `patch_edge` | the fields present in the payload |
+| `replace_node` / `replace_edge` | the full replace surface (replace asserts the complete object) |
+
+A field omitted from a create or patch is left out of FLIP — no entry — so it reads as an *unknown unknown* (nobody asserted it) per the convention. The signal is carried to `BaseModel.save()` as an explicit `flip_changed_fields` argument; when absent (non-pipeline saves), the existing `update_fields`-derived behavior is unchanged.
+
+**4. Create-time semantics.** A create stamps FLIP only for fields the caller provided. Fields that fall to their model default (omitted) receive no FLIP entry. A defaulted `""` is therefore not provenance-bearing — it is a default, not an observation — consistent with "omitted leaves FLIP alone."
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-write-observation-1 | Explicit Null Preserved Where Permitted | Implemented | An explicit `null` is preserved through validation and application for a field whose verb schema permits null; it clears the field. | Realizes `req-grid-service-write-patch` explicit-null clause. |
+| req-grid-service-write-observation-2 | Null On Non-Null Field Dropped | Implemented | A `null` on a field that does not permit null is dropped (treated as absent), not a hard error. | Backward-compatible; future tightening may reject. |
+| req-grid-service-write-observation-3 | Absent Field Untouched | Implemented | A field omitted from a patch/create payload is neither applied nor FLIP-stamped. | `absent ≠ null`. |
+| req-grid-service-write-observation-4 | JSON Null Clears | Implemented | An explicit `null` for a JSONField clears it; deep-merge is attempted only on a present object value. | |
+| req-grid-service-write-observation-5 | FLIP Scoped To Touched Fields | Implemented | FLIP stamps only payload-present fields for create/patch and the full replace surface for replace; omitted fields get no entry. | Realizes `req-grid-flip-default-4`; via `flip_changed_fields`. |
+| req-grid-service-write-observation-6 | Create Stamps Only Provided Fields | Implemented | A create stamps FLIP only for provided fields; defaulted/omitted fields receive no FLIP entry. | Defaulted `""` is not provenance-bearing. |
+
+#### Future
+- **Reject null on non-null fields.** Tighten `req-grid-service-write-observation-2` from drop to a structured validation error once callers/import paths are confirmed not to rely on the lenient drop.
+- **Not-applicable flavor (Phase 2).** When the convention's Phase 2 lands, an inbound *not-applicable* assertion (`x-tap-absence.not_applicable.permitted`) stores `null` and records the flavor via extended FLIP — built on the explicit-null boundary defined here. See `req-grid-node-observation-8`.
 
 
 ### Write Validation Stack

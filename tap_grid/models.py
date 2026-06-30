@@ -397,6 +397,13 @@ class AllObjectsManager(_BaseModelManagerBase):  # type: ignore[misc,valid-type]
     """
 
 
+# Sentinel distinguishing "caller passed no flip_changed_fields" from "caller passed
+# None" (which means: stamp the full service-writeable surface). The service write
+# pipeline passes an explicit touched-set (req-grid-service-write-observation-5); other
+# save callers leave it unset and fall back to the update_fields-derived scope.
+_FLIP_TOUCHED_UNSET: Any = object()
+
+
 class BaseModel(models.Model):
     """Abstract base for all domain ORM models (not Entity/EntityType/User).
 
@@ -626,6 +633,7 @@ class BaseModel(models.Model):
         """
         skip_validation: bool = kwargs.pop("skip_validation", False)
         spine_just_created: bool = kwargs.pop("_spine_just_created", False)
+        flip_changed_fields: Any = kwargs.pop("flip_changed_fields", _FLIP_TOUCHED_UNSET)
         if not skip_validation:
             self.full_validate()
 
@@ -647,7 +655,13 @@ class BaseModel(models.Model):
             self.batch_id = active_batch_id
 
         update_fields = kwargs.get("update_fields")
-        changed_fields = list(update_fields) if update_fields is not None else None
+        if flip_changed_fields is not _FLIP_TOUCHED_UNSET:
+            # Explicit touched-set from the service write pipeline. A list scopes FLIP
+            # to exactly those fields; None means the full service-writeable surface
+            # (replace semantics). See req-grid-service-write-observation-5.
+            changed_fields = flip_changed_fields
+        else:
+            changed_fields = list(update_fields) if update_fields is not None else None
         if update_flip_map(self, changed_fields, active_batch_id):
             if update_fields is not None:
                 kwargs["update_fields"] = list(update_fields) + ["flip_map"]
@@ -1244,9 +1258,7 @@ class Keystone(BaseModel):
         try:
             jsonschema.Draft202012Validator.check_schema(schema)
         except jsonschema.SchemaError as exc:
-            raise ValidationError(
-                {"context_schema_json": [f"is not a valid JSON Schema: {exc.message}"]}
-            ) from exc
+            raise ValidationError({"context_schema_json": [f"is not a valid JSON Schema: {exc.message}"]}) from exc
 
         try:
             jsonschema.validate(instance=context, schema=schema)

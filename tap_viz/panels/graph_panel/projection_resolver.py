@@ -53,8 +53,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from tap_grid.models import Edge
-
 
 def resolve_projection_definition(projection_definition: dict[str, Any]) -> dict[str, Any]:
     """Walk the v1 entity chain referenced by a Projection.definition and return

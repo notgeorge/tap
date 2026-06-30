@@ -196,6 +196,46 @@ class IsNullComparison:
 
 
 @dataclass(frozen=True)
+class ObservationComparison:
+    """An observation-semantic predicate: `field IS KNOWN` or `field IS UNKNOWN`.
+
+    The convention's null axis (spec-grid-node.md req-grid-node-observation)
+    surfaced as intent-revealing keywords: `IS UNKNOWN` tests for unobserved
+    (`kind="unknown"`), `IS KNOWN` tests for observed-of-any-kind
+    (`kind="known"`, inclusive of observed-empty). Both lower to Django's
+    `__isnull` lookup — `unknown` → `__isnull=True`, `known` → `__isnull=False`
+    — and are type-agnostic (the null axis applies to every field type).
+
+    `IS EMPTY` (observed-empty) is deliberately NOT here: "empty" is a
+    container-type concept (`""`/`[]`/`{}`), undefined for scalar columns, so it
+    requires field-type / `x-tap-absence.empty_is_meaningful`-aware lowering
+    rather than a `__isnull` test. Reserved as `kind` could grow an "empty"
+    member when that lands. See req-grid-traversal-lang-observation.
+
+    .. tap:capability:: Gryphon IS KNOWN / IS UNKNOWN
+       :id: cap-grid-gryphon-observation
+       :status: implemented
+       :audience: external-user; agent; developer
+       :affordance: querying
+       :implements: req-grid-traversal-lang-observation
+       :covered-by: gridkin:observation-is-unknown-returns-only-the-unobserved-null-observed-at-row
+
+       ``WHERE field IS UNKNOWN`` selects unobserved (null) fields and
+       ``IS KNOWN`` selects observed (non-null) fields — the convention's
+       observed-vs-unobserved axis as first-class query vocabulary, stable as
+       the underlying representation evolves.
+
+       Example::
+
+          MATCH (n:network_interface) WHERE n.data.mac_address IS UNKNOWN
+          RETURN n.entity_id AS id ORDER BY id
+    """
+
+    field_path: FieldPath
+    kind: Literal["known", "unknown"]
+
+
+@dataclass(frozen=True)
 class AndPred:
     """Conjunction: both operands must be true."""
 
@@ -218,7 +258,7 @@ class NotPred:
     operand: Predicate
 
 
-Predicate = Comparison | InComparison | IsNullComparison | AndPred | OrPred | NotPred
+Predicate = Comparison | InComparison | IsNullComparison | ObservationComparison | AndPred | OrPred | NotPred
 
 
 # ---------------------------------------------------------------------------
@@ -431,12 +471,12 @@ def _collect_params_from_predicate(pred: Predicate | None, out: set[str]) -> Non
         for v in pred.values:
             if isinstance(v, ParamRef):
                 out.add(v.name)
-    elif isinstance(pred, IsNullComparison):
-        # No ParamRef can appear in an IS [NOT] NULL predicate — the leaf
-        # is field_path-only — but the walker must still recognize the leaf
-        # so its presence in a WHERE tree doesn't escape required-param
-        # collection (silent-drop footgun for any predicate walker that
-        # doesn't know about a new leaf).
+    elif isinstance(pred, (IsNullComparison, ObservationComparison)):
+        # No ParamRef can appear in an IS [NOT] NULL / IS KNOWN / IS UNKNOWN
+        # predicate — these leaves are field_path-only — but the walker must
+        # still recognize them so their presence in a WHERE tree doesn't escape
+        # required-param collection (silent-drop footgun for any predicate
+        # walker that doesn't know about a new leaf).
         pass
     elif isinstance(pred, (AndPred, OrPred)):
         _collect_params_from_predicate(pred.left, out)

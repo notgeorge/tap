@@ -12,9 +12,6 @@ class Fedramp20xKsiConfig(TapPluginConfig):
         from plugins.fedramp_20x_ksi.panels.finding_profile import (
             KsiFindingProfilePanelType,
         )
-        from plugins.fedramp_20x_ksi.panels.indicator_profile import (
-            KsiIndicatorProfilePanelType,
-        )
         from plugins.fedramp_20x_ksi.panels.finding_strip import (
             FindingStripPanelType,
         )
@@ -24,26 +21,21 @@ class Fedramp20xKsiConfig(TapPluginConfig):
         from plugins.fedramp_20x_ksi.panels.findings_by_system import (
             FindingsBySystemPanelType,
         )
+        from plugins.fedramp_20x_ksi.panels.indicator_profile import (
+            KsiIndicatorProfilePanelType,
+        )
         from plugins.fedramp_20x_ksi.panels.instance_findings import (
             KsiInstanceFindingsPanelType,
         )
         from tap_web.registry import panel_type_registry
 
-        panel_type_registry.register(
-            "fedramp-20x-ksi-compliance", KsiCompliancePanelType
-        )
-        panel_type_registry.register(
-            "fedramp-20x-ksi-indicator-profile", KsiIndicatorProfilePanelType
-        )
-        panel_type_registry.register(
-            "fedramp-20x-ksi-finding-profile", KsiFindingProfilePanelType
-        )
+        panel_type_registry.register("fedramp-20x-ksi-compliance", KsiCompliancePanelType)
+        panel_type_registry.register("fedramp-20x-ksi-indicator-profile", KsiIndicatorProfilePanelType)
+        panel_type_registry.register("fedramp-20x-ksi-finding-profile", KsiFindingProfilePanelType)
         panel_type_registry.register("finding_strip", FindingStripPanelType)
         panel_type_registry.register("findings_by_system", FindingsBySystemPanelType)
         panel_type_registry.register("findings_by_ksi", FindingsByKsiPanelType)
-        panel_type_registry.register(
-            "fedramp-20x-ksi-instance-findings", KsiInstanceFindingsPanelType
-        )
+        panel_type_registry.register("fedramp-20x-ksi-instance-findings", KsiInstanceFindingsPanelType)
 
         # Register the KSI catalog collector with tap_cares. Per the
         # dual-existence pattern (tap_grid/specs/spec-grid-dual-existence.md)

@@ -2642,6 +2642,116 @@ class TestGryphonIsNullExecutor:
 
 
 # ---------------------------------------------------------------------------
+# TestGryphonObservationParser — req-grid-traversal-lang-observation
+# ---------------------------------------------------------------------------
+
+
+class TestGryphonObservationParser:
+    """Parser coverage for the IS KNOWN / IS UNKNOWN observation predicates."""
+
+    def test_is_unknown_parses(self):
+        """req-grid-traversal-lang-observation-1: `field IS UNKNOWN` -> ObservationComparison(unknown)."""
+        from tap_grid.gryphon.ast_nodes import ObservationComparison
+
+        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.data.observed_at IS UNKNOWN")
+        pred = ast.where_clause.predicate
+        assert isinstance(pred, ObservationComparison)
+        assert pred.kind == "unknown"
+        assert [s.name for s in pred.field_path.steps if isinstance(s, DotStep)] == ["data", "observed_at"]
+
+    def test_is_known_parses(self):
+        """req-grid-traversal-lang-observation-2: `field IS KNOWN` -> ObservationComparison(known)."""
+        from tap_grid.gryphon.ast_nodes import ObservationComparison
+
+        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.data.observed_at IS KNOWN")
+        pred = ast.where_clause.predicate
+        assert isinstance(pred, ObservationComparison)
+        assert pred.kind == "known"
+
+    def test_is_unknown_composes_with_and(self):
+        """req-grid-traversal-lang-observation-3: composes inside an AND tree like any leaf."""
+        from tap_grid.gryphon.ast_nodes import ObservationComparison
+
+        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.data.observed_at IS UNKNOWN AND n.data.kind = "reading"')
+        pred = ast.where_clause.predicate
+        assert isinstance(pred, AndPred)
+        leaves = [pred.left, pred.right]
+        assert any(isinstance(leaf, ObservationComparison) and leaf.kind == "unknown" for leaf in leaves)
+
+    def test_is_known_composes_with_not(self):
+        """req-grid-traversal-lang-observation-3: NOT (x IS KNOWN) is the negated long-form."""
+        from tap_grid.gryphon.ast_nodes import ObservationComparison
+
+        ast = parse_gryphon("MATCH (n:pg_node) WHERE NOT (n.data.observed_at IS KNOWN)")
+        pred = ast.where_clause.predicate
+        assert isinstance(pred, NotPred)
+        assert isinstance(pred.operand, ObservationComparison)
+        assert pred.operand.kind == "known"
+
+    def test_bare_is_still_rejected(self):
+        """req-grid-traversal-lang-observation-4: bare `IS` (no KNOWN/UNKNOWN/NULL) fails parse."""
+        with pytest.raises(GryphonParseError):
+            parse_gryphon("MATCH (n:pg_node) WHERE n.data.observed_at IS")
+
+
+# ---------------------------------------------------------------------------
+# TestGryphonObservationExecutor — req-grid-traversal-lang-observation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonObservationExecutor:
+    """Executor coverage for IS KNOWN / IS UNKNOWN on a real nullable column."""
+
+    def _setup_interfaces(self):
+        """Three interfaces with an observed MAC, two with NULL (unobserved) — on the
+        nullable `mac_address` column, exercising the genuine null axis."""
+        import uuid
+
+        from plugins.computing_core.models.network_interface import NetworkInterface
+        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
+
+        set_caller_context(CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4())))
+        for i in range(3):
+            NetworkInterface.objects.create(interface_name=f"eth{i}", mac_address=f"00:11:22:33:44:0{i}")
+        for i in range(2):
+            NetworkInterface.objects.create(interface_name=f"lo{i}", mac_address=None)
+
+    def _run(self, query: str) -> list:
+        search = Search(search_type="gryphon", root="node", name="obs", definition={"query": query})
+        return execute_search(search, inputs={})["nodes"]
+
+    def test_is_unknown_selects_unobserved(self):
+        """req-grid-traversal-lang-observation-1: IS UNKNOWN returns only the NULL-mac rows."""
+        self._setup_interfaces()
+        nodes = self._run("MATCH (n:network_interface) WHERE n.data.mac_address IS UNKNOWN")
+        assert len(nodes) == 2
+
+    def test_is_known_selects_observed(self):
+        """req-grid-traversal-lang-observation-2: IS KNOWN returns only the non-NULL-mac rows."""
+        self._setup_interfaces()
+        nodes = self._run("MATCH (n:network_interface) WHERE n.data.mac_address IS KNOWN")
+        assert len(nodes) == 3
+
+    def test_known_and_unknown_partition_the_set(self):
+        """The two predicates partition the null axis: |KNOWN| + |UNKNOWN| == total."""
+        self._setup_interfaces()
+        known = self._run("MATCH (n:network_interface) WHERE n.data.mac_address IS KNOWN")
+        unknown = self._run("MATCH (n:network_interface) WHERE n.data.mac_address IS UNKNOWN")
+        all_nodes = self._run("MATCH (n:network_interface)")
+        assert len(known) + len(unknown) == len(all_nodes) == 5
+
+    def test_is_unknown_composes_with_and(self):
+        """req-grid-traversal-lang-observation-3: AND with IS UNKNOWN narrows the set."""
+        self._setup_interfaces()
+        nodes = self._run(
+            'MATCH (n:network_interface) WHERE n.data.mac_address IS UNKNOWN AND n.data.interface_name = "lo0"'
+        )
+        assert len(nodes) == 1
+        assert nodes[0]["name"] == "lo0"
+
+
+# ---------------------------------------------------------------------------
 # TestGryphonRegexParser — req-grid-traversal-lang-regex
 # ---------------------------------------------------------------------------
 

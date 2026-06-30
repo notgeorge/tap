@@ -36,9 +36,10 @@ import importlib
 import os
 import re
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 _FORMAT = "%(asctime)s %(levelname)-8s %(name)s %(pathname)s:%(lineno)d — %(message)s"
 _DATEFMT = "%Y-%m-%dT%H:%M:%S%z"
@@ -300,9 +301,7 @@ _SITE_ID_PATTERN = re.compile(r"^\[([0-9a-f]{4})\] ")
 _BRACKETED_PREFIX_PATTERN = re.compile(r"^\[[^\]]+\] ")
 
 # req-tap-logging-site-ids-2: every committed level, DEBUG included. No exemption.
-_LOGGER_LEVELS = frozenset(
-    {"debug", "info", "warning", "error", "critical", "exception"}
-)
+_LOGGER_LEVELS = frozenset({"debug", "info", "warning", "error", "critical", "exception"})
 
 # req-tap-logging-site-ids-5 / scanner-6: noqa escape hatch.
 _NOQA_TOKEN = "noqa: TAP-LOG-ID"
@@ -391,15 +390,9 @@ def _scan_file(path: Path, source: str, result: ScanResult) -> None:
             continue
 
         if _is_getlogger_call(node):
-            ok = (
-                len(node.args) == 1
-                and isinstance(node.args[0], ast.Name)
-                and node.args[0].id == "__name__"
-            )
+            ok = len(node.args) == 1 and isinstance(node.args[0], ast.Name) and node.args[0].id == "__name__"
             if not ok:
-                result.convention_violations.append(
-                    (CallSite(path, node.lineno), "getLogger argument is not __name__")
-                )
+                result.convention_violations.append((CallSite(path, node.lineno), "getLogger argument is not __name__"))
             continue
 
         matched, level = _is_logger_level_call(node)
@@ -428,9 +421,7 @@ def _scan_file(path: Path, source: str, result: ScanResult) -> None:
             msg = first.value
             m = _SITE_ID_PATTERN.match(msg)
             if m:
-                result.well_formed.append(
-                    WellFormedSite(path, lineno, m.group(1))
-                )
+                result.well_formed.append(WellFormedSite(path, lineno, m.group(1)))
             elif _BRACKETED_PREFIX_PATTERN.match(msg):
                 result.malformed_ids.append(CallSite(path, lineno))
             else:
@@ -455,7 +446,7 @@ def scan_log_sites(roots: list[Path]) -> ScanResult:
                 continue
             try:
                 source = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+            except OSError, UnicodeDecodeError:
                 continue
             _scan_file(path, source, result)
     return result
