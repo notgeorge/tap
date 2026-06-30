@@ -141,16 +141,16 @@
       "expected_sql_snapshot": "expected/in_lists__null_lhs_nonmember.sql.txt"
     },
     {
-      "name": "string list members are coerced to the numeric column type before comparison (current behavior; diverges from Cypher)",
-      "tags": ["in-list", "type-coercion", "current-behavior", "cypher-divergence", "where"],
+      "name": "a string member against a numeric field is rejected — no cross-type coercion (type-strictness)",
+      "tags": ["in-list", "type-strictness", "rejection", "validation", "cypher-divergence"],
       "covers": [
-        "req-grid-traversal-lang-in-2"
+        "req-grid-traversal-lang-type-strictness",
+        "req-grid-traversal-lang-type-strictness-1"
       ],
-      "inspired_by": "opencypher TCK — expressions/list (Cypher does NOT coerce: 10 IN [\"10\"] is false; TAP coerces the string members to the typed integer column — params Int4(10), Int4(20) — so they DO match. Documented divergence, not Cypher parity)",
+      "inspired_by": "opencypher TCK — expressions/list (Cypher returns false for 10 IN [\"10\"]; TAP is a typed graph and the declared schema is the type oracle, so a string member against an integer-declared field is rejected outright rather than coerced (the ORM would cast to Int4) or silently dropped — req-grid-traversal-lang-type-strictness)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN [\"10\", \"20\"] RETURN n.entity_id AS id ORDER BY id",
-      "expected_envelope": "expected/in_lists__type_coerced.expected.json",
-      "expected_sql_snapshot": "expected/in_lists__type_coerced.sql.txt"
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN [\"10\", \"20\"] RETURN n.entity_id AS id",
+      "expected_error": { "type": "SearchExecutionError", "message_contains": "Type mismatch" }
     }
   ]
 }

@@ -144,17 +144,16 @@
       "expected_sql_snapshot": "expected/string_match__control_char_needle.sql.txt"
     },
     {
-      "name": "STARTS_WITH coerces a numeric operand to its text form and prefix-matches (current behavior; diverges from Cypher)",
-      "tags": ["string-match", "starts-with", "type-coercion", "current-behavior", "cypher-divergence"],
+      "name": "STARTS_WITH on a numeric field is rejected — a text operator requires a text field (type-strictness)",
+      "tags": ["string-match", "starts-with", "type-strictness", "rejection", "validation", "cypher-divergence"],
       "covers": [
-        "req-grid-traversal-lang-string-match-2",
-        "req-grid-traversal-lang-string-match-3"
+        "req-grid-traversal-lang-type-strictness",
+        "req-grid-traversal-lang-type-strictness-2"
       ],
-      "inspired_by": "opencypher TCK — expressions/string (Cypher yields null when STARTS WITH is applied to a non-string operand; TAP instead casts the typed column to text — severity_score::text LIKE '1%' — so 10 and 15 match. Documented divergence, not Cypher parity)",
+      "inspired_by": "opencypher TCK — expressions/string (Cypher yields null when STARTS WITH is applied to a non-string operand; TAP is a typed graph and rejects a text operator on an integer-declared field rather than casting the column to text — severity_score::text LIKE — req-grid-traversal-lang-type-strictness)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE n.data.severity_score STARTS_WITH \"1\" RETURN n.entity_id AS id ORDER BY id",
-      "expected_envelope": "expected/string_match__numeric_coerced.expected.json",
-      "expected_sql_snapshot": "expected/string_match__numeric_coerced.sql.txt"
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score STARTS_WITH \"1\" RETURN n.entity_id AS id",
+      "expected_error": { "type": "SearchExecutionError", "message_contains": "requires a text field" }
     },
     {
       "name": "a needle equal to the whole value matches just that node",

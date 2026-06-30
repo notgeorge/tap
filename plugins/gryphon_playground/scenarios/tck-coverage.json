@@ -269,11 +269,6 @@
           "intent": "unobserved/null LHS IN a list -> non-member (false), not null",
           "note": "no scenario feeds a null LHS into IN",
           "kind": "test"
-        },
-        {
-          "intent": "type-mismatch non-match: 1 IN ['1',2] -> false (no cross-type coercion)",
-          "note": "CYPHER DIVERGENCE, probed 2026-06-30: TAP does NOT match Cypher here — string list members are coerced to the typed integer column (params Int4(10), Int4(20)) so `severity_score IN [\"10\",\"20\"]` DOES match. Current (coercing) behavior is pinned by in_lists__type_coerced; Cypher's no-coercion semantic would need an engine change. Surfaced to George — decide whether to ratify coercion or enforce type-strictness",
-          "kind": "feature"
         }
       ],
       "excluded": [
@@ -363,11 +358,6 @@
           "intent": "newline/tab control-char needle matched literally (no normalization)",
           "note": "embedded control chars treated as literal",
           "kind": "test"
-        },
-        {
-          "intent": "non-string operand yields NULL, never an error",
-          "note": "CYPHER DIVERGENCE, probed 2026-06-30: TAP does NOT yield null — STARTS_WITH on a numeric field casts the typed column to text (severity_score::text LIKE '1%') and matches (10, 15). Current (coercing) behavior is pinned by string_match__numeric_coerced; Cypher's null-on-type-mismatch would need an engine change. Surfaced to George alongside the IN-coercion divergence",
-          "kind": "feature"
         },
         {
           "intent": "exact full-value match (needle equals the entire value)",
