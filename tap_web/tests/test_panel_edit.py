@@ -26,6 +26,52 @@ def _admin_client() -> Client:
     return client
 
 
+def _no_cap_client() -> Client:
+    """Authenticated client whose user holds no capability bundle."""
+    user = get_user_model().objects.create_user(username="panel-edit-nocap", password="x")
+    client = Client()
+    client.force_login(user)
+    return client
+
+
+@pytest.mark.django_db
+class TestPanelEditReadGate:
+    """panel_edit_view authorizes grid.read before resolving the Panel — same
+    finding class as panel_view / object_edit_view. Passing authentication is not
+    permission, and the gate runs before the entity load so existence is not
+    leaked to a denied caller."""
+
+    def _create_panel(self) -> Panel:
+        return Panel.objects.create(
+            slug="gated-panel",
+            name="Gated Panel",
+            description="",
+            view="tap_web/panel_error.html",
+            config={},
+        )
+
+    def _edit_url(self, panel: Panel) -> str:
+        return f"/panel/{panel.slug}--{panel.entity_id}/edit/"
+
+    def test_anonymous_panel_edit_redirected_to_login(self):
+        panel = self._create_panel()
+        response = Client().get(self._edit_url(panel))
+        assert response.status_code == 302
+        assert response.url.startswith("/auth/login/")
+
+    def test_no_cap_panel_edit_denied_403(self):
+        panel = self._create_panel()
+        response = _no_cap_client().get(self._edit_url(panel))
+        assert response.status_code == 403
+
+    def test_denied_before_existence_check_no_leak(self):
+        """A no-cap caller gets 403 for a non-existent panel too — existence is not
+        leaked through the status code (gate precedes the lookup)."""
+        missing = "ghost--00000000-0000-0000-0000-000000000000"
+        response = _no_cap_client().get(f"/panel/{missing}/edit/")
+        assert response.status_code == 403
+
+
 @pytest.mark.django_db
 class TestPanelEditView:
     """Panel edit endpoint renders two-region editor and saves via POST."""
