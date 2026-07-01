@@ -1,0 +1,1 @@
+{"candidate": "cs-tap-web-panel-001", "severity": "high", "status": "validated", "title": "Generic panel endpoint lets no-cap users read panel content and request-selected entity fields"}

@@ -1,0 +1,338 @@
+{
+  "documentType": "codex-security.findings",
+  "findings": [
+    {
+      "attackPath": {
+        "steps": [
+          "Attacker obtains any authenticated session without tap_viewer/tap_admin.",
+          "Attacker discovers or guesses a panel URL id from a page/nav leak, seed data, or URL history.",
+          "Attacker requests /panel/<slug>--<uuid>/ directly.",
+          "If the panel is a ViewerPanel, attacker supplies entity_id and entity_type query parameters to render another object.",
+          "Sensitive page/panel/object fields are returned without grid.read and without authz-denial logging."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "def panel_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:\n    ...\n    panel = Panel.objects.select_related(\"entity\").get(entity__pk=entity_uuid)\n    ...\n    extra_ctx = panel_type.get_view_context(panel, request) or {}\n    return render(request, panel.view, {\"panel\": panel, ...})",
+          "endLine": 110,
+          "explanation": "The route reaches graph-backed Panel state and renders the panel template without calling authorize(..., \"grid.read\", ...).",
+          "id": "panel-view-direct-orm",
+          "label": "Panel view resolves and renders without authorization",
+          "language": "python",
+          "path": "tap_web/views.py",
+          "startLine": 75
+        },
+        {
+          "code": "model_cls = get_model_class(entity_type)\nobj = model_cls.objects.select_related(\"entity\").get(entity__pk=entity_id)",
+          "endLine": 121,
+          "explanation": "When used behind the unguarded panel endpoint, query parameters select an arbitrary registered entity type and entity id for direct ORM lookup.",
+          "id": "viewer-panel-request-object",
+          "label": "ViewerPanel resolves request-selected object",
+          "language": "python",
+          "path": "tap_web/panels/viewer_panel/__init__.py",
+          "startLine": 108
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Direct source trace and live network validation agree: capless panel GET returned 200 while guarded object/API routes returned 403 and logged denials."
+      },
+      "extensions": {
+        "runtimeMarkers": [
+          "capmatrix-e3635902a8",
+          "vieweridor-ff55be3e42",
+          "csrf-xss-85d6760bc3"
+        ]
+      },
+      "findingId": "csf_26ab91f31f0a144aadc2d8d4",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:7540606f77ce1dcb76a2ac3c6a00e451f7fad99d8598fcec0d38990ce24d7e9c"
+      },
+      "identity": {
+        "anchor": "tap-web-panel-view-without-grid-read",
+        "instance": "generic-panel-fragment"
+      },
+      "locations": [
+        {
+          "endLine": 110,
+          "path": "tap_web/views.py",
+          "role": "root_control_and_render_sink",
+          "startLine": 75
+        },
+        {
+          "endLine": 121,
+          "path": "tap_web/panels/viewer_panel/__init__.py",
+          "role": "request_selected_object_read_sink",
+          "startLine": 108
+        },
+        {
+          "endLine": 4,
+          "path": "tap_web/templates/tap_web/panels/text_panel.html",
+          "role": "panel_content_render_sink",
+          "startLine": 1
+        }
+      ],
+      "occurrenceId": "occ_03ca0d0fb512b1cd040600d9",
+      "preventiveControls": [
+        "Static route/ORM lint for graph model access in tap_web views and panel helpers unless preceded by an explicit authorize call.",
+        "Central helper for graph-read guarded panel/page resolution."
+      ],
+      "provenance": {
+        "source": "codex-security parent-agent live validation"
+      },
+      "remediation": "Call tap_auth.policy.authorize(get_caller_context(), \"grid.read\", operation=\"panel_view\") before any Panel lookup or panel-type context building. Add defense-in-depth grid.read authorization before ViewerPanel request-selected object resolution, and add no-cap HTTP tests proving panel fragments return 403 and emit authz-denial logs.",
+      "remediationTests": [
+        "No-cap live HTTP GET /panel/<panel-url-id>/ returns 403 and emits [e5d9]/[a6b7].",
+        "No-cap live HTTP GET to a ViewerPanel with target entity query parameters returns 403.",
+        "tap_viewer can read panel fragments; tap_admin can read and edit where grid.write is required."
+      ],
+      "rootCause": {
+        "evidenceRefs": [
+          "panel-view-direct-orm",
+          "viewer-panel-request-object"
+        ],
+        "summary": "Panel fragments were treated as UI implementation details instead of graph-read entrypoints, so the route relies on downstream helpers that are not guaranteed to enforce grid.read."
+      },
+      "ruleId": "authorization-bypass.graph-read",
+      "severity": {
+        "level": "high",
+        "rationale": "Remote authenticated low-privilege users can bypass the central graph-read permission and read TAP-managed object data. The route is designed for HTMX fragments but is directly reachable and accepts request-selected ViewerPanel targets."
+      },
+      "summary": "The generic /panel/<slug>--<uuid>/ route resolves a Panel and renders its template without a grid.read authorization decision. A capless authenticated user received 200 over the Docker-published HTTP port, and a ViewerPanel instance could be pointed at another entity by query string to reveal fields that /object/... correctly denied.",
+      "taxonomy": {
+        "category": "authorization-bypass",
+        "cwe": [
+          "CWE-862"
+        ]
+      },
+      "title": "Generic panel endpoint lets no-cap users read panel content and request-selected entity fields",
+      "validation": {
+        "evidenceRefs": [
+          "panel-view-direct-orm",
+          "viewer-panel-request-object"
+        ],
+        "method": "live_http",
+        "result": "Capless local-password session over host-published Docker port received 200 for /panel/... and 200 for a ViewerPanel with entity_id/entity_type query parameters, while /object/page/... returned 403."
+      }
+    },
+    {
+      "attackPath": {
+        "steps": [
+          "Attacker logs in as a capless user.",
+          "Attacker requests /__nav-index.json or a known page slug.",
+          "Response reveals page URLs, names, descriptions, layout slots, and panel URL ids.",
+          "Attacker uses disclosed panel URL ids to call /panel/... and read panel content via the companion finding."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "page = get_page_by_slug(slug)\nif page is None:\n    raise Http404(...)\nreturn _render_page(request, page)",
+          "endLine": 67,
+          "explanation": "The route resolves and renders the page before any graph-read authorization decision.",
+          "id": "page-route-direct-service",
+          "label": "Page routes render without grid.read",
+          "language": "python",
+          "path": "tap_web/views.py",
+          "startLine": 43
+        },
+        {
+          "code": "pages_qs = Page.objects.filter(discoverable=True).order_by(\"-nav_weight\", \"slug\")\n...\n\"url\": page.slug, \"name\": page.name, \"description\": page.description or \"\"",
+          "endLine": 757,
+          "explanation": "The nav endpoint exposes page metadata from direct ORM rows without grid.read.",
+          "id": "nav-index-page-query",
+          "label": "Nav index enumerates pages directly",
+          "language": "python",
+          "path": "tap_web/views.py",
+          "startLine": 716
+        },
+        {
+          "code": "panel_slots = get_page_panels(page)\nfor panel_id, panel in panel_slots:\n    panels_by_id[panel_id] = f\"{panel.slug}--{panel.entity_id}\"",
+          "endLine": 545,
+          "explanation": "The page render prepares panel URL identifiers later used by HTMX, which are also sufficient to call the unguarded panel endpoint directly.",
+          "id": "page-panel-url-disclosure",
+          "label": "Page rendering exposes panel URL identifiers",
+          "language": "python",
+          "path": "tap_web/views.py",
+          "startLine": 526
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Source trace shows direct ORM reads, and live HTTP validation showed capless page/nav requests returning 200 while protected graph-read routes returned 403."
+      },
+      "extensions": {
+        "runtimeMarkers": [
+          "netproof-0c0a0ad841",
+          "capmatrix-e3635902a8"
+        ]
+      },
+      "findingId": "csf_6e5e2596c50cf1c3a41bc5cd",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:6898824f3ba84cdfc245b9a013eb23ac06f2a0280e913c547d330482fb963af7"
+      },
+      "identity": {
+        "anchor": "tap-web-page-nav-without-grid-read",
+        "instance": "dynamic-page-nav-index"
+      },
+      "locations": [
+        {
+          "endLine": 67,
+          "path": "tap_web/views.py",
+          "role": "page_route_root_control",
+          "startLine": 43
+        },
+        {
+          "endLine": 562,
+          "path": "tap_web/views.py",
+          "role": "page_render_sink",
+          "startLine": 520
+        },
+        {
+          "endLine": 757,
+          "path": "tap_web/views.py",
+          "role": "nav_index_metadata_sink",
+          "startLine": 716
+        },
+        {
+          "endLine": 61,
+          "path": "tap_web/page.py",
+          "role": "direct_page_panel_read",
+          "startLine": 14
+        }
+      ],
+      "occurrenceId": "occ_0262b0ebdabb70ae2e11119e",
+      "preventiveControls": [
+        "Static authz coverage rule for Page/Panel/Edge ORM reads in web views.",
+        "Central page-resolution service that requires CallerContext."
+      ],
+      "provenance": {
+        "source": "codex-security parent-agent live validation"
+      },
+      "remediation": "Require grid.read at the start of landing_view, page_view, parameterized_page_view, _render_grid_placeholder fallback, and nav_index_view before Page/Edge/Panel rows are loaded. Preserve anonymous login redirects, but authenticated no-cap users should receive 403 and log an authz denial.",
+      "remediationTests": [
+        "No-cap live HTTP GET for page, parameterized page, landing page, and /__nav-index.json returns 403 and emits [e5d9]/[a6b7].",
+        "tap_viewer still receives 200 for page/nav read routes."
+      ],
+      "rootCause": {
+        "evidenceRefs": [
+          "page-route-direct-service",
+          "nav-index-page-query",
+          "page-panel-url-disclosure"
+        ],
+        "summary": "Page/navigation rendering predates the authz backstop and uses graph ORM reads as a presentation convenience without treating the routes as graph-read entrypoints."
+      },
+      "ruleId": "authorization-bypass.graph-read",
+      "severity": {
+        "level": "medium",
+        "rationale": "The issue exposes graph-backed page names, descriptions, layouts, slot ids, and panel URL ids to authenticated users that lack grid.read. It is also an exploit enabler for direct panel reads."
+      },
+      "summary": "The page, parameterized page, landing redirect, and nav-index routes read Page, Edge, and Panel rows directly without a grid.read authorization decision. A capless authenticated user received page content and the nav catalog, including page metadata and panel URL identifiers that chain into the panel-fragment bypass.",
+      "taxonomy": {
+        "category": "authorization-bypass",
+        "cwe": [
+          "CWE-862"
+        ]
+      },
+      "title": "Dynamic page and nav-index routes enumerate page metadata and panel URLs without grid.read",
+      "validation": {
+        "evidenceRefs": [
+          "page-route-direct-service",
+          "nav-index-page-query",
+          "page-panel-url-disclosure"
+        ],
+        "method": "live_http",
+        "result": "Capless local-password session over host-published Docker port received 200 for page and nav-index routes; anonymous users were redirected to login and guarded graph APIs returned 403."
+      }
+    },
+    {
+      "attackPath": {
+        "steps": [
+          "Attacker logs in as a capless user.",
+          "Attacker requests /api/v1/entity-types/.",
+          "Response enumerates registered entity types and plugin names despite missing grid.read."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "@router.get(\"/\", response=list[EntityTypeOut])\ndef list_entity_types(request: HttpRequest) -> list[EntityType]:\n    return list(EntityType.objects.all())",
+          "endLine": 14,
+          "explanation": "The route is mounted with session authentication, but it does not authorize grid.read before returning graph type metadata.",
+          "id": "entity-types-direct-query",
+          "label": "Entity type API returns catalog without authorization",
+          "language": "python",
+          "path": "tap_api/routers/entity_types.py",
+          "startLine": 12
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "The router body is a direct EntityType.objects.all() call and live network validation returned 200 for capless users."
+      },
+      "extensions": {
+        "runtimeMarkers": [
+          "netproof-0c0a0ad841"
+        ]
+      },
+      "findingId": "csf_80197f0a00fcad14608a958d",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:2a9f713976e8f840d2ec5d4a3f4e0b38859881cd44f1992c93d483755a517afa"
+      },
+      "identity": {
+        "anchor": "tap-api-entity-types-without-grid-read",
+        "instance": "entity-type-catalog"
+      },
+      "locations": [
+        {
+          "endLine": 14,
+          "path": "tap_api/routers/entity_types.py",
+          "role": "metadata_read_sink",
+          "startLine": 12
+        }
+      ],
+      "occurrenceId": "occ_bf92f890baaedc37495ef1de",
+      "preventiveControls": [
+        "Require every core API read router to declare the capability it enforces.",
+        "Extend authz coverage tests to include metadata/catalog endpoints."
+      ],
+      "provenance": {
+        "source": "codex-security parent-agent live validation"
+      },
+      "remediation": "Authorize grid.read in list_entity_types before querying EntityType, or route the catalog through a gated read service. Add no-cap tests for /api/v1/entity-types/ mirroring the existing /api/v1/entities/ denial tests.",
+      "remediationTests": [
+        "No-cap live HTTP GET /api/v1/entity-types/ returns 403 and emits [e5d9].",
+        "tap_viewer GET /api/v1/entity-types/ returns 200."
+      ],
+      "rootCause": {
+        "evidenceRefs": [
+          "entity-types-direct-query"
+        ],
+        "summary": "Read-only type metadata was treated as harmless API catalog data and missed the auth spec requirement that every graph read, including API read endpoints, requires grid.read."
+      },
+      "ruleId": "authorization-bypass.metadata-read",
+      "severity": {
+        "level": "low",
+        "rationale": "The endpoint exposes model/plugin catalog metadata rather than object contents, but the auth spec states all graph reads require grid.read and this metadata helps enumerate the instance shape."
+      },
+      "summary": "The /api/v1/entity-types/ endpoint is session-authenticated but returns EntityType rows directly without checking grid.read. Live HTTP validation showed capless users receive 200 from this catalog while /api/v1/entities/ correctly returns 403.",
+      "taxonomy": {
+        "category": "authorization-bypass",
+        "cwe": [
+          "CWE-862"
+        ]
+      },
+      "title": "Entity type catalog API ignores grid.read for authenticated no-cap users",
+      "validation": {
+        "evidenceRefs": [
+          "entity-types-direct-query"
+        ],
+        "method": "live_http",
+        "result": "Capless local-password session received 200 for /api/v1/entity-types/ and 403 for /api/v1/entities/."
+      }
+    }
+  ],
+  "scanId": "1c6b57c_20260630T142116",
+  "schemaVersion": "1.0"
+}

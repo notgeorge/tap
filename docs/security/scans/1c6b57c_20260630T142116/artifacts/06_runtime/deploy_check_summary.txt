@@ -1,0 +1,10 @@
+Django deploy posture check in the current dev container emitted six warnings:
+
+- security.W004: SECURE_HSTS_SECONDS is not set.
+- security.W008: SECURE_SSL_REDIRECT is not True.
+- security.W009: SECRET_KEY is weak/default.
+- security.W012: SESSION_COOKIE_SECURE is False.
+- security.W016: CSRF_COOKIE_SECURE is False.
+- security.W018: DEBUG is True.
+
+Source review found tap_auth.boot._check_deploy_posture aborts deploy=True boot when SECRET_KEY is default, DEBUG is True, ALLOWED_HOSTS is empty/wildcard, or secure cookies are disabled. The dev runtime is therefore intentionally relaxed, while the deploy boot path contains a fail-closed posture gate.

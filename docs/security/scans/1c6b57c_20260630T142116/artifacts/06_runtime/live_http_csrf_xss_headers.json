@@ -1,0 +1,47 @@
+{
+  "admin_login": {
+    "has_session_cookie": true,
+    "login_get": 200,
+    "login_post": 302,
+    "ok": true,
+    "post_location": "/"
+  },
+  "base_url": "http://host.docker.internal:8030",
+  "capless_login": {
+    "has_session_cookie": true,
+    "login_get": 200,
+    "login_post": 302,
+    "ok": true,
+    "post_location": "/"
+  },
+  "cors_same_origin": {
+    "api_get_acao": null,
+    "api_get_status": 200,
+    "evil_origin_post_acao": null,
+    "evil_origin_post_status": 403
+  },
+  "csrf": {
+    "edit_post_bad_token_status": 403,
+    "edit_post_no_token_status": 403,
+    "edit_post_valid_location": "/panel/csrf-xss-85d6760bc3--019f1c2e-7eed-7522-a00b-643a7d44474b/edit/",
+    "edit_post_valid_token_status": 302,
+    "panel_name_after_posts": "valid-csrf-csrf-xss-85d6760bc3",
+    "panel_text_after_posts": "updated <script>alert(\"xss\")</script><img src=x onerror=alert(1)>"
+  },
+  "headers": {
+    "cross_origin_opener_policy": "same-origin",
+    "referrer_policy": "same-origin",
+    "x_content_type_options": "nosniff",
+    "x_frame_options": "DENY"
+  },
+  "marker": "csrf-xss-85d6760bc3",
+  "panel_status": 200,
+  "panel_url": "/panel/csrf-xss-85d6760bc3--019f1c2e-7eed-7522-a00b-643a7d44474b/",
+  "route_kind": "docker-host-port",
+  "xss_render": {
+    "escaped_img_present": true,
+    "escaped_script_present": true,
+    "raw_img_handler_present": false,
+    "raw_script_present": false
+  }
+}

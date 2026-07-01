@@ -1,0 +1,170 @@
+{
+  "documentType": "codex-security.scan-manifest",
+  "scan": {
+    "artifacts": [
+      {
+        "mediaType": "application/json",
+        "path": "findings.json",
+        "sha256": "78dd368ecadc4ec292aa7bcb2d9025c684e1bd99f979b6860fdade7cf849372f"
+      },
+      {
+        "mediaType": "application/json",
+        "path": "coverage.json",
+        "sha256": "04382abac9395abe09b6375e9df7bbb5b651b91e17736034c20a6953661a77b7"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/02_discovery/finding_discovery_report.md",
+        "sha256": "fb0429522e6c4fde8cd36df701757f45c4ce1025ce0d503de48733c75ca6303f"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/02_discovery/rank_input.jsonl",
+        "sha256": "5d63494ecf43b4d793f52c42910d5a0bc2fdf87ccf6b8b76eb37cc35cc7eaaf1"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/02_discovery/work_ledger.jsonl",
+        "sha256": "aae33a846bdd24e82fb9c203a68c98bcc255583b1895cd309a1e3531c27c3a9b"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/05_findings/cs-tap-api-typecat-003/attack_path_analysis_report.md",
+        "sha256": "67107d816546b4e4aa043728e14ac6b9073c9903493cec362fc568da8e03de13"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/05_findings/cs-tap-api-typecat-003/validation_report.md",
+        "sha256": "178a3b654e524ef6751c708ce00f1ba5b6546e84a9fd3537544f252316a17ba2"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/05_findings/cs-tap-web-page-002/attack_path_analysis_report.md",
+        "sha256": "4022fcf28bc837ad40e05ca24155bbcc3d7a73e4744daecc33e61071bcf715c4"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/05_findings/cs-tap-web-page-002/validation_report.md",
+        "sha256": "63128f062857f2aaeb90f5d1a5a994056a8b3b64c229004a950b6a94c87ddd00"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/05_findings/cs-tap-web-panel-001/attack_path_analysis_report.md",
+        "sha256": "91de7caf39c0c5efe7a2f26517c1786ddfa0dacd957609cc6d34974990c2ad07"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/05_findings/cs-tap-web-panel-001/validation_report.md",
+        "sha256": "e0496cc20995d844dec8d1061b078ddfc1ffdec386a303a68730bf5b7c4b1931"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/06_runtime/deploy_check_summary.txt",
+        "sha256": "a603f2e430db6088ebc3b1fd87d67595b63b1cf573f28a736a4bde225222da13"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/06_runtime/live_http_authz_matrix.json",
+        "sha256": "0c8e9d019b0c054979335d11a9946729d55d9d98c9d535f2fb2b8359a8410fa7"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/06_runtime/live_http_csrf_xss_headers.json",
+        "sha256": "c360bbe552f7aaa3881aa5e41aa42070848465530b21687ebaa5298f4a04fb9b"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/06_runtime/log_access_control_sample.txt",
+        "sha256": "1a9add79e7db46103ece70df6b67052ef3ba5ac7eb52e76a35ee92b5fe23733e"
+      },
+      {
+        "mediaType": "application/octet-stream",
+        "path": "artifacts/06_runtime/pytest_summary.txt",
+        "sha256": "e795af3c076783c78411cdba85fd51f3c8bce18044ee3d8395ff41a35c6b222c"
+      }
+    ],
+    "completedAt": "2026-07-01T05:43:15Z",
+    "coverageRef": "coverage.json",
+    "findingsRef": "findings.json",
+    "id": "1c6b57c_20260630T142116",
+    "producer": {
+      "name": "codex-security-plugin",
+      "version": "0.1.10"
+    },
+    "scope": {
+      "artifactsReviewed": [
+        "architecture.md",
+        "plan/road-rampart.md",
+        "tap_auth/specs/spec-tap-auth-v0.md",
+        "tap_web/specs/spec-web-page.md",
+        "tap_web/specs/spec-web-panel.md",
+        "tap_web/specs/spec-web-rendering.md",
+        "tap_web/specs/spec-web-panel-security.md",
+        "tap_api routers",
+        "tap_web views/page/panel helpers/templates"
+      ],
+      "context": "TAP auth spec requires every graph read, including API read endpoints and page/panel render paths, to require grid.read.",
+      "excludePaths": [
+        ".git/",
+        ".venv/",
+        "node_modules/"
+      ],
+      "includePaths": [
+        "."
+      ],
+      "limitations": [
+        "Multi-agent exhaustive discovery failed due usage limit.",
+        "Current runtime is a dev profile; deploy-posture hardening was checked by source and manage.py check --deploy output rather than a real TLS deploy profile."
+      ],
+      "runtimeStatus": "Docker web container available on host port 8030; live HTTP validation used requests from inside the web container to host.docker.internal:8030 with Host localhost:8030.",
+      "summary": "Repository-wide Codex Security scan, completed as a parent-agent high-impact scan after worker fan-out failed.",
+      "validationMode": "source review plus live network HTTP plus targeted pytest suite"
+    },
+    "sealedAt": "2026-07-01T05:43:15Z",
+    "startedAt": "2026-06-30T14:21:16Z",
+    "status": "completed",
+    "target": {
+      "displayName": "notgeorge/tap",
+      "kind": "git_worktree",
+      "remote": "https://github.com/notgeorge/tap.git",
+      "revision": "1c6b57c3132a5340df4510340c8be6831c379cec",
+      "snapshotDigest": "codex-security-snapshot/v1:sha256:297e22723e4d415eedd69cbb4766487b9fec88b53f45b62ca22f8af13ccddac0",
+      "targetId": "git:sha256:75c79590b0db6b31e3168a25927139e3897cf4911ee0fa6fc77b785e5621184c"
+    },
+    "threatModel": {
+      "assets": [
+        "TAP graph entities and edges",
+        "page/panel configuration and compliance/security dashboard data",
+        "auth capabilities and roles",
+        "collector/job metadata",
+        "session cookies and CSRF tokens"
+      ],
+      "assumptions": [
+        "No multi-tenancy is intended",
+        "Local Docker dev profile is not the deploy TLS profile",
+        "Test client force_login is not sufficient proof for route authz; live HTTP proofs were required"
+      ],
+      "attackerCapabilities": [
+        "anonymous web client",
+        "authenticated user with no TAP capabilities",
+        "tap_viewer with grid.read but no grid.write",
+        "tap_admin with full capabilities"
+      ],
+      "securityObjectives": [
+        "All graph reads require grid.read",
+        "All graph writes require grid.write or narrower capability",
+        "Denied authz decisions are logged",
+        "CSRF protects state-changing requests",
+        "Templates do not execute stored user-controlled HTML"
+      ],
+      "summary": "Single-tenant TAP instance with authenticated human/program actors, capability-gated graph data, web page/panel rendering, and API routes. Main attacker is an authenticated but capless user attempting to read or mutate graph data or bypass capability checks.",
+      "trustBoundaries": [
+        "external HTTP client to Django web process",
+        "authenticated session to capability policy",
+        "page/panel presentation layer to graph service layer",
+        "plugin code to core TAP graph APIs"
+      ]
+    }
+  },
+  "schemaVersion": "1.0"
+}

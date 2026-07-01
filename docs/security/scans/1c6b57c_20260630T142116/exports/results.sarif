@@ -1,0 +1,233 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "automationDetails": {
+        "id": "1c6b57c_20260630T142116"
+      },
+      "properties": {
+        "codexSecuritySchemaVersion": "1.0",
+        "codexSecurityTargetKind": "git_worktree"
+      },
+      "results": [
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "message": {
+                "text": "page_route_root_control"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tap_web/views.py"
+                },
+                "region": {
+                  "endLine": 67,
+                  "startLine": 43
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "The page, parameterized page, landing redirect, and nav-index routes read Page, Edge, and Panel rows directly without a grid.read authorization decision. A capless authenticated user received page content and the nav catalog, including page metadata and panel URL identifiers that chain into the panel-fragment bypass."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:6898824f3ba84cdfc245b9a013eb23ac06f2a0280e913c547d330482fb963af7",
+            "primaryLocationLineHash": "311004620461411d:1"
+          },
+          "properties": {
+            "category": "authorization-bypass",
+            "confidence": "high",
+            "findingId": "csf_6e5e2596c50cf1c3a41bc5cd",
+            "occurrenceId": "occ_0262b0ebdabb70ae2e11119e",
+            "severity": "medium"
+          },
+          "relatedLocations": [
+            {
+              "id": 1,
+              "message": {
+                "text": "page_render_sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tap_web/views.py"
+                },
+                "region": {
+                  "endLine": 562,
+                  "startLine": 520
+                }
+              }
+            },
+            {
+              "id": 2,
+              "message": {
+                "text": "nav_index_metadata_sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tap_web/views.py"
+                },
+                "region": {
+                  "endLine": 757,
+                  "startLine": 716
+                }
+              }
+            },
+            {
+              "id": 3,
+              "message": {
+                "text": "direct_page_panel_read"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tap_web/page.py"
+                },
+                "region": {
+                  "endLine": 61,
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "ruleId": "authorization-bypass.graph-read",
+          "ruleIndex": 0
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "message": {
+                "text": "root_control_and_render_sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tap_web/views.py"
+                },
+                "region": {
+                  "endLine": 110,
+                  "startLine": 75
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "The generic /panel/<slug>--<uuid>/ route resolves a Panel and renders its template without a grid.read authorization decision. A capless authenticated user received 200 over the Docker-published HTTP port, and a ViewerPanel instance could be pointed at another entity by query string to reveal fields that /object/... correctly denied."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:7540606f77ce1dcb76a2ac3c6a00e451f7fad99d8598fcec0d38990ce24d7e9c",
+            "primaryLocationLineHash": "2ed5f71413951b48:1"
+          },
+          "properties": {
+            "category": "authorization-bypass",
+            "confidence": "high",
+            "findingId": "csf_26ab91f31f0a144aadc2d8d4",
+            "occurrenceId": "occ_03ca0d0fb512b1cd040600d9",
+            "severity": "high"
+          },
+          "relatedLocations": [
+            {
+              "id": 1,
+              "message": {
+                "text": "request_selected_object_read_sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tap_web/panels/viewer_panel/__init__.py"
+                },
+                "region": {
+                  "endLine": 121,
+                  "startLine": 108
+                }
+              }
+            },
+            {
+              "id": 2,
+              "message": {
+                "text": "panel_content_render_sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tap_web/templates/tap_web/panels/text_panel.html"
+                },
+                "region": {
+                  "endLine": 4,
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "ruleId": "authorization-bypass.graph-read",
+          "ruleIndex": 0
+        },
+        {
+          "level": "note",
+          "locations": [
+            {
+              "message": {
+                "text": "metadata_read_sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tap_api/routers/entity_types.py"
+                },
+                "region": {
+                  "endLine": 14,
+                  "startLine": 12
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "The /api/v1/entity-types/ endpoint is session-authenticated but returns EntityType rows directly without checking grid.read. Live HTTP validation showed capless users receive 200 from this catalog while /api/v1/entities/ correctly returns 403."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:2a9f713976e8f840d2ec5d4a3f4e0b38859881cd44f1992c93d483755a517afa",
+            "primaryLocationLineHash": "a4c86b14589dc977:1"
+          },
+          "properties": {
+            "category": "authorization-bypass",
+            "confidence": "high",
+            "findingId": "csf_80197f0a00fcad14608a958d",
+            "occurrenceId": "occ_bf92f890baaedc37495ef1de",
+            "severity": "low"
+          },
+          "ruleId": "authorization-bypass.metadata-read",
+          "ruleIndex": 1
+        }
+      ],
+      "tool": {
+        "driver": {
+          "name": "Codex Security",
+          "rules": [
+            {
+              "id": "authorization-bypass.graph-read",
+              "name": "authorization-bypass.graph-read",
+              "properties": {
+                "tags": [
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "authorization-bypass.graph-read"
+              }
+            },
+            {
+              "id": "authorization-bypass.metadata-read",
+              "name": "authorization-bypass.metadata-read",
+              "properties": {
+                "tags": [
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "authorization-bypass.metadata-read"
+              }
+            }
+          ],
+          "version": "0.1.10"
+        }
+      }
+    }
+  ],
+  "version": "2.1.0"
+}
