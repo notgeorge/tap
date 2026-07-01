@@ -48,7 +48,7 @@ Ranked by leverage-per-cost. You cannot test your way to completeness (testing s
 ### Phase 5 — Backfill coverage, generalize, lock in
 - Author envelope-WHERE scenarios across the shapes that dispatch differently: data-lane comparison, `IN`, `IS NULL`, anchor + data-lane remainder, directed + undirected. Predict, regenerate, **verify each oracle**.
 - Both new guards (stage-coverage + WHERE-in-SQL) green across all paths; the envelope-WHERE branch is now covered.
-- Strike the `clauses/match-where` defect gap in `tck-coverage.json`; add the new scenarios' folder cites.
+- Strike the `clauses/match-where` defect gap in the coverage ledger; add the new scenarios' folder cites.
 - Update `spec-grid-traversal-language.md` (WHERE behavior on the envelope path) and the divergence doc if relevant.
 - Full suite + guards + black/ruff/mypy green. Commit in logical chunks; promote.
 
