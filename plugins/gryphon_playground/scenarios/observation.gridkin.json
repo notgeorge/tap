@@ -41,6 +41,19 @@
       "query": "MATCH (n:pg_node) WHERE n.data.observed_at IS UNKNOWN AND n.data.severity_score = 0",
       "expected_envelope": "expected/observation__and_combination.expected.json",
       "expected_sql_snapshot": "expected/observation__and_combination.sql.txt"
+    },
+    {
+      "name": "IS UNKNOWN keyword is case-insensitive — lowercase 'is unknown' is identical",
+      "tags": ["observation", "is-unknown", "case-insensitivity", "tck-inspired"],
+      "covers": [
+        "req-grid-traversal-lang-observation",
+        "req-grid-traversal-lang-observation-1"
+      ],
+      "layer": "lite",
+      "inspired_by": "opencypher TCK — expressions/null (keyword case folding: lowercase `is unknown` parses identically to `IS UNKNOWN`, mirroring the IS NOT NULL case-insensitivity already pinned)",
+      "query": "MATCH (n:pg_node) WHERE n.data.observed_at is unknown RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/observation__is_unknown_lowercase.expected.json",
+      "expected_sql_snapshot": "expected/observation__is_unknown_lowercase.sql.txt"
     }
   ]
 }

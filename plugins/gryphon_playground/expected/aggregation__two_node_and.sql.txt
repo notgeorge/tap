@@ -1,0 +1,12 @@
+-- statement 1 · stage: advanced
+SELECT "tap_edge"."from_entity_id" AS "_g_col_0", COUNT("tap_edge"."to_entity_id") AS "_g_agg_0"
+FROM "tap_edge"
+INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
+INNER JOIN "tap_entity" T3 ON ("tap_edge"."from_entity_id" = T3."id")
+INNER JOIN "tap_entity" T4 ON ("tap_edge"."to_entity_id" = T4."id")
+INNER JOIN "gryphon_playground_pg_hub" ON (T3."id" = "gryphon_playground_pg_hub"."entity_id")
+INNER JOIN "gryphon_playground_pg_node" ON (T4."id" = "gryphon_playground_pg_node"."entity_id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T3."entity_type" = %s AND T4."entity_type" = %s AND "gryphon_playground_pg_hub"."severity_score" = %s AND "gryphon_playground_pg_node"."severity_score" > %s)
+GROUP BY 1
+ORDER BY 1 ASC
+-- params: ['PG_LINKS', 'pg_hub', 'pg_node', Int4(0), Int4(15)]
