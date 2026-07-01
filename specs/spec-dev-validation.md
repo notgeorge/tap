@@ -29,6 +29,7 @@ The discipline running through every requirement here is honest coverage account
 | req-dev-validation-known-broken | [Known-Broken Manifest](#known-broken-manifest) | Proposed | In-repo, ratchets down; named here as the house convention |
 | req-dev-validation-promote-hook | [Promote-Path Enforcement](#promote-path-enforcement) | Proposed | Reciprocal of `req-dev-multisession-promote-gate` |
 | req-dev-validation-ratchet-harness | [Reusable Ratchet Harness](#reusable-ratchet-harness) | Proposed | Extract the shared compare-and-report core of the proliferating baseline ratchets |
+| req-dev-validation-suite-tiers | [Suite Tiering & Performance](#suite-tiering--performance) | Proposed | Fast / affected / full test lanes so a slow full run leaves the inner loop; how-each-runs discipline |
 
 Leaf surfaces referenced by the Map are owned elsewhere: spawn-env smoke in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md), teardown in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md), the log-site scanner in [spec-tap-logging.md](spec-tap-logging.md), and the async-delivery tiers in [spec-tap-cares-task-backend.md](../tap_cares/specs/spec-tap-cares-task-backend.md) (`req-tap-cares-task-backend-backlog-2`). This spec does not re-specify them.
 
@@ -230,6 +231,76 @@ it incrementally; none is rewritten speculatively.
 | req-dev-validation-ratchet-harness-2 | Common baseline schema | Proposed | Ratchet baselines share a committed artifact shape carrying the value plus provenance (`measured_at_commit`, scope, note). | |
 | req-dev-validation-ratchet-harness-3 | Emits its Map row | Proposed | The harness produces the surface's Validation Map row stub with standard guard-status phrasing so honest-status labeling cannot drift. | Ties to `req-dev-validation-map`. |
 | req-dev-validation-ratchet-harness-4 | Incremental migration, no speculative rewrite | Proposed | Existing ratchets migrate to the shared core only as they are next touched; the harness is built when it would have its second or third real caller, not before. | Guards against framework-ahead-of-demand. |
+
+### Suite Tiering & Performance
+----
+RID: `req-dev-validation-suite-tiers`
+Status: `Proposed`
+
+> **Forward note, not a build (jotted 2026-07-01).** Seeded for the
+> validation-focused session. The corpus has grown fast (the Gryphon suites alone
+> now run 7–18 minutes), and a full run has crept onto the inner loop. This is the
+> tiering + acceleration strategy to pull it back off. `req-dev-validation-canary-tier`
+> already owns the *membership discipline* of the fast tier; this requirement owns
+> the *tiering model and the performance levers* around it.
+
+#### The model: fast / affected / full
+
+Three lanes, and the load-bearing insight is that the fix is usually *when each
+lane runs*, not making the full run fast. A 15-minute full suite is fine if it runs
+at the promote gate and not on every save.
+
+- **Fast (smoke) — seconds, every save / pre-commit.** A curated blast-radius
+  subset, governed by `-m smoke` and the membership rules in
+  [Canary Test Tier](#canary-test-tier) (a test earns `smoke` only if its failure
+  predicts broad downstream failure — importance alone is insufficient).
+- **Affected — ~a minute, per chunk.** The tests touching what changed, selected by
+  marker (`-m "not slow"`) or by test-impact analysis (below).
+- **Full — the slow run, at the pre-push gate / CI only.** Everything, including the
+  DB-heavy integration suites. Slow is acceptable here *by design*; this lane is the
+  binary gate, not the inner loop.
+
+#### Acceleration levers, ranked by ROI for this DB-bound suite
+
+1. **Parallelize first — `pytest-xdist -n auto`.** The single biggest win for a
+   DB-heavy Django suite, and low-effort. `pytest-django` gives each xdist worker its
+   *own* test database, so it does **not** violate the standing "run overlapping
+   suites as one invocation or they deadlock the test DB" rule — that rule is about
+   two separate pytest *processes* sharing *one* DB; xdist is one process, N workers,
+   N separate DBs. Expect roughly `cores`× on the full run.
+2. **Profile before cutting — `pytest --durations=25`.** Time is rarely spread evenly;
+   it concentrates in a handful of DB-seeding integration tests. Mark the offenders
+   `slow` and add them to `smoke` only if they meet the blast-radius bar.
+3. **Attack the per-test DB cost — the real hot spot.** `@pytest.mark.django_db(transaction=True)`
+   is expensive (it truncates tables between tests rather than rolling back a
+   transaction); it is genuinely required where `on_commit`/service-layer hooks fire
+   (e.g. the Gridkin GRIFT seed) but should not be the default elsewhere. `--reuse-db`
+   skips migrate/create-DB between local runs. A *separate* shared-seed "fast Gridkin"
+   lane (seed a fixture once, run its read-only scenarios against it) would collapse
+   much of the per-scenario cost — a speed lane only, since it trades away the
+   per-scenario isolation `req-gridkin-runner-contract-2` requires of the canonical
+   suite.
+4. **Test-impact analysis for the affected lane — `pytest-testmon`.** Runs only tests
+   whose covered code changed (same lineage as the branch-coverage data the ratchets
+   now collect). A local accelerator for deciding *what to run fast*, never a
+   substitute for the full gate — its tracking DB can go stale on config/env changes.
+
+#### Anti-patterns to avoid
+
+- The fast tier drifting into "the important tests" instead of the blast-radius set
+  (the canary-tier bar exists precisely to prevent this).
+- Optimizing before `--durations` says where the time is.
+- Trusting an affected/impact lane as a gate — it accelerates the inner loop; the
+  full lane is what refuses the push.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-validation-suite-tiers-1 | Three named lanes | Proposed | The suite exposes fast (`-m smoke`), affected (`-m "not slow"` or impact-selected), and full lanes, with a documented "which runs when". | Fast tier membership is owned by `req-dev-validation-canary-tier`. |
+| req-dev-validation-suite-tiers-2 | Parallel full run | Proposed | The full lane runs under `pytest-xdist` with per-worker databases; this does not conflict with the shared-DB single-invocation rule. | Highest-ROI lever. |
+| req-dev-validation-suite-tiers-3 | Profiled, not guessed | Proposed | `slow` designations follow from `--durations` evidence, not intuition. | |
+| req-dev-validation-suite-tiers-4 | Impact lane is not a gate | Proposed | Any test-impact/affected selection accelerates the inner loop only; the pre-push gate always runs the full lane. | Counters the substitution-backend blind spot. |
 
 ### Promote-Path Enforcement
 ----
