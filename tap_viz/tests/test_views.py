@@ -12,13 +12,19 @@ from tap_web.models import Panel
 
 @pytest.fixture
 def client(db) -> Client:
-    """Authenticated test client. The login wall (req-tap-auth-service-boundary)
-    requires a session to reach any tap_web page; grid reads inside the panel are
-    authorized by the autouse caller-context fixture, so any logged-in user is
-    sufficient to exercise rendering. Overrides pytest-django's anonymous
+    """Authenticated test client holding grid.read (tap_viewer). The login wall
+    (req-tap-auth-service-boundary) requires a session to reach any tap_web page,
+    and the panel endpoint now gates on grid.read (req-tap-auth-policy) with the
+    ORM read backstop beneath (req-tap-auth-orm-read-backstop). During an HTTP
+    request the middleware binds the request user as the caller context, so the
+    browsing user itself must hold grid.read. Overrides pytest-django's anonymous
     `client` fixture for this module."""
+    from django.contrib.auth.models import Group
+
+    user = get_user_model().objects.create_user(username="viz-views", password="x")
+    user.groups.add(Group.objects.get(name="tap_viewer"))
     c = Client()
-    c.force_login(get_user_model().objects.create_user(username="viz-views", password="x"))
+    c.force_login(user)
     return c
 
 

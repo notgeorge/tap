@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group  # noqa: F401
+from django.contrib.auth.models import Group
 from django.test import Client
 
 from tap_web.models import Page
@@ -22,11 +22,15 @@ _MINIMAL_LAYOUT = {"columns": {"col-1": {"width": "1fr", "rows": {"row-1": {"pan
 
 
 def _auth_client() -> Client:
-    """Authenticated client. The default-deny login wall
-    (req-tap-auth-service-boundary) requires a session to reach any tap_web page;
-    the autouse caller-context fixture authorizes the grid reads. get_or_create so
-    repeated calls within one test don't collide on the username."""
+    """Authenticated client holding grid.read (tap_viewer). The default-deny login
+    wall (req-tap-auth-service-boundary) requires a session to reach any tap_web
+    page, and tap_web read routes now gate on grid.read (req-tap-auth-policy) with
+    the ORM read backstop beneath (req-tap-auth-orm-read-backstop) — so a browsing
+    user must hold grid.read. (During an HTTP request the middleware binds the
+    request user as the caller context, so the autouse tap_test context does not
+    apply.) get_or_create so repeated calls within one test don't collide."""
     user, _ = get_user_model().objects.get_or_create(username="nav-user")
+    user.groups.add(Group.objects.get(name="tap_viewer"))
     c = Client()
     c.force_login(user)
     return c
@@ -355,9 +359,43 @@ class TestUserMenu:
             first_name="George",
             avatar_url="https://lh3.googleusercontent.com/p",
         )
+        u.groups.add(Group.objects.get(name="tap_viewer"))  # grid.read to render the page
         c = Client()
         c.force_login(u)
         body = c.get("/").content.decode()
         assert "ext-criticalsec-google-zzz" not in body
         assert "George" in body
         assert "lh3.googleusercontent.com/p" in body
+
+
+def _no_cap_client() -> Client:
+    """Authenticated client whose user holds no capability bundle (no grid.read).
+
+    Proves that passing the login wall does not imply permission: the tap_web read
+    routes gate on grid.read (req-tap-auth-policy), so a capability-less session is
+    denied 403 — distinct from the anonymous 302 to login."""
+    user = get_user_model().objects.create_user(username="nav-nocap", password="x")
+    c = Client()
+    c.force_login(user)
+    return c
+
+
+@pytest.mark.django_db
+class TestReadRoutesRequireGridRead:
+    """Findings cs-tap-web-page-002 / -panel-001: authenticated no-cap callers are
+    denied graph-backed page, nav-index, and panel reads (403), not served 200."""
+
+    def test_page_view_no_cap_denied(self):
+        Page.objects.create(name="Secret", slug="/secret", layout=_MINIMAL_LAYOUT)
+        resp = _no_cap_client().get("/secret")
+        assert resp.status_code == 403
+
+    def test_nav_index_no_cap_denied(self):
+        resp = _no_cap_client().get("/__nav-index.json")
+        assert resp.status_code == 403
+
+    def test_panel_fragment_no_cap_denied(self):
+        # The grid.read gate runs before the panel is resolved, so a no-cap caller
+        # is denied even for a well-formed URL — no panel-existence leak.
+        resp = _no_cap_client().get(f"/panel/x--{__import__('uuid').uuid4()}/")
+        assert resp.status_code == 403
