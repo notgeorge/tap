@@ -27,13 +27,18 @@ ENV UV_LINK_MODE=copy
 WORKDIR /app
 
 # Install system-level dependencies
-# - postgresql-client: needed for Django to talk to PostgreSQL (pg_isready, psql)
+# - postgresql-client: pg_isready/psql for Django, AND pg_dump/pg_restore for the
+#   pre-boot pre-migrate snapshot (tap/preboot.py, req-boot-snapshot)
+# - git: required by the pre-boot stage to install package-mode plugins from a git
+#   source (`<dist> @ git+https://…@<rev>`, req-boot-install-section). uv shells out to
+#   the git binary for VCS installs; without it a git-source plugin install fails.
 # - curl: used by the tailwindcss binary install below; also handy for shell
 #   debugging from inside the container
 # - --no-install-recommends: skip optional packages to keep image small
 # - rm -rf /var/lib/apt/lists/*: clean up apt cache to reduce image size
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
+    git \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

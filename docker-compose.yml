@@ -146,6 +146,13 @@ services:
       # See specs/spec-dev-boot-collectors.md.
       TAP_BOOT_PROFILE: "${TAP_BOOT_PROFILE:-}"
 
+      # Pre-boot snapshot switch override (req-boot-snapshot / req-boot-variable-resolution).
+      # A boot-variable whose env form is TAP_BOOT_<SECTION>__<KEY>; empty here means
+      # "unset" so the profile field / default-true wins. spawn-session.sh writes
+      # =false into a dev worktree's .env.local (dev DBs reset freely, so the
+      # pre-migrate snapshot is pure overhead). Prod/customer standups leave it unset.
+      TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE: "${TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE:-}"
+
       # Public base URL of this instance (req-tap-auth-providers-7). Used by auth
       # provider self-tests + boot validation to derive the OIDC callback URL.
       # allauth itself derives the runtime redirect_uri from the request. Empty

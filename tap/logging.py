@@ -338,7 +338,14 @@ class ScanResult:
 
 def discover_scan_roots(project_root: Path) -> list[Path]:
     """Discover first-party app roots (`tap_*` with `apps.py`) and plugin roots
-    (`plugins/<slug>` with `tap-plugin.toml`) by filesystem inspection.
+    (a `tap-plugin.toml`-bearing directory under `plugins/<slug>`) by filesystem inspection.
+
+    Two in-repo plugin layouts are recognized so package-mode migration does not
+    silently drop a plugin from the security (authz-coverage) and log-site scanners:
+      - build-baked / legacy: `plugins/<slug>/tap-plugin.toml`      → root `plugins/<slug>`
+      - package-mode:         `plugins/<slug>/<slug>/tap-plugin.toml` → root `plugins/<slug>/<slug>`
+    (A fully extracted package-mode plugin installed from site-packages is out of the
+    in-repo scanners' scope by construction; its scanning moves with its own repo.)
 
     Independent of Django's runtime app registry so the scanner runs at pytest
     collection time without needing settings to be loaded.
@@ -350,8 +357,12 @@ def discover_scan_roots(project_root: Path) -> list[Path]:
     plugins_dir = project_root / "plugins"
     if plugins_dir.is_dir():
         for child in sorted(plugins_dir.iterdir()):
-            if child.is_dir() and (child / "tap-plugin.toml").exists():
-                roots.append(child)
+            if not child.is_dir():
+                continue
+            if (child / "tap-plugin.toml").exists():
+                roots.append(child)  # legacy flat layout
+            elif (child / child.name / "tap-plugin.toml").exists():
+                roots.append(child / child.name)  # package-mode nested layout
     return roots
 
 

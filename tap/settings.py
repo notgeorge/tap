@@ -94,6 +94,17 @@ TAP_SECRETS_ROOT = os.environ.get("TAP_SECRETS_ROOT", "/run/tap-secrets")
 # =============================================================================
 # Application Definition
 # =============================================================================
+
+# Package-mode plugins (req-boot-install-section). The settings-free pre-boot stage
+# (tap/preboot.py, run in docker/entrypoint.sh BEFORE Django starts) installs the boot
+# profile's `install` plugins, verifies each entry-point key == slug, and emits their
+# AppConfig dotted paths as the space-separated TAP_PLUGINS env var. Settings CONSUMES
+# that list — it does not discover or install (that already happened, and identity was
+# checked, in pre-boot). Empty for an all-build-baked instance. During the transition to
+# full package-mode, build-baked plugins stay hardcoded in INSTALLED_APPS below and
+# TAP_PLUGINS appends the package-mode ones (spliced in just before tap_api).
+TAP_PLUGINS_APPS = os.environ.get("TAP_PLUGINS", "").split()
+
 INSTALLED_APPS = [
     # Django built-in apps
     "django.contrib.admin",
@@ -178,6 +189,11 @@ INSTALLED_APPS = [
     # scenario corpus for testing the Gryphon query language. Load-bearing
     # test-fixture plugin (like lotr): de-registering it reds the Gridkin suite.
     "plugins.gryphon_playground.apps.GryphonPlaygroundConfig",
+    # Package-mode plugins installed by the pre-boot stage (TAP_PLUGINS). Spliced in
+    # here — after build-baked plugins, before tap_api — so tap_api's ready() still
+    # discovers their routers and their EntityTypes/edges register before the API/web
+    # layers. Empty list when TAP_PLUGINS is unset. See TAP_PLUGINS_APPS above.
+    *TAP_PLUGINS_APPS,
     # API layer — last so ready() discovers all plugin routers
     "tap_api",
     # Web interface

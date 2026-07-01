@@ -23,6 +23,29 @@ echo "==> Syncing Python dependencies (uv sync --all-packages)..."
 # get installed.
 uv sync --all-packages
 
+# ---------------------------------------------------------------------------
+# Pre-boot stage (settings-free; runs BEFORE Django reads settings).
+# ---------------------------------------------------------------------------
+# tap/preboot.py reads the boot profile as plain JSON, uv-installs the profile's
+# `install` plugins (idempotent — a reboot is a fast no-op, no re-pull), verifies
+# each plugin's entry-point key == slug, runs the static coherence guard, and takes
+# a verified pre-migrate DB snapshot (switch defaults true; dev disables it via
+# TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE=false in .env.local). It prints the
+# resolved package-mode AppConfig paths on stdout as TAP_PLUGINS, which settings.py
+# consumes (splicing them into INSTALLED_APPS before tap_api). This runs before
+# createcachetable/migrate so the snapshot precedes ALL schema changes and so
+# TAP_PLUGINS is set for migrate + the server. A pre-boot failure is fatal and
+# aborts here, before any schema mutation, leaving the DB untouched (req-boot-preboot).
+# It is the Kubernetes initContainers shape: a run-to-completion stage before the
+# main process. `manage.py boot` (population) still runs at spawn time.
+echo "==> Pre-boot: installing declared plugins + pre-migrate snapshot (profile: ${TAP_BOOT_PROFILE:-base})..."
+if ! TAP_PLUGINS="$(uv run python -m tap.preboot --profile "${TAP_BOOT_PROFILE:-base}")"; then
+    echo "FATAL: pre-boot stage failed; aborting standup before migrate (DB untouched)." >&2
+    exit 1
+fi
+export TAP_PLUGINS
+echo "==> Pre-boot complete. TAP_PLUGINS=[${TAP_PLUGINS:-<none>}]"
+
 # Provision the DatabaseCache table (settings.CACHES LOCATION="tap_cache").
 # This is DB-schema provisioning, the same category as migrate — "fresh DB →
 # schema current" — not instance state, so it lives here next to migrate rather
