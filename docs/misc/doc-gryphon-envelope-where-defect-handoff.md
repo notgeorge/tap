@@ -1,6 +1,7 @@
 # Handoff — Gryphon single-hop relationship ENVELOPE silently drops its WHERE
 
-**Status:** open defect, recorded but not fixed. Reserved for a fresh session.
+**Status:** ✅ RESOLVED 2026-07-01. Fixed by collapsing single-hop dispatch through the WHERE-applying chain path (the preferred option below): `_execute_hub_and_spoke` / `_execute_edge_type_scan` and the `entity_id`-anchor subsystem are deleted; single-hop now applies the full WHERE with type strictness (apply-or-reject), inner-join semantics. Surfaced and regression-locked by the model-based reference oracle (`plugins/gryphon_playground/gridkin/model_oracle.py`). See the AAR resolution banner and `spec-grid-traversal-language.md` → "Single-Hop Execution Semantics". Retained as the fix's design record.
+**Status (original):** open defect, recorded but not fixed. Reserved for a fresh session.
 **Found:** 2026-06-30, while authoring a two-node-AND gridkin scenario (caught by oracle discipline — a wrong row leaked into the regenerated oracle).
 **Severity:** silent wrong results (too many rows) for a common query shape. Same bug *class* as the coercion defect (`req-grid-traversal-lang-type-strictness`) that was just fixed: the engine returns plausible-but-wrong data rather than erroring.
 **Ledger:** recorded in `plugins/gryphon_playground/scenarios/gryphon_playground.tck-coverage.json` under `clauses/match-where`, `kind: feature`.

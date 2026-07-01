@@ -46,6 +46,16 @@
       "query": "MATCH (a:gryphon_playground__pg_hub)-[e:PG_OWNS]->(b:gryphon_playground__pg_node)",
       "expected_envelope": "expected/edge_type_scan__absent_type_empty.expected.json",
       "expected_sql_snapshot": "expected/edge_type_scan__absent_type_empty.sql.txt"
+    },
+    {
+      "name": "envelope with a non-anchor WHERE over two bound nodes filters both endpoints",
+      "tags": ["edge-type-scan", "where", "envelope-where-defect"],
+      "covers": ["req-grid-traversal-lang-filters", "req-grid-traversal-lang-combinators"],
+      "inspired_by": "opencypher TCK — clauses/match-where (multi-variable conjunction constraining two different bound nodes)",
+      "layer": "lite",
+      "query": "MATCH (h:gryphon_playground__pg_hub)-[:PG_LINKS__gryphon_playground]->(n:gryphon_playground__pg_node) WHERE h.data.severity_score = 0 AND n.data.severity_score > 15",
+      "expected_envelope": "expected/edge_type_scan__two_node_where.expected.json",
+      "expected_sql_snapshot": "expected/edge_type_scan__two_node_where.sql.txt"
     }
   ]
 }

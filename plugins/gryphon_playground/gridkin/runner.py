@@ -23,10 +23,11 @@ import json
 import re
 from typing import TYPE_CHECKING, Any
 
+from plugins.gryphon_playground.gridkin.model_oracle import Graph, OracleUnmodeled, evaluate
 from tap_grid.exceptions import SearchExecutionError
 from tap_grid.grift import grift_import
 from tap_grid.gryphon import explain_gryphon_raw
-from tap_grid.gryphon.parser import GryphonParseError
+from tap_grid.gryphon.parser import GryphonParseError, parse_gryphon
 from tap_grid.services import delete_node
 
 # Rejection scenarios name the exception the query must raise. Kept to the two
@@ -126,7 +127,91 @@ def run_scenario(scenario: Scenario, *, update_snapshots: bool = False) -> list[
     failures: list[str] = []
     failures.extend(_check_envelope(scenario, actual_envelope))
     failures.extend(_check_sql(scenario, actual_sql))
+    failures.extend(_check_oracle(scenario, actual_envelope))
     return failures
+
+
+def _check_oracle(scenario: Scenario, actual: dict[str, Any]) -> list[str]:
+    """Diff the independent model-based reference oracle against the executor.
+
+    The oracle (`model_oracle.evaluate`) computes the correct result a *second*
+    way — interpreting the same parsed AST over plain Python objects loaded from
+    the same GRIFT fixture, with zero shared ORM-lowering logic. A disagreement
+    is a bug in one of the two engines (usually the executor's AST→SQL
+    translation — the surface this whole discipline targets), surfaced
+    mechanically and independent of which query shape an author happened to pick.
+
+    - Rejection scenarios have no result to model — skipped.
+    - A shape the oracle does not yet model raises `OracleUnmodeled` — skipped
+      per-scenario (corpus-level coverage is tracked by the standalone
+      validator); an unmodeled shape is never a fake green, it is simply not
+      asserted here.
+    - A scenario with `oracle_divergence` set declares a KNOWN, tracked
+      disagreement (e.g. a semantics decision pending a refactor). The check
+      asserts the divergence STILL holds — so the exemption cannot silently rot
+      once the underlying behavior is fixed.
+    """
+    if scenario.expected_error is not None:
+        return []
+    try:
+        graph = Graph.from_grift(_oracle_document(scenario), frozenset(scenario.soft_delete))
+        parsed = parse_gryphon(scenario.query)
+        oracle = evaluate(parsed, graph, scenario.params)
+    except OracleUnmodeled:
+        return []
+
+    agrees, detail = _oracle_agrees(oracle, parsed, actual)
+    if scenario.oracle_divergence is not None:
+        if agrees:
+            return [
+                "ORACLE DIVERGENCE STALE — this scenario declares oracle_divergence "
+                f"({scenario.oracle_divergence!r}) but the oracle now AGREES with the "
+                "executor. Remove the oracle_divergence field."
+            ]
+        return []
+    if agrees:
+        return []
+    return [
+        "ORACLE DISAGREEMENT — the independent reference oracle computed a different "
+        "result than the executor (a translation-fidelity bug in one of them):\n" + detail
+    ]
+
+
+def _oracle_document(scenario: Scenario) -> dict[str, Any]:
+    """Merge the scenario's GRIFT fixture(s) into one document for the oracle."""
+    batches: list[Any] = []
+    for path in scenario.fixture_paths:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        batches.extend(doc.get("batches", []))
+    return {"batches": batches}
+
+
+def _oracle_agrees(oracle: Any, parsed: Any, actual: dict[str, Any]) -> tuple[bool, str]:
+    """Compare an OracleResult to the executor's envelope by identity / row value."""
+    if oracle.kind == "envelope":
+        actual_nodes = frozenset(n["entity_id"] for n in actual.get("nodes", []))
+        actual_edges = frozenset(e["entity_id"] for e in actual.get("edges", []))
+        if oracle.node_ids == actual_nodes and oracle.edge_ids == actual_edges:
+            return True, ""
+        detail = (
+            f"  nodes only-in-oracle={sorted(oracle.node_ids - actual_nodes)}\n"
+            f"  nodes only-in-executor={sorted(actual_nodes - oracle.node_ids)}\n"
+            f"  edges only-in-oracle={sorted(oracle.edge_ids - actual_edges)}\n"
+            f"  edges only-in-executor={sorted(actual_edges - oracle.edge_ids)}"
+        )
+        return False, detail
+    # rows: order-sensitive when ORDER BY is present, else compared as a multiset.
+    actual_rows = actual.get("rows", [])
+    oracle_rows = list(oracle.rows)
+    if parsed.order_by is not None:
+        oracle_norm = [json.dumps(r, sort_keys=True) for r in oracle_rows]
+        actual_norm = [json.dumps(r, sort_keys=True) for r in actual_rows]
+    else:
+        oracle_norm = sorted(json.dumps(r, sort_keys=True) for r in oracle_rows)
+        actual_norm = sorted(json.dumps(r, sort_keys=True) for r in actual_rows)
+    if oracle_norm == actual_norm:
+        return True, ""
+    return False, f"  oracle rows={oracle_rows}\n  executor rows={actual_rows}"
 
 
 def _check_rejection(scenario: Scenario) -> list[str]:
@@ -146,16 +231,10 @@ def _check_rejection(scenario: Scenario) -> list[str]:
         )
     except want as exc:
         if needle and needle.lower() not in str(exc).lower():
-            return [
-                f"REJECTION MESSAGE MISMATCH — expected {spec['type']} containing "
-                f"{needle!r}, got: {exc}"
-            ]
+            return [f"REJECTION MESSAGE MISMATCH — expected {spec['type']} containing " f"{needle!r}, got: {exc}"]
         return []
     except Exception as exc:  # noqa: BLE001 — any other type is a contract failure
-        return [
-            f"WRONG REJECTION TYPE — expected {spec['type']}, got "
-            f"{type(exc).__name__}: {exc}"
-        ]
+        return [f"WRONG REJECTION TYPE — expected {spec['type']}, got " f"{type(exc).__name__}: {exc}"]
     return [f"EXPECTED REJECTION — query should have raised {spec['type']} but it succeeded."]
 
 

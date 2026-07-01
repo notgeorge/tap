@@ -104,6 +104,11 @@
           "minLength": 1,
           "description": "Path, relative to the plugin root, to the expected ORM-compiled SQL snapshot file."
         },
+        "oracle_divergence": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Declares a KNOWN, tracked disagreement between the independent model-based reference oracle (model_oracle.py) and the executor for this scenario, and states why. The oracle check is a third assertion diffing an independent computation of the correct result against the executor's; a genuine disagreement is normally a bug in one of them. This field is the narrow, review-visible escape hatch for a divergence that is deliberate-but-unresolved (e.g. a semantics decision pending a refactor) — never a silent skip. Its value MUST explain the divergence and its resolution path."
+        },
         "expected_error": {
           "type": "object",
           "additionalProperties": false,

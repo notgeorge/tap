@@ -91,11 +91,6 @@
           "intent": "pattern-existence predicate mixed into boolean composition (scalar AND existence)",
           "note": "combining NOT EXISTS as one branch of AND/OR rather than a standalone filter",
           "kind": "feature"
-        },
-        {
-          "intent": "single-hop relationship ENVELOPE applies only an entity_id anchor from WHERE; every other predicate is silently dropped",
-          "note": "DEFECT found 2026-06-30 while authoring the two-node-AND scenario: an unanchored single-hop edge ENVELOPE query (e.g. MATCH (h:pg_hub)-[:PG_LINKS]->(n:pg_node) WHERE h.data.severity_score=0 AND n.data.severity_score>15, no RETURN) routes to _execute_edge_type_scan, which never receives where_clause — only edge_type + endpoint labels are filtered, so the data-lane WHERE is IGNORED and too many rows are returned. The hub-and-spoke anchored path honors only the entity_id anchor and drops any AND-ed remainder too. The AGGREGATION / row-projection path applies the full WHERE correctly (chain executor), so the two-node-AND gap is closed there; this defect is the envelope path alone. Fix: thread the non-anchor WHERE into _execute_edge_type_scan / _execute_hub_and_spoke and apply it as a Q over the endpoint data lanes (or reject if unsupported), rather than silently dropping it.",
-          "kind": "feature"
         }
       ],
       "excluded": [
