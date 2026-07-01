@@ -46,7 +46,7 @@ plugins/samsite/panels/vdr_report_workbench/__init__.py:34
 tap_api/routers/gryphon.py:34
 tap_api/routers/searches.py:47
 tap_grid/batch.py:254
-tap_grid/gryphon/executor.py:108
+tap_grid/gryphon/executor.py:107
 tap_grid/services.py:1556
 tap_grid/services.py:1575
 tap_plugins/seeding.py:119
