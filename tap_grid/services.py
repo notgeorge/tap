@@ -59,6 +59,7 @@ from tap_grid.service_types import (
     WriteOperation,
     WriteResult,
 )
+from tap_grid.write_guard import service_write_scope
 
 logger = logging.getLogger(__name__)
 
@@ -697,6 +698,7 @@ def _drain_hotlink_checks_into_results(results: list[WriteResult]) -> bool:
     return any_failure
 
 
+@service_write_scope()
 def write_batch(
     operations: list[WriteOperation],
     *,

@@ -237,7 +237,9 @@ def set_schedule_enabled(
         if not result.success:
             raise SchedulerError(f"set_schedule_enabled failed: " f"{[(e.code, e.message) for e in result.errors]}")
         if transitioning:
-            Schedule.objects.filter(pk=schedule.pk).update(enabled_at=datetime.now(UTC))
+            Schedule.objects.filter(pk=schedule.pk).update(
+                enabled_at=datetime.now(UTC)
+            )  # TAP-WRITE-COV: program-actor scheduler enabled_at bookkeeping
     schedule.refresh_from_db()
     return schedule
 
@@ -256,7 +258,9 @@ def _claim_and_create_fire(
     """
     with transaction.atomic():
         claimed = (
-            Schedule.objects.filter(pk=schedule.pk)
+            Schedule.objects.filter(
+                pk=schedule.pk
+            )  # TAP-WRITE-COV: atomic compare-and-set claim must be one SQL UPDATE (req-tap-cares-scheduler-dedupe)
             .filter(Q(last_schedule_fired__lt=current_slot) | Q(last_schedule_fired__isnull=True))
             .update(last_schedule_fired=current_slot)
         )

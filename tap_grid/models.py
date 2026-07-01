@@ -326,6 +326,26 @@ class Entity(models.Model):
         model_cls = get_model_class(self.entity_type)
         return model_cls.objects.get(entity_id=self.pk)
 
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Save the spine Entity — must route through the service layer.
+
+        Write backstop (req-tap-auth-write-batch-routing): the Entity spine is
+        written only via the service layer (create_entity / update_entity, or the
+        node write pipeline, all of which open the write scope). A direct
+        Entity.save() outside a scope fails closed.
+        """
+        from tap_grid.write_guard import enforce_service_write
+
+        enforce_service_write("save tap_grid.Entity")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+        """Delete the Entity (cascades to edges + domain rows) — service layer only."""
+        from tap_grid.write_guard import enforce_service_write
+
+        enforce_service_write("delete tap_grid.Entity")
+        return super().delete(*args, **kwargs)
+
 
 class EntityType(models.Model):
     """Registry of entity types. Plugins populate this; Entity.entity_type
@@ -644,6 +664,13 @@ class BaseModel(models.Model):
         FLIP: update_flip_map() is called before the DB write so flip_map changes
         are always atomic with the field changes that triggered them.
         """
+        # Write backstop (req-tap-auth-write-batch-routing): a node/edge save must
+        # go through the service layer, which opens the write scope. A direct save
+        # from a view/panel/command fails closed. Layer 1 of the write guard.
+        from tap_grid.write_guard import enforce_service_write
+
+        enforce_service_write(f"save {self._meta.label}")
+
         skip_validation: bool = kwargs.pop("skip_validation", False)
         spine_just_created: bool = kwargs.pop("_spine_just_created", False)
         flip_changed_fields: Any = kwargs.pop("flip_changed_fields", _FLIP_TOUCHED_UNSET)
@@ -722,6 +749,18 @@ class BaseModel(models.Model):
             if "name" in spine_updates:
                 # Keep the in-memory entity in lockstep with the persisted spine.
                 self.entity.name = new_name
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+        """Delete the node/edge — must route through the service layer.
+
+        Write backstop (req-tap-auth-write-batch-routing): a direct instance delete
+        outside a service-layer write scope fails closed. The service delete path
+        (delete_node / delete_edge → entity.delete()) opens the scope.
+        """
+        from tap_grid.write_guard import enforce_service_write
+
+        enforce_service_write(f"delete {self._meta.label}")
+        return super().delete(*args, **kwargs)
 
 
 class Edge(BaseModel):

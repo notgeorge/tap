@@ -123,9 +123,12 @@ class UnguardedOperation(Exception):
     wiring flaw (a 500-class defect), not a 403 denial — conflating them would
     hide a real bug behind a routine denial log.
 
-    It is the first concrete `code` Flaw under spec-tap-flaw-v0 (flaw_class=code,
-    flaw_tags=[security]); full Flaw-mechanism emission is layered in later, but
-    the distinct error type + loud logging is the foundation.
+    It is the first concrete Flaw under spec-tap-flaw-v0 (flaw_tags=[security]).
+    Raising it is paired with `tap.flaws.report_service_layer_bypass`, which emits
+    the structured Flaw — class-aware by the offending callsite: `code` when the
+    bypass is in first-party TAP, `app` when it is in a plugin (a plugin that must
+    route through the service layer). The distinct error type still fails the
+    operation closed; the Flaw carries the blame domain + callsite for routing.
 
     Behavior is the same in every mode — the operation fails closed (does not
     commit / does not return data). `TAP_TEST_MODE` only raises the volume by

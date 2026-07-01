@@ -26,6 +26,60 @@ Denied authorization decisions should log through:
 If a no-cap user receives graph data and no denial log appears, assume the route
 skipped the authorization policy entirely.
 
+## Structural Controls Now In Place (read this before hunting the old classes)
+
+The 2026-06-30 finding classes were all "graph ORM below the service layer with no
+capability gate." That class is now caught structurally, in depth. Know these
+controls so you (a) do not re-report closed classes as open and (b) focus effort
+on the deliberately-open edges instead of the covered core.
+
+Runtime guards (fail closed, `unguarded_operation`), both in `tap_grid/`:
+
+- **ORM read backstop** (`tap_grid/read_guard.py`, `req-tap-auth-orm-read-backstop`).
+  Every materialization of a TAP-managed queryset re-checks `grid.read` at the ORM
+  itself. Layer 1 = `BaseModelQuerySet._fetch_all` (get/first/iterate/list/values
+  over any `BaseModel` incl. `Edge`); Layer 2 = a `connection.execute_wrapper`
+  catching count/exists/aggregate/raw/cursor + the non-`BaseModel` `EntityType`
+  catalog. A capless (or wrong-cap) `CallerContext` reading graph rows raises even
+  if the route forgot to gate. Escape hatch: `unguarded_read()`. **Deliberate open
+  edge:** `Entity` (`tap_entity`) reads are NOT backstopped (separate manager,
+  pervasive below the boundary; the Entity API carries its own gate). A view/route
+  that reads `Entity.objects...` directly and returns spine metadata to a capless
+  actor is still a real finding — the runtime net does not catch it.
+- **ORM write backstop** (`tap_grid/write_guard.py`, `req-tap-auth-write-batch-routing`).
+  A node/edge mutation is permitted only inside a *service-layer write scope*, opened
+  by the sanctioned write API (`write_batch` / `create_node` / `create_edge` /
+  `delete_*` / `purge_node` / `patch_node`, via the write-class `@requires_capability`
+  decorator). A direct `instance.save()` / `Model.objects.create()` / `entity.delete()`
+  from a view, panel, editor descriptor, collector, or command raises. Escape hatch:
+  `unguarded_write()` (admin/infra + tests). **Deliberate open edge:** queryset-level
+  bulk writes (`Model.objects.filter(...).update()/.delete()`) bypass the instance
+  `save`/`delete` hooks, so the *runtime* guard does not see them — they are covered
+  by the static lint below instead.
+
+Build-time lints (baseline-ratchet to zero, `# TAP-*-COV: <reason>` inline hatch):
+
+- **authz-coverage** (`tap/authz_coverage.py`, Rule A): every service-layer read/write
+  sink must sit inside a `@requires_capability`/`authorized()` function.
+- **direct-write** (`tap/direct_write_coverage.py`, Rule B write half): statically
+  flags `<Model>.objects.create/update/...`, `<Model>.objects.filter(...).delete()/
+  .update()`, and `<Model>(...).save()` on graph models outside the sanctioned service
+  modules — catching the queryset-level writes the runtime guard cannot.
+
+How to reason about a candidate finding against these controls:
+
+1. Does the sink go through a `BaseModel`/`Edge` queryset with a bound capless context?
+   If yes, the read backstop already fails it closed — verify by live HTTP that it
+   actually returns `403`, and if it returns `200` you have found a **gap in the net**
+   (an exemption abused, a ctx-None path, or `Entity`/queryset-bulk edge), which is a
+   *higher-value* finding than the original class.
+2. Is `CallerContext` actually bound on the path? The guards allow when NO context is
+   bound (the infra zone: migrations/shell). A request path that reaches graph rows
+   with no context bound is itself the finding — middleware should always bind one
+   (`user=None` for anonymous). Look for background/async/thread paths that lose it.
+3. Is the sink `Entity.objects` or a raw SQL string not covered by Layer 2's regex?
+   Those are the open edges; test them directly.
+
 ## Read First
 
 Start with these files before broad scanning:
@@ -39,7 +93,9 @@ Start with these files before broad scanning:
 7. `tap_web/specs/spec-web-rendering.md`
 8. `tap_web/specs/spec-web-panel-security.md`
 9. `specs/spec-security-posture.md`
-10. The relevant `tap_api/routers/` code and tests
+10. `tap_grid/read_guard.py` and `tap_grid/write_guard.py` (the runtime backstops)
+11. `tap/authz_coverage.py` and `tap/direct_write_coverage.py` (the build-time lints)
+12. The relevant `tap_api/routers/` code and tests
 
 Specs are canonical. If current route behavior disagrees with a spec, treat the
 spec as the intended security contract and the behavior as suspect.
@@ -115,6 +171,21 @@ rg -n "Page\\.objects|Panel\\.objects|Entity\\.objects|EntityType\\.objects|Edge
 Any route that touches graph state before an explicit `grid.read` authorization
 decision deserves review.
 
+Search for direct graph ORM **writes** outside the service layer (the write-side
+twin — these must route through `write_batch`/`create_node`/`create_edge`/
+`delete_*`/`patch_node`, not direct ORM). The static lint already fails new ones,
+but framework dispatch and instance writes can still slip; confirm by hand:
+
+```bash
+rg -n "\\.objects\\.(create|get_or_create|bulk_create|bulk_update|update)\\b|\\.save\\(|\\.delete\\(" tap_web tap_api plugins tap_cares
+```
+
+For each hit, confirm it either (a) calls a service function, or (b) sits inside a
+write-class `@requires_capability` scope. A write reached from a view/panel/
+descriptor/collector handler by direct ORM is a finding even if the runtime guard
+would trip — because the *authorization gate* (not just the write scope) may be
+missing, which is the actual escalation.
+
 ## Known Finding Classes To Retest
 
 Recent validated classes included:
@@ -129,7 +200,37 @@ Recent validated classes included:
 4. Entity type catalog: `/api/v1/entity-types/` returned graph metadata to
    authenticated no-cap users.
 
-Retest these first after fixes, then expand to nearby route families.
+All four are now closed at the data layer by the read backstop (verify they return
+`403`, not just trust it). Expand to nearby route families and to these adjacent
+classes that the runtime net does NOT fully cover:
+
+5. **Write-side twin (`grid.write`/`delete`/`purge`).** The same "below the service
+   layer" pattern on the write side: a mutation endpoint, panel `handle_save`,
+   editor descriptor, or `tap_cares` collector/action that writes graph state by
+   direct ORM without a write-class gate. Found live this session in
+   `table_panel.handle_save` and the LOTR editor descriptor. Test that a capless (or
+   read-only `tap_viewer`) actor cannot drive a write through any framework dispatch
+   path, and that the write actually routes through the service layer (carries FLIP +
+   provenance), not just that it "worked."
+6. **Authorize-after-lookup (existence oracles).** A route that does
+   `get_object_or_404(...)` *before* authorizing leaks existence via `404` vs `403`
+   timing/status even when the read is otherwise gated. The fix pattern applied this
+   session is authorize-BEFORE-lookup in `tap_api/routers/entities.py` and `edges.py`.
+   Look for any handler that resolves the target before its `policy.authorize(...)`.
+7. **Empty-payload / no-op mutation endpoints that read.** A PATCH/POST endpoint that
+   fetches and returns the target with an empty body is a read dressed as a write; if
+   it gates only `grid.write` an actor with write-but-not-read (or the reverse) gets an
+   unintended read/leak. Check that mutation endpoints authorize the capability that
+   matches what they actually expose.
+8. **`Entity` spine reads and raw SQL.** The read backstop deliberately excludes
+   `Entity.objects` and any raw SQL not matched by Layer 2's table regex. A view
+   returning spine metadata via `Entity.objects` to a capless actor is uncaught by the
+   net — test directly.
+9. **Context-loss paths.** Background tasks, async views, threads, or signal handlers
+   that reach graph rows after `CallerContext` is lost hit the infra-zone allow. Any
+   such path serving user-triggered data is a finding.
+
+Retest 1–4 first after fixes, then work 5–9.
 
 ## Logging Checks
 
@@ -179,7 +280,10 @@ scripts/dc exec web uv run python -m pytest \
   tap_api/tests/test_entity_types.py \
   tap_web/tests/test_views.py \
   tap_web/tests/test_reserved_prefixes.py \
-  tap/tests/test_authz_coverage.py -q
+  tap/tests/test_authz_coverage.py \
+  tap/tests/test_direct_write_coverage.py \
+  tap_grid/tests/test_read_guard.py \
+  tap_grid/tests/test_write_guard.py -q
 ```
 
 Deploy posture:

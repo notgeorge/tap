@@ -51,6 +51,10 @@ def get_edge(request: HttpRequest, entity_id: uuid.UUID) -> Edge:
 
 @router.post("/", response={201: EdgeOut, 400: ErrorOut})
 def create_edge_endpoint(request: HttpRequest, payload: EdgeIn) -> tuple[int, Edge | dict[str, str]]:
+    # Authorize before the endpoint lookups (req-tap-auth-policy): grid.write gates
+    # up front, closing the 404-before-403 existence oracle on the two endpoint ids
+    # (Entity is not covered by the ORM read backstop).
+    policy.authorize(_caller_ctx(request), "grid.write", operation="create_edge")
     from_entity = get_object_or_404(Entity, pk=payload.from_entity_id)
     to_entity = get_object_or_404(Entity, pk=payload.to_entity_id)
     try:
@@ -69,6 +73,8 @@ def create_edge_endpoint(request: HttpRequest, payload: EdgeIn) -> tuple[int, Ed
 
 @router.delete("/{entity_id}/", response={204: None})
 def delete_edge_endpoint(request: HttpRequest, entity_id: uuid.UUID) -> tuple[int, None]:
+    # Authorize before the lookup (req-tap-auth-policy): grid.delete gates up front.
+    policy.authorize(_caller_ctx(request), "grid.delete", operation="delete_edge")
     edge = get_object_or_404(Edge.objects.select_related("entity"), entity__pk=entity_id)
     delete_edge(edge, caller_context=_caller_ctx(request))
     return 204, None

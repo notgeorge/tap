@@ -153,6 +153,12 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
     """
     from tap_web.models import Panel
 
+    # Primary grid.read gate (same finding class as panel_view / object_edit_view):
+    # authorize before resolving the Panel so a capability-less caller gets a clean
+    # 403 rather than tripping the ORM read backstop deep in rendering. handle_save
+    # additionally re-gates grid.write/grid.delete on the POST path.
+    _authorize_grid_read("panel_edit_view")
+
     entity_uuid = parse_panel_url_id(panel_url_id)
     if entity_uuid is None:
         return _panel_error(request, f"Invalid panel URL: '{panel_url_id}'")
