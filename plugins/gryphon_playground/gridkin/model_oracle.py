@@ -50,6 +50,7 @@ from tap_grid.gryphon.ast_nodes import (
     InComparison,
     IsNullComparison,
     KeyStep,
+    NotExistsClause,
     NotPred,
     ObservationComparison,
     OrPred,
@@ -547,6 +548,44 @@ def _passes_where(match: PatternMatch, predicate: Predicate | None, inputs: dict
     return result is True
 
 
+def _inner_pattern_exists(
+    not_exists: NotExistsClause, outer: PatternMatch, graph: Graph, inputs: dict[str, Any]
+) -> bool:
+    """True iff the NOT EXISTS inner pattern has ≥1 match correlated to `outer`.
+
+    The inner MATCH shares variable(s) with the outer query (correlation, per
+    req-grid-gryphon-not-exists-2); those shared variables are pinned to the
+    outer match's records. Inner-scoped variables range freely. The inner WHERE
+    (if any) is evaluated over the *combined* inner+outer bindings, so it may
+    reference either scope. Any surviving inner match means the anti-join must
+    exclude the outer row (req-grid-gryphon-not-exists-3).
+
+    The inner pattern is enumerated freely and then filtered to the correlated
+    subset — the same identity comparison the executor's `OuterRef` correlation
+    expresses in SQL, computed here over plain objects.
+    """
+    inner_clause = not_exists.match_clause
+    if len(inner_clause.patterns) != 1:
+        raise OracleUnmodeled("multiple patterns in a NOT EXISTS block")
+    inner_pattern = inner_clause.patterns[0]
+    inner_pred = not_exists.where_clause.predicate if not_exists.where_clause else None
+
+    shared_vars = set(outer.node_vars) & {n.variable for n in inner_pattern.nodes if n.variable}
+
+    for inner in _enumerate_pattern(inner_pattern, graph, inputs):
+        if any(inner.node_vars[v].entity_id != outer.node_vars[v].entity_id for v in shared_vars):
+            continue
+        combined = PatternMatch(
+            node_vars={**outer.node_vars, **inner.node_vars},
+            node_ids=inner.node_ids,
+            edge_ids=inner.edge_ids,
+            edge_records=inner.edge_records,
+        )
+        if _passes_where(combined, inner_pred, inputs):
+            return True
+    return False
+
+
 def _eval_scoped(pred: Predicate | None, match: PatternMatch, inputs: dict[str, Any]) -> bool | None:
     """Kleene-evaluate a predicate against a multi-variable match.
 
@@ -589,19 +628,12 @@ class OracleResult:
 def evaluate(ast: GryphonAST, graph: Graph, inputs: dict[str, Any]) -> OracleResult:
     """Evaluate a parsed Gryphon query over the in-memory graph.
 
-    Raises `OracleUnmodeled` for any shape not yet modeled (OPTIONAL MATCH,
-    NOT EXISTS, bounded multi-hop, display lane, array field paths, multi-MATCH
-    composition, bare-variable RETURN, aggregates other than COUNT).
+    Raises `OracleUnmodeled` for any shape not yet modeled (bounded multi-hop,
+    display lane, array field paths, aggregates other than COUNT, and any
+    OPTIONAL MATCH beyond the v0 single-hop scoreboard scope).
     """
     if ast.optional_match_clauses:
-        raise OracleUnmodeled("OPTIONAL MATCH")
-    if ast.not_exists_clauses:
-        raise OracleUnmodeled("NOT EXISTS")
-    if len(ast.match_clauses) != 1:
-        raise OracleUnmodeled("multiple MATCH clauses")
-    match_clause = ast.match_clauses[0]
-    if len(match_clause.patterns) != 1:
-        raise OracleUnmodeled("multiple patterns in one MATCH")
+        return _evaluate_optional_match(ast, graph, inputs)
 
     # LIMIT with a positive cap but no ORDER BY: the specific subset returned is
     # the executor's arbitrary-but-deterministic default order — an
@@ -610,15 +642,254 @@ def evaluate(ast: GryphonAST, graph: Graph, inputs: dict[str, Any]) -> OracleRes
     if ast.limit is not None and ast.limit.count > 0 and ast.order_by is None:
         raise OracleUnmodeled("LIMIT without ORDER BY (executor-order-dependent subset)")
 
-    pattern = match_clause.patterns[0]
     predicate = ast.where_clause.predicate if ast.where_clause else None
 
+    # Multiple MATCH clauses compose as a deduplicated UNION of graph envelopes
+    # (req-grid-traversal-lang-shape-5). The one global WHERE is applied to each
+    # clause scoped to the variables that clause binds — a leaf naming a variable
+    # the clause does not bind is simply not applied (`_passes_where` already does
+    # this per-match). Union is envelope-only in the corpus; a row projection or
+    # ORDER BY / LIMIT over a union has no canonical row order (the executor
+    # rejects it) so the oracle refuses those shapes loudly.
+    if len(ast.match_clauses) > 1:
+        if ast.not_exists_clauses:
+            raise OracleUnmodeled("NOT EXISTS combined with a multi-MATCH union")
+        return _build_union_envelope(ast, graph, predicate, inputs)
+
+    match_clause = ast.match_clauses[0]
+    if len(match_clause.patterns) != 1:
+        raise OracleUnmodeled("multiple patterns in one MATCH")
+
+    pattern = match_clause.patterns[0]
     matches = _enumerate_pattern(pattern, graph, inputs)
     matches = [m for m in matches if _passes_where(m, predicate, inputs)]
 
-    if ast.return_clause.items is None:
+    # NOT EXISTS blocks are correlated anti-join filters: drop every outer match
+    # for which the inner pattern has ≥1 match under that match's bindings
+    # (req-grid-gryphon-not-exists, ACID -3). Each sibling block narrows further.
+    for not_exists in ast.not_exists_clauses:
+        matches = [m for m in matches if not _inner_pattern_exists(not_exists, m, graph, inputs)]
+
+    items = ast.return_clause.items
+    if items is None or _is_bare_variable_return(items):
+        # A RETURN naming only bare node variables (no field steps, no aggregate)
+        # is a graph-envelope projection of those variables plus their connecting
+        # edges — equivalent to omitting RETURN (req-grid-gryphon-multihop-envelope-2,
+        # req-grid-gryphon-order-by-envelope-7). We model it only when the named
+        # variables are exactly the pattern's bound node variables (so the envelope
+        # is the full match); naming a strict subset would require pruning edges to
+        # the named nodes, a shape absent from the corpus — refuse it loudly.
+        if items is not None:
+            # All items are bare ReturnItems here (guaranteed by _is_bare_variable_return);
+            # the isinstance filter re-states that for the type checker.
+            named = {it.path.variable for it in items if isinstance(it, ReturnItem)}
+            bound = {n.variable for n in pattern.nodes if n.variable}
+            if named != bound:
+                raise OracleUnmodeled("bare-variable RETURN naming a subset of bound variables")
         return _build_envelope(ast, pattern, matches)
     return _build_rows(ast, matches, inputs)
+
+
+# ---------------------------------------------------------------------------
+# OPTIONAL MATCH — the left-outer-join scoreboard (req-grid-gryphon-optional-match)
+# ---------------------------------------------------------------------------
+
+
+def _flatten_conjunction(pred: Predicate | None) -> list[Predicate]:
+    """Flatten an AND-only predicate into its leaves; refuse OR / NOT.
+
+    OPTIONAL MATCH's WHERE is AND-only in v0 (`OR` / `NOT` are rejected by the
+    executor); a result scenario therefore carries a pure conjunction of
+    single-variable leaves. Anything else is not a modeled result shape.
+    """
+    if pred is None:
+        return []
+    if isinstance(pred, AndPred):
+        return _flatten_conjunction(pred.left) + _flatten_conjunction(pred.right)
+    if isinstance(pred, (OrPred, NotPred)):
+        raise OracleUnmodeled("OR / NOT in an OPTIONAL MATCH WHERE")
+    return [pred]
+
+
+def _evaluate_optional_match(ast: GryphonAST, graph: Graph, inputs: dict[str, Any]) -> OracleResult:
+    """Evaluate the v0 OPTIONAL MATCH scoreboard shape (req-grid-gryphon-optional-match).
+
+    The modeled surface, authored straight from the spec's v0 scope:
+
+    - exactly one mandatory `MATCH` that is a single node-only type scan binding `v`;
+    - exactly one single-hop **directed** `OPTIONAL MATCH` anchored on `v`
+      (`(v)-[e:E]->(w)` or `(v)<-[e:E]-(w)`);
+    - a row-projection `RETURN` projecting `v`'s fields and `COUNT`ing the optional
+      variable (`w` or the optional edge `e`).
+
+    The left-outer-join semantics live in two places: **every** mandatory row is
+    kept (a `v` with no qualifying optional edge still appears, count `0`, not
+    absent — ACID-2/-3), and the WHERE filter-placement gotcha (ACID-4/-5) — a
+    predicate on `v` filters the outer scan, a predicate on the optional variable
+    is folded into the join and never drops a mandatory row. Any shape outside the
+    v0 scope raises `OracleUnmodeled` (each is a spec-named future item / rejection).
+    """
+    if len(ast.optional_match_clauses) != 1:
+        raise OracleUnmodeled("more than one OPTIONAL MATCH clause")
+    if ast.not_exists_clauses:
+        raise OracleUnmodeled("OPTIONAL MATCH combined with NOT EXISTS")
+    if len(ast.match_clauses) != 1 or len(ast.match_clauses[0].patterns) != 1:
+        raise OracleUnmodeled("OPTIONAL MATCH with a non-single mandatory MATCH")
+
+    mandatory_pattern = ast.match_clauses[0].patterns[0]
+    if len(mandatory_pattern.edges) != 0:
+        raise OracleUnmodeled("OPTIONAL MATCH mandatory pattern is not a node-only type scan")
+    mandatory_node = mandatory_pattern.nodes[0]
+    v = mandatory_node.variable
+
+    optional_pattern = ast.optional_match_clauses[0].patterns[0]
+    if len(optional_pattern.edges) != 1:
+        raise OracleUnmodeled("OPTIONAL MATCH optional pattern is not single-hop")
+    optional_edge = optional_pattern.edges[0]
+    if optional_edge.direction not in ("out", "in"):
+        raise OracleUnmodeled("undirected OPTIONAL MATCH edge")
+    if optional_pattern.nodes[0].variable != v:
+        raise OracleUnmodeled("OPTIONAL MATCH pattern not anchored on the mandatory variable")
+    optional_node = optional_pattern.nodes[1]
+    w, e = optional_node.variable, optional_edge.variable
+
+    items = ast.return_clause.items
+    if items is None or _is_bare_variable_return(items):
+        raise OracleUnmodeled("OPTIONAL MATCH graph-envelope RETURN")
+
+    # Split the one global WHERE into outer (mandatory-var) and join (optional-var)
+    # leaves. A leaf on the edge variable, or on a variable bound by neither clause,
+    # is outside the modeled surface (the executor rejects the latter).
+    outer_leaves: list[Predicate] = []
+    join_leaves: list[Predicate] = []
+    for leaf in _flatten_conjunction(ast.where_clause.predicate if ast.where_clause else None):
+        leaf_vars = _predicate_vars(leaf)
+        if leaf_vars == {v}:
+            outer_leaves.append(leaf)
+        elif leaf_vars == {w}:
+            join_leaves.append(leaf)
+        elif leaf_vars == {e}:
+            raise OracleUnmodeled("optional-edge-property WHERE predicate")
+        else:
+            raise OracleUnmodeled(f"OPTIONAL MATCH WHERE leaf over unbound/joint vars {sorted(leaf_vars)}")
+
+    # Validate the RETURN shape: non-aggregate items project `v`; the aggregate
+    # COUNTs the optional variable (`w` or `e`). Over one hop, one optional edge is
+    # one binding, so COUNT(w) == COUNT(e) == the number of qualifying edges.
+    for it in items:
+        if isinstance(it, AggregateReturnItem):
+            if it.aggregate.function != "count":
+                raise OracleUnmodeled(f"aggregate function {it.aggregate.function!r}")
+            if it.aggregate.argument.variable not in (w, e):
+                raise OracleUnmodeled("COUNT over a non-optional variable in OPTIONAL MATCH")
+        elif it.path.variable != v:
+            raise OracleUnmodeled("OPTIONAL MATCH RETURN projects a non-mandatory variable")
+
+    live_by_id = {n.entity_id: n for n in graph.live_nodes()}
+    # Mandatory rows: the type scan filtered by the outer (v-scoped) predicates.
+    mandatory = [
+        rec
+        for rec in graph.live_nodes()
+        if _node_matches(mandatory_node, rec, inputs)
+        and all(eval_predicate(leaf, rec, inputs) is True for leaf in outer_leaves)
+    ]
+    mandatory.sort(key=lambda rec: rec.entity_id)  # deterministic identity tiebreak
+
+    rows: list[dict[str, Any]] = []
+    for rec in mandatory:
+        count = _count_optional_edges(rec, optional_pattern, optional_edge, w, join_leaves, live_by_id, graph, inputs)
+        row: dict[str, Any] = {}
+        for it in items:
+            if isinstance(it, AggregateReturnItem):
+                row[it.alias] = count
+            else:
+                row[_return_key(it)] = _resolve_field(it.path, rec)
+        rows.append(row)
+
+    rows = _apply_order_and_limit(ast, rows)
+    return OracleResult(kind="rows", rows=tuple(rows))
+
+
+def _count_optional_edges(
+    anchor: NodeRecord,
+    optional_pattern: PathPattern,
+    optional_edge: Any,
+    w: str | None,
+    join_leaves: list[Predicate],
+    live_by_id: dict[str, NodeRecord],
+    graph: Graph,
+    inputs: dict[str, Any],
+) -> int:
+    """Count the optional edges from `anchor` that qualify (0 if none).
+
+    Mirrors the executor's `Count(<edge>, filter=Q(...))` over the LEFT OUTER
+    JOIN: an edge counts iff it matches the optional edge pattern, its far node
+    matches the optional node pattern, and every join-scoped (optional-variable)
+    predicate holds on that far node. A zero count is a real answer — the
+    mandatory row is *kept* by the caller regardless.
+    """
+    optional_node = optional_pattern.nodes[1]
+    direction = optional_edge.direction
+    count = 0
+    for edge in graph.live_edges():
+        if not _edge_matches(optional_edge, edge, inputs):
+            continue
+        if direction == "out" and edge.from_id == anchor.entity_id:
+            other_id = edge.to_id
+        elif direction == "in" and edge.to_id == anchor.entity_id:
+            other_id = edge.from_id
+        else:
+            continue
+        other = live_by_id.get(other_id)
+        if other is None or not _node_matches(optional_node, other, inputs):
+            continue
+        if not all(eval_predicate(leaf, other, inputs) is True for leaf in join_leaves):
+            continue
+        count += 1
+    return count
+
+
+def _is_bare_variable_return(items: tuple[Any, ...]) -> bool:
+    """True if every RETURN item is a bare node variable (no field steps, no aggregate).
+
+    Per req-grid-gryphon-multihop-envelope-2, an all-bare-variable RETURN
+    (`RETURN n`, `RETURN c, l`) is a graph-envelope projection of the named
+    variables, not a row projection — the executor routes it through the same
+    envelope path as an omitted RETURN.
+    """
+    return bool(items) and all(isinstance(it, ReturnItem) and not it.path.steps for it in items)
+
+
+def _build_union_envelope(
+    ast: GryphonAST, graph: Graph, predicate: Predicate | None, inputs: dict[str, Any]
+) -> OracleResult:
+    """Union the graph envelopes of every MATCH clause, deduplicated.
+
+    Each clause is enumerated independently and filtered by the one global WHERE
+    scoped to that clause's bound variables (per-clause scoping — a leaf naming a
+    variable the clause does not bind is not applied). The node/edge identity sets
+    are unioned across clauses, so a node satisfying two clauses appears once.
+
+    Only the RETURN-omitted envelope form is modeled — the shape the corpus (and
+    the executor's multi-clause-union dispatch) exercises. A bare-variable or
+    field RETURN, or ORDER BY / LIMIT, over a union is refused loudly.
+    """
+    if ast.return_clause.items is not None:
+        raise OracleUnmodeled("non-omitted RETURN over a multi-MATCH union")
+    if ast.order_by is not None or ast.limit is not None:
+        raise OracleUnmodeled("ORDER BY / LIMIT over a multi-MATCH union")
+
+    node_ids: set[str] = set()
+    edge_ids: set[str] = set()
+    for match_clause in ast.match_clauses:
+        if len(match_clause.patterns) != 1:
+            raise OracleUnmodeled("multiple patterns in one MATCH")
+        matches = _enumerate_pattern(match_clause.patterns[0], graph, inputs)
+        matches = [m for m in matches if _passes_where(m, predicate, inputs)]
+        for m in matches:
+            node_ids.update(m.node_ids)
+            edge_ids.update(m.edge_ids)
+    return OracleResult(kind="envelope", node_ids=frozenset(node_ids), edge_ids=frozenset(edge_ids))
 
 
 def _build_envelope(ast: GryphonAST, pattern: PathPattern, matches: list[PatternMatch]) -> OracleResult:

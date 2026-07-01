@@ -237,10 +237,18 @@ Design choices that make it real rather than a mirror of the bug:
   row values — not by serialization. Format quirks can't hide a wrong result and
   can't manufacture a false one.
 - **Fail *loud* on anything unmodeled.** The oracle raises `OracleUnmodeled` for
-  shapes it hasn't implemented (OPTIONAL MATCH, NOT EXISTS, multi-MATCH,
-  LIMIT-without-ORDER-BY, …) and the assertion *skips* those scenarios rather than
-  silently passing them. Honest partial coverage beats fake total coverage. The
-  oracle knows what it doesn't know and says so.
+  shapes it hasn't implemented (bounded multi-hop, display-lane / array field
+  paths, aggregates beyond `COUNT`, `LIMIT`-without-`ORDER BY`, …) and the
+  assertion *skips* those scenarios rather than silently passing them. Honest
+  partial coverage beats fake total coverage. The oracle knows what it doesn't
+  know and says so. The Phase-4 deepening (2026-07-01) shrank that skip-list —
+  bare-variable `RETURN`, multi-`MATCH` union, `NOT EXISTS`, and the v0 `OPTIONAL
+  MATCH` scoreboard are now all modeled, taking oracle coverage of result
+  scenarios from 89% to 99% (139/140). The lone remaining skip, `LIMIT` without
+  `ORDER BY`, is *deliberate and permanent*: the surviving subset is the
+  executor's arbitrary default order, so modeling it would couple the oracle to
+  `executor.py` and destroy the zero-shared-lowering guarantee — the one thing
+  the differential rests on.
 - **Model the backend's real semantics** where they bite — Postgres NULLS-ordering
   under ORDER BY, and the two distinct null logics (see
   `doc-dev-gryphon-vs-cypher.md` and the 2VL/3VL boundary: a null *literal*
