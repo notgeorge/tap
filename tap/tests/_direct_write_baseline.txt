@@ -1,0 +1,13 @@
+# Direct-write scanner baseline — req-tap-auth-policy-9 Rule B (write half).
+#
+# Repo-relative `path:lineno` of class-level direct writes to TAP-managed models
+# (BaseModel subclasses + Entity) that do NOT route through the service layer and
+# are grandfathered for now. The scanner (tap/direct_write_coverage.py) flags any
+# NEW such write and any STALE entry, so this file ratchets toward ZERO as each
+# call migrates onto the service layer (write_batch / create_node / create_edge /
+# delete_* / patch_node). Do not add rows except as a reviewed last resort — prefer
+# routing through the service layer, or a `# TAP-WRITE-COV: <reason>` inline
+# comment when a below-service write is genuinely sanctioned (admin/infra).
+#
+# The runtime write backstop (tap_grid.write_guard) enforces the same rule at
+# execution time, including the instance writes this static tool cannot resolve.

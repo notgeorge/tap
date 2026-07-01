@@ -55,6 +55,12 @@ def create_entity_endpoint(request: HttpRequest, payload: EntityIn) -> tuple[int
 
 @router.patch("/{entity_id}/", response=EntityOut)
 def update_entity_endpoint(request: HttpRequest, entity_id: uuid.UUID, payload: EntityUpdate) -> Entity:
+    # Authorize before the lookup (req-tap-auth-policy): a PATCH is a write, so the
+    # write capability gates it up front. This closes (a) the empty-body read
+    # bypass — an all-optional payload skips update_entity, so without this the
+    # endpoint returned EntityOut with no gate (Entity is not covered by the ORM
+    # read backstop) — and (b) the 404-before-403 existence oracle.
+    policy.authorize(_caller_ctx(request), "grid.write", operation="update_entity")
     entity = get_object_or_404(Entity, pk=entity_id)
     updates: dict[str, Any] = payload.dict(exclude_unset=True)
     if updates:
@@ -64,6 +70,9 @@ def update_entity_endpoint(request: HttpRequest, entity_id: uuid.UUID, payload: 
 
 @router.delete("/{entity_id}/", response={204: None})
 def delete_entity_endpoint(request: HttpRequest, entity_id: uuid.UUID) -> tuple[int, None]:
+    # Authorize before the lookup (req-tap-auth-policy): grid.delete gates the
+    # endpoint up front, closing the 404-before-403 existence oracle.
+    policy.authorize(_caller_ctx(request), "grid.delete", operation="delete_entity")
     entity = get_object_or_404(Entity, pk=entity_id)
     delete_entity(entity, caller_context=_caller_ctx(request))
     return 204, None

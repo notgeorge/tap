@@ -39,6 +39,7 @@ from tap_auth import capabilities as caps
 from tap_auth import policy
 from tap_auth.errors import UnguardedOperation
 from tap_auth.models import UserKind
+from tap_grid.write_guard import WRITE_SCOPE_CAPABILITIES, service_write_scope
 
 if TYPE_CHECKING:
     from tap_grid.caller_context import CallerContext
@@ -86,6 +87,12 @@ def requires_capability(capability: str, *, operation: str = "") -> Callable[[F]
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             ctx = _resolve_caller_context(kwargs)
             policy.authorize(ctx, capability, operation=operation or fn.__name__)
+            # A gated write function opens the service-write scope for its body, so
+            # its node/edge writes pass the write backstop (req-tap-auth-write-batch-
+            # routing). Reads (grid.read) do not open it.
+            if capability in WRITE_SCOPE_CAPABILITIES:
+                with service_write_scope():
+                    return fn(*args, **kwargs)
             return fn(*args, **kwargs)
 
         return wrapper  # type: ignore[return-value]
@@ -118,7 +125,13 @@ def authorized(
         resource_type=resource_type,
         resource=resource,
     )
-    yield
+    # Same as the decorator: a write-class authorization opens the service-write
+    # scope for the body (e.g. grift_import runs under `authorized(grid.import_grift)`).
+    if capability in WRITE_SCOPE_CAPABILITIES:
+        with service_write_scope():
+            yield
+    else:
+        yield
 
 
 def _callsite(skip: int = 2) -> str:
