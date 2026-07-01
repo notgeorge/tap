@@ -60,12 +60,18 @@ BUILD_BAKED_PLUGIN_SLUGS: frozenset[str] = frozenset(
         "sigstore_core",
         "roscale",
         "samsite",
-        "fedramp_20x_ksi",
+        # fedramp_20x_ksi migrated to package-mode 2026-07-01 (first namespaced
+        # plugin) — no longer build-baked; installed via the profile `install` section.
         "gryphon_playground",
     }
 )
 
 TAP_PLUGINS_ENTRY_POINT_GROUP = "tap.plugins"
+
+# PEP 420 native namespace all package-mode plugins import under: tap_plugin.<slug>
+# (singular, to avoid the plural `tap_plugins` management app). The conformance gate
+# asserts every plugin's AppConfig lives here. See req-plugin-arch-identity-3.
+NAMESPACE_PACKAGE = "tap_plugin"
 
 
 class PrebootError(Exception):
@@ -280,6 +286,92 @@ def resolve_tap_plugins(entries: list[dict[str, Any]], discovered: dict[str, str
 
 
 # =============================================================================
+# Conformance gate (req-plugin-arch-identity-5): dist == entry-key == namespace == manifest slug
+# =============================================================================
+
+
+def _namespace_segment(app_config_path: str) -> tuple[str, str]:
+    """Split a dotted AppConfig path (``tap_plugin.<slug>.apps.<Cls>``) into (top, segment)."""
+    parts = app_config_path.split(".")
+    top = parts[0] if parts else ""
+    segment = parts[1] if len(parts) > 1 else ""
+    return top, segment
+
+
+def _manifest_path_for(entry: dict[str, Any], dist: importlib.metadata.Distribution) -> Path:
+    """Locate the plugin's shipped ``tap-plugin.toml`` WITHOUT importing the package.
+
+    A just-installed editable package is not importable in the install process (its
+    finder loads at interpreter startup, so ``find_spec`` misses it) — so we read the
+    manifest from the filesystem instead. Mode-aware: editable/path installs read the
+    source tree; git/index installs read the built copy the distribution shipped into
+    site-packages (``dist.locate_file``). Both resolve to ``<pkg>/tap-plugin.toml``.
+    """
+    slug = entry["slug"]
+    source = entry.get("source", {})
+    if source.get("type") in ("editable", "path"):
+        return REPO_ROOT / source["path"] / NAMESPACE_PACKAGE / slug / "tap-plugin.toml"
+    return Path(str(dist.locate_file(f"{NAMESPACE_PACKAGE}/{slug}/tap-plugin.toml")))
+
+
+def _read_manifest_slug(manifest_path: Path) -> str | None:
+    """Read the ``slug`` field from a ``tap-plugin.toml`` at ``manifest_path``, or None."""
+    import tomllib
+
+    if not manifest_path.is_file():
+        return None
+    with open(manifest_path, "rb") as fh:
+        loaded: dict[str, Any] = tomllib.load(fh)
+    value = loaded.get("slug")
+    return value if isinstance(value, str) else None
+
+
+def _manifest_slug(entry: dict[str, Any], dist: importlib.metadata.Distribution) -> str | None:
+    """Return the shipped manifest ``slug`` for an installed plugin — the "actual" side."""
+    return _read_manifest_slug(_manifest_path_for(entry, dist))
+
+
+def conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str]) -> None:
+    """Fail closed unless every plugin's four identities agree (`req-plugin-arch-identity-5`).
+
+    Distribution name (``tap-plugin-<slug>``), entry-point key, import namespace segment
+    (``tap_plugin.<slug>``), and manifest ``slug`` must all equal the install slug. Owners
+    set the namespace/dist/entry-point in their own package; TAP enforces agreement here —
+    the "verify declared matches actual" backstop against typosquat/confusion for
+    hand-authored or third-party plugins (the plugin-creation skill emits conformant ones).
+    Runs after ``resolve_tap_plugins`` (which already guarantees entry-point key == slug).
+    """
+    for entry in entries:
+        slug = entry["slug"]
+        app_config = discovered[slug]
+
+        dist_name = dist_name_for_slug(slug)
+        dist = _installed_distribution(dist_name)
+        if dist is None:
+            raise PrebootError(
+                f"conformance gate: plugin '{slug}' has no installed distribution named "
+                f"'{dist_name}' — the distribution name must be tap-plugin-<slug>."
+            )
+
+        top, segment = _namespace_segment(app_config)
+        if top != NAMESPACE_PACKAGE or segment != slug:
+            raise PrebootError(
+                f"conformance gate: plugin '{slug}' AppConfig '{app_config}' is not under the "
+                f"'{NAMESPACE_PACKAGE}.{slug}' namespace (got top='{top}', segment='{segment}'). "
+                f"The import namespace segment must equal the slug (req-plugin-arch-identity-3)."
+            )
+
+        manifest_slug = _manifest_slug(entry, dist)
+        if manifest_slug != slug:
+            raise PrebootError(
+                f"conformance gate: plugin '{slug}' manifest slug is {manifest_slug!r}, expected "
+                f"'{slug}' — tap-plugin.toml slug must equal the install slug / entry-point key."
+            )
+
+    logger.info("[be29] pre-boot conformance gate passed: %d plugin(s) identity-verified", len(entries))
+
+
+# =============================================================================
 # Static coherence guard (req-boot-install-section-3)
 # =============================================================================
 
@@ -406,6 +498,7 @@ def run_preboot(profile_id: str) -> list[str]:
 
     discovered = discover_entry_points()
     app_configs = resolve_tap_plugins(entries, discovered)
+    conformance_gate(entries, discovered)
     install_slugs = {e["slug"] for e in entries}
 
     static_coherence_guard(profile, install_slugs)

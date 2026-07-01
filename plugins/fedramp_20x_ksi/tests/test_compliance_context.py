@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from plugins.fedramp_20x_ksi.models import ComplianceContext
+from tap_plugin.fedramp_20x_ksi.models import ComplianceContext
 from tap_grid.caller_context import CallerContext
 from tap_grid.models import Entity
 from tap_grid.services import WriteOperation, write_batch

@@ -1,29 +1,41 @@
-# TAP Genericom plugin — package-mode (spec-plugin-architecture req-plugin-arch-install-registry).
+# TAP Genericom plugin — package-mode distribution (namespaced 2026-07-01).
 #
-# The first plugin migrated to package mode: a wheel-buildable distribution with a
-# `tap.plugins` entry point whose key EQUALS the slug. Django discovers it via
-# importlib.metadata.entry_points() (no hardcoded plugins.<slug> path, no plugins/<slug>
-# source layout). The importable package is the top-level `genericom/` dir here; all
-# runtime data (tap-plugin.toml, grift/, static/, templates/, panels/) lives inside it so
-# hatchling ships it by default. specs/ and tests/ sit OUTSIDE the package and are not shipped.
+# Re-pointed from the install-MVP's top-level `genericom` import to the canonical
+# PEP 420 namespace `tap_plugin.genericom` (req-plugin-arch-identity-3). The identity
+# chain the pre-boot conformance gate enforces:
+#   slug             = "genericom"
+#   distribution     = "tap-plugin-genericom"
+#   import namespace = "tap_plugin.genericom"     (NO tap_plugin/__init__.py — PEP 420)
+#   entry-point key  = "genericom"                (== slug)
 #
-# NOT a uv.workspace member on purpose: workspace members are installed by `uv sync
-# --all-packages`; a package-mode plugin is installed by the pre-boot stage from the boot
-# profile's `install` section (req-boot-install-section), which is the whole point.
-#
-# See docs/misc/doc-plugin-boot-install-handoff.md "Package-mode recipe — PROVEN".
+# genericom is a demonstration plugin (grift-only, no models); it is installed only by
+# boot/genericom-install.boot.json, not the samsite profile. NOT a uv.workspace member:
+# package-mode plugins install via the pre-boot stage, not `uv sync --all-packages`.
 [project]
 name = "tap-plugin-genericom"
-version = "0.1.0"
 description = "TAP Genericom plugin — demonstration AWS environment for visualization work."
 requires-python = ">=3.14"
+dynamic = ["version"]
+dependencies = []
 
 [project.entry-points."tap.plugins"]
-genericom = "genericom.apps:GenericomConfig"
+genericom = "tap_plugin.genericom.apps:GenericomConfig"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
+# VCS-derived PEP 440 version (req-plugin-arch-versioning-1); no hand-maintained field.
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# MONOREPO-TRANSITION ARTIFACT — remove on extraction (see fedramp_20x_ksi pyproject).
+root = "../.."
+fallback_version = "0.0.0"
+
+# PEP 420 namespace build: ship tap_plugin/genericom/* preserving the tap_plugin/
+# parent WITHOUT a tap_plugin/__init__.py. Package data (tap-plugin.toml, grift/,
+# static/, templates/) is shipped by hatchling by default.
 [tool.hatch.build.targets.wheel]
-packages = ["genericom"]
+only-include = ["tap_plugin/genericom"]

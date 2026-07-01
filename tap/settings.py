@@ -97,13 +97,30 @@ TAP_SECRETS_ROOT = os.environ.get("TAP_SECRETS_ROOT", "/run/tap-secrets")
 
 # Package-mode plugins (req-boot-install-section). The settings-free pre-boot stage
 # (tap/preboot.py, run in docker/entrypoint.sh BEFORE Django starts) installs the boot
-# profile's `install` plugins, verifies each entry-point key == slug, and emits their
-# AppConfig dotted paths as the space-separated TAP_PLUGINS env var. Settings CONSUMES
-# that list — it does not discover or install (that already happened, and identity was
-# checked, in pre-boot). Empty for an all-build-baked instance. During the transition to
-# full package-mode, build-baked plugins stay hardcoded in INSTALLED_APPS below and
-# TAP_PLUGINS appends the package-mode ones (spliced in just before tap_api).
-TAP_PLUGINS_APPS = os.environ.get("TAP_PLUGINS", "").split()
+# profile's `install` plugins, verifies each entry-point key == slug (the conformance
+# gate), and emits their AppConfig dotted paths as the space-separated TAP_PLUGINS env
+# var. The runserver + steady_queue processes are children of the entrypoint, so they
+# inherit that env and CONSUME it directly (no discovery). They are spliced into
+# INSTALLED_APPS just before tap_api.
+#
+# But TAP_PLUGINS is process-env state: a `manage.py` command run via a SEPARATE
+# `docker exec` (spawn's `manage.py boot`, a manual `import_plugin_grift`, pytest) does
+# NOT inherit it and would otherwise load none of the package-mode plugins. So when the
+# env var is *unset* (as opposed to set-but-empty, which is a real "no package plugins"
+# signal from the entrypoint), fall back to the SAME entry-point discovery pre-boot ran.
+# Discovery reads installed distribution metadata, so it is self-consistent with the venv
+# (never stale the way a cached file would be) and yields exactly the plugins this
+# instance installed. This keeps every container process — server, boot, tests — agreeing
+# on the package-mode set without each exec site having to re-pass TAP_PLUGINS.
+_tap_plugins_env = os.environ.get("TAP_PLUGINS")
+if _tap_plugins_env is not None:
+    TAP_PLUGINS_APPS = _tap_plugins_env.split()
+else:
+    from tap.preboot import discover_entry_points
+
+    # sorted() for a deterministic load order among package-mode plugins; inter-plugin
+    # ordering (depends_on) is the deferred boot-consistency resolver's job.
+    TAP_PLUGINS_APPS = sorted(discover_entry_points().values())
 
 INSTALLED_APPS = [
     # Django built-in apps
@@ -183,8 +200,10 @@ INSTALLED_APPS = [
     # samaydlette.com (target of the Sam demo, 2026-06-01). Owns the
     # landing page + first cytoscape graph panel against real boto3 data.
     "plugins.samsite.apps.SamsiteConfig",
-    # FedRAMP 20x KSI plugin — Key Security Indicator catalog
-    "plugins.fedramp_20x_ksi.apps.Fedramp20xKsiConfig",
+    # FedRAMP 20x KSI plugin — migrated to package-mode 2026-07-01 (first namespaced
+    # plugin: tap_plugin.fedramp_20x_ksi). No longer build-baked here; it loads via
+    # TAP_PLUGINS_APPS below after the pre-boot stage uv-installs it from the profile
+    # `install` section. See docs/misc/doc-plugin-source-identity-deps-handoff.md.
     # Gryphon Playground plugin — pg_* playground vocabulary + the Gridkin
     # scenario corpus for testing the Gryphon query language. Load-bearing
     # test-fixture plugin (like lotr): de-registering it reds the Gridkin suite.

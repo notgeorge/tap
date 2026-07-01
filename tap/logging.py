@@ -342,8 +342,8 @@ def discover_scan_roots(project_root: Path) -> list[Path]:
 
     Two in-repo plugin layouts are recognized so package-mode migration does not
     silently drop a plugin from the security (authz-coverage) and log-site scanners:
-      - build-baked / legacy: `plugins/<slug>/tap-plugin.toml`      → root `plugins/<slug>`
-      - package-mode:         `plugins/<slug>/<slug>/tap-plugin.toml` → root `plugins/<slug>/<slug>`
+      - build-baked / legacy:  `plugins/<slug>/tap-plugin.toml`               → root `plugins/<slug>`
+      - package-mode namespace: `plugins/<slug>/tap_plugin/<slug>/tap-plugin.toml` → root that package dir
     (A fully extracted package-mode plugin installed from site-packages is out of the
     in-repo scanners' scope by construction; its scanning moves with its own repo.)
 
@@ -361,8 +361,12 @@ def discover_scan_roots(project_root: Path) -> list[Path]:
                 continue
             if (child / "tap-plugin.toml").exists():
                 roots.append(child)  # legacy flat layout
-            elif (child / child.name / "tap-plugin.toml").exists():
-                roots.append(child / child.name)  # package-mode nested layout
+                continue
+            # Package-mode: manifest sits inside the PEP 420 namespace at
+            # plugins/<slug>/tap_plugin/<pkg>/tap-plugin.toml (req-plugin-arch-identity-3).
+            namespace_dir = child / "tap_plugin"
+            if namespace_dir.is_dir():
+                roots.extend(sorted(m.parent for m in namespace_dir.glob("*/tap-plugin.toml")))
     return roots
 
 

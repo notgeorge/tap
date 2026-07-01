@@ -133,8 +133,53 @@ def test_resolve_tap_plugins_identity_mismatch_raises() -> None:
 
 def test_resolve_tap_plugins_happy() -> None:
     entries = [{"slug": "genericom", "source": {"type": "path", "path": "p"}}]
-    got = preboot.resolve_tap_plugins(entries, {"genericom": "genericom.apps.GenericomConfig"})
-    assert got == ["genericom.apps.GenericomConfig"]
+    got = preboot.resolve_tap_plugins(entries, {"genericom": "tap_plugin.genericom.apps.GenericomConfig"})
+    assert got == ["tap_plugin.genericom.apps.GenericomConfig"]
+
+
+# --- Conformance gate (req-plugin-arch-identity-5) ----------------------------
+
+
+def test_namespace_segment() -> None:
+    assert preboot._namespace_segment("tap_plugin.genericom.apps.GenericomConfig") == ("tap_plugin", "genericom")
+    # A top-level (non-namespaced) AppConfig has the wrong shape.
+    assert preboot._namespace_segment("genericom.apps.GenericomConfig") == ("genericom", "apps")
+
+
+def _conformance_entries() -> list[dict[str, object]]:
+    return [{"slug": "genericom", "source": {"type": "path", "path": "p"}}]
+
+
+def test_conformance_gate_happy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(preboot, "_installed_distribution", lambda name: object())
+    monkeypatch.setattr(preboot, "_manifest_slug", lambda entry, dist: entry["slug"])
+    discovered = {"genericom": "tap_plugin.genericom.apps.GenericomConfig"}
+    preboot.conformance_gate(_conformance_entries(), discovered)  # no raise
+
+
+def test_conformance_gate_missing_distribution(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(preboot, "_installed_distribution", lambda name: None)
+    monkeypatch.setattr(preboot, "_manifest_slug", lambda entry, dist: entry["slug"])
+    discovered = {"genericom": "tap_plugin.genericom.apps.GenericomConfig"}
+    with pytest.raises(preboot.PrebootError, match="no installed distribution"):
+        preboot.conformance_gate(_conformance_entries(), discovered)
+
+
+def test_conformance_gate_wrong_namespace(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(preboot, "_installed_distribution", lambda name: object())
+    monkeypatch.setattr(preboot, "_manifest_slug", lambda entry, dist: entry["slug"])
+    # A top-level (non-namespaced) AppConfig — the MVP's old shape — must fail closed.
+    discovered = {"genericom": "genericom.apps.GenericomConfig"}
+    with pytest.raises(preboot.PrebootError, match="namespace"):
+        preboot.conformance_gate(_conformance_entries(), discovered)
+
+
+def test_conformance_gate_manifest_slug_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(preboot, "_installed_distribution", lambda name: object())
+    monkeypatch.setattr(preboot, "_manifest_slug", lambda entry, dist: "impostor")
+    discovered = {"genericom": "tap_plugin.genericom.apps.GenericomConfig"}
+    with pytest.raises(preboot.PrebootError, match="manifest slug"):
+        preboot.conformance_gate(_conformance_entries(), discovered)
 
 
 # --- Static coherence guard (req-boot-install-section-3) ----------------------

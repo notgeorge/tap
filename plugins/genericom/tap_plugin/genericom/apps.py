@@ -6,10 +6,10 @@ from tap_plugins.base import TapPluginConfig
 class GenericomConfig(TapPluginConfig):
     def ready(self) -> None:
         super().ready()
-        from genericom.panels.instance_hero import (
+        from tap_plugin.genericom.panels.instance_hero import (
             GenericomInstanceHeroPanelType,
         )
-        from genericom.panels.open_alerts import (
+        from tap_plugin.genericom.panels.open_alerts import (
             GenericomOpenAlertsPanelType,
         )
         from tap_web.registry import panel_type_registry

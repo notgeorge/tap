@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from plugins.fedramp_20x_ksi.panels.finding_profile import (
+from tap_plugin.fedramp_20x_ksi.panels.finding_profile import (
     _format_timestamp,
     _ksi_description,
     _relative_timestamp,

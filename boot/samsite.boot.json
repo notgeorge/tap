@@ -1,6 +1,16 @@
 {
   "version": 1,
   "description": "Samsite demo — stand a fresh session up end-to-end: seed the plugin GRIFT (AWS/GitHub/KSI/samsite pages + schedules), then fire the collectors that pull the live world in. Seed order is INSTALLED_APPS order; collector order matters: samsite-compliance reads aws_account nodes (boto3) AND content-matches github_workflow nodes (github_core), so both must run before it.",
+  "install": {
+    "plugins": [
+      {
+        "slug": "fedramp_20x_ksi",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/fedramp_20x_ksi" },
+        "note": "First plugin migrated to package-mode (tap_plugin.fedramp_20x_ksi), 2026-07-01. Editable local source during the monorepo transition; a real deployment uses a git source pinned to a rev. Remaining samsite plugins are still build-baked (INSTALLED_APPS) until they migrate."
+      }
+    ]
+  },
   "population": {
     "on_failure": "abort",
     "steps": [
@@ -62,7 +72,7 @@
       },
       {
         "type": "fire-collector",
-        "key": "plugins.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog",
+        "key": "tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog",
         "enabled": true,
         "note": "Refresh the FedRAMP 20x KSI catalog (HTTPS, no credentials)."
       },

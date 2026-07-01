@@ -601,7 +601,7 @@ class KSICollector(CollectorBase):
     # -- Grid read + diff ----------------------------------------------------
 
     def _read_grid_state(self) -> dict[str, dict[str, dict[str, Any]]]:
-        from plugins.fedramp_20x_ksi.models import KsiIndicator, KsiTheme
+        from tap_plugin.fedramp_20x_ksi.models import KsiIndicator, KsiTheme
 
         themes: dict[str, dict[str, Any]] = {}
         for t in KsiTheme.objects.all():
@@ -826,7 +826,7 @@ class KSICollector(CollectorBase):
                 "dimensions": {},
             },
             "batch_node": {
-                "source": "plugins.fedramp_20x_ksi.collectors.ksi_catalog",
+                "source": "tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog",
                 "name": f"FedRAMP 20x KSI collection {now_iso}",
                 "description": "Runtime catalog collection via tap_cares.",
                 "description_json": {"format": COLLECTION_FORMAT, "data": description_data},
