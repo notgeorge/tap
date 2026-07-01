@@ -31,6 +31,7 @@ deduplication — advanced-path queries (NOT EXISTS, COUNT, multi-hop) require a
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from tap_auth.enforcement import requires_capability
@@ -54,7 +55,6 @@ from tap_grid.gryphon.ast_nodes import (
     AndPred,
     Comparison,
     DotStep,
-    EdgePattern,
     FieldPath,
     GryphonAST,
     InComparison,
@@ -71,7 +71,6 @@ from tap_grid.gryphon.ast_nodes import (
     Predicate,
     ReturnClause,
     ReturnItem,
-    WhereClause,
 )
 from tap_grid.gryphon.capture import capture_sql, gryphon_stage
 from tap_grid.gryphon.parser import parse_gryphon
@@ -295,8 +294,6 @@ def _execute_ast(
     global WHERE is applied to each MATCH, scoped to the variables that clause
     binds (per ``_filter_predicate_for_bindings``).
     """
-    anchor_var, entity_id_value = _extract_entity_id_anchor(ast.where_clause, inputs)
-
     all_nodes: dict[str, dict[str, Any]] = {}
     all_edges: dict[str, dict[str, Any]] = {}
     all_rows: list[dict[str, Any]] = []
@@ -309,8 +306,6 @@ def _execute_ast(
 
         result = _dispatch_pattern(
             pattern,
-            anchor_var=anchor_var,
-            entity_id_value=entity_id_value,
             return_clause=ast.return_clause,
             where_clause=ast.where_clause,
             order_by=ast.order_by,
@@ -344,8 +339,6 @@ def _execute_ast(
 def _dispatch_pattern(
     pattern: PathPattern,
     *,
-    anchor_var: str | None,
-    entity_id_value: Any,
     return_clause: ReturnClause,
     where_clause: Any = None,
     order_by: Any = None,
@@ -386,8 +379,8 @@ def _dispatch_pattern(
     if len(pattern.edges) != 1:
         raise SearchExecutionError("Unsupported gryphon pattern: only single-hop patterns are supported.")
 
-    # Hub-and-spoke and edge-type scans produce graph envelopes, not rows —
-    # ORDER BY / LIMIT have nothing to act on. Reject rather than silently drop.
+    # Single-hop graph traversal produces a graph envelope, not rows — ORDER BY /
+    # LIMIT have nothing to act on. Reject rather than silently drop.
     if order_by is not None or limit is not None:
         raise SearchExecutionError(
             "ORDER BY / LIMIT are supported on type-scan projections and aggregation "
@@ -398,28 +391,20 @@ def _dispatch_pattern(
     if edge_pat.min_hops != 1 or edge_pat.max_hops != 1:
         raise SearchExecutionError("Unsupported gryphon pattern: bounded multi-hop traversal is not supported.")
 
-    # Hub-and-spoke: has WHERE anchor.
-    if anchor_var is not None and entity_id_value is not None:
-        left_node, right_node = pattern.nodes[0], pattern.nodes[1]
-        if left_node.variable != anchor_var and right_node.variable != anchor_var:
-            # Anchor variable doesn't match this pattern — fall through to edge-type scan.
-            pass
-        else:
-            with gryphon_stage("hub-and-spoke"):
-                return _execute_hub_and_spoke(
-                    entity_id=str(entity_id_value),
-                    edge_pattern=edge_pat,
-                    db_alias=db_alias,
-                    layer=layer,
-                )
-
-    # Edge-type scan: edge pattern with no WHERE anchor (or anchor not in this
-    # pattern). The edge type may be omitted — a labelless edge scans every type.
-    with gryphon_stage("edge-type-scan"):
-        return _execute_edge_type_scan(
-            left_node=pattern.nodes[0],
-            right_node=pattern.nodes[1],
-            edge_pattern=edge_pat,
+    # Single-hop graph traversal. Route through the chain machinery
+    # (_build_chain_queryset + _apply_predicate_to_qs + _collect_graph_envelope)
+    # so the FULL WHERE is applied — every non-anchor predicate, with data-lane
+    # type strictness — exactly as the multi-hop path does. This closes the
+    # envelope-WHERE silent-drop defect and collapses the former hub-and-spoke
+    # and edge-type-scan executors (which honored only an entity_id anchor, or no
+    # WHERE at all) into one apply-or-reject code path: an entity_id anchor is now
+    # an ordinary WHERE predicate, not a special dispatch case.
+    with gryphon_stage("single-hop"):
+        return _execute_single_hop_envelope(
+            pattern,
+            where_clause=where_clause,
+            return_clause=return_clause,
+            inputs=inputs or {},
             db_alias=db_alias,
             layer=layer,
         )
@@ -443,46 +428,100 @@ def _edge_key(edge: dict[str, Any], layer: SubgraphLayer) -> str:
     return str(edge["entity_id"])
 
 
-def _extract_entity_id_anchor(
-    where: WhereClause | None,
+def _execute_single_hop_envelope(
+    pattern: PathPattern,
+    *,
+    where_clause: Any,
+    return_clause: ReturnClause,
     inputs: dict[str, Any],
-) -> tuple[str | None, Any]:
-    """Walk the WHERE predicate tree to find a `<var>.entity_id = $param` comparison.
+    db_alias: str,
+    layer: SubgraphLayer,
+) -> dict[str, Any]:
+    """Execute a single-hop graph-traversal pattern as a graph envelope.
 
-    Returns (variable_name, resolved_value) or (None, None) if no such comparison exists.
-    Handles AND predicates — the first matching leaf wins.
+    Reuses the chain machinery that the multi-hop / aggregation path already
+    uses — ``_build_chain_queryset`` + ``_filter_predicate_for_bindings`` +
+    ``_apply_predicate_to_qs`` + ``_collect_graph_envelope`` — so the FULL WHERE
+    is applied (every non-anchor predicate, with data-lane type strictness), not
+    just an ``entity_id`` anchor. This is the fix for the envelope-WHERE
+    silent-drop defect and the collapse of the former ``_execute_hub_and_spoke``
+    / ``_execute_edge_type_scan`` executors into one apply-or-reject path.
+
+    Directed hops (``->`` / ``<-``) go straight through the chain queryset. An
+    undirected hop (``-[e]-``) is the one shape the chain builder rejects; it is
+    handled here as the union of its two directed arms, with the WHERE applied to
+    each arm independently — so an undirected single hop never silently drops a
+    predicate either.
     """
-    if where is None:
-        return None, None
-    return _find_entity_id_in_predicate(where.predicate, inputs)
+    edge = pattern.edges[0]
+    if edge.direction != "any":
+        return _single_hop_directed(
+            pattern,
+            where_clause=where_clause,
+            return_clause=return_clause,
+            inputs=inputs,
+            db_alias=db_alias,
+            layer=layer,
+        )
+
+    # Undirected: union the outbound and inbound arms. Each arm is a directed
+    # single hop with the same nodes; `_build_var_bindings` maps the variables to
+    # the correct endpoint per direction, so the WHERE resolves correctly on both.
+    out_env = _single_hop_directed(
+        _redirect_single_hop(pattern, "out"),
+        where_clause=where_clause,
+        return_clause=return_clause,
+        inputs=inputs,
+        db_alias=db_alias,
+        layer=layer,
+    )
+    in_env = _single_hop_directed(
+        _redirect_single_hop(pattern, "in"),
+        where_clause=where_clause,
+        return_clause=return_clause,
+        inputs=inputs,
+        db_alias=db_alias,
+        layer=layer,
+    )
+    return _merge_envelopes(out_env, in_env, layer)
 
 
-def _find_entity_id_in_predicate(pred: Any, inputs: dict[str, Any]) -> tuple[str | None, Any]:
-    if isinstance(pred, Comparison):
-        fp = pred.field_path
-        # Match pattern: <variable>.entity_id = $param  (single dot step named "entity_id")
-        if (
-            len(fp.steps) == 1
-            and isinstance(fp.steps[0], DotStep)
-            and fp.steps[0].name == "entity_id"
-            and pred.op == "="
-        ):
-            value = pred.value
-            if isinstance(value, ParamRef):
-                resolved = inputs.get(value.name)
-                return fp.variable, resolved
-            else:
-                return fp.variable, value
-        return None, None
-    elif isinstance(pred, AndPred):
-        var, val = _find_entity_id_in_predicate(pred.left, inputs)
-        if var is not None:
-            return var, val
-        return _find_entity_id_in_predicate(pred.right, inputs)
-    elif isinstance(pred, (OrPred, NotPred)):
-        # Not supported as the primary anchor lookup path in v1.
-        return None, None
-    return None, None
+def _single_hop_directed(
+    pattern: PathPattern,
+    *,
+    where_clause: Any,
+    return_clause: ReturnClause,
+    inputs: dict[str, Any],
+    db_alias: str,
+    layer: SubgraphLayer,
+) -> dict[str, Any]:
+    """Run one directed single-hop pattern through the WHERE-applying chain path."""
+    bindings = _build_var_bindings(pattern)
+    qs = _build_chain_queryset(pattern, db_alias, inputs)
+    applicable_pred = _filter_predicate_for_bindings(
+        where_clause.predicate if where_clause else None,
+        bindings,
+    )
+    qs = _apply_predicate_to_qs(qs, applicable_pred, bindings, inputs)
+    return _collect_graph_envelope(qs, pattern, return_clause, bindings, layer=layer, db_alias=db_alias)
+
+
+def _redirect_single_hop(pattern: PathPattern, direction: str) -> PathPattern:
+    """Return a copy of a single-hop pattern with its edge direction rewritten."""
+    edge = replace(pattern.edges[0], direction=direction)
+    return replace(pattern, edges=(edge,))
+
+
+def _merge_envelopes(a: dict[str, Any], b: dict[str, Any], layer: SubgraphLayer) -> dict[str, Any]:
+    """Union two graph envelopes, deduplicating nodes and edges by entity_id."""
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: dict[str, dict[str, Any]] = {}
+    for env in (a, b):
+        for node in env.get("nodes", []):
+            nodes.setdefault(_node_key(node, layer), node)
+        for edge in env.get("edges", []):
+            edges.setdefault(_edge_key(edge, layer), edge)
+    return {"nodes": list(nodes.values()), "edges": list(edges.values()), "rows": []}
 
 
 # ---------------------------------------------------------------------------
@@ -1098,216 +1137,6 @@ def _execute_bare_type_scan(
         entities = list(Entity.objects.using(db_alias).filter(pk__in=sorted(matched_ids))) if matched_ids else []
 
     return {"nodes": _serialize_entity_nodes(entities, layer, db_alias), "edges": []}
-
-
-# ---------------------------------------------------------------------------
-# Hub-and-spoke ORM execution
-# ---------------------------------------------------------------------------
-
-
-def _execute_hub_and_spoke(
-    entity_id: str,
-    edge_pattern: EdgePattern,
-    *,
-    db_alias: str,
-    layer: SubgraphLayer,
-) -> dict[str, Any]:
-    """Execute a one-hop neighborhood query for a single hub entity.
-
-    .. tap:capability:: Gryphon hub-and-spoke neighborhood
-       :id: cap-grid-gryphon-hub-and-spoke
-       :status: implemented
-       :audience: external-user; agent; developer
-       :affordance: querying
-       :implements: req-grid-traversal-lang-patterns
-       :covered-by: gridkin:hub_and_spoke-one-hop-undirected-neighborhood-of-the-dense-hub
-
-       A one-hop edge pattern anchored by ``WHERE n.entity_id = $id`` returns
-       the hub and its immediate neighborhood. Honors outbound, inbound, and
-       undirected edges plus an optional edge-type filter.
-
-       Example::
-
-          MATCH (h)-[e]-(n) WHERE h.entity_id = $hub_id
-    """
-    from tap_grid.models import Edge, Entity
-
-    # Load hub.
-    try:
-        hub = Entity.objects.using(db_alias).get(pk=entity_id)
-    except Entity.DoesNotExist:
-        return {
-            "nodes": [],
-            "edges": [],
-            "warnings": {"not_found": f"entity {entity_id} not found."},
-        }
-
-    # Build edge filter kwargs.
-    edge_filter: dict[str, Any] = {}
-    if edge_pattern.edge_type:
-        edge_filter["edge_type"] = edge_pattern.edge_type
-
-    # Inline edge-property map filter (req-grid-traversal-lang-filters-1).
-    for key, raw_value in edge_pattern.inline_props.items():
-        edge_filter[f"properties__{key}"] = _resolve_value(raw_value, {})
-
-    direction = edge_pattern.direction
-
-    # select_related("entity") needed for full/extended edge serialization.
-    # The edge's own Entity is needed by every layer's serializer for the spine
-    # surface — select_related it always (skipping it at "lite" caused an N+1).
-    extra_related = ["entity"]
-
-    if direction in ("out", "any"):
-        outbound_qs = (
-            Edge.objects.using(db_alias)
-            .filter(from_entity=hub, **edge_filter)
-            .select_related("to_entity", *extra_related)
-            .order_by("entity__created_at")
-        )
-        outbound = list(outbound_qs)
-    else:
-        outbound = []
-
-    if direction in ("in", "any"):
-        inbound_qs = (
-            Edge.objects.using(db_alias)
-            .filter(to_entity=hub, **edge_filter)
-            .select_related("from_entity", *extra_related)
-            .order_by("entity__created_at")
-        )
-        inbound = list(inbound_qs)
-    else:
-        inbound = []
-
-    # Collect neighbor entity IDs.
-    neighbor_ids: set[str] = set()
-    for edge in outbound:
-        neighbor_ids.add(str(edge.to_entity_id))
-    for edge in inbound:
-        neighbor_ids.add(str(edge.from_entity_id))
-
-    # sorted() so the IN-list is deterministic — keeps the captured SQL stable
-    # for Gridkin snapshots (set iteration order is hash-randomized per process).
-    neighbors = (
-        {str(e.pk): e for e in Entity.objects.using(db_alias).filter(pk__in=sorted(neighbor_ids))}
-        if neighbor_ids
-        else {}
-    )
-
-    # Collect all entities for serialization.
-    all_entities = [hub] + list(neighbors.values())
-
-    # Filter qualifying edges (both endpoints in node set).
-    node_id_set = {str(hub.pk)} | neighbor_ids
-    qualifying_edges: list[Edge] = []
-    for edge in outbound:
-        if str(edge.to_entity_id) in node_id_set:
-            qualifying_edges.append(edge)
-    for edge in inbound:
-        if str(edge.from_entity_id) in node_id_set:
-            qualifying_edges.append(edge)
-
-    # Serialize using grift layer serializers.
-    nodes = _serialize_entity_nodes(all_entities, layer, db_alias)
-    edges = _serialize_edge_list(qualifying_edges, layer, db_alias)
-
-    return {"nodes": nodes, "edges": edges}
-
-
-# ---------------------------------------------------------------------------
-# Edge-type scan ORM execution
-# ---------------------------------------------------------------------------
-
-
-def _execute_edge_type_scan(
-    left_node: NodePattern,
-    right_node: NodePattern,
-    edge_pattern: EdgePattern,
-    *,
-    db_alias: str,
-    layer: SubgraphLayer,
-) -> dict[str, Any]:
-    """Execute an edge-type scan — all edges (optionally of one type), filtered by endpoint labels.
-
-    Used for patterns like ``MATCH (r:realm)-[e:CONTAINS]->(l:location)`` where there is
-    no WHERE anchor. Scans all matching edges, filters by direction and endpoint types,
-    and returns a graph envelope. The edge type is optional — a labelless ``-[e]-``
-    scans edges of every type.
-
-    .. tap:capability:: Gryphon edge-type scan
-       :id: cap-grid-gryphon-edge-type-scan
-       :status: implemented
-       :audience: external-user; agent; developer
-       :affordance: querying
-       :implements: req-grid-traversal-lang-patterns
-       :covered-by: gridkin:edge_type_scan-pg-links-edges-from-pg-hub-to-pg-node
-
-       A one-hop edge pattern with no WHERE anchor returns every edge whose
-       endpoints match the pattern's node labels. The edge type is optional —
-       a labelless ``-[e]-`` scans edges of every type.
-
-       Example::
-
-          MATCH (a:gryphon_playground__pg_hub)-[e:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)
-    """
-    from tap_grid.models import Edge, Entity
-
-    direction = edge_pattern.direction
-    edge_type = edge_pattern.edge_type
-    # The edge type is optional — a labelless edge (``-[e]-``) scans every type.
-    type_filter: dict[str, Any] = {"edge_type": edge_type} if edge_type else {}
-    # The edge's own Entity is needed by every layer's serializer for the spine
-    # surface — select_related it always (skipping it at "lite" caused an N+1).
-    extra_related = ["entity"]
-
-    # Inline edge-property map filter (req-grid-traversal-lang-filters-1).
-    inline_prop_filters: dict[str, Any] = {
-        f"properties__{k}": _resolve_value(v, {}) for k, v in edge_pattern.inline_props.items()
-    }
-
-    qualifying_edges: list[Edge] = []
-
-    if direction in ("out", "any"):
-        filters: dict[str, Any] = {**type_filter, **inline_prop_filters}
-        if left_node.label:
-            filters["from_entity__entity_type"] = left_node.label
-        if right_node.label:
-            filters["to_entity__entity_type"] = right_node.label
-        qs = (
-            Edge.objects.using(db_alias)
-            .filter(**filters)
-            .select_related("from_entity", "to_entity", *extra_related)
-            .order_by("entity__created_at")
-        )
-        qualifying_edges.extend(qs)
-
-    if direction in ("in", "any"):
-        filters = {**type_filter, **inline_prop_filters}
-        if left_node.label:
-            filters["to_entity__entity_type"] = left_node.label
-        if right_node.label:
-            filters["from_entity__entity_type"] = right_node.label
-        qs = (
-            Edge.objects.using(db_alias)
-            .filter(**filters)
-            .select_related("from_entity", "to_entity", *extra_related)
-            .order_by("entity__created_at")
-        )
-        qualifying_edges.extend(qs)
-
-    # Collect all endpoint entities.
-    entity_map: dict[str, Entity] = {}
-    for edge in qualifying_edges:
-        entity_map.setdefault(str(edge.from_entity_id), edge.from_entity)
-        entity_map.setdefault(str(edge.to_entity_id), edge.to_entity)
-
-    all_entities = list(entity_map.values())
-
-    nodes = _serialize_entity_nodes(all_entities, layer, db_alias)
-    edges = _serialize_edge_list(qualifying_edges, layer, db_alias)
-
-    return {"nodes": nodes, "edges": edges}
 
 
 # ---------------------------------------------------------------------------
