@@ -96,6 +96,11 @@ Cypher semantics.
 | `RETURN` omitted | Syntax error — `RETURN` is mandatory | Legal — returns a **graph envelope** `{nodes, edges}`; explicit `RETURN` signals row-projection mode | `req-grid-traversal-lang-returns` (`-1`) |
 | Per-`MATCH` `WHERE` attachment | `WHERE` attaches to its preceding `MATCH` and filters that clause | v0 has a **single global `WHERE`** scoped per bound variable across all `MATCH` clauses; per-`MATCH` attachment is future work | `req-grid-traversal-lang-shape` (Multiple-WHERE section) |
 | Three-valued logic (3VL) | Full 3VL across all combinators | Gryphon does **not claim full 3VL** across combinators — it guarantees NULL inputs neither crash nor silently match, no more | `req-grid-traversal-lang-regex` (`-6`), `req-grid-traversal-lang-is-null` |
+| Cross-type predicate (`severity_score = "10"`, `IN ["10"]`, `STARTS_WITH` on a number) | Silently **false / null** → row drops (schema-optional graph can't know the type) | **Rejected** with `SearchExecutionError` — TAP's data lane is typed, the declared schema is the type oracle, and a wrong-typed literal is an authoring bug surfaced rather than coerced (the ORM would mis-coerce `"10"`→`10`) or silently dropped | `req-grid-traversal-lang-type-strictness` |
+
+Strictness reaches only as far as the schema declares a concrete type: a JSON field whose schema is a
+bare `{"type": "object"}` is a declared **open blob**, so its sub-paths (`n.data.tags.zone`) stay
+coercion-tolerant until the schema gains real `properties` — a named open edge in `spec-security-posture.md`.
 
 When you add a divergence, add the row here **and** make sure the owning requirement's Background
 explains *why* — the row points at it.
@@ -132,6 +137,10 @@ mine, we never port**, and that discipline is already formalized:
 - **The requirement:** `req-gridkin-tck-inspiration` (`spec-gridkin-v0.md`) — Implemented.
 - **The lifecycle binding:** `req-grid-traversal-lang-tck-mining` (the language spec) — every
   language extension runs the mining pass.
+- **The coverage ledger:** `req-gridkin-tck-coverage` (`spec-gridkin-v0.md`) — a corpus-wide,
+  machine-checked record (`scenarios/tck-coverage.json`) of per-folder coverage: covered (derived),
+  `gaps` (what we still owe, each tagged test/feature/unknown), and `excluded` (Cypher-specific
+  intents deliberately dropped). The drift guard bidirectionally ties ledger folders to scenario cites.
 - **The operational steps:** the `build-gryphon-capability` skill, Step 8.
 - **The rationale:** `doc-dev-gryphon-wishlist.md` §7 — "TCK as scenario inspiration (never as
   scenario source)."

@@ -15,6 +15,7 @@
         "req-grid-service-batch-precommit-consistency-1",
         "req-grid-service-batch-precommit-consistency-3"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (TAP-native: post-upsert write-path read of USES_PANEL edges)",
       "layer": "lite",
       "query": "MATCH (p)-[e:USES_PANEL]->(panel) WHERE p.entity_id = $page",
       "params": {

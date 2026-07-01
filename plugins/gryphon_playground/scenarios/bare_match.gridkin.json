@@ -12,6 +12,7 @@
         "req-grid-traversal-lang-bare-match-1",
         "req-grid-traversal-lang-bare-match-4"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (all-node scan, no label)",
       "layer": "lite",
       "query": "MATCH (n) WHERE n.entity_type = \"pg_node\"",
       "expected_envelope": "expected/bare_match__entity_type_eq.expected.json",
@@ -25,6 +26,7 @@
         "req-grid-traversal-lang-bare-match-4",
         "req-grid-traversal-lang-string-match"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (all-node scan filtered by type prefix)",
       "layer": "lite",
       "query": "MATCH (n) WHERE n.entity_type STARTS_WITH \"pg_\"",
       "expected_envelope": "expected/bare_match__entity_type_prefix.expected.json",
@@ -36,6 +38,7 @@
       "covers": [
         "req-grid-traversal-lang-bare-match-2"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (label-free scan spans all node types)",
       "layer": "lite",
       "query": "MATCH (n) WHERE n.data.kind = \"island\"",
       "expected_envelope": "expected/bare_match__data_lane_crosses.expected.json",
@@ -47,6 +50,7 @@
       "covers": [
         "req-grid-traversal-lang-bare-match-2"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (label-free scan, single matching type)",
       "layer": "lite",
       "query": "MATCH (n) WHERE n.data.kind = \"hub\"",
       "expected_envelope": "expected/bare_match__data_lane_single.expected.json",
@@ -58,10 +62,24 @@
       "covers": [
         "req-grid-traversal-lang-bare-match-3"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (missing property is non-matching, not an error)",
       "layer": "lite",
       "query": "MATCH (n) WHERE n.data.bio = \"anything\"",
       "expected_envelope": "expected/bare_match__field_absent.expected.json",
       "expected_sql_snapshot": "expected/bare_match__field_absent.sql.txt"
+    },
+    {
+      "name": "bare unfiltered labelless scan returns the whole node population",
+      "tags": ["bare-match", "spine-scan"],
+      "covers": [
+        "req-grid-traversal-lang-bare-match",
+        "req-grid-traversal-lang-bare-match-1"
+      ],
+      "inspired_by": "opencypher TCK — clauses/match (all-node scan with no predicate returns every node)",
+      "layer": "lite",
+      "query": "MATCH (n)",
+      "expected_envelope": "expected/bare_match__all_nodes.expected.json",
+      "expected_sql_snapshot": "expected/bare_match__all_nodes.sql.txt"
     }
   ]
 }

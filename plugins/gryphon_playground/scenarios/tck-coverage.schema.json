@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tck-coverage.schema.json",
+  "title": "Gryphon openCypher-TCK Coverage Ledger",
+  "description": "Corpus-wide TCK mining coverage keyed by feature folder. Governed by plugins/gryphon_playground/specs/spec-gridkin-v0.md (req-gridkin-tck-coverage). `covered` is derived by the guard (test_tck_coverage_ledger), never stored here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["description", "folders"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "description": { "type": "string", "minLength": 1 },
+    "folders": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry per openCypher TCK feature folder that at least one scenario's inspired_by cites.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["folder", "gaps", "excluded"],
+        "properties": {
+          "folder": {
+            "type": "string",
+            "pattern": "^[a-zA-Z][a-zA-Z-]*/[a-zA-Z][a-zA-Z-]*$",
+            "description": "Real TCK feature folder path, e.g. 'clauses/match' or 'expressions/null'."
+          },
+          "gaps": {
+            "type": "array",
+            "description": "Applicable TCK intents NOT yet covered by any scenario citing this folder — the recorded, actionable coverage debt.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["intent", "note", "kind"],
+              "properties": {
+                "intent": { "type": "string", "minLength": 1, "description": "The uncovered corner-case intent, in TAP's own words (clean-room; no TCK text)." },
+                "note": { "type": "string", "minLength": 1, "description": "Why it matters / what it guards against." },
+                "kind": {
+                  "enum": ["test", "feature", "unknown"],
+                  "description": "test = closeable by authoring a scenario (Gryphon already supports it); feature = needs a Gryphon language feature first; unknown = not yet classified (probe against the executor)."
+                }
+              }
+            }
+          },
+          "excluded": {
+            "type": "array",
+            "description": "TCK intents deliberately filtered out as Cypher-specific / outside Gryphon's read-only contract.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["intent", "reason"],
+              "properties": {
+                "intent": { "type": "string", "minLength": 1, "description": "The excluded intent, in TAP's own words." },
+                "reason": { "type": "string", "minLength": 1, "description": "Why it is out of Gryphon's contract." }
+              }
+            }
+          }
+        }
+      }
+    },
+    "no_applicable_folder": {
+      "type": "array",
+      "description": "Features whose scenarios have no applicable TCK folder (TAP-native, or a surface the TCK does not cover). Each scenario in these features carries the empty-pass inspired_by marker.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["feature", "reason"],
+        "properties": {
+          "feature": { "type": "string", "minLength": 1, "description": "The scenario file stem (without .gridkin.json)." },
+          "reason": { "type": "string", "minLength": 1, "description": "Why no TCK folder applies." },
+          "self_authored": { "type": "boolean", "description": "True when the scenarios were authored without any TCK source." }
+        }
+      }
+    }
+  }
+}

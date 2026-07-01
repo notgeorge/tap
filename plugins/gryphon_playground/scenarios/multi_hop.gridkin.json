@@ -11,6 +11,7 @@
         "req-grid-gryphon-multihop",
         "req-grid-gryphon-multihop-envelope"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (anchored multi-hop chain)",
       "layer": "lite",
       "query": "MATCH (a:pg_node)-[e1:PG_LINKS]->(b:pg_node)-[e2:PG_LINKS]->(c:pg_node) WHERE a.entity_id = $root_id",
       "params": {
@@ -26,6 +27,7 @@
         "req-grid-gryphon-multihop",
         "req-grid-gryphon-multihop-envelope-1"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (unanchored multi-hop chain)",
       "layer": "lite",
       "query": "MATCH (a:pg_node)-[e1:PG_LINKS]->(b:pg_node)-[e2:PG_LINKS]->(c:pg_node)",
       "expected_envelope": "expected/multi_hop__unanchored.expected.json",
@@ -40,6 +42,7 @@
         "req-grid-gryphon-multihop",
         "req-grid-gryphon-rows"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (multi-hop COUNT without row inflation)",
       "layer": "lite",
       "query": "MATCH (a:pg_node)-[:PG_LINKS]->(b:pg_node)-[:PG_LINKS]->(c:pg_node) RETURN a.entity_id AS root_id, COUNT(c) AS tail_count",
       "expected_envelope": "expected/multi_hop__count.expected.json",
@@ -52,6 +55,7 @@
         "req-grid-gryphon-multihop",
         "req-grid-gryphon-multihop-envelope-1"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (multi-hop with anonymous relationships)",
       "layer": "lite",
       "query": "MATCH (a:pg_node)-[:PG_LINKS]->(b:pg_node)-[:PG_LINKS]->(c:pg_node)",
       "expected_envelope": "expected/multi_hop__anonymous_edges.expected.json",

@@ -748,7 +748,10 @@ def _apply_typescan_predicate(
     """
     if predicate is None:
         return qs
-    return qs.filter(_predicate_to_q(predicate, inputs, _typescan_orm_path))
+    model_cls = qs.model
+    return qs.filter(
+        _predicate_to_q(predicate, inputs, _typescan_orm_path, lambda fp: _declared_data_types(model_cls, fp))
+    )
 
 
 def _typescan_orm_path(field_path: FieldPath) -> str:
@@ -1087,7 +1090,9 @@ def _execute_bare_type_scan(
             if not data_lane_fields.issubset(model_fields):
                 continue  # this type lacks a referenced data field — matches nothing
             model_qs = model_cls.objects.using(db_alias).filter(
-                _predicate_to_q(scoped_pred, inputs, _typescan_orm_path)
+                _predicate_to_q(
+                    scoped_pred, inputs, _typescan_orm_path, lambda fp, m=model_cls: _declared_data_types(m, fp)
+                )
             )
             matched_ids.update(model_qs.values_list("entity_id", flat=True))
         entities = list(Entity.objects.using(db_alias).filter(pk__in=sorted(matched_ids))) if matched_ids else []
@@ -1860,13 +1865,24 @@ def _apply_predicate_to_qs(
     if predicate is None:
         return qs
 
+    from tap_grid.registry import get_model_class
+
     def _resolve(field_path: FieldPath) -> str:
         var = field_path.variable
         if var not in bindings:
             raise SearchExecutionError(f"Unknown variable '{var}' in WHERE predicate.")
         return _resolve_orm_path(bindings[var], field_path)
 
-    return qs.filter(_predicate_to_q(predicate, inputs, _resolve))
+    def _declared(field_path: FieldPath) -> set[str] | None:
+        # Resolve the bound node's model so data-lane type-strictness can consult
+        # its FIELD_CRUD_SCHEMA. Skip when the leaf is on an unlabelled node or an
+        # edge variable (edge properties carry no typed data-lane schema).
+        binding = bindings.get(field_path.variable)
+        if not binding or binding.get("role") != "node" or not binding.get("label"):
+            return None
+        return _declared_data_types(get_model_class(binding["label"]), field_path)
+
+    return qs.filter(_predicate_to_q(predicate, inputs, _resolve, _declared))
 
 
 def _flatten_conjunction(
@@ -1890,7 +1906,7 @@ def _flatten_conjunction(
     )
 
 
-def _predicate_to_q(predicate: Predicate, inputs: dict[str, Any], resolve: Any):
+def _predicate_to_q(predicate: Predicate, inputs: dict[str, Any], resolve: Any, declared_types: Any = None):
     """Compile a WHERE predicate tree into a single Django ``Q`` expression.
 
     ``AND`` / ``OR`` / ``NOT`` and parenthesized grouping lower to ``Q`` ``&`` /
@@ -1904,7 +1920,7 @@ def _predicate_to_q(predicate: Predicate, inputs: dict[str, Any], resolve: Any):
     from django.db.models import Q
 
     if isinstance(predicate, (Comparison, InComparison)):
-        return _comparison_to_q(predicate, resolve(predicate.field_path), inputs)
+        return _comparison_to_q(predicate, resolve(predicate.field_path), inputs, declared_types)
     if isinstance(predicate, IsNullComparison):
         path = resolve(predicate.field_path)
         return Q(**{f"{path}__isnull": not predicate.negated})
@@ -1914,11 +1930,15 @@ def _predicate_to_q(predicate: Predicate, inputs: dict[str, Any], resolve: Any):
         path = resolve(predicate.field_path)
         return Q(**{f"{path}__isnull": predicate.kind == "unknown"})
     if isinstance(predicate, AndPred):
-        return _predicate_to_q(predicate.left, inputs, resolve) & _predicate_to_q(predicate.right, inputs, resolve)
+        return _predicate_to_q(predicate.left, inputs, resolve, declared_types) & _predicate_to_q(
+            predicate.right, inputs, resolve, declared_types
+        )
     if isinstance(predicate, OrPred):
-        return _predicate_to_q(predicate.left, inputs, resolve) | _predicate_to_q(predicate.right, inputs, resolve)
+        return _predicate_to_q(predicate.left, inputs, resolve, declared_types) | _predicate_to_q(
+            predicate.right, inputs, resolve, declared_types
+        )
     if isinstance(predicate, NotPred):
-        return ~_predicate_to_q(predicate.operand, inputs, resolve)
+        return ~_predicate_to_q(predicate.operand, inputs, resolve, declared_types)
     raise SearchExecutionError(f"Unsupported WHERE predicate node: {type(predicate).__name__}")
 
 
@@ -2559,6 +2579,157 @@ def _serialize_edge_list(
 
 
 # ---------------------------------------------------------------------------
+# Data-lane type-strictness (req-grid-traversal-lang-type-strictness)
+# ---------------------------------------------------------------------------
+#
+# The declared schema is the type oracle. A data-lane predicate's literal must
+# match the field's declared type in the model's FIELD_CRUD_SCHEMA; Gryphon does
+# not coerce across types (unlike the ORM, which would silently cast "10" -> 10
+# or a number -> ::text). A type mismatch on a *declared* field is rejected, not
+# silently dropped — the typed lane knows its types, so a wrong-typed literal is
+# an authoring bug, surfaced rather than hidden.
+#
+# This is the single code path for both lanes. A bare {"type": "object"} (or any
+# path that bottoms out in an un-typed JSON object / container) is the schema
+# declaring an OPEN blob: the walker returns None and strictness is skipped
+# there — exactly today's `n.data.tags.*`. The day a JSON field's schema gains
+# real `properties`, the same walker resolves a concrete type and strictness
+# lights up on that sub-path with zero change here. Tolerance is schema-declared,
+# never lane-special-cased. See spec-security-posture.md "Named open edges".
+
+_TEXT_OPS: frozenset[str] = frozenset({"starts_with", "ends_with", "contains", "regex"})
+
+
+def _json_type_of_value(value: Any) -> str | None:
+    """Classify a resolved literal as a JSON-Schema scalar type name.
+
+    Returns None for ``None`` — the two-valued null operand is judged by the
+    null short-circuit in :func:`_comparison_to_q`, not by type-strictness.
+    ``bool`` is tested before ``int`` because ``bool`` is an ``int`` subclass.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, (list, tuple)):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return None
+
+
+def _declared_data_types(model_cls: type, field_path: FieldPath) -> set[str] | None:
+    """Resolve the declared scalar type set for a data-lane field path, or None.
+
+    Walks ``model_cls.FIELD_CRUD_SCHEMA`` (the per-field JSON Schema) to the leaf
+    addressed by ``field_path``. Returns a set of JSON-Schema scalar type names
+    when the leaf declares a concrete scalar type (or a union of them); returns
+    ``None`` — meaning "no strictness here" — for any path that is not a typed
+    data-lane scalar: spine fields, undeclared fields, or a node that bottoms out
+    in an un-typed / container (``object`` / ``array``) schema (the open-blob
+    case; see spec-security-posture.md "Named open edges").
+    """
+    steps = field_path.steps
+    if not steps or not isinstance(steps[0], DotStep) or steps[0].name != _DATA_LANE_PREFIX:
+        return None  # spine / dimensions / display — not the typed data lane
+    if len(steps) < 2 or not isinstance(steps[1], DotStep):
+        return None
+    schema = getattr(model_cls, "FIELD_CRUD_SCHEMA", {}) or {}
+    node = schema.get(steps[1].name)
+    if not isinstance(node, dict):
+        return None  # field not declared in the CRUD schema — skip
+    # Walk any remaining sub-key steps into the JSON Schema `properties`. Only
+    # plain dot / bracket-key steps name a static sub-key; wildcard / index steps
+    # do not resolve to one declared type, so strictness stops (returns None).
+    for step in steps[2:]:
+        if isinstance(step, DotStep):
+            key = step.name
+        elif isinstance(step, KeyStep):
+            key = step.key
+        else:
+            return None
+        props = node.get("properties")
+        if not isinstance(props, dict) or not isinstance(props.get(key), dict):
+            return None  # open blob / undeclared sub-key — strictness stops here
+        node = props[key]
+    declared = node.get("type")
+    if isinstance(declared, str):
+        types = {declared}
+    elif isinstance(declared, list):
+        types = {t for t in declared if isinstance(t, str)}
+    else:
+        return None  # no declared type — skip
+    scalar = types - {"null"}
+    if not scalar or (scalar & {"object", "array"}):
+        return None  # container / open — strictness does not reach inside
+    return types
+
+
+def _admits(literal_type: str, allowed: set[str]) -> bool:
+    """Whether a literal's JSON type satisfies a field's declared type set."""
+    if literal_type in allowed:
+        return True
+    # JSON-Schema widening: an integer literal satisfies a `number` field.
+    return literal_type == "integer" and "number" in allowed
+
+
+def _enforce_type_strictness(
+    comp: Comparison | InComparison,
+    declared_types: Any,
+    inputs: dict[str, Any],
+) -> None:
+    """Reject a data-lane predicate whose literal type contradicts the schema.
+
+    ``declared_types`` is a callable ``FieldPath -> set[str] | None``. No-op when
+    the field is open/untyped/spine (``None``), or the operand is null (the
+    two-valued path handles it). Raises :class:`SearchExecutionError` on a
+    concrete type mismatch — including a text operator (STARTS_WITH / ENDS_WITH /
+    CONTAINS / ``=~``) applied to a non-text field.
+    """
+    allowed = declared_types(comp.field_path)
+    if allowed is None:
+        return
+    rendered = _format_field_path(comp.field_path)
+    shown = ", ".join(sorted(allowed))
+
+    if isinstance(comp, Comparison):
+        if comp.op in _TEXT_OPS and "string" not in allowed:
+            raise SearchExecutionError(
+                f"Type mismatch: {comp.op.upper()} requires a text field, but {rendered} "
+                f"is declared {{{shown}}}. Gryphon does not coerce across types."
+            )
+        resolved = _resolve_value(comp.value, inputs)
+        lit_type = _json_type_of_value(resolved)
+        if lit_type is None:  # null operand — the two-valued short-circuit owns it
+            return
+        if not _admits(lit_type, allowed):
+            raise SearchExecutionError(
+                f"Type mismatch: {rendered} is declared {{{shown}}}, but the comparison "
+                f"value is {lit_type} ({resolved!r}). Gryphon does not coerce across types; "
+                f"supply a matching literal type."
+            )
+        return
+
+    for member in comp.values:
+        resolved = _resolve_value(member, inputs)
+        lit_type = _json_type_of_value(resolved)
+        if lit_type is None:
+            continue  # a null member is simply a non-member, never an error
+        if not _admits(lit_type, allowed):
+            raise SearchExecutionError(
+                f"Type mismatch: {rendered} is declared {{{shown}}}, but the IN list has a "
+                f"{lit_type} member ({resolved!r}). Gryphon does not coerce across types; "
+                f"supply matching literal types."
+            )
+
+
+# ---------------------------------------------------------------------------
 # OPTIONAL MATCH executor (left-outer-join semantics)
 # ---------------------------------------------------------------------------
 
@@ -2567,6 +2738,7 @@ def _comparison_to_q(
     comp: Comparison | InComparison | IsNullComparison | ObservationComparison,
     orm_path: str,
     inputs: dict[str, Any],
+    declared_types: Any = None,
 ):
     """Translate a single comparison leaf into a Django ``Q`` over ``orm_path``.
 
@@ -2622,6 +2794,11 @@ def _comparison_to_q(
     """
     from django.db.models import Q
 
+    # Data-lane type-strictness: reject a wrong-typed literal before lowering,
+    # so the ORM never silently coerces it (req-grid-traversal-lang-type-strictness).
+    if declared_types is not None and isinstance(comp, (Comparison, InComparison)):
+        _enforce_type_strictness(comp, declared_types, inputs)
+
     if isinstance(comp, InComparison):
         members = [_resolve_value(v, inputs) for v in comp.values]
         return Q(**{f"{orm_path}__in": members})
@@ -2661,6 +2838,14 @@ def _comparison_to_q(
         "ends_with": "__endswith",
         "contains": "__contains",
     }[comp.op]
+    # A NULL operand makes an ordering / substring comparison unknown under
+    # Gryphon's two-valued logic (null = unobserved): the row is dropped rather
+    # than crashing the ORM ("Cannot use None as a query value") or matching.
+    # Mirrors the `regex` null short-circuit above. The `=` lookup (empty suffix)
+    # is exempt — Django lowers `field=None` to `__isnull` without crashing, and
+    # the IS KNOWN / IS UNKNOWN operators are the deliberate null-axis surface.
+    if value is None and suffix:
+        return ~Q(pk__isnull=True) & Q(pk__isnull=True)
     return Q(**{f"{orm_path}{suffix}": value})
 
 
@@ -2807,7 +2992,8 @@ def _execute_optional_match(
                     f"OPTIONAL MATCH."
                 )
             orm_path = _resolve_orm_path(opt_bindings[var], comp.field_path)
-            opt_q &= _comparison_to_q(comp, orm_path, inputs)
+            opt_strict = (lambda fp: _declared_data_types(get_model_class(w_node.label), fp)) if w_node.label else None
+            opt_q &= _comparison_to_q(comp, orm_path, inputs, opt_strict)
 
     # --- group-by columns + Count aggregates from RETURN --------------------
     items = ast.return_clause.items

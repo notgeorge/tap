@@ -13,6 +13,7 @@
         "req-grid-gryphon-order-by-2",
         "req-grid-gryphon-order-by-3"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (ascending order on a field)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.severity_score AS sev ORDER BY sev",
       "expected_envelope": "expected/order_by_limit__typescan_asc.expected.json",
@@ -27,6 +28,7 @@
         "req-grid-gryphon-limit-1",
         "req-grid-gryphon-limit-2"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit (descending order with LIMIT top-N)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.severity_score AS sev ORDER BY sev DESC LIMIT 3",
       "expected_envelope": "expected/order_by_limit__typescan_desc_limit.expected.json",
@@ -39,7 +41,7 @@
         "req-grid-gryphon-order-by-3",
         "req-grid-gryphon-order-by-4"
       ],
-      "inspired_by": "tck/features/clauses/orderBy/",
+      "inspired_by": "opencypher TCK — clauses/return-orderby",
       "layer": "lite",
       "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.kind AS kind, n.data.severity_score AS sev ORDER BY kind, sev DESC",
       "expected_envelope": "expected/order_by_limit__multi_key.expected.json",
@@ -52,7 +54,7 @@
         "req-grid-gryphon-order-by-4",
         "req-grid-gryphon-order-by-5"
       ],
-      "inspired_by": "tck/features/clauses/orderBy/",
+      "inspired_by": "opencypher TCK — clauses/return-orderby",
       "layer": "lite",
       "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.kind AS kind ORDER BY kind",
       "expected_envelope": "expected/order_by_limit__tied_key.expected.json",
@@ -64,7 +66,7 @@
       "covers": [
         "req-grid-gryphon-limit-3"
       ],
-      "inspired_by": "tck/features/clauses/limit/",
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit",
       "layer": "lite",
       "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY id LIMIT 0",
       "expected_envelope": "expected/order_by_limit__limit_zero.expected.json",
@@ -76,7 +78,7 @@
       "covers": [
         "req-grid-gryphon-limit-4"
       ],
-      "inspired_by": "tck/features/clauses/limit/",
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit",
       "layer": "lite",
       "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY id LIMIT 999",
       "expected_envelope": "expected/order_by_limit__limit_oversize.expected.json",
@@ -90,6 +92,7 @@
         "req-grid-gryphon-count",
         "req-grid-gryphon-rows"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (order by an aggregated column)",
       "layer": "lite",
       "query": "MATCH (h)-[:PG_LINKS]->(n) RETURN h.entity_id AS source_id, COUNT(n) AS out_degree ORDER BY out_degree DESC",
       "expected_envelope": "expected/order_by_limit__scoreboard.expected.json",
@@ -102,6 +105,7 @@
         "req-grid-gryphon-order-by-6",
         "req-grid-gryphon-limit-2"
       ],
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit (LIMIT 1 over an ordered aggregate)",
       "layer": "lite",
       "query": "MATCH (h)-[:PG_LINKS]->(n) RETURN h.entity_id AS source_id, COUNT(n) AS out_degree ORDER BY out_degree DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit__scoreboard_top1.expected.json",
@@ -113,11 +117,56 @@
       "covers": [
         "req-grid-gryphon-limit-5"
       ],
-      "inspired_by": "tck/features/clauses/limit/",
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit",
       "layer": "lite",
       "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.name AS label LIMIT 2",
       "expected_envelope": "expected/order_by_limit__limit_no_order.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__limit_no_order.sql.txt"
+    },
+    {
+      "name": "negative LIMIT is rejected",
+      "tags": ["limit", "rejection", "validation"],
+      "covers": ["req-grid-gryphon-limit"],
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit (negative LIMIT is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n LIMIT -1",
+      "expected_error": { "type": "GryphonParseError" }
+    },
+    {
+      "name": "non-integer floating-point LIMIT is rejected",
+      "tags": ["limit", "rejection", "validation"],
+      "covers": ["req-grid-gryphon-limit"],
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit (non-integer LIMIT is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n LIMIT 2.5",
+      "expected_error": { "type": "GryphonParseError" }
+    },
+    {
+      "name": "non-constant expression LIMIT is rejected",
+      "tags": ["limit", "rejection", "validation"],
+      "covers": ["req-grid-gryphon-limit"],
+      "inspired_by": "opencypher TCK — clauses/return-skip-limit (non-constant LIMIT is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n LIMIT n.data.severity_score",
+      "expected_error": { "type": "GryphonParseError" }
+    },
+    {
+      "name": "ORDER BY an undefined variable is rejected",
+      "tags": ["order-by", "rejection", "validation"],
+      "covers": ["req-grid-gryphon-order-by"],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (ORDER BY an undefined key is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY x.bogus",
+      "expected_error": { "type": "SearchExecutionError" }
+    },
+    {
+      "name": "aggregate function in ORDER BY is rejected",
+      "tags": ["order-by", "aggregation", "rejection", "validation"],
+      "covers": ["req-grid-gryphon-order-by"],
+      "inspired_by": "opencypher TCK — clauses/return-orderby (aggregate misuse in ORDER BY is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY COUNT(n)",
+      "expected_error": { "type": "GryphonParseError" }
     }
   ]
 }

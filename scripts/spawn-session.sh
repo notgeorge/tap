@@ -655,7 +655,10 @@ case "$LAUNCH_TARGET" in
   cli)
     bold "Launching Claude Code in $WORKTREE..."
     cd "$WORKTREE"
-    exec claude
+    # Name the session after the worktree label so it's recognizable without a
+    # manual /rename. (Color is left to the user — pick one per /color to match
+    # the session's mood.)
+    exec claude -n "$SESSION_NAME"
     ;;
   codex)
     bold "Opening $WORKTREE in Codex..."

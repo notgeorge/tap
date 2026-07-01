@@ -11,6 +11,7 @@
         "req-grid-traversal-lang-envelope-paths-7",
         "req-grid-traversal-lang-filters"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (TAP-native: Entity dimension scoping)",
       "layer": "full",
       "query": "MATCH (n:pg_node) WHERE n.dimensions.zone = \"north\"",
       "expected_envelope": "expected/dimensions__zone_north.expected.json",

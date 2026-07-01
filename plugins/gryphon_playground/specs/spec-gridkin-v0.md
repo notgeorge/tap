@@ -40,11 +40,13 @@ is their shared operational companion.
 | --- | --- | :---: | --- |
 | req-gridkin-scenario-format | [Gridkin Scenario Format](#gridkin-scenario-format) | Implemented | The JSON shape of a `.gridkin.json` file |
 | req-gridkin-runner-contract | [Gridkin Runner Contract](#gridkin-runner-contract) | Implemented | Discovery, loading, execution, and assertion behavior |
+| req-gridkin-rejection-scenario | [Rejection Scenarios](#rejection-scenarios) | Implemented | A scenario may assert the query is *refused* (`expected_error`) instead of returning an envelope |
 | req-gridkin-oracle-assertion | [Oracle Assertion Discipline](#oracle-assertion-discipline) | Implemented | Expected envelopes are independent of the executor under test |
 | req-gridkin-snapshot-discipline | [Snapshot Regeneration Discipline](#snapshot-regeneration-discipline) | Implemented | Explicit opt-in and human review when regenerating |
 | req-gridkin-explain-snapshot | [Explain SQL Snapshot](#explain-sql-snapshot) | Implemented | Each scenario commits the ORM-compiled SQL Gryphon emits |
 | req-gridkin-req-traceability | [Requirement Traceability](#requirement-traceability) | Implemented | Every scenario cites the spec RIDs it covers |
 | req-gridkin-tck-inspiration | [TCK as Scenario Inspiration](#tck-as-scenario-inspiration) | Implemented | Mine the openCypher TCK for corner-case intent; never port queries |
+| req-gridkin-tck-coverage | [TCK Coverage Ledger](#tck-coverage-ledger) | Implemented | A machine-checked, corpus-wide ledger of per-folder TCK coverage (covered/gaps/excluded) |
 | req-gridkin-json-schema | [JSON Schema for Scenario Files](#json-schema-for-scenario-files) | Implemented | Author and validate-at-load a JSON Schema for the scenario format |
 | req-gridkin-multi-fixture-load | [Multi-Fixture Background Loads](#multi-fixture-background-loads) | Approved for Development | `background.grift_fixture` accepts a list of fixture paths; the runner imports each in order |
 | req-gridkin-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Explicitly deferred concerns |
@@ -95,18 +97,27 @@ Field semantics:
   (e.g. `pytest -m gridkin -k hub-and-spoke`)
 - `scenarios[].covers` (array of strings, required, at least one) — the spec RIDs
   and ACIDs this scenario exercises (drives the traceability matrix)
-- `scenarios[].inspired_by` (string, optional) — breadcrumb to an openCypher TCK
-  feature file when the scenario's intent was mined from the TCK; purely
-  informational, never a license claim
+- `scenarios[].inspired_by` (string, **required**) — openCypher-TCK mining
+  breadcrumb (req-gridkin-tck-inspiration). Either a folder cite
+  (`opencypher TCK — <folder> (<intent>)`) or, where no TCK folder applies, the
+  explicit empty-pass marker (`opencypher TCK — no applicable feature folder
+  (<reason>)`). A missing breadcrumb is a forgotten mining pass and fails schema
+  validation. Purely informational, never a license claim. Per-folder *coverage*
+  state lives in the coverage ledger (req-gridkin-tck-coverage), not here.
 - `scenarios[].layer` (string, optional) — the GRIFT subgraph return layer to
   execute the query at, one of `lite` / `full` / `extended`; defaults to `full`
 - `scenarios[].query` (string, required) — the Gryphon query to execute
 - `scenarios[].params` (object, optional) — runtime `$param` values for the query
-- `scenarios[].expected_envelope` (string, required) — path to the JSON file
-  holding the exact expected response envelope
-- `scenarios[].expected_sql_snapshot` (string, required) — path to the text file
-  holding the expected ORM-compiled SQL (see
+- `scenarios[].expected_envelope` (string, required for a *result* scenario) —
+  path to the JSON file holding the exact expected response envelope
+- `scenarios[].expected_sql_snapshot` (string, required for a *result* scenario)
+  — path to the text file holding the expected ORM-compiled SQL (see
   [req-gridkin-explain-snapshot](#explain-sql-snapshot))
+- `scenarios[].expected_error` (object) — present for a *rejection* scenario
+  instead of the two `expected_*` paths (the modes are mutually exclusive, per
+  [req-gridkin-rejection-scenario](#rejection-scenarios)). Fields: `type`
+  (`GryphonParseError` | `SearchExecutionError`) and optional `message_contains`
+  (case-insensitive substring). The query must be refused with that error.
 
 The expected envelope file is a literal JSON document matching the canonical
 three-lane envelope shape (`spec-grift-envelope.md`, `req-grift-envelope-shape`)
@@ -432,6 +443,99 @@ satellite query authors — the same role openCypher's TCK serves for multi-engi
 Cypher compatibility. The scenario format is designed so that this evolution is
 structural, not a rewrite. Until that demand signal arrives, Gridkin is
 internal-only.
+
+### Rejection Scenarios
+----
+RID: `req-gridkin-rejection-scenario`
+Status: `Implemented`
+
+The traversal contract includes which queries are *rejected*, not only which
+return rows. A query that must be refused — a negative `LIMIT`, a non-list `IN`
+right-hand side, an unsupported pattern shape — is as much a part of the contract
+as one that returns an envelope. Such cases live in Gridkin alongside the result
+scenarios, so the whole traversal contract is validated in one place rather than
+split across Gridkin and a separate `test_gryphon.py` surface.
+
+#### Implementation
+
+- A scenario sets `expected_error` *instead of* `expected_envelope` +
+  `expected_sql_snapshot`; the JSON Schema enforces that exactly one mode is
+  present (`oneOf`).
+- `expected_error.type` is the refusal class — `GryphonParseError` (a grammar
+  refusal) or `SearchExecutionError` (a semantic / unsupported-shape refusal at
+  execution). The optional `message_contains` pins the diagnostic with a
+  case-insensitive substring.
+- The runner seeds the fixture, executes the query, and asserts it raised the
+  named error type (and, if given, the message substring). A query that succeeds,
+  or raises a different type, is a contract failure. `expected_error` is the
+  hand-authored oracle: there is no snapshot to regenerate, so
+  `GRIDKIN_UPDATE_SNAPSHOTS` is a no-op for rejection scenarios (the oracle
+  discipline still holds — the author asserts the refusal, the executor is not
+  consulted to write it).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-rejection-scenario-1 | Mutually-Exclusive Modes | Implemented | A scenario carries either the envelope+SQL pair or `expected_error`, never both and never neither (schema `oneOf`). | |
+| req-gridkin-rejection-scenario-2 | Typed Refusal Oracle | Implemented | `expected_error.type` names the refusal class; an optional `message_contains` pins the diagnostic. The runner fails if the query succeeds or raises a different type. | |
+| req-gridkin-rejection-scenario-3 | No Regeneration | Implemented | Rejection oracles are hand-authored; `GRIDKIN_UPDATE_SNAPSHOTS` does not write them. | |
+
+### TCK Coverage Ledger
+----
+RID: `req-gridkin-tck-coverage`
+Status: `Implemented`
+
+`req-gridkin-tck-inspiration` makes each scenario cite *where* its intent came
+from. It does not, by itself, answer *how much* of a TCK folder's corner-case
+taxonomy has actually been carried over. The coverage ledger
+(`scenarios/tck-coverage.json`, validated by `scenarios/tck-coverage.schema.json`)
+closes that gap: a corpus-wide, machine-checked record of per-folder coverage so
+"we mined this folder and here is exactly what we still owe" is auditable instead
+of asserted.
+
+#### Implementation
+
+- **Granularity is the folder, not the scenario.** Coverage is a property of a
+  TCK folder against the *whole* scenario corpus (many files cite
+  `clauses/match`; a self-loop tested in `cycles.gridkin.json` counts as covered
+  for the folder). The ledger therefore keys on folder, with one entry per TCK
+  folder that any scenario's `inspired_by` cites.
+- **`covered` is derived, never stored.** The guard
+  (`tests/test_gridkin_internals.py::TestTckCoverageLedger`) computes
+  `covered` = the number of scenarios whose `inspired_by` cites the folder. The
+  carried-over ratio is `x / y = covered / (covered + open gaps)`. Storing a
+  literal coverage count would be a self-certifying number that rots; deriving it
+  means the ratio cannot silently lie.
+- **Each entry records `gaps` and `excluded`.** `gaps[]` are applicable TCK
+  intents not yet covered — the actionable debt, each tagged `kind`
+  (`test` = closeable by authoring a scenario; `feature` = needs a Gryphon
+  language feature first; `unknown` = not yet classified). `excluded[]` are TCK
+  intents deliberately filtered out as Cypher-specific (three-valued-null logic,
+  write clauses, scalar string/list functions, variable-length paths, …), each
+  with a reason.
+- **`no_applicable_folder[]`** records features whose scenarios have no TCK
+  analog (TAP-native, or a surface the TCK does not cover — e.g. the `=~` regex
+  operator, whose TCK feature files are empty stubs). Those scenarios carry the
+  empty-pass `inspired_by` marker instead of a folder cite.
+- **Clean-room is inherited verbatim** from `req-gridkin-tck-inspiration`: every
+  intent string is in TAP's own words; no TCK query text, graph data, or expected
+  results are copied into the ledger.
+
+The drift guard is bidirectional: every folder a scenario cites must have a
+ledger entry (a forgotten mining pass fails), and every ledger entry must be
+cited by a scenario (a stale entry fails). Extending the Gryphon language surface
+therefore forces a ledger update in the same change — the obligation is
+structural, not a convention to remember.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-tck-coverage-1 | Folder-Keyed Ledger | Implemented | `tck-coverage.json` records per-TCK-folder coverage for the whole scenario corpus, validated against its JSON Schema at test time. | |
+| req-gridkin-tck-coverage-2 | Covered Is Derived | Implemented | `covered` (and thus the carried-over ratio) is computed from scenario `inspired_by` cites, never stored, so it cannot drift from the corpus. | |
+| req-gridkin-tck-coverage-3 | Gaps And Exclusions Enumerated | Implemented | Each folder enumerates uncovered applicable intents (`gaps`, each `kind`-tagged) and deliberately-excluded Cypher-specific intents (`excluded`, each with a reason). | |
+| req-gridkin-tck-coverage-4 | Bidirectional Folder Tie | Implemented | Every cited folder has a ledger entry and every ledger entry is cited — enforced by the guard, so language extensions force a ledger update. | |
 
 ### JSON Schema for Scenario Files
 ----

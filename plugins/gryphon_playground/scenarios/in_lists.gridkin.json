@@ -12,6 +12,7 @@
         "req-grid-traversal-lang-in-1",
         "req-grid-traversal-lang-in-2"
       ],
+      "inspired_by": "opencypher TCK — expressions/list (IN membership on a value)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"neighbor\"] RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__kind_neighbor.expected.json",
@@ -23,6 +24,7 @@
       "covers": [
         "req-grid-traversal-lang-in-2"
       ],
+      "inspired_by": "opencypher TCK — expressions/list (IN over multiple numeric members)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN [10, 30] RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__severity_set.expected.json",
@@ -34,7 +36,7 @@
       "covers": [
         "req-grid-traversal-lang-in-2"
       ],
-      "inspired_by": "tck/features/expressions/list/",
+      "inspired_by": "opencypher TCK — expressions/list",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"island\"] RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__single_element.expected.json",
@@ -46,7 +48,7 @@
       "covers": [
         "req-grid-traversal-lang-in-3"
       ],
-      "inspired_by": "tck/features/expressions/list/",
+      "inspired_by": "opencypher TCK — expressions/list",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.kind IN [] RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__empty_list.expected.json",
@@ -58,7 +60,7 @@
       "covers": [
         "req-grid-traversal-lang-in-4"
       ],
-      "inspired_by": "tck/features/expressions/null/",
+      "inspired_by": "opencypher TCK — expressions/null",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN [null, 20] RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__null_member.expected.json",
@@ -70,6 +72,7 @@
       "covers": [
         "req-grid-traversal-lang-in-5"
       ],
+      "inspired_by": "opencypher TCK — expressions/list (IN with parameterized members)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.entity_id IN [$first, $second] RETURN n.entity_id AS id ORDER BY id",
       "params": {
@@ -86,6 +89,7 @@
         "req-grid-traversal-lang-in-2",
         "req-grid-gryphon-count"
       ],
+      "inspired_by": "opencypher TCK — expressions/list (IN filter applied before aggregation)",
       "layer": "lite",
       "query": "MATCH (h)-[:PG_LINKS]->(n:pg_node) WHERE n.data.kind IN [\"neighbor\"] RETURN h.entity_id AS src, COUNT(n) AS c",
       "expected_envelope": "expected/in_lists__aggregation.expected.json",
@@ -97,10 +101,56 @@
       "covers": [
         "req-grid-traversal-lang-in-6"
       ],
+      "inspired_by": "opencypher TCK — expressions/list (IN composed with AND)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"island\"] AND n.data.severity_score > 10 RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/in_lists__in_and.expected.json",
       "expected_sql_snapshot": "expected/in_lists__in_and.sql.txt"
+    },
+    {
+      "name": "NOT over IN with a null list member keeps non-members (two-valued logic)",
+      "tags": ["in-list", "null", "two-valued", "where"],
+      "covers": [
+        "req-grid-traversal-lang-in-4"
+      ],
+      "inspired_by": "opencypher TCK — expressions/list (NOT over IN with a null member; two-valued divergence from Cypher's three-valued IN)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE NOT (n.data.severity_score IN [10, null, 30]) RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__not_in_null_member.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__not_in_null_member.sql.txt"
+    },
+    {
+      "name": "non-list IN right-hand side is rejected",
+      "tags": ["in-list", "rejection", "validation"],
+      "covers": ["req-grid-traversal-lang-in"],
+      "inspired_by": "opencypher TCK — expressions/list (non-list IN right-hand side is rejected)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN 5 RETURN n.entity_id AS id",
+      "expected_error": { "type": "GryphonParseError" }
+    },
+    {
+      "name": "IN with a null left-hand side (unset tag) is a non-member, not an error",
+      "tags": ["in-list", "null", "two-valued", "where"],
+      "covers": [
+        "req-grid-traversal-lang-in-4"
+      ],
+      "inspired_by": "opencypher TCK — expressions/list (null/unobserved left-hand side is a non-member under two-valued logic, never an error)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.tags.zone IN [\"core\", \"edge\"] RETURN n.entity_id AS id ORDER BY id",
+      "expected_envelope": "expected/in_lists__null_lhs_nonmember.expected.json",
+      "expected_sql_snapshot": "expected/in_lists__null_lhs_nonmember.sql.txt"
+    },
+    {
+      "name": "a string member against a numeric field is rejected — no cross-type coercion (type-strictness)",
+      "tags": ["in-list", "type-strictness", "rejection", "validation", "cypher-divergence"],
+      "covers": [
+        "req-grid-traversal-lang-type-strictness",
+        "req-grid-traversal-lang-type-strictness-1"
+      ],
+      "inspired_by": "opencypher TCK — expressions/list (Cypher returns false for 10 IN [\"10\"]; TAP is a typed graph and the declared schema is the type oracle, so a string member against an integer-declared field is rejected outright rather than coerced (the ORM would cast to Int4) or silently dropped — req-grid-traversal-lang-type-strictness)",
+      "layer": "lite",
+      "query": "MATCH (n:pg_node) WHERE n.data.severity_score IN [\"10\", \"20\"] RETURN n.entity_id AS id",
+      "expected_error": { "type": "SearchExecutionError", "message_contains": "Type mismatch" }
     }
   ]
 }

@@ -18,6 +18,7 @@
         "req-grid-service-batch-occ",
         "req-gridkin-multi-fixture-load"
       ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (TAP-native: optimistic-concurrency version bump)",
       "layer": "lite",
       "query": "MATCH (n:pg_node) WHERE n.entity_id = $node",
       "params": {

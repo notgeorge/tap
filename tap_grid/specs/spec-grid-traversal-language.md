@@ -38,6 +38,7 @@ enough to compile safely into TAP-controlled execution plans.
 | req-grid-traversal-lang-cypher-divergence | [Cypher Divergences Are Documented](#cypher-divergences-are-documented) | Implemented | Every deliberate divergence from Cypher is recorded in a formal `/docs` ledger; this req mandates the doc and its upkeep, not the divergences themselves |
 | req-grid-traversal-lang-cypher-credit | [Net-New Capabilities Are Credited](#net-new-capabilities-are-credited) | Implemented | Every capability Gryphon has that Cypher lacks is credited in the same `/docs` ledger — the running tab of where TAP goes beyond Cypher |
 | req-grid-traversal-lang-tck-mining | [TCK Mining Per Language Extension](#tck-mining-per-language-extension) | Implemented | Every Gryphon language extension runs the openCypher TCK mining pass; binds the existing `req-gridkin-tck-inspiration` to the language-extension lifecycle |
+| req-grid-traversal-lang-type-strictness | [Data-Lane Type Strictness](#data-lane-type-strictness) | Implemented | A data-lane predicate whose literal type contradicts the field's declared schema is rejected, not coerced or silently dropped; the declared schema is the type oracle |
 
 
 ### gryphon Language Shape
@@ -1117,8 +1118,64 @@ having to already know the gridkin validation spec.
 | --- | --- | :---: | --- | --- |
 | req-grid-traversal-lang-tck-mining-1 | Mining Pass Is A Precondition | Implemented | Every language extension in this spec runs the TCK mining pass before the feature is done. | Binds `req-gridkin-tck-inspiration` to the language-extension lifecycle. |
 | req-grid-traversal-lang-tck-mining-2 | Breadcrumb On Mined Scenarios | Implemented | A Gridkin scenario whose intent was mined sets `inspired_by` to the TCK source folder. | Per `req-gridkin-tck-inspiration-1`. |
-| req-grid-traversal-lang-tck-mining-3 | Empty Pass Is Recorded | Proposed | A feature with no applicable TCK folder records "looked, found nothing" rather than silently omitting the breadcrumb. | Distinguishes "no source" from "never checked". Backfill of the 17 pre-existing breadcrumb-less scenarios is tracked as a known gap, not blocked on here. |
+| req-grid-traversal-lang-tck-mining-3 | Empty Pass Is Recorded | Implemented | A feature with no applicable TCK folder records "looked, found nothing" rather than silently omitting the breadcrumb. | Enforced: `inspired_by` is schema-required and must be a folder cite or an explicit empty-pass marker (`gridkin-scenario.schema.json`); the pre-existing breadcrumb-less scenarios were backfilled 2026-06-30. Distinguishes "no source" from "never checked". |
 | req-grid-traversal-lang-tck-mining-4 | No TCK Content Copied | Implemented | No TCK query text, graph data, or expected results enter any Gryphon or Gridkin file. | Inherited from `req-gridkin-tck-inspiration-2`. |
+| req-grid-traversal-lang-tck-mining-5 | Coverage Is Ledgered | Implemented | Per-folder mining coverage (covered/gaps/excluded) is recorded in the corpus-wide coverage ledger, machine-checked and bidirectionally tied to scenario cites. | Binds `req-gridkin-tck-coverage`; a language extension that cites a new TCK folder must add its ledger entry in the same change. |
+
+
+### Data-Lane Type Strictness
+----
+RID: `req-grid-traversal-lang-type-strictness`
+Status: `Implemented`
+
+Gryphon is a query language over a **typed** graph: every data-lane field is backed by a column or a
+declared JSON Schema, so the executor knows each field's type. A predicate that compares a field to a
+literal of a contradicting type is therefore an **authoring error**, and Gryphon surfaces it rather than
+papering over it. This is a deliberate, documented divergence from Cypher in **both** directions:
+
+- Cypher silently **drops** type mismatches (`10 = "10"` → false; `10 STARTS WITH "1"` → null), because a
+  schema-optional property graph cannot know the type ahead of time. Gryphon's typed lane can, so the
+  rationale does not transfer.
+- The relational backend, left to itself, silently **coerces** (`"10"` → `10`; a number → `::text LIKE`),
+  which returns *wrong rows* — worse than either Cypher behaviour. Strictness exists to stop exactly this.
+
+**The declared schema is the type oracle.** The check resolves a data-lane field path's declared type by
+walking the model's `FIELD_CRUD_SCHEMA` (the per-field JSON Schema) to the addressed leaf, and rejects a
+literal whose JSON type is not admitted (with `integer` widening to a `number` field, and a union schema
+such as `["string","null"]` admitting either). A text operator (`STARTS_WITH` / `ENDS_WITH` / `CONTAINS`
+/ `=~`) applied to a non-text field is likewise rejected. A `null` literal is never a type error — it is
+the two-valued "unobserved" operand, owned by the null short-circuit and by `IS KNOWN` / `IS UNKNOWN`.
+
+**Interim asymmetry (named, not hidden).** Strictness reaches only as far as the schema declares a
+concrete type. A JSON field whose schema is a bare `{"type": "object"}` (or any path that bottoms out in
+an un-typed object) is the schema declaring an **open blob**: the oracle returns "no type" and strictness
+is skipped on that sub-path — so today `n.data.tags.zone` stays coercion-tolerant while typed columns are
+strict. This is a single code path: the same walker lights up strictness on a JSON sub-path the moment
+that field's schema gains real `properties`, with no executor change. The gap that JSON fields may
+currently declare themselves as un-schema'd blobs is recorded as a named open edge in
+`spec-security-posture.md` (decision home `req-grid-entity-validation`).
+
+#### Implementation
+
+- The leaf compiler (`_comparison_to_q`) enforces strictness before lowering a `Comparison` /
+  `InComparison` to a Django `Q`, via `_declared_data_types(model_cls, field_path)` (the schema walk) and
+  `_enforce_type_strictness`. The model is resolved per call site: the labelled type scan uses the scanned
+  model; the labelless scan checks each candidate model; the chain / NOT-EXISTS / OPTIONAL-MATCH paths
+  resolve the bound node's model from its pattern label.
+- The check runs on the **resolved** literal (after `$param` substitution), so a parameter cannot smuggle
+  a wrong-typed value past the gate — the check is on the value, not the syntax.
+- Spine fields, `dimensions`, and undeclared fields are not strictness-checked in v0 (the oracle returns
+  "no type"); the surface is the declared data lane.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-type-strictness-1 | Mismatch Is Rejected | Implemented | A data-lane comparison/IN whose literal type is not admitted by the field's declared schema raises `SearchExecutionError`, rather than coercing or silently dropping. | Covered by gridkin `in_lists` / `string_match` rejection scenarios. |
+| req-grid-traversal-lang-type-strictness-2 | Text Op Requires Text Field | Implemented | `STARTS_WITH` / `ENDS_WITH` / `CONTAINS` / `=~` on a non-text declared field is rejected. | |
+| req-grid-traversal-lang-type-strictness-3 | Null Is Not A Type Error | Implemented | A `null` literal operand is handled by two-valued logic (`IS KNOWN`/`IS UNKNOWN`, null short-circuit), never by the type check. | Composes with the NULL-operand guard. |
+| req-grid-traversal-lang-type-strictness-4 | Params Checked On Value | Implemented | The check runs on the resolved literal, so a `$param` of the wrong type is rejected too. | |
+| req-grid-traversal-lang-type-strictness-5 | Open Schemas Skip Strictness | Implemented | A path bottoming out in an un-typed object (open blob) is not strictness-checked; the same walk applies strictness once the schema declares the sub-key type. | Interim asymmetry recorded in `spec-security-posture.md`. |
 
 
 ## Status Vocabulary

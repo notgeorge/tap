@@ -23,9 +23,19 @@ import json
 import re
 from typing import TYPE_CHECKING, Any
 
+from tap_grid.exceptions import SearchExecutionError
 from tap_grid.grift import grift_import
 from tap_grid.gryphon import explain_gryphon_raw
+from tap_grid.gryphon.parser import GryphonParseError
 from tap_grid.services import delete_node
+
+# Rejection scenarios name the exception the query must raise. Kept to the two
+# refusal types Gryphon raises: a grammar refusal (parse) and a semantic/
+# unsupported-shape refusal (execution).
+_REJECTION_TYPES: dict[str, type[Exception]] = {
+    "GryphonParseError": GryphonParseError,
+    "SearchExecutionError": SearchExecutionError,
+}
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -96,6 +106,13 @@ def run_scenario(scenario: Scenario, *, update_snapshots: bool = False) -> list[
     is returned (regeneration never "fails").
     """
     _seed_fixture(scenario)
+
+    # Rejection scenario: the query must be refused. The error spec IS the
+    # hand-authored oracle — there is nothing to regenerate, so update_snapshots
+    # is a no-op here.
+    if scenario.expected_error is not None:
+        return _check_rejection(scenario)
+
     result = explain_gryphon_raw(  # TAP-AUTHZ-COV: pytest-only gridkin harness, not a production path
         scenario.query, scenario.params, db_alias="default", layer=scenario.layer
     )
@@ -110,6 +127,36 @@ def run_scenario(scenario: Scenario, *, update_snapshots: bool = False) -> list[
     failures.extend(_check_envelope(scenario, actual_envelope))
     failures.extend(_check_sql(scenario, actual_sql))
     return failures
+
+
+def _check_rejection(scenario: Scenario) -> list[str]:
+    """Assert the query is refused with the expected error type and message.
+
+    The traversal contract includes which queries are *rejected*, not only which
+    return rows. `expected_error.type` names the refusal class and the optional
+    `message_contains` pins the diagnostic (case-insensitive substring).
+    """
+    spec = scenario.expected_error
+    assert spec is not None  # caller guards this
+    want = _REJECTION_TYPES[spec["type"]]
+    needle = spec.get("message_contains", "")
+    try:
+        explain_gryphon_raw(  # TAP-AUTHZ-COV: pytest-only gridkin harness, not a production path
+            scenario.query, scenario.params, db_alias="default", layer=scenario.layer
+        )
+    except want as exc:
+        if needle and needle.lower() not in str(exc).lower():
+            return [
+                f"REJECTION MESSAGE MISMATCH — expected {spec['type']} containing "
+                f"{needle!r}, got: {exc}"
+            ]
+        return []
+    except Exception as exc:  # noqa: BLE001 — any other type is a contract failure
+        return [
+            f"WRONG REJECTION TYPE — expected {spec['type']}, got "
+            f"{type(exc).__name__}: {exc}"
+        ]
+    return [f"EXPECTED REJECTION — query should have raised {spec['type']} but it succeeded."]
 
 
 def _seed_fixture(scenario: Scenario) -> None:

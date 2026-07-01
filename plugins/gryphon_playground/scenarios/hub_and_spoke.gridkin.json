@@ -13,6 +13,7 @@
         "req-grid-traversal-lang-params",
         "req-grid-traversal-exec-pipeline"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (one-hop undirected neighborhood)",
       "layer": "lite",
       "query": "MATCH (h)-[e]-(n) WHERE h.entity_id = $hub_id",
       "params": {
@@ -25,6 +26,7 @@
       "name": "inbound-only neighborhood of a hub with no inbound edges",
       "tags": ["hub-and-spoke", "direction", "current-behavior"],
       "covers": ["req-grid-traversal-lang-patterns"],
+      "inspired_by": "opencypher TCK — clauses/match (inbound-direction match with zero results)",
       "layer": "lite",
       "query": "MATCH (h)<-[e]-(n) WHERE h.entity_id = $hub_id",
       "params": {
@@ -40,6 +42,7 @@
         "req-grid-traversal-lang-patterns",
         "req-grid-traversal-lang-params"
       ],
+      "inspired_by": "opencypher TCK — clauses/match (undirected neighborhood from a leaf anchor)",
       "layer": "lite",
       "query": "MATCH (x)-[e]-(y) WHERE x.entity_id = $node_id",
       "params": {
@@ -52,6 +55,7 @@
       "name": "anchor entity not found yields an empty envelope with a warning",
       "tags": ["hub-and-spoke", "corner", "current-behavior"],
       "covers": ["req-grid-traversal-exec-pipeline"],
+      "inspired_by": "opencypher TCK — clauses/match (anchor not found yields empty result)",
       "layer": "lite",
       "query": "MATCH (h)-[e]-(n) WHERE h.entity_id = $missing_id",
       "params": {

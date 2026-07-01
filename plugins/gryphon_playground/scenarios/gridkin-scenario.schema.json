@@ -48,7 +48,17 @@
     "scenario": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "covers", "query", "expected_envelope", "expected_sql_snapshot"],
+      "required": ["name", "covers", "inspired_by", "query"],
+      "oneOf": [
+        {
+          "required": ["expected_envelope", "expected_sql_snapshot"],
+          "not": { "required": ["expected_error"] }
+        },
+        {
+          "required": ["expected_error"],
+          "not": { "anyOf": [{ "required": ["expected_envelope"] }, { "required": ["expected_sql_snapshot"] }] }
+        }
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -68,7 +78,8 @@
         },
         "inspired_by": {
           "type": "string",
-          "description": "Optional breadcrumb to an openCypher TCK feature folder when the scenario's intent was mined from the TCK. Informational only, never a license claim."
+          "pattern": "^opencypher TCK — (no applicable feature folder \\(.+\\)|.+/.+)$",
+          "description": "Required openCypher-TCK mining breadcrumb (req-gridkin-tck-inspiration, req-grid-traversal-lang-tck-mining-3). Either a folder cite — 'opencypher TCK — <folder> (<intent>)', e.g. 'opencypher TCK — clauses/match (...)' — or, where no TCK folder applies, the explicit empty-pass marker 'opencypher TCK — no applicable feature folder (<reason>)' (reason names why, e.g. 'TAP-native: optimistic-concurrency' or 'openCypher TCK has no regex coverage'). 'Looked, found nothing' is a deliberate, recorded state; a missing breadcrumb is a forgotten mining pass. Per-folder COVERAGE state lives in tck-coverage.json, not here. Informational only, never a license claim."
         },
         "layer": {
           "enum": ["lite", "full", "extended"],
@@ -92,6 +103,23 @@
           "type": "string",
           "minLength": 1,
           "description": "Path, relative to the plugin root, to the expected ORM-compiled SQL snapshot file."
+        },
+        "expected_error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "description": "Rejection oracle: the query MUST be refused. Mutually exclusive with expected_envelope/expected_sql_snapshot. The traversal contract includes which queries are rejected, not only which return rows.",
+          "properties": {
+            "type": {
+              "enum": ["GryphonParseError", "SearchExecutionError"],
+              "description": "The refusal class: grammar refusal (parse) or semantic/unsupported-shape refusal (execution)."
+            },
+            "message_contains": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Optional case-insensitive substring the error message must contain — pins the diagnostic, not just the type."
+            }
+          }
         }
       }
     }
