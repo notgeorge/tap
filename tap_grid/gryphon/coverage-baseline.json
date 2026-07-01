@@ -1,0 +1,15 @@
+{
+  "executor_branch_pct_floor": 73,
+  "measured_branch_pct": 73.66,
+  "measured_covered_branches": 467,
+  "measured_num_branches": 634,
+  "measured_combined_pct": 79.38,
+  "measured_at_commit": "4ac10f1",
+  "suites": [
+    "tap_grid/tests/test_gryphon.py",
+    "tap_grid/tests/test_gryphon_sql_capture.py",
+    "plugins/gryphon_playground/tests/test_gridkin.py",
+    "tap_api/tests/test_gryphon.py"
+  ],
+  "note": "Ratchet floor for pure branch coverage (covered_branches / num_branches) of tap_grid/gryphon/executor.py, measured across the listed executor-exercising suites. Run `scripts/dc exec -T web scripts/gryphon-coverage-ratchet` to check; it fails if int(current) < floor. Ratchets UP: when coverage improves, bump executor_branch_pct_floor to lock the gain. See req-gridkin-executor-branch-coverage (spec-gridkin-v0.md) and the spec-dev-validation.md Validation Map."
+}

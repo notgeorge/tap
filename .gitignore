@@ -91,3 +91,11 @@ console-current.log
 # Harness-managed state under .claude/ — not committed (per-user / per-worktree).
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
+
+# coverage.py artifacts — the Gryphon executor branch-coverage ratchet
+# (scripts/gryphon-coverage-ratchet) writes these at runtime; the committed
+# floor lives in tap_grid/gryphon/coverage-baseline.json, never the raw data.
+.coverage
+.coverage.*
+coverage.json
+htmlcov/

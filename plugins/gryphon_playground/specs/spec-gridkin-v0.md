@@ -47,6 +47,8 @@ is their shared operational companion.
 | req-gridkin-req-traceability | [Requirement Traceability](#requirement-traceability) | Implemented | Every scenario cites the spec RIDs it covers |
 | req-gridkin-tck-inspiration | [TCK as Scenario Inspiration](#tck-as-scenario-inspiration) | Implemented | Mine the openCypher TCK for corner-case intent; never port queries |
 | req-gridkin-tck-coverage | [TCK Coverage Ledger](#tck-coverage-ledger) | Implemented | A machine-checked, corpus-wide ledger of per-folder TCK coverage (covered/gaps/excluded) |
+| req-gridkin-stage-coverage | [Executor-Stage Coverage Gate](#executor-stage-coverage-gate) | Implemented | Every executor dispatch stage is exercised by a WHERE-carrying scenario; the path set is derived from the source, not a hand-kept list |
+| req-gridkin-executor-branch-coverage | [Executor Branch-Coverage Ratchet](#executor-branch-coverage-ratchet) | Implemented | `coverage.py` branch coverage of `executor.py`, ratcheted against a committed floor — the branch-level complement to the stage gate |
 | req-gridkin-json-schema | [JSON Schema for Scenario Files](#json-schema-for-scenario-files) | Implemented | Author and validate-at-load a JSON Schema for the scenario format |
 | req-gridkin-multi-fixture-load | [Multi-Fixture Background Loads](#multi-fixture-background-loads) | Approved for Development | `background.grift_fixture` accepts a list of fixture paths; the runner imports each in order |
 | req-gridkin-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Explicitly deferred concerns |
@@ -536,6 +538,121 @@ structural, not a convention to remember.
 | req-gridkin-tck-coverage-2 | Covered Is Derived | Implemented | `covered` (and thus the carried-over ratio) is computed from scenario `inspired_by` cites, never stored, so it cannot drift from the corpus. | |
 | req-gridkin-tck-coverage-3 | Gaps And Exclusions Enumerated | Implemented | Each folder enumerates uncovered applicable intents (`gaps`, each `kind`-tagged) and deliberately-excluded Cypher-specific intents (`excluded`, each with a reason). | |
 | req-gridkin-tck-coverage-4 | Bidirectional Folder Tie | Implemented | Every cited folder has a ledger entry and every ledger entry is cited — enforced by the guard, so language extensions force a ledger update. | |
+
+### Executor-Stage Coverage Gate
+----
+RID: `req-gridkin-stage-coverage`
+Status: `Implemented`
+
+`req-gridkin-tck-coverage` accounts for coverage of the language *intent*
+surface. It says nothing about coverage of the executor's *dispatch paths* — and
+the two are not the same. The intent≠path-coverage AAR
+(`docs/aar/2026-06-30-gridkin-intent-coverage-not-path-coverage.md`) records a
+silent-wrong-answer bug that lived on an executor path *no* scenario exercised,
+while a green "intents covered" ledger sat directly over it: one intent ("a WHERE
+over two bound nodes") mapped many-to-one onto dispatch paths, and the buggy path
+had zero scenarios. This gate closes that specific accounting gap — a second
+coverage axis, keyed on executor path rather than TCK folder.
+
+#### Implementation
+
+- **The path set is derived from the source, never hand-kept.** The executor tags
+  every dispatch path with a `gryphon_stage("<label>")` context manager
+  (`tap_grid/gryphon/executor.py`). `stage_coverage.enumerate_stage_labels()`
+  AST-parses those call sites into the authoritative stage inventory. A
+  `gryphon_stage()` called with a non-literal label raises rather than being
+  silently missed — the inventory must fail loud, not under-report. The current
+  stages are `optional-match`, `advanced`, `bare-type-scan`, `type-scan`, and
+  `single-hop`.
+- **The exercised set is derived from the committed snapshots.** Every result
+  scenario's `.sql.txt` records the stage each statement ran under
+  (`-- statement N · stage: <label>`, per `req-gridkin-explain-snapshot`).
+  `snapshot_stages()` parses those headers; the union across the corpus is the
+  set actually exercised.
+- **The gate is sharpened past reachability — WHERE-carrying, not merely reached.**
+  The motivating bug was a stage reached only *without* a WHERE, so its
+  WHERE-application code was never run; reachability alone would have passed. So a
+  stage counts as covered only when a scenario that *carries a WHERE* routes
+  through it. "Carries a WHERE" counts a top-level `WHERE` and a
+  `NOT EXISTS { … WHERE … }` inner predicate (the advanced stage applies the
+  latter inside the anti-join). All five current stages apply a WHERE, so all five
+  must be WHERE-exercised.
+- **The tie is bidirectional.** Every enumerated stage must be WHERE-exercised (a
+  new dispatch path with no WHERE-carrying scenario fails the gate — the direct
+  regression lock for the AAR's class), and every stage label seen in a snapshot
+  must still be emitted by the source (a renamed/removed stage leaves a stale
+  label that fails the drift axis). The guard lives in
+  `tests/test_gridkin_internals.py::TestStageCoverage`.
+- **A pinned inventory forces acknowledgment.** A tripwire test pins the current
+  five-stage set, so adding or removing a dispatch path is a deliberate, reviewed
+  change rather than a silent one — the author must confront the new path's
+  coverage, which the WHERE-coverage assertion then enforces.
+
+This gate is what makes "the executor is covered" a claim about *paths* rather
+than *intents*. Its complement is the model-based reference oracle (the third
+Gridkin assertion, `req-gridkin-oracle-assertion`), which checks each exercised
+path returns the *right answer*; together they cover both "is every path run"
+and "does every run agree with an independent recomputation."
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-stage-coverage-1 | Path Set Derived From Source | Implemented | The dispatch-stage inventory is AST-parsed from the executor's `gryphon_stage()` call sites; a non-literal label raises rather than being silently dropped. | Not a hand-kept list. |
+| req-gridkin-stage-coverage-2 | Every Stage WHERE-Exercised | Implemented | Each enumerated stage is exercised by at least one result scenario whose query carries a WHERE (top-level or NOT-EXISTS-inner). | The direct lock for the intent≠path AAR class. |
+| req-gridkin-stage-coverage-3 | No Stale Snapshot Labels | Implemented | Every stage label appearing in a committed SQL snapshot is still emitted by the executor source; a renamed/removed label fails the drift axis. | Bidirectional tie. |
+| req-gridkin-stage-coverage-4 | Inventory Pinned | Implemented | The current stage set is pinned by a tripwire test so adding or removing a dispatch path is a deliberate, reviewed change. | Forces coverage acknowledgment for a new path. |
+
+### Executor Branch-Coverage Ratchet
+----
+RID: `req-gridkin-executor-branch-coverage`
+Status: `Implemented`
+
+The stage gate (`req-gridkin-stage-coverage`) proves every dispatch *path* runs
+with a WHERE, but its granularity is the whole stage — it cannot see an
+unexercised *branch within* a stage (a new WHERE operator, a null-handling arm, a
+direction fan-out). `coverage.py` branch coverage over `tap_grid/gryphon/executor.py`,
+ratcheted against a committed floor, is that finer complement — the "branch
+coverage on the executor, ratcheted" corrective action named in the
+intent≠path-coverage AAR §7.
+
+#### Implementation
+
+- **Measured across the whole executor corpus.** The floor is branch coverage of
+  `executor.py` under the union of the suites that exercise it — the tap_grid unit
+  and SQL-capture suites, the Gridkin scenario suite, and the API-level Gryphon
+  suite. Measuring across the corpus is deliberate: the envelope-WHERE branch was
+  reached only by a Gridkin scenario, so a unit-suite-only floor would have
+  mislabelled a covered branch as a gap.
+- **A script, not a per-commit pytest gate — and honestly labelled as such.**
+  `coverage.py` must wrap the whole test process, and the instrumented run of the
+  full corpus takes ~10-15 minutes, so it cannot ride the per-commit `pytest`
+  path the way the stage gate does. It is `scripts/gryphon-coverage-ratchet`, run
+  on-demand (inside the compose web container) and, once the dev-validation
+  promote gate lands, from there. Its honest guard status lives in the
+  `spec-dev-validation.md` Validation Map — the per-commit-CI piece is only the
+  baseline-file sanity guard, not the coverage comparison itself.
+- **Committed floor, ratchets up.** `tap_grid/gryphon/coverage-baseline.json`
+  records the integer branch-coverage floor plus provenance (the exact percent
+  measured, the commit, the suites). The script fails if `int(current) < floor`
+  (a real regression), tolerating sub-point wobble; when coverage improves it
+  prints a reminder to bump the floor and lock the gain. A cheap per-commit test
+  (`tap_grid/tests/test_gryphon_coverage_baseline.py`) keeps the committed floor
+  well-formed and never above the last real measurement.
+- **First instance of the standardizing pattern.** This is the bounded, reviewed,
+  in-repo, ratcheting mechanism `spec-dev-validation.md` names as TAP's canonical
+  honesty convention (alongside the log-site-ID and authz-coverage baselines). As
+  the build/validation pipeline is standardized, this ratchet is the template the
+  dev-validation gate absorbs rather than a one-off.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-executor-branch-coverage-1 | Branch Coverage Measured | Implemented | `scripts/gryphon-coverage-ratchet` runs the executor-exercising suites under `coverage.py --branch` and reads `executor.py` branch coverage. | Union of unit, SQL-capture, Gridkin, and API suites. |
+| req-gridkin-executor-branch-coverage-2 | Ratchet Floor Enforced | Implemented | The script fails when integer branch coverage drops below the committed floor; sub-point wobble is tolerated. | Regression is loud and blocking. |
+| req-gridkin-executor-branch-coverage-3 | Floor Committed And Honest | Implemented | The floor lives in a committed baseline file with provenance; a per-commit guard test keeps it well-formed and never above the last measurement. | |
+| req-gridkin-executor-branch-coverage-4 | Honest Guard Status | Implemented | The Validation Map records the ratchet as script-invoked (not per-commit CI), with only the baseline-file sanity as the CI-guarded piece, until the dev-validation gate absorbs it. | Counters the false-confidence failure mode. |
 
 ### JSON Schema for Scenario Files
 ----
