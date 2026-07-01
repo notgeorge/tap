@@ -256,6 +256,15 @@ def filename_conforms(rel_path: Path) -> bool:
         if name.startswith(f"{app}."):
             return True
 
+    # Plugin-owned singleton: `<plugin>.<name>.json` living under `plugins/<plugin>/`.
+    # A one-of-a-kind, non-globbed data file owned by a plugin (e.g. a coverage
+    # ledger) takes the same owner-prefix form as a first-party singleton, but its
+    # owner is the enclosing plugin package rather than a tap_* app. Deriving the
+    # prefix from the path keeps this general — no per-plugin allowlist to maintain.
+    parts = rel_path.parts
+    if len(parts) >= 2 and parts[0] == "plugins" and name.startswith(f"{parts[1]}."):
+        return True
+
     return False
 
 

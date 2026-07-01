@@ -1,0 +1,7 @@
+Targeted container test run:
+
+scripts/dc exec web uv run python -m pytest tap_auth/tests/test_policy.py tap_auth/tests/test_enforcement.py tap_auth/tests/test_login_wall.py tap_api/tests/test_gryphon.py tap_api/tests/test_searches.py tap_api/tests/test_entity_types.py tap_web/tests/test_views.py tap_web/tests/test_reserved_prefixes.py tap/tests/test_authz_coverage.py -q
+
+Result: 90 collected; 89 passed; 1 failed.
+
+Failure: tap/tests/test_authz_coverage.py::test_authz_coverage_ratchet reported baseline line-number drift for existing ungated privileged sink records in tap_grid/gryphon/executor.py and tap_grid/services.py. This appears to be baseline maintenance/line drift, not the web page/panel bypass validated here.

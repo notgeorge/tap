@@ -373,6 +373,19 @@ class BaseModelQuerySet(models.QuerySet["BaseModel"]):
     def tombstoned(self) -> BaseModelQuerySet:
         return self.filter(entity__deleted_at__isnull=False)
 
+    def _fetch_all(self) -> None:
+        # Read backstop (req-tap-auth-orm-read-backstop): materializing a
+        # TAP-managed queryset is a graph read. Every read path (.get, .first,
+        # iteration, list(), values()) funnels through _fetch_all, so gating it
+        # here fails closed for any caller that reached the ORM without holding
+        # grid.read — e.g. a web view that forgot to authorize. Layer 1 of the
+        # guard; see tap_grid/read_guard.py.
+        if self._result_cache is None:
+            from tap_grid.read_guard import enforce_managed_read
+
+            enforce_managed_read(f"orm read {self.model._meta.label}")
+        super()._fetch_all()
+
 
 _BaseModelManagerBase = models.Manager.from_queryset(BaseModelQuerySet)
 

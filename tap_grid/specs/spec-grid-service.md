@@ -399,6 +399,32 @@ The security/authz hook at pipeline step 2 operates against CallerContext. When 
 #### Development
 CallerContext is intentionally minimal at this stage. Do not add fields beyond user and batch_id until a concrete need exists. The shape should be stable before the first service function is implemented.
 
+#### Backlog: contextvar propagation discipline
+
+CallerContext is carried through the pipeline on a module-level `ContextVar`
+(`tap_grid/caller_context.py`), and a growing set of enforcement mechanisms now
+depend on that same contextvar being correctly propagated: the write/read
+backstops resolve the active actor from it, and the ORM read backstop
+(`req-tap-auth-orm-read-backstop`, `tap_grid/read_guard.py`) reads it — plus its
+own bypass flag and per-context grant memo — on every graph read. Contextvars
+propagate to the same task and to threads that inherit a copied context, but they
+are **not** inherited across a bare `ThreadPoolExecutor`/manual-thread boundary
+unless the context is explicitly copied, and async tasks carry their own copy.
+
+The failure mode is asymmetric and mostly safe: a lost context reads as
+`user=None` → the backstops **fail closed** (over-deny), not open. But two sharp
+edges deserve a written owner before we lean harder on this: (1) a background
+worker that spawns threads without `contextvars.copy_context()` will silently
+over-deny graph reads/writes, which looks like a permissions bug, not a
+threading bug; and (2) the read-guard bypass (`unguarded_read()`) and grant memo
+live on contextvars too, so the same propagation rules govern whether an
+escape-hatch or a cached decision survives a thread hop. Backlog item: document
+the propagation contract here (and in `read_guard.py`), and decide whether TAP
+should provide a context-preserving executor wrapper rather than relying on each
+caller to remember `copy_context()`. This composes with the "carry the approval
+set on CallerContext itself" direction in `spec-tap-auth-v0.md`
+(`req-tap-auth-policy` backlog), which would put even more weight on this axis.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |

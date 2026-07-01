@@ -489,7 +489,7 @@ Status: `Implemented`
 `req-gridkin-tck-inspiration` makes each scenario cite *where* its intent came
 from. It does not, by itself, answer *how much* of a TCK folder's corner-case
 taxonomy has actually been carried over. The coverage ledger
-(`scenarios/tck-coverage.json`, validated by `scenarios/tck-coverage.schema.json`)
+(`scenarios/gryphon_playground.tck-coverage.json`, validated by `scenarios/tck-coverage.schema.json`)
 closes that gap: a corpus-wide, machine-checked record of per-folder coverage so
 "we mined this folder and here is exactly what we still owe" is auditable instead
 of asserted.
@@ -532,7 +532,7 @@ structural, not a convention to remember.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gridkin-tck-coverage-1 | Folder-Keyed Ledger | Implemented | `tck-coverage.json` records per-TCK-folder coverage for the whole scenario corpus, validated against its JSON Schema at test time. | |
+| req-gridkin-tck-coverage-1 | Folder-Keyed Ledger | Implemented | `gryphon_playground.tck-coverage.json` records per-TCK-folder coverage for the whole scenario corpus, validated against its JSON Schema at test time. | |
 | req-gridkin-tck-coverage-2 | Covered Is Derived | Implemented | `covered` (and thus the carried-over ratio) is computed from scenario `inspired_by` cites, never stored, so it cannot drift from the corpus. | |
 | req-gridkin-tck-coverage-3 | Gaps And Exclusions Enumerated | Implemented | Each folder enumerates uncovered applicable intents (`gaps`, each `kind`-tagged) and deliberately-excluded Cypher-specific intents (`excluded`, each with a reason). | |
 | req-gridkin-tck-coverage-4 | Bidirectional Folder Tie | Implemented | Every cited folder has a ledger entry and every ledger entry is cited — enforced by the guard, so language extensions force a ledger update. | |

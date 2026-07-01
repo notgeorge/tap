@@ -61,12 +61,13 @@ Every TAP-owned JSON file's purpose is legible from its filename. There are exac
 | `edge` | `<slug>.edge.json` | `plugins/<slug>/edges/` | plugin |
 | `gridkin` | `<name>.gridkin.json` | `plugins/gryphon_playground/scenarios/` | plugin |
 
-**2. Singleton app-owned config — `<app>.<name>.json`.** A file loaded by an exact hard-coded path (not a scan), owned by one app, carries the app label as a prefix so the tree shows ownership at a glance.
+**2. Singleton app-owned config — `<app>.<name>.json`.** A file loaded by an exact hard-coded path (not a scan), owned by one app, carries the app label as a prefix so the tree shows ownership at a glance. The owner is a first-party `tap_*` app, or — for a file living under `plugins/<plugin>/` — the enclosing plugin package. The plugin form keeps the same "owner prefix names the one-of-a-kind file" contract for plugin-owned singletons (e.g. a coverage ledger) without a per-plugin allowlist: the scanner derives the accepted prefix from the file's own `plugins/<plugin>/` path.
 
 | File | Owner |
 | --- | --- |
 | `tap_auth.roles.json` | `tap_auth` |
 | `tap_auth.capabilities.json` | `tap_auth` |
+| `plugins/gryphon_playground/scenarios/gryphon_playground.tck-coverage.json` | `gryphon_playground` (plugin) |
 
 **3. Schemas — `<type>.schema.json`.** Every JSON Schema carries the `.schema.json` suffix. Its stem names *what it validates*:
 
@@ -86,7 +87,7 @@ Collector manifests under `plugins/*/collectors/*/` (e.g. `github_collection_man
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-json-naming-1 | Role Suffix | Implemented | Discovered data/config files are named `<name>.<role>.json` for a known role. | |
-| req-tap-json-naming-2 | App Prefix | Implemented | Hard-path singleton config is named `<app>.<name>.json`. | |
+| req-tap-json-naming-2 | App Prefix | Implemented | Hard-path singleton config is named `<app>.<name>.json`, where the owner is a first-party `tap_*` app or, for a file under `plugins/<plugin>/`, the enclosing plugin package. | |
 | req-tap-json-naming-3 | Schema Suffix | Implemented | Every JSON Schema is named `<type>.schema.json`. | |
 | req-tap-json-naming-4 | Schema Stem Is Role | Implemented | A discovered family's schema stem equals its role: `R.schema.json` ↔ `*.R.json`. | Applied to boot (`boot.schema.json` ↔ `*.boot.json`); grift/edge/gridkin family schemas grandfathered pending the Future pairing check |
 

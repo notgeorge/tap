@@ -1,0 +1,917 @@
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": ".codex/config.toml", "row": 1, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": ".mcp.json", "row": 2, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "boot/base.boot.json", "row": 3, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "boot/criticalsec.boot.json", "row": 4, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "boot/samsite.boot.json", "row": 5, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "conftest.py", "row": 6, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "docker/entrypoint.sh", "row": 7, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "docker/install-tailwindcss.sh", "row": 8, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "input.css", "row": 9, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "manage.py", "row": 10, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/__init__.py", "row": 11, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/__init__.py", "row": 12, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/apps.py", "row": 13, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/grift/batch-viewer-page.grift.json", "row": 14, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/grift/batches-list-page.grift.json", "row": 15, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/grift/cares-administrivia-v04.grift.json", "row": 16, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/grift/cares-administrivia.grift.json", "row": 17, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/grift/entity-pages.grift.json", "row": 18, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/grift/grid-landing.grift.json", "row": 19, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/static/administrivia/css/cares_collector_detail.css", "row": 20, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/static/administrivia/css/cares_collector_table.css", "row": 21, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/static/administrivia/css/cares_run_detail.css", "row": 22, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/static/administrivia/css/cares_schedule_detail.css", "row": 23, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/static/administrivia/css/cares_schedule_table.css", "row": 24, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/tap-plugin.toml", "row": 25, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/tap_cares/panels/__init__.py", "row": 26, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/tap_cares/panels/collector_detail/__init__.py", "row": 27, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/tap_cares/panels/collector_table/__init__.py", "row": 28, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/tap_cares/panels/run_detail/__init__.py", "row": 29, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/tap_cares/panels/schedule_detail/__init__.py", "row": 30, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/tap_cares/panels/schedule_table/__init__.py", "row": 31, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/templates/administrivia/panels/collector_detail.html", "row": 32, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/templates/administrivia/panels/collector_table.html", "row": 33, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/templates/administrivia/panels/run_detail.html", "row": 34, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/templates/administrivia/panels/schedule_detail.html", "row": 35, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/administrivia/templates/administrivia/panels/schedule_table.html", "row": 36, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/__init__.py", "row": 37, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/apps.py", "row": 38, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/__init__.py", "row": 39, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/__init__.py", "row": 40, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/aws_resource_manifest.json", "row": 41, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/aws_resource_manifest.schema.json", "row": 42, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/batch.py", "row": 43, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/collector.py", "row": 44, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/credentials.py", "row": 45, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/customfns.py", "row": 46, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/edges.py", "row": 47, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/envelope.py", "row": 48, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/hydrate.py", "row": 49, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/identity.py", "row": 50, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/ledger.py", "row": 51, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/manifest.py", "row": 52, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/paths.py", "row": 53, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/projection.py", "row": 54, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/rgta.py", "row": 55, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/source.py", "row": 56, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/tags.py", "row": 57, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/collectors/boto3_collector/transforms.py", "row": 58, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/ASSUMES_ROLE.edge.json", "row": 59, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/ATTACHED_TO.edge.json", "row": 60, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/BACKED_BY.edge.json", "row": 61, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/BELONGS_TO_ACCOUNT.edge.json", "row": 62, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/BELONGS_TO_VPC.edge.json", "row": 63, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/BOUND_TO_AZ.edge.json", "row": 64, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/CONTAINS.edge.json", "row": 65, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/DEPENDS_ON.edge.json", "row": 66, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/EXPOSES_NETWORK_ACCESS.edge.json", "row": 67, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/FEDERATES_INTO.edge.json", "row": 68, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/HAS_POLICY_ACCESS_TO.edge.json", "row": 69, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/HOSTS_VPC.edge.json", "row": 70, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/INVOKES.edge.json", "row": 71, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/LAUNCHED.edge.json", "row": 72, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/PARTITIONED_INTO_SUBNET.edge.json", "row": 73, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/PROTECTS.edge.json", "row": 74, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/PULLS_IMAGE_FROM.edge.json", "row": 75, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/RESIDES_IN.edge.json", "row": 76, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/RETRIEVES_CERT_FROM.edge.json", "row": 77, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/RETRIEVES_CONTENT_FROM.edge.json", "row": 78, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/ROUTES_TRAFFIC.edge.json", "row": 79, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/STORES_DATA_IN.edge.json", "row": 80, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/edges/WRITES_LOGS.edge.json", "row": 81, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/grift/dimension.grift.json", "row": 82, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/grift/regions.grift.json", "row": 83, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/migrations/0001_initial.py", "row": 84, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/migrations/0002_initial.py", "row": 85, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/migrations/__init__.py", "row": 86, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/__init__.py", "row": 87, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/acm_certificate.py", "row": 88, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/alb.py", "row": 89, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/availability_zone.py", "row": 90, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/aws_account.py", "row": 91, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/aws_region.py", "row": 92, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/bedrock_model.py", "row": 93, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/cloudfront_distribution.py", "row": 94, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/cloudwatch_log_group.py", "row": 95, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/dynamodb_table.py", "row": 96, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/ebs_volume.py", "row": 97, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/ec2_instance.py", "row": 98, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/ecr_repository.py", "row": 99, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/ecs_cluster.py", "row": 100, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/ecs_service.py", "row": 101, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/ecs_task.py", "row": 102, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/eks_cluster.py", "row": 103, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/elastic_ip.py", "row": 104, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/elasticache_cluster.py", "row": 105, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/elasticsearch_domain.py", "row": 106, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/elb.py", "row": 107, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/eventbridge_rule.py", "row": 108, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/iam_oidc_provider.py", "row": 109, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/iam_policy.py", "row": 110, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/iam_role.py", "row": 111, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/iam_user.py", "row": 112, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/internet_gateway.py", "row": 113, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/lambda_function.py", "row": 114, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/nat_gateway.py", "row": 115, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/network_acl.py", "row": 116, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/network_firewall.py", "row": 117, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/rds_instance.py", "row": 118, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/route53_hosted_zone.py", "row": 119, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/route_table.py", "row": 120, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/s3_bucket.py", "row": 121, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/sagemaker_endpoint.py", "row": 122, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/secrets_manager_secret.py", "row": 123, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/security_group.py", "row": 124, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/ssm_parameter.py", "row": 125, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/subnet.py", "row": 126, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/target_group.py", "row": 127, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/models/vpc.py", "row": 128, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/pyproject.toml", "row": 129, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/aws_core/tap-plugin.toml", "row": 130, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/__init__.py", "row": 131, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/apps.py", "row": 132, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/edges/AVAILABLE_AT.edge.json", "row": 133, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/edges/CONNECTS_TO.edge.json", "row": 134, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/edges/FETCHES.edge.json", "row": 135, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/edges/GENERATES_FILE.edge.json", "row": 136, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/edges/HAS_IP.edge.json", "row": 137, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/edges/HOSTED_BY.edge.json", "row": 138, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/edges/HOSTS.edge.json", "row": 139, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/edges/LISTENS_ON.edge.json", "row": 140, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/edges/PAIRED_WITH.edge.json", "row": 141, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/edges/RUNS_ON.edge.json", "row": 142, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/grift/dimension.grift.json", "row": 143, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/migrations/0001_initial.py", "row": 144, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/migrations/0002_initial.py", "row": 145, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/migrations/__init__.py", "row": 146, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/__init__.py", "row": 147, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/file.py", "row": 148, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/ip_address.py", "row": 149, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/network_interface.py", "row": 150, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/port.py", "row": 151, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/private_key.py", "row": 152, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/program.py", "row": 153, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/public_key.py", "row": 154, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/tcp_connection.py", "row": 155, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/user.py", "row": 156, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/web_document.py", "row": 157, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/models/web_host.py", "row": 158, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/computing_core/tap-plugin.toml", "row": 159, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/__init__.py", "row": 160, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/apps.py", "row": 161, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/collectors/__init__.py", "row": 162, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/collectors/ksi_catalog.py", "row": 163, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/collectors/pinned/collection-v0.schema.json", "row": 164, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/collectors/pinned/source_schema.json", "row": 165, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/collectors/safety/denylist.json", "row": 166, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/AFFECTS_RESOURCE.edge.json", "row": 167, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/CONTAINS_INDICATOR.edge.json", "row": 168, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/COVERS_FINDING.edge.json", "row": 169, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/DECLARES_COMPONENT.edge.json", "row": 170, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/DECLARES_VALIDATION.edge.json", "row": 171, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/EVALUATES_COMPONENT.edge.json", "row": 172, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/HAS_EVIDENCE.edge.json", "row": 173, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/HAS_FINDING.edge.json", "row": 174, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/REFERENCES_SIGNAL.edge.json", "row": 175, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/RELATED_INDICATOR.edge.json", "row": 176, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/REPORTS_FINDING.edge.json", "row": 177, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/REPORTS_VIOLATION.edge.json", "row": 178, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/edges/SCOPED_TO_BOUNDARY.edge.json", "row": 179, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/grift/dimension.grift.json", "row": 180, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/grift/finding-profile-page.grift.json", "row": 181, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/grift/findings-page.grift.json", "row": 182, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/grift/ksi-compliance-page.grift.json", "row": 183, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/grift/ksi-indicator-profile-page.grift.json", "row": 184, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/grift/ksi-schedule.grift.json", "row": 185, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/grift/ksi-seed.grift.json", "row": 186, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/migrations/0001_initial.py", "row": 187, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/migrations/0002_initial.py", "row": 188, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/migrations/__init__.py", "row": 189, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/__init__.py", "row": 190, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/boundary.py", "row": 191, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/compliance_artifact.py", "row": 192, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/compliance_context.py", "row": 193, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/evidence.py", "row": 194, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/exception.py", "row": 195, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/finding.py", "row": 196, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/ksi_component.py", "row": 197, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/ksi_indicator.py", "row": 198, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/ksi_signal.py", "row": 199, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/ksi_theme.py", "row": 200, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/ksi_validation.py", "row": 201, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/ksi_violation.py", "row": 202, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/vdr_finding.py", "row": 203, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/models/vdr_report.py", "row": 204, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/panels/__init__.py", "row": 205, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/panels/compliance_view/__init__.py", "row": 206, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/panels/finding_profile/__init__.py", "row": 207, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/panels/finding_strip/__init__.py", "row": 208, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/panels/findings_by_ksi/__init__.py", "row": 209, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/panels/findings_by_system/__init__.py", "row": 210, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/panels/findings_table_helpers.py", "row": 211, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/panels/indicator_profile/__init__.py", "row": 212, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/panels/instance_findings/__init__.py", "row": 213, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/css/finding_strip.css", "row": 214, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/css/findings_table.css", "row": 215, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/css/panel-ksi-compliance.css", "row": 216, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/css/panel-ksi-finding-profile.css", "row": 217, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/css/panel-ksi-indicator-profile.css", "row": 218, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/css/panel-ksi-instance-findings.css", "row": 219, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/js/findings_by_ksi.js", "row": 220, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/js/findings_by_system.js", "row": 221, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/js/panel-ksi-compliance.js", "row": 222, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/js/panel-ksi-finding-profile.js", "row": 223, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/js/panel-ksi-indicator-profile.js", "row": 224, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/static/fedramp_20x_ksi/js/panel-ksi-instance-findings.js", "row": 225, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/fedramp_20x_ksi/tap-plugin.toml", "row": 226, "status": "deferred"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/fedramp_20x_ksi/templates/fedramp_20x_ksi/panels/compliance_view.html", "row": 227, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/fedramp_20x_ksi/templates/fedramp_20x_ksi/panels/finding_profile.html", "row": 228, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/fedramp_20x_ksi/templates/fedramp_20x_ksi/panels/finding_strip.html", "row": 229, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/fedramp_20x_ksi/templates/fedramp_20x_ksi/panels/findings_by_ksi.html", "row": 230, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/fedramp_20x_ksi/templates/fedramp_20x_ksi/panels/findings_by_system.html", "row": 231, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/fedramp_20x_ksi/templates/fedramp_20x_ksi/panels/indicator_profile.html", "row": 232, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/fedramp_20x_ksi/templates/fedramp_20x_ksi/panels/instance_findings.html", "row": 233, "status": "parent_reviewed"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/__init__.py", "row": 234, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/apps.py", "row": 235, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/account.grift.json", "row": 236, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/cache.grift.json", "row": 237, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/compliance-context-fedramp.grift.json", "row": 238, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/data.grift.json", "row": 239, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/dimension.grift.json", "row": 240, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/dns.grift.json", "row": 241, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/ec2-arrangements.grift.json", "row": 242, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/ec2-instance-page-v030.grift.json", "row": 243, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/ec2-instance-page.grift.json", "row": 244, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/ec2-internals.grift.json", "row": 245, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/findings-genericom-passing.grift.json", "row": 246, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/findings-genericom.grift.json", "row": 247, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/network.grift.json", "row": 248, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/open-alerts.grift.json", "row": 249, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/pages-finding-strip.grift.json", "row": 250, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/pages-info-window.grift.json", "row": 251, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/pages-status-badges-passing.grift.json", "row": 252, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/pages-status-badges.grift.json", "row": 253, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/pages.grift.json", "row": 254, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/grift/web.grift.json", "row": 255, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/panels/__init__.py", "row": 256, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/panels/instance_hero/__init__.py", "row": 257, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/panels/open_alerts/__init__.py", "row": 258, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/static/genericom/css/panel-instance-hero.css", "row": 259, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/static/genericom/css/panel-open-alerts.css", "row": 260, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/static/genericom/js/panel-open-alerts.js", "row": 261, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/static/genericom/js/projections/aws-top-level.js", "row": 262, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/static/genericom/js/projections/ec2-internal.js", "row": 263, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/genericom/tap-plugin.toml", "row": 264, "status": "deferred"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/genericom/templates/genericom/panels/instance_hero.html", "row": 265, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/genericom/templates/genericom/panels/open_alerts.html", "row": 266, "status": "parent_reviewed"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/__init__.py", "row": 267, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/apps.py", "row": 268, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/__init__.py", "row": 269, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/__init__.py", "row": 270, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/api_client.py", "row": 271, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/batch.py", "row": 272, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/collector.py", "row": 273, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/enrichment.py", "row": 274, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/github_collection_manifest.json", "row": 275, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/github_collection_manifest.schema.json", "row": 276, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/github_grid_link_manifest.json", "row": 277, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/github_grid_link_manifest.schema.json", "row": 278, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/identity.py", "row": 279, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/manifest.py", "row": 280, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/parser.py", "row": 281, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/collectors/github_collector/secret.py", "row": 282, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/edges/DEFINES_WORKFLOW.edge.json", "row": 283, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/edges/ENABLED_ON.edge.json", "row": 284, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/edges/EXECUTED_ON.edge.json", "row": 285, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/edges/EXECUTES_WORKFLOW.edge.json", "row": 286, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/edges/FEDERATES_VIA.edge.json", "row": 287, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/edges/HAS_ACTIONS_JOB.edge.json", "row": 288, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/edges/HOSTS_ACCOUNT.edge.json", "row": 289, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/edges/OWNS_REPO.edge.json", "row": 290, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/edges/REFERENCES_RESOURCE.edge.json", "row": 291, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/edges/TRUSTS_ISSUER.edge.json", "row": 292, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/grift/repo-landing-page.grift.json", "row": 293, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/migrations/0001_initial.py", "row": 294, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/migrations/0002_initial.py", "row": 295, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/migrations/__init__.py", "row": 296, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/models/__init__.py", "row": 297, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/models/github_account.py", "row": 298, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/models/github_actions_job.py", "row": 299, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/models/github_actions_run.py", "row": 300, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/models/github_app.py", "row": 301, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/models/github_platform.py", "row": 302, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/models/github_repository.py", "row": 303, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/models/github_runner.py", "row": 304, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/models/github_workflow.py", "row": 305, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/models/oidc_issuer.py", "row": 306, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/panels/__init__.py", "row": 307, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/panels/_common.py", "row": 308, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/panels/cross_grid_references/__init__.py", "row": 309, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/panels/deploy_health/__init__.py", "row": 310, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/panels/history_strip/__init__.py", "row": 311, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/panels/recent_activity/__init__.py", "row": 312, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/panels/repo_hero/__init__.py", "row": 313, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/panels/workflow_catalog/__init__.py", "row": 314, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/pyproject.toml", "row": 315, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/static/github_core/css/panels.css", "row": 316, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/static/github_core/js/workflow_catalog.js", "row": 317, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/tap-plugin.toml", "row": 318, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/templates/github_core/panels/cross_grid_references.html", "row": 319, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/templates/github_core/panels/deploy_health.html", "row": 320, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/templates/github_core/panels/history_strip.html", "row": 321, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/templates/github_core/panels/recent_activity.html", "row": 322, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/templates/github_core/panels/repo_hero.html", "row": 323, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/github_core/templates/github_core/panels/workflow_catalog.html", "row": 324, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/__init__.py", "row": 325, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/apps.py", "row": 326, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/edges/PG_LINKS.edge.json", "row": 327, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/edges/PG_LOOPS.edge.json", "row": 328, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/edges/PG_NESTS.edge.json", "row": 329, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/edges/PG_OPTIONAL.edge.json", "row": 330, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/aggregation__count_neighbors.expected.json", "row": 331, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/aggregation__count_omits_zero_degree.expected.json", "row": 332, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/bare_match__all_nodes.expected.json", "row": 333, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/bare_match__data_lane_crosses.expected.json", "row": 334, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/bare_match__data_lane_single.expected.json", "row": 335, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/bare_match__entity_type_eq.expected.json", "row": 336, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/bare_match__entity_type_prefix.expected.json", "row": 337, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/bare_match__field_absent.expected.json", "row": 338, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/combinators__de_morgan.expected.json", "row": 339, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/combinators__double_negation.expected.json", "row": 340, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/combinators__grouping.expected.json", "row": 341, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/combinators__not_aggregation.expected.json", "row": 342, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/combinators__not_comparison.expected.json", "row": 343, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/combinators__not_over_or.expected.json", "row": 344, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/combinators__or_branches.expected.json", "row": 345, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/combinators__or_with_in.expected.json", "row": 346, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/combinators__three_and.expected.json", "row": 347, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/cycles__count_self_loop.expected.json", "row": 348, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/cycles__self_loop.expected.json", "row": 349, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/cycles__three_hop.expected.json", "row": 350, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/dimensions__zone_north.expected.json", "row": 351, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/edge_properties__tier_gold.expected.json", "row": 352, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/edge_type_scan__absent_type_empty.expected.json", "row": 353, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/edge_type_scan__hub_to_node.expected.json", "row": 354, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/edge_type_scan__incoming.expected.json", "row": 355, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/edge_type_scan__node_to_node.expected.json", "row": 356, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/edge_typeless__all_types.expected.json", "row": 357, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/edge_typeless__typed_endpoints.expected.json", "row": 358, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/edge_typeless__undirected.expected.json", "row": 359, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/edge_typeless__undirected_typed.expected.json", "row": 360, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/hotlinks__post_upsert_edges.expected.json", "row": 361, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/hub_and_spoke__dense_hub.expected.json", "row": 362, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/hub_and_spoke__inbound_empty.expected.json", "row": 363, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/hub_and_spoke__leaf_anchor.expected.json", "row": 364, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/hub_and_spoke__not_found.expected.json", "row": 365, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__aggregation.expected.json", "row": 366, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__empty_list.expected.json", "row": 367, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__in_and.expected.json", "row": 368, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__kind_neighbor.expected.json", "row": 369, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__not_in_null_member.expected.json", "row": 370, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__null_lhs_nonmember.expected.json", "row": 371, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__null_member.expected.json", "row": 372, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__param_members.expected.json", "row": 373, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__severity_set.expected.json", "row": 374, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__single_element.expected.json", "row": 375, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/in_lists__type_coerced.expected.json", "row": 376, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/is_null__and_combination.expected.json", "row": 377, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/is_null__defensive_latest_emission.expected.json", "row": 378, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/is_null__filter_not_null.expected.json", "row": 379, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/is_null__filter_null.expected.json", "row": 380, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/is_null__lowercase_is_not_null.expected.json", "row": 381, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/json_payloads__priority_high.expected.json", "row": 382, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/json_payloads__scalar_subkey_null.expected.json", "row": 383, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/json_payloads__team_infra.expected.json", "row": 384, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/json_payloads__team_wrong_case.expected.json", "row": 385, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/multi_edge__both_edges.expected.json", "row": 386, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/multi_edge__typed.expected.json", "row": 387, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/multi_hop__anchored.expected.json", "row": 388, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/multi_hop__anonymous_edges.expected.json", "row": 389, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/multi_hop__count.expected.json", "row": 390, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/multi_hop__unanchored.expected.json", "row": 391, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/nesting__two_hop.expected.json", "row": 392, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/not_exists__inner_where_narrows.expected.json", "row": 393, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/not_exists__multi_hop_inner.expected.json", "row": 394, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/not_exists__unguarded_count.expected.json", "row": 395, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/not_exists__unguarded_envelope.expected.json", "row": 396, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/observation__and_combination.expected.json", "row": 397, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/observation__is_known.expected.json", "row": 398, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/observation__is_unknown.expected.json", "row": 399, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/occ__post_update_node.expected.json", "row": 400, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/optional_match__count_edge.expected.json", "row": 401, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/optional_match__keeps_zero.expected.json", "row": 402, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/optional_match__order_limit.expected.json", "row": 403, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/optional_match__outbound.expected.json", "row": 404, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/optional_match__plain_match_drops.expected.json", "row": 405, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/optional_match__where_mandatory_var.expected.json", "row": 406, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/optional_match__where_optional_var.expected.json", "row": 407, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit__limit_no_order.expected.json", "row": 408, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit__limit_oversize.expected.json", "row": 409, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit__limit_zero.expected.json", "row": 410, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit__multi_key.expected.json", "row": 411, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit__scoreboard.expected.json", "row": 412, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit__scoreboard_top1.expected.json", "row": 413, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit__tied_key.expected.json", "row": 414, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit__typescan_asc.expected.json", "row": 415, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit__typescan_desc_limit.expected.json", "row": 416, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__default_ascending.expected.json", "row": 417, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__latest_limit_1.expected.json", "row": 418, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__limit_oversize.expected.json", "row": 419, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__limit_zero.expected.json", "row": 420, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__multi_key_mixed_dir.expected.json", "row": 421, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__nulls_first_desc.expected.json", "row": 422, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__nulls_last_asc.expected.json", "row": 423, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__order_by_alias.expected.json", "row": 424, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__order_no_limit.expected.json", "row": 425, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__return_n_explicit.expected.json", "row": 426, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__spine_name_desc.expected.json", "row": 427, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__tiebreak_lowest_id.expected.json", "row": 428, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/order_by_limit_envelope__top3_desc.expected.json", "row": 429, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__alternation.expected.json", "row": 430, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__and_composition.expected.json", "row": 431, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__case_insensitive.expected.json", "row": 432, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__character_class.expected.json", "row": 433, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__data_lane_json.expected.json", "row": 434, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__default_search.expected.json", "row": 435, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__empty_pattern.expected.json", "row": 436, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__escaped_dot.expected.json", "row": 437, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__explicit_anchors.expected.json", "row": 438, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__not_composition.expected.json", "row": 439, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__null_pattern.expected.json", "row": 440, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__param_pattern.expected.json", "row": 441, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/regex_match__spine_entity_type.expected.json", "row": 442, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/removals__post_removal_nodes.expected.json", "row": 443, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/soft_deletes__type_scan.expected.json", "row": 444, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__and_prefix_suffix.expected.json", "row": 445, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__and_three_predicates.expected.json", "row": 446, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__case_sensitive.expected.json", "row": 447, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__contains.expected.json", "row": 448, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__control_char_needle.expected.json", "row": 449, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__empty_needle.expected.json", "row": 450, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__ends_with.expected.json", "row": 451, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__exact_value.expected.json", "row": 452, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__not_starts_with.expected.json", "row": 453, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__numeric_coerced.expected.json", "row": 454, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__param_needle.expected.json", "row": 455, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__starts_with.expected.json", "row": 456, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/string_match__whitespace_needle.expected.json", "row": 457, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/type_scan__all_pg_nodes.expected.json", "row": 458, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/type_scan__is_open.expected.json", "row": 459, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/type_scan__kind_and_severity.expected.json", "row": 460, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/type_scan__kind_island.expected.json", "row": 461, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/type_scan__projection.expected.json", "row": 462, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/type_scan__return_bare_var.expected.json", "row": 463, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/type_scan__severity_gt.expected.json", "row": 464, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/type_scan__where_empty.expected.json", "row": 465, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/union__hub_and_node.expected.json", "row": 466, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/expected/union__overlap_dedup.expected.json", "row": 467, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/gridkin/__init__.py", "row": 468, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/gridkin/coverage.py", "row": 469, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/gridkin/loader.py", "row": 470, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/gridkin/runner.py", "row": 471, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/migrations/0001_initial.py", "row": 472, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/migrations/0002_initial.py", "row": 473, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/migrations/__init__.py", "row": 474, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/models/__init__.py", "row": 475, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/models/pg_cycle_node.py", "row": 476, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/models/pg_hub.py", "row": 477, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/models/pg_leaf.py", "row": 478, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/models/pg_node.py", "row": 479, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/aggregation.gridkin.json", "row": 480, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/bare_match.gridkin.json", "row": 481, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/combinators.gridkin.json", "row": 482, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/cycles.gridkin.json", "row": 483, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/dimensions.gridkin.json", "row": 484, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/edge_properties.gridkin.json", "row": 485, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/edge_type_scan.gridkin.json", "row": 486, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/edge_typeless.gridkin.json", "row": 487, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/gridkin-scenario.schema.json", "row": 488, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/hotlinks.gridkin.json", "row": 489, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/hub_and_spoke.gridkin.json", "row": 490, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/in_lists.gridkin.json", "row": 491, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/is_null.gridkin.json", "row": 492, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/json_payloads.gridkin.json", "row": 493, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/multi_edge.gridkin.json", "row": 494, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/multi_hop.gridkin.json", "row": 495, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/nesting.gridkin.json", "row": 496, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/not_exists.gridkin.json", "row": 497, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/observation.gridkin.json", "row": 498, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/occ.gridkin.json", "row": 499, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/optional_match.gridkin.json", "row": 500, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/order_by_limit.gridkin.json", "row": 501, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/order_by_limit_envelope.gridkin.json", "row": 502, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/regex_match.gridkin.json", "row": 503, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/removals.gridkin.json", "row": 504, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/soft_deletes.gridkin.json", "row": 505, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/string_match.gridkin.json", "row": 506, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/tck-coverage.json", "row": 507, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/tck-coverage.schema.json", "row": 508, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/type_scan.gridkin.json", "row": 509, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/scenarios/union.gridkin.json", "row": 510, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/gryphon_playground/tap-plugin.toml", "row": 511, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/__init__.py", "row": 512, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/apps.py", "row": 513, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/ALLIES_WITH.edge.json", "row": 514, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/BELONGS_TO.edge.json", "row": 515, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/CONTAINS.edge.json", "row": 516, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/ENEMIES_WITH.edge.json", "row": 517, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/FORGED_IN.edge.json", "row": 518, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/LOCATED_IN.edge.json", "row": 519, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/MEMBER_OF.edge.json", "row": 520, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/MENTORS.edge.json", "row": 521, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/PROTECTS.edge.json", "row": 522, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/REFERENCES.edge.json", "row": 523, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/RULES.edge.json", "row": 524, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/edges/WIELDS.edge.json", "row": 525, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/editors/__init__.py", "row": 526, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/editors/character.py", "row": 527, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/grift/core-data.grift.json", "row": 528, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/grift/searches.grift.json", "row": 529, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/grift/web.grift.json", "row": 530, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/migrations/0001_initial.py", "row": 531, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/migrations/0002_initial.py", "row": 532, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/migrations/__init__.py", "row": 533, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/models/__init__.py", "row": 534, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/models/artifact.py", "row": 535, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/models/character.py", "row": 536, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/models/citadel.py", "row": 537, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/models/faction.py", "row": 538, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/models/location.py", "row": 539, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/models/race.py", "row": 540, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/models/realm.py", "row": 541, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/models/sentinel.py", "row": 542, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/models/wanderer.py", "row": 543, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/searches/__init__.py", "row": 544, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/searches/characters.py", "row": 545, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/static/lotr/js/projections/character-view.js", "row": 546, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/static/lotr/js/projections/saga-stage.js", "row": 547, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/tap-plugin.toml", "row": 548, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/lotr/templates/lotr/character_editor.html", "row": 549, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/__init__.py", "row": 550, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/apps.py", "row": 551, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/constants.py", "row": 552, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/migrations/__init__.py", "row": 553, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/panels/__init__.py", "row": 554, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/panels/_common.py", "row": 555, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/panels/oscal_poam_workbench/__init__.py", "row": 556, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/panels/oscal_workbench/__init__.py", "row": 557, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/parser.py", "row": 558, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/static/roscale/css/workbench.css", "row": 559, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/tap-plugin.toml", "row": 560, "status": "deferred"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/roscale/templates/roscale/panels/_anchor_scroll.html", "row": 561, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/roscale/templates/roscale/panels/oscal_poam_workbench.html", "row": 562, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/roscale/templates/roscale/panels/oscal_workbench.html", "row": 563, "status": "parent_reviewed"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/roscale/validator.py", "row": 564, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/__init__.py", "row": 565, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/apps.py", "row": 566, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/__init__.py", "row": 567, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/__init__.py", "row": 568, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/artifact_manifest.json", "row": 569, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/artifact_manifest.schema.json", "row": 570, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/batch.py", "row": 571, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/boundary_membership.py", "row": 572, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/collector.py", "row": 573, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/decompose.py", "row": 574, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/identity.py", "row": 575, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/kev_process.py", "row": 576, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/manifest.py", "row": 577, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/collectors/compliance_collector/sigstore_link.py", "row": 578, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/artifacts-inventory-page.grift.json", "row": 579, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/aws-collector-schedule.grift.json", "row": 580, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/compliance-landing.grift.json", "row": 581, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/compliance-pages.grift.json", "row": 582, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/iiw-page.grift.json", "row": 583, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/kev-fetch.grift.json", "row": 584, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/ksi-signal-page.grift.json", "row": 585, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/landing.grift.json", "row": 586, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/per-type-viewers.grift.json", "row": 587, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/samsite-collector-schedule.grift.json", "row": 588, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/samsite-keystone.grift.json", "row": 589, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/users.grift.json", "row": 590, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/grift/vdr-report-page.grift.json", "row": 591, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/migrations/__init__.py", "row": 592, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/panels/__init__.py", "row": 593, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/panels/iiw_workbench/__init__.py", "row": 594, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/panels/ksi_scoreboard/__init__.py", "row": 595, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/panels/ksi_signal_workbench/__init__.py", "row": 596, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/panels/vdr_ingestion_health/__init__.py", "row": 597, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/panels/vdr_report_workbench/__init__.py", "row": 598, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/scoring.py", "row": 599, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/static/samsite/css/panel-ksi-scoreboard.css", "row": 600, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/static/samsite/css/panel-vdr-ingestion-health.css", "row": 601, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/static/samsite/css/viewers.css", "row": 602, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/static/samsite/js/projections/landing-finalize.js", "row": 603, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/static/samsite/js/projections/landing-systems.js", "row": 604, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/samsite/tap-plugin.toml", "row": 605, "status": "deferred"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/samsite/templates/samsite/panels/_cia.html", "row": 606, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/samsite/templates/samsite/panels/iiw_workbench.html", "row": 607, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/samsite/templates/samsite/panels/ksi_scoreboard.html", "row": 608, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/samsite/templates/samsite/panels/ksi_signal_workbench.html", "row": 609, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/samsite/templates/samsite/panels/vdr_ingestion_health.html", "row": 610, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "plugins/samsite/templates/samsite/panels/vdr_report_workbench.html", "row": 611, "status": "parent_reviewed"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/__init__.py", "row": 612, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/apps.py", "row": 613, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/decompose.py", "row": 614, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/edges/ATTESTED_BY.edge.json", "row": 615, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/edges/CERT_ISSUED_BY.edge.json", "row": 616, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/edges/IDENTITY_VOUCHED_BY.edge.json", "row": 617, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/edges/REQUESTS_SIGSTORE_SIGNATURE.edge.json", "row": 618, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/edges/SIGNED_BY_IDENTITY.edge.json", "row": 619, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/migrations/0001_initial.py", "row": 620, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/migrations/0002_initial.py", "row": 621, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/migrations/__init__.py", "row": 622, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/models/__init__.py", "row": 623, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/models/rekor_log_entry.py", "row": 624, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/models/sigstore_ca.py", "row": 625, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/pyproject.toml", "row": 626, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/tap-plugin.toml", "row": 627, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "plugins/sigstore_core/verify.py", "row": 628, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "pyproject.toml", "row": 629, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "scripts/despawn-session.sh", "row": 630, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "scripts/promote-all-sessions.sh", "row": 631, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "scripts/promote-to-main.sh", "row": 632, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "scripts/refresh-playwright.sh", "row": 633, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "scripts/rewrite_synthetic_uuids.py", "row": 634, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "scripts/spawn-session.sh", "row": 635, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "scripts/uuid-rewrite-map.json", "row": 636, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "scripts/wire-skills.sh", "row": 637, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tailwind.config.js", "row": 638, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/__init__.py", "row": 639, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/asgi.py", "row": 640, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/authz_coverage.py", "row": 641, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/flaws.py", "row": 642, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/jsonfiles.py", "row": 643, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/logging.py", "row": 644, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/registry.py", "row": 645, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/runtime_secrets.py", "row": 646, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/settings.py", "row": 647, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/test_settings.py", "row": 648, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/urls.py", "row": 649, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap/wsgi.py", "row": 650, "status": "deferred"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/__init__.py", "row": 651, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/api.py", "row": 652, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/apps.py", "row": 653, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/auth.py", "row": 654, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/routers/__init__.py", "row": 655, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/routers/edges.py", "row": 656, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/routers/entities.py", "row": 657, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/routers/entity_types.py", "row": 658, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/routers/gryphon.py", "row": 659, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/routers/searches.py", "row": 660, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/schemas.py", "row": 661, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_api/urls.py", "row": 662, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/__init__.py", "row": 663, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/actors.py", "row": 664, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/adapter.py", "row": 665, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/admin.py", "row": 666, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/apps.py", "row": 667, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/auth_backends.py", "row": 668, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/boot.py", "row": 669, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/capabilities.py", "row": 670, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/enforcement.py", "row": 671, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/errors.py", "row": 672, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/health.py", "row": 673, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/installed.py", "row": 674, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/management/__init__.py", "row": 675, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/management/commands/__init__.py", "row": 676, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/management/commands/auth_selftest.py", "row": 677, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/management/commands/auth_sessions.py", "row": 678, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/management/commands/sync_auth.py", "row": 679, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/middleware.py", "row": 680, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/migrations/0001_initial.py", "row": 681, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/migrations/0002_capability_protectedgroup.py", "row": 682, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/migrations/0003_remove_user_tap_auth_builtin_requires_key_and_more.py", "row": 683, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/migrations/0004_capability_description_json_and_more.py", "row": 684, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/migrations/0005_externalidentity.py", "row": 685, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/migrations/0006_user_avatar_url.py", "row": 686, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/migrations/__init__.py", "row": 687, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/models.py", "row": 688, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/policy.py", "row": 689, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/providers/__init__.py", "row": 690, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/providers/base.py", "row": 691, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/providers/google_oidc.py", "row": 692, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/providers/registry.py", "row": 693, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/providers/secrets.py", "row": 694, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/providers/wiring.py", "row": 695, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/roles.py", "row": 696, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/schemas/auth-boot-section.schema.json", "row": 697, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/schemas/capabilities.schema.json", "row": 698, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/schemas/oidc_client_secret.schema.json", "row": 699, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/schemas/roles.schema.json", "row": 700, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/sessions.py", "row": 701, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/sync.py", "row": 702, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/tap_auth.capabilities.json", "row": 703, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/tap_auth.roles.json", "row": 704, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/urls.py", "row": 705, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_auth/views.py", "row": 706, "status": "parent_reviewed"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_boot/__init__.py", "row": 707, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_boot/apps.py", "row": 708, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_boot/management/__init__.py", "row": 709, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_boot/management/commands/__init__.py", "row": 710, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_boot/management/commands/boot.py", "row": 711, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_boot/orchestrator.py", "row": 712, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_boot/profile.py", "row": 713, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_boot/schemas/boot.schema.json", "row": 714, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/__init__.py", "row": 715, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/apps.py", "row": 716, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/checks.py", "row": 717, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/collectors/__init__.py", "row": 718, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/collectors/base.py", "row": 719, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/collectors/config.py", "row": 720, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/collectors/readiness.py", "row": 721, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/exceptions.py", "row": 722, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/health.py", "row": 723, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/logging.py", "row": 724, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/management/__init__.py", "row": 725, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/management/commands/__init__.py", "row": 726, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/management/commands/dev_validation_spike.py", "row": 727, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/management/commands/reconcile_collectors.py", "row": 728, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/migrations/0001_initial.py", "row": 729, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/migrations/__init__.py", "row": 730, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/models.py", "row": 731, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/registry.py", "row": 732, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/scheduler.py", "row": 733, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/schemas/collection_job_results.schema.json", "row": 734, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/secrets/__init__.py", "row": 735, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/secrets/loader.py", "row": 736, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/secrets/models.py", "row": 737, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/secrets/redaction.py", "row": 738, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/secrets/registry.py", "row": 739, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/secrets/validation.py", "row": 740, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/services.py", "row": 741, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/task_backend.py", "row": 742, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_cares/tasks.py", "row": 743, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/__init__.py", "row": 744, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/admin.py", "row": 745, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/apps.py", "row": 746, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/batch.py", "row": 747, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/caller_context.py", "row": 748, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/constraints.py", "row": 749, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/context.py", "row": 750, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/core_edges.py", "row": 751, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/exceptions.py", "row": 752, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/flip.py", "row": 753, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/grift/__init__.py", "row": 754, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/grift/envelope.py", "row": 755, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/grift/importer.py", "row": 756, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/grift/subgraph.py", "row": 757, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/gryphon/__init__.py", "row": 758, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/gryphon/ast_nodes.py", "row": 759, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/gryphon/capture.py", "row": 760, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/gryphon/executor.py", "row": 761, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/gryphon/parser.py", "row": 762, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/history.py", "row": 763, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/hotlink.py", "row": 764, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/icon.py", "row": 765, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/management/__init__.py", "row": 766, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/management/commands/__init__.py", "row": 767, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/management/commands/generate_grid_id.py", "row": 768, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/management/commands/purge_entities.py", "row": 769, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/management/commands/runserver_nocache.py", "row": 770, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/migrations/0001_initial.py", "row": 771, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/migrations/__init__.py", "row": 772, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/models.py", "row": 773, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/orm_compiler.py", "row": 774, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/registry.py", "row": 775, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/schemas/edge-definition.schema.json", "row": 776, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/schemas/grift-document.schema.json", "row": 777, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/search.py", "row": 778, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/service_types.py", "row": 779, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/services.py", "row": 780, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/templates/admin/tap_grid/registryproxy/change_list.html", "row": 781, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_grid/templates/admin/tap_grid/registryproxy/registry_detail.html", "row": 782, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_health/__init__.py", "row": 783, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_health/apps.py", "row": 784, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_health/checks.py", "row": 785, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_health/management/__init__.py", "row": 786, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_health/management/commands/__init__.py", "row": 787, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_health/management/commands/health.py", "row": 788, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_health/probes.py", "row": 789, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_health/registry.py", "row": 790, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_health/results.py", "row": 791, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_health/service.py", "row": 792, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/__init__.py", "row": 793, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/apps.py", "row": 794, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/base.py", "row": 795, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/management/__init__.py", "row": 796, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/management/commands/__init__.py", "row": 797, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/management/commands/import_plugin_grift.py", "row": 798, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/management/commands/validate_plugin.py", "row": 799, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/manifest.py", "row": 800, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/seeding.py", "row": 801, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/validate/__init__.py", "row": 802, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/validate/plugin-validation-result.schema.json", "row": 803, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/validate/service.py", "row": 804, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/validate_plugin/__init__.py", "row": 805, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_plugins/validate_plugin/__main__.py", "row": 806, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/__init__.py", "row": 807, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/admin.py", "row": 808, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/apps.py", "row": 809, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/migrations/0001_initial.py", "row": 810, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/migrations/__init__.py", "row": 811, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/models.py", "row": 812, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/panels/__init__.py", "row": 813, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/panels/graph_panel/__init__.py", "row": 814, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/panels/graph_panel/projection_resolver.py", "row": 815, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/css/panel-graph.css", "row": 816, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/panel-graph.js", "row": 817, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/align-distribute.js", "row": 818, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/arrangement.js", "row": 819, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/badge-nodes.js", "row": 820, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/cascade-reveal.js", "row": 821, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/drag-group.js", "row": 822, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/format.js", "row": 823, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/info-window.js", "row": 824, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/layout-loader.js", "row": 825, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/layout-scope-boxes.js", "row": 826, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/nested-projection.js", "row": 827, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/nesting.js", "row": 828, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/projection.js", "row": 829, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/search.js", "row": 830, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/shadow-nodes.js", "row": 831, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/stack.js", "row": 832, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/static/tap_viz/js/runtime/status-badges.js", "row": 833, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/templates/tap_viz/graph_context.html", "row": 834, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/templates/tap_viz/panels/graph_panel.html", "row": 835, "status": "deferred"}
+{"area": ".", "closure": "explicitly deferred after multi-agent worker fan-out hit usage limit", "path": "tap_viz/third_party_manifest.toml", "row": 836, "status": "deferred"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_viz/urls.py", "row": 837, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_viz/views.py", "row": 838, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/__init__.py", "row": 839, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/apps.py", "row": 840, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/context_processors.py", "row": 841, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/data/entity-editor.grift.json", "row": 842, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/data/entity-viewer.grift.json", "row": 843, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/editor.py", "row": 844, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/exceptions.py", "row": 845, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/middleware.py", "row": 846, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/migrations/0001_initial.py", "row": 847, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/migrations/__init__.py", "row": 848, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/models.py", "row": 849, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/navigation.py", "row": 850, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/page.py", "row": 851, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panel.py", "row": 852, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/__init__.py", "row": 853, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/batch_list/__init__.py", "row": 854, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/batch_summary/__init__.py", "row": 855, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/batch_viewer/__init__.py", "row": 856, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/chart/__init__.py", "row": 857, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/editor_panel/__init__.py", "row": 858, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/entity_resolution.py", "row": 859, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/flip_panel/__init__.py", "row": 860, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/sequence_nav/__init__.py", "row": 861, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/table_panel/__init__.py", "row": 862, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/text_panel/__init__.py", "row": 863, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/panels/viewer_panel/__init__.py", "row": 864, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/registry.py", "row": 865, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/reserved.py", "row": 866, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/auth.css", "row": 867, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/batch-card.css", "row": 868, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/batch-viewer.css", "row": 869, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/breadcrumb.css", "row": 870, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/lib/tabulator.min.css", "row": 871, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/palette.css", "row": 872, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/panel-chart.css", "row": 873, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/panels.css", "row": 874, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/sequence-nav.css", "row": 875, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/tabulator-minimal.css", "row": 876, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/tailwind-input.css", "row": 877, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/css/tailwind.css", "row": 878, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/js/breadcrumb.js", "row": 879, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/js/palette.js", "row": 880, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/js/panel-table.js", "row": 881, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/static/tap_web/js/usermenu.js", "row": 882, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/synthetic.py", "row": 883, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/allauth/layouts/base.html", "row": 884, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/auth/login_denied.html", "row": 885, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/auth/no_access.html", "row": 886, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/auth/provider_unreachable.html", "row": 887, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/base.html", "row": 888, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/editor.html", "row": 889, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/page.html", "row": 890, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panel_edit.html", "row": 891, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panel_error.html", "row": 892, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panel_header.html", "row": 893, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/_table_nav_bar.html", "row": 894, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/batch_list.html", "row": 895, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/batch_summary.html", "row": 896, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/batch_viewer.html", "row": 897, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/chart.html", "row": 898, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/editor_panel.html", "row": 899, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/flip_panel.html", "row": 900, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/sequence_nav.html", "row": 901, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/table_panel.html", "row": 902, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/table_panel_editor.html", "row": 903, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/text_panel.html", "row": 904, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/text_panel_editor.html", "row": 905, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/panels/viewer_panel.html", "row": 906, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/partials/batch_card.html", "row": 907, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/setup_placeholder.html", "row": 908, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/synthetic_page.html", "row": 909, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templates/tap_web/viewer.html", "row": 910, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templatetags/__init__.py", "row": 911, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/templatetags/tap_icons.py", "row": 912, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/third_party_manifest.toml", "row": 913, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/urls.py", "row": 914, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/utils.py", "row": 915, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/validation.py", "row": 916, "status": "parent_reviewed"}
+{"area": ".", "closure": "covered by parent high-impact auth/web/api/spec pass", "path": "tap_web/views.py", "row": 917, "status": "parent_reviewed"}

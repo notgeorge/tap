@@ -4,7 +4,7 @@
 **Status (original):** open defect, recorded but not fixed. Reserved for a fresh session.
 **Found:** 2026-06-30, while authoring a two-node-AND gridkin scenario (caught by oracle discipline — a wrong row leaked into the regenerated oracle).
 **Severity:** silent wrong results (too many rows) for a common query shape. Same bug *class* as the coercion defect (`req-grid-traversal-lang-type-strictness`) that was just fixed: the engine returns plausible-but-wrong data rather than erroring.
-**Ledger:** recorded in `plugins/gryphon_playground/scenarios/tck-coverage.json` under `clauses/match-where`, `kind: feature`.
+**Ledger:** recorded in `plugins/gryphon_playground/scenarios/gryphon_playground.tck-coverage.json` under `clauses/match-where`, `kind: feature`.
 
 ---
 
@@ -71,7 +71,7 @@ Either way, also fix `_execute_hub_and_spoke` to apply the **AND-ed remainder** 
 
 - The reproduction above is the regression test. Add **envelope-form** gridkin scenarios for single-hop relationship + non-anchor WHERE (data-lane comparison, `IN`, `IS NULL`, anchor `AND` data-lane remainder), under `hub_and_spoke` / `edge_type_scan`. Predict results by hand, regenerate, and **verify the oracle** (this bug was caught precisely because a wrong node leaked into the regenerated oracle — do not trust a captured oracle you didn't read).
 - Keep the existing `aggregation__two_node_and` scenario as the "this shape already works" anchor.
-- After the fix, the `clauses/match-where` defect gap in `tck-coverage.json` flips from `feature` to covered — strike it and add the new envelope scenarios' folder cites.
+- After the fix, the `clauses/match-where` defect gap in the coverage ledger flips from `feature` to covered — strike it and add the new envelope scenarios' folder cites.
 
 ## Validation commands
 

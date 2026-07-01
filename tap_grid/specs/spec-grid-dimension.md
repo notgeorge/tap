@@ -60,6 +60,38 @@ How are dimensions and projects related? Dimension, project, grid?
 How can dimensions be leveraged in a security context?  
 Projects / grid installs that make dimension nodes expected (or list a subset of preferred nodes that are security / app weight bearing)?
 
+#### Future (idea): Dimensions as a database-enforced security gate (Postgres RLS)
+
+One concrete answer to "how can dimensions be leveraged in a security context?" is to
+push scoping down to the database with **Postgres Row-Level Security**. Today authorization
+is enforced in the application: the capability backstops at the service layer, and — as of
+`req-tap-auth-orm-read-backstop` — a structural read backstop at the ORM chokepoint that
+fails closed when a caller reads TAP-managed rows without holding `grid.read`. That guard is
+app-layer: it defends against forgotten gates in TAP's own code, not against a bypass that
+sidesteps the ORM (raw SQL, a `psql` session, a future non-Django reader).
+
+RLS is the ceiling: policies on the entity/edge tables keyed on a per-transaction session
+variable (e.g. `SET LOCAL tap.dimensions = ...`, `SET LOCAL tap.capabilities = ...`) so the
+database itself refuses rows outside the caller's scope. Even code that never touches the
+service layer cannot read across the boundary. Because `dimensions` already lives on `Entity`
+as an indexed JSONB field (`req-grid-dimension-em`), it is the natural partitioning key for
+such policies.
+
+The compelling shape is a **combination of dimension and capability down-scoping**: a policy
+that admits a row only when (a) the actor holds the capability the operation requires AND
+(b) the row's `dimensions` intersect the actor's granted dimension scope. That unifies the
+two axes TAP already models — *what* you may do (capabilities) and *which slice* you may see
+(dimensions) — into a single database-level filter, and is the natural home for the
+dimension-scoped **read** authorization that `spec-tap-auth-v0.md` already reserves ("pushed
+into query planning/execution, never a post-fetch filter").
+
+Deliberately deferred, not planned: RLS is heavy to retrofit, ties authz to DB session state,
+and is coarser than per-capability app logic. The sequencing note is that it becomes
+compelling **once dimensions are used as a scoping boundary at all** — do RLS as the follow-on
+from a "dimension as a security scope" feature, not before. Named here so the option is
+recorded rather than rediscovered. See `req-tap-auth-orm-read-backstop` and the
+dimension-scoped authorization note in `spec-tap-auth-v0.md`.
+
 
 ### Dimensions on Entity Model
 ----

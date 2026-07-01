@@ -141,7 +141,7 @@ class TestTckCoverageLedger:
     citing the folder), never stored — so the x/y ratio cannot silently lie.
     """
 
-    LEDGER = loader.SCENARIOS_DIR / "tck-coverage.json"
+    LEDGER = loader.SCENARIOS_DIR / "gryphon_playground.tck-coverage.json"
     LEDGER_SCHEMA = loader.SCENARIOS_DIR / "tck-coverage.schema.json"
 
     def _load_ledger(self):
@@ -159,7 +159,7 @@ class TestTckCoverageLedger:
         ledgered = {entry["folder"] for entry in self._load_ledger()["folders"]}
         missing = cited - ledgered
         assert not missing, (
-            "TCK folders cited by scenarios but absent from tck-coverage.json — "
+            "TCK folders cited by scenarios but absent from the coverage ledger — "
             "run the folder's mining pass and add its ledger entry: " + ", ".join(sorted(missing))
         )
 
@@ -171,7 +171,7 @@ class TestTckCoverageLedger:
         ledgered = {entry["folder"] for entry in self._load_ledger()["folders"]}
         orphans = ledgered - cited
         assert not orphans, (
-            "tck-coverage.json lists folders no scenario cites (stale entries): "
+            "the coverage ledger lists folders no scenario cites (stale entries): "
             + ", ".join(sorted(orphans))
         )
 

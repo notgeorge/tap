@@ -138,7 +138,7 @@ mine, we never port**, and that discipline is already formalized:
 - **The lifecycle binding:** `req-grid-traversal-lang-tck-mining` (the language spec) — every
   language extension runs the mining pass.
 - **The coverage ledger:** `req-gridkin-tck-coverage` (`spec-gridkin-v0.md`) — a corpus-wide,
-  machine-checked record (`scenarios/tck-coverage.json`) of per-folder coverage: covered (derived),
+  machine-checked record (`scenarios/gryphon_playground.tck-coverage.json`) of per-folder coverage: covered (derived),
   `gaps` (what we still owe, each tagged test/feature/unknown), and `excluded` (Cypher-specific
   intents deliberately dropped). The drift guard bidirectionally ties ledger folders to scenario cites.
 - **The operational steps:** the `build-gryphon-capability` skill, Step 8.

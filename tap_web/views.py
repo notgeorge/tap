@@ -21,6 +21,22 @@ from tap_web.page import get_landing_page, get_page_by_slug, get_page_panels, pa
 logger = logging.getLogger(__name__)
 
 
+def _authorize_grid_read(operation: str) -> None:
+    """Authorize grid.read for the active request actor (req-tap-auth-policy).
+
+    The primary, per-route gate for tap_web read entrypoints: it raises AuthzError
+    (→ 403 via CallerContextMiddleware) for an actor lacking grid.read, before any
+    Page/Panel/Edge row is resolved, so existence is not leaked. The ORM read
+    backstop (req-tap-auth-orm-read-backstop) sits beneath as defense-in-depth for
+    any read site this gate misses; this call turns that backstop's 500-class
+    `unguarded_operation` into a clean, intended 403.
+    """
+    from tap_auth import policy
+    from tap_grid.caller_context import get_caller_context
+
+    policy.authorize(get_caller_context(), "grid.read", operation=operation)
+
+
 # ---------------------------------------------------------------------------
 # Page views
 # ---------------------------------------------------------------------------
@@ -34,6 +50,7 @@ def landing_view(request: HttpRequest) -> HttpResponse:
     content with different breadcrumbs ("TAP" vs "TAP > <Name>"), since the
     breadcrumb builder keys off the request path, not the rendered Page.
     """
+    _authorize_grid_read("landing_view")
     page = get_landing_page()
     if page is None:
         return _render_grid_placeholder(request)
@@ -42,6 +59,7 @@ def landing_view(request: HttpRequest) -> HttpResponse:
 
 def page_view(request: HttpRequest, page_slug: str) -> HttpResponse:
     """Render a Page by its slug."""
+    _authorize_grid_read("page_view")
     slug = f"/{page_slug}"
     page = get_page_by_slug(slug)
     if page is None:
@@ -59,6 +77,7 @@ def parameterized_page_view(
     Captures like ``entity_id`` from URL patterns are merged into query
     parameters so panel seed searches receive them as ``$entity_id`` inputs.
     """
+    _authorize_grid_read("parameterized_page_view")
     slug = f"/{page_slug}"
     page = get_page_by_slug(slug)
     if page is None:
@@ -79,6 +98,12 @@ def panel_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
     On any exception returns an error fragment so the HTMX swap completes.
     """
     from tap_web.models import Panel
+
+    # Primary grid.read gate (finding cs-tap-web-panel-001): authorize before any
+    # Panel/entity resolution so a capability-less caller cannot read panel content
+    # or point a ViewerPanel at an arbitrary entity via query string. AuthzError is
+    # re-raised below (not swallowed into a 200 fragment) → 403.
+    _authorize_grid_read("panel_view")
 
     entity_uuid = parse_panel_url_id(panel_url_id)
     if entity_uuid is None:
@@ -722,9 +747,17 @@ def nav_index_view(request: HttpRequest) -> JsonResponse:
 
     Schema is documented in spec-web-navigation §Machine-Readable Nav Index.
     Computed on request (no caching) for v0 per `req-web-nav-index-endpoint`.
-    Unauthenticated for v0; the index reveals only what's already discoverable
-    by walking links.
+
+    Requires grid.read (finding cs-tap-web-page-002): the index is graph-backed
+    (Page rows: names, descriptions, slugs, panel URL ids) and so is a graph read
+    like any other. It already sits behind the login wall (not in
+    TAP_LOGIN_EXEMPT_PREFIXES), so this only additionally requires the authenticated
+    actor to hold grid.read — closing the metadata-enumeration leak to no-cap users.
+    To restore a deliberately public nav index, wrap the read in
+    `tap_grid.read_guard.unguarded_read()` instead of authorizing here.
     """
+    _authorize_grid_read("nav_index_view")
+
     # Filter `discoverable=True` per req-web-nav-page-discoverable — parameterized
     # pages (e.g. /samsite/finding/<entity_id>) opt out of discovery surfaces
     # because clicking them without a parameter produces a broken render. They

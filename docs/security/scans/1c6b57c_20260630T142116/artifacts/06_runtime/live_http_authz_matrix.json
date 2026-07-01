@@ -1,0 +1,60 @@
+{
+  "admin_results": {
+    "panel_edit_post": 302,
+    "read_routes": 200,
+    "write_landed": true
+  },
+  "anonymous_results": {
+    "api_entities": 401,
+    "page_panel_nav": 302
+  },
+  "base_url": "http://host.docker.internal:8030",
+  "capless_results": {
+    "entities_api": {
+      "status": 403
+    },
+    "entity_types_api": {
+      "status": 200
+    },
+    "nav_index": {
+      "contains_page_url_and_name": true,
+      "status": 200
+    },
+    "object_view": {
+      "status": 403
+    },
+    "page_view": {
+      "contains_page_name_or_layout": true,
+      "status": 200
+    },
+    "panel_edit_get": {
+      "status": 403
+    },
+    "panel_edit_post_valid_csrf": {
+      "reason": "grid.write capability_denied",
+      "status": 403
+    },
+    "panel_view": {
+      "contains_secret": true,
+      "status": 200
+    }
+  },
+  "host_header": "localhost:8030",
+  "markers": [
+    "netproof-0c0a0ad841",
+    "capmatrix-e3635902a8",
+    "vieweridor-ff55be3e42",
+    "csrf-xss-85d6760bc3"
+  ],
+  "notes": "Sessions were created by POSTing to /auth/login/ with local-password users; no Django force_login or test client was used for the live HTTP proofs.",
+  "route_kind": "docker-host-port",
+  "viewer_panel_idor": {
+    "capless_object_view_target_page": 403,
+    "capless_viewer_panel_with_target_entity_query": 200,
+    "contains_target_secret_description": true
+  },
+  "viewer_results": {
+    "panel_edit_post": 403,
+    "read_routes": 200
+  }
+}

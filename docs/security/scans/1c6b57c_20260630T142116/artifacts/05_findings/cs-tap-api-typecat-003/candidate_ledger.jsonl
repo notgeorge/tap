@@ -1,0 +1,1 @@
+{"candidate": "cs-tap-api-typecat-003", "severity": "low", "status": "validated", "title": "Entity type catalog API ignores grid.read for authenticated no-cap users"}
