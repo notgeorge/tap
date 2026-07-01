@@ -62,6 +62,8 @@ class Scenario:
     source_file: Path
     soft_delete: tuple[str, ...] = ()
     expected_error: dict[str, Any] | None = None
+    # A declared, tracked oracle/executor disagreement (see the schema field).
+    oracle_divergence: str | None = None
 
 
 def _slugify(text: str) -> str:
@@ -119,15 +121,14 @@ def _parse_file(path: Path, schema: dict[str, Any]) -> list[Scenario]:
                 query=raw["query"],
                 params=raw.get("params", {}),
                 fixture_paths=fixture_paths,
-                expected_envelope_path=(
-                    PLUGIN_ROOT / raw["expected_envelope"] if "expected_envelope" in raw else None
-                ),
+                expected_envelope_path=(PLUGIN_ROOT / raw["expected_envelope"] if "expected_envelope" in raw else None),
                 expected_sql_path=(
                     PLUGIN_ROOT / raw["expected_sql_snapshot"] if "expected_sql_snapshot" in raw else None
                 ),
                 source_file=path,
                 soft_delete=soft_delete,
                 expected_error=raw.get("expected_error"),
+                oracle_divergence=raw.get("oracle_divergence"),
             )
         )
     return parsed
