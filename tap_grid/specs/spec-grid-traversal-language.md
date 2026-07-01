@@ -7,6 +7,20 @@ a predictable AST. Familiarity with Cypher improves readability for engineers wh
 graph databases, but TAP does not aim for Cypher compatibility — only for a language narrow
 enough to compile safely into TAP-controlled execution plans.
 
+**Semantic baseline.** Where Gryphon does follow Cypher, the reference for *what* Cypher's
+read-only core means is the peer-reviewed formal semantics — Francis, Green, Guagliardo, Libkin,
+Lindaaker, Marsault, Plantikow, Selmer, Taylor et al., *"Formal Semantics of the Language Cypher"*
+(SIGMOD 2018; [arXiv:1802.09984](https://arxiv.org/abs/1802.09984)). Gryphon is a **subset with
+named divergences**, not a re-derivation: the pattern-matching and projection surface tracks that
+denotational core, and every place Gryphon deliberately departs from it is catalogued in
+[`doc-dev-gryphon-vs-cypher.md`](../../docs/misc/doc-dev-gryphon-vs-cypher.md). The most
+load-bearing divergence is on **NULL logic**: Cypher is fully three-valued; Gryphon does not claim
+full 3VL across combinators (`req-grid-traversal-lang-is-null`, `-regex-6`). Concretely, a
+comparison against a **null literal** (`x = null`, `x STARTS_WITH null`) short-circuits to a genuine
+`FALSE` (the two-valued "unobserved operand" rule), while a **null field value** against a non-null
+literal follows the backend's SQL three-valued behavior (the row drops from the positive filter).
+Citing the baseline turns that boundary from a quirk into an auditable, defensible design decision.
+
 ## Goals
 
 |    |              |                                                                          |
@@ -195,6 +209,30 @@ MATCH p = (src)-[rel*1..2]-(dst)
 ```text
 MATCH (server:host)<-[edge:ON_HOST]-(iface:interface)
 ```
+
+#### Single-Hop Execution Semantics
+
+A single-hop pattern (`(a)-[e]->(b)`) executes through the **same chain machinery
+as a multi-hop pattern** (`_build_chain_queryset` + `_apply_predicate_to_qs` +
+`_collect_graph_envelope`). Three consequences follow, all deliberate:
+
+- **The full `WHERE` is applied — apply-or-reject, never silent-drop.** Every
+  predicate (not only an `entity_id` anchor) is compiled into the query, with
+  data-lane type strictness (`req-grid-traversal-lang-type-strictness`). A
+  predicate the path genuinely cannot support raises `SearchExecutionError`
+  rather than being ignored. (Earlier, single-hop *envelope* queries honored
+  only an `entity_id` anchor and silently dropped every other predicate — a
+  silent-wrong-results defect, now closed by routing single-hop through the
+  chain path.)
+- **Inner-join semantics, consistent with Cypher.** A single hop that matches no
+  edge yields the **empty set** — an anchored hop whose anchor node exists but
+  has no qualifying edges does **not** return the lone anchor, and an anchor
+  `entity_id` that matches no row yields an empty envelope with **no warning**.
+  The pattern binds all of its variables or it contributes nothing.
+- **Undirected single hops** (`(a)-[e]-(b)`) are the one shape the directed chain
+  builder does not handle natively; they execute as the union of their outbound
+  and inbound arms, with the `WHERE` applied to **each** arm — so an undirected
+  hop never drops a predicate either.
 
 #### Acceptance Criteria
 

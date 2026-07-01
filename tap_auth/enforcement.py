@@ -182,16 +182,21 @@ def assert_write_authorized(
         _raise_unguarded("delete", caller_context, "write_batch delete op")
 
 
-def assert_read_authorized(caller_context: CallerContext | None) -> None:
-    """Backstop at the Search read-dispatch chokepoint.
+def assert_read_authorized(caller_context: CallerContext | None, *, detail: str = "search dispatch") -> None:
+    """Backstop at a graph-read chokepoint.
 
     Passes iff the active actor holds `grid.read` (stateless `policy.can`
-    re-check). Otherwise the read reached mode dispatch with an unauthorized or
+    re-check). Otherwise the read reached the chokepoint with an unauthorized or
     missing actor — fail closed (returns no data).
+
+    Args:
+        detail: The read site, woven into the failure message and log. Defaults to
+            the Search read-dispatch chokepoint; the ORM read backstop
+            (`tap_grid.read_guard`) passes the offending model/statement instead.
     """
     if policy.can(caller_context, caps.READ_CAPABILITY):
         return
-    _raise_unguarded("read", caller_context, "search dispatch")
+    _raise_unguarded("read", caller_context, detail)
 
 
 def assert_program_actor(caller_context: CallerContext | None, *, operation: str) -> None:

@@ -15,7 +15,8 @@ import pytest
 from tap_grid.gryphon import capture_sql, execute_gryphon_raw, explain_gryphon_raw
 from tap_grid.gryphon.capture import SqlCapture
 
-# Undirected one-hop with a WHERE anchor → hub-and-spoke dispatch.
+# Undirected one-hop with a WHERE anchor → single-hop dispatch (the collapsed
+# path that routes every single-hop pattern through the chain machinery).
 _HUB_SPOKE = "MATCH (a)-[e]-(b) WHERE a.entity_id = $id RETURN a, e, b"
 
 
@@ -62,22 +63,27 @@ class TestGryphonSqlCapture:
         hub = _seed_hub_graph()
         result = explain_gryphon_raw(_HUB_SPOKE, {"id": str(hub.pk)}, layer="lite")
         statements = result["sql"].statements
-        # Hub load + outbound edge scan + inbound edge scan + neighbor fetch.
+        # The single-hop path issues a chain queryset scan plus bulk node/edge
+        # fetches (per direction arm for an undirected hop) — several reads.
         assert len(statements) >= 2
         for stmt in statements:
             assert stmt.sql.lstrip().upper().startswith(("SELECT", "WITH"))
 
-    def test_capture_is_stage_labelled_hub_and_spoke(self):
+    def test_capture_is_stage_labelled_single_hop_anchored(self):
+        # A WHERE-anchored one-hop (formerly "hub-and-spoke" dispatch) now routes
+        # through the unified single-hop path.
         hub = _seed_hub_graph()
         result = explain_gryphon_raw(_HUB_SPOKE, {"id": str(hub.pk)}, layer="lite")
-        assert {s.stage for s in result["sql"].statements} == {"hub-and-spoke"}
+        assert {s.stage for s in result["sql"].statements} == {"single-hop"}
 
-    def test_edge_type_scan_stage_label(self):
+    def test_single_hop_stage_label_unanchored(self):
+        # A one-hop typed pattern with no anchor (formerly "edge-type-scan"
+        # dispatch) now routes through the same single-hop path.
         _seed_hub_graph()
         query = "MATCH (c:character)-[e:LOCATED_IN]->(l:location)"
         result = explain_gryphon_raw(query, {}, layer="lite")
         assert result["sql"].statements
-        assert {s.stage for s in result["sql"].statements} == {"edge-type-scan"}
+        assert {s.stage for s in result["sql"].statements} == {"single-hop"}
 
     def test_advanced_stage_label(self):
         _seed_hub_graph()
@@ -108,7 +114,7 @@ class TestGryphonSqlCapture:
     def test_render_is_multi_statement(self):
         hub = _seed_hub_graph()
         rendered = explain_gryphon_raw(_HUB_SPOKE, {"id": str(hub.pk)}, layer="lite")["sql"].render()
-        assert "-- statement 1 · stage: hub-and-spoke" in rendered
+        assert "-- statement 1 · stage: single-hop" in rendered
         assert "-- statement 2" in rendered
 
     def test_capture_inactive_without_block(self):

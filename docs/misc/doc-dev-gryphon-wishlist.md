@@ -679,7 +679,7 @@ The workflow:
 2. Read each scenario for its *intent* — what corner case does it pin down? What historical confusion does it guard against?
 3. Notes-list the corner-case intents that apply to Gryphon's semantics. Skip Cypher-specific quirks (three-valued null logic, type coercion edge cases) — those are not Gryphon's contract.
 4. Author Gridkin scenarios in TAP vocabulary covering each retained intent. Queries are written in Gryphon syntax against `pg_*` playground types; fixtures are hand-authored; expecteds are hand-authored per the oracle discipline.
-5. Set the scenario's `inspired_by` field (now schema-**required**) to the TCK feature folder path — an attribution breadcrumb — or, where no TCK folder applies, the explicit empty-pass marker. Record per-folder *coverage* (covered/gaps/excluded) in the coverage ledger `scenarios/tck-coverage.json` (req-gridkin-tck-coverage), so which corner-case taxonomies have been mined — and what is still owed — is auditable, not just asserted.
+5. Set the scenario's `inspired_by` field (now schema-**required**) to the TCK feature folder path — an attribution breadcrumb — or, where no TCK folder applies, the explicit empty-pass marker. Record per-folder *coverage* (covered/gaps/excluded) in the coverage ledger `scenarios/gryphon_playground.tck-coverage.json` (req-gridkin-tck-coverage), so which corner-case taxonomies have been mined — and what is still owed — is auditable, not just asserted.
 
 Hard constraints (per `feedback_borrow_from_oss_prior_art`: inspire, never copy):
 

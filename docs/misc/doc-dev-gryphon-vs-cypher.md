@@ -95,7 +95,7 @@ Cypher semantics.
 | `=~` regex match | Full-string **anchored** (implicit `^...$`) | **Search / substring** (matches anywhere; anchor explicitly with `^...$`) — same shape as `grep` / Postgres `~` | `req-grid-traversal-lang-regex` (`-2`) |
 | `RETURN` omitted | Syntax error — `RETURN` is mandatory | Legal — returns a **graph envelope** `{nodes, edges}`; explicit `RETURN` signals row-projection mode | `req-grid-traversal-lang-returns` (`-1`) |
 | Per-`MATCH` `WHERE` attachment | `WHERE` attaches to its preceding `MATCH` and filters that clause | v0 has a **single global `WHERE`** scoped per bound variable across all `MATCH` clauses; per-`MATCH` attachment is future work | `req-grid-traversal-lang-shape` (Multiple-WHERE section) |
-| Three-valued logic (3VL) | Full 3VL across all combinators | Gryphon does **not claim full 3VL** across combinators — it guarantees NULL inputs neither crash nor silently match, no more | `req-grid-traversal-lang-regex` (`-6`), `req-grid-traversal-lang-is-null` |
+| Three-valued logic (3VL) | Full 3VL across all combinators ([Francis et al. §NULL](https://arxiv.org/abs/1802.09984)) | Gryphon does **not claim full 3VL**. A **null literal** operand (`x = null`, `x STARTS_WITH null`) short-circuits to a genuine `FALSE` — the two-valued "unobserved operand" rule; a **null field** vs a non-null literal follows the backend's SQL 3VL (drops from the positive filter). Guarantee: NULL inputs neither crash nor silently match, no more | `req-grid-traversal-lang-regex` (`-6`), `req-grid-traversal-lang-is-null` |
 | Cross-type predicate (`severity_score = "10"`, `IN ["10"]`, `STARTS_WITH` on a number) | Silently **false / null** → row drops (schema-optional graph can't know the type) | **Rejected** with `SearchExecutionError` — TAP's data lane is typed, the declared schema is the type oracle, and a wrong-typed literal is an authoring bug surfaced rather than coerced (the ORM would mis-coerce `"10"`→`10`) or silently dropped | `req-grid-traversal-lang-type-strictness` |
 
 Strictness reaches only as far as the schema declares a concrete type: a JSON field whose schema is a
@@ -138,7 +138,7 @@ mine, we never port**, and that discipline is already formalized:
 - **The lifecycle binding:** `req-grid-traversal-lang-tck-mining` (the language spec) — every
   language extension runs the mining pass.
 - **The coverage ledger:** `req-gridkin-tck-coverage` (`spec-gridkin-v0.md`) — a corpus-wide,
-  machine-checked record (`scenarios/tck-coverage.json`) of per-folder coverage: covered (derived),
+  machine-checked record (`scenarios/gryphon_playground.tck-coverage.json`) of per-folder coverage: covered (derived),
   `gaps` (what we still owe, each tagged test/feature/unknown), and `excluded` (Cypher-specific
   intents deliberately dropped). The drift guard bidirectionally ties ledger folders to scenario cites.
 - **The operational steps:** the `build-gryphon-capability` skill, Step 8.

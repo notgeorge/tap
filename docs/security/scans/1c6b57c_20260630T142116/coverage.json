@@ -1,0 +1,208 @@
+{
+  "completeness": "partial",
+  "deferred": [
+    {
+      "id": "deferred.worker-fanout",
+      "paths": [
+        "*"
+      ],
+      "reason": "The requested multi-agent exhaustive pass could not run because all discovery workers failed with usage-limit errors. Parent-agent reviewed high-impact auth/web/API/spec surfaces and marked remaining rank-input rows deferred.",
+      "surfaceIds": [
+        "surface.discovery_worklist"
+      ]
+    },
+    {
+      "id": "deferred.full-plugin-domain-review",
+      "paths": [
+        "plugins/"
+      ],
+      "reason": "Plugin templates/panels received targeted XSS and authz-source spot checks, but not every plugin collector/action/domain route received live capability permutations.",
+      "surfaceIds": [
+        "surface.discovery_worklist"
+      ]
+    },
+    {
+      "id": "deferred.vendor-js-line-audit",
+      "paths": [
+        "tap_web/static/tap_web/js/lib/"
+      ],
+      "reason": "Vendored/minified JavaScript was not audited line-by-line; first-party dangerous DOM sinks and runtime render behavior were checked.",
+      "surfaceIds": [
+        "surface.xss_rendering"
+      ]
+    }
+  ],
+  "documentType": "codex-security.coverage",
+  "excludePaths": [
+    ".git/",
+    ".venv/",
+    "node_modules/"
+  ],
+  "explicitExclusions": [
+    {
+      "pattern": ".git/",
+      "reason": "repository metadata, not application runtime source"
+    },
+    {
+      "pattern": ".venv/",
+      "reason": "third-party environment artifacts"
+    },
+    {
+      "pattern": "node_modules/",
+      "reason": "third-party dependency tree, if present"
+    }
+  ],
+  "includePaths": [
+    "."
+  ],
+  "inventoryStrategy": "repository",
+  "mode": "repository",
+  "openQuestions": [
+    {
+      "followUpPrompt": "Design the tap_web page/panel read authorization fix and tests.",
+      "question": "Should page/nav read authorization happen at every route entrypoint, or should tap_web page service helpers require CallerContext and enforce grid.read centrally?"
+    },
+    {
+      "followUpPrompt": "Triage tap/tests/test_authz_coverage.py baseline drift.",
+      "question": "Should the authz coverage ratchet baseline be regenerated after line drift, or are the tap_grid service entries real remaining hardening work?"
+    }
+  ],
+  "scanId": "1c6b57c_20260630T142116",
+  "schemaVersion": "1.0",
+  "surfaces": [
+    {
+      "disposition": "reported",
+      "id": "surface.tap_web.panel_fragments",
+      "label": "tap_web panel fragment routes",
+      "notes": "Validated capless read bypass and ViewerPanel object read bypass.",
+      "receiptRefs": [
+        "artifacts/05_findings/cs-tap-web-panel-001/validation_report.md",
+        "artifacts/05_findings/cs-tap-web-panel-001/attack_path_analysis_report.md",
+        "artifacts/06_runtime/live_http_authz_matrix.json",
+        "artifacts/06_runtime/log_access_control_sample.txt"
+      ],
+      "riskArea": "authorization"
+    },
+    {
+      "disposition": "reported",
+      "id": "surface.tap_web.pages_nav",
+      "label": "tap_web page, landing, and nav-index routes",
+      "notes": "Validated capless page/nav enumeration and panel URL disclosure.",
+      "receiptRefs": [
+        "artifacts/05_findings/cs-tap-web-page-002/validation_report.md",
+        "artifacts/05_findings/cs-tap-web-page-002/attack_path_analysis_report.md",
+        "artifacts/06_runtime/live_http_authz_matrix.json"
+      ],
+      "riskArea": "authorization"
+    },
+    {
+      "disposition": "reported",
+      "id": "surface.tap_api.entity_types",
+      "label": "tap_api entity-type catalog",
+      "notes": "Validated capless metadata read.",
+      "receiptRefs": [
+        "artifacts/05_findings/cs-tap-api-typecat-003/validation_report.md",
+        "artifacts/05_findings/cs-tap-api-typecat-003/attack_path_analysis_report.md",
+        "artifacts/06_runtime/live_http_authz_matrix.json"
+      ],
+      "riskArea": "authorization"
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "surface.tap_api.core_graph_reads",
+      "label": "tap_api entities, edges, searches, and Gryphon",
+      "notes": "Source and tests show grid.read enforcement. Live no-cap entities returned 403 and logged [e5d9].",
+      "receiptRefs": [
+        "artifacts/06_runtime/live_http_authz_matrix.json",
+        "artifacts/06_runtime/log_access_control_sample.txt",
+        "artifacts/06_runtime/pytest_summary.txt"
+      ],
+      "riskArea": "authorization"
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "surface.tap_web.object_and_edit_guards",
+      "label": "tap_web object view and edit guards",
+      "notes": "Object view denies no-cap before object resolution; panel edit denied no-cap write and viewer write.",
+      "receiptRefs": [
+        "artifacts/06_runtime/live_http_authz_matrix.json",
+        "artifacts/06_runtime/log_access_control_sample.txt"
+      ],
+      "riskArea": "authorization"
+    },
+    {
+      "disposition": "reported",
+      "id": "surface.access_control_logging",
+      "label": "access-control violation logging",
+      "notes": "Guarded denials log [e5d9]/[a6b7]; bypassed panel/page/nav/entity-types reads do not log because authorization is not invoked.",
+      "receiptRefs": [
+        "artifacts/06_runtime/log_access_control_sample.txt"
+      ],
+      "riskArea": "logging"
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "surface.csrf_post_security",
+      "label": "CSRF protection for POST routes",
+      "notes": "Missing, bogus, and evil-origin tokens were rejected; valid same-origin token was the only write that landed.",
+      "receiptRefs": [
+        "artifacts/06_runtime/live_http_csrf_xss_headers.json"
+      ],
+      "riskArea": "csrf"
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "surface.xss_rendering",
+      "label": "XSS rendering and explicit safe sinks",
+      "notes": "TextPanel hostile script/img rendered escaped; inspected explicit safe JSON and preview sinks are escaped.",
+      "receiptRefs": [
+        "artifacts/06_runtime/live_http_csrf_xss_headers.json",
+        "artifacts/02_discovery/finding_discovery_report.md"
+      ],
+      "riskArea": "xss"
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "surface.http_headers_cors_deploy",
+      "label": "HTTP headers, CORS, same-origin, and deploy posture",
+      "notes": "Live responses set DENY/nosniff/same-origin headers and no ACAO. Dev runtime fails deploy checks, but deploy boot has a fail-closed posture gate; verify real deploy profile before release.",
+      "receiptRefs": [
+        "artifacts/06_runtime/live_http_csrf_xss_headers.json",
+        "artifacts/06_runtime/deploy_check_summary.txt"
+      ],
+      "riskArea": "http-hardening"
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "surface.tap_auth_policy_boot_oidc",
+      "label": "tap_auth policy, login wall, boot gate, OIDC source docs alignment",
+      "notes": "Targeted auth tests and source review showed no bypass in policy decorators, login wall, deploy gate, or Google hd/email verification assumptions.",
+      "receiptRefs": [
+        "artifacts/06_runtime/pytest_summary.txt",
+        "artifacts/06_runtime/deploy_check_summary.txt"
+      ],
+      "riskArea": "authentication"
+    },
+    {
+      "disposition": "not_applicable",
+      "id": "surface.plugin_api_routers",
+      "label": "plugin API routers",
+      "notes": "Search found no mounted plugin API routers in this worktree beyond tests/service helpers.",
+      "receiptRefs": [
+        "artifacts/02_discovery/finding_discovery_report.md"
+      ],
+      "riskArea": "authorization"
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "surface.discovery_worklist",
+      "label": "ranked discovery worklist closure",
+      "notes": "917 rank-input rows were given explicit parent-reviewed/deferred closure after worker fan-out failed.",
+      "receiptRefs": [
+        "artifacts/02_discovery/work_ledger.jsonl",
+        "artifacts/02_discovery/rank_input.jsonl"
+      ],
+      "riskArea": "coverage"
+    }
+  ]
+}

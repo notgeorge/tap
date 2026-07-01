@@ -4,6 +4,24 @@
 **Companion:** the bug itself is handed off in `docs/misc/doc-gryphon-envelope-where-defect-handoff.md` (the *what-to-fix*); this AAR is the *why-didn't-our-process-guarantee-the-catch*.
 **Date:** 2026-06-30.
 
+> **RESOLVED 2026-07-01.** The corrective actions in §7 were built. The headline
+> — a mechanical, authoring-independent invariant that fires no matter which
+> query shape an author picks — was implemented not as an SQL-scrape (which
+> false-greens: the dropped column still appears in the SELECT list) but as an
+> **independent model-based reference oracle** (`plugins/gryphon_playground/gridkin/model_oracle.py`):
+> a second Gryphon engine that interprets the same AST over plain Python objects
+> from the same fixture, sharing zero ORM-lowering with the executor, wired as a
+> third gridkin assertion. It caught the envelope-WHERE bug day one (executor
+> returned 4 nodes, oracle computed the correct 3) and then served as the net
+> proving behavior-preservation while the executor was refactored. "Fail closed
+> at the source" was implemented as the **single-hop dispatch collapse** (4
+> executors → 1, all routed through the WHERE-applying chain path — apply-or-
+> reject, silent-drop now structurally impossible). **Next-tier seeds** (deferred,
+> not built): the envelope-vs-projection consistency relation is *NoREC* (SQLancer);
+> the 2VL/3VL null boundary is what *TLP* probes; a random-GRIFT generator feeding
+> the model oracle turns it into a property-based fuzzer overnight. See the
+> compiler-validation research thread in `docs/misc/doc-gryphon-path-coverage-sprint-plan.md`.
+
 ---
 
 ## 1. Goal vs. Outcome (read this first)

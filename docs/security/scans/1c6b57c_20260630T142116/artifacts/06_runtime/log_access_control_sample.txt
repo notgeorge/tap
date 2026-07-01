@@ -1,0 +1,9 @@
+/panel/csrf-xss-85d6760bc3--019f1c2e-7eed-7522-a00b-643a7d44474b/ 200
+/object/panel/csrf-xss-85d6760bc3--019f1c2e-7eed-7522-a00b-643a7d44474b/ 403
+/api/v1/entities/ 403
+
+2026-07-01T05:37:38+0000 WARNING tap_auth.policy /app/tap_auth/policy.py:159 - [e5d9] authz denied: reason=capability_denied capability=grid.read actor=csrf-xss-85d6760bc3-capless operation=object_view
+2026-07-01T05:37:38+0000 WARNING tap_auth.middleware /app/tap_auth/middleware.py:79 - [a6b7] web authz denied: reason=capability_denied path=/object/panel/csrf-xss-85d6760bc3--019f1c2e-7eed-7522-a00b-643a7d44474b/
+2026-07-01T05:37:38+0000 WARNING tap_auth.policy /app/tap_auth/policy.py:159 - [e5d9] authz denied: reason=capability_denied capability=grid.read actor=csrf-xss-85d6760bc3-capless operation=list_entities
+
+No matching [e5d9] or [a6b7] denial is emitted for the capless /panel/... request because the route returns 200 without calling authorize().
