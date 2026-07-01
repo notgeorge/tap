@@ -28,6 +28,7 @@ The discipline running through every requirement here is honest coverage account
 | req-dev-validation-canary-tier | [Canary Test Tier](#canary-test-tier) | Proposed | `-m smoke` blast-radius subset; does not substitute for the gate |
 | req-dev-validation-known-broken | [Known-Broken Manifest](#known-broken-manifest) | Proposed | In-repo, ratchets down; named here as the house convention |
 | req-dev-validation-promote-hook | [Promote-Path Enforcement](#promote-path-enforcement) | Proposed | Reciprocal of `req-dev-multisession-promote-gate` |
+| req-dev-validation-ratchet-harness | [Reusable Ratchet Harness](#reusable-ratchet-harness) | Proposed | Extract the shared compare-and-report core of the proliferating baseline ratchets |
 
 Leaf surfaces referenced by the Map are owned elsewhere: spawn-env smoke in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md), teardown in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md), the log-site scanner in [spec-tap-logging.md](spec-tap-logging.md), and the async-delivery tiers in [spec-tap-cares-task-backend.md](../tap_cares/specs/spec-tap-cares-task-backend.md) (`req-tap-cares-task-backend-backlog-2`). This spec does not re-specify them.
 
@@ -150,7 +151,7 @@ Status: `Proposed`
 
 Known-broken state is enumerated in a committed manifest, never held in human memory. The gate exits non-zero on any failure **not** listed, and also on any listed entry that no longer fails (stale entries are removed so the manifest ratchets toward zero). Each entry carries a one-line reason and owning context. The manifest is seeded at landing with whatever is genuinely known-broken at that moment — possibly empty.
 
-This requirement also **names, once, the house convention** the repository has independently reached for repeatedly: a *bounded, reviewed, in-repo manifest that ratchets down* is TAP's canonical mechanism for honest coverage accounting. Its instances are the log-site-ID baseline (`spec-tap-logging.md`), the authz-coverage baseline (`spec-tap-auth-v0.md` `req-tap-auth-policy-9`), this known-broken manifest, canary-set membership ([Canary Test Tier](#canary-test-tier)), and honest `CI-unguarded` spec-status labeling (`spec-tap-cares-task-backend.md`). New honesty mechanisms SHOULD follow this pattern rather than invent a parallel one.
+This requirement also **names, once, the house convention** the repository has independently reached for repeatedly: a *bounded, reviewed, in-repo manifest that ratchets down* is TAP's canonical mechanism for honest coverage accounting. Its instances are the log-site-ID baseline (`spec-tap-logging.md`), the authz-coverage baseline (`spec-tap-auth-v0.md` `req-tap-auth-policy-9`), the direct-write-coverage baseline (`tap/tests/_direct_write_baseline.txt`), the Gryphon executor branch-coverage floor (`tap_grid/gryphon/coverage-baseline.json`, `req-gridkin-executor-branch-coverage`), this known-broken manifest, canary-set membership ([Canary Test Tier](#canary-test-tier)), and honest `CI-unguarded` spec-status labeling (`spec-tap-cares-task-backend.md`). New honesty mechanisms SHOULD follow this pattern rather than invent a parallel one — and, per [Reusable Ratchet Harness](#reusable-ratchet-harness), should increasingly share its *implementation*, not just its shape.
 
 #### Acceptance Criteria
 
@@ -161,6 +162,70 @@ This requirement also **names, once, the house convention** the repository has i
 | req-dev-validation-known-broken-3 | Per-entry justification | Proposed | Each entry has a one-line reason and owning context. | |
 | req-dev-validation-known-broken-4 | Seeded at landing | Proposed | The manifest is seeded with whatever is known-broken when the gate lands; an empty manifest (effective strict mode) is the preferred state. | |
 | req-dev-validation-known-broken-5 | Named house convention | Proposed | The bounded-reviewed-ratcheting-manifest pattern is named here as canonical; other honesty mechanisms reference it rather than reinvent. | One vocabulary across sessions. |
+
+### Reusable Ratchet Harness
+----
+RID: `req-dev-validation-ratchet-harness`
+Status: `Proposed`
+
+> **Forward note, not a build (jotted 2026-07-01).** Seeded for a validation-focused
+> session. The convention above names the *shape*; this requirement is the
+> observation that the shape has proliferated enough to share an *implementation*,
+> plus a sketch of what to extract. Do not build speculatively — build it when the
+> next ratchet would be the third caller of the same copy-pasted compare-and-report
+> logic, or when the [Cold-Boot Smoke Gate](#cold-boot-smoke-gate) needs to invoke
+> several ratchets uniformly.
+
+#### Why now (the demand signal)
+
+The ratcheting-baseline pattern is no longer one mechanism — it is at least four, and
+two of them (the direct-write-coverage baseline and the Gryphon executor
+branch-coverage floor) landed *on the same day, in independent sessions, blind to
+each other*, each hand-rolling its own "measure → compare to a committed number/set →
+fail on regression → tell the human to bump on improvement" loop. Independent
+convergence on one shape is the signal that the shape wants a shared core. The cost
+of not extracting it is N slightly-different failure messages, N slightly-different
+ratchet-direction bugs, and N places the dev-validation gate must special-case when
+it comes to invoke them.
+
+#### What generalizes vs. what stays bespoke
+
+The **measurement** is irreducibly per-surface and MUST stay bespoke — a static AST
+scan (log-site, authz), a runtime `coverage.py` run (Gryphon branch, direct-write), a
+full smoke cycle. Do not try to unify measurement; that way lies a framework nobody
+can read.
+
+What generalizes is everything *after* the current value is in hand:
+
+- **Baseline artifact schema.** A common committed shape: the ratchet value
+  (scalar / count / set / manifest), plus provenance (`measured_at_commit`, what was
+  measured over, a human `note`). Today each invents its own file format
+  (`.json`, `.txt`, inline constant).
+- **Compare + ratchet-direction.** One helper each for the two directions —
+  *floor* (must not decrease; coverage %) and *ceiling→zero* (must not increase;
+  uncovered-count / known-broken). Both share: fail on regression with a uniform,
+  actionable message; on an *un-locked improvement*, fail-or-warn telling the human to
+  bump the baseline so gains are captured (the single most-repeated hand-rolled bit).
+- **Honest-status reporting.** Every ratchet already owes a Validation Map row with a
+  guard-status label; the harness can emit the row stub and the standard
+  `Manual (CI-unguarded by design)` vs `CI-guarded` phrasing so labeling can't drift.
+- **Sub-point tolerance + integer flooring** for float metrics (the Gryphon ratchet's
+  `int(current) < floor` rule) so wobble is not a false regression.
+
+Sketch: a small `tap/ratchet.py` exposing `ratchet_floor(current, baseline_path, ...)`
+and `ratchet_ceiling(current, baseline_path, ...)` over a shared baseline schema, with
+uniform exit codes and messages. The existing callers (Gryphon
+`scripts/gryphon-coverage-ratchet`, the authz/direct-write/log-site guards) migrate to
+it incrementally; none is rewritten speculatively.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-validation-ratchet-harness-1 | Shared compare core | Proposed | A single helper implements the floor and ceiling-to-zero ratchet directions, with one actionable regression message and one improvement/bump message, replacing per-caller copies. | Measurement stays bespoke per surface. |
+| req-dev-validation-ratchet-harness-2 | Common baseline schema | Proposed | Ratchet baselines share a committed artifact shape carrying the value plus provenance (`measured_at_commit`, scope, note). | |
+| req-dev-validation-ratchet-harness-3 | Emits its Map row | Proposed | The harness produces the surface's Validation Map row stub with standard guard-status phrasing so honest-status labeling cannot drift. | Ties to `req-dev-validation-map`. |
+| req-dev-validation-ratchet-harness-4 | Incremental migration, no speculative rewrite | Proposed | Existing ratchets migrate to the shared core only as they are next touched; the harness is built when it would have its second or third real caller, not before. | Guards against framework-ahead-of-demand. |
 
 ### Promote-Path Enforcement
 ----
