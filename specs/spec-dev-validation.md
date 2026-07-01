@@ -27,6 +27,7 @@ The discipline running through every requirement here is honest coverage account
 | req-dev-validation-real-backend | [Real-Backend Fidelity](#real-backend-fidelity) | Proposed | Gate runs the real task backend, never `ImmediateBackend` |
 | req-dev-validation-canary-tier | [Canary Test Tier](#canary-test-tier) | Proposed | `-m smoke` blast-radius subset; does not substitute for the gate |
 | req-dev-validation-known-broken | [Known-Broken Manifest](#known-broken-manifest) | Proposed | In-repo, ratchets down; named here as the house convention |
+| req-dev-validation-collection-complete | [Collection Completeness](#collection-completeness) | Implemented | Every test file on disk is collected by the gate run; discovery not an allow-list; validates the validator |
 | req-dev-validation-promote-hook | [Promote-Path Enforcement](#promote-path-enforcement) | Proposed | Reciprocal of `req-dev-multisession-promote-gate` |
 
 Leaf surfaces referenced by the Map are owned elsewhere: spawn-env smoke in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md), teardown in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md), the log-site scanner in [spec-tap-logging.md](spec-tap-logging.md), and the async-delivery tiers in [spec-tap-cares-task-backend.md](../tap_cares/specs/spec-tap-cares-task-backend.md) (`req-tap-cares-task-backend-backlog-2`). This spec does not re-specify them.
@@ -62,11 +63,12 @@ The Validation Map is the spine of this spec and the single authoritative invent
 | Gryphon executor branch coverage | `plugins/gryphon_playground/specs/spec-gridkin-v0.md` (`req-gridkin-executor-branch-coverage`) | `executor.py` branch coverage (measured across the unit + SQL-capture + Gridkin + API suites) holds at/above a committed floor — the branch-level complement to the stage gate, catching an unexercised branch *within* a stage | On-demand script (~10-15 min instrumented run); pre-push once the gate absorbs it | Partially guarded — the ratchet comparison is **Manual (CI-unguarded by design)** via `scripts/gryphon-coverage-ratchet` (too slow for per-commit); the committed floor's well-formedness is **CI-guarded** (`tap_grid/tests/test_gryphon_coverage_baseline.py`). Folds into the Cold-Boot gate when built. First instance of the ratcheting-baseline convention applied to runtime coverage. |
 | Cold-boot system cycle | this spec (`req-dev-validation-smoke-gate`) | Fresh DB → migrate → seed → one real collector cycle → one scheduler fire, end to end | Pre-push | Gate-guarded *(target)* |
 | Canary tier | this spec (`req-dev-validation-canary-tier`) | Blast-radius unit/functional subset still passes | Pre-push + per-commit | Gate-guarded *(target)* |
-| Web render smoke (login/landing) | `tap_web/specs/spec-web-navigation.md` (`req-web-nav-chrome-read-free-3`) | The always-present base.html chrome renders without a 500 for both an anonymous caller (`GET /auth/login/` → 200) and an authenticated `grid.read` holder (`GET /` → 200) — catches a shared context processor / chrome read tripping a structural backstop, whose blast radius is every page | Per-commit (`pytest -m smoke`) | CI-guarded (`tap_auth/tests/test_login_wall.py`, `@pytest.mark.smoke`) — *now collected* (see note) |
+| Web render smoke (login/landing) | `tap_web/specs/spec-web-navigation.md` (`req-web-nav-chrome-read-free-3`) | The always-present base.html chrome renders without a 500 for both an anonymous caller (`GET /auth/login/` → 200) and an authenticated `grid.read` holder (`GET /` → 200) — catches a shared context processor / chrome read tripping a structural backstop, whose blast radius is every page | Per-commit (`pytest -m smoke`) | CI-guarded (`tap_auth/tests/test_login_wall.py`, `@pytest.mark.smoke`) |
+| Collection completeness | this spec (`req-dev-validation-collection-complete`) | Every `test_*.py`/`*_test.py` on disk (minus the justified `_IGNORED_DIRS`) is collected by a full-repo run — the check that validates the validator, so "green" cannot mean "the subset pytest happened to collect passed" | Per-commit (`pytest`) | CI-guarded (`tap/tests/test_collection_completeness.py`) |
 
 Rows marked *(target)* describe the intended state once this spec is implemented; their guard status is honestly `Named, deferred` until then. The Map is updated in the same change as any new or retired validation surface, and reviewed when it changes — the change to the Map *is* the visible decision.
 
-**Collection-scope caveat (a guard that isn't collected does not guard).** `pyproject.toml` `testpaths` is the enumerated set of directories the default `pytest` run (and the promote gate) collects. A test outside those roots passes locally when named explicitly but is **invisible to the gate** — the failure mode that let the 2026-07-01 login regression ship red (`tap_auth/tests/` was omitted from `testpaths`, so `test_login_wall.py`'s render assertions never ran in the gate). `tap_auth` and `tap_health` are now in `testpaths` (both confirmed green). `tap_cares` remains **omitted / Named, deferred** here: its suite is slow (async/collector fidelity) and was not confirmed green in the same pass — adding it requires a confirming green run first. Any new app with tests MUST be added to `testpaths` in the same change, or its tests are decorative.
+**Collection-scope caveat (a guard that isn't collected does not guard).** A test that the default `pytest` run does not collect is **invisible to the gate** — it passes when named explicitly and silently protects nothing otherwise. This let the 2026-07-01 login regression ship green: `tap_auth`, `tap_boot`, and `tap_cares` all sat outside the `testpaths` **allow-list**, so their tests (including `test_login_wall.py`'s render assertions) were never in the gate. The allow-list is fail-open over a scattered per-app layout — a new app is uncollected until someone remembers to list it. The fix is structural, not another list entry: `pyproject.toml` no longer sets `testpaths`, so pytest **discovers** every test file from the repo root (an ignore-list, fail-safe), and [Collection Completeness](#collection-completeness) asserts the outcome so the scope can never silently narrow again. See that requirement.
 
 #### Acceptance Criteria
 
@@ -164,6 +166,35 @@ This requirement also **names, once, the house convention** the repository has i
 | req-dev-validation-known-broken-3 | Per-entry justification | Proposed | Each entry has a one-line reason and owning context. | |
 | req-dev-validation-known-broken-4 | Seeded at landing | Proposed | The manifest is seeded with whatever is known-broken when the gate lands; an empty manifest (effective strict mode) is the preferred state. | |
 | req-dev-validation-known-broken-5 | Named house convention | Proposed | The bounded-reviewed-ratcheting-manifest pattern is named here as canonical; other honesty mechanisms reference it rather than reinvent. | One vocabulary across sessions. |
+
+### Collection Completeness
+----
+RID: `req-dev-validation-collection-complete`
+Status: `Implemented`
+
+Every test file that exists on disk MUST be collected by the default full-repo `pytest` run, except a small, justified set of intentional exclusions. This is the guard that **validates the validator**: without it, "green" silently means "the subset pytest happened to collect passed," and the subset can drift narrower than the code with no signal.
+
+#### Status Details
+
+This requirement exists because of a concrete miss. The 2026-07-01 login regression shipped green while `test_login_wall.py` was red, because `pyproject.toml` `testpaths` was an **allow-list** (`["tap", "tap_grid", …]`) that omitted whole apps — `tap_auth`, `tap_boot`, `tap_cares` — so their tests were never collected by the gate. No ordinary test can catch this: the failure is in the collection scope, one layer beneath the tests.
+
+#### Implementation
+
+- **Discovery, not an allow-list.** `pyproject.toml` sets no `testpaths`; pytest discovers every `test_*.py`/`*_test.py` from the repo root, minus `norecursedirs` (`.venv`, `node_modules`, `build`, `dist`, dot-dirs) and the explicit `--ignore`s in `addopts`. Discovery is fail-safe (a new test dir is collected automatically); an allow-list is fail-open (a new app is uncollected until someone remembers it). The reversibility argument of `spec-security-posture.md` applies: coverage config should fail toward over-collection, never under.
+- **Outcome-based guard.** `tap/tests/test_collection_completeness.py` enumerates the on-disk test files and diffs them against the set a full `pytest --collect-only .` run collects (real `addopts`, marker filter overridden to a tautology so opt-in `-m` tests are not false orphans). Any file on disk but not collected fails the guard, naming the orphan. Being outcome-based, it catches every cause — a re-introduced `testpaths`, a stray `--ignore`, an import error that drops a module — not just the original mechanism.
+- **Single visible ledger of holes.** The guard's `_IGNORED_DIRS` is the one place deliberate coverage exclusions live; each entry is justified and MUST correspond to an `--ignore=` in `addopts`. A real `--ignore` not mirrored there surfaces as an orphan, forcing the exclusion to be recorded rather than hidden.
+
+#### Development
+
+This is the honest-coverage-accounting discipline of this spec turned on the test suite itself: the Map's `CI-guarded` rows each *assume* their test is collected, and nothing verified that assumption until now. The guard is cheap (one `--collect-only` subprocess, no test execution) and structural, so the class cannot silently recur.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-validation-collection-complete-1 | Discovery, not allow-list | Implemented | `pyproject.toml` sets no `testpaths`; test collection is repo-root discovery minus an explicit ignore-list. | Fail-safe over the scattered per-app layout. |
+| req-dev-validation-collection-complete-2 | Every file collected | Implemented | A guard asserts every on-disk `test_*.py`/`*_test.py`, minus justified `_IGNORED_DIRS`, is collected by a full-repo run. | `tap/tests/test_collection_completeness.py`. |
+| req-dev-validation-collection-complete-3 | Justified holes only | Implemented | Each intentional exclusion is a justified `_IGNORED_DIRS` entry mirrored by an `addopts` `--ignore`; an unmirrored ignore fails the guard. | The single visible ledger of coverage holes. |
 
 ### Promote-Path Enforcement
 ----
