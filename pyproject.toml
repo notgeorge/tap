@@ -155,7 +155,7 @@ django_settings_module = "tap.settings"
 # ImmediateBackend regardless of what the dev/prod tap/settings.py sets it
 # to. See spec-tap-cares-task-backend.md req-tap-cares-task-backend-test-settings.
 DJANGO_SETTINGS_MODULE = "tap.test_settings"
-testpaths = ["tap", "tap_grid", "tap_plugins", "tap_api", "tap_web", "tap_viz", "plugins"]
+testpaths = ["tap", "tap_grid", "tap_plugins", "tap_api", "tap_web", "tap_viz", "tap_auth", "tap_health", "plugins"]
 python_files = ["test_*.py", "*_test.py"]
 # Skip live-fetch tests by default; opt in with `-m live_fetch`.
 # genericom DEPRECATED 2026-05-19 (out of INSTALLED_APPS — see
@@ -168,4 +168,5 @@ markers = [
     "spec: link a test to one or more spec acceptance criteria by ACID",
     "live_fetch: opt-in integration tests that hit real network upstreams; skipped by default",
     "enforce_write_guard: opt out of the autouse unguarded_write() hatch so the write backstop is live in this test",
+    "smoke: high-signal canary subset — failure predicts broad downstream failure (req-dev-validation-canary-tier); run with `-m smoke`",
 ]
