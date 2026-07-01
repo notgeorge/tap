@@ -6,29 +6,9 @@
       "folder": "clauses/match",
       "gaps": [
         {
-          "intent": "bare unfiltered MATCH (n) all-node scan with no WHERE",
-          "note": "every bare_match scenario carries a WHERE; the zero-predicate baseline that would catch an accidental always-on filter is never asserted on the labelless spine",
-          "kind": "test"
-        },
-        {
-          "intent": "incoming-direction relationship match (<--)",
-          "note": "only --> and undirected are exercised; the direction-inversion executor path is untested",
-          "kind": "test"
-        },
-        {
           "intent": "relationship-type alternation T1|T2 (and redundant T|T collapsing to one)",
           "note": "union-of-types in one hop; separate parse/dispatch path, grammar support unverified",
           "kind": "feature"
-        },
-        {
-          "intent": "empty-result relationship match against a non-existent edge",
-          "note": "edge files always assume matches exist; the empty-edge-result base case is unexercised",
-          "kind": "test"
-        },
-        {
-          "intent": "undirected unanchored match returns BOTH orientations of each edge",
-          "note": "our undirected scenarios anchor on an endpoint, so the symmetric double-row behaviour is never asserted",
-          "kind": "test"
         },
         {
           "intent": "mixed directed + undirected segments in one pattern",
@@ -39,11 +19,6 @@
           "intent": "same variable bound to both relationship endpoints (n)-[r]-(n)",
           "note": "v0 edge scan ignores variable identity (no from==to) — needs engine work",
           "kind": "feature"
-        },
-        {
-          "intent": "convergence join: two bound sources onto one target (a)-->(x),(b)-->(x)",
-          "note": "intersection/convergence; hub_and_spoke only covers single-source radiation",
-          "kind": "test"
         },
         {
           "intent": "disconnected patterns / cross-product across MATCH clauses",
@@ -113,18 +88,13 @@
           "kind": "feature"
         },
         {
-          "intent": "multi-variable conjunction constraining two different bound nodes",
-          "note": "AND is only ever applied to one variable",
-          "kind": "test"
-        },
-        {
-          "intent": "NOT EXISTS over a multi-hop / multi-relationship inner pattern",
-          "note": "only single-edge subqueries tested; a longer inner path stresses subquery planning",
-          "kind": "test"
-        },
-        {
           "intent": "pattern-existence predicate mixed into boolean composition (scalar AND existence)",
           "note": "combining NOT EXISTS as one branch of AND/OR rather than a standalone filter",
+          "kind": "feature"
+        },
+        {
+          "intent": "single-hop relationship ENVELOPE applies only an entity_id anchor from WHERE; every other predicate is silently dropped",
+          "note": "DEFECT found 2026-06-30 while authoring the two-node-AND scenario: an unanchored single-hop edge ENVELOPE query (e.g. MATCH (h:pg_hub)-[:PG_LINKS]->(n:pg_node) WHERE h.data.severity_score=0 AND n.data.severity_score>15, no RETURN) routes to _execute_edge_type_scan, which never receives where_clause — only edge_type + endpoint labels are filtered, so the data-lane WHERE is IGNORED and too many rows are returned. The hub-and-spoke anchored path honors only the entity_id anchor and drops any AND-ed remainder too. The AGGREGATION / row-projection path applies the full WHERE correctly (chain executor), so the two-node-AND gap is closed there; this defect is the envelope path alone. Fix: thread the non-anchor WHERE into _execute_edge_type_scan / _execute_hub_and_spoke and apply it as a Q over the endpoint data lanes (or reject if unsupported), rather than silently dropping it.",
           "kind": "feature"
         }
       ],
@@ -147,29 +117,9 @@
       "folder": "clauses/return-orderby",
       "gaps": [
         {
-          "intent": "default-ascending order when the ASC/DESC token is omitted",
-          "note": "our asc scenarios state asc explicitly; the implicit-default path is unwitnessed",
-          "kind": "test"
-        },
-        {
-          "intent": "ORDER BY a RETURN alias whose sort priority differs from projection order",
-          "note": "we order by aggregated columns but never a plain projected alias with divergent priority",
-          "kind": "test"
-        },
-        {
           "intent": "constant expression in ORDER BY is inert (no influence on order)",
           "note": "cheap determinism pin, untested",
           "kind": "feature"
-        },
-        {
-          "intent": "ORDER BY an undefined / unknown key fails",
-          "note": "no negative scenario for sorting on an unknown variable",
-          "kind": "test"
-        },
-        {
-          "intent": "aggregation-misuse in ORDER BY fails (bare aggregate / sort on DISTINCT-removed var)",
-          "note": "error paths untested",
-          "kind": "test"
         }
       ],
       "excluded": [
@@ -195,13 +145,7 @@
     },
     {
       "folder": "clauses/union",
-      "gaps": [
-        {
-          "intent": "UNION deduplication actually triggered — an element present in BOTH arms collapses to one",
-          "note": "our two union arms are disjoint types (pg_hub vs pg_node), so the defining dedup semantic of distinct union is never exercised",
-          "kind": "test"
-        }
-      ],
+      "gaps": [],
       "excluded": [
         {
           "intent": "UNION ALL and mixed UNION / UNION ALL",
@@ -220,11 +164,6 @@
           "intent": "COUNT(expr) skips null/absent values while still counting the row's group",
           "note": "probed 2026-06-30: node-only property grouping (MATCH (n:pg_node) RETURN n.data.kind, COUNT(...)) is rejected by the executor — 'Advanced executor requires at least one edge in the MATCH pattern'. COUNT-with-grouping is only reachable through a relationship pattern, so the null-skipping COUNT(expr) semantic needs an engine path for edgeless grouping before a test can assert it",
           "kind": "feature"
-        },
-        {
-          "intent": "COUNT of a self-loop / degenerate self-referential edge",
-          "note": "edge-counting around self-loops is an easy off-by-one source",
-          "kind": "test"
         }
       ],
       "excluded": [
@@ -264,18 +203,7 @@
     },
     {
       "folder": "expressions/list",
-      "gaps": [
-        {
-          "intent": "unobserved/null LHS IN a list -> non-member (false), not null",
-          "note": "no scenario feeds a null LHS into IN",
-          "kind": "test"
-        },
-        {
-          "intent": "type-mismatch non-match: 1 IN ['1',2] -> false (no cross-type coercion)",
-          "note": "CYPHER DIVERGENCE, probed 2026-06-30: TAP does NOT match Cypher here — string list members are coerced to the typed integer column (params Int4(10), Int4(20)) so `severity_score IN [\"10\",\"20\"]` DOES match. Current (coercing) behavior is pinned by in_lists__type_coerced; Cypher's no-coercion semantic would need an engine change. Surfaced to George — decide whether to ratify coercion or enforce type-strictness",
-          "kind": "feature"
-        }
-      ],
+      "gaps": [],
       "excluded": [
         {
           "intent": "list subscripting / slicing, list-typed LHS, nested-list membership",
@@ -291,19 +219,9 @@
       "folder": "expressions/map",
       "gaps": [
         {
-          "intent": "JSON key-path access is case-sensitive (data.tags.Team vs data.tags.team)",
-          "note": "JSON-path backends can silently fold/mismatch; no scenario pins exact-case lookup",
-          "kind": "test"
-        },
-        {
           "intent": "distinguish an absent key from a key present with an explicit null value, in a predicate",
-          "note": "our absent-key scenario conflates the two; the missing-vs-explicit-null distinction is a live grid convention",
-          "kind": "test"
-        },
-        {
-          "intent": "sub-key access walking into a non-map scalar (data.tags is a string, then .team)",
-          "note": "behaviour walking a key path into a non-object value is undefined (null vs error)",
-          "kind": "test"
+          "note": "RECLASSIFIED to feature 2026-06-30: TAP is two-valued (null = unobserved), so an absent JSON key and a key present with an explicit null both resolve to null in a predicate — indistinguishable in v0. The absent-vs-asserted-null split is the deferred known-unknown / unknown-unknown FLIP axis (req-grid-node-observation Phase 2), not an authorable v0 test.",
+          "kind": "feature"
         }
       ],
       "excluded": [
@@ -325,14 +243,9 @@
       "folder": "expressions/null",
       "gaps": [
         {
-          "intent": "keyword case-insensitivity of IS NULL / IS NOT NULL (and IS KNOWN / IS UNKNOWN)",
-          "note": "no scenario pins the parser's case folding; a regression to case-sensitive keywords would go uncaught",
-          "kind": "test"
-        },
-        {
           "intent": "IS NULL / IS UNKNOWN on a property of a node that itself was never bound (unmatched optional row)",
-          "note": "our null files only exercise a present node with a missing property, not the null-node path",
-          "kind": "test"
+          "note": "RECLASSIFIED to feature 2026-06-30: v0 OPTIONAL MATCH binds the optional variable COUNT-only — an unmatched optional node cannot be projected or have its properties predicated, so 'IS NULL on a never-bound node's property' needs the projectable-optional-variable engine work first (companion to the optionalVar-IS-NULL feature gap in clauses/match).",
+          "kind": "feature"
         }
       ],
       "excluded": [
@@ -348,48 +261,7 @@
     },
     {
       "folder": "expressions/string",
-      "gaps": [
-        {
-          "intent": "null needle -> every row drops (name STARTS_WITH null)",
-          "note": "ROBUSTNESS DEFECT, probed 2026-06-30: a null literal needle leaks a raw Django 'ValueError: Cannot use None as a query value' from the ORM lowering instead of the two-valued result (predicate is unknown -> drop every row -> empty envelope). The executor must guard a null string-predicate operand before building the ORM filter; until it does, no green test can assert the intended empty result",
-          "kind": "feature"
-        },
-        {
-          "intent": "NOT (predicate against null) still drops every row (NOT (name STARTS_WITH null))",
-          "note": "ROBUSTNESS DEFECT, probed 2026-06-30: same raw 'ValueError: Cannot use None as a query value' leak as the bare null-needle case; the NOT wrapper does not change the crash. Blocked on the same executor-side null-operand guard",
-          "kind": "feature"
-        },
-        {
-          "intent": "NOT-negated string predicate (NOT name STARTS_WITH 'ab')",
-          "note": "string_match has zero NOT coverage",
-          "kind": "test"
-        },
-        {
-          "intent": "whitespace needle matched literally (no implicit trimming)",
-          "note": "leading/trailing space in the needle is significant",
-          "kind": "test"
-        },
-        {
-          "intent": "newline/tab control-char needle matched literally (no normalization)",
-          "note": "embedded control chars treated as literal",
-          "kind": "test"
-        },
-        {
-          "intent": "non-string operand yields NULL, never an error",
-          "note": "CYPHER DIVERGENCE, probed 2026-06-30: TAP does NOT yield null — STARTS_WITH on a numeric field casts the typed column to text (severity_score::text LIKE '1%') and matches (10, 15). Current (coercing) behavior is pinned by string_match__numeric_coerced; Cypher's null-on-type-mismatch would need an engine change. Surfaced to George alongside the IN-coercion divergence",
-          "kind": "feature"
-        },
-        {
-          "intent": "exact full-value match (needle equals the entire value)",
-          "note": "our scenarios only exercise strict sub-portions",
-          "kind": "test"
-        },
-        {
-          "intent": "multi-predicate AND combinations (prefix AND suffix; prefix AND substring AND suffix)",
-          "note": "conjunctive narrowing on one field, untested",
-          "kind": "test"
-        }
-      ],
+      "gaps": [],
       "excluded": [
         {
           "intent": "scalar string functions: substring, trim, reverse, split, toUpper/toLower, concat, length, replace, regex-replace",

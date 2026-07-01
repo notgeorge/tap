@@ -18,7 +18,7 @@
         {
           "entity": {
             "entity_id": "019e4dbd-db9c-7713-b0fd-22b48f16a484",
-            "entity_type": "pg_node",
+            "entity_type": "gryphon_playground__pg_node",
             "name": "North Alpha",
             "dimensions": { "tap.playground": "gridkin", "zone": "north" },
             "created_at": "2026-05-21T15:00:00Z",
@@ -37,7 +37,7 @@
         {
           "entity": {
             "entity_id": "019e4dbd-db9c-7713-b0fd-22b5c98137cb",
-            "entity_type": "pg_node",
+            "entity_type": "gryphon_playground__pg_node",
             "name": "North Beta",
             "dimensions": { "tap.playground": "gridkin", "zone": "north" },
             "created_at": "2026-05-21T15:00:01Z",
@@ -56,7 +56,7 @@
         {
           "entity": {
             "entity_id": "019e4dbd-db9c-7713-b0fd-22b639223342",
-            "entity_type": "pg_node",
+            "entity_type": "gryphon_playground__pg_node",
             "name": "South Gamma",
             "dimensions": { "tap.playground": "gridkin", "zone": "south" },
             "created_at": "2026-05-21T15:00:02Z",
@@ -75,7 +75,7 @@
         {
           "entity": {
             "entity_id": "019e4dbd-db9c-7713-b0fd-22b734e3f944",
-            "entity_type": "pg_node",
+            "entity_type": "gryphon_playground__pg_node",
             "name": "South Delta",
             "dimensions": { "tap.playground": "gridkin", "zone": "south" },
             "created_at": "2026-05-21T15:00:03Z",

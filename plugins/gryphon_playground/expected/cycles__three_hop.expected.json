@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fbf70e51757",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Cycle A",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -15,7 +15,7 @@
     },
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fc0ad869bfa",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Cycle B",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -28,7 +28,7 @@
     },
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fc171d1a72d",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Cycle C",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -44,7 +44,7 @@
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fc3a152f103",
       "entity_type": "edge",
-      "name": "019e4e07-9975-7501-8d81-0fbf70e51757 --[PG_LINKS]--> 019e4e07-9975-7501-8d81-0fc0ad869bfa",
+      "name": "019e4e07-9975-7501-8d81-0fbf70e51757 --[PG_LINKS__gryphon_playground]--> 019e4e07-9975-7501-8d81-0fc0ad869bfa",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -57,7 +57,7 @@
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fc4e4a98242",
       "entity_type": "edge",
-      "name": "019e4e07-9975-7501-8d81-0fc0ad869bfa --[PG_LINKS]--> 019e4e07-9975-7501-8d81-0fc171d1a72d",
+      "name": "019e4e07-9975-7501-8d81-0fc0ad869bfa --[PG_LINKS__gryphon_playground]--> 019e4e07-9975-7501-8d81-0fc171d1a72d",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -70,7 +70,7 @@
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fc53fb5e766",
       "entity_type": "edge",
-      "name": "019e4e07-9975-7501-8d81-0fc171d1a72d --[PG_LINKS]--> 019e4e07-9975-7501-8d81-0fbf70e51757",
+      "name": "019e4e07-9975-7501-8d81-0fc171d1a72d --[PG_LINKS__gryphon_playground]--> 019e4e07-9975-7501-8d81-0fbf70e51757",
       "dimensions": {
         "tap.playground": "gridkin"
       },

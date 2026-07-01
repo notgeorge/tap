@@ -28,7 +28,7 @@ class PgNode(BaseModel):
     See plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "pg_node"
+    ENTITY_TYPE: ClassVar[str] = "gryphon_playground__pg_node"
     ENTITY_NAME: ClassVar[str] = "Playground Node"
     ENTITY_DESCRIPTION: ClassVar[str] = "Generic playground node for Gryphon query-pattern testing."
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.playground": "gridkin"}
@@ -50,7 +50,7 @@ class PgNode(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "gryphon_playground_pg_node"
+        db_table = "gryphon_playground__pg_node"
 
     def get_name(self) -> str:
         return self.name

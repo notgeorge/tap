@@ -7,4 +7,4 @@ INNER JOIN "tap_entity" T4 ON ("tap_edge"."to_entity_id" = T4."id")
 WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T3."entity_type" = %s AND T4."entity_type" = %s)
 GROUP BY 1
 ORDER BY 1 ASC
--- params: ['PG_OPTIONAL', 'pg_node', 'pg_node']
+-- params: ['PG_OPTIONAL__gryphon_playground', 'gryphon_playground__pg_node', 'gryphon_playground__pg_node']

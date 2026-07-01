@@ -155,7 +155,7 @@ class InComparison:
 
        Example::
 
-          MATCH (n:pg_node) WHERE n.data.kind IN ["neighbor"]
+          MATCH (n:gryphon_playground__pg_node) WHERE n.data.kind IN ["neighbor"]
           RETURN n.entity_id AS id ORDER BY id
     """
 

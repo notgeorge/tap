@@ -13,7 +13,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (TAP-native: Entity dimension scoping)",
       "layer": "full",
-      "query": "MATCH (n:pg_node) WHERE n.dimensions.zone = \"north\"",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.dimensions.zone = \"north\"",
       "expected_envelope": "expected/dimensions__zone_north.expected.json",
       "expected_sql_snapshot": "expected/dimensions__zone_north.sql.txt"
     }

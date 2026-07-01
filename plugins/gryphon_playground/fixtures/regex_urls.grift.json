@@ -18,7 +18,7 @@
         {
           "entity": {
             "entity_id": "019e6f53-b116-74a3-8421-364181806cb4",
-            "entity_type": "pg_node",
+            "entity_type": "gryphon_playground__pg_node",
             "name": "https://token.actions.githubusercontent.com",
             "dimensions": { "tap.playground": "gridkin" }
           },
@@ -34,7 +34,7 @@
         {
           "entity": {
             "entity_id": "019e6f53-b116-74a3-8421-36423bb8ecfd",
-            "entity_type": "pg_node",
+            "entity_type": "gryphon_playground__pg_node",
             "name": "https://Token.Actions.GitHubUserContent.com",
             "dimensions": { "tap.playground": "gridkin" }
           },
@@ -50,7 +50,7 @@
         {
           "entity": {
             "entity_id": "019e6f53-b116-74a3-8421-3643d7e76b07",
-            "entity_type": "pg_node",
+            "entity_type": "gryphon_playground__pg_node",
             "name": "https://my-ghes.example.com/_services/token/actions",
             "dimensions": { "tap.playground": "gridkin" }
           },
@@ -66,7 +66,7 @@
         {
           "entity": {
             "entity_id": "019e6f53-b116-74a3-8421-3644c470757a",
-            "entity_type": "pg_node",
+            "entity_type": "gryphon_playground__pg_node",
             "name": "https://githubusercontentXcom",
             "dimensions": { "tap.playground": "gridkin" }
           },
@@ -82,7 +82,7 @@
         {
           "entity": {
             "entity_id": "019e6f53-b116-74a3-8421-3645624610f1",
-            "entity_type": "pg_node",
+            "entity_type": "gryphon_playground__pg_node",
             "name": "Plain Reading",
             "dimensions": { "tap.playground": "gridkin" }
           },

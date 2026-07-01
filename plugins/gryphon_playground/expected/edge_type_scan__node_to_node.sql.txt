@@ -6,4 +6,4 @@ INNER JOIN "tap_entity" T3 ON ("tap_edge"."from_entity_id" = T3."id")
 INNER JOIN "tap_entity" T4 ON ("tap_edge"."to_entity_id" = T4."id")
 WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T3."entity_type" = %s AND T4."entity_type" = %s)
 ORDER BY "tap_entity"."created_at" ASC
--- params: ['PG_LINKS', 'pg_node', 'pg_node']
+-- params: ['PG_LINKS__gryphon_playground', 'gryphon_playground__pg_node', 'gryphon_playground__pg_node']

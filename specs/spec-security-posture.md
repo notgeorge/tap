@@ -106,6 +106,10 @@ The doctrine is selective. Risks deliberately left open are named honestly, not 
 - When a cheap edge is *not* taken, or a class of risk is accepted, say so where the decision lives — so "we didn't build this" is a recorded choice, not a silent gap.
 - The complement of taking cheap edges is being honest that the expensive ones are deferred by design.
 
+#### Named open edges (deliberately deferred)
+
+- **Un-schema'd JSONB blobs.** Concrete `BaseModel` subclasses must declare every field in `FIELD_CRUD_SCHEMA` (enforced at class definition), but a `JSONField` may declare itself as bare `{"type": "object"}` with no `properties` — its sub-keys are then as undescribed as a free-text blob (e.g. `pg_node.tags`). This blocks two things until closed: (1) verifiable declared-vs-actual on JSON *content*, and (2) type-strictness for Gryphon predicates on JSON sub-paths (`n.data.tags.zone`) — the executor's type oracle can resolve a column's declared type but bottoms out at OPEN inside an un-typed object, so JSON-sub-path predicates stay coercion-tolerant while typed columns are strict (the interim asymmetry recorded in `spec-grid-traversal-language.md`). The design is forward-compatible: the Gryphon type resolver already walks `FIELD_CRUD_SCHEMA` into the JSON object and applies strictness *iff* a concrete type is declared, so replacing `{"type": "object"}` with real `properties` lights up JSON-lane strictness with zero executor change. Closing the gap grid-wide (a class-definition guard requiring JSON fields to declare their sub-schema or explicitly opt into open-blob status, plus a backfill, minus genuinely-open blobs like `flip_map`/`dimensions`/`metadata`) is a deliberate convention thread, not a near-free edge, so it is deferred until that surface is worked. Decision home: `req-grid-entity-validation` (the field-schema machinery).
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |

@@ -13,31 +13,31 @@ WHERE ("tap_entity"."deleted_at" IS NULL AND "evidence"."kind" = %s)
 -- params: ['hub']
 
 -- statement 3 · stage: bare-type-scan
-SELECT "gryphon_playground_pg_cycle_node"."entity_id" AS "entity_id"
-FROM "gryphon_playground_pg_cycle_node"
-INNER JOIN "tap_entity" ON ("gryphon_playground_pg_cycle_node"."entity_id" = "tap_entity"."id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "gryphon_playground_pg_cycle_node"."kind" = %s)
+SELECT "gryphon_playground__pg_cycle_node"."entity_id" AS "entity_id"
+FROM "gryphon_playground__pg_cycle_node"
+INNER JOIN "tap_entity" ON ("gryphon_playground__pg_cycle_node"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "gryphon_playground__pg_cycle_node"."kind" = %s)
 -- params: ['hub']
 
 -- statement 4 · stage: bare-type-scan
-SELECT "gryphon_playground_pg_hub"."entity_id" AS "entity_id"
-FROM "gryphon_playground_pg_hub"
-INNER JOIN "tap_entity" ON ("gryphon_playground_pg_hub"."entity_id" = "tap_entity"."id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "gryphon_playground_pg_hub"."kind" = %s)
+SELECT "gryphon_playground__pg_hub"."entity_id" AS "entity_id"
+FROM "gryphon_playground__pg_hub"
+INNER JOIN "tap_entity" ON ("gryphon_playground__pg_hub"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "gryphon_playground__pg_hub"."kind" = %s)
 -- params: ['hub']
 
 -- statement 5 · stage: bare-type-scan
-SELECT "gryphon_playground_pg_leaf"."entity_id" AS "entity_id"
-FROM "gryphon_playground_pg_leaf"
-INNER JOIN "tap_entity" ON ("gryphon_playground_pg_leaf"."entity_id" = "tap_entity"."id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "gryphon_playground_pg_leaf"."kind" = %s)
+SELECT "gryphon_playground__pg_leaf"."entity_id" AS "entity_id"
+FROM "gryphon_playground__pg_leaf"
+INNER JOIN "tap_entity" ON ("gryphon_playground__pg_leaf"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "gryphon_playground__pg_leaf"."kind" = %s)
 -- params: ['hub']
 
 -- statement 6 · stage: bare-type-scan
-SELECT "gryphon_playground_pg_node"."entity_id" AS "entity_id"
-FROM "gryphon_playground_pg_node"
-INNER JOIN "tap_entity" ON ("gryphon_playground_pg_node"."entity_id" = "tap_entity"."id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "gryphon_playground_pg_node"."kind" = %s)
+SELECT "gryphon_playground__pg_node"."entity_id" AS "entity_id"
+FROM "gryphon_playground__pg_node"
+INNER JOIN "tap_entity" ON ("gryphon_playground__pg_node"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "gryphon_playground__pg_node"."kind" = %s)
 -- params: ['hub']
 
 -- statement 7 · stage: bare-type-scan

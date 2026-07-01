@@ -3,4 +3,4 @@ SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_
 FROM "tap_entity"
 WHERE ("tap_entity"."entity_type" IN (<entity-type-registry>) AND "tap_entity"."entity_type" = %s)
 ORDER BY "tap_entity"."created_at" DESC
--- params: ['<entity-type-registry>', 'pg_node']
+-- params: ['<entity-type-registry>', 'gryphon_playground__pg_node']

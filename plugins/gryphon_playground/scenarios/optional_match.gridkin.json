@@ -15,7 +15,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match",
       "layer": "lite",
-      "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
+      "query": "MATCH (t:gryphon_playground__pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL__gryphon_playground]-(g:gryphon_playground__pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
       "expected_envelope": "expected/optional_match__keeps_zero.expected.json",
       "expected_sql_snapshot": "expected/optional_match__keeps_zero.sql.txt"
     },
@@ -28,7 +28,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (plain MATCH drops zero-match rows)",
       "layer": "lite",
-      "query": "MATCH (t:pg_node)<-[:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
+      "query": "MATCH (t:gryphon_playground__pg_node)<-[:PG_OPTIONAL__gryphon_playground]-(g:gryphon_playground__pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
       "expected_envelope": "expected/optional_match__plain_match_drops.expected.json",
       "expected_sql_snapshot": "expected/optional_match__plain_match_drops.sql.txt"
     },
@@ -40,7 +40,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (optional outbound edge fan-out)",
       "layer": "lite",
-      "query": "MATCH (h:pg_hub) OPTIONAL MATCH (h)-[:PG_LINKS]->(t:pg_node) RETURN h.entity_id AS hub, COUNT(t) AS links",
+      "query": "MATCH (h:gryphon_playground__pg_hub) OPTIONAL MATCH (h)-[:PG_LINKS__gryphon_playground]->(t:gryphon_playground__pg_node) RETURN h.entity_id AS hub, COUNT(t) AS links",
       "expected_envelope": "expected/optional_match__outbound.expected.json",
       "expected_sql_snapshot": "expected/optional_match__outbound.sql.txt"
     },
@@ -52,7 +52,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (optional match with ORDER BY + LIMIT)",
       "layer": "lite",
-      "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY guards DESC LIMIT 1",
+      "query": "MATCH (t:gryphon_playground__pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL__gryphon_playground]-(g:gryphon_playground__pg_node) RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY guards DESC LIMIT 1",
       "expected_envelope": "expected/optional_match__order_limit.expected.json",
       "expected_sql_snapshot": "expected/optional_match__order_limit.sql.txt"
     },
@@ -65,7 +65,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match",
       "layer": "lite",
-      "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) WHERE g.data.severity_score > 100 RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
+      "query": "MATCH (t:gryphon_playground__pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL__gryphon_playground]-(g:gryphon_playground__pg_node) WHERE g.data.severity_score > 100 RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
       "expected_envelope": "expected/optional_match__where_optional_var.expected.json",
       "expected_sql_snapshot": "expected/optional_match__where_optional_var.sql.txt"
     },
@@ -77,7 +77,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (WHERE on the mandatory variable)",
       "layer": "lite",
-      "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) WHERE t.data.kind = \"target\" RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
+      "query": "MATCH (t:gryphon_playground__pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL__gryphon_playground]-(g:gryphon_playground__pg_node) WHERE t.data.kind = \"target\" RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target",
       "expected_envelope": "expected/optional_match__where_mandatory_var.expected.json",
       "expected_sql_snapshot": "expected/optional_match__where_mandatory_var.sql.txt"
     },
@@ -89,7 +89,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (COUNT over optional edge, null not counted)",
       "layer": "lite",
-      "query": "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[e:PG_OPTIONAL]-(g:pg_node) RETURN t.entity_id AS target, COUNT(e) AS guard_edges ORDER BY target",
+      "query": "MATCH (t:gryphon_playground__pg_node) OPTIONAL MATCH (t)<-[e:PG_OPTIONAL__gryphon_playground]-(g:gryphon_playground__pg_node) RETURN t.entity_id AS target, COUNT(e) AS guard_edges ORDER BY target",
       "expected_envelope": "expected/optional_match__count_edge.expected.json",
       "expected_sql_snapshot": "expected/optional_match__count_edge.sql.txt"
     }

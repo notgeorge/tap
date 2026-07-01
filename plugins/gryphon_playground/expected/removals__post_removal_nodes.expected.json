@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e6563-ddae-75f4-b3d8-b4c044a626bc",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Removal Demo Node A",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -15,7 +15,7 @@
     },
     {
       "entity_id": "019e6563-ddae-75f4-b3d8-b4c177be88c8",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Removal Demo Node B",
       "dimensions": {
         "tap.playground": "gridkin"
