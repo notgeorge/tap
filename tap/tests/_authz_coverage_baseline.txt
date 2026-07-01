@@ -35,7 +35,7 @@ plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/indicator_profile/__in
 plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/instance_findings/__init__.py:86
 plugins/genericom/tap_plugin/genericom/panels/instance_hero/__init__.py:75
 plugins/genericom/tap_plugin/genericom/panels/open_alerts/__init__.py:67
-plugins/github_core/collectors/github_collector/enrichment.py:223
+plugins/github_core/tap_plugin/github_core/collectors/github_collector/enrichment.py:223
 plugins/samsite/collectors/compliance_collector/boundary_membership.py:82
 plugins/samsite/collectors/compliance_collector/kev_process.py:64
 plugins/samsite/collectors/compliance_collector/sigstore_link.py:84

@@ -110,7 +110,7 @@ def oidc_issuer_entity_id(issuer_url: str) -> str:
     """Deterministic entity id of the github_core-owned ``oidc_issuer`` node for
     ``issuer_url``. Uses github_core's identity scheme so this collector's upsert
     and github_core's own singleton synthesis converge on the same node."""
-    from plugins.github_core.collectors.github_collector.identity import oidc_issuer_id
+    from tap_plugin.github_core.collectors.github_collector.identity import oidc_issuer_id
 
     return str(oidc_issuer_id(issuer_url))
 

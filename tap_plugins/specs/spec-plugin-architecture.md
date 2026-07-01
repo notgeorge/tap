@@ -31,10 +31,10 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-layout | [Package Layout](#package-layout) | Implemented | Core files, convention directories, and self-contained repo structure |
 | req-plugin-arch-repo | [Repository Structure](#repository-structure) | Implemented | Plugins are self-contained git repos integrated as submodules |
 | req-plugin-arch-install-registry | [Install Resolution And Plugin Registry](#install-resolution-and-plugin-registry) | Partially Implemented | Plugin-refactor MVP (2026-07-01): entry-point discovery, no-symlink uv-owned loading, identity separation, and `TAP_PLUGINS` generation are built (`tap/preboot.py`, proven with `genericom`). The TAP registry/report inspection surface (-3, -5) stays deferred |
-| req-plugin-arch-identity | [Plugin Identity & Naming](#plugin-identity--naming) | Proposed | Design locked 2026-07-01 (prior-art-grounded). Slug = the one true identity; dist `tap-plugin-<slug>`; import namespace `tap_plugin.<slug>` (PEP 420); repo decoupled; pre-boot conformance gate enforces all three agree |
+| req-plugin-arch-identity | [Plugin Identity & Naming](#plugin-identity--naming) | Partially Implemented | Built 2026-07-01 (fedramp_20x_ksi, github_core, genericom): namespace `tap_plugin.<slug>` (PEP 420, -3), dist `tap-plugin-<slug>` (-2), slug identity (-1), and the pre-boot **conformance gate** (`tap/preboot.py:conformance_gate`, -5) all live + tested. Standalone-repo move (-4) is convention, not yet exercised |
 | req-plugin-arch-sources | [Multi-Path Source Resolution](#multi-path-source-resolution) | Proposed | Design locked 2026-07-01. Source-type strategy registry (`git` bootstrap → `index` durable = private-bucket+dumb-pypi → future `grid`); credentials resolved from `TAP_SECRETS_ROOT`, never in the profile |
-| req-plugin-arch-versioning | [Version Naming & Integrity](#version-naming--integrity) | Proposed | Design locked 2026-07-01. VCS-derived PEP 440 versions (`hatch-vcs`); tag = semantic identity + commit embedded; append-only index immutability + index `sha256` = integrity; signing is the deferred edge |
-| req-plugin-arch-dependencies | [Plugin Dependencies](#plugin-dependencies) | Proposed | Design locked 2026-07-01. Tier 0 (package deps → uv/pyproject) + Tier 1/2 (load/seed order → manifest `depends_on`) declared now; topological resolver deferred; one-runtime-one-version fail-closed |
+| req-plugin-arch-versioning | [Version Naming & Integrity](#version-naming--integrity) | Partially Implemented | Built 2026-07-01: VCS-derived PEP 440 via `hatch-vcs` (`source = "vcs"`, `root = "../.."` monorepo-transition override, `fallback_version`) applied to the migrated plugins (-1, -2). Index byte-integrity / append-only / signing (-3/-4/-5) stay deferred (no index yet) |
+| req-plugin-arch-dependencies | [Plugin Dependencies](#plugin-dependencies) | Partially Implemented | Tier 0 (package deps → uv/pyproject, -1) built + demonstrated (github_core's PyYAML resolves through its pre-boot editable install). Tier 1/2 `depends_on` (-2/-3) not yet declared (migrated plugins are leaves); consistency gate (-4) + topological resolver deferred until the first real `depends_on` |
 | req-plugin-arch-skills | [Plugin Skills](#plugin-skills) | Implemented | Plugins may ship Claude Code skills for plugin-specific automation |
 | req-plugin-arch-runtime | [Runtime Boundaries](#runtime-boundaries) | Implemented | TAP-facing startup behavior flows through the plugin contract |
 | req-plugin-arch-tests | [Testing Requirements](#testing-requirements) | Implemented | Plugins include plugin-specific tests and participate in shared validation |
@@ -427,7 +427,7 @@ They sharpen the four-layer direction without changing its shape.
 ### Plugin Identity & Naming
 ----
 RID: `req-plugin-arch-identity`
-Status: `Proposed`
+Status: `Partially Implemented`
 
 The identifiers a plugin carries are deliberately distinct concepts, and keeping
 them distinct is what lets a plugin move between a standalone repo and a monorepo,
@@ -473,11 +473,11 @@ entry-point key, namespace segment, and manifest slug do not all agree — the
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-arch-identity-1 | Slug Is Identity | Proposed | The entry-point key == `tap-plugin.toml` slug == namespace segment is the one stable identity; uniqueness enforced in TAP boot/registry. | |
-| req-plugin-arch-identity-2 | Distribution Name | Proposed | Distribution is `tap-plugin-<slug>` (PEP 503 normalized); the private index provides ownership. | |
-| req-plugin-arch-identity-3 | Namespace Package | Proposed | Import path is the PEP 420 namespace `tap_plugin.<slug>` (no `tap_plugin/__init__.py`); adopted from the first migration, not retrofitted. | Distinct from the `tap_plugins` app |
-| req-plugin-arch-identity-4 | Repo Decoupled | Proposed | Repo name is convention-only, not load-bearing; identity survives standalone↔monorepo moves. Repo-path-as-identity rejected. | |
-| req-plugin-arch-identity-5 | Conformance Gate | Proposed | Pre-boot fails closed if dist name, entry-point key, namespace segment, and manifest slug disagree. Owners set, TAP enforces. | Extends the `tap/preboot.py` identity check |
+| req-plugin-arch-identity-1 | Slug Is Identity | Implemented | The entry-point key == `tap-plugin.toml` slug == namespace segment is the one stable identity; uniqueness enforced in TAP boot/registry. | Enforced by `conformance_gate` |
+| req-plugin-arch-identity-2 | Distribution Name | Implemented | Distribution is `tap-plugin-<slug>` (PEP 503 normalized); the private index provides ownership. | `dist_name_for_slug`; gate-checked |
+| req-plugin-arch-identity-3 | Namespace Package | Implemented | Import path is the PEP 420 namespace `tap_plugin.<slug>` (no `tap_plugin/__init__.py`); adopted from the first migration, not retrofitted. | Distinct from the `tap_plugins` app |
+| req-plugin-arch-identity-4 | Repo Decoupled | Proposed | Repo name is convention-only, not load-bearing; identity survives standalone↔monorepo moves. Repo-path-as-identity rejected. | Not yet exercised (all plugins in-monorepo) |
+| req-plugin-arch-identity-5 | Conformance Gate | Implemented | Pre-boot fails closed if dist name, entry-point key, namespace segment, and manifest slug disagree. Owners set, TAP enforces. | `tap/preboot.py:conformance_gate` + 6 tests |
 
 ### Multi-Path Source Resolution
 ----
@@ -536,7 +536,7 @@ rebuild-from-source actually bite. The profile carries **no** secrets on any pat
 ### Version Naming & Integrity
 ----
 RID: `req-plugin-arch-versioning`
-Status: `Proposed`
+Status: `Partially Implemented`
 
 Plugin versions are **VCS-derived, self-contained, and PEP 440-native**, chosen
 2026-07-01 after surveying Go pseudo-versions, Cargo, npm, uv, Terraform, and Nix
@@ -572,8 +572,8 @@ porting Go's exact string format or a hand-maintained `go.sum`.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-arch-versioning-1 | VCS-Derived Version | Proposed | Versions are `hatch-vcs`-computed PEP 440 (`{tag}.dev{n}+g{sha}`); no hand-maintained version field. | `[tool.hatch.version] source = "vcs"` |
-| req-plugin-arch-versioning-2 | Self-Contained Identity | Proposed | The version string carries base + distance + commit; the same version cannot name two different sources. | Go-style, Pythonic |
+| req-plugin-arch-versioning-1 | VCS-Derived Version | Implemented | Versions are `hatch-vcs`-computed PEP 440 (`{tag}.dev{n}+g{sha}`); no hand-maintained version field. | `source = "vcs"` + `root = "../.."` (monorepo-transition override, removed on extraction) + `fallback_version` |
+| req-plugin-arch-versioning-2 | Self-Contained Identity | Implemented | The version string carries base + distance + commit; the same version cannot name two different sources. | Go-style, Pythonic. Pre-tag builds fall back to `0.0.0`; a `v*` tag lights up derivation with no edit |
 | req-plugin-arch-versioning-3 | Index Byte-Integrity | Proposed | Wheel byte integrity is the index's per-file `sha256`, verified by uv/pip on download; no separate lockfile. | |
 | req-plugin-arch-versioning-4 | Append-Only Index | Proposed | CI treats the index as append-only (or bucket-versioned); a version is never re-published with different bytes. | |
 | req-plugin-arch-versioning-5 | Signing Deferred | Proposed | Artifact signing (hostile-index defense) and reproducible builds are named, deferred edges. | |
@@ -581,7 +581,7 @@ porting Go's exact string format or a hand-maintained `go.sum`.
 ### Plugin Dependencies
 ----
 RID: `req-plugin-arch-dependencies`
-Status: `Proposed`
+Status: `Partially Implemented`
 
 Plugin dependency management is deliberately small: **lean on uv for the hard
 80%, declare the TAP-specific 20% now, defer the resolver.** Design locked
@@ -626,7 +626,7 @@ runtime = one version, and that is uv's job.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-arch-dependencies-1 | Package Deps Via uv | Proposed | Plugin→plugin and library deps are declared in `pyproject.toml` (version specifiers) and resolved by uv, fail-closed on diamonds. | Tier 0 |
+| req-plugin-arch-dependencies-1 | Package Deps Via uv | Implemented | Plugin→plugin and library deps are declared in `pyproject.toml` (version specifiers) and resolved by uv, fail-closed on diamonds. | Tier 0. Demonstrated: github_core's PyYAML resolves through its pre-boot editable install |
 | req-plugin-arch-dependencies-2 | Load-Order Declared | Proposed | Load/registration order is declared as `depends_on` slug edges in `tap-plugin.toml` (min-version + optional supported). | Tier 1 |
 | req-plugin-arch-dependencies-3 | Seed-Order Split | Proposed | Plugin-level seed order rides on `depends_on`; runtime-data (collector-produced) ordering stays explicit in the profile. | Tier 2 |
 | req-plugin-arch-dependencies-4 | Boot Consistency Gate | Proposed | Boot validates min-versions and that profile ordering is consistent with `depends_on`; fails loud. Resolver (topo-sort) deferred. | |

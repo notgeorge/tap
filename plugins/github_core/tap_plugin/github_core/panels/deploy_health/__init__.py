@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from plugins.github_core.models import GithubActionsRun, GithubWorkflow
-from plugins.github_core.panels._common import resolve_repo, status_pill
+from tap_plugin.github_core.models import GithubActionsRun, GithubWorkflow
+from tap_plugin.github_core.panels._common import resolve_repo, status_pill
 
 if TYPE_CHECKING:
     from django.http import HttpRequest

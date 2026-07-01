@@ -13,7 +13,7 @@ class GithubCoreConfig(TapPluginConfig):
         # registry. Imported here, not at module top, so the apps loading
         # graph stays light (jsonschema + yaml + the API client only pull
         # in once a collector run is actually requested).
-        from plugins.github_core.collectors.github_collector.collector import GithubCollector
+        from tap_plugin.github_core.collectors.github_collector.collector import GithubCollector
         from tap_cares.registry import register_collector
 
         register_collector(
@@ -31,14 +31,14 @@ class GithubCoreConfig(TapPluginConfig):
         )
 
         # Landing-page panel types — see spec-github-core-repo-landing-page-v0.md.
-        from plugins.github_core.panels.cross_grid_references import (
+        from tap_plugin.github_core.panels.cross_grid_references import (
             CrossGridReferencesPanelType,
         )
-        from plugins.github_core.panels.deploy_health import DeployHealthPanelType
-        from plugins.github_core.panels.history_strip import HistoryStripPanelType
-        from plugins.github_core.panels.recent_activity import RecentActivityPanelType
-        from plugins.github_core.panels.repo_hero import RepoHeroPanelType
-        from plugins.github_core.panels.workflow_catalog import WorkflowCatalogPanelType
+        from tap_plugin.github_core.panels.deploy_health import DeployHealthPanelType
+        from tap_plugin.github_core.panels.history_strip import HistoryStripPanelType
+        from tap_plugin.github_core.panels.recent_activity import RecentActivityPanelType
+        from tap_plugin.github_core.panels.repo_hero import RepoHeroPanelType
+        from tap_plugin.github_core.panels.workflow_catalog import WorkflowCatalogPanelType
         from tap_web.registry import panel_type_registry
 
         panel_type_registry.register("github-repo-hero", RepoHeroPanelType)

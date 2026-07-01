@@ -4,6 +4,12 @@
   "install": {
     "plugins": [
       {
+        "slug": "github_core",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/github_core" },
+        "note": "Package-mode (tap_plugin.github_core), 2026-07-01. Carries a Tier-0 PyYAML dep (uv resolves it at install). Editable local source during the monorepo transition."
+      },
+      {
         "slug": "fedramp_20x_ksi",
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/fedramp_20x_ksi" },
@@ -65,7 +71,7 @@
       },
       {
         "type": "fire-collector",
-        "key": "plugins.github_core.collectors.github_collector.collector:github_core",
+        "key": "tap_plugin.github_core.collectors.github_collector.collector:github_core",
         "enabled": true,
         "timeout_seconds": 180,
         "note": "GitHub repository / Actions data behind the repo landing page."

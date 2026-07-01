@@ -87,7 +87,7 @@ dev = [
 # req-plugin-arch-python-deps.
 
 [tool.uv.workspace]
-members = ["plugins/aws_core", "plugins/github_core", "plugins/sigstore_core"]
+members = ["plugins/aws_core", "plugins/sigstore_core"]
 
 # -----------------------------------------------------------------------------
 # Tool Configuration

@@ -13,6 +13,6 @@
 plugins/aws_core/collectors/boto3_collector/aws_resource_manifest.json
 plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/collectors/pinned/source_schema.json
 plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/collectors/safety/denylist.json
-plugins/github_core/collectors/github_collector/github_collection_manifest.json
-plugins/github_core/collectors/github_collector/github_grid_link_manifest.json
+plugins/github_core/tap_plugin/github_core/collectors/github_collector/github_collection_manifest.json
+plugins/github_core/tap_plugin/github_core/collectors/github_collector/github_grid_link_manifest.json
 plugins/samsite/collectors/compliance_collector/artifact_manifest.json

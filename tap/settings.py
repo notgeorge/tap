@@ -174,11 +174,11 @@ INSTALLED_APPS = [
     "plugins.computing_core.apps.ComputingCoreConfig",
     # AWS Core plugin — resource-type models for AWS cloud infrastructure
     "plugins.aws_core.apps.AwsCoreConfig",
-    # GitHub Core plugin — GitHub Actions deployment plumbing for the Sam
-    # demo path (notgeorge/samsite). Models account/repo/workflow/run/job/
-    # runner; collector lands the REFERENCES_RESOURCE links against aws_core
-    # nodes during the enrichment phase.
-    "plugins.github_core.apps.GithubCoreConfig",
+    # GitHub Core plugin — migrated to package-mode 2026-07-01
+    # (tap_plugin.github_core). Loads via TAP_PLUGINS_APPS from the profile
+    # `install` section; its PyYAML Tier-0 dep rides with the plugin (removed
+    # from [tool.uv.workspace] members). Models account/repo/workflow/run/job/
+    # runner; collector lands REFERENCES_RESOURCE links against aws_core nodes.
     # Sigstore Core plugin — library plugin owning Sigstore-ecosystem models
     # (rekor_log_entry, sigstore_ca) + the canonical verify/decompose helpers.
     # No collector/panel of its own; samsite's compliance_collector consumes it

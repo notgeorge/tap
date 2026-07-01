@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.apps import apps
 
-from plugins.github_core.models import (
+from tap_plugin.github_core.models import (
     GithubActionsJob,
     GithubActionsRun,
     GithubRepository,
     GithubWorkflow,
 )
-from plugins.github_core.panels._common import resolve_repo
+from tap_plugin.github_core.panels._common import resolve_repo
 from tap_grid.models import BaseModel, Edge
 
 if TYPE_CHECKING:

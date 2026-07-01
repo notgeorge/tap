@@ -56,7 +56,7 @@ BUILD_BAKED_PLUGIN_SLUGS: frozenset[str] = frozenset(
         "lotr",
         "computing_core",
         "aws_core",
-        "github_core",
+        # github_core migrated to package-mode 2026-07-01 (tap_plugin.github_core).
         "sigstore_core",
         "roscale",
         "samsite",
@@ -372,6 +372,47 @@ def conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str]) 
 
 
 # =============================================================================
+# Install reconciliation guard (req-boot-install-section-5): declared vs actual
+# =============================================================================
+
+
+def reconciliation_guard(entries: list[dict[str, Any]], discovered: dict[str, str]) -> None:
+    """Fail closed if a package-mode plugin is installed on disk but not declared+enabled.
+
+    Reconciles DECLARED (the profile's enabled ``install`` set) against ACTUAL (the
+    ``tap.plugins`` entry points discovered in the venv). The *missing* direction —
+    declared but not installed — is already fatal in ``resolve_tap_plugins`` (identity
+    mismatch). This closes the *other* direction: an installed package-mode distribution
+    that NO enabled ``install`` entry declares — a stale install left from a prior profile,
+    a plugin the profile ``enabled: false``-d but never got uninstalled, or an undeclared /
+    manually-installed plugin. Loading undeclared code at standup is exactly the
+    supply-chain surface the declared-vs-actual posture guards, so it fails closed
+    (`spec-security-posture` `req-sec-cheap-edges`: over-restriction relaxes cheaply,
+    omission retrofits expensively).
+
+    Build-baked plugins are invisible here (they carry no ``tap.plugins`` entry point), so
+    the check is scoped to package-mode plugins by construction. In the normal entrypoint
+    flow ``uv sync --all-packages`` prunes package-mode dists before pre-boot reinstalls the
+    enabled set, so extras are normally zero; a non-empty set means real venv/profile drift.
+    """
+    install_slugs = {e["slug"] for e in entries}
+    extras = sorted(set(discovered) - install_slugs)
+    if extras:
+        raise PrebootError(
+            f"install reconciliation: package-mode plugin(s) {extras} are installed (they expose a "
+            f"'{TAP_PLUGINS_ENTRY_POINT_GROUP}' entry point) but are not a declared+enabled `install` "
+            f"entry in this profile — undeclared code must not load at standup. Add them to `install`, "
+            f"or remove the stale install (uv pip uninstall). "
+            f"Declared+enabled: {sorted(install_slugs) or '(none)'}."
+        )
+    logger.info(
+        "[226f] pre-boot install reconciliation passed: %d installed == %d declared package-mode plugin(s)",
+        len(discovered),
+        len(install_slugs),
+    )
+
+
+# =============================================================================
 # Static coherence guard (req-boot-install-section-3)
 # =============================================================================
 
@@ -499,6 +540,7 @@ def run_preboot(profile_id: str) -> list[str]:
     discovered = discover_entry_points()
     app_configs = resolve_tap_plugins(entries, discovered)
     conformance_gate(entries, discovered)
+    reconciliation_guard(entries, discovered)
     install_slugs = {e["slug"] for e in entries}
 
     static_coherence_guard(profile, install_slugs)

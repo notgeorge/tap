@@ -182,6 +182,34 @@ def test_conformance_gate_manifest_slug_mismatch(monkeypatch: pytest.MonkeyPatch
         preboot.conformance_gate(_conformance_entries(), discovered)
 
 
+# --- Install reconciliation guard (req-boot-install-section-5) ----------------
+
+
+def test_reconciliation_guard_happy() -> None:
+    # Installed set exactly equals the declared+enabled set → no raise.
+    entries = [{"slug": "genericom", "source": {"type": "path", "path": "p"}}]
+    preboot.reconciliation_guard(entries, {"genericom": "tap_plugin.genericom.apps.GenericomConfig"})
+
+
+def test_reconciliation_guard_undeclared_extra_fails() -> None:
+    # A package-mode plugin installed on disk but not in the profile's `install` set.
+    entries = [{"slug": "genericom", "source": {"type": "path", "path": "p"}}]
+    discovered = {
+        "genericom": "tap_plugin.genericom.apps.GenericomConfig",
+        "rogue": "tap_plugin.rogue.apps.RogueConfig",
+    }
+    with pytest.raises(preboot.PrebootError, match="reconciliation"):
+        preboot.reconciliation_guard(entries, discovered)
+
+
+def test_reconciliation_guard_installed_but_disabled_fails() -> None:
+    # install_plugin_specs drops disabled entries, so a disabled-but-still-installed
+    # plugin surfaces here as an undeclared extra (venv/profile drift), and fails closed.
+    entries: list[dict[str, object]] = []
+    with pytest.raises(preboot.PrebootError, match="reconciliation"):
+        preboot.reconciliation_guard(entries, {"genericom": "tap_plugin.genericom.apps.GenericomConfig"})
+
+
 # --- Static coherence guard (req-boot-install-section-3) ----------------------
 
 

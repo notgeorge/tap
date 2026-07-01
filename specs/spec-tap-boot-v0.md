@@ -182,7 +182,7 @@ Plugin installation and the pre-migrate snapshot run in a **pre-boot stage** in 
 ### Install Section
 ----
 RID: `req-boot-install-section`  
-Status: `Proposed`
+Status: `Implemented`
 
 The boot profile gains an `install` section — the desired plugin set — kept **separate** from `population`.
 
@@ -197,6 +197,7 @@ The boot profile gains an `install` section — the desired plugin set — kept 
   1. **Static profile-coherence (pre-boot, pre-migrate):** every plugin slug referenced in `population` also appears in `install`. Document-level — no DB, no registries — so it runs *before* `migrate` and catches the common authoring drift ("named it in population, forgot to add it to install") before any schema change, so the migrate-then-fail-in-population path never triggers for it. Because it is about the profile *document*, it survives a future `population` refactor untouched.
   2. **Runtime availability (boot, pre-population):** every plugin a `population` step names is actually installed, registered, and migration-applied — extends `req-boot-population-4`'s in-memory pre-resolution ("abort before any grid mutation"). This is the runtime readiness check; it lives with `population` (and moves with it when `population` is refactored).
 - These are genuinely *different* checks (document coherence vs runtime readiness), so two homes is correct, not a smell. NetBox's own failure mode — a slug in `PLUGINS` that was never installed crashes the instance — is exactly what layer 1 prevents, earlier and louder.
+- **Declared-vs-actual reconciliation (pre-boot, a third axis).** The two guards above reconcile the profile's *own* sections (`install` ↔ `population`). A separate axis reconciles the `install` section (declared desired set) against what is *actually installed on disk* (the `tap.plugins` entry points in the venv). The *missing* direction — declared+enabled but not installed — is already fatal in the entry-point identity check (`req-boot-preboot`). The reconciliation guard closes the *other* direction: a package-mode distribution installed but named by **no** enabled `install` entry — a stale install left from a prior profile, a plugin the profile `enabled: false`-d but never uninstalled, or an undeclared/manually-installed plugin. Loading undeclared code at standup is exactly the supply-chain surface the declared-vs-actual security posture guards, so it **fails closed** (`spec-security-posture.md` `req-sec-cheap-edges`: over-restriction relaxes cheaply, omission retrofits expensively). It is scoped to package-mode plugins by construction (build-baked plugins carry no `tap.plugins` entry point). In the normal entrypoint flow `uv sync --all-packages` prunes package-mode dists before pre-boot reinstalls the enabled set, so extras are normally zero; a non-empty set is real venv/profile drift. This is the load-path guard; the richer human-facing declared-vs-installed-vs-loaded view is the deferred registry/report (`req-plugin-arch-install-registry-3/-5`), not this abort-path check.
 
 #### Acceptance Criteria
 
@@ -206,6 +207,7 @@ The boot profile gains an `install` section — the desired plugin set — kept 
 | req-boot-install-section-2 | Pre-Boot Reads Install | Implemented | `tap/preboot.py:read_profile` reads `install` as plain JSON before Django; not a `req-boot-sections` handler. | |
 | req-boot-install-section-3 | Static Coherence Guard | Implemented | `static_coherence_guard` fails loud pre-migrate if a `population` seed-plugin slug is neither in `install` nor build-baked. | |
 | req-boot-install-section-4 | Runtime Availability Guard | Implemented | The registered-check half is `resolve_tap_plugin` in boot pre-resolution (`req-boot-population-4`); a package-mode `population` slug not installed → not in TAP_PLUGINS → not registered → fails loud. Migration-applied depth remains a thin future extension. | |
+| req-boot-install-section-5 | Install Reconciliation Guard | Implemented | `reconciliation_guard` fails closed if a package-mode plugin is installed (exposes a `tap.plugins` entry point) but is not a declared+enabled `install` entry — undeclared code must not load at standup (declared-vs-actual, `req-sec-cheap-edges`). The inverse (declared but not installed) is already fatal in the entry-point identity check. | |
 
 ---
 

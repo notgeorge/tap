@@ -698,7 +698,7 @@ class GithubCollector(CollectorBase):
         """
         from django.db.models import Max
 
-        from plugins.github_core.models import GithubActionsRun
+        from tap_plugin.github_core.models import GithubActionsRun
 
         max_ts = GithubActionsRun.objects.filter(full_name=full_name).aggregate(Max("run_started_at"))[
             "run_started_at__max"
@@ -743,7 +743,7 @@ class GithubCollector(CollectorBase):
         run is skipped from this refresh; mirrors the per-run /jobs degrade
         in `_fetch_run_jobs`.
         """
-        from plugins.github_core.models import GithubActionsRun
+        from tap_plugin.github_core.models import GithubActionsRun
 
         non_terminal_ids = list(
             GithubActionsRun.objects.filter(full_name=full_name)

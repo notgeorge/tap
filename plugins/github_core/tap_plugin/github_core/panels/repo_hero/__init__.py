@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from plugins.github_core.panels._common import humanize_age, resolve_repo
+from tap_plugin.github_core.panels._common import humanize_age, resolve_repo
 
 if TYPE_CHECKING:
     from django.http import HttpRequest

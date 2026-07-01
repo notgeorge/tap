@@ -11,7 +11,7 @@ from typing import Any
 
 from django.utils import timezone
 
-from plugins.github_core.models import GithubRepository
+from tap_plugin.github_core.models import GithubRepository
 
 DEFAULT_REPO_VAR = "repository_entity_id"
 
