@@ -23,6 +23,8 @@ from tap.flaws import (
     CodeFlaw,
     Flaw,
     InstanceFlaw,
+    flaw_class_for_path,
+    report_service_layer_bypass,
 )
 
 
@@ -147,6 +149,42 @@ def test_context_kwargs_ride_message_data(captured_logger):
     )
     rec = _flaw_records(handler)[0]
     assert rec.message_data["context"]["prefix"] == "/plugins/dup/"
+
+
+# ---------------------------------------------------------------------------
+# Service-layer-bypass helper — class-aware emitter for the grid guards
+# ---------------------------------------------------------------------------
+
+
+def test_flaw_class_for_path_plugin_is_app():
+    assert flaw_class_for_path("/app/plugins/lotr/editors/character.py") is AppFlaw
+
+
+def test_flaw_class_for_path_first_party_is_code():
+    assert flaw_class_for_path("/app/tap_web/views.py") is CodeFlaw
+
+
+def test_flaw_class_for_path_unknown_is_code():
+    """A missing/unknown path defaults to `code` — TAP core owns the ambiguity."""
+    assert flaw_class_for_path(None) is CodeFlaw
+
+
+def test_report_service_layer_bypass_emits_security_flaw(captured_logger):
+    logger, handler = captured_logger
+    flaw = report_service_layer_bypass(
+        invariant_id="grid_write_service_layer_bypass",
+        message="unguarded write: save tap_web.Panel bypassed the service layer",
+        logger=logger,
+    )
+    rec = _flaw_records(handler)[0]
+    assert rec.message_data["flaw_tags"] == ["security"]
+    assert rec.message_data["invariant_id"] == "grid_write_service_layer_bypass"
+    assert rec.message_data["handling"] == HANDLING_ABORT_OPERATION
+    # The offending callsite is captured for routing; this test frame is
+    # first-party, so the blame class is `code`.
+    assert rec.message_data["flaw_class"] == "code"
+    assert "offending_callsite" in rec.message_data["context"]
+    assert isinstance(flaw, CodeFlaw)
 
 
 # ---------------------------------------------------------------------------

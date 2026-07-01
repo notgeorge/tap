@@ -145,29 +145,24 @@ def _callsite(skip: int = 2) -> str:
 
 
 def _raise_unguarded(kind: str, caller_context: CallerContext | None, detail: str) -> None:
-    """Log loudly and raise UnguardedOperation (fail closed in every mode)."""
-    callsite = _callsite()
+    """Emit the class-aware security Flaw and raise UnguardedOperation (fail closed).
+
+    The blame class (`code` vs `app`) is decided from the offending callsite: a
+    read/write that skipped the authorize gate from a plugin is an `app` Flaw, from
+    first-party code a `code` Flaw. `report_service_layer_bypass` locates that
+    callsite and emits the `unguarded_operation` Flaw before we fail closed.
+    """
+    from tap.flaws import report_service_layer_bypass
+
     user = caller_context.user if caller_context is not None else None
-    logger.error(
-        "[eeef] UNGUARDED %s operation — no authorize() decision recorded; failing closed. "
-        "callsite=%s actor=%s detail=%s",
-        kind,
-        callsite,
-        getattr(user, "username", None),
-        detail,
-        # stack_info attaches the full call path that reached this
-        # should-never-happen backstop — the defect is a forgotten gate
-        # somewhere up that stack, so the trace IS the debugging signal.
-        stack_info=True,
-        extra={
-            "message_data": {
-                "flaw_class": "code",
-                "flaw_tags": ["security"],
-                "kind": kind,
-                "callsite": callsite,
-                "actor": getattr(user, "username", None),
-            }
-        },
+    callsite = _callsite()
+    report_service_layer_bypass(
+        invariant_id="unguarded_operation",
+        message=f"unguarded {kind} operation — no authorize() decision recorded; failing closed",
+        logger=logger,
+        kind=kind,
+        detail=detail,
+        actor=getattr(user, "username", None),
     )
     raise UnguardedOperation(f"unguarded {kind}: no authorization decision recorded before {detail}", callsite=callsite)
 

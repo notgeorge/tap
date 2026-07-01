@@ -267,7 +267,7 @@ v0 wires three concrete Flaws, one per class, to prove the mechanism end to end.
 
 #### Implementation
 
-- **`code` Flaw — `unguarded_operation`.** A mutation or Gryphon/Search read reaches its commit/return point with no authorization decision recorded (`spec-tap-auth-v0.md`, `req-tap-auth-policy`). Tags: `[security]`. Handling: fail-closed-and-continue (the op is denied; the instance keeps serving). This is the originating instance.
+- **`code` Flaw — `unguarded_operation` (implemented, and class-aware).** A mutation or Gryphon/Search read reaches its commit/return point with no authorization decision recorded, OR a node/edge write reaches the ORM outside a service-layer write scope (`spec-tap-auth-v0.md`, `req-tap-auth-policy` / `req-tap-auth-orm-read-backstop` / `req-tap-auth-write-batch-routing`). Tags: `[security]`. Handling: abort-operation (fails closed). Emission is via `tap.flaws.report_service_layer_bypass`, wired at the two backstops (`tap_auth.enforcement._raise_unguarded` for the read/commit gates; `tap_grid.write_guard.enforce_service_write` for the ORM write gate). **Blame is decided from the offending callsite, not hard-coded `code`:** a bypass from `plugins/<slug>/…` emits an `app` Flaw (the plugin author must route through the service layer), first-party code emits `code` (`flaw_class_for_path`). So this single mechanism produces *both* the `code` and one form of the `app` instance, and every Flaw names the offending callsite for routing. This is the originating instance.
 - **`app` Flaw — plugin mount/name collision.** Two plugins resolve to the same `/plugins/<label>/` mount prefix, or a plugin overwrites another plugin's name (existing guards: `tap_api.resolve_plugin_mounts` `ImproperlyConfigured`; the GRIFT `envelope_payload_name_mismatch` / rename discipline). Tags: `[integration]`. Handling: fatal-to-standup. These existing hard errors are reclassified as `app` Flaws so they emit the structured signal.
 - **`instance` Flaw — capability sync drift.** Capability sync finds undeclared drift between the canonical registry and the DB projection (`spec-tap-auth-v0.md`, `req-tap-auth-capabilities`). Tags: `[security, config]`. Handling: fatal-to-operation (the sync hard-fails). It is an `instance` Flaw — misconfiguration / weird instance state, not core code at fault.
 - Wiring these three proves the hierarchy, the structured emission, and all three classes against real code paths.
@@ -276,7 +276,7 @@ v0 wires three concrete Flaws, one per class, to prove the mechanism end to end.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-flaw-first-instances-1 | Code Instance | Proposed | `unguarded_operation` is implemented as a `code` Flaw. | |
+| req-flaw-first-instances-1 | Code Instance | Implemented | `unguarded_operation` emits a `security` Flaw at both the enforcement backstop and the ORM write gate, class-aware by offending callsite (`code` for first-party, `app` for `plugins/`). Impl: `tap.flaws.report_service_layer_bypass`; proof: `tap/tests/test_flaws.py`, `tap_grid/tests/test_write_guard.py`. | |
 | req-flaw-first-instances-2 | App Instance | Proposed | Plugin mount/name collision emits an `app` Flaw. | |
 | req-flaw-first-instances-3 | Instance Instance | Proposed | Capability sync drift emits an `instance` Flaw. | |
 

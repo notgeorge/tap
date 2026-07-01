@@ -44,7 +44,10 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import logging
 from collections.abc import Iterator
+
+logger = logging.getLogger(__name__)
 
 # Capabilities whose authorization means "we are entering a sanctioned service
 # write" — authorizing any of these opens the write scope for the gated body.
@@ -110,8 +113,18 @@ def enforce_service_write(detail: str) -> None:
     if _write_guard_bypass.get() or _service_write_active.get():
         return
 
+    from tap.flaws import report_service_layer_bypass
     from tap_auth.errors import UnguardedOperation
 
+    # Emit the class-aware security Flaw before failing closed: `code` if the
+    # offending write lives in first-party TAP, `app` if in a plugin — so the
+    # blame domain is on the record without anyone reading the stack.
+    report_service_layer_bypass(
+        invariant_id="grid_write_service_layer_bypass",
+        message=f"unguarded write: {detail} bypassed the service layer",
+        logger=logger,
+        detail=detail,
+    )
     raise UnguardedOperation(
         f"unguarded write: {detail} bypassed the service layer — node/edge mutations must go "
         f"through the service layer (write_batch / create_node / create_edge / delete_* / patch_node), "

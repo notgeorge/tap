@@ -34,6 +34,23 @@ def test_direct_node_save_fails_closed():
         Search().save()
 
 
+def test_unguarded_write_emits_class_aware_security_flaw(caplog):
+    """The write gate emits a `security` Flaw before failing closed, classed by the
+    offending callsite — `code` here (this test frame is first-party TAP)."""
+    import logging
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(UnguardedOperation):
+            Search().save()
+
+    flaws = [r for r in caplog.records if getattr(r, "message_code", None) == "FLAW"]
+    assert flaws, "expected a FLAW record from the write gate"
+    md = flaws[-1].message_data
+    assert md["flaw_class"] == "code"
+    assert md["flaw_tags"] == ["security"]
+    assert md["invariant_id"] == "grid_write_service_layer_bypass"
+
+
 def test_direct_entity_create_fails_closed():
     with pytest.raises(UnguardedOperation, match="unguarded write"):
         Entity.objects.create(entity_type="test", name="x")
