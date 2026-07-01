@@ -57,6 +57,33 @@ Ranked by leverage-per-cost. You cannot test your way to completeness (testing s
 
 ---
 
+## Beyond the sprint — research threads toward verifiable completeness (morning question, NOT this sprint)
+
+The reframe that makes this tractable: **Gryphon is a compiler, not a database.** It translates AST → SQL over a schema we own, run by Postgres (treat as trusted). So the bug surface is *translation fidelity*, not query execution — and we have the intermediate representation (the SQL, already snapshotted) **and** a ground-truth substrate (the relational tables). Black-box regimes (TCK) have only inputs/outputs; we have more, and should exploit it. Citations below are **leads to verify**, flagged by confidence — do not trust as fact until checked.
+
+**Query-engine testing prior art (directly relevant, high confidence):**
+- **SQLancer** (Manuel Rigger, ETH) — the landmark automated DBMS-testing work; its oracles are the industrialized versions of what we want:
+  - **NoREC** — optimized query vs. an equivalent form the optimizer can't optimize; counts must match. **Literally the envelope-vs-projection relation that caught our bug.**
+  - **TLP** (Ternary Logic Partitioning) — `p` / `NOT p` / `p IS NULL` partitions must union to the whole. Targets three-valued-logic bugs — directly probes Gryphon's deliberate **two-valued** divergence for consistency.
+  - **PQS** (Pivoted Query Synthesis) — pick a seeded row, synthesize a query guaranteed to return it, assert it's returned. Oracle-by-construction.
+- **Differential testing** — same query, two independent computations, compare.
+
+**Graph-specific (verify — lower confidence):** openCypher TCK (conformance, have it); believed academic metamorphic/differential work on Cypher engines (e.g. something like "GDsmith" targeting Neo4j/RedisGraph) — thread to pull, not a fact.
+
+**Formal methods (the "coming back" tier):**
+- **Cypher formal semantics** — Francis, Guagliardo, Libkin et al., ~SIGMOD 2018 (confident it exists). Gryphon is a subset+divergence; read for *what* to formalize.
+- **SQL equivalence provers — Cosette / HoTTSQL** (UW; Chu, Cheung, Suciu). Because we emit the SQL, assert a Gryphon query's compiled SQL is *provably equivalent* to a reference SQL — proof, not sampling.
+- **GQL / SQL-PGQ** (ISO graph-query standard) formalization momentum — track it.
+- Mechanized compiler proofs (Coq/Isabelle/Lean) — the ceiling; almost certainly beyond v0 ROI.
+
+**What owning the SQL substrate unlocks (George's reverse-query idea, laddered by power):**
+1. **Differential vs. an independent oracle** — seed a graph, compute the expected answer a *second* way (hand SQL, or a tiny in-Python graph interpreter over the ORM), diff against Gryphon. Executable reference, not a human-predicted oracle. ("Seed then confirm" is rung 1; "seed randomly, compute expected via the model, diff" is the sharp version.)
+2. **Model-based reference oracle** — maintain a trivial in-memory graph model while seeding; a Python function answers any query against the model; diff. The model IS the oracle; property/metamorphic generation plugs in here.
+3. **Exhaustive small-scope** (Alloy small-scope hypothesis) — we control seeding, so generate ALL graphs up to N nodes / M edges and check a property: exhaustive over that scope, far stronger than random sampling for structural bugs.
+4. **Compiler-testing framing → prior art** — Csmith (random programs, differential across compilers) and **EMI / equivalence-modulo-inputs** (Le, Su): mutate the input in result-preserving ways, assert output unchanged. Portable to "mutate a Gryphon query in result-preserving ways, assert the compiled SQL still agrees."
+
+**Unifying thesis to test in the morning:** because the target is trusted, faithfulness can be checked three ways a black-box TCK can't — (a) an independent reference computation over the same seeded data, (b) SQL-equivalence proofs on the compiled output, (c) metamorphic relations that must hold regardless of emitted shape. Decide which of these earns its keep for v0 vs. reserves.
+
 ## Definition of done
 - No executor dispatch path silently ignores a WHERE (apply-or-reject) — verified by fail-closed behavior.
 - Stage-coverage gate green: every reachable `gryphon_stage` exercised, WHERE-carrying stages exercised with a WHERE.
