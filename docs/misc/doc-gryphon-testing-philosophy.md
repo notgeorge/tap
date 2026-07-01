@@ -328,19 +328,28 @@ preserved. Test discipline and architecture are the same craft from two angles.
 
 The methodology above is strong but still fundamentally *sampled*: we test the
 scenarios we author. The forward research thread (framed in
-`doc-gryphon-path-coverage-sprint-plan.md`, deliberately **not** built yet) asks
-what *verifiable completeness* would look like, and the "compiler over a trusted
-substrate" reframe is what makes the question tractable:
+`doc-gryphon-path-coverage-sprint-plan.md`) asks what *verifiable completeness*
+would look like, and the "compiler over a trusted substrate" reframe is what makes
+the question tractable. Since this essay was written, the first rungs of that
+thread have landed — the path/branch coverage gates (`req-gridkin-stage-coverage`,
+`req-gridkin-executor-branch-coverage`) and TLP (`req-gridkin-metamorphic-tlp`).
+The remainder below is still forward-looking:
 
 - **Property-based fuzzing, tomorrow, nearly free.** The model oracle plus a
   random-GRIFT-and-query generator *is* a property fuzzer — generate a fixture and
   a query, run both engines, assert agreement. The differential harness already
   exists; only the generator is missing.
 - **Metamorphic / differential oracles from the literature.** SQLancer's **NoREC**
-  is exactly our envelope-vs-projection consistency relation (the two shapes of
-  the same intent must agree — the automated form of what caught the bug by hand).
-  **TLP** (ternary logic partitioning) is precisely a probe of our 2VL/3VL null
-  boundary. **PQS** (pivoted query synthesis) guarantees a known row is returned.
+  is our envelope-vs-projection consistency relation — considered, but it does not
+  yield a *distinct* check at Gryphon's dispatch layer (single-hop projections
+  degrade to envelopes; the target is already covered by the dispatch collapse and
+  the oracle), so it is recorded as deferred rather than built. **TLP** (ternary
+  logic partitioning) is precisely a probe of our 2VL/3VL null boundary — **now
+  built** (`req-gridkin-metamorphic-tlp`): it partitions each labelled-type-scan
+  scenario into TRUE / FALSE / (UNKNOWN) and asserts they reconstruct the
+  unfiltered scan, discriminating the null-literal (2VL) from the null-field (3VL)
+  case. **PQS** (pivoted query synthesis) guarantees a known row is returned —
+  still open.
 - **Semantic ground truth.** Francis et al., *"Formal Semantics of the Language
   Cypher"* (SIGMOD 2018, arXiv:1802.09984), is the baseline the model oracle is
   written against; it's the closest thing to a spec we can check *against* rather

@@ -49,6 +49,7 @@ is their shared operational companion.
 | req-gridkin-tck-coverage | [TCK Coverage Ledger](#tck-coverage-ledger) | Implemented | A machine-checked, corpus-wide ledger of per-folder TCK coverage (covered/gaps/excluded) |
 | req-gridkin-stage-coverage | [Executor-Stage Coverage Gate](#executor-stage-coverage-gate) | Implemented | Every executor dispatch stage is exercised by a WHERE-carrying scenario; the path set is derived from the source, not a hand-kept list |
 | req-gridkin-executor-branch-coverage | [Executor Branch-Coverage Ratchet](#executor-branch-coverage-ratchet) | Implemented | `coverage.py` branch coverage of `executor.py`, ratcheted against a committed floor — the branch-level complement to the stage gate |
+| req-gridkin-metamorphic-tlp | [Metamorphic TLP Corpus Assertion](#metamorphic-tlp-corpus-assertion) | Implemented | Ternary-logic partitioning derived from corpus scenarios probes the executor's 2VL/3VL null boundary for self-consistency |
 | req-gridkin-json-schema | [JSON Schema for Scenario Files](#json-schema-for-scenario-files) | Implemented | Author and validate-at-load a JSON Schema for the scenario format |
 | req-gridkin-multi-fixture-load | [Multi-Fixture Background Loads](#multi-fixture-background-loads) | Approved for Development | `background.grift_fixture` accepts a list of fixture paths; the runner imports each in order |
 | req-gridkin-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Explicitly deferred concerns |
@@ -653,6 +654,60 @@ intent≠path-coverage AAR §7.
 | req-gridkin-executor-branch-coverage-2 | Ratchet Floor Enforced | Implemented | The script fails when integer branch coverage drops below the committed floor; sub-point wobble is tolerated. | Regression is loud and blocking. |
 | req-gridkin-executor-branch-coverage-3 | Floor Committed And Honest | Implemented | The floor lives in a committed baseline file with provenance; a per-commit guard test keeps it well-formed and never above the last measurement. | |
 | req-gridkin-executor-branch-coverage-4 | Honest Guard Status | Implemented | The Validation Map records the ratchet as script-invoked (not per-commit CI), with only the baseline-file sanity as the CI-guarded piece, until the dev-validation gate absorbs it. | Counters the false-confidence failure mode. |
+
+### Metamorphic TLP Corpus Assertion
+----
+RID: `req-gridkin-metamorphic-tlp`
+Status: `Implemented`
+
+The model oracle (`req-gridkin-oracle-assertion`) checks each query against an
+independent recomputation; the stage/branch gates check that paths and branches
+run. A *metamorphic* relation adds a third, orthogonal kind of check: it transforms
+one query into related forms that must agree, and compares the executor against
+**itself** — catching a bug the oracle and the executor could share (common-mode:
+both authored the same null-logic mistake) without needing a known-correct answer.
+Ternary Logic Partitioning (TLP, after SQLancer) is the relation shipped here, aimed
+squarely at Gryphon's highest-risk surface, the null boundary.
+
+#### Implementation
+
+- **The relation.** For a predicate `p` over a bound variable, the rows where `p` is
+  TRUE, FALSE, and UNKNOWN must *partition* the unfiltered scan — pairwise disjoint,
+  and together the whole. `gridkin/metamorphic.py` derives four queries from an
+  eligible scenario (unfiltered, `WHERE p`, `WHERE NOT (p)`, and — in 3VL —
+  `WHERE <field> IS UNKNOWN`), all normalized to an entity-id projection so the
+  relation compares identity sets. `tests/test_gryphon_metamorphic.py` seeds each
+  scenario's fixture (per-scenario isolation, as `test_gridkin.py`) and asserts the
+  partition.
+- **The 2VL/3VL discriminator is load-bearing.** A null *field* vs a non-null literal
+  follows SQL 3VL, so `p` is UNKNOWN exactly when the field is unobserved and the
+  third partition is `<field> IS UNKNOWN`. A null *literal* operand short-circuits to
+  genuine FALSE (2VL) — `p` is never UNKNOWN, so there is **no** third partition, the
+  TRUE partition must be empty, and a naive `IS UNKNOWN` third partition would
+  double-count the field-null rows. TLP discriminates on where the null lives
+  (`Comparison.value is None`, resolving params); getting this wrong is the whole
+  trap the relation exists to catch.
+- **Scope: labelled type scans, single `Comparison` WHERE.** Within one declared type
+  the split is exact. A bare labelless scan defers OR/NOT and conflates
+  "field is null" with "this type lacks the field", so it is excluded. Derivation is
+  mechanical from existing scenarios (no hand-authored expected — the partition *is*
+  the oracle); ineligible shapes are simply not emitted, and an eligibility floor
+  guards against a silent collapse to vacuous coverage.
+- **NoREC deferred, honestly.** The envelope-vs-projection relation (which first
+  caught the envelope-WHERE bug by hand) does not yield a *distinct* check: single-hop
+  field projections degrade to a bare-variable envelope, and a type-scan
+  envelope-vs-projection is same-path and redundant with TLP's TRUE partition. Its
+  target is already covered by the single-hop dispatch collapse and the model oracle,
+  so it is recorded as considered-and-deferred, not built.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-metamorphic-tlp-1 | Partition Holds | Implemented | For each eligible scenario the TRUE / FALSE / (UNKNOWN) partitions are pairwise disjoint and union to the unfiltered scan. | Executor self-consistency. |
+| req-gridkin-metamorphic-tlp-2 | 2VL/3VL Discriminated | Implemented | The UNKNOWN partition is emitted only for a 3VL null-field predicate; a 2VL null-literal operand yields no UNKNOWN partition and an empty TRUE partition. | The load-bearing null boundary. |
+| req-gridkin-metamorphic-tlp-3 | Derived, Not Authored | Implemented | Partition queries are derived mechanically from corpus scenarios; the predicate text is lifted verbatim so no literal is re-rendered. | The relation is the oracle. |
+| req-gridkin-metamorphic-tlp-4 | Non-Vacuous | Implemented | An eligibility floor fails if a regression collapses the derived set, so the check cannot silently pass by covering nothing. | |
 
 ### JSON Schema for Scenario Files
 ----
