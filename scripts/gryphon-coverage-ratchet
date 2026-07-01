@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Gryphon executor branch-coverage ratchet.
+#
+# Runs the executor-exercising test suites under coverage.py *branch*
+# instrumentation and fails if `tap_grid/gryphon/executor.py` branch coverage
+# regresses below the committed floor. This is the branch-level complement to the
+# stage-coverage gate (`req-gridkin-stage-coverage`): the stage gate proves every
+# dispatch *path* runs with a WHERE; this proves the executor's *branches* stay
+# exercised, catching an unexercised branch *within* a stage (the finer grain the
+# intent≠path-coverage AAR §7 asked for).
+#
+# It is deliberately NOT a per-commit pytest gate: coverage.py must wrap the whole
+# test process, and the instrumented run of the full executor corpus takes ~10-15
+# min. It is a script — run on-demand and, once the dev-validation promote gate
+# lands (`spec-dev-validation.md` `req-dev-validation-smoke-gate`), from there.
+# Its honest guard status is tracked in that spec's Validation Map.
+#
+# Usage (must run INSIDE the compose web container — needs pytest, the DB, and the
+# `coverage` dev dep):
+#   scripts/dc exec -T web scripts/gryphon-coverage-ratchet
+#
+# Ratchets UP: when coverage improves, bump `executor_branch_pct_floor` in the
+# baseline file to lock in the gain (the script prints the reminder).
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel 2>/dev/null || echo /app)"
+
+BASELINE_FILE="tap_grid/gryphon/coverage-baseline.json"
+COV_JSON="/tmp/gryphon-coverage.json"
+
+# The suites that exercise the executor. The floor is measured over their union,
+# so a branch reached only by a gridkin scenario (as the envelope-WHERE branch
+# was) counts as covered — the whole point of measuring across the corpus.
+SUITES=(
+  tap_grid/tests/test_gryphon.py
+  tap_grid/tests/test_gryphon_sql_capture.py
+  plugins/gryphon_playground/tests/test_gridkin.py
+  tap_api/tests/test_gryphon.py
+)
+
+echo "==> Running executor-exercising suites under coverage.py (branch)..."
+uv run coverage run --branch --source=tap_grid.gryphon.executor -m pytest "${SUITES[@]}" -q
+uv run coverage json -o "$COV_JSON" >/dev/null
+
+uv run python - "$BASELINE_FILE" "$COV_JSON" <<'PY'
+import json
+import sys
+
+baseline_path, cov_path = sys.argv[1], sys.argv[2]
+baseline = json.load(open(baseline_path, encoding="utf-8"))
+cov = json.load(open(cov_path, encoding="utf-8"))
+
+# Match by suffix so the ratchet is robust to how coverage keys the file.
+files = cov["files"]
+try:
+    key = next(k for k in files if k.replace("\\", "/").endswith("tap_grid/gryphon/executor.py"))
+except StopIteration:
+    sys.exit("FAIL: no coverage data for tap_grid/gryphon/executor.py — did the run collect data?")
+
+summary = files[key]["summary"]
+num_branches = summary["num_branches"]
+covered_branches = summary["covered_branches"]
+# Pure branch coverage — covered / total branches — so "branch coverage" is
+# literally what is ratcheted (not coverage.py's combined line+branch percent).
+current = 100.0 * covered_branches / num_branches if num_branches else 100.0
+current_int = int(current)  # floor to a whole percent — sub-point wobble is not a regression
+floor = baseline["executor_branch_pct_floor"]
+
+print(
+    f"executor.py branch coverage: current={current:.2f}% (floor {current_int}%)  "
+    f"ratchet floor={floor}%  "
+    f"[{covered_branches}/{num_branches} branches]"
+)
+
+if current_int < floor:
+    print(
+        f"FAIL: executor branch coverage regressed below the ratchet floor "
+        f"({current_int}% < {floor}%).\n"
+        "  Add a scenario/test that exercises the newly-uncovered branch (prefer a\n"
+        "  gridkin scenario so the answer is oracle-checked too), or — if the drop is\n"
+        f"  a deliberate code removal — lower the floor in {baseline_path} with a reason."
+    )
+    sys.exit(1)
+
+if current_int > floor:
+    print(
+        f"NOTE: branch coverage improved to {current_int}% (floor {floor}%). Ratchet up:\n"
+        f"  bump executor_branch_pct_floor to {current_int} in {baseline_path} to lock the gain."
+    )
+
+print("OK: executor branch coverage holds at or above the ratchet floor.")
+PY
