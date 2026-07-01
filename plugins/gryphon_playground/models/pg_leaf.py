@@ -28,7 +28,7 @@ class PgLeaf(BaseModel):
     specially. See plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "pg_leaf"
+    ENTITY_TYPE: ClassVar[str] = "gryphon_playground__pg_leaf"
     ENTITY_NAME: ClassVar[str] = "Playground Leaf"
     ENTITY_DESCRIPTION: ClassVar[str] = "Playground node marked as a leaf — a terminal in a chain."
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.playground": "gridkin"}
@@ -50,7 +50,7 @@ class PgLeaf(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "gryphon_playground_pg_leaf"
+        db_table = "gryphon_playground__pg_leaf"
 
     def get_name(self) -> str:
         return self.name

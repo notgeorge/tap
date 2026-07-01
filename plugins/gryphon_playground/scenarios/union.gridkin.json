@@ -10,7 +10,7 @@
       "covers": ["req-grid-traversal-lang-shape-5"],
       "inspired_by": "opencypher TCK — clauses/union (UNION of two label scans, deduplicated)",
       "layer": "lite",
-      "query": "MATCH (a:pg_hub) MATCH (b:pg_node)",
+      "query": "MATCH (a:gryphon_playground__pg_hub) MATCH (b:gryphon_playground__pg_node)",
       "expected_envelope": "expected/union__hub_and_node.expected.json",
       "expected_sql_snapshot": "expected/union__hub_and_node.sql.txt"
     },
@@ -20,7 +20,7 @@
       "covers": ["req-grid-traversal-lang-shape-5"],
       "inspired_by": "opencypher TCK — clauses/union (overlapping arms force deduplication)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) MATCH (m:pg_node) WHERE n.data.severity_score >= 15 AND m.data.severity_score <= 20",
+      "query": "MATCH (n:gryphon_playground__pg_node) MATCH (m:gryphon_playground__pg_node) WHERE n.data.severity_score >= 15 AND m.data.severity_score <= 20",
       "expected_envelope": "expected/union__overlap_dedup.expected.json",
       "expected_sql_snapshot": "expected/union__overlap_dedup.sql.txt"
     }

@@ -28,7 +28,7 @@ class PgCycleNode(BaseModel):
     See plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "pg_cycle_node"
+    ENTITY_TYPE: ClassVar[str] = "gryphon_playground__pg_cycle_node"
     ENTITY_NAME: ClassVar[str] = "Playground Cycle Node"
     ENTITY_DESCRIPTION: ClassVar[str] = "Playground node for constructing cycles, self-loops, and multi-cycles."
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.playground": "gridkin"}
@@ -50,7 +50,7 @@ class PgCycleNode(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "gryphon_playground_pg_cycle_node"
+        db_table = "gryphon_playground__pg_cycle_node"
 
     def get_name(self) -> str:
         return self.name

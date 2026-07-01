@@ -10,7 +10,7 @@
       "covers": ["req-grid-traversal-lang-filters-1"],
       "inspired_by": "opencypher TCK — clauses/match (inline relationship-property predicate)",
       "layer": "lite",
-      "query": "MATCH (a:pg_node)-[e:PG_LINKS {tier: \"gold\"}]->(b:pg_node)",
+      "query": "MATCH (a:gryphon_playground__pg_node)-[e:PG_LINKS__gryphon_playground {tier: \"gold\"}]->(b:gryphon_playground__pg_node)",
       "expected_envelope": "expected/edge_properties__tier_gold.expected.json",
       "expected_sql_snapshot": "expected/edge_properties__tier_gold.sql.txt"
     }

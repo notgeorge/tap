@@ -1,5 +1,5 @@
 {
-  "slug": "PG_LOOPS",
+  "slug": "PG_LOOPS__gryphon_playground",
   "name": "PG Loops",
   "description": "Playground edge for constructing self-loops and small cycles. Wildcard endpoints (no source/target constraints).",
   "default_dimensions": {"tap.playground": "gridkin"}

@@ -14,7 +14,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (all-node scan, no label)",
       "layer": "lite",
-      "query": "MATCH (n) WHERE n.entity_type = \"pg_node\"",
+      "query": "MATCH (n) WHERE n.entity_type = \"gryphon_playground__pg_node\"",
       "expected_envelope": "expected/bare_match__entity_type_eq.expected.json",
       "expected_sql_snapshot": "expected/bare_match__entity_type_eq.sql.txt"
     },
@@ -28,7 +28,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (all-node scan filtered by type prefix)",
       "layer": "lite",
-      "query": "MATCH (n) WHERE n.entity_type STARTS_WITH \"pg_\"",
+      "query": "MATCH (n) WHERE n.entity_type STARTS_WITH \"gryphon_playground__pg_\"",
       "expected_envelope": "expected/bare_match__entity_type_prefix.expected.json",
       "expected_sql_snapshot": "expected/bare_match__entity_type_prefix.sql.txt"
     },

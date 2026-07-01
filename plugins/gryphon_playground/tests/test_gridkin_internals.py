@@ -26,7 +26,7 @@ _VALID_SCENARIO = {
             "name": "scan returns all pg_node entities",
             "covers": ["req-grid-traversal-lang-shape"],
             "inspired_by": "opencypher TCK — clauses/match (full label scan)",
-            "query": "MATCH (n:pg_node) RETURN n",
+            "query": "MATCH (n:gryphon_playground__pg_node) RETURN n",
             "expected_envelope": "expected/type_scan.expected.json",
             "expected_sql_snapshot": "expected/type_scan.sql.txt",
         }
@@ -254,7 +254,7 @@ def _scenario(scenario_id: str, covers: tuple[str, ...]) -> Scenario:
         covers=covers,
         inspired_by=None,
         layer="full",
-        query="MATCH (n:pg_node) RETURN n",
+        query="MATCH (n:gryphon_playground__pg_node) RETURN n",
         params={},
         fixture_paths=(Path("x"),),
         expected_envelope_path=Path("x"),

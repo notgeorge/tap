@@ -13,7 +13,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (typed relationship pattern, directed endpoints)",
       "layer": "lite",
-      "query": "MATCH (a:pg_hub)-[e:PG_LINKS]->(b:pg_node)",
+      "query": "MATCH (a:gryphon_playground__pg_hub)-[e:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)",
       "expected_envelope": "expected/edge_type_scan__hub_to_node.expected.json",
       "expected_sql_snapshot": "expected/edge_type_scan__hub_to_node.sql.txt"
     },
@@ -23,7 +23,7 @@
       "covers": ["req-grid-traversal-lang-patterns"],
       "inspired_by": "opencypher TCK — clauses/match (typed relationship between same-label endpoints)",
       "layer": "lite",
-      "query": "MATCH (a:pg_node)-[e:PG_LINKS]->(b:pg_node)",
+      "query": "MATCH (a:gryphon_playground__pg_node)-[e:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)",
       "expected_envelope": "expected/edge_type_scan__node_to_node.expected.json",
       "expected_sql_snapshot": "expected/edge_type_scan__node_to_node.sql.txt"
     },
@@ -33,7 +33,7 @@
       "covers": ["req-grid-traversal-lang-patterns"],
       "inspired_by": "opencypher TCK — clauses/match (incoming-direction relationship read from the target endpoint)",
       "layer": "lite",
-      "query": "MATCH (b:pg_node)<-[e:PG_LINKS]-(a:pg_hub)",
+      "query": "MATCH (b:gryphon_playground__pg_node)<-[e:PG_LINKS__gryphon_playground]-(a:gryphon_playground__pg_hub)",
       "expected_envelope": "expected/edge_type_scan__incoming.expected.json",
       "expected_sql_snapshot": "expected/edge_type_scan__incoming.sql.txt"
     },
@@ -43,7 +43,7 @@
       "covers": ["req-grid-traversal-lang-patterns"],
       "inspired_by": "opencypher TCK — clauses/match (typed relationship pattern matching no edges yields empty result)",
       "layer": "lite",
-      "query": "MATCH (a:pg_hub)-[e:PG_OWNS]->(b:pg_node)",
+      "query": "MATCH (a:gryphon_playground__pg_hub)-[e:PG_OWNS]->(b:gryphon_playground__pg_node)",
       "expected_envelope": "expected/edge_type_scan__absent_type_empty.expected.json",
       "expected_sql_snapshot": "expected/edge_type_scan__absent_type_empty.sql.txt"
     }

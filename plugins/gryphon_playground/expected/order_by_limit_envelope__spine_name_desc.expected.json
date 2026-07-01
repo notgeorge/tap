@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e6eab-d14d-7144-845c-2d49aac6c4f4",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Reading Two",
       "dimensions": {
         "tap.playground": "gridkin"

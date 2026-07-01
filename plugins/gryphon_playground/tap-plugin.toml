@@ -5,13 +5,13 @@ name = "Gryphon Playground"
 description = "Playground vocabulary and the Gridkin scenario corpus for testing the Gryphon query language."
 
 [models]
-pg_node = "plugins.gryphon_playground.models.pg_node.PgNode"
-pg_hub = "plugins.gryphon_playground.models.pg_hub.PgHub"
-pg_leaf = "plugins.gryphon_playground.models.pg_leaf.PgLeaf"
-pg_cycle_node = "plugins.gryphon_playground.models.pg_cycle_node.PgCycleNode"
+gryphon_playground__pg_node = "plugins.gryphon_playground.models.pg_node.PgNode"
+gryphon_playground__pg_hub = "plugins.gryphon_playground.models.pg_hub.PgHub"
+gryphon_playground__pg_leaf = "plugins.gryphon_playground.models.pg_leaf.PgLeaf"
+gryphon_playground__pg_cycle_node = "plugins.gryphon_playground.models.pg_cycle_node.PgCycleNode"
 
 [edges]
-PG_LINKS = "edges/PG_LINKS.edge.json"
-PG_NESTS = "edges/PG_NESTS.edge.json"
-PG_LOOPS = "edges/PG_LOOPS.edge.json"
-PG_OPTIONAL = "edges/PG_OPTIONAL.edge.json"
+PG_LINKS__gryphon_playground = "edges/PG_LINKS.edge.json"
+PG_NESTS__gryphon_playground = "edges/PG_NESTS.edge.json"
+PG_LOOPS__gryphon_playground = "edges/PG_LOOPS.edge.json"
+PG_OPTIONAL__gryphon_playground = "edges/PG_OPTIONAL.edge.json"

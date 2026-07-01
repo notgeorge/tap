@@ -6,11 +6,11 @@ WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND NOT
 FROM "tap_edge" U0
 INNER JOIN "tap_entity" U1 ON (U0."entity_id" = U1."id")
 INNER JOIN "tap_entity" U2 ON (U0."from_entity_id" = U2."id")
-INNER JOIN "gryphon_playground_pg_node" U4 ON (U2."id" = U4."entity_id")
+INNER JOIN "gryphon_playground__pg_node" U4 ON (U2."id" = U4."entity_id")
 WHERE (U1."deleted_at" IS NULL AND U0."edge_type" = %s AND U2."entity_type" = %s AND U0."to_entity_id" = ("tap_edge"."to_entity_id") AND U4."severity_score" > %s)
 LIMIT 1))
 ORDER BY "tap_entity"."created_at" DESC
--- params: ['PG_LINKS', Int4(1), 'PG_OPTIONAL', 'pg_node', Int4(100)]
+-- params: ['PG_LINKS__gryphon_playground', Int4(1), 'PG_OPTIONAL__gryphon_playground', 'gryphon_playground__pg_node', Int4(100)]
 
 -- statement 2 · stage: advanced
 SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"

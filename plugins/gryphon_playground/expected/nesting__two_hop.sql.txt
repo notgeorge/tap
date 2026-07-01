@@ -6,7 +6,7 @@ INNER JOIN "tap_entity" T3 ON ("tap_edge"."to_entity_id" = T3."id")
 INNER JOIN "tap_edge" T4 ON (T3."id" = T4."from_entity_id")
 WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T4."edge_type" = %s AND "tap_edge"."from_entity_id" = %s)
 ORDER BY "tap_entity"."created_at" DESC
--- params: ['PG_NESTS', 'PG_NESTS', UUID('019e4e07-9975-7501-8d81-0fd1935265b4')]
+-- params: ['PG_NESTS__gryphon_playground', 'PG_NESTS__gryphon_playground', UUID('019e4e07-9975-7501-8d81-0fd1935265b4')]
 
 -- statement 2 · stage: advanced
 SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"

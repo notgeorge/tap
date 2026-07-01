@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fc8952b3f91",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Multi Source",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -15,7 +15,7 @@
     },
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fc97af589b8",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Multi Target",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -31,7 +31,7 @@
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fcb6e6c20bc",
       "entity_type": "edge",
-      "name": "019e4e07-9975-7501-8d81-0fc8952b3f91 --[PG_NESTS]--> 019e4e07-9975-7501-8d81-0fc97af589b8",
+      "name": "019e4e07-9975-7501-8d81-0fc8952b3f91 --[PG_NESTS__gryphon_playground]--> 019e4e07-9975-7501-8d81-0fc97af589b8",
       "dimensions": {
         "tap.playground": "gridkin"
       },

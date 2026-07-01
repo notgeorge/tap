@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fc238769248",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Self Loop",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -18,7 +18,7 @@
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fc61559e1c7",
       "entity_type": "edge",
-      "name": "019e4e07-9975-7501-8d81-0fc238769248 --[PG_LINKS]--> 019e4e07-9975-7501-8d81-0fc238769248",
+      "name": "019e4e07-9975-7501-8d81-0fc238769248 --[PG_LINKS__gryphon_playground]--> 019e4e07-9975-7501-8d81-0fc238769248",
       "dimensions": {
         "tap.playground": "gridkin"
       },

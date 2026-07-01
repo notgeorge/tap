@@ -3,8 +3,8 @@ SELECT "tap_edge"."from_entity_id" AS "_g_col_0", COUNT("tap_edge"."to_entity_id
 FROM "tap_edge"
 INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
 INNER JOIN "tap_entity" T3 ON ("tap_edge"."to_entity_id" = T3."id")
-LEFT OUTER JOIN "gryphon_playground_pg_node" ON (T3."id" = "gryphon_playground_pg_node"."entity_id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T3."entity_type" = %s AND NOT ("gryphon_playground_pg_node"."kind" = %s AND "gryphon_playground_pg_node"."kind" IS NOT NULL))
+LEFT OUTER JOIN "gryphon_playground__pg_node" ON (T3."id" = "gryphon_playground__pg_node"."entity_id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T3."entity_type" = %s AND NOT ("gryphon_playground__pg_node"."kind" = %s AND "gryphon_playground__pg_node"."kind" IS NOT NULL))
 GROUP BY 1
 ORDER BY 1 ASC
--- params: ['PG_LINKS', 'pg_node', 'island']
+-- params: ['PG_LINKS__gryphon_playground', 'gryphon_playground__pg_node', 'island']

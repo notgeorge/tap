@@ -15,7 +15,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby (ascending order on a field)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.severity_score AS sev ORDER BY sev",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id, n.data.severity_score AS sev ORDER BY sev",
       "expected_envelope": "expected/order_by_limit__typescan_asc.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__typescan_asc.sql.txt"
     },
@@ -30,7 +30,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit (descending order with LIMIT top-N)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.severity_score AS sev ORDER BY sev DESC LIMIT 3",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id, n.data.severity_score AS sev ORDER BY sev DESC LIMIT 3",
       "expected_envelope": "expected/order_by_limit__typescan_desc_limit.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__typescan_desc_limit.sql.txt"
     },
@@ -43,7 +43,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.kind AS kind, n.data.severity_score AS sev ORDER BY kind, sev DESC",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id, n.data.kind AS kind, n.data.severity_score AS sev ORDER BY kind, sev DESC",
       "expected_envelope": "expected/order_by_limit__multi_key.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__multi_key.sql.txt"
     },
@@ -56,7 +56,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.data.kind AS kind ORDER BY kind",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id, n.data.kind AS kind ORDER BY kind",
       "expected_envelope": "expected/order_by_limit__tied_key.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__tied_key.sql.txt"
     },
@@ -68,7 +68,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY id LIMIT 0",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id ORDER BY id LIMIT 0",
       "expected_envelope": "expected/order_by_limit__limit_zero.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__limit_zero.sql.txt"
     },
@@ -80,7 +80,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY id LIMIT 999",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id ORDER BY id LIMIT 999",
       "expected_envelope": "expected/order_by_limit__limit_oversize.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__limit_oversize.sql.txt"
     },
@@ -94,7 +94,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby (order by an aggregated column)",
       "layer": "lite",
-      "query": "MATCH (h)-[:PG_LINKS]->(n) RETURN h.entity_id AS source_id, COUNT(n) AS out_degree ORDER BY out_degree DESC",
+      "query": "MATCH (h)-[:PG_LINKS__gryphon_playground]->(n) RETURN h.entity_id AS source_id, COUNT(n) AS out_degree ORDER BY out_degree DESC",
       "expected_envelope": "expected/order_by_limit__scoreboard.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__scoreboard.sql.txt"
     },
@@ -107,7 +107,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit (LIMIT 1 over an ordered aggregate)",
       "layer": "lite",
-      "query": "MATCH (h)-[:PG_LINKS]->(n) RETURN h.entity_id AS source_id, COUNT(n) AS out_degree ORDER BY out_degree DESC LIMIT 1",
+      "query": "MATCH (h)-[:PG_LINKS__gryphon_playground]->(n) RETURN h.entity_id AS source_id, COUNT(n) AS out_degree ORDER BY out_degree DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit__scoreboard_top1.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__scoreboard_top1.sql.txt"
     },
@@ -119,7 +119,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id, n.name AS label LIMIT 2",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id, n.name AS label LIMIT 2",
       "expected_envelope": "expected/order_by_limit__limit_no_order.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit__limit_no_order.sql.txt"
     },
@@ -129,7 +129,7 @@
       "covers": ["req-grid-gryphon-limit"],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit (negative LIMIT is rejected)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n LIMIT -1",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n LIMIT -1",
       "expected_error": { "type": "GryphonParseError" }
     },
     {
@@ -138,7 +138,7 @@
       "covers": ["req-grid-gryphon-limit"],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit (non-integer LIMIT is rejected)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n LIMIT 2.5",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n LIMIT 2.5",
       "expected_error": { "type": "GryphonParseError" }
     },
     {
@@ -147,7 +147,7 @@
       "covers": ["req-grid-gryphon-limit"],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit (non-constant LIMIT is rejected)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n LIMIT n.data.severity_score",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n LIMIT n.data.severity_score",
       "expected_error": { "type": "GryphonParseError" }
     },
     {
@@ -156,7 +156,7 @@
       "covers": ["req-grid-gryphon-order-by"],
       "inspired_by": "opencypher TCK — clauses/return-orderby (ORDER BY an undefined key is rejected)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY x.bogus",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id ORDER BY x.bogus",
       "expected_error": { "type": "SearchExecutionError" }
     },
     {
@@ -165,7 +165,7 @@
       "covers": ["req-grid-gryphon-order-by"],
       "inspired_by": "opencypher TCK — clauses/return-orderby (aggregate misuse in ORDER BY is rejected)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) RETURN n.entity_id AS id ORDER BY COUNT(n)",
+      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id ORDER BY COUNT(n)",
       "expected_error": { "type": "GryphonParseError" }
     }
   ]

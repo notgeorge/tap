@@ -13,7 +13,7 @@
       ],
       "inspired_by": "opencypher TCK — expressions/boolean (OR disjunction)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE n.data.severity_score < 10 OR n.data.severity_score > 25 RETURN n.entity_id AS id ORDER BY id",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score < 10 OR n.data.severity_score > 25 RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/combinators__or_branches.expected.json",
       "expected_sql_snapshot": "expected/combinators__or_branches.sql.txt"
     },
@@ -25,7 +25,7 @@
       ],
       "inspired_by": "opencypher TCK — expressions/boolean (NOT negation of a predicate)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE NOT n.data.kind = \"island\" RETURN n.entity_id AS id ORDER BY id",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE NOT n.data.kind = \"island\" RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/combinators__not_comparison.expected.json",
       "expected_sql_snapshot": "expected/combinators__not_comparison.sql.txt"
     },
@@ -38,7 +38,7 @@
       ],
       "inspired_by": "opencypher TCK — expressions/boolean",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE n.data.kind = \"neighbor\" AND (n.data.severity_score < 15 OR n.data.severity_score > 25) RETURN n.entity_id AS id ORDER BY id",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.kind = \"neighbor\" AND (n.data.severity_score < 15 OR n.data.severity_score > 25) RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/combinators__grouping.expected.json",
       "expected_sql_snapshot": "expected/combinators__grouping.sql.txt"
     },
@@ -51,7 +51,7 @@
       ],
       "inspired_by": "opencypher TCK — expressions/boolean",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE NOT (n.data.kind = \"neighbor\" AND n.data.is_open = true) RETURN n.entity_id AS id ORDER BY id",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE NOT (n.data.kind = \"neighbor\" AND n.data.is_open = true) RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/combinators__de_morgan.expected.json",
       "expected_sql_snapshot": "expected/combinators__de_morgan.sql.txt"
     },
@@ -64,7 +64,7 @@
       ],
       "inspired_by": "opencypher TCK — expressions/boolean (OR composed with IN membership)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE n.data.kind IN [\"island\"] OR n.data.severity_score > 25 RETURN n.entity_id AS id ORDER BY id",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.kind IN [\"island\"] OR n.data.severity_score > 25 RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/combinators__or_with_in.expected.json",
       "expected_sql_snapshot": "expected/combinators__or_with_in.sql.txt"
     },
@@ -77,7 +77,7 @@
       ],
       "inspired_by": "opencypher TCK — expressions/boolean (NOT filter applied before aggregation)",
       "layer": "lite",
-      "query": "MATCH (h)-[:PG_LINKS]->(n:pg_node) WHERE NOT n.data.kind = \"island\" RETURN h.entity_id AS src, COUNT(n) AS c",
+      "query": "MATCH (h)-[:PG_LINKS__gryphon_playground]->(n:gryphon_playground__pg_node) WHERE NOT n.data.kind = \"island\" RETURN h.entity_id AS src, COUNT(n) AS c",
       "expected_envelope": "expected/combinators__not_aggregation.expected.json",
       "expected_sql_snapshot": "expected/combinators__not_aggregation.sql.txt"
     },
@@ -87,7 +87,7 @@
       "covers": ["req-grid-traversal-lang-combinators-2"],
       "inspired_by": "opencypher TCK — expressions/boolean (De Morgan over a disjunction: NOT (a OR b))",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE NOT (n.data.severity_score < 10 OR n.data.severity_score > 25) RETURN n.entity_id AS id ORDER BY id",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE NOT (n.data.severity_score < 10 OR n.data.severity_score > 25) RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/combinators__not_over_or.expected.json",
       "expected_sql_snapshot": "expected/combinators__not_over_or.sql.txt"
     },
@@ -97,7 +97,7 @@
       "covers": ["req-grid-traversal-lang-combinators-1"],
       "inspired_by": "opencypher TCK — expressions/boolean (double negation NOT NOT x)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE NOT (NOT n.data.kind = \"island\") RETURN n.entity_id AS id ORDER BY id",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE NOT (NOT n.data.kind = \"island\") RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/combinators__double_negation.expected.json",
       "expected_sql_snapshot": "expected/combinators__double_negation.sql.txt"
     },
@@ -107,7 +107,7 @@
       "covers": ["req-grid-traversal-lang-combinators"],
       "inspired_by": "opencypher TCK — expressions/boolean (AND/OR associativity with 3+ chained operands)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE n.data.kind = \"neighbor\" AND n.data.severity_score > 10 AND n.data.severity_score < 30 RETURN n.entity_id AS id ORDER BY id",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.kind = \"neighbor\" AND n.data.severity_score > 10 AND n.data.severity_score < 30 RETURN n.entity_id AS id ORDER BY id",
       "expected_envelope": "expected/combinators__three_and.expected.json",
       "expected_sql_snapshot": "expected/combinators__three_and.sql.txt"
     }

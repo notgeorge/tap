@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
-      "entity_type": "pg_hub",
+      "entity_type": "gryphon_playground__pg_hub",
       "name": "Dense Hub",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -15,7 +15,7 @@
     },
     {
       "entity_id": "019e4b02-f37b-72df-a3e5-bafa7b3865a9",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Neighbor One",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -31,7 +31,7 @@
     {
       "entity_id": "019e4b02-f37b-72df-a3e5-bb00cf03bb0e",
       "entity_type": "edge",
-      "name": "019e4b02-f37b-72df-a3e5-baf99158bb0c --[PG_LINKS]--> 019e4b02-f37b-72df-a3e5-bafa7b3865a9",
+      "name": "019e4b02-f37b-72df-a3e5-baf99158bb0c --[PG_LINKS__gryphon_playground]--> 019e4b02-f37b-72df-a3e5-bafa7b3865a9",
       "dimensions": {
         "tap.playground": "gridkin"
       },

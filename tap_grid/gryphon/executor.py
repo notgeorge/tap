@@ -537,7 +537,7 @@ def _execute_type_scan(
 
        Example::
 
-          MATCH (n:pg_node)
+          MATCH (n:gryphon_playground__pg_node)
     """
     if not node.label:
         # _dispatch_pattern routes a labelless node to _execute_bare_type_scan;
@@ -1249,7 +1249,7 @@ def _execute_edge_type_scan(
 
        Example::
 
-          MATCH (a:pg_hub)-[e:PG_LINKS]->(b:pg_node)
+          MATCH (a:gryphon_playground__pg_hub)-[e:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)
     """
     from tap_grid.models import Edge, Entity
 
@@ -1728,7 +1728,7 @@ def _resolve_orm_path(binding: dict[str, Any], field_path: FieldPath) -> str:
 
        Example::
 
-          MATCH (n:pg_node) WHERE n.dimensions.zone = "north"
+          MATCH (n:gryphon_playground__pg_node) WHERE n.dimensions.zone = "north"
     """
     steps = field_path.steps
     if not steps:
@@ -1777,7 +1777,7 @@ def _build_chain_queryset(
 
        Example::
 
-          MATCH (a:pg_node)-[e1:PG_LINKS]->(b:pg_node)-[e2:PG_LINKS]->(c:pg_node)
+          MATCH (a:gryphon_playground__pg_node)-[e1:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[e2:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node)
           WHERE a.entity_id = $root_id
     """
     from tap_grid.models import Edge
@@ -1858,7 +1858,7 @@ def _apply_predicate_to_qs(
 
        Example::
 
-          MATCH (n:pg_node)
+          MATCH (n:gryphon_playground__pg_node)
           WHERE n.data.kind = "neighbor"
                 AND (n.data.severity_score < 15 OR n.data.severity_score > 25)
     """
@@ -1965,8 +1965,8 @@ def _apply_not_exists(
 
        Example::
 
-          MATCH (s)-[e:PG_LINKS]->(t)
-          NOT EXISTS { MATCH (g)-[:PG_OPTIONAL]->(t) }
+          MATCH (s)-[e:PG_LINKS__gryphon_playground]->(t)
+          NOT EXISTS { MATCH (g)-[:PG_OPTIONAL__gryphon_playground]->(t) }
     """
     from django.db.models import Exists, F, OuterRef
 
@@ -2065,7 +2065,7 @@ def _is_graph_envelope_return(return_clause: ReturnClause) -> bool:
 
        Example::
 
-          MATCH (n:pg_node) RETURN n.entity_id AS id, n.name AS label
+          MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id, n.name AS label
     """
     if return_clause.items is None:
         return True
@@ -2379,7 +2379,7 @@ def _resolve_order_cols(
 
        Example::
 
-          MATCH (h)-[:PG_LINKS]->(n)
+          MATCH (h)-[:PG_LINKS__gryphon_playground]->(n)
           RETURN h.entity_id AS source_id, COUNT(n) AS out_degree
           ORDER BY out_degree DESC LIMIT 1
     """
@@ -2440,7 +2440,7 @@ def _compute_rows(
 
        Example::
 
-          MATCH (h:pg_hub)-[:PG_LINKS]->(n:pg_node)
+          MATCH (h:gryphon_playground__pg_hub)-[:PG_LINKS__gryphon_playground]->(n:gryphon_playground__pg_node)
           RETURN h.entity_id AS hub_id, COUNT(n) AS neighbor_count
     """
     from django.db.models import Count, F
@@ -2766,7 +2766,7 @@ def _comparison_to_q(
 
        Example::
 
-          MATCH (n:pg_node) WHERE n.name STARTS_WITH "Neighbor"
+          MATCH (n:gryphon_playground__pg_node) WHERE n.name STARTS_WITH "Neighbor"
           RETURN n.entity_id AS id ORDER BY id
 
     .. tap:capability:: Gryphon regex match operator
@@ -2789,7 +2789,7 @@ def _comparison_to_q(
 
        Example::
 
-          MATCH (n:pg_node) WHERE n.name =~ "(?i)neighbor"
+          MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ "(?i)neighbor"
           RETURN n.entity_id AS id ORDER BY id
     """
     from django.db.models import Q
@@ -2884,8 +2884,8 @@ def _execute_optional_match(
 
        Example::
 
-          MATCH (t:pg_node)
-          OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node)
+          MATCH (t:gryphon_playground__pg_node)
+          OPTIONAL MATCH (t)<-[:PG_OPTIONAL__gryphon_playground]-(g:gryphon_playground__pg_node)
           RETURN t.entity_id AS target, COUNT(g) AS guards ORDER BY target
     """
     from django.db.models import Count, F, Q
@@ -2899,12 +2899,12 @@ def _execute_optional_match(
     if len(mc.patterns) != 1 or mc.patterns[0].edges:
         raise SearchExecutionError(
             "OPTIONAL MATCH v0 requires the mandatory MATCH to be a single node-only type scan, "
-            "e.g. MATCH (t:pg_node)."
+            "e.g. MATCH (t:gryphon_playground__pg_node)."
         )
     anchor_node = mc.patterns[0].nodes[0]
     if not anchor_node.label:
         raise SearchExecutionError(
-            "OPTIONAL MATCH v0 requires a label on the mandatory MATCH node, e.g. MATCH (t:pg_node)."
+            "OPTIONAL MATCH v0 requires a label on the mandatory MATCH node, e.g. MATCH (t:gryphon_playground__pg_node)."
         )
     v = anchor_node.variable or anchor_node.label
 

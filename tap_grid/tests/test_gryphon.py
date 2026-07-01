@@ -1640,7 +1640,7 @@ class TestGryphonOrderByLimitParser:
 
     def test_order_by_parses_ascending_default(self):
         """req-grid-gryphon-order-by-1/-3: a bare ORDER BY term is ascending."""
-        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label ORDER BY label")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) RETURN n.name AS label ORDER BY label")
         assert isinstance(ast.order_by, OrderByClause)
         assert len(ast.order_by.items) == 1
         item = ast.order_by.items[0]
@@ -1654,18 +1654,18 @@ class TestGryphonOrderByLimitParser:
 
     def test_order_by_desc(self):
         """req-grid-gryphon-order-by-3: DESC marks a term descending."""
-        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label ORDER BY label DESC")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) RETURN n.name AS label ORDER BY label DESC")
         assert ast.order_by.items[0].descending is True
 
     def test_order_by_multi_key(self):
         """req-grid-gryphon-order-by-4: multiple terms are kept in written order."""
-        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.kind AS k, n.name AS label ORDER BY k, label DESC")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) RETURN n.kind AS k, n.name AS label ORDER BY k, label DESC")
         keys = [(i.key, i.descending) for i in ast.order_by.items]
         assert keys == [("k", False), ("label", True)]
 
     def test_order_by_field_path_parses_envelope_form(self):
         """req-grid-gryphon-order-by-envelope-1: ORDER BY <var>.<data-lane field> parses to a FieldPath."""
-        ast = parse_gryphon("MATCH (n:pg_node) ORDER BY n.data.observed_at DESC LIMIT 1")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) ORDER BY n.data.observed_at DESC LIMIT 1")
         item = ast.order_by.items[0]
         assert item.path.variable == "n"
         assert [s.name for s in item.path.steps if isinstance(s, DotStep)] == ["data", "observed_at"]
@@ -1677,7 +1677,7 @@ class TestGryphonOrderByLimitParser:
 
     def test_order_by_spine_field_path_parses(self):
         """req-grid-gryphon-order-by-envelope-3: ORDER BY <var>.<spine field> parses."""
-        ast = parse_gryphon("MATCH (n:pg_node) ORDER BY n.name LIMIT 5")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) ORDER BY n.name LIMIT 5")
         item = ast.order_by.items[0]
         assert item.path.variable == "n"
         assert [s.name for s in item.path.steps if isinstance(s, DotStep)] == ["name"]
@@ -1685,44 +1685,44 @@ class TestGryphonOrderByLimitParser:
 
     def test_limit_parses(self):
         """req-grid-gryphon-limit-1: LIMIT captures a non-negative integer count."""
-        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label LIMIT 7")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) RETURN n.name AS label LIMIT 7")
         assert isinstance(ast.limit, LimitClause)
         assert ast.limit.count == 7
 
     def test_limit_zero_parses(self):
         """req-grid-gryphon-limit-3: LIMIT 0 is a legal literal."""
-        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label LIMIT 0")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) RETURN n.name AS label LIMIT 0")
         assert ast.limit.count == 0
 
     def test_order_by_and_limit_absent_by_default(self):
         """A query with neither clause leaves both AST fields None."""
-        ast = parse_gryphon("MATCH (n:pg_node) RETURN n.name AS label")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) RETURN n.name AS label")
         assert ast.order_by is None
         assert ast.limit is None
 
     def test_duplicate_order_by_rejected(self):
         """Two ORDER BY clauses are a parse error, not a silent drop."""
         with pytest.raises(GryphonParseError, match="one ORDER BY"):
-            parse_gryphon("MATCH (n:pg_node) RETURN n.name AS l ORDER BY l ORDER BY l")
+            parse_gryphon("MATCH (n:gryphon_playground__pg_node) RETURN n.name AS l ORDER BY l ORDER BY l")
 
     def test_duplicate_limit_rejected(self):
         """Two LIMIT clauses are a parse error, not a silent drop."""
         with pytest.raises(GryphonParseError, match="one LIMIT"):
-            parse_gryphon("MATCH (n:pg_node) RETURN n.name AS l LIMIT 1 LIMIT 2")
+            parse_gryphon("MATCH (n:gryphon_playground__pg_node) RETURN n.name AS l LIMIT 1 LIMIT 2")
 
     def test_duplicate_where_rejected(self):
         """req-grid-traversal-lang-shape-6: two WHERE clauses are a parse error, not a silent drop."""
         with pytest.raises(GryphonParseError, match="one WHERE"):
-            parse_gryphon('MATCH (n:pg_node) WHERE n.name = "a" WHERE n.kind = "b" RETURN n')
+            parse_gryphon('MATCH (n:gryphon_playground__pg_node) WHERE n.name = "a" WHERE n.kind = "b" RETURN n')
 
     def test_duplicate_return_rejected(self):
         """req-grid-traversal-lang-shape-6: two RETURN clauses are a parse error, not a silent drop."""
         with pytest.raises(GryphonParseError, match="one RETURN"):
-            parse_gryphon("MATCH (n:pg_node) RETURN n.name AS a RETURN n.name AS b")
+            parse_gryphon("MATCH (n:gryphon_playground__pg_node) RETURN n.name AS a RETURN n.name AS b")
 
     def test_single_where_still_parses(self):
         """A single WHERE remains valid — the rejection is for duplicates only."""
-        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name = "a" RETURN n')
+        ast = parse_gryphon('MATCH (n:gryphon_playground__pg_node) WHERE n.name = "a" RETURN n')
         assert ast.where_clause is not None
 
 
@@ -1975,7 +1975,7 @@ class TestGryphonInListParser:
         """req-grid-traversal-lang-in-1: `field IN [values]` parses to an InComparison."""
         from tap_grid.gryphon.ast_nodes import InComparison
 
-        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.kind IN ["a", "b"] RETURN n.entity_id AS id')
+        ast = parse_gryphon('MATCH (n:gryphon_playground__pg_node) WHERE n.kind IN ["a", "b"] RETURN n.entity_id AS id')
         pred = ast.where_clause.predicate
         assert isinstance(pred, InComparison)
         assert pred.field_path.variable == "n"
@@ -1985,23 +1985,23 @@ class TestGryphonInListParser:
         """req-grid-traversal-lang-in-3: an empty IN list is legal and parses."""
         from tap_grid.gryphon.ast_nodes import InComparison
 
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.kind IN [] RETURN n.entity_id AS id")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.kind IN [] RETURN n.entity_id AS id")
         assert isinstance(ast.where_clause.predicate, InComparison)
         assert ast.where_clause.predicate.values == ()
 
     def test_in_list_with_params_collected(self):
         """req-grid-traversal-lang-in-5: $param list elements are collected as required inputs."""
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.entity_id IN [$a, $b] RETURN n.entity_id AS id")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.entity_id IN [$a, $b] RETURN n.entity_id AS id")
         assert sorted(ast.required_params()) == ["a", "b"]
 
     def test_in_list_with_null_member_parses(self):
         """req-grid-traversal-lang-in-4: a null element parses to None inside the list."""
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.severity_score IN [null, 20] RETURN n.entity_id AS id")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.severity_score IN [null, 20] RETURN n.entity_id AS id")
         assert ast.where_clause.predicate.values == (None, 20)
 
     def test_in_composes_with_and(self):
         """req-grid-traversal-lang-in-6: an IN leaf combines with AND like any comparison."""
-        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.kind IN ["a"] AND n.severity_score > 5 RETURN n.entity_id AS id')
+        ast = parse_gryphon('MATCH (n:gryphon_playground__pg_node) WHERE n.kind IN ["a"] AND n.severity_score > 5 RETURN n.entity_id AS id')
         assert isinstance(ast.where_clause.predicate, AndPred)
 
     def test_null_literal_in_comparison_parses(self):
@@ -2010,7 +2010,7 @@ class TestGryphonInListParser:
         Before the fix, `null_val` did not accept the `/null/i` token lark passes
         under @v_args(inline=True), so any `= null` raised a parse error.
         """
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.observed_at = null RETURN n.entity_id AS id")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.observed_at = null RETURN n.entity_id AS id")
         assert isinstance(ast.where_clause.predicate, Comparison)
         assert ast.where_clause.predicate.value is None
 
@@ -2100,20 +2100,20 @@ class TestGryphonOptionalMatchParser:
         from tap_grid.gryphon.ast_nodes import OptionalMatchClause
 
         ast = parse_gryphon(
-            "MATCH (t:pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL]-(g:pg_node) "
+            "MATCH (t:gryphon_playground__pg_node) OPTIONAL MATCH (t)<-[:PG_OPTIONAL__gryphon_playground]-(g:gryphon_playground__pg_node) "
             "RETURN t.entity_id AS target, COUNT(g) AS guards"
         )
         assert len(ast.match_clauses) == 1
         assert len(ast.optional_match_clauses) == 1
         assert isinstance(ast.optional_match_clauses[0], OptionalMatchClause)
         opt_pat = ast.optional_match_clauses[0].patterns[0]
-        assert opt_pat.edges[0].edge_type == "PG_OPTIONAL"
+        assert opt_pat.edges[0].edge_type == "PG_OPTIONAL__gryphon_playground"
         assert opt_pat.edges[0].direction == "in"
 
     def test_optional_match_params_collected(self):
         """$param refs inside an OPTIONAL MATCH pattern are collected as required inputs."""
         ast = parse_gryphon(
-            "MATCH (t:pg_node) OPTIONAL MATCH (t)-[:E {tier: $tier}]->(w:pg_node) "
+            "MATCH (t:gryphon_playground__pg_node) OPTIONAL MATCH (t)-[:E {tier: $tier}]->(w:gryphon_playground__pg_node) "
             "RETURN t.entity_id AS id, COUNT(w) AS c"
         )
         assert "tier" in ast.required_params()
@@ -2286,7 +2286,7 @@ class TestGryphonStringMatchParser:
 
     def test_starts_with_parses(self):
         """req-grid-traversal-lang-string-match-1: STARTS_WITH parses to a Comparison."""
-        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name STARTS_WITH "Neigh" RETURN n.entity_id AS id')
+        ast = parse_gryphon('MATCH (n:gryphon_playground__pg_node) WHERE n.name STARTS_WITH "Neigh" RETURN n.entity_id AS id')
         pred = ast.where_clause.predicate
         assert isinstance(pred, Comparison)
         assert pred.op == "starts_with"
@@ -2295,17 +2295,17 @@ class TestGryphonStringMatchParser:
     def test_ends_with_and_contains_parse(self):
         """req-grid-traversal-lang-string-match-1: ENDS_WITH / CONTAINS parse to their ops."""
         for keyword, op in (("ENDS_WITH", "ends_with"), ("CONTAINS", "contains")):
-            ast = parse_gryphon(f'MATCH (n:pg_node) WHERE n.name {keyword} "x" RETURN n.entity_id AS id')
+            ast = parse_gryphon(f'MATCH (n:gryphon_playground__pg_node) WHERE n.name {keyword} "x" RETURN n.entity_id AS id')
             assert ast.where_clause.predicate.op == op
 
     def test_string_op_keyword_is_case_insensitive(self):
         """The operator keyword is case-insensitive; the AST `op` normalizes to lower case."""
-        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name starts_with "x" RETURN n.entity_id AS id')
+        ast = parse_gryphon('MATCH (n:gryphon_playground__pg_node) WHERE n.name starts_with "x" RETURN n.entity_id AS id')
         assert ast.where_clause.predicate.op == "starts_with"
 
     def test_string_match_needle_may_be_param(self):
         """req-grid-traversal-lang-string-match-4: the needle may be a $param."""
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.name ENDS_WITH $suffix RETURN n.entity_id AS id")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.name ENDS_WITH $suffix RETURN n.entity_id AS id")
         assert "suffix" in ast.required_params()
 
 
@@ -2384,7 +2384,7 @@ class TestGryphonBareMatchExecutor:
             Character.objects.create(entity=entity, name=name, bio=f"{name} the brave")
             made[name] = entity
         for name in ("Node A", "Node B"):
-            entity = Entity.objects.create(entity_type="pg_node", name=name)
+            entity = Entity.objects.create(entity_type="gryphon_playground__pg_node", name=name)
             PgNode.objects.create(entity=entity, name=name, kind="island")
             made[name] = entity
         return made
@@ -2404,7 +2404,7 @@ class TestGryphonBareMatchExecutor:
             edge_type="KNOWS",
         )
         result = execute_search(self._search("MATCH (n)"), inputs={})
-        assert sorted({node["entity_type"] for node in result["nodes"]}) == ["character", "pg_node"]
+        assert sorted({node["entity_type"] for node in result["nodes"]}) == ["character", "gryphon_playground__pg_node"]
         assert len(result["nodes"]) == 4
 
     def test_bare_match_field_absence_is_silently_non_matching(self):
@@ -2498,7 +2498,7 @@ class TestGryphonIsNullParser:
         """req-grid-traversal-lang-is-null-1: `field IS NULL` parses to IsNullComparison."""
         from tap_grid.gryphon.ast_nodes import IsNullComparison
 
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.data.observed_at IS NULL")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.data.observed_at IS NULL")
         pred = ast.where_clause.predicate
         assert isinstance(pred, IsNullComparison)
         assert pred.field_path.variable == "n"
@@ -2509,7 +2509,7 @@ class TestGryphonIsNullParser:
         """req-grid-traversal-lang-is-null-2: `field IS NOT NULL` parses with negated=True."""
         from tap_grid.gryphon.ast_nodes import IsNullComparison
 
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.data.observed_at IS NOT NULL")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.data.observed_at IS NOT NULL")
         pred = ast.where_clause.predicate
         assert isinstance(pred, IsNullComparison)
         assert pred.negated is True
@@ -2518,7 +2518,7 @@ class TestGryphonIsNullParser:
         """req-grid-traversal-lang-is-null-3: IS NULL nests inside an AND tree like any leaf."""
         from tap_grid.gryphon.ast_nodes import IsNullComparison
 
-        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.data.observed_at IS NULL AND n.data.kind = "reading"')
+        ast = parse_gryphon('MATCH (n:gryphon_playground__pg_node) WHERE n.data.observed_at IS NULL AND n.data.kind = "reading"')
         pred = ast.where_clause.predicate
         assert isinstance(pred, AndPred)
         # The IS NULL leaf may be on either side depending on the parser's associativity;
@@ -2530,7 +2530,7 @@ class TestGryphonIsNullParser:
         """req-grid-traversal-lang-is-null-3: NOT (foo IS NULL) is the equivalent long-form."""
         from tap_grid.gryphon.ast_nodes import IsNullComparison
 
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE NOT (n.data.observed_at IS NULL)")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE NOT (n.data.observed_at IS NULL)")
         pred = ast.where_clause.predicate
         assert isinstance(pred, NotPred)
         assert isinstance(pred.operand, IsNullComparison)
@@ -2539,13 +2539,13 @@ class TestGryphonIsNullParser:
     def test_bare_is_rejected(self):
         """req-grid-traversal-lang-is-null-5: `field IS` (no NULL) fails parse."""
         with pytest.raises(GryphonParseError):
-            parse_gryphon("MATCH (n:pg_node) WHERE n.data.observed_at IS")
+            parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.data.observed_at IS")
 
     def test_value_null_literal_still_parses(self):
         """The `_NULL_KW` terminal is shared with the `value -> null_val` rule —
         an equality comparison against `null` must continue to parse to a
         Comparison leaf with value=None, not be misread as IS NULL."""
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.data.observed_at = null")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.data.observed_at = null")
         pred = ast.where_clause.predicate
         assert isinstance(pred, Comparison)
         assert pred.op == "="
@@ -2653,7 +2653,7 @@ class TestGryphonObservationParser:
         """req-grid-traversal-lang-observation-1: `field IS UNKNOWN` -> ObservationComparison(unknown)."""
         from tap_grid.gryphon.ast_nodes import ObservationComparison
 
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.data.observed_at IS UNKNOWN")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.data.observed_at IS UNKNOWN")
         pred = ast.where_clause.predicate
         assert isinstance(pred, ObservationComparison)
         assert pred.kind == "unknown"
@@ -2663,7 +2663,7 @@ class TestGryphonObservationParser:
         """req-grid-traversal-lang-observation-2: `field IS KNOWN` -> ObservationComparison(known)."""
         from tap_grid.gryphon.ast_nodes import ObservationComparison
 
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.data.observed_at IS KNOWN")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.data.observed_at IS KNOWN")
         pred = ast.where_clause.predicate
         assert isinstance(pred, ObservationComparison)
         assert pred.kind == "known"
@@ -2672,7 +2672,7 @@ class TestGryphonObservationParser:
         """req-grid-traversal-lang-observation-3: composes inside an AND tree like any leaf."""
         from tap_grid.gryphon.ast_nodes import ObservationComparison
 
-        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.data.observed_at IS UNKNOWN AND n.data.kind = "reading"')
+        ast = parse_gryphon('MATCH (n:gryphon_playground__pg_node) WHERE n.data.observed_at IS UNKNOWN AND n.data.kind = "reading"')
         pred = ast.where_clause.predicate
         assert isinstance(pred, AndPred)
         leaves = [pred.left, pred.right]
@@ -2682,7 +2682,7 @@ class TestGryphonObservationParser:
         """req-grid-traversal-lang-observation-3: NOT (x IS KNOWN) is the negated long-form."""
         from tap_grid.gryphon.ast_nodes import ObservationComparison
 
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE NOT (n.data.observed_at IS KNOWN)")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE NOT (n.data.observed_at IS KNOWN)")
         pred = ast.where_clause.predicate
         assert isinstance(pred, NotPred)
         assert isinstance(pred.operand, ObservationComparison)
@@ -2691,7 +2691,7 @@ class TestGryphonObservationParser:
     def test_bare_is_still_rejected(self):
         """req-grid-traversal-lang-observation-4: bare `IS` (no KNOWN/UNKNOWN/NULL) fails parse."""
         with pytest.raises(GryphonParseError):
-            parse_gryphon("MATCH (n:pg_node) WHERE n.data.observed_at IS")
+            parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.data.observed_at IS")
 
 
 # ---------------------------------------------------------------------------
@@ -2761,7 +2761,7 @@ class TestGryphonRegexParser:
 
     def test_regex_parses_to_comparison_with_op_regex(self):
         """req-grid-traversal-lang-regex-1: `=~` parses to a Comparison with op=='regex'."""
-        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.name =~ "github" RETURN n.entity_id AS id')
+        ast = parse_gryphon('MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ "github" RETURN n.entity_id AS id')
         pred = ast.where_clause.predicate
         assert isinstance(pred, Comparison)
         assert pred.op == "regex"
@@ -2769,13 +2769,13 @@ class TestGryphonRegexParser:
 
     def test_regex_needle_may_be_param(self):
         """req-grid-traversal-lang-regex-8: the needle may be a $param."""
-        ast = parse_gryphon("MATCH (n:pg_node) WHERE n.name =~ $pattern RETURN n.entity_id AS id")
+        ast = parse_gryphon("MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ $pattern RETURN n.entity_id AS id")
         assert "pattern" in ast.required_params()
 
     def test_regex_composes_with_and_or_not(self):
         """req-grid-traversal-lang-regex-9: regex composes inside AND / OR / NOT trees."""
         ast = parse_gryphon(
-            'MATCH (n:pg_node) WHERE n.name =~ "(?i)token" AND NOT (n.name =~ "imposter") ' "RETURN n.entity_id AS id"
+            'MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ "(?i)token" AND NOT (n.name =~ "imposter") ' "RETURN n.entity_id AS id"
         )
         pred = ast.where_clause.predicate
         assert isinstance(pred, AndPred)
@@ -2790,7 +2790,7 @@ class TestGryphonRegexParser:
 
     def test_regex_on_data_lane_path(self):
         """req-grid-traversal-lang-regex-10: regex on a multi-step data-lane path parses cleanly."""
-        ast = parse_gryphon('MATCH (n:pg_node) WHERE n.data.tags.url =~ "(?i)github" RETURN n.entity_id AS id')
+        ast = parse_gryphon('MATCH (n:gryphon_playground__pg_node) WHERE n.data.tags.url =~ "(?i)github" RETURN n.entity_id AS id')
         pred = ast.where_clause.predicate
         assert isinstance(pred, Comparison)
         assert pred.op == "regex"

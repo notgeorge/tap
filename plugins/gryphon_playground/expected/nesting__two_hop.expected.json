@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fd1935265b4",
-      "entity_type": "pg_hub",
+      "entity_type": "gryphon_playground__pg_hub",
       "name": "Nest Root",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -15,7 +15,7 @@
     },
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fd20676235e",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Branch One",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -28,7 +28,7 @@
     },
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fd4000cdc11",
-      "entity_type": "pg_leaf",
+      "entity_type": "gryphon_playground__pg_leaf",
       "name": "Leaf One A",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -41,7 +41,7 @@
     },
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fd5ff1349c3",
-      "entity_type": "pg_leaf",
+      "entity_type": "gryphon_playground__pg_leaf",
       "name": "Leaf One B",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -57,7 +57,7 @@
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fd60cda42a3",
       "entity_type": "edge",
-      "name": "019e4e07-9975-7501-8d81-0fd1935265b4 --[PG_NESTS]--> 019e4e07-9975-7501-8d81-0fd20676235e",
+      "name": "019e4e07-9975-7501-8d81-0fd1935265b4 --[PG_NESTS__gryphon_playground]--> 019e4e07-9975-7501-8d81-0fd20676235e",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -70,7 +70,7 @@
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fd8127168ca",
       "entity_type": "edge",
-      "name": "019e4e07-9975-7501-8d81-0fd20676235e --[PG_NESTS]--> 019e4e07-9975-7501-8d81-0fd4000cdc11",
+      "name": "019e4e07-9975-7501-8d81-0fd20676235e --[PG_NESTS__gryphon_playground]--> 019e4e07-9975-7501-8d81-0fd4000cdc11",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -83,7 +83,7 @@
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fd930c004b7",
       "entity_type": "edge",
-      "name": "019e4e07-9975-7501-8d81-0fd20676235e --[PG_NESTS]--> 019e4e07-9975-7501-8d81-0fd5ff1349c3",
+      "name": "019e4e07-9975-7501-8d81-0fd20676235e --[PG_NESTS__gryphon_playground]--> 019e4e07-9975-7501-8d81-0fd5ff1349c3",
       "dimensions": {
         "tap.playground": "gridkin"
       },

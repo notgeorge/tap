@@ -1,7 +1,7 @@
 -- statement 1 · stage: type-scan
-SELECT "gryphon_playground_pg_node"."id", "gryphon_playground_pg_node"."entity_id", "gryphon_playground_pg_node"."batch_id", "gryphon_playground_pg_node"."flip_map", "gryphon_playground_pg_node"."name", "gryphon_playground_pg_node"."description", "gryphon_playground_pg_node"."kind", "gryphon_playground_pg_node"."severity_score", "gryphon_playground_pg_node"."is_open", "gryphon_playground_pg_node"."observed_at", "gryphon_playground_pg_node"."tags", "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"
-FROM "gryphon_playground_pg_node"
-INNER JOIN "tap_entity" ON ("gryphon_playground_pg_node"."entity_id" = "tap_entity"."id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "gryphon_playground_pg_node"."kind" IN (%s))
-ORDER BY "gryphon_playground_pg_node"."entity_id" ASC
+SELECT "gryphon_playground__pg_node"."id", "gryphon_playground__pg_node"."entity_id", "gryphon_playground__pg_node"."batch_id", "gryphon_playground__pg_node"."flip_map", "gryphon_playground__pg_node"."name", "gryphon_playground__pg_node"."description", "gryphon_playground__pg_node"."kind", "gryphon_playground__pg_node"."severity_score", "gryphon_playground__pg_node"."is_open", "gryphon_playground__pg_node"."observed_at", "gryphon_playground__pg_node"."tags", "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"
+FROM "gryphon_playground__pg_node"
+INNER JOIN "tap_entity" ON ("gryphon_playground__pg_node"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "gryphon_playground__pg_node"."kind" IN (%s))
+ORDER BY "gryphon_playground__pg_node"."entity_id" ASC
 -- params: ['island']

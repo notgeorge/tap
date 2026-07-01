@@ -13,7 +13,7 @@
       ],
       "inspired_by": "opencypher TCK — expressions/map (nested map/key access in a predicate)",
       "layer": "full",
-      "query": "MATCH (n:pg_node) WHERE n.data.tags.team = \"infra\"",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.tags.team = \"infra\"",
       "expected_envelope": "expected/json_payloads__team_infra.expected.json",
       "expected_sql_snapshot": "expected/json_payloads__team_infra.sql.txt"
     },
@@ -26,7 +26,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match-where",
       "layer": "full",
-      "query": "MATCH (n:pg_node) WHERE n.data.tags.priority = \"high\"",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.tags.priority = \"high\"",
       "expected_envelope": "expected/json_payloads__priority_high.expected.json",
       "expected_sql_snapshot": "expected/json_payloads__priority_high.sql.txt"
     },
@@ -39,7 +39,7 @@
       ],
       "inspired_by": "opencypher TCK — expressions/map (map key access is case-sensitive; a mis-cased key resolves to null rather than the same-spelled lower-case key)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE n.data.tags.Team = \"infra\"",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.tags.Team = \"infra\"",
       "expected_envelope": "expected/json_payloads__team_wrong_case.expected.json",
       "expected_sql_snapshot": "expected/json_payloads__team_wrong_case.sql.txt"
     },
@@ -52,7 +52,7 @@
       ],
       "inspired_by": "opencypher TCK — expressions/map (indexing a deeper key into a non-map scalar yields null, not a runtime error)",
       "layer": "lite",
-      "query": "MATCH (n:pg_node) WHERE n.data.tags.team.region = \"infra\"",
+      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.tags.team.region = \"infra\"",
       "expected_envelope": "expected/json_payloads__scalar_subkey_null.expected.json",
       "expected_sql_snapshot": "expected/json_payloads__scalar_subkey_null.sql.txt"
     }

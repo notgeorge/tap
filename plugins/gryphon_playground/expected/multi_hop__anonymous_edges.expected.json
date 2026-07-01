@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cada1264813",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Chain Root",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -15,7 +15,7 @@
     },
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cae986778a7",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Mid One",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -28,7 +28,7 @@
     },
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7caf4902f22b",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Mid Two",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -41,7 +41,7 @@
     },
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cb0718770e5",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Tail A",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -54,7 +54,7 @@
     },
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cb1f36889ce",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Tail B",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -67,7 +67,7 @@
     },
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cb29d521ddb",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Tail C",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -80,7 +80,7 @@
     },
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cb3746837b4",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Lone Start",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -93,7 +93,7 @@
     },
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cb4a6b4a6e4",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Lone Mid",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -106,7 +106,7 @@
     },
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cb5266e972d",
-      "entity_type": "pg_node",
+      "entity_type": "gryphon_playground__pg_node",
       "name": "Lone End",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -122,7 +122,7 @@
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cb719f17669",
       "entity_type": "edge",
-      "name": "019e4d9b-00a6-7210-918f-7cada1264813 --[PG_LINKS]--> 019e4d9b-00a6-7210-918f-7cae986778a7",
+      "name": "019e4d9b-00a6-7210-918f-7cada1264813 --[PG_LINKS__gryphon_playground]--> 019e4d9b-00a6-7210-918f-7cae986778a7",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -135,7 +135,7 @@
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cb849f3d2aa",
       "entity_type": "edge",
-      "name": "019e4d9b-00a6-7210-918f-7cada1264813 --[PG_LINKS]--> 019e4d9b-00a6-7210-918f-7caf4902f22b",
+      "name": "019e4d9b-00a6-7210-918f-7cada1264813 --[PG_LINKS__gryphon_playground]--> 019e4d9b-00a6-7210-918f-7caf4902f22b",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -148,7 +148,7 @@
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cb97db1c797",
       "entity_type": "edge",
-      "name": "019e4d9b-00a6-7210-918f-7cae986778a7 --[PG_LINKS]--> 019e4d9b-00a6-7210-918f-7cb0718770e5",
+      "name": "019e4d9b-00a6-7210-918f-7cae986778a7 --[PG_LINKS__gryphon_playground]--> 019e4d9b-00a6-7210-918f-7cb0718770e5",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -161,7 +161,7 @@
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cbab0939f33",
       "entity_type": "edge",
-      "name": "019e4d9b-00a6-7210-918f-7cae986778a7 --[PG_LINKS]--> 019e4d9b-00a6-7210-918f-7cb1f36889ce",
+      "name": "019e4d9b-00a6-7210-918f-7cae986778a7 --[PG_LINKS__gryphon_playground]--> 019e4d9b-00a6-7210-918f-7cb1f36889ce",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -174,7 +174,7 @@
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cbba0da7f72",
       "entity_type": "edge",
-      "name": "019e4d9b-00a6-7210-918f-7caf4902f22b --[PG_LINKS]--> 019e4d9b-00a6-7210-918f-7cb29d521ddb",
+      "name": "019e4d9b-00a6-7210-918f-7caf4902f22b --[PG_LINKS__gryphon_playground]--> 019e4d9b-00a6-7210-918f-7cb29d521ddb",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -187,7 +187,7 @@
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cbcae1fe8de",
       "entity_type": "edge",
-      "name": "019e4d9b-00a6-7210-918f-7cb3746837b4 --[PG_LINKS]--> 019e4d9b-00a6-7210-918f-7cb4a6b4a6e4",
+      "name": "019e4d9b-00a6-7210-918f-7cb3746837b4 --[PG_LINKS__gryphon_playground]--> 019e4d9b-00a6-7210-918f-7cb4a6b4a6e4",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -200,7 +200,7 @@
     {
       "entity_id": "019e4d9b-00a6-7210-918f-7cbd91cb44c1",
       "entity_type": "edge",
-      "name": "019e4d9b-00a6-7210-918f-7cb4a6b4a6e4 --[PG_LINKS]--> 019e4d9b-00a6-7210-918f-7cb5266e972d",
+      "name": "019e4d9b-00a6-7210-918f-7cb4a6b4a6e4 --[PG_LINKS__gryphon_playground]--> 019e4d9b-00a6-7210-918f-7cb5266e972d",
       "dimensions": {
         "tap.playground": "gridkin"
       },
