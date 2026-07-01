@@ -58,6 +58,6 @@ tap_web/panels/entity_resolution.py:50
 tap_web/panels/entity_resolution.py:68
 tap_web/panels/table_panel/__init__.py:245
 tap_web/synthetic.py:218
-tap_web/views.py:468
-tap_web/views.py:673
-tap_web/views.py:674
+tap_web/views.py:474
+tap_web/views.py:679
+tap_web/views.py:680
