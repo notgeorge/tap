@@ -116,6 +116,33 @@ def _actor_may_read(ctx: CallerContext) -> bool:
     return allowed
 
 
+def caller_can_read() -> bool:
+    """True iff a guarded read by the current caller would be permitted.
+
+    Mirrors `enforce_managed_read`'s allow predicate exactly, but performs no
+    read and never raises — it answers the question the backstop would ask,
+    ahead of time. Presentation code that renders on *every* request (chrome,
+    context processors) uses this to decide whether to run a graph read at all,
+    degrading to a read-free rendering when the caller lacks `grid.read` rather
+    than tripping the backstop mid-render (which would 500 the page). This keeps
+    the always-present shell safe for anonymous / capability-less renders while
+    the enriched read stays gated for authorized callers.
+
+    Allow when: the bypass is active, OR there is no CallerContext (the
+    out-of-scope infrastructure zone — migrations / shell / commands), OR the
+    active actor holds `grid.read`.
+    """
+    if _read_guard_bypass.get():
+        return True
+
+    from tap_grid.caller_context import get_caller_context
+
+    ctx = get_caller_context()
+    if ctx is None:
+        return True
+    return _actor_may_read(ctx)
+
+
 def enforce_managed_read(detail: str) -> None:
     """Backstop a read of TAP-managed graph data. Fail closed if unauthorized.
 

@@ -54,6 +54,39 @@ def _create_page(
 
 
 @pytest.mark.django_db
+class TestBreadcrumbReadFree:
+    """The chrome shell is read-free when the caller cannot read the grid.
+
+    The breadcrumb context processor runs on every response, before we know the
+    caller holds grid.read (anonymous login render, capability-less authenticated
+    render). Enriching segments from `Page` is a guarded read; running it for a
+    caller without grid.read trips the ORM read backstop and 500s the page
+    (req-tap-auth-orm-read-backstop). `build_breadcrumb` therefore only reads
+    Pages when `caller_can_read()`, degrading to URL-derived plain text otherwise.
+    Regression guard for the 2026-07-01 login outage.
+    """
+
+    def test_capless_caller_degrades_to_plain_text_without_reading(self):
+        from tap_grid.caller_context import CallerContext, set_caller_context
+
+        # A Page that WOULD enrich /samsite into a clickable "Compliance Home"
+        # link — its name differs from the URL-derived title-case so we can tell
+        # the enriched path from the degraded path.
+        _create_page(name="Compliance Home", slug="/samsite")
+
+        # Anonymous caller (user=None) holds no grid.read.
+        set_caller_context(CallerContext(user=None))
+
+        # Must NOT raise (the guarded Page read is skipped, not tripped)...
+        segments = build_breadcrumb("/samsite")
+
+        # ...and the segment degrades to the URL-derived plain-text form.
+        samsite = segments[1]
+        assert samsite.is_registered is False
+        assert samsite.label == "Samsite"  # title-cased slug, NOT the Page name
+
+
+@pytest.mark.django_db
 class TestBuildBreadcrumb:
     """Decomposition of URL paths into BreadcrumbSegment chains."""
 
