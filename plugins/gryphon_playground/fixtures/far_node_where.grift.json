@@ -1,0 +1,164 @@
+{
+  "metadata": { "grift_version": "0" },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019f210b-3b22-738c-be7b-3cd3328a6c1f",
+        "entity_type": "batch",
+        "name": "Gridkin fixture — far-node WHERE",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "name": "Gridkin fixture — far-node WHERE",
+        "description": "A two-hop tree that separates the WHERE-matching far node reached by the RIGHT edge type from a decoy reached by the WRONG one. Root A -PG_LINKS-> mid B; B fans out three ways: -PG_LINKS-> C1 (kind=tail, the true match), -PG_LINKS-> C2 (kind=mid, filtered out), and -PG_OPTIONAL-> C3 (kind=tail, a decoy on the wrong edge type). A predicate on the far node `c` of a `(a)-[:PG_LINKS]->(b)-[:PG_LINKS]->(c)` chain must land on the structural far node only — it must never leak onto C3. Regression fixture for the deferred multi-hop far-node-WHERE duplicate-join defect.",
+        "source": "plugin:gryphon_playground"
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019f210b-3b22-738c-be7b-3ccadc367b2c",
+            "entity_type": "gryphon_playground__pg_node",
+            "name": "Root A",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "Root A",
+            "description": "Chain root.",
+            "kind": "root",
+            "severity_score": 0,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019f210b-3b22-738c-be7b-3ccb1bfeb5fe",
+            "entity_type": "gryphon_playground__pg_node",
+            "name": "Mid B",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "Mid B",
+            "description": "Intermediate hub fanning out over two edge types.",
+            "kind": "mid",
+            "severity_score": 5,
+            "is_open": true,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019f210b-3b22-738c-be7b-3ccc741a6df0",
+            "entity_type": "gryphon_playground__pg_node",
+            "name": "Tail C1",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "Tail C1",
+            "description": "Far node reached by PG_LINKS — the true WHERE match.",
+            "kind": "tail",
+            "severity_score": 10,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019f210b-3b22-738c-be7b-3ccd6fb0ecf7",
+            "entity_type": "gryphon_playground__pg_node",
+            "name": "Mid C2",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "Mid C2",
+            "description": "Far node reached by PG_LINKS but filtered out by the WHERE (kind != tail).",
+            "kind": "mid",
+            "severity_score": 15,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019f210b-3b22-738c-be7b-3ccec9503b3f",
+            "entity_type": "gryphon_playground__pg_node",
+            "name": "Tail C3 (decoy)",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "node": {
+            "name": "Tail C3 (decoy)",
+            "description": "kind=tail but reached from B by PG_OPTIONAL, not PG_LINKS — must never appear in a PG_LINKS-only chain. The duplicate-join defect leaked it in.",
+            "kind": "tail",
+            "severity_score": 20,
+            "is_open": false,
+            "observed_at": null,
+            "tags": {}
+          }
+        }
+      ],
+      "edges": [
+        {
+          "entity": {
+            "entity_id": "019f210b-3b22-738c-be7b-3ccf7d239d8e",
+            "entity_type": "edge",
+            "name": "A PG_LINKS B",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "edge": {
+            "from_entity_id": "019f210b-3b22-738c-be7b-3ccadc367b2c",
+            "to_entity_id": "019f210b-3b22-738c-be7b-3ccb1bfeb5fe",
+            "edge_type": "PG_LINKS__gryphon_playground",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019f210b-3b22-738c-be7b-3cd04a9ff723",
+            "entity_type": "edge",
+            "name": "B PG_LINKS C1 (tail)",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "edge": {
+            "from_entity_id": "019f210b-3b22-738c-be7b-3ccb1bfeb5fe",
+            "to_entity_id": "019f210b-3b22-738c-be7b-3ccc741a6df0",
+            "edge_type": "PG_LINKS__gryphon_playground",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019f210b-3b22-738c-be7b-3cd1497f0bbe",
+            "entity_type": "edge",
+            "name": "B PG_LINKS C2 (mid)",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "edge": {
+            "from_entity_id": "019f210b-3b22-738c-be7b-3ccb1bfeb5fe",
+            "to_entity_id": "019f210b-3b22-738c-be7b-3ccd6fb0ecf7",
+            "edge_type": "PG_LINKS__gryphon_playground",
+            "properties": {}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019f210b-3b22-738c-be7b-3cd201e5e292",
+            "entity_type": "edge",
+            "name": "B PG_OPTIONAL C3 (decoy tail)",
+            "dimensions": { "tap.playground": "gridkin" }
+          },
+          "edge": {
+            "from_entity_id": "019f210b-3b22-738c-be7b-3ccb1bfeb5fe",
+            "to_entity_id": "019f210b-3b22-738c-be7b-3ccec9503b3f",
+            "edge_type": "PG_OPTIONAL__gryphon_playground",
+            "properties": {}
+          }
+        }
+      ]
+    }
+  ]
+}

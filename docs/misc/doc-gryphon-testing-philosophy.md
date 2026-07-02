@@ -347,10 +347,13 @@ now the property fuzzer that closes the sampled-testing ladder:
   *reference oracle itself* — union WHERE scoping mis-handling `NOT` over an
   unbound-variable leaf). Each was triaged by evidence and fixed with a
   regression-locking scenario. It also *reproduced* a substantial pre-existing
-  executor defect (multi-hop far-node WHERE spawns a duplicate join → row inflation)
-  that is recorded as a named open finding rather than papered over. This is the
-  discipline's own lesson turned on itself: an authoring-independent generator finds
-  what no hand-authored scenario thought to write — including bugs in the checker.
+  executor defect (multi-hop far-node WHERE spawned a duplicate join → row inflation
+  and far nodes reached by the wrong edge type) — since **fixed** by folding the
+  WHERE into the chain's single `.filter()`, regression-locked by the
+  `far_node_where` scenarios, and the generator now emits WHERE on multi-hop chains
+  so the fuzzer keeps exercising it. This is the discipline's own lesson turned on
+  itself: an authoring-independent generator finds what no hand-authored scenario
+  thought to write — including bugs in the checker.
 - **Metamorphic / differential oracles from the literature.** SQLancer's **NoREC**
   is our envelope-vs-projection consistency relation — considered, but it does not
   yield a *distinct* check at Gryphon's dispatch layer (single-hop projections
