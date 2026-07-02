@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e4dbd-db9c-7713-b0fd-22b48f16a484",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "North Alpha",
       "dimensions": {
         "zone": "north",
@@ -36,7 +36,7 @@
     },
     {
       "entity_id": "019e4dbd-db9c-7713-b0fd-22b5c98137cb",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "North Beta",
       "dimensions": {
         "zone": "north",

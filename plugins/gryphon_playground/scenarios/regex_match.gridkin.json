@@ -16,7 +16,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ \"githubusercontent\" RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.name =~ \"githubusercontent\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__default_search.expected.json",
       "expected_sql_snapshot": "expected/regex_match__default_search.sql.txt"
     },
@@ -29,7 +29,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ \"(?i)githubusercontent\" RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.name =~ \"(?i)githubusercontent\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__case_insensitive.expected.json",
       "expected_sql_snapshot": "expected/regex_match__case_insensitive.sql.txt"
     },
@@ -41,7 +41,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ \"^https://token\\\\.actions\\\\.githubusercontent\\\\.com$\" RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.name =~ \"^https://token\\\\.actions\\\\.githubusercontent\\\\.com$\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__explicit_anchors.expected.json",
       "expected_sql_snapshot": "expected/regex_match__explicit_anchors.sql.txt"
     },
@@ -53,7 +53,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ \"githubusercontent\\\\.com\" RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.name =~ \"githubusercontent\\\\.com\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__escaped_dot.expected.json",
       "expected_sql_snapshot": "expected/regex_match__escaped_dot.sql.txt"
     },
@@ -65,7 +65,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ $pattern RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.name =~ $pattern RETURN n.name AS name ORDER BY name",
       "params": { "pattern": "(?i)token" },
       "expected_envelope": "expected/regex_match__param_pattern.expected.json",
       "expected_sql_snapshot": "expected/regex_match__param_pattern.sql.txt"
@@ -79,7 +79,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.tags.url =~ \"github\" RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.tags.url =~ \"github\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__data_lane_json.expected.json",
       "expected_sql_snapshot": "expected/regex_match__data_lane_json.sql.txt"
     },
@@ -92,7 +92,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ $pattern RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.name =~ $pattern RETURN n.name AS name ORDER BY name",
       "params": { "pattern": null },
       "expected_envelope": "expected/regex_match__null_pattern.expected.json",
       "expected_sql_snapshot": "expected/regex_match__null_pattern.sql.txt"
@@ -105,7 +105,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ \"(?i)github\" AND n.data.kind = \"identity_provider\" RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.name =~ \"(?i)github\" AND n.data.kind = \"identity_provider\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__and_composition.expected.json",
       "expected_sql_snapshot": "expected/regex_match__and_composition.sql.txt"
     },
@@ -117,7 +117,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE NOT (n.name =~ \"(?i)token\") RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE NOT (n.name =~ \"(?i)token\") RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__not_composition.expected.json",
       "expected_sql_snapshot": "expected/regex_match__not_composition.sql.txt"
     },
@@ -129,7 +129,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.entity_type =~ \"^gryphon_playground__pg_\" RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.entity_type =~ \"^grid_fixtures__\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__spine_entity_type.expected.json",
       "expected_sql_snapshot": "expected/regex_match__spine_entity_type.sql.txt"
     },
@@ -142,7 +142,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ \"\" RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.name =~ \"\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__empty_pattern.expected.json",
       "expected_sql_snapshot": "expected/regex_match__empty_pattern.sql.txt"
     },
@@ -154,7 +154,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ \"^https://(token|my-ghes)\" RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.name =~ \"^https://(token|my-ghes)\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__alternation.expected.json",
       "expected_sql_snapshot": "expected/regex_match__alternation.sql.txt"
     },
@@ -166,7 +166,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (openCypher TCK has no regex coverage; String13/14 are empty stubs, =~ untested)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.name =~ \"actions\\\\.[a-z]+\\\\.com\" RETURN n.name AS name ORDER BY name",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.name =~ \"actions\\\\.[a-z]+\\\\.com\" RETURN n.name AS name ORDER BY name",
       "expected_envelope": "expected/regex_match__character_class.expected.json",
       "expected_sql_snapshot": "expected/regex_match__character_class.sql.txt"
     }

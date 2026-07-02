@@ -10,7 +10,7 @@
       "covers": ["req-grid-gryphon-multihop"],
       "inspired_by": "opencypher TCK — clauses/match (nested two-hop branch traversal)",
       "layer": "lite",
-      "query": "MATCH (r)-[:PG_NESTS__gryphon_playground]->(b)-[:PG_NESTS__gryphon_playground]->(l) WHERE r.entity_id = $root",
+      "query": "MATCH (r)-[:PG_NESTS__grid_fixtures]->(b)-[:PG_NESTS__grid_fixtures]->(l) WHERE r.entity_id = $root",
       "params": {
         "root": "019e4e07-9975-7501-8d81-0fd1935265b4"
       },

@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019f210b-3b22-738c-be7b-3ccadc367b2c",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Root A",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -15,7 +15,7 @@
     },
     {
       "entity_id": "019f210b-3b22-738c-be7b-3ccb1bfeb5fe",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Mid B",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -28,7 +28,7 @@
     },
     {
       "entity_id": "019f210b-3b22-738c-be7b-3ccc741a6df0",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Tail C1",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -44,7 +44,7 @@
     {
       "entity_id": "019f210b-3b22-738c-be7b-3ccf7d239d8e",
       "entity_type": "edge",
-      "name": "019f210b-3b22-738c-be7b-3ccadc367b2c --[PG_LINKS__gryphon_playground]--> 019f210b-3b22-738c-be7b-3ccb1bfeb5fe",
+      "name": "019f210b-3b22-738c-be7b-3ccadc367b2c --[PG_LINKS__grid_fixtures]--> 019f210b-3b22-738c-be7b-3ccb1bfeb5fe",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -57,7 +57,7 @@
     {
       "entity_id": "019f210b-3b22-738c-be7b-3cd04a9ff723",
       "entity_type": "edge",
-      "name": "019f210b-3b22-738c-be7b-3ccb1bfeb5fe --[PG_LINKS__gryphon_playground]--> 019f210b-3b22-738c-be7b-3ccc741a6df0",
+      "name": "019f210b-3b22-738c-be7b-3ccb1bfeb5fe --[PG_LINKS__grid_fixtures]--> 019f210b-3b22-738c-be7b-3ccc741a6df0",
       "dimensions": {
         "tap.playground": "gridkin"
       },

@@ -23,7 +23,7 @@
       "covers": ["req-grid-traversal-lang-shape"],
       "inspired_by": "opencypher TCK — clauses/match (typed pattern selects one of parallel edges)",
       "layer": "lite",
-      "query": "MATCH (a)-[e:PG_NESTS__gryphon_playground]-(b) WHERE a.entity_id = $source",
+      "query": "MATCH (a)-[e:PG_NESTS__grid_fixtures]-(b) WHERE a.entity_id = $source",
       "params": {
         "source": "019e4e07-9975-7501-8d81-0fc8952b3f91"
       },
@@ -36,7 +36,7 @@
       "covers": ["req-grid-traversal-lang-shape"],
       "inspired_by": "opencypher TCK — clauses/match (two patterns converging on one target, (a)-->(x),(b)-->(x); v0 Gryphon binds exactly one pattern per MATCH clause and rejects the comma-join rather than computing the convergence)",
       "layer": "lite",
-      "query": "MATCH (a:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(x:gryphon_playground__pg_node), (b:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(x:gryphon_playground__pg_node) RETURN x.entity_id AS id",
+      "query": "MATCH (a:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(x:grid_fixtures__node), (b:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(x:grid_fixtures__node) RETURN x.entity_id AS id",
       "expected_error": { "type": "SearchExecutionError", "message_contains": "exactly one pattern" }
     }
   ]

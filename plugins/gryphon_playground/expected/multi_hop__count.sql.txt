@@ -9,4 +9,4 @@ INNER JOIN "tap_entity" T6 ON (T5."to_entity_id" = T6."id")
 WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T3."entity_type" = %s AND T5."edge_type" = %s AND T6."entity_type" = %s AND T4."entity_type" = %s)
 GROUP BY 1
 ORDER BY 1 ASC
--- params: ['PG_LINKS__gryphon_playground', 'gryphon_playground__pg_node', 'PG_LINKS__gryphon_playground', 'gryphon_playground__pg_node', 'gryphon_playground__pg_node']
+-- params: ['PG_LINKS__grid_fixtures', 'grid_fixtures__node', 'PG_LINKS__grid_fixtures', 'grid_fixtures__node', 'grid_fixtures__node']

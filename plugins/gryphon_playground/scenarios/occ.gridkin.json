@@ -20,7 +20,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (TAP-native: optimistic-concurrency version bump)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.entity_id = $node",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.entity_id = $node",
       "params": {
         "node": "019e6623-dce0-739e-8c9a-9bd93998c471"
       },

@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fdbae66369e",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Infra High",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -38,7 +38,7 @@
     },
     {
       "entity_id": "019e4e07-9975-7501-8d81-0fdd835507e1",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Data High",
       "dimensions": {
         "tap.playground": "gridkin"

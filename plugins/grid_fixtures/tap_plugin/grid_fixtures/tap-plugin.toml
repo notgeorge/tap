@@ -1,0 +1,17 @@
+manifest_version = "0"
+plugin_version = "0.1.0"
+slug = "grid_fixtures"
+name = "Grid Fixtures"
+description = "Neutral, unconstrained graph-node + edge vocabulary for grid test fixtures — the load-bearing types the core suites import."
+
+[models]
+grid_fixtures__node = "tap_plugin.grid_fixtures.models.pg_node.PgNode"
+grid_fixtures__hub = "tap_plugin.grid_fixtures.models.pg_hub.PgHub"
+grid_fixtures__leaf = "tap_plugin.grid_fixtures.models.pg_leaf.PgLeaf"
+grid_fixtures__cycle_node = "tap_plugin.grid_fixtures.models.pg_cycle_node.PgCycleNode"
+
+[edges]
+PG_LINKS__grid_fixtures = "edges/PG_LINKS.edge.json"
+PG_NESTS__grid_fixtures = "edges/PG_NESTS.edge.json"
+PG_LOOPS__grid_fixtures = "edges/PG_LOOPS.edge.json"
+PG_OPTIONAL__grid_fixtures = "edges/PG_OPTIONAL.edge.json"

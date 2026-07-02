@@ -18,7 +18,7 @@
         {
           "entity": {
             "entity_id": "019e6623-dce0-739e-8c9a-9bd93998c471",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "OCC Demo Node",
             "dimensions": { "tap.playground": "gridkin" },
             "entity_expected_version": 1

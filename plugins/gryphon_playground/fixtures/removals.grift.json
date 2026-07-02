@@ -18,7 +18,7 @@
         {
           "entity": {
             "entity_id": "019e6563-ddae-75f4-b3d8-b4c044a626bc",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Removal Demo Node A",
             "dimensions": { "tap.playground": "gridkin" }
           },
@@ -35,7 +35,7 @@
         {
           "entity": {
             "entity_id": "019e6563-ddae-75f4-b3d8-b4c177be88c8",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Removal Demo Node B",
             "dimensions": { "tap.playground": "gridkin" }
           },
@@ -58,7 +58,7 @@
         "nodes": [
           {
             "entity_id": "019e6563-ddae-75f4-b3d8-b4c2895e2509",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "reason": "Locks the removal protocol: target does not exist locally; on_missing=ignore silently skips it."
           }
         ]
