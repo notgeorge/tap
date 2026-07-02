@@ -91,7 +91,7 @@ The scheduler will use `Collector` nodes to determine which collector capability
 | req-tap-cares-collector-model-7 | Unique Registry Key | Implemented | v0 `collector_registry` values are unique within a grid. Attempts to persist a second Collector with an existing `collector_registry` value fail validation. | Enforced via DB-level `unique=True`; revisit when per-instance configuration exists. |
 | req-tap-cares-collector-model-8 | v0 Field Set | Implemented | v0 `Collector` exposes only `name`, `description`, and `collector_registry`. Per-instance configuration fields are deferred. | |
 | req-tap-cares-collector-model-9 | INTERNAL_ONLY | Proposed | `Collector.INTERNAL_ONLY = True`. Generic `create_node` / `patch_node` / `replace_node` / `delete_node` and GRIFT import all reject the `collector` entity type. | |
-| req-tap-cares-collector-model-10 | Deterministic Entity ID | Proposed | A Collector's `entity_id` is `uuid5(NAMESPACE_COLLECTOR, collector_registry)`. The same `scope:key` always yields the same `entity_id` across reloads and across grids. | `NAMESPACE_COLLECTOR` is a module-level UUID constant in `tap_cares/registry.py`. |
+| req-tap-cares-collector-model-10 | Deterministic Entity ID | Proposed | A Collector's `entity_id` is `uuid5(NAMESPACE_COLLECTOR, collector_registry)`. The same `scope:key` always yields the same `entity_id` across reloads and across grids. `scope` is a REQUIRED explicit argument to `register_collector` (conventionally the plugin slug), never inferred from `cls.__module__`: the id is a durable, cross-referenced grid key (the reconcile key for the on-grid Collector node and a hardcoded `SCHEDULED_TARGET` target in schedule grift bundles), so a Python module rename must not silently change it. The package-mode migration proved the module path is mutable; the slug is the stable identity. | `NAMESPACE_COLLECTOR` is a module-level UUID constant in `tap_cares/registry.py`. Guarded by `tap_cares/tests/test_schedule_grift_targets_resolve.py` (every grift `SCHEDULED_TARGET` resolves to a registered collector's derived id). |
 | req-tap-cares-collector-model-11 | Reconcile Is Sole Creator | Proposed | The only legal path that creates a `Collector` row is `reconcile_collector_nodes()` (see [Collector Registration](#collector-registration)), which writes through `write_batch(..., _internal_only_bypass=True)` from `tap_grid.services`; `register_collector(...)` writes no grid node. | |
 
 ## Collector Registry
@@ -186,15 +186,18 @@ def register_collector(
     key: str,
     cls: type[CollectorBase],
     *,
+    scope: str,
     name: str,
     description: str,
-    scope: str | None = None,
 ) -> None:
     """Register a collector capability — the read-only half of dual existence.
 
     Runs at app `ready()` and performs NO graph write:
-    1. Registers `cls` in `collector_registry` under `scope:key`.
-       If `scope` is omitted, it is inferred from `cls.__module__`.
+    1. Registers `cls` in `collector_registry` under `scope:key`. `scope` is
+       REQUIRED and must be the plugin's stable slug — it is deliberately NOT
+       inferred from `cls.__module__`, because the collector's derived entity id
+       is a durable, cross-referenced grid key that a module rename must never
+       silently change (req-tap-cares-collector-model-10).
     2. Records the on-grid node descriptor (`name` / `description`) in
        `_COLLECTOR_NODE_METADATA`, keyed by `scope:key`, for later
        materialization by `reconcile_collector_nodes()`.

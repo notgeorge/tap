@@ -71,7 +71,8 @@ def _make_collector_with_fixture(doc: dict | None = None):
     return _FixtureKSICollector
 
 
-_TEST_REGISTRY_KEY = "tap_plugin.fedramp_20x_ksi.tests.fixtures.injected:ksi-catalog-test"
+_TEST_SCOPE = "tap_plugin.fedramp_20x_ksi.tests.fixtures.injected"
+_TEST_REGISTRY_KEY = f"{_TEST_SCOPE}:ksi-catalog-test"
 
 
 def _register_and_fetch(
@@ -86,6 +87,7 @@ def _register_and_fetch(
     register_collector(
         key="ksi-catalog-test",
         cls=cls,
+        scope=_TEST_SCOPE,
         name=name,
         description=description,
     )
@@ -361,17 +363,19 @@ def test_live_fetch_round_trip(isolate_collector_registry):
     `pytest -m live_fetch` when you want to validate against the live
     upstream — e.g., before tagging a release.
     """
-    # Live KSICollector ships under its own module path, so registering it
-    # under "ksi-catalog-test" yields a different qualified key than the
-    # fixture path. register_collector creates the matching Collector node.
+    # Register the live collector under its own test qualified key. Scope is an
+    # explicit declaration (mandatory) — here a distinct test scope so it never
+    # collides with the production `fedramp_20x_ksi:ksi-catalog` registration.
+    _live_scope = "tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog"
     register_collector(
         key="ksi-catalog-test",
         cls=KSICollector,
+        scope=_live_scope,
         name="KSI Catalog (live test)",
         description="Live-network KSI collector test.",
     )
     reconcile_collector_nodes()  # materialize the on-grid node (register is read-only)
-    live_key = "tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog-test"
+    live_key = f"{_live_scope}:ksi-catalog-test"
     col = Collector.objects.get(collector_registry=live_key)
     # We don't assert on diff shape (upstream changes). The immediate backend
     # captures any KSICollectorError on the TaskResult; job.status is the
