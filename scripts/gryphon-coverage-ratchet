@@ -47,6 +47,8 @@ uv run python - "$BASELINE_FILE" "$COV_JSON" <<'PY'
 import json
 import sys
 
+from tap.ratchet import RatchetError, ratchet_floor
+
 baseline_path, cov_path = sys.argv[1], sys.argv[2]
 baseline = json.load(open(baseline_path, encoding="utf-8"))
 cov = json.load(open(cov_path, encoding="utf-8"))
@@ -64,30 +66,33 @@ covered_branches = summary["covered_branches"]
 # Pure branch coverage — covered / total branches — so "branch coverage" is
 # literally what is ratcheted (not coverage.py's combined line+branch percent).
 current = 100.0 * covered_branches / num_branches if num_branches else 100.0
-current_int = int(current)  # floor to a whole percent — sub-point wobble is not a regression
 floor = baseline["executor_branch_pct_floor"]
 
 print(
-    f"executor.py branch coverage: current={current:.2f}% (floor {current_int}%)  "
+    f"executor.py branch coverage: current={current:.2f}% (floor {int(current)}%)  "
     f"ratchet floor={floor}%  "
     f"[{covered_branches}/{num_branches} branches]"
 )
 
-if current_int < floor:
+# Compare-and-report is the shared harness core (tap.ratchet.ratchet_floor):
+# int-floored regression raises; an improvement returns a bump reminder. The
+# surface-specific "add a gridkin scenario" hint is appended to a regression.
+try:
+    bump = ratchet_floor(
+        current=current,
+        floor=floor,
+        surface="Gryphon executor branch coverage",
+        baseline_path=baseline_path,
+    )
+except RatchetError as exc:
     print(
-        f"FAIL: executor branch coverage regressed below the ratchet floor "
-        f"({current_int}% < {floor}%).\n"
-        "  Add a scenario/test that exercises the newly-uncovered branch (prefer a\n"
-        "  gridkin scenario so the answer is oracle-checked too), or — if the drop is\n"
-        f"  a deliberate code removal — lower the floor in {baseline_path} with a reason."
+        f"FAIL: {exc}\n"
+        "  Prefer a gridkin scenario that exercises the newly-uncovered branch (so the\n"
+        "  answer is oracle-checked too). Deliberate code removal → lower the floor with a reason."
     )
     sys.exit(1)
 
-if current_int > floor:
-    print(
-        f"NOTE: branch coverage improved to {current_int}% (floor {floor}%). Ratchet up:\n"
-        f"  bump executor_branch_pct_floor to {current_int} in {baseline_path} to lock the gain."
-    )
-
+if bump is not None:
+    print(f"NOTE: {bump}\n  (the floor key is `executor_branch_pct_floor`).")
 print("OK: executor branch coverage holds at or above the ratchet floor.")
 PY

@@ -55,6 +55,8 @@ from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
+from tap.ratchet import RatchetError, ratchet_ceiling
+
 logger = logging.getLogger(__name__)
 
 # The deterministic offline canary (grid_fixtures) — no network, no credentials, so
@@ -194,14 +196,28 @@ class Command(BaseCommand):
         return broken
 
     def _ratchet_known_broken(self, known_broken: dict[str, str], failed_broken: set[str]) -> None:
-        """req-dev-validation-known-broken-2: a listed entry that no longer fails is stale → red."""
-        stale = sorted(set(known_broken) - failed_broken)
-        if stale:
-            raise CommandError(
-                f"GATE RED: known-broken manifest has stale entr(y/ies) that no longer fail: {', '.join(stale)}. "
-                f"The manifest ratchets to zero — remove the fixed entr(y/ies) so 'green' stays honest "
-                f"(req-dev-validation-known-broken-2)."
+        """req-dev-validation-known-broken-2: a listed entry that no longer fails is stale → red.
+
+        Delegates the compare-and-report to the shared ceiling-ratchet core
+        (`tap.ratchet`) so this manifest obeys the one house ratchet convention.
+        The stale half is what fires here — a newly-failing *un*listed step has
+        already halted the run before this point — but routing `current`/`baseline`
+        through the same core keeps the "green stays honest" teeth in one place.
+        RatchetError is re-raised as CommandError to preserve the clean gate-red UX.
+        """
+        try:
+            ratchet_ceiling(
+                current=failed_broken,
+                baseline=set(known_broken),
+                surface="cold-boot known-broken manifest",
+                baseline_path=KNOWN_BROKEN_PATH,
+                new_hint=(
+                    "A newly-failing step is not tolerated — fix it, or (last resort) add a justified "
+                    '{"step": ..., "reason": ...} entry (req-dev-validation-known-broken-3).'
+                ),
             )
+        except RatchetError as exc:
+            raise CommandError(f"GATE RED: {exc} (req-dev-validation-known-broken-2)") from exc
 
     # -- steps ---------------------------------------------------------------
 
