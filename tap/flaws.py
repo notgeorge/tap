@@ -192,6 +192,7 @@ _BYPASS_INFRA_MARKERS: tuple[str, ...] = (
     "/tap/flaws.py",
     "/tap_grid/read_guard.py",
     "/tap_grid/write_guard.py",
+    "/tap_grid/search_readonly_guard.py",
     "/tap_grid/models.py",
     "/tap_auth/enforcement.py",
 )
@@ -252,6 +253,50 @@ def report_service_layer_bypass(
     flaw_cls = flaw_class_for_path(path)
     return flaw_cls.report(
         invariant_id=invariant_id,
+        tags=["security"],
+        handling=HANDLING_ABORT_OPERATION,
+        message=f"{message} — offending callsite: {site}",
+        logger=logger,
+        offending_callsite=site,
+        **context,
+    )
+
+
+def report_readonly_write_blocked(
+    *,
+    message: str,
+    logger: logging.Logger,
+    **context: Any,
+) -> Flaw:
+    """Emit a `security` Flaw when a write is attempted on the read-only search connection.
+
+    The `search_readonly` DB alias (tap/settings.py) runs with
+    ``default_transaction_read_only=on``, so any write reaching it is rejected by
+    PostgreSQL (SQLSTATE 25006, `req-grid-search-readonly.sec`). That rejection
+    preserves grid integrity but is otherwise *silent* — it surfaces as a generic
+    query error, indistinguishable from a malformed query. This Flaw is the
+    response-triggering alert (`req-grid-search-readonly-sec-detect`): a write
+    attempt on the read-only traversal surface is a should-never-happen event —
+    either a core executor defect or an injection that escaped bind-parameter
+    safety — and a human (eventually an on-call AI) must investigate.
+
+    Blame class is decided by the offending callsite (core executor → `code`; a
+    plugin runner → `app`), matching :func:`report_service_layer_bypass`. Always
+    `security`-tagged and operation-aborting. The caller re-raises the original DB
+    error after this returns; the write itself stays blocked.
+
+    Args:
+        message: Human-readable description (no secrets — never the SQL text).
+        logger: The calling module's logger, so the record name is the callsite.
+        **context: Extra safe structured context merged into ``message_data``.
+
+    Returns:
+        The emitted Flaw.
+    """
+    path, site = _offending_callsite()
+    flaw_cls = flaw_class_for_path(path)
+    return flaw_cls.report(
+        invariant_id="search_readonly_write_blocked",
         tags=["security"],
         handling=HANDLING_ABORT_OPERATION,
         message=f"{message} — offending callsite: {site}",
