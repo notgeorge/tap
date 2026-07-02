@@ -13,7 +13,7 @@
     },
     {
       "entity_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
-      "entity_type": "gryphon_playground__pg_hub",
+      "entity_type": "grid_fixtures__hub",
       "name": "Dense Hub",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -26,7 +26,7 @@
     },
     {
       "entity_id": "019e4b02-f37b-72df-a3e5-bafa7b3865a9",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Neighbor One",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -39,7 +39,7 @@
     },
     {
       "entity_id": "019e4b02-f37b-72df-a3e5-bafb10535646",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Neighbor Two",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -52,7 +52,7 @@
     },
     {
       "entity_id": "019e4b02-f37b-72df-a3e5-bafc00e2b0af",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Neighbor Three",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -65,7 +65,7 @@
     },
     {
       "entity_id": "019e4b02-f37b-72df-a3e5-bafd3e1fc13d",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Lonely Island",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -78,7 +78,7 @@
     },
     {
       "entity_id": "019e4b02-f37b-72df-a3e5-bafef82d1e41",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Island Alpha",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -91,7 +91,7 @@
     },
     {
       "entity_id": "019e4b02-f37b-72df-a3e5-baff05e4468a",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Island Beta",
       "dimensions": {
         "tap.playground": "gridkin"

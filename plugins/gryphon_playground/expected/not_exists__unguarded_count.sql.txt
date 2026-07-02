@@ -9,4 +9,4 @@ WHERE (U1."deleted_at" IS NULL AND U0."edge_type" = %s AND U0."to_entity_id" = (
 LIMIT 1))
 GROUP BY 1
 ORDER BY 1 ASC
--- params: ['PG_LINKS__gryphon_playground', Int4(1), 'PG_OPTIONAL__gryphon_playground']
+-- params: ['PG_LINKS__grid_fixtures', Int4(1), 'PG_OPTIONAL__grid_fixtures']

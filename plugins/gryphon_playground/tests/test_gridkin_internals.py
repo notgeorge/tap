@@ -26,7 +26,7 @@ _VALID_SCENARIO = {
             "name": "scan returns all pg_node entities",
             "covers": ["req-grid-traversal-lang-shape"],
             "inspired_by": "opencypher TCK — clauses/match (full label scan)",
-            "query": "MATCH (n:gryphon_playground__pg_node) RETURN n",
+            "query": "MATCH (n:grid_fixtures__node) RETURN n",
             "expected_envelope": "expected/type_scan.expected.json",
             "expected_sql_snapshot": "expected/type_scan.sql.txt",
         }
@@ -251,7 +251,7 @@ def _scenario(scenario_id: str, covers: tuple[str, ...]) -> Scenario:
         covers=covers,
         inspired_by=None,
         layer="full",
-        query="MATCH (n:gryphon_playground__pg_node) RETURN n",
+        query="MATCH (n:grid_fixtures__node) RETURN n",
         params={},
         fixture_paths=(Path("x"),),
         expected_envelope_path=Path("x"),
@@ -320,11 +320,11 @@ class TestStageCoverage:
     def test_query_carries_where_counts_not_exists_inner(self):
         # A NOT EXISTS with only an inner WHERE still exercises the advanced
         # stage's WHERE-application path, so it counts as WHERE-carrying.
-        no_where = "MATCH (n:gryphon_playground__pg_node) RETURN n"
-        outer_where = "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score > 1 RETURN n"
+        no_where = "MATCH (n:grid_fixtures__node) RETURN n"
+        outer_where = "MATCH (n:grid_fixtures__node) WHERE n.data.severity_score > 1 RETURN n"
         inner_only = (
-            "MATCH (s)-[:PG_LINKS__gryphon_playground]->(t) "
-            "NOT EXISTS { MATCH (g:gryphon_playground__pg_node)-[:PG_OPTIONAL__gryphon_playground]->(t) "
+            "MATCH (s)-[:PG_LINKS__grid_fixtures]->(t) "
+            "NOT EXISTS { MATCH (g:grid_fixtures__node)-[:PG_OPTIONAL__grid_fixtures]->(t) "
             "WHERE g.data.severity_score > 100 }"
         )
         assert not stage_coverage.query_carries_where(no_where)

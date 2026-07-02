@@ -67,13 +67,13 @@ from tap_grid.gryphon.parser import parse_gryphon
 # selectivity (a scan of one type must exclude the others). Edges are the two
 # wildcard-endpoint playground edge types, so any topology is importable.
 _LABELS = (
-    "gryphon_playground__pg_node",
-    "gryphon_playground__pg_hub",
-    "gryphon_playground__pg_leaf",
+    "grid_fixtures__node",
+    "grid_fixtures__hub",
+    "grid_fixtures__leaf",
 )
 _EDGE_TYPES = (
-    "PG_LINKS__gryphon_playground",
-    "PG_OPTIONAL__gryphon_playground",
+    "PG_LINKS__grid_fixtures",
+    "PG_OPTIONAL__grid_fixtures",
 )
 
 # Small, low-cardinality value pools so a random equality/`IN`/comparison filter

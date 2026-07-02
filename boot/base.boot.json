@@ -58,10 +58,16 @@
         "note": "Package-mode (tap_plugin.samsite). The demo integration surface; seeded in population. DEPENDS ON roscale/sigstore_core/github_core (import time) + aws_core nodes — listed last so its cross-plugin deps install first. Its collectors are NOT fired in base (base reaches out to nothing)."
       },
       {
+        "slug": "grid_fixtures",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/grid_fixtures" },
+        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites + the Gryphon playground build fixtures from (the load-bearing test-fixture role lotr also fills). No GRIFT population seed, so not a population step — just installed + reconciled. No cross-plugin deps. Listed before gryphon_playground, which depends_on it."
+      },
+      {
         "slug": "gryphon_playground",
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/gryphon_playground" },
-        "note": "Package-mode (tap_plugin.gryphon_playground). Install-only: the pg_* playground vocabulary + Gridkin scenario corpus that the Gryphon test suites exercise. Registers pg_* node/edge types (a load-bearing test-fixture plugin, like lotr) but carries NO GRIFT population seed, so it is not a population step — it just must be installed + reconciled. No cross-plugin deps."
+        "note": "Package-mode (tap_plugin.gryphon_playground). Install-only: the Gridkin scenario corpus + harness that exercise the Gryphon query language. Owns NO node/edge types of its own — its corpus references the grid_fixtures__* vocabulary by string, so it depends_on grid_fixtures (installed before it). Carries NO GRIFT population seed, so it is not a population step — just installed + reconciled."
       }
     ]
   },

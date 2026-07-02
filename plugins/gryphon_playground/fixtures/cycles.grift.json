@@ -18,7 +18,7 @@
         {
           "entity": {
             "entity_id": "019e4e07-9975-7501-8d81-0fbf70e51757",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Cycle A",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T16:00:00Z",
@@ -37,7 +37,7 @@
         {
           "entity": {
             "entity_id": "019e4e07-9975-7501-8d81-0fc0ad869bfa",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Cycle B",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T16:00:01Z",
@@ -56,7 +56,7 @@
         {
           "entity": {
             "entity_id": "019e4e07-9975-7501-8d81-0fc171d1a72d",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Cycle C",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T16:00:02Z",
@@ -75,7 +75,7 @@
         {
           "entity": {
             "entity_id": "019e4e07-9975-7501-8d81-0fc238769248",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Self Loop",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T16:00:03Z",
@@ -105,7 +105,7 @@
           "edge": {
             "from_entity_id": "019e4e07-9975-7501-8d81-0fbf70e51757",
             "to_entity_id": "019e4e07-9975-7501-8d81-0fc0ad869bfa",
-            "edge_type": "PG_LINKS__gryphon_playground",
+            "edge_type": "PG_LINKS__grid_fixtures",
             "properties": {}
           }
         },
@@ -121,7 +121,7 @@
           "edge": {
             "from_entity_id": "019e4e07-9975-7501-8d81-0fc0ad869bfa",
             "to_entity_id": "019e4e07-9975-7501-8d81-0fc171d1a72d",
-            "edge_type": "PG_LINKS__gryphon_playground",
+            "edge_type": "PG_LINKS__grid_fixtures",
             "properties": {}
           }
         },
@@ -137,7 +137,7 @@
           "edge": {
             "from_entity_id": "019e4e07-9975-7501-8d81-0fc171d1a72d",
             "to_entity_id": "019e4e07-9975-7501-8d81-0fbf70e51757",
-            "edge_type": "PG_LINKS__gryphon_playground",
+            "edge_type": "PG_LINKS__grid_fixtures",
             "properties": {}
           }
         },
@@ -153,7 +153,7 @@
           "edge": {
             "from_entity_id": "019e4e07-9975-7501-8d81-0fc238769248",
             "to_entity_id": "019e4e07-9975-7501-8d81-0fc238769248",
-            "edge_type": "PG_LINKS__gryphon_playground",
+            "edge_type": "PG_LINKS__grid_fixtures",
             "properties": {}
           }
         }

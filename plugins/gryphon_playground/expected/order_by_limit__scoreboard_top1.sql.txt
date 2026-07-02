@@ -6,4 +6,4 @@ WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s)
 GROUP BY 1
 ORDER BY 2 DESC, 1 ASC
 LIMIT 1
--- params: ['PG_LINKS__gryphon_playground']
+-- params: ['PG_LINKS__grid_fixtures']

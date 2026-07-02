@@ -1,4 +1,4 @@
-"""PgHub — playground node marked as a hub."""
+"""PgLeaf — playground node marked as a leaf."""
 
 from typing import Any, ClassVar
 
@@ -19,18 +19,18 @@ _FIELD_CRUD_SCHEMA: dict[str, Any] = {
 }
 
 
-class PgHub(BaseModel):
-    """Playground node marked as a hub — one node with many neighbors.
+class PgLeaf(BaseModel):
+    """Playground node marked as a leaf — a terminal in a chain.
 
-    Identical in fields to PgNode; the hub semantics are convention carried by
-    the `pg_hub` entity_type slug, so a scenario can target the type to set up
-    hub-and-spoke shapes. The executor does not treat it specially.
-    See plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md.
+    Identical in fields to PgNode; the leaf semantics are convention carried by
+    the `pg_leaf` entity_type slug, so a scenario can target the type to set up
+    chains and fan-outs with explicit terminals. The executor does not treat it
+    specially. See plugins/grid_fixtures/README.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "gryphon_playground__pg_hub"
-    ENTITY_NAME: ClassVar[str] = "Playground Hub"
-    ENTITY_DESCRIPTION: ClassVar[str] = "Playground node marked as a hub — one node with many neighbors."
+    ENTITY_TYPE: ClassVar[str] = "grid_fixtures__leaf"
+    ENTITY_NAME: ClassVar[str] = "Playground Leaf"
+    ENTITY_DESCRIPTION: ClassVar[str] = "Playground node marked as a leaf — a terminal in a chain."
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.playground": "gridkin"}
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = _FIELD_CRUD_SCHEMA
@@ -50,7 +50,7 @@ class PgHub(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "gryphon_playground__pg_hub"
+        db_table = "grid_fixtures__leaf"
 
     def get_name(self) -> str:
         return self.name

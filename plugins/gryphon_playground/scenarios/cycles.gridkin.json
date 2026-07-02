@@ -23,7 +23,7 @@
       "covers": ["req-grid-gryphon-multihop"],
       "inspired_by": "opencypher TCK — clauses/match (cyclic path returns to origin)",
       "layer": "lite",
-      "query": "MATCH (a)-[:PG_LINKS__gryphon_playground]->(b)-[:PG_LINKS__gryphon_playground]->(c)-[:PG_LINKS__gryphon_playground]->(d) WHERE a.entity_id = $node_a",
+      "query": "MATCH (a)-[:PG_LINKS__grid_fixtures]->(b)-[:PG_LINKS__grid_fixtures]->(c)-[:PG_LINKS__grid_fixtures]->(d) WHERE a.entity_id = $node_a",
       "params": {
         "node_a": "019e4e07-9975-7501-8d81-0fbf70e51757"
       },
@@ -36,7 +36,7 @@
       "covers": ["req-grid-gryphon-count", "req-grid-gryphon-rows"],
       "inspired_by": "opencypher TCK — expressions/aggregation",
       "layer": "lite",
-      "query": "MATCH (n)-[:PG_LINKS__gryphon_playground]->(m) RETURN n.entity_id AS node_id, COUNT(m) AS out_degree",
+      "query": "MATCH (n)-[:PG_LINKS__grid_fixtures]->(m) RETURN n.entity_id AS node_id, COUNT(m) AS out_degree",
       "expected_envelope": "expected/cycles__count_self_loop.expected.json",
       "expected_sql_snapshot": "expected/cycles__count_self_loop.sql.txt"
     }
