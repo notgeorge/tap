@@ -56,6 +56,12 @@
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/samsite" },
         "note": "Package-mode (tap_plugin.samsite), 2026-07-01. Last of the samsite set to migrate; the demo integration surface. DEPENDS ON the four plugins above at import time (compliance_collector + panels import tap_plugin.{sigstore_core,github_core,roscale} and read aws_core nodes) — listed last so its cross-plugin (Tier-1/2) deps are installed first. The manifest depends_on schema + boot consistency gate that would enforce this are deferred (declare-now, resolver-later); today the ordering here satisfies it structurally."
+      },
+      {
+        "slug": "gryphon_playground",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/gryphon_playground" },
+        "note": "Package-mode (tap_plugin.gryphon_playground), 2026-07-02. Install-only: pg_* playground vocabulary + Gridkin scenario corpus for the Gryphon test suites. Declared here so the pre-boot reconciliation guard passes on the session container (which boots this profile) with gryphon_playground editable-installed; no GRIFT population seed, no cross-plugin deps."
       }
     ]
   },

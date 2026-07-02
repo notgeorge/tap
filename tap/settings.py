@@ -203,10 +203,12 @@ INSTALLED_APPS = [
     # plugin: tap_plugin.fedramp_20x_ksi). No longer build-baked here; it loads via
     # TAP_PLUGINS_APPS below after the pre-boot stage uv-installs it from the profile
     # `install` section. See docs/misc/doc-plugin-source-identity-deps-handoff.md.
-    # Gryphon Playground plugin — pg_* playground vocabulary + the Gridkin
-    # scenario corpus for testing the Gryphon query language. Load-bearing
-    # test-fixture plugin (like lotr): de-registering it reds the Gridkin suite.
-    "plugins.gryphon_playground.apps.GryphonPlaygroundConfig",
+    # Gryphon Playground plugin — migrated to package-mode 2026-07-02
+    # (tap_plugin.gryphon_playground); the LAST build-baked plugin, closing the
+    # initial plugin migration (BUILD_BAKED_PLUGIN_SLUGS now empty). pg_* playground
+    # vocabulary + the Gridkin scenario corpus (a load-bearing test-fixture plugin,
+    # like lotr). Loads via TAP_PLUGINS_APPS from a profile `install` section
+    # (install-only — the corpus carries no GRIFT population seed).
     # Package-mode plugins installed by the pre-boot stage (TAP_PLUGINS). Spliced in
     # here — after build-baked plugins, before tap_api — so tap_api's ready() still
     # discovers their routers and their EntityTypes/edges register before the API/web

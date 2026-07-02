@@ -56,6 +56,12 @@
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/samsite" },
         "note": "Package-mode (tap_plugin.samsite). The demo integration surface; seeded in population. DEPENDS ON roscale/sigstore_core/github_core (import time) + aws_core nodes — listed last so its cross-plugin deps install first. Its collectors are NOT fired in base (base reaches out to nothing)."
+      },
+      {
+        "slug": "gryphon_playground",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/gryphon_playground" },
+        "note": "Package-mode (tap_plugin.gryphon_playground). Install-only: the pg_* playground vocabulary + Gridkin scenario corpus that the Gryphon test suites exercise. Registers pg_* node/edge types (a load-bearing test-fixture plugin, like lotr) but carries NO GRIFT population seed, so it is not a population step — it just must be installed + reconciled. No cross-plugin deps."
       }
     ]
   },

@@ -46,29 +46,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # --- Build-baked plugin transition set ---------------------------------------
 # Plugins still hardcoded in settings.INSTALLED_APPS (not yet package-mode). The
 # static coherence guard treats these as "available" without an `install` entry so
-# a legacy profile (samsite) whose population names build-baked plugins still passes.
-# This shrinks to empty as plugins migrate to package-mode; `genericom` is NOT here
-# (it is the first package-mode plugin). Kept honest against settings by
-# tap/tests/test_preboot.py::test_build_baked_matches_installed_apps.
-BUILD_BAKED_PLUGIN_SLUGS: frozenset[str] = frozenset(
-    {
-        # administrivia migrated to package-mode 2026-07-01 (tap_plugin.administrivia).
-        # lotr migrated to package-mode 2026-07-01 (tap_plugin.lotr) — the load-bearing
-        # test-fixture vocabulary; installed via the profile `install` section.
-        # computing_core migrated to package-mode 2026-07-01 (tap_plugin.computing_core).
-        # aws_core migrated to package-mode 2026-07-01 (tap_plugin.aws_core).
-        # github_core migrated to package-mode 2026-07-01 (tap_plugin.github_core).
-        # sigstore_core migrated to package-mode 2026-07-01 (tap_plugin.sigstore_core).
-        # roscale migrated to package-mode 2026-07-01 (tap_plugin.roscale).
-        # samsite migrated to package-mode 2026-07-01 (tap_plugin.samsite) — the last
-        # of the samsite set; installed via the profile `install` section.
-        # fedramp_20x_ksi migrated to package-mode 2026-07-01 (first namespaced
-        # plugin) — no longer build-baked; installed via the profile `install` section.
-        # gryphon_playground stays build-baked: HELD pending the in-flight
-        # gryphon-engine refactor in another session.
-        "gryphon_playground",
-    }
-)
+# a legacy profile whose population names build-baked plugins still passes.
+#
+# EMPTY as of 2026-07-02: the initial plugin migration is COMPLETE. Every shipped
+# plugin (the samsite set + gryphon_playground) is package-mode (`tap_plugin.<slug>`),
+# installed via a profile `install` section and discovered through its `tap.plugins`
+# entry point. No plugin is hardcoded in INSTALLED_APPS anymore, so this set is empty
+# (a future re-introduced build-baked plugin would re-add its slug here). Kept honest
+# against settings by tap/tests/test_preboot.py::test_build_baked_matches_installed_apps
+# (which now asserts the empty set equals zero hardcoded `plugins.*` INSTALLED_APPS entries).
+BUILD_BAKED_PLUGIN_SLUGS: frozenset[str] = frozenset()
 
 TAP_PLUGINS_ENTRY_POINT_GROUP = "tap.plugins"
 
