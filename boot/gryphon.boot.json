@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "description": "Gryphon playground — the closest-to-minimal standup TAP ships, existing only to exercise the Gryphon query language and nothing else. Installs just the neutral grid_fixtures__* node/edge vocabulary and the gryphon_playground Gridkin corpus/harness that depends_on it. No admin chrome, no seeded data, no collectors: the grid comes up empty and reaches out to nothing, and the Gridkin corpus builds its scenarios at query/test time rather than seeding population (hence an empty population section). The web UI and API surfaces still mount (there is no landing/admin page without administrivia — auth/login is the only web chrome), because a truly headless boot — neither web UI nor API served — is not yet supported; it is tracked as backlog on each surface (tap_web req-web-rendering-headless; tap_api headless-API disable). Deliberately excludes everything the product/demo profiles carry so a Gryphon session stands up fast and clean.",
+  "install": {
+    "plugins": [
+      {
+        "slug": "grid_fixtures",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/grid_fixtures" },
+        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the Gridkin corpus references by string. Its models are migrated (tables created) so the corpus has real types to query. No GRIFT seed, no cross-plugin deps. Listed before gryphon_playground, which depends_on it."
+      },
+      {
+        "slug": "gryphon_playground",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/gryphon_playground" },
+        "note": "Package-mode (tap_plugin.gryphon_playground). Install-only: the Gridkin scenario corpus + harness that exercise the Gryphon query language. Owns NO node/edge types of its own — its corpus references the grid_fixtures__* vocabulary by string, so it depends_on grid_fixtures (installed above). Carries NO GRIFT population seed. The whole point of this profile."
+      }
+    ]
+  },
+  "population": {
+    "on_failure": "abort",
+    "steps": []
+  }
+}
