@@ -34,6 +34,8 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-slug-register | [Slug Load-Bearing Register](#slug-load-bearing-register) | Implemented | The slug is the load-bearing, immutable-by-guardrail canonical identity; `docs/doc-plugin-slug-load-bearing.md` registers every place it is load-bearing, and any change that adds a new slug-dependent coupling updates that register in the same change |
 | req-plugin-arch-identity | [Plugin Identity & Naming](#plugin-identity--naming) | Implemented | Applied across the full samsite plugin set (9 plugins, 2026-07-01): namespace `tap_plugin.<slug>` (PEP 420, -3), dist `tap-plugin-<slug>` (-2), slug identity (-1), and the pre-boot **conformance gate** (`tap/preboot.py:conformance_gate`, -5) all live + tested — the gate verifies all four agree for every discovered plugin at boot. Standalone-repo move (-4) is convention, not yet exercised |
 | req-plugin-arch-sources | [Multi-Path Source Resolution](#multi-path-source-resolution) | Proposed | Design locked 2026-07-01; `wheelhouse` offline path added 2026-07-02 (design locked, build **not critical path** — demand-gated). Source-type strategy registry (`git` bootstrap → `index` durable = private-bucket+dumb-pypi → `wheelhouse` offline/airgapped = mounted pre-built-wheel directory → future `grid`); credentials resolved from `TAP_SECRETS_ROOT`, never in the profile (the `wheelhouse` path needs none). All migrated plugins currently use `editable` local sources during the monorepo transition |
+| req-plugin-arch-source-secret | [Plugin-Source Credential](#plugin-source-credential) | Proposed | The authed-git-source install credential: `kind` `github_pat`, boot-specific `data_schema`, consumer-first `scope` `tap_plugins/source`, resolved in **pre-boot** via app-neutral `tap/runtime_secrets`; `GIT_ASKPASS` never token-in-URL; required only when an authed git source is declared |
+| req-plugin-arch-source-least-priv | [Least-Privilege Source Self-Check](#least-privilege-source-self-check) | Backlog | Warn (non-dev) if the instance can *write* its plugin source (git token has push / mounted source is `W_OK`) — an over-scoped credential/mount. A per-source health probe |
 | req-plugin-arch-versioning | [Version Naming & Integrity](#version-naming--integrity) | Implemented | VCS-derived PEP 440 via `hatch-vcs` (`source = "vcs"`, `root = "../.."` monorepo-transition override, `fallback_version`) applied to all 9 migrated plugins (-1, -2). Index byte-integrity / append-only / signing (-3/-4/-5) stay deferred (no index yet) |
 | req-plugin-arch-dependencies | [Plugin Dependencies](#plugin-dependencies) | Partially Implemented | Tier 0 (package deps → uv/pyproject, -1) built across the set. Tier 1/2 (-2/-3/-4) built 2026-07-02: manifest `depends_on` schema (slug + min-version + optional + note), the import-graph AST scanner (`tap/plugin_deps.py`), and the pre-boot `dependency_consistency_guard` (declared ⊇ observed, order, min-version — fail closed) are live; `samsite` declares its real edges. Only the topological-sort resolver stays deferred (declare-now, resolver-later — hand-ordering fine at N=10) |
 | req-plugin-arch-skills | [Plugin Skills](#plugin-skills) | Implemented | Plugins may ship Claude Code skills for plugin-specific automation |
@@ -617,6 +619,79 @@ reach for no credential at all.
 | req-plugin-arch-sources-4 | No Secrets In Profile | Proposed | The profile carries only locators; every credential resolves from `TAP_SECRETS_ROOT`. | |
 | req-plugin-arch-sources-5 | Grid Source Reserved | Proposed | A future `grid` source (pull from another TAP instance) is a drop-in strategy; named, not built. | |
 | req-plugin-arch-sources-6 | Offline Wheelhouse Path | Proposed | A `wheelhouse` source installs plugins **and their Tier-0 dependency closure** from a mounted directory of pre-built wheels via `uv pip install --no-index --find-links <dir>`; no network, no credential. Wheels are CI-built where the git tag lives (tagless ⇒ `0.0.0` fallback); `is_satisfied` = dist present at the wheel version; the mounted volume is the trust boundary, with an optional `sha256` manifest + signing sharing the deferred edge of `-versioning-5`. | Filesystem twin of `-3`; **not critical path** — demand-gated on eviction + a healthy leaf plugin. Pilot (held): `fedramp_20x_ksi` |
+
+### Plugin-Source Credential
+----
+RID: `req-plugin-arch-source-secret`
+Status: `Proposed`
+
+The `git` source's private-repo auth (`req-plugin-arch-sources-2`) needs a credential. It is a
+regular TAP secret (`spec-tap-cares-secrets`), specified here as its owning consumer
+(`req-tap-cares-secrets-consumer-kinds`: a kind's `data` shape is owned by the consuming spec). The
+first GitHub distribution target is `git+https` package installs (`req-plugin-arch-install-registry-12`),
+so this is the credential that unblocks it.
+
+- **Kind `github_pat`** — the same credential *type* the `github_core` collector uses. Sharing the
+  kind is correct (`req-tap-cares-secrets-consumer-scoping`: `kind` is the type axis); the two do
+  **not** share a `data_schema` — the collector's schema requires `repos`/`initial_run_limit`, which
+  are meaningless to a git credential.
+- **Boot-specific `data_schema`** (owned here): `token` (required), `host` (default `github.com`, GHE
+  override), `username` (default `x-access-token` — works for both PATs and App installation tokens
+  over https). No `repos` — the git credential helper scopes by **host**, not a repo list.
+- **Consumer-first `scope` `tap_plugins/source`** (`req-tap-cares-secrets-consumer-scoping`): owned by
+  the install system, **not** a plugin. A plugin must never resolve the credential that installs its
+  siblings.
+- **Resolved in the pre-boot stage** via the app-neutral `tap/runtime_secrets`
+  (`req-tap-cares-secrets-files` Shared Resolver) — **not** `tap_cares`, which is Django/app-level and
+  would violate the settings-free, no-`tap_*`-import pre-boot contract (`req-boot-preboot`). This is the
+  same shared resolver `tap_auth` calls at settings-import time.
+- **Fed to git via `GIT_ASKPASS`**, never interpolated into the URL — a token in the URL leaks into the
+  venv's `direct_url.json` (the standing rule in `req-plugin-arch-sources-2`).
+- **Conditional necessity** (`req-tap-cares-secrets-conditional-validation`): required only when the
+  profile declares an authed `git` source (a private repo). Public git, `editable`, `path`, and
+  `wheelhouse` sources need no credential, so it is not `required_for_boot` by default — it becomes
+  required exactly when an authed git source is in the install set.
+- **Description required** on the envelope (`req-tap-cares-secrets-shape-4`), scoped read-only to the
+  plugin repos (see `req-plugin-arch-source-least-priv`).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-source-secret-1 | Kind Shared, Schema Not | Proposed | Uses `kind` `github_pat` (shared type) with its own boot `data_schema` (`token`/`host`/`username`); does not reuse the collector's `repos`-bearing schema. | |
+| req-plugin-arch-source-secret-2 | Consumer-First Infra Scope | Proposed | Scoped `tap_plugins/source` (install system), never `tap_plugin/<slug>/…`. | Least privilege across plugins. |
+| req-plugin-arch-source-secret-3 | Pre-Boot App-Neutral Resolution | Proposed | Resolved via `tap/runtime_secrets` in pre-boot, not `tap_cares` (would break the settings-free / no-app-import contract). | Same resolver `tap_auth` uses. |
+| req-plugin-arch-source-secret-4 | No Token In URL | Proposed | Fed to git via `GIT_ASKPASS`; never interpolated into the source URL (leaks into `direct_url.json`). | Extends `req-plugin-arch-sources-2`. |
+| req-plugin-arch-source-secret-5 | Conditional Necessity | Proposed | Required only when an authed `git` source is declared; public/editable/path/wheelhouse need none. | Not `required_for_boot` by default. |
+
+### Least-Privilege Source Self-Check
+----
+RID: `req-plugin-arch-source-least-priv`
+Status: `Backlog`
+
+A least-privilege verifier for the plugin source: the instance should be able to **read** its source
+and nothing more. If it can **write** the source, the credential or the mount is over-scoped — surface
+a warning. This is the cheap, foundational defensive edge the security posture favors
+(`spec-security-posture.md`, `req-sec-cheap-edges`), and it catches the most common credential
+misconfiguration (an operator grabbing a broad token because it was easy).
+
+- **Generalizes across source types** — one principle, one probe per type: a `git` source →
+  `GET /repos/{owner}/{repo}` and warn if `.permissions.push` is true (reflects *effective* access
+  across classic PAT / fine-grained PAT / App token, not just declared scopes); a `wheelhouse` / `path`
+  source → `os.access(dir, W_OK)` (a source volume mounted read-write when it only needs read is the
+  same over-scoping).
+- **It is a health probe**, so it belongs in the plugin-source secret's per-consumer conditional-
+  validation logic (`req-tap-cares-secrets-conditional-validation`) — the git check is a network call.
+- **Non-dev, warn-only.** Gate the warning off developer mode (a broad key is often legitimate in dev),
+  and keep it a warning, not fail-closed — it is a misconfiguration hint, not a boot gate.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-source-least-priv-1 | Write Access Is A Warning | Backlog | If the instance can write its plugin source, emit a warning (over-scoped credential/mount). | |
+| req-plugin-arch-source-least-priv-2 | Per-Source Probe | Backlog | `git` → repo `permissions.push`; `wheelhouse`/`path` → directory `W_OK`. One principle, per-type probe. | |
+| req-plugin-arch-source-least-priv-3 | Non-Dev, Warn-Only | Backlog | Gated off developer mode; a warning, never fail-closed. | |
 
 ### Version Naming & Integrity
 ----
