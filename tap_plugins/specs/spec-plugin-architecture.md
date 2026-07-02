@@ -32,7 +32,7 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-repo | [Repository Structure](#repository-structure) | Implemented | Plugins are self-contained git repos integrated as submodules |
 | req-plugin-arch-install-registry | [Install Resolution And Plugin Registry](#install-resolution-and-plugin-registry) | Partially Implemented | Plugin-refactor MVP (2026-07-01): entry-point discovery, no-symlink uv-owned loading, identity separation, and `TAP_PLUGINS` generation are built (`tap/preboot.py`) and carry the **entire plugin set** — 10 package-mode plugins (2026-07-02: `gryphon_playground` migrated, build-baked set now empty) install + discover through the profile `install` section. The registry/report inspection surface (-3/-5/-11) is now built as a **read-model**: `tap_plugins.report.build_report()` + `manage.py plugins [--json]` (schema-validated, gated by `plugins.read`); plugins-as-grid-entities + cytoscape view stay deferred |
 | req-plugin-arch-identity | [Plugin Identity & Naming](#plugin-identity--naming) | Implemented | Applied across the full samsite plugin set (9 plugins, 2026-07-01): namespace `tap_plugin.<slug>` (PEP 420, -3), dist `tap-plugin-<slug>` (-2), slug identity (-1), and the pre-boot **conformance gate** (`tap/preboot.py:conformance_gate`, -5) all live + tested — the gate verifies all four agree for every discovered plugin at boot. Standalone-repo move (-4) is convention, not yet exercised |
-| req-plugin-arch-sources | [Multi-Path Source Resolution](#multi-path-source-resolution) | Proposed | Design locked 2026-07-01. Source-type strategy registry (`git` bootstrap → `index` durable = private-bucket+dumb-pypi → future `grid`); credentials resolved from `TAP_SECRETS_ROOT`, never in the profile. All migrated plugins currently use `editable` local sources during the monorepo transition |
+| req-plugin-arch-sources | [Multi-Path Source Resolution](#multi-path-source-resolution) | Proposed | Design locked 2026-07-01; `wheelhouse` offline path added 2026-07-02. Source-type strategy registry (`git` bootstrap → `index` durable = private-bucket+dumb-pypi → `wheelhouse` offline/airgapped = mounted pre-built-wheel directory → future `grid`); credentials resolved from `TAP_SECRETS_ROOT`, never in the profile (the `wheelhouse` path needs none). All migrated plugins currently use `editable` local sources during the monorepo transition |
 | req-plugin-arch-versioning | [Version Naming & Integrity](#version-naming--integrity) | Implemented | VCS-derived PEP 440 via `hatch-vcs` (`source = "vcs"`, `root = "../.."` monorepo-transition override, `fallback_version`) applied to all 9 migrated plugins (-1, -2). Index byte-integrity / append-only / signing (-3/-4/-5) stay deferred (no index yet) |
 | req-plugin-arch-dependencies | [Plugin Dependencies](#plugin-dependencies) | Partially Implemented | Tier 0 (package deps → uv/pyproject, -1) built across the set. Tier 1/2 (-2/-3/-4) built 2026-07-02: manifest `depends_on` schema (slug + min-version + optional + note), the import-graph AST scanner (`tap/plugin_deps.py`), and the pre-boot `dependency_consistency_guard` (declared ⊇ observed, order, min-version — fail closed) are live; `samsite` declares its real edges. Only the topological-sort resolver stays deferred (declare-now, resolver-later — hand-ordering fine at N=10) |
 | req-plugin-arch-skills | [Plugin Skills](#plugin-skills) | Implemented | Plugins may ship Claude Code skills for plugin-specific automation |
@@ -513,6 +513,35 @@ Source types:
   no parseable simple-index page. GitHub Packages does not serve a Python index at
   all. A single index credential lives in `TAP_SECRETS_ROOT` and reaches uv via
   `~/.netrc` (or `UV_INDEX_<NAME>_*`), so nothing is embedded in config.
+- **`wheelhouse` — the offline / airgapped path.** A **mounted directory of
+  pre-built wheels** (a PEP 427 flat "wheelhouse"), consumed with
+  `uv pip install --no-index --find-links <dir> tap-plugin-<slug>==<version>`. It is
+  the **filesystem twin of `index`** — the same install-by-version-from-immutable-
+  wheels model, but the wheels arrive on an attached volume instead of over HTTP, so
+  it needs **no network and no credential**. That is the whole point: boot a
+  container with a *get-plugins-here* volume mounted and reach nothing external — no
+  git remote, no private repo, no bucket. Two properties make it honest:
+  - **The wheelhouse must also contain the plugins' Tier-0 PyPI dependencies as
+    wheels** (`boto3`, `PyYAML`, …). An airgapped install cannot reach PyPI for them
+    either, and `--no-index` turns a missing transitive dependency into a **loud
+    failure**, not a silent network fetch. So the wheelhouse is the offline index for
+    *everything the instance installs*, not just the plugins — the standard
+    `pip download → wheelhouse → --no-index install` airgap pattern.
+  - **Wheels are built where the git tags live** (a network+git-capable CI/dev env:
+    `uv build --wheel` per plugin + `uv pip download` for the dependency closure into
+    one directory), then transferred as an opaque artifact. This is the clean side of
+    the `hatch-vcs` split (`req-plugin-arch-versioning`): version derivation needs git
+    **at build time**; the resulting wheel is git-free **at install time**. A *tagless*
+    build degrades to the `fallback_version = "0.0.0"` (safe, but meaningless) — so
+    building in an env without the tag is the one real footgun, not a crash.
+
+  Idempotency (`is_satisfied`): the distribution is present at the wheel's version.
+  **Trust boundary:** whoever populates and mounts the volume vouches for its
+  contents — the airgap moves trust to the artifact-transfer step. An optional
+  in-wheelhouse `sha256` manifest, and later artifact **signing**, are the integrity
+  layers; they share the `index` path's deferred-signing edge
+  (`req-plugin-arch-versioning-5`) and are built only when an untrusted-transfer
+  threat is real.
 - **`grid` — future.** Pull a plugin artifact (+ provenance) from another running
   TAP/grid instance; credential is a TAP-instance token. Drops into the same
   three-method strategy interface with no pre-boot change — the payoff of the
@@ -521,7 +550,15 @@ Source types:
 **Sequencing:** `git` carries the near-term critical path (make the samsite set
 installable for the first customer) without standing up index infra; the
 bucket+`dumb-pypi` `index` is the durable target, built when per-repo git auth and
-rebuild-from-source actually bite. The profile carries **no** secrets on any path.
+rebuild-from-source actually bite. `wheelhouse` is the **near-term airgapped answer**
+promoted by the monorepo-eviction work (2026-07-02): once a plugin leaves the
+monorepo its `editable` source disappears, and for a deployment that will not grant
+git/network/repo access the offline wheelhouse is the only remaining install path —
+so it is built alongside eviction, not deferred to the `index` build. Its first proof
+is a **single-plugin pilot** (`fedramp_20x_ksi`: leaf, no cross-plugin deps, imported
+by no core suite) — build wheel → mount volume → throwaway profile → boot → tests
+green, touching nothing load-bearing. The profile carries **no** secrets on any path;
+`wheelhouse` and `grid` reach for no credential at all.
 
 #### Acceptance Criteria
 
@@ -532,6 +569,7 @@ rebuild-from-source actually bite. The profile carries **no** secrets on any pat
 | req-plugin-arch-sources-3 | Index Durable Path | Proposed | The durable index is a private bucket + `dumb-pypi` (PEP 503 static); install by version; one credential via netrc. GitHub Releases/Packages rejected as backends. | Verified 2026-07-01 |
 | req-plugin-arch-sources-4 | No Secrets In Profile | Proposed | The profile carries only locators; every credential resolves from `TAP_SECRETS_ROOT`. | |
 | req-plugin-arch-sources-5 | Grid Source Reserved | Proposed | A future `grid` source (pull from another TAP instance) is a drop-in strategy; named, not built. | |
+| req-plugin-arch-sources-6 | Offline Wheelhouse Path | Proposed | A `wheelhouse` source installs plugins **and their Tier-0 dependency closure** from a mounted directory of pre-built wheels via `uv pip install --no-index --find-links <dir>`; no network, no credential. Wheels are CI-built where the git tag lives (tagless ⇒ `0.0.0` fallback); `is_satisfied` = dist present at the wheel version; the mounted volume is the trust boundary, with an optional `sha256` manifest + signing sharing the deferred edge of `-versioning-5`. | Filesystem twin of `-3`; near-term airgapped answer to monorepo eviction. Pilot: `fedramp_20x_ksi` |
 
 ### Version Naming & Integrity
 ----
@@ -555,7 +593,12 @@ porting Go's exact string format or a hand-maintained `go.sum`.
 - **Integrity is layered and sidecar-free.** The version pins the *source*; the
   *wheel bytes* are pinned by the index's per-file `sha256` (PEP 503 `#sha256=`),
   which uv/pip verify on download. So identity is self-contained in the name and
-  byte-integrity is automatic from the index — no hand-maintained lockfile.
+  byte-integrity is automatic from the index — no hand-maintained lockfile. On the
+  offline `wheelhouse` path (`req-plugin-arch-sources-6`) there is no HTTP index to
+  supply the hash, so the byte-integrity surface is the **volume itself** (the
+  artifact-transfer step is the trust boundary); an optional `sha256` manifest shipped
+  *in* the wheelhouse is the same defense moved onto the filesystem, deferred with the
+  signing edge below until an untrusted-transfer threat is real.
 - **Immutability is enforced, not assumed.** A self-hosted index does not enforce
   version immutability the way public PyPI does, so CI treats the index as
   **append-only** (or enables bucket object-versioning); a changed `sha256` under
@@ -574,7 +617,7 @@ porting Go's exact string format or a hand-maintained `go.sum`.
 | --- | --- | :---: | --- | --- |
 | req-plugin-arch-versioning-1 | VCS-Derived Version | Implemented | Versions are `hatch-vcs`-computed PEP 440 (`{tag}.dev{n}+g{sha}`); no hand-maintained version field. | `source = "vcs"` + `root = "../.."` (monorepo-transition override, removed on extraction) + `fallback_version` |
 | req-plugin-arch-versioning-2 | Self-Contained Identity | Implemented | The version string carries base + distance + commit; the same version cannot name two different sources. | Go-style, Pythonic. Pre-tag builds fall back to `0.0.0`; a `v*` tag lights up derivation with no edit |
-| req-plugin-arch-versioning-3 | Index Byte-Integrity | Proposed | Wheel byte integrity is the index's per-file `sha256`, verified by uv/pip on download; no separate lockfile. | |
+| req-plugin-arch-versioning-3 | Index Byte-Integrity | Proposed | Wheel byte integrity is the index's per-file `sha256`, verified by uv/pip on download; no separate lockfile. On the offline `wheelhouse` path the volume/transfer step is the trust boundary; an in-wheelhouse `sha256` manifest is the filesystem analog. | Offline analog: `req-plugin-arch-sources-6` |
 | req-plugin-arch-versioning-4 | Append-Only Index | Proposed | CI treats the index as append-only (or bucket-versioned); a version is never re-published with different bytes. | |
 | req-plugin-arch-versioning-5 | Signing Deferred | Proposed | Artifact signing (hostile-index defense) and reproducible builds are named, deferred edges. | |
 
