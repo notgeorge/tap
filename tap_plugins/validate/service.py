@@ -806,7 +806,9 @@ def _check_grift_import(manifest: Any, result: ValidationResult) -> None:
         try:
             with open(grift_path) as fh:
                 document = json_mod.load(fh)
-            import_result = grift_import(document, dangling_edge_mode="warn", actor=None)
+            import_result = grift_import(  # TAP-AUTHZ-COV: validate_plugin CLI conformance dry-run (actor=None); not request-reachable
+                document, dangling_edge_mode="warn", actor=None
+            )
         except Exception as exc:
             check.fail(
                 f"GRIFT bundle '{entry.name}' import raised: {exc}",

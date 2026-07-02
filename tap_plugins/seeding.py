@@ -116,7 +116,7 @@ def seed_plugin(
             )
             continue
 
-        result = grift_import(
+        result = grift_import(  # TAP-AUTHZ-COV: boot/CLI standup population (seed_plugin, actor=bootloader); not request-reachable
             document,
             # "warn" is the historical seed value faithfully carried over from the
             # former import_plugin_grift fire path; the importer types this str

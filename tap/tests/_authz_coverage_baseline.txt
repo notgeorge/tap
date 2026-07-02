@@ -1,63 +1,11 @@
-# Authz-coverage scanner baseline — req-tap-auth-policy-9.
+# Authz-coverage ratchet baseline (req-tap-auth-policy-9). One line per ungated
+# privileged-sink call site: <path>:<lineno>. EMPTY = strict (zero tolerated).
 #
-# Each non-comment line is <relative-path>:<lineno> identifying a call to a
-# privileged graph sink (write_batch / grift_import / the Search+Gryphon
-# executors / the _*_internal write helpers) whose enclosing function is NOT
-# gated by @requires_capability or an authorized() block — the build-time dual of
-# the stateless enforcement backstop (tap/authz_coverage.py). It catches the
-# forgotten-gate-by-a-privileged-actor case the runtime backstop cannot.
-#
-# These are grandfathered so the gate is green on day one; the set ratchets to
-# ZERO as the rest of the authZ build-out lands — this file is that worklist.
-# test_authz_coverage.py fails on any NEW entry and any STALE entry, so a fix must
-# delete its line here. Do not add rows except as a deliberate, reviewed last
-# resort: prefer a @requires_capability/authorized() gate, or a
-# `# TAP-AUTHZ-COV: <reason>` comment when the call is provably gated by a caller
-# the per-function scanner cannot see (a plain comment, NOT a noqa code — ruff
-# rejects the hyphenated token).
-#
-# Clusters (each is a per-app standard still to land):
-#   tap_cares/*              — DONE: task/scheduler bound via acting_as/_scheduler_ctx; the collector
-#                              upsert moved out of ready() into reconcile_collector_nodes (boot-bound)
-#   tap_web/* + tap_viz/*    — host-gate grid.read at panel_view (the render-read contract)
-#   plugins/*/panels/*       — ride the tap_web host-gate
-#   plugins/*/collectors/*   — collector-runtime actor binding
-#   tap_api/routers/*        — authorize-before-lookup / make the executor self-gate explicit
-#   tap_grid/* tap_plugins/* — read-helper classification + the import command's boot actor
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/compliance_view/__init__.py:108
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/compliance_view/__init__.py:44
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/finding_profile/__init__.py:152
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/finding_strip/__init__.py:60
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/findings_by_ksi/__init__.py:54
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/findings_by_system/__init__.py:52
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/indicator_profile/__init__.py:113
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/indicator_profile/__init__.py:223
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/instance_findings/__init__.py:86
-plugins/genericom/tap_plugin/genericom/panels/instance_hero/__init__.py:75
-plugins/genericom/tap_plugin/genericom/panels/open_alerts/__init__.py:67
-plugins/github_core/tap_plugin/github_core/collectors/github_collector/enrichment.py:223
-plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/boundary_membership.py:82
-plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/kev_process.py:64
-plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/sigstore_link.py:84
-plugins/samsite/tap_plugin/samsite/panels/ksi_scoreboard/__init__.py:100
-plugins/samsite/tap_plugin/samsite/panels/ksi_scoreboard/__init__.py:76
-plugins/samsite/tap_plugin/samsite/panels/ksi_signal_workbench/__init__.py:39
-plugins/samsite/tap_plugin/samsite/panels/vdr_report_workbench/__init__.py:34
-tap_api/routers/gryphon.py:34
-tap_api/routers/searches.py:47
-tap_grid/batch.py:254
-tap_grid/gryphon/executor.py:107
-tap_grid/services/__init__.py:941
-tap_grid/services/__init__.py:960
-tap_plugins/seeding.py:119
-tap_plugins/validate/service.py:809
-tap_viz/panels/graph_panel/__init__.py:188
-tap_viz/panels/graph_panel/__init__.py:245
-tap_web/panels/batch_viewer/__init__.py:40
-tap_web/panels/entity_resolution.py:50
-tap_web/panels/entity_resolution.py:68
-tap_web/panels/table_panel/__init__.py:245
-tap_web/synthetic.py:218
-tap_web/views.py:474
-tap_web/views.py:679
-tap_web/views.py:680
+# Emptied 2026-07-02: the scanner was recalibrated to drop the self-gating read
+# executors (execute_search/execute_gryphon_raw/explain_gryphon_raw) from
+# SINK_CALLS — each is @requires_capability("grid.read") at its own def, gating on
+# caller context fail-closed, so its callers are gated BY CONSTRUCTION (this was
+# 33/37 false positives, mostly dashboard panels). The remaining 4 genuine
+# write-sink sites (2 test-only _*_for_test helpers, boot seeding, validate CLI
+# dry-run) are non-request-reachable and carry `# TAP-AUTHZ-COV: <reason>` markers.
+# SINK_CALLS now tracks only the undecorated write sinks; a NEW ungated one fails.
