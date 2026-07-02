@@ -786,14 +786,24 @@ never papered over.
   is cleanly rejected ("aggregation requires ≥1 edge") — a deliberate v0 boundary,
   not a silent-wrong-answer. The generator emits COUNT over chains only. Node-only
   aggregation is a named v0 gap, not a bug.
-- **Executor, multi-hop far-node WHERE (deferred, named).** A WHERE on a node
-  beyond the root edge of a multi-hop chain resolves through a reverse-FK path
-  (`to_entity__edges_out__to_entity__…`) that Django compiles into a *duplicate*
-  join — row inflation, and invalid SQL on some OR shapes. This is a substantial
-  pre-existing executor defect; the fuzzer reproduced it (deterministically, from
-  seed 1729) and the generator keeps WHERE off multi-hop chains until it is fixed.
-  A focused fix (reuse the structural join, or fail loud) is left as an open,
-  reproduced finding rather than bundled here.
+- **Executor, multi-hop far-node WHERE (RESOLVED).** A WHERE on a node beyond the
+  root edge of a multi-hop chain resolves through a reverse-FK path
+  (`to_entity__edges_out__to_entity__…`) identical to a structural hop path.
+  Applied as a *separate* `.filter()` (as it was), Django spawned a *duplicate*
+  join carrying none of the structural edge_type/label filters; the projection
+  bound to it, so the chain silently returned far nodes reached by the WRONG edge
+  type and COUNT inflated. **Fixed** by folding the predicate `Q` into the SAME
+  `.filter()` as the structural hop filters (`_build_chain_queryset(...,
+  predicate=..., bindings=...)`), so the far-node predicate reuses the one
+  structural join. Regression-locked by the `far_node_where` scenarios (envelope
+  + COUNT); the generator can now emit WHERE on multi-hop chains. A *negated*
+  far-node comparison (`!=` or `NOT (...)`, both lowering to `~Q` over the
+  reverse-FK path — the residual `bigint = uuid` crash) is now cleanly REJECTED
+  (`_guard_negated_far_predicate`) rather than crashing; the third `far_node_where`
+  scenario locks the rejection, and full row-level-negation support is a named
+  deferred gap (per-field `F()` annotation). See
+  `spec-grid-gryphon-multihop-aggregation.md` `req-grid-gryphon-multihop-envelope-3`
+  + Future.
 
 #### Acceptance Criteria
 

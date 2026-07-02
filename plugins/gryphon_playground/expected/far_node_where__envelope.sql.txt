@@ -1,0 +1,42 @@
+-- statement 1 · stage: advanced
+SELECT "tap_edge"."from_entity_id" AS "from_entity_id", "tap_edge"."to_entity_id" AS "to_entity_id", T5."to_entity_id" AS "to_entity__edges_out__to_entity_id", "tap_edge"."entity_id" AS "entity_id", T5."entity_id" AS "to_entity__edges_out__entity_id"
+FROM "tap_edge"
+INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
+INNER JOIN "tap_entity" T3 ON ("tap_edge"."from_entity_id" = T3."id")
+INNER JOIN "tap_entity" T4 ON ("tap_edge"."to_entity_id" = T4."id")
+INNER JOIN "tap_edge" T5 ON (T4."id" = T5."from_entity_id")
+INNER JOIN "tap_entity" T6 ON (T5."to_entity_id" = T6."id")
+INNER JOIN "gryphon_playground__pg_node" ON (T6."id" = "gryphon_playground__pg_node"."entity_id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T3."entity_type" = %s AND T5."edge_type" = %s AND T6."entity_type" = %s AND T4."entity_type" = %s AND "gryphon_playground__pg_node"."kind" = %s)
+ORDER BY "tap_entity"."created_at" DESC
+-- params: ['PG_LINKS__gryphon_playground', 'gryphon_playground__pg_node', 'PG_LINKS__gryphon_playground', 'gryphon_playground__pg_node', 'gryphon_playground__pg_node', 'tail']
+
+-- statement 2 · stage: advanced
+SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"
+FROM "tap_entity"
+WHERE "tap_entity"."id" IN (%s, %s, %s)
+ORDER BY "tap_entity"."created_at" DESC
+-- params: [UUID('019f210b-3b22-738c-be7b-3ccadc367b2c'), UUID('019f210b-3b22-738c-be7b-3ccb1bfeb5fe'), UUID('019f210b-3b22-738c-be7b-3ccc741a6df0')]
+
+-- statement 3 · stage: advanced
+SELECT "tap_edge"."id", "tap_edge"."entity_id", "tap_edge"."batch_id", "tap_edge"."flip_map", "tap_edge"."from_entity_id", "tap_edge"."to_entity_id", "tap_edge"."edge_type", "tap_edge"."properties", "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"
+FROM "tap_edge"
+INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."entity_id" IN (%s, %s))
+ORDER BY "tap_entity"."created_at" DESC
+-- params: [UUID('019f210b-3b22-738c-be7b-3ccf7d239d8e'), UUID('019f210b-3b22-738c-be7b-3cd04a9ff723')]
+
+-- statement 4 · stage: advanced
+SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"
+FROM "tap_entity"
+WHERE "tap_entity"."id" IN (%s, %s, %s)
+ORDER BY "tap_entity"."created_at" DESC
+-- params: [UUID('019f210b-3b22-738c-be7b-3ccadc367b2c'), UUID('019f210b-3b22-738c-be7b-3ccb1bfeb5fe'), UUID('019f210b-3b22-738c-be7b-3ccc741a6df0')]
+
+-- statement 5 · stage: advanced
+SELECT "tap_edge"."id", "tap_edge"."entity_id", "tap_edge"."batch_id", "tap_edge"."flip_map", "tap_edge"."from_entity_id", "tap_edge"."to_entity_id", "tap_edge"."edge_type", "tap_edge"."properties", "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"
+FROM "tap_edge"
+INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."entity_id" IN (%s, %s))
+ORDER BY "tap_entity"."created_at" DESC
+-- params: [UUID('019f210b-3b22-738c-be7b-3ccf7d239d8e'), UUID('019f210b-3b22-738c-be7b-3cd04a9ff723')]

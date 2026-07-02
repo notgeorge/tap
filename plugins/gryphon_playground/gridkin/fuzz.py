@@ -240,8 +240,13 @@ _NUMERIC_OPS = ("=", "!=", "<", ">", "<=", ">=")
 _TEXT_OPS = ("STARTS_WITH", "ENDS_WITH", "CONTAINS")
 
 
-def _leaf_severity(rng: random.Random, var: str, vals: _Values) -> str:
-    op = rng.choice(_NUMERIC_OPS)
+# A far node (beyond the root edge) bans `!=`: it lowers to `~Q` over the
+# reverse-FK path, an executor-rejected shape (`_guard_negated_far_predicate`).
+_NUMERIC_OPS_POSITIVE = ("=", "<", ">", "<=", ">=")
+
+
+def _leaf_severity(rng: random.Random, var: str, vals: _Values, *, far: bool = False) -> str:
+    op = rng.choice(_NUMERIC_OPS_POSITIVE if far else _NUMERIC_OPS)
     if rng.random() < 0.12:
         return f"{var}.data.severity_score {op} null"  # 2VL null-literal operand
     lit = rng.choice(vals.severities)
@@ -250,14 +255,14 @@ def _leaf_severity(rng: random.Random, var: str, vals: _Values) -> str:
     return f"{var}.data.severity_score {op} {lit}"
 
 
-def _leaf_string(rng: random.Random, var: str, vals: _Values) -> str:
+def _leaf_string(rng: random.Random, var: str, vals: _Values, *, far: bool = False) -> str:
     fieldname, pool = rng.choice((("kind", vals.kinds), ("description", vals.descriptions), ("name", vals.names)))
     path = f"{var}.data.{fieldname}"
     roll = rng.random()
     if roll < 0.1:
         return f"{path} = null"  # 2VL null-literal operand
     if roll < 0.55:
-        op = rng.choice(("=", "!="))
+        op = "=" if far else rng.choice(("=", "!="))
         return f"{path} {op} {_q(rng.choice(pool))}"
     if roll < 0.85:
         op = rng.choice(_TEXT_OPS)
@@ -273,13 +278,13 @@ def _leaf_string(rng: random.Random, var: str, vals: _Values) -> str:
     return f"{path} =~ {_q(frag)}"
 
 
-def _leaf_bool(rng: random.Random, var: str, _vals: _Values) -> str:
+def _leaf_bool(rng: random.Random, var: str, _vals: _Values, *, far: bool = False) -> str:
     if rng.random() < 0.1:
         return f"{var}.data.is_open = null"  # 2VL null-literal operand
     return f"{var}.data.is_open = {rng.choice(('true', 'false'))}"
 
 
-def _leaf_in(rng: random.Random, var: str, vals: _Values) -> str:
+def _leaf_in(rng: random.Random, var: str, vals: _Values, *, far: bool = False) -> str:
     if rng.random() < 0.5:
         members = [str(m) for m in rng.sample(vals.severities, rng.randint(1, min(3, len(vals.severities))))]
         path = f"{var}.data.severity_score"
@@ -292,7 +297,7 @@ def _leaf_in(rng: random.Random, var: str, vals: _Values) -> str:
     return f"{path} IN [{', '.join(members)}]"
 
 
-def _leaf_observation(rng: random.Random, var: str, _vals: _Values) -> str:
+def _leaf_observation(rng: random.Random, var: str, _vals: _Values, *, far: bool = False) -> str:
     return f"{var}.data.observed_at " + rng.choice(("IS NULL", "IS NOT NULL", "IS KNOWN", "IS UNKNOWN"))
 
 
@@ -305,15 +310,25 @@ _LEAF_GENERATORS = (
 )
 
 
-def _gen_predicate(rng: random.Random, var: str, vals: _Values, depth: int = 0) -> str:
-    """A random single-variable predicate tree (AND / OR / NOT over typed leaves)."""
+def _gen_predicate(rng: random.Random, var: str, vals: _Values, depth: int = 0, *, far: bool = False) -> str:
+    """A random single-variable predicate tree (AND / OR / NOT over typed leaves).
+
+    ``far=True`` marks a node BEYOND the root edge of a multi-hop chain and keeps
+    the tree to the executor-supported far-node surface: no ``NOT`` and no ``!=``.
+    Both lower to a negation over the far node's reverse-FK path — an
+    executor-rejected shape (it would compile to an existential anti-join with
+    per-pattern, not per-binding, semantics — see `_guard_negated_far_predicate`).
+    The positive / ``OR`` / ``IN`` / ``IS NULL`` / text / regex far-node forms are
+    all still emitted, so far-node WHERE stays well-exercised.
+    """
+    ops = ("AND", "OR") if far else ("AND", "OR", "NOT")
     if depth >= 2 or rng.random() < 0.5:
-        return rng.choice(_LEAF_GENERATORS)(rng, var, vals)
-    op = rng.choice(("AND", "OR", "NOT"))
+        return rng.choice(_LEAF_GENERATORS)(rng, var, vals, far=far)
+    op = rng.choice(ops)
     if op == "NOT":
-        return f"NOT ({_gen_predicate(rng, var, vals, depth + 1)})"
-    left = _gen_predicate(rng, var, vals, depth + 1)
-    right = _gen_predicate(rng, var, vals, depth + 1)
+        return f"NOT ({_gen_predicate(rng, var, vals, depth + 1, far=far)})"
+    left = _gen_predicate(rng, var, vals, depth + 1, far=far)
+    right = _gen_predicate(rng, var, vals, depth + 1, far=far)
     return f"({left}) {op} ({right})"
 
 
@@ -384,11 +399,13 @@ def _gen_chain(rng: random.Random, vals: _Values) -> str:
     Traversal patterns take no ORDER BY / LIMIT (the executor rejects them, and
     the oracle refuses to model them).
 
-    WHERE is emitted only on SINGLE-hop chains. A multi-hop chain with a WHERE on
-    a node beyond the root edge is a known, deferred executor defect (the far-node
-    predicate path `to_entity__edges_out__to_entity__…` spawns a duplicate join →
-    row inflation, and invalid SQL on OR shapes); the fuzzer surfaced it and it is
-    recorded in spec-gridkin-v0.md as a named open finding rather than exercised.
+    WHERE is emitted on both single- and multi-hop chains, including on a node
+    BEYOND the root edge (`c` on a two-hop chain). That far-node case was a
+    deferred executor defect — the predicate path `to_entity__edges_out__…`
+    spawned a duplicate join (row inflation + wrong-edge-type far nodes) — now
+    fixed by folding the WHERE into the chain's single `.filter()`
+    (`_build_chain_queryset`); the `far_node_where` gridkin scenarios regression-
+    lock it and the generator exercises the path here.
     """
     node_vars = ["a", "b"]
     pattern = f"MATCH (a:{rng.choice(_LABELS)}){_edge_step(rng)}(b:{rng.choice(_LABELS)})"
@@ -397,10 +414,15 @@ def _gen_chain(rng: random.Random, vals: _Values) -> str:
         pattern += f"{_edge_step(rng)}(c:{rng.choice(_LABELS)})"
         node_vars.append("c")
 
-    if not two_hop:  # single-hop only — see docstring on the deferred multi-hop bug
-        where_parts = [f"({_gen_predicate(rng, v, vals)})" for v in node_vars if rng.random() < 0.5]
-        if where_parts:
-            pattern += " WHERE " + " AND ".join(where_parts)
+    # Nodes past the root edge (index ≥ 2) bind through a multi-valued reverse-FK
+    # hop; a negation over their predicate (`NOT`, or `!=`) is executor-rejected,
+    # so generate their leaves on the positive far-node surface only.
+    far_vars = set(node_vars[2:])
+    where_parts = [
+        f"({_gen_predicate(rng, v, vals, far=v in far_vars)})" for v in node_vars if rng.random() < 0.5
+    ]
+    if where_parts:
+        pattern += " WHERE " + " AND ".join(where_parts)
 
     mode = rng.choices(("envelope", "bare", "proj", "agg"), weights=(3, 2, 2, 2))[0]
     if mode == "bare":

@@ -1,0 +1,55 @@
+{
+  "feature": "Multi-hop WHERE on a node beyond the root edge (far-node predicate join reuse)",
+  "background": {
+    "grift_fixture": "fixtures/far_node_where.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "far-node WHERE constrains the structural chain node, not any out-neighbor",
+      "tags": ["multi-hop", "advanced", "where", "far-node", "regression"],
+      "covers": [
+        "req-grid-gryphon-multihop",
+        "req-grid-gryphon-multihop-envelope",
+        "req-grid-gryphon-multihop-envelope-3",
+        "req-grid-traversal-lang-filters"
+      ],
+      "inspired_by": "opencypher TCK — clauses/match (multi-hop WHERE on a node beyond the anchor)",
+      "layer": "lite",
+      "query": "MATCH (a:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node) WHERE c.data.kind = \"tail\"",
+      "expected_envelope": "expected/far_node_where__envelope.expected.json",
+      "expected_sql_snapshot": "expected/far_node_where__envelope.sql.txt"
+    },
+    {
+      "name": "far-node WHERE COUNT counts only the true chain tails, no duplicate-join inflation",
+      "tags": ["multi-hop", "aggregation", "count", "where", "far-node", "regression"],
+      "covers": [
+        "req-grid-gryphon-multihop",
+        "req-grid-gryphon-count",
+        "req-grid-gryphon-count-3",
+        "req-grid-gryphon-rows",
+        "req-grid-traversal-lang-filters"
+      ],
+      "inspired_by": "opencypher TCK — clauses/match (multi-hop COUNT with a far-node WHERE, no row inflation)",
+      "layer": "lite",
+      "query": "MATCH (a:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node) WHERE c.data.kind = \"tail\" RETURN a.entity_id AS root_id, COUNT(c) AS tail_count",
+      "expected_envelope": "expected/far_node_where__count.expected.json",
+      "expected_sql_snapshot": "expected/far_node_where__count.sql.txt"
+    },
+    {
+      "name": "negated comparison on a far node is rejected, not answered with wrong semantics",
+      "tags": ["multi-hop", "advanced", "where", "far-node", "rejection", "regression"],
+      "covers": [
+        "req-grid-gryphon-multihop",
+        "req-grid-traversal-lang-filters",
+        "req-grid-traversal-lang-combinators"
+      ],
+      "inspired_by": "opencypher TCK — clauses/match-where (negated predicate on a node beyond the anchor)",
+      "layer": "lite",
+      "query": "MATCH (a:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node) WHERE NOT (c.data.kind = \"tail\")",
+      "expected_error": {
+        "type": "SearchExecutionError",
+        "message_contains": "beyond the root edge of a multi-hop pattern"
+      }
+    }
+  ]
+}
