@@ -108,6 +108,44 @@ if [[ "$BEHIND" -gt 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Step 2.5: development-validation gate (req-dev-multisession-promote-gate ↔
+# req-dev-validation-promote-hook). Runs AFTER the pre-push merge so it validates
+# the exact tree that will become origin/main, and BEFORE the atomic push so red
+# blocks the advance — a session never publishes a tree it has not validated,
+# which is what protects every session spawned from local main.
+#
+# The gate stands up a fresh scratch DB inside the running compose image and runs
+# the ordered cold-boot cycle; it is not reimplemented here. On --dry-run we skip
+# it (there is no push to gate). It requires the session's stack to be up.
+# ---------------------------------------------------------------------------
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  info "[dry-run] would: scripts/test (full lane) then scripts/gate (cold-boot gate)"
+else
+  bold "Development-validation gate on the merged tree"
+  if ! scripts/dc ps --status running --services 2>/dev/null | grep -qx web; then
+    fail "Validation gate requires this session's stack to be up (scripts/dc up -d). \
+Refusing to promote an unvalidated tree to origin/main (req-dev-validation-promote-hook)."
+  fi
+  # Two composed surfaces (req-dev-validation-suite-tiers-1, req-dev-validation-promote-hook):
+  #   1. Full pytest lane — catches unit/functional regressions (e.g. a stale
+  #      collector key red'ing a unit test — the exact class that shipped to main
+  #      before this hook existed).
+  #   2. Cold-boot gate — catches what the suite structurally cannot: a cold boot
+  #      from zero, per-profile resolution, the real backend, real health.
+  info "Full test lane (scripts/test) ..."
+  if ! scripts/test; then
+    fail "Full test lane RED — aborting promote. origin/main is NOT advanced \
+(req-dev-validation-promote-hook-2). Fix the failing test(s) and re-run."
+  fi
+  info "Full test lane GREEN. Cold-boot gate (scripts/gate) ..."
+  if ! scripts/gate; then
+    fail "Cold-boot gate RED — aborting promote. origin/main is NOT advanced \
+(req-dev-validation-promote-hook-2). Fix the failing step and re-run."
+  fi
+  info "Validation GREEN (full lane + cold-boot gate) — proceeding to push."
+fi
+
+# ---------------------------------------------------------------------------
 # Step 3: atomic dual-refspec push (req-dev-multisession-push-workflow-3).
 # Without --atomic the server may apply each refspec independently — a non-FF
 # on one ref could still leave the other update applied. With --atomic, both

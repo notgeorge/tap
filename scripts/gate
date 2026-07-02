@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# scripts/gate — the TAP development-validation gate (ONE artifact, MANY invokers).
+#
+# Local dev, scripts/promote-to-main.sh, and a future server CI all invoke THIS
+# script identically. It provisions a fresh scratch database on the running
+# compose stack's Postgres, points a `manage.py cold_boot_gate` run at it (inside
+# the compose image — the container Python build is non-stock, so the gate MUST
+# run there, never a reimplemented host env), and drops the scratch DB afterward.
+#
+# The ordered cold-boot cycle itself lives in the management command
+# (tap_boot/management/commands/cold_boot_gate.py); this script owns only the
+# fresh-DB provisioning that a command cannot cleanly do to its own connection.
+#
+# Spec: specs/spec-dev-validation.md (req-dev-validation-smoke-gate,
+# req-dev-validation-real-backend, req-dev-validation-promote-hook).
+#
+# Usage:
+#   scripts/gate                 # run the gate against a fresh scratch DB
+#   scripts/gate --collector <key> --collector-timeout <s>   # passthrough to the command
+#
+# Exit code is the gate's: 0 == GREEN, non-zero == RED (blocks a promote).
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+bold() { printf "\n\033[1m==> %s\033[0m\n" "$1"; }
+info() { printf "    %s\n" "$1"; }
+fail() { printf "\033[31m    ERROR: %s\033[0m\n" "$1" >&2; exit 1; }
+
+SCRATCH_DB="tap_cold_boot_gate"
+DB_USER="${POSTGRES_USER:-tap}"
+DB_PASS="${POSTGRES_PASSWORD:-tap}"
+
+# psql against the maintenance DB on the `db` service, as the superuser role.
+psql_admin() {
+  scripts/dc exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d postgres "$@"
+}
+
+# Confirm the stack is up before we do anything (a clear message beats a compose error).
+if ! scripts/dc ps --status running --services 2>/dev/null | grep -qx web; then
+  fail "compose 'web' service is not running. Start the stack first: scripts/dc up -d"
+fi
+
+drop_scratch() {
+  # WITH (FORCE) terminates any lingering gate connections (conn_max_age keeps them
+  # open briefly) so the drop cannot block. Best-effort on teardown.
+  psql_admin -c "DROP DATABASE IF EXISTS ${SCRATCH_DB} WITH (FORCE);" >/dev/null 2>&1 || true
+}
+
+bold "Provisioning fresh scratch database '${SCRATCH_DB}'"
+drop_scratch
+psql_admin -c "CREATE DATABASE ${SCRATCH_DB} OWNER ${DB_USER};" >/dev/null
+info "created ${SCRATCH_DB} (dropped on exit)"
+
+# Always drop the scratch DB, whether the gate passes, fails, or is interrupted.
+trap drop_scratch EXIT
+
+bold "Running cold_boot_gate inside the compose image"
+SCRATCH_URL="postgres://${DB_USER}:${DB_PASS}@db:5432/${SCRATCH_DB}"
+
+# Allocate a TTY when interactive (colours); use -T under automation (the promote gate).
+tty_args=()
+[[ -t 1 ]] || tty_args=(-T)
+
+set +e
+scripts/dc exec "${tty_args[@]}" -e "DATABASE_URL=${SCRATCH_URL}" web \
+  sh -c 'cd /app && exec uv run python manage.py cold_boot_gate "$@"' _ "$@"
+rc=$?
+set -e
+
+if [[ $rc -eq 0 ]]; then
+  bold "GATE GREEN"
+else
+  bold "GATE RED (exit $rc)"
+fi
+exit $rc

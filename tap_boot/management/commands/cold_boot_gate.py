@@ -1,0 +1,309 @@
+"""`manage.py cold_boot_gate` — the Phase-1 development-validation gate.
+
+The ordered, halt-on-failure check that a freshly-built environment can boot from
+zero and complete one real end-to-end cycle — the thing hands-on dog-fooding
+structurally cannot catch (a cold boot, the spawn-off-`main` path, a cold flow),
+and the mechanical protection of the multi-session workflow: a rotted `main`
+silently poisons every session spawned from it.
+
+Spec: `specs/spec-dev-validation.md` (`req-dev-validation-smoke-gate`,
+`req-dev-validation-real-backend`, `req-dev-validation-known-broken`). This is the
+single artifact the local dev, `scripts/gate`, `scripts/promote-to-main.sh`, and a
+future server CI all invoke identically — never a reimplemented environment. It
+MUST run inside the compose image (the container Python build is non-stock); it is
+driven against a **fresh scratch database** by `scripts/gate` (which sets
+`DATABASE_URL` and provisions/drops the scratch DB around this command).
+
+The ordered cycle (each step halts the gate on failure unless listed in the
+known-broken manifest):
+
+  1. schema:migrate            createcachetable (before migrate — the tap_health
+                               E001 cache-table chicken-and-egg) then migrate from
+                               zero on the empty scratch DB.
+  2. schema:makemigrations     `makemigrations --check` — no model drift with no
+                               migration (the #1 Django gap both NetBox/Nautobot
+                               close and TAP lacked).
+  3. profiles:resolve          every shipped boot profile resolves against the
+                               registries (the per-profile cold-boot smoke; catches
+                               the module-path→slug fire-collector rot class).
+  4. seed:boot-base            run the real `base` boot (auth → strict seed →
+                               collector-node reconcile). A failed bundle fails.
+  5. collector:cycle           one real collector reaches a terminal CollectionJob
+                               state through the REAL DB-backed backend + in-process
+                               drain (never ImmediateBackend), the scheduler queue is
+                               evaluated in the same drain, and grid mutation is
+                               positively asserted via PRODUCED_BATCH edges (an
+                               idempotent no-op is a valid SUCCESSFUL outcome).
+  6. health                    `run_health` — the assembled instance's real backends
+                               (db / cache round-trip / queue / secrets) actually work.
+
+Wall-clock budget: correctness and real-backend fidelity over speed. The human is
+offline during a promote by design; the gate is not latency-optimized.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from django.conf import settings
+from django.core.management import call_command
+from django.core.management.base import BaseCommand, CommandError
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_COLLECTOR = "fedramp_20x_ksi:ksi-catalog"
+DEFAULT_COLLECTOR_TIMEOUT = 120
+# House ratcheting-baseline convention (req-dev-validation-known-broken): in-repo,
+# per-entry justified, ratchets to zero. Empty `entries` == strict mode.
+# parents[2] is the tap_boot/ app dir (this file is tap_boot/management/commands/).
+KNOWN_BROKEN_PATH = Path(__file__).resolve().parents[2] / "tap_boot.cold_boot_gate_known_broken.json"
+
+
+class GateStepFailed(Exception):
+    """A single ordered step failed; the runner decides halt vs. tolerate."""
+
+
+@dataclass(frozen=True)
+class GateStep:
+    step_id: str
+    title: str
+    run: Callable[[Command], str]
+
+
+class Command(BaseCommand):
+    help = "Cold-boot development-validation gate (ordered, halt-on-failure). See specs/spec-dev-validation.md."
+
+    # The gate runs against a FRESH scratch DB where the cache table does not yet
+    # exist, so Django's startup system checks (tap_health E001) would abort before
+    # handle() ever runs step 1 (createcachetable). Defer checks; step 1 provisions
+    # the table, and every call_command below runs its own checks against a
+    # by-then-valid schema.
+    requires_system_checks: tuple[str, ...] = ()
+
+    def add_arguments(self, parser: Any) -> None:
+        parser.add_argument(
+            "--collector",
+            default=DEFAULT_COLLECTOR,
+            help=f"Registry key of the collector fired for the real-backend cycle (default {DEFAULT_COLLECTOR}). "
+            "A deterministic offline canary collector is a drop-in replacement here when one ships.",
+        )
+        parser.add_argument(
+            "--collector-timeout",
+            type=int,
+            default=DEFAULT_COLLECTOR_TIMEOUT,
+            help="Seconds to await the collector's job to a terminal state via the in-process drain.",
+        )
+        parser.add_argument(
+            "--known-broken",
+            default=str(KNOWN_BROKEN_PATH),
+            help="Path to the known-broken manifest (in-repo, ratchets to zero; empty == strict).",
+        )
+
+    def handle(self, *args: Any, **options: Any) -> None:
+        self._guard_real_backend()
+        self._collector_key = options["collector"]
+        self._collector_timeout = options["collector_timeout"]
+        known_broken = self._load_known_broken(Path(options["known_broken"]))
+
+        steps = [
+            GateStep("schema:migrate", "Fresh DB → createcachetable → migrate from zero", self._step_migrate),
+            GateStep("schema:makemigrations", "makemigrations --check (no model drift)", self._step_makemigrations),
+            GateStep("profiles:resolve", "Every shipped boot profile resolves", self._step_profiles_resolve),
+            GateStep("seed:boot-base", "Real `base` boot (auth → strict seed → reconcile)", self._step_boot_base),
+            GateStep("collector:cycle", "One real collector cycle via the real backend", self._step_collector_cycle),
+            GateStep("health", "Assembled-instance health (db / cache / queue / secrets)", self._step_health),
+        ]
+
+        self.stdout.write(f"cold_boot_gate: {len(steps)} step(s); backend={settings.TASKS['default']['BACKEND']}")
+        started = time.monotonic()
+        tolerated: list[str] = []
+        failed_broken: set[str] = set()
+
+        for i, step in enumerate(steps, start=1):
+            self.stdout.write(f"\n[{i}/{len(steps)}] {step.step_id} — {step.title}")
+            try:
+                detail = step.run(self)
+            except Exception as exc:  # noqa: BLE001 — the gate's whole job is to catch and classify
+                if step.step_id in known_broken:
+                    failed_broken.add(step.step_id)
+                    tolerated.append(step.step_id)
+                    logger.warning("[6a5b] cold_boot_gate step %s failed but is known-broken: %s", step.step_id, exc)
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"    KNOWN-BROKEN (tolerated): {exc}\n" f"      reason: {known_broken[step.step_id]}"
+                        )
+                    )
+                    continue
+                logger.error("[513f] cold_boot_gate GATE RED at step %s: %s", step.step_id, exc)
+                raise CommandError(
+                    f"GATE RED at step [{i}/{len(steps)}] {step.step_id}: {exc}\n"
+                    f"The first failing step halts the gate (halt-and-report). "
+                    f"origin/main must not advance past this tree."
+                ) from exc
+            self.stdout.write(self.style.SUCCESS(f"    ok — {detail}"))
+
+        self._ratchet_known_broken(known_broken, failed_broken)
+
+        elapsed = time.monotonic() - started
+        summary = f"GATE GREEN: {len(steps)} step(s) in {elapsed:.1f}s"
+        if tolerated:
+            summary += f" ({len(tolerated)} known-broken tolerated: {', '.join(sorted(set(tolerated)))})"
+        logger.info("[00bc] cold_boot_gate green in %.1fs (%d tolerated)", elapsed, len(tolerated))
+        self.stdout.write("\n" + self.style.SUCCESS(summary))
+
+    # -- guards / manifest ---------------------------------------------------
+
+    def _guard_real_backend(self) -> None:
+        """req-dev-validation-real-backend-1: never the ImmediateBackend substitute."""
+        backend = settings.TASKS["default"]["BACKEND"]
+        if "ImmediateBackend" in backend:
+            raise CommandError(
+                f"Refusing to run the gate under {backend}. The load-bearing requirement "
+                f"(req-dev-validation-real-backend) is the real DB-backed backend; ImmediateBackend "
+                f"runs tasks inline and would stay green through the exact delivery bug class the gate "
+                f"exists to catch. Run via manage.py (tap.settings), not the pytest/test_settings path."
+            )
+
+    def _load_known_broken(self, path: Path) -> dict[str, str]:
+        """Return {step_id: reason}. Missing file == strict (empty)."""
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            raise CommandError(f"known-broken manifest unreadable ({path}): {exc}") from exc
+        entries = data.get("entries", [])
+        broken: dict[str, str] = {}
+        for entry in entries:
+            step_id = entry.get("step")
+            reason = entry.get("reason", "")
+            if not step_id or not reason:
+                raise CommandError(
+                    f"known-broken manifest entry missing 'step' or 'reason' (req-dev-validation-known-broken-3): {entry}"
+                )
+            broken[step_id] = reason
+        return broken
+
+    def _ratchet_known_broken(self, known_broken: dict[str, str], failed_broken: set[str]) -> None:
+        """req-dev-validation-known-broken-2: a listed entry that no longer fails is stale → red."""
+        stale = sorted(set(known_broken) - failed_broken)
+        if stale:
+            raise CommandError(
+                f"GATE RED: known-broken manifest has stale entr(y/ies) that no longer fail: {', '.join(stale)}. "
+                f"The manifest ratchets to zero — remove the fixed entr(y/ies) so 'green' stays honest "
+                f"(req-dev-validation-known-broken-2)."
+            )
+
+    # -- steps ---------------------------------------------------------------
+
+    def _step_migrate(self, _cmd: Command) -> str:
+        # createcachetable BEFORE migrate: the tap_health E001 system check hard-fails
+        # migrate if tap_cache is missing (chicken-and-egg), so provision it first —
+        # the same ordering the container entrypoint uses.
+        call_command("createcachetable", verbosity=0)
+        call_command("migrate", "--noinput", verbosity=0)
+        return "schema built from zero"
+
+    def _step_makemigrations(self, _cmd: Command) -> str:
+        try:
+            call_command("makemigrations", "--check", "--dry-run", verbosity=0)
+        except SystemExit as exc:  # --check exits non-zero when a migration is missing
+            raise GateStepFailed(
+                "model changes have no migration (makemigrations --check failed). "
+                "Run `manage.py makemigrations` and commit the result."
+            ) from exc
+        return "no missing migrations"
+
+    def _step_profiles_resolve(self, _cmd: Command) -> str:
+        from tap_boot.orchestrator import BootError, check_profile
+        from tap_boot.profile import load_profile, profile_ids
+
+        ids = sorted(profile_ids())
+        if not ids:
+            raise GateStepFailed("no shipped boot profiles discovered")
+        for profile_id in ids:
+            try:
+                check_profile(load_profile(profile_id))
+            except BootError as exc:
+                raise GateStepFailed(f"profile '{profile_id}' does not resolve against the registries: {exc}") from exc
+        return f"{len(ids)} profile(s) resolved: {', '.join(ids)}"
+
+    def _step_boot_base(self, _cmd: Command) -> str:
+        from tap_boot.orchestrator import BootError, run_boot
+        from tap_boot.profile import load_profile
+
+        try:
+            run_boot(load_profile("base"), echo=lambda _m: None)
+        except BootError as exc:
+            raise GateStepFailed(f"base boot failed: {exc}") from exc
+        return "base profile booted (auth + strict seed + collector reconcile)"
+
+    def _step_collector_cycle(self, _cmd: Command) -> str:
+        from tap_auth.actors import BOOTLOADER, acting_as, get_builtin_actor
+        from tap_cares.dev_validation import DrainTimeout, drain_ready_executions
+        from tap_cares.models import CollectionJobStatus, Collector
+        from tap_cares.services import run_collection
+        from tap_grid.batch import produced_batches
+
+        key = self._collector_key
+        try:
+            collector = Collector.objects.get(collector_registry=key)
+        except Collector.DoesNotExist as exc:
+            raise GateStepFailed(
+                f"no on-grid Collector for key '{key}' (was it seeded/reconciled by the base boot?)"
+            ) from exc
+
+        # Trigger gate wants a named actor; fire as tap_bootloader (holds the cap).
+        # The collection still executes as the least-privilege tap_cares.collector.
+        with acting_as(get_builtin_actor(BOOTLOADER)):
+            job = run_collection(collector, manual_run=True, manual_run_source="cold_boot_gate")
+        job_id = job.entity_id
+
+        # Real backend: enqueue → commit → in-process drain (dispatch/claim/perform).
+        # The drain also dispatches the scheduler queue, so the scheduler fire is
+        # evaluated in the same run (req-dev-validation-smoke-gate-3).
+        try:
+            performed = drain_ready_executions(deadline=time.monotonic() + self._collector_timeout)
+        except DrainTimeout as exc:
+            raise GateStepFailed(str(exc)) from exc
+
+        job.refresh_from_db()
+        if job.status not in {CollectionJobStatus.SUCCESSFUL.value, CollectionJobStatus.FAILED.value}:
+            raise GateStepFailed(
+                f"collector '{key}' did not reach a terminal state within {self._collector_timeout}s "
+                f"(status={job.status}) after {performed} drained execution(s) — delivery hang."
+            )
+        if job.status == CollectionJobStatus.FAILED.value:
+            raise GateStepFailed(
+                f"collector '{key}' ran through the real backend but FAILED: "
+                f"summary={job.summary!r} errors={(job.results or {}).get('error')}"
+            )
+
+        imported = produced_batches(job_id)["imported"]
+        if imported:
+            return (
+                f"collector '{key}' → terminal SUCCESSFUL via real backend "
+                f"({performed} drained), {len(imported)} GRIFT batch(es) imported "
+                f"(PRODUCED_BATCH, disposition=imported); scheduler evaluated"
+            )
+        # SUCCESSFUL with no import is a legitimate idempotent no-op — the linchpin
+        # (real backend → terminal) is proven; not a failure (req-dev-validation-smoke-gate-4 note).
+        return (
+            f"collector '{key}' → terminal SUCCESSFUL via real backend ({performed} drained), "
+            f"idempotent no-op (no PRODUCED_BATCH this run); scheduler evaluated"
+        )
+
+    def _step_health(self, _cmd: Command) -> str:
+        from tap_health.service import run_health
+
+        report = run_health()
+        if not report.ok:
+            unhealthy = [o.name for o in report.outcomes if o.critical and o.result.status.value == "unhealthy"]
+            raise GateStepFailed(f"health report not ok; critical unhealthy: {unhealthy}")
+        return f"health {report.status.value} ({len(report.outcomes)} probe(s))"

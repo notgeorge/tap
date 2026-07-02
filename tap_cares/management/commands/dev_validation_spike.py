@@ -126,7 +126,12 @@ class Command(BaseCommand):
                 f"is executing inline (ImmediateBackend-like). Gate fidelity is compromised."
             )
 
-        drained = self._drain(deadline=time.monotonic() + timeout)
+        from tap_cares.dev_validation import DrainTimeout, drain_ready_executions
+
+        try:
+            drained = drain_ready_executions(deadline=time.monotonic() + timeout)
+        except DrainTimeout as exc:
+            raise CommandError(f"GATE RED: {exc}") from exc
         self.stdout.write(f"drain: performed {drained} execution(s)")
 
         job.refresh_from_db()
@@ -184,44 +189,3 @@ class Command(BaseCommand):
                 f"catalog entities first, then re-run)."
             )
         )
-
-    def _drain(self, *, deadline: float, batch: int = 100) -> int:
-        """Synchronously drain the real Steady Queue ready set until empty/deadline.
-
-        Uses the production primitives (dispatch -> claim -> perform) without the
-        supervisor/fork/thread-pool. `ReadyExecution.claim` short-circuits to []
-        on a None process_id, so a synthetic Process is registered for the drain
-        and deregistered afterward (no fork/heartbeat/supervisor — claim+perform
-        only).
-        """
-        import os
-
-        from steady_queue.models.process import Process
-        from steady_queue.models.ready_execution import ReadyExecution
-        from steady_queue.models.scheduled_execution import ScheduledExecution
-
-        queues = ["default", "scheduler"]
-        performed = 0
-        proc = Process.register(
-            kind="DevValidationDrain",
-            name=f"dev-validation-spike-{os.getpid()}",
-            pid=os.getpid(),
-            hostname="dev-validation-spike",
-            metadata={},
-        )
-        try:
-            while True:
-                ScheduledExecution.dispatch_next_batch(batch)
-                claimed = ReadyExecution.objects.claim(queues, batch, proc.id)
-                for execution in claimed:
-                    execution.perform()
-                    performed += 1
-                if time.monotonic() > deadline:
-                    raise CommandError(
-                        f"GATE RED: drain exceeded deadline after performing {performed} "
-                        f"execution(s); queue not draining (delivery hang)."
-                    )
-                if not claimed and ScheduledExecution.objects.count() == 0:
-                    return performed
-        finally:
-            proc.deregister()

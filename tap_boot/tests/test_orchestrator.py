@@ -16,7 +16,12 @@ from tap_boot.profile import BootProfile, FireCollectorStep, SeedPluginStep
 # A real registered collector key, fired with no credentials in these tests by
 # mocking the fire op — pre-resolution still resolves it against the grid node
 # that the population phase reconciles.
-_KSI_COLLECTOR = "tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog"
+# Registered as scope:key = plugin-slug:key (register_collector scope is the plugin
+# slug since the 2026-07-02 collector-identity refactor). The old module-path scope
+# (tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog) no longer resolves —
+# using it here silently red these tests once the refactor landed (the same rot
+# tap_boot/tests/test_shipped_profiles_resolve.py now guards against for shipped profiles).
+_KSI_COLLECTOR = "fedramp_20x_ksi:ksi-catalog"
 
 
 def _profile(*steps, on_failure="abort") -> BootProfile:
