@@ -160,8 +160,9 @@ INSTALLED_APPS = [
     # tap_cares — runtime plumbing for collectors/receivers/emitters/actions/schedules.
     # Loaded before plugins so collector_registry exists when plugin AppConfigs ready().
     "tap_cares.apps.TapCaresConfig",
-    # Administrivia plugin — TAP administrative pages and infrastructure
-    "plugins.administrivia.apps.AdministriviaConfig",
+    # Administrivia plugin — migrated to package-mode 2026-07-01
+    # (tap_plugin.administrivia); loads via TAP_PLUGINS_APPS from the profile
+    # `install` section.
     # LOTR plugin — Middle-earth entities for constraint testing.
     # NOTE 2026-05-19: kept in INSTALLED_APPS deliberately — it is the
     # load-bearing test-fixture vocabulary for core tap_grid/tap_api
@@ -170,8 +171,8 @@ INSTALLED_APPS = [
     # *seed data* is the instance clutter; decouple that from spawn rather
     # than de-registering the app. See the lotr-vs-genericom note.
     "plugins.lotr.apps.LotrConfig",
-    # Computing Core plugin — vendor-neutral computing primitives
-    "plugins.computing_core.apps.ComputingCoreConfig",
+    # Computing Core plugin — migrated to package-mode 2026-07-01
+    # (tap_plugin.computing_core); loads via TAP_PLUGINS_APPS.
     # AWS Core plugin — resource-type models for AWS cloud infrastructure
     "plugins.aws_core.apps.AwsCoreConfig",
     # GitHub Core plugin — migrated to package-mode 2026-07-01
@@ -191,11 +192,10 @@ INSTALLED_APPS = [
     # plugins/genericom/ but NOT loaded — real-account work (samsite)
     # supersedes it. Re-add this line to revive.
     # "plugins.genericom.apps.GenericomConfig",
-    # ROSCALE plugin — OSCAL Read/Edit presentation layer. Registers the
-    # roscale-oscal-workbench and roscale-oscal-poam-workbench panel types
-    # that samsite's compliance-pages GRIFT consumes. Loads before samsite
-    # so the panel-type registry is populated when samsite renders.
-    "plugins.roscale.apps.RoscaleConfig",
+    # ROSCALE plugin — migrated to package-mode 2026-07-01 (tap_plugin.roscale).
+    # Install-only (registers the roscale-oscal-workbench panel types samsite's
+    # compliance pages consume); loads via TAP_PLUGINS_APPS from the profile
+    # `install` section, before samsite (still build-baked, below).
     # Samsite plugin — projection of the live AWS cross-deployment of
     # samaydlette.com (target of the Sam demo, 2026-06-01). Owns the
     # landing page + first cytoscape graph panel against real boto3 data.

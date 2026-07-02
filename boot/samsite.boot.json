@@ -4,6 +4,24 @@
   "install": {
     "plugins": [
       {
+        "slug": "administrivia",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/administrivia" },
+        "note": "Package-mode (tap_plugin.administrivia), 2026-07-01. TAP admin pages + grid landing + cares administrivia; seeded in population."
+      },
+      {
+        "slug": "computing_core",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/computing_core" },
+        "note": "Package-mode (tap_plugin.computing_core), 2026-07-01. Vendor-neutral computing-primitive dimension; seeded in population."
+      },
+      {
+        "slug": "roscale",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/roscale" },
+        "note": "Package-mode (tap_plugin.roscale), 2026-07-01. Install-only: registers the OSCAL workbench panel types samsite's compliance pages consume; no grift seed, no collector, so it is not a population step."
+      },
+      {
         "slug": "github_core",
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/github_core" },

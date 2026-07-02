@@ -17,10 +17,10 @@ import pytest
 from django.template.loader import render_to_string
 from django.test import RequestFactory
 
-from plugins.administrivia.tap_cares.panels.collector_detail import (
+from tap_plugin.administrivia.tap_cares.panels.collector_detail import (
     CollectorDetailPanelType,
 )
-from plugins.administrivia.tap_cares.panels.collector_table import (
+from tap_plugin.administrivia.tap_cares.panels.collector_table import (
     CollectorTablePanelType,
 )
 from tap_cares.collectors import (
@@ -65,12 +65,12 @@ def _register() -> Collector:
     register_collector(
         key="unconfigured",
         cls=UnconfiguredCollector,
-        scope="plugins.administrivia.tests",
+        scope="tap_plugin.administrivia.tests",
         name="Unconfigured test collector",
         description="Fixture collector for self-test UI.",
     )
     reconcile_collector_nodes()  # materialize the on-grid node (register is read-only)
-    return Collector.objects.get(collector_registry="plugins.administrivia.tests:unconfigured")
+    return Collector.objects.get(collector_registry="tap_plugin.administrivia.tests:unconfigured")
 
 
 @pytest.mark.django_db

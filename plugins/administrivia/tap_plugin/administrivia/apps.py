@@ -9,19 +9,19 @@ class AdministriviaConfig(TapPluginConfig):
 
         # CARES Administrivia panels (req-tap-cares-administrivia-* in
         # tap_cares/specs/spec-tap-cares-administrivia.md).
-        from plugins.administrivia.tap_cares.panels.collector_detail import (
+        from tap_plugin.administrivia.tap_cares.panels.collector_detail import (
             CollectorDetailPanelType,
         )
-        from plugins.administrivia.tap_cares.panels.collector_table import (
+        from tap_plugin.administrivia.tap_cares.panels.collector_table import (
             CollectorTablePanelType,
         )
-        from plugins.administrivia.tap_cares.panels.run_detail import (
+        from tap_plugin.administrivia.tap_cares.panels.run_detail import (
             RunDetailPanelType,
         )
-        from plugins.administrivia.tap_cares.panels.schedule_detail import (
+        from tap_plugin.administrivia.tap_cares.panels.schedule_detail import (
             ScheduleDetailPanelType,
         )
-        from plugins.administrivia.tap_cares.panels.schedule_table import (
+        from tap_plugin.administrivia.tap_cares.panels.schedule_table import (
             ScheduleTablePanelType,
         )
         from tap_web.registry import panel_type_registry

@@ -52,13 +52,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # tap/tests/test_preboot.py::test_build_baked_matches_installed_apps.
 BUILD_BAKED_PLUGIN_SLUGS: frozenset[str] = frozenset(
     {
-        "administrivia",
+        # administrivia migrated to package-mode 2026-07-01 (tap_plugin.administrivia).
         "lotr",
-        "computing_core",
+        # computing_core migrated to package-mode 2026-07-01 (tap_plugin.computing_core).
         "aws_core",
         # github_core migrated to package-mode 2026-07-01 (tap_plugin.github_core).
         "sigstore_core",
-        "roscale",
+        # roscale migrated to package-mode 2026-07-01 (tap_plugin.roscale).
         "samsite",
         # fedramp_20x_ksi migrated to package-mode 2026-07-01 (first namespaced
         # plugin) — no longer build-baked; installed via the profile `install` section.

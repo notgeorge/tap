@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from plugins.roscale.panels._common import build_provenance, parse
+from tap_plugin.roscale.panels._common import build_provenance, parse
 from plugins.samsite.scoring import (
     INDICATOR_ACCEPTED,
     INDICATOR_GAP,

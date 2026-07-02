@@ -15,9 +15,9 @@ import json
 from collections import Counter
 from typing import Any
 
-from plugins.roscale.constants import control_family_label
-from plugins.roscale.parser import ParseResult, parse
-from plugins.roscale.validator import ValidationResult, validate
+from tap_plugin.roscale.constants import control_family_label
+from tap_plugin.roscale.parser import ParseResult, parse
+from tap_plugin.roscale.validator import ValidationResult, validate
 
 
 def build_provenance(node: dict[str, Any]) -> dict[str, Any]:

@@ -6,10 +6,10 @@ from tap_plugins.base import TapPluginConfig
 class RoscaleConfig(TapPluginConfig):
     def ready(self) -> None:
         super().ready()
-        from plugins.roscale.panels.oscal_poam_workbench import (
+        from tap_plugin.roscale.panels.oscal_poam_workbench import (
             OscalPoamWorkbenchPanelType,
         )
-        from plugins.roscale.panels.oscal_workbench import OscalWorkbenchPanelType
+        from tap_plugin.roscale.panels.oscal_workbench import OscalWorkbenchPanelType
         from tap_web.registry import panel_type_registry
 
         panel_type_registry.register(

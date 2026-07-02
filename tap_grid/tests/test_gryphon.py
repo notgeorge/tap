@@ -2708,7 +2708,7 @@ class TestGryphonObservationExecutor:
         nullable `mac_address` column, exercising the genuine null axis."""
         import uuid
 
-        from plugins.computing_core.models.network_interface import NetworkInterface
+        from tap_plugin.computing_core.models.network_interface import NetworkInterface
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 
         set_caller_context(CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4())))
