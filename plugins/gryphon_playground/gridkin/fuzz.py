@@ -519,9 +519,9 @@ def run_query(document: dict[str, Any], query: str) -> QueryOutcome:
       cleanly rejected, never crashed. Reported as a failure, never swallowed.
     """
     try:
-        result = explain_gryphon_raw(
+        result = explain_gryphon_raw(  # TAP-AUTHZ-COV: pytest-only fuzz harness, not a production path
             query, {}, db_alias="default", layer="full"
-        )  # TAP-AUTHZ-COV: pytest-only fuzz harness
+        )
     except SearchExecutionError as exc:
         # Differentiate an out-of-surface shape from a genuine over-rejection by
         # asking whether the oracle even models the query.
