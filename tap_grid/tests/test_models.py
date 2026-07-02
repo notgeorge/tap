@@ -13,7 +13,6 @@ from tap_grid.exceptions import EdgePropertyValidationError
 from tap_grid.models import BaseModel, Edge, Entity, EntityType
 from tap_grid.registry import get_model_class, register_entity_type, resolve_entity
 from tap_grid.services import create_entity
-from tap_plugins.base import TapPluginConfig
 
 
 class TestBaseModelDisplayNameContract:
@@ -45,20 +44,6 @@ class TestEntityType:
             defaults={"name": "ConstrainedSource Changed", "plugin_name": "test"},
         )
         assert EntityType.objects.filter(slug="grid_fixtures__constrained_source").count() == 1
-
-    def test_types_registered_by_lotr(self):
-        """The lotr plugin registers character, location, artifact, CONSTRAINED_LINK__grid_fixtures, SCHEMA_LINK__grid_fixtures, etc."""
-        from tap_grid.registry import get_model_class
-
-        app_config = apps.get_app_config("lotr")
-        assert isinstance(app_config, TapPluginConfig)
-        # Types are registered in the in-memory model registry by ready()
-        for entity_type in (
-            "grid_fixtures__constrained_source",
-            "grid_fixtures__constrained_target",
-            "grid_fixtures__dual_endpoint",
-        ):
-            assert get_model_class(entity_type) is not None
 
 
 @pytest.mark.django_db

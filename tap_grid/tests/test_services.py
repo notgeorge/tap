@@ -794,7 +794,7 @@ class TestDiscoveryFunctions:
         from tap_grid.services import describe_node_type
 
         desc = describe_node_type("grid_fixtures__constrained_source")
-        # character has OUTBOUND_EDGES defined in LOTR plugin
+        # constrained_source has OUTBOUND_EDGES defined in the grid_fixtures plugin
         assert isinstance(desc.outbound_edge_types, list)
         assert isinstance(desc.inbound_edge_types, list)
 

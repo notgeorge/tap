@@ -712,14 +712,14 @@ class TestTablePanelEditForm:
 class TestTablePanelIconEnrichment:
     """Nodes returned by get_view_context carry icon_url for display."""
 
-    def _lotr_entity_types(self):
-        """Seed LOTR EntityType records without re-registering edge constraints."""
+    def _seed_fixture_entity_types(self):
+        """Seed grid_fixtures EntityType records without re-registering edge constraints."""
         from django.apps import apps
         from django.utils.module_loading import import_string
 
         from tap_grid.models import EntityType
 
-        app_config = apps.get_app_config("lotr")
+        app_config = apps.get_app_config("grid_fixtures")
         manifest = app_config.manifest
         for entry in manifest.models:
             cls = import_string(entry.class_path)
@@ -737,17 +737,17 @@ class TestTablePanelIconEnrichment:
         """batch_resolve_icon_urls returns non-empty URL for entity types with icons."""
         from tap_grid.grift.subgraph import batch_resolve_icon_urls
 
-        self._lotr_entity_types()
-        icon_map = batch_resolve_icon_urls({"character"})
-        assert icon_map.get("character", "") != ""
+        self._seed_fixture_entity_types()
+        icon_map = batch_resolve_icon_urls({"grid_fixtures__constrained_source"})
+        assert icon_map.get("grid_fixtures__constrained_source", "") != ""
 
     def test_icon_url_empty_for_type_without_icon(self):
         """batch_resolve_icon_urls returns empty string for types without icons."""
         from tap_grid.grift.subgraph import batch_resolve_icon_urls
 
-        self._lotr_entity_types()
-        icon_map = batch_resolve_icon_urls({"faction"})
-        assert icon_map.get("faction", "") == ""
+        self._seed_fixture_entity_types()
+        icon_map = batch_resolve_icon_urls({"grid_fixtures__peer_group"})
+        assert icon_map.get("grid_fixtures__peer_group", "") == ""
 
     def test_icon_url_empty_for_unknown_entity_type(self):
         """batch_resolve_icon_urls returns empty map for unregistered types."""
@@ -765,13 +765,13 @@ class TestTablePanelIconEnrichment:
         panel = _create_table_panel()
         search = _create_search()
         _link_search(panel, search)
-        self._lotr_entity_types()
+        self._seed_fixture_entity_types()
 
         fake_envelope = {
             "nodes": [
                 {
                     "entity": {
-                        "entity_type": "character",
+                        "entity_type": "grid_fixtures__constrained_source",
                         "entity_id": "abc",
                         "name": "Frodo",
                         "dimensions": {},
@@ -779,8 +779,8 @@ class TestTablePanelIconEnrichment:
                         "updated_at": None,
                         "deleted_at": None,
                     },
-                    "node": {"name": "Frodo", "bio": "A hobbit"},
-                    "icon_url": "/static/lotr/icons/character.svg",
+                    "node": {"name": "Frodo", "description": "A hobbit"},
+                    "icon_url": "/static/grid_fixtures/icons/constrained-source.svg",
                     "shape": "ellipse",
                     "url_id": "frodo--abc",
                 }

@@ -1,6 +1,6 @@
 """Tests for the plugin validation service.
 
-Tests validate_plugin() against real plugin directories (LOTR, administrivia)
+Tests validate_plugin() against real plugin directories (administrivia, aws_core)
 and synthetic fixtures to cover error paths.
 """
 
@@ -49,18 +49,14 @@ def _make_plugin(tmp_path: Path, *, toml: str, extra_files: dict[str, str] | Non
 class TestRealPlugins:
     """Validate existing plugins in the repo to confirm the service works end-to-end."""
 
-    def test_lotr_passes(self):
-        result = validate_plugin(PLUGINS_ROOT / "lotr")
+    def test_administrivia_passes(self):
+        result = validate_plugin(PLUGINS_ROOT / "administrivia")
         assert result.ok, result.to_human()
         assert result.level == "structure"
         assert not result.strict
 
-    def test_administrivia_passes(self):
+    def test_administrivia_json_output_validates(self):
         result = validate_plugin(PLUGINS_ROOT / "administrivia")
-        assert result.ok, result.to_human()
-
-    def test_lotr_json_output_validates(self):
-        result = validate_plugin(PLUGINS_ROOT / "lotr")
         json_str = result.to_json()
         doc = json.loads(json_str)
         assert doc["ok"] is True
@@ -68,11 +64,11 @@ class TestRealPlugins:
         assert isinstance(doc["checks"], list)
         assert len(doc["checks"]) > 0
 
-    def test_lotr_human_output(self):
-        result = validate_plugin(PLUGINS_ROOT / "lotr")
+    def test_administrivia_human_output(self):
+        result = validate_plugin(PLUGINS_ROOT / "administrivia")
         human = result.to_human()
         assert "PASS" in human
-        assert "lotr" in human.lower() or "Lord of the Rings" in human
+        assert "administrivia" in human.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -108,13 +104,13 @@ class TestLevels:
             validate_plugin(plugin_dir, level="bogus")
 
     def test_loads_level_accepted(self):
-        result = validate_plugin(PLUGINS_ROOT / "lotr", level="loads")
+        result = validate_plugin(PLUGINS_ROOT / "administrivia", level="loads")
         assert result.ok, result.to_human()
         assert result.level == "loads"
 
     @pytest.mark.django_db
     def test_runs_level_accepted(self):
-        result = validate_plugin(PLUGINS_ROOT / "lotr", level="runs")
+        result = validate_plugin(PLUGINS_ROOT / "administrivia", level="runs")
         assert result.ok, result.to_human()
         assert result.level == "runs"
 
@@ -310,13 +306,11 @@ class TestSummary:
 
 
 class TestLoadsLevel:
-    def test_lotr_loads_passes(self):
-        result = validate_plugin(PLUGINS_ROOT / "lotr", level="loads")
-        assert result.ok, result.to_human()
-        check_ids = {c.id for c in result.checks}
-        assert "model-classes" in check_ids
-        assert "editor-classes" in check_ids
-        assert "search-callables" in check_ids
+    # The editor-classes / search-callables loads checks only fire for a plugin
+    # that DECLARES editors + searches — lotr is the only such plugin, so that
+    # path is covered by lotr's own manifest self-test
+    # (plugins/lotr/tests/test_lotr_manifest.py). Here we cover the model path
+    # with aws_core + administrivia.
 
     def test_aws_core_loads_passes(self):
         result = validate_plugin(PLUGINS_ROOT / "aws_core", level="loads")
@@ -325,8 +319,8 @@ class TestLoadsLevel:
         assert model_check.status == "pass"
         # One info per registered model. Count is NOT pinned: aws_core grows
         # toward the full set (task #23), so a hardcoded literal is brittle
-        # by construction (it was `== 37`; aws_core is already at 40). Match
-        # the non-brittle convention of the lotr sibling tests above.
+        # by construction (it was `== 37`; aws_core is already at 40). Presence,
+        # not a pinned count, is the invariant.
         info_msgs = [m for m in model_check.messages if m.severity == "info"]
         assert info_msgs
         assert all(m.text.startswith("Model ") for m in info_msgs)
@@ -336,7 +330,7 @@ class TestLoadsLevel:
         assert result.ok, result.to_human()
 
     def test_loads_includes_structure_checks(self):
-        result = validate_plugin(PLUGINS_ROOT / "lotr", level="loads")
+        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="loads")
         check_ids = {c.id for c in result.checks}
         # Structure checks should still be present
         assert "plugin-root" in check_ids
@@ -351,13 +345,9 @@ class TestLoadsLevel:
 
 @pytest.mark.django_db
 class TestRunsLevel:
-    def test_lotr_runs_passes(self):
-        result = validate_plugin(PLUGINS_ROOT / "lotr", level="runs")
-        assert result.ok, result.to_human()
-        check_ids = {c.id for c in result.checks}
-        assert "create-nodes" in check_ids
-        assert "create-edges" in check_ids
-        assert "grift-import" in check_ids
+    # grift-import runs coverage against a real grift lives in lotr's manifest
+    # self-test (plugins/lotr/tests/test_lotr_manifest.py); aws_core covers the
+    # create-nodes / create-edges runs path here.
 
     def test_aws_core_runs_passes(self):
         result = validate_plugin(PLUGINS_ROOT / "aws_core", level="runs")
@@ -372,7 +362,7 @@ class TestRunsLevel:
         assert all(m.text.startswith("create_node(") for m in ok_msgs)
 
     def test_runs_includes_loads_and_structure(self):
-        result = validate_plugin(PLUGINS_ROOT / "lotr", level="runs")
+        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="runs")
         check_ids = {c.id for c in result.checks}
         # Structure checks
         assert "plugin-root" in check_ids
@@ -393,7 +383,7 @@ class TestRunsLevel:
         assert count_after == count_before
 
     def test_runs_json_output(self):
-        result = validate_plugin(PLUGINS_ROOT / "lotr", level="runs")
+        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="runs")
         doc = json.loads(result.to_json())
         assert doc["ok"] is True
         assert doc["level"] == "runs"
