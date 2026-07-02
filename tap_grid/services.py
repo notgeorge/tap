@@ -1602,6 +1602,7 @@ def _assert_test_or_debug(fn_name: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+@requires_capability("grid.read", operation="resolve_entity")
 def resolve_entity(target: str | uuid.UUID) -> Entity:
     """Return the Entity row for the given entity UUID.
 
@@ -1621,6 +1622,7 @@ def resolve_entity(target: str | uuid.UUID) -> Entity:
     return _load_entity_or_raise(entity_id)
 
 
+@requires_capability("grid.read", operation="get_node")
 def get_node(target: str | uuid.UUID) -> Any:
     """Return the typed domain node instance for the given entity UUID.
 
@@ -1653,6 +1655,7 @@ def get_node(target: str | uuid.UUID) -> Any:
         raise ServiceNotFoundError(f"Node {entity_id} not found.") from exc
 
 
+@requires_capability("grid.read", operation="get_edge")
 def get_edge(target: str | uuid.UUID) -> Edge:
     """Return the Edge instance for the given entity UUID.
 
@@ -1675,6 +1678,7 @@ def get_edge(target: str | uuid.UUID) -> Edge:
         raise ServiceNotFoundError(f"Edge {entity_id} not found.") from exc
 
 
+@requires_capability("grid.read", operation="get_object")
 def get_object(target: str | uuid.UUID) -> Any:
     """Return the typed domain instance for the given entity UUID (node or edge).
 
